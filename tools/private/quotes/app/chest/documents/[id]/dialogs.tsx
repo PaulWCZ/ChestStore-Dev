@@ -1,14 +1,14 @@
 "use client";
 
+import { Confirm, DateField, Dialog } from "@argentic/chest-ui/components";
+import { addDays } from "@argentic/chest-ui/components/logic";
 import { useEffect, useState } from "react";
-import { Dialog } from "../../../../components/dialog.tsx";
-import { Alert, Download, Info, Seal, Send } from "../../../../components/icons.tsx";
+import { Alert, Download, Info, Send } from "../../../../components/icons.tsx";
 import { format, languageNames } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney, inputAmount, parsePercent } from "../../../../lib/money.ts";
 import type { DocView, Message } from "../../../../lib/views.ts";
 import { addPayment, finalise, invoiceFromQuote, markReminded, markSent, messageFor, remind, repeatInvoice, send } from "../../actions.ts";
-import { DateField } from "../../../../components/date-field.tsx";
 
 type Close = { onClose: () => void };
 const errorText = (t: Catalogue, code: string, values?: Record<string, number | string>) => format(t.errors[code as keyof Catalogue["errors"]] ?? t.errors.unknown, values ?? {});
@@ -16,9 +16,11 @@ const errorText = (t: Catalogue, code: string, values?: Record<string, number | 
 // Sending a document (or a reminder) to the client: by email with the PDF,
 // in the client's language, the words changeable; or by one's own means
 // where the Chest cannot send email yet.
-export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }: Close & { t: Catalogue; doc: DocView; kind: "send" | "reminder"; mailWorks: boolean | null; pdfHref: string; onDone: (text: string) => void }) {
+// `onDone` says whether an email left (its toast then never offers Undo).
+export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }: Close & { t: Catalogue; doc: DocView; kind: "send" | "reminder"; mailWorks: boolean | null; pdfHref: string; onDone: (text: string, emailed: boolean) => void }) {
   const s = t.send;
   const [message, setMessage] = useState<Message | null>(null);
+  const [prepared, setPrepared] = useState<Message | null>(null);
   const [byHand, setByHand] = useState(mailWorks === false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,7 +28,7 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
     let live = true;
     void messageFor(doc.id, kind).then(r => {
       if (!live) return;
-      if (r.ok) setMessage(r.value);
+      if (r.ok) { setMessage(r.value); setPrepared(r.value); }
       else setError(errorText(t, r.error, r.values));
     });
     return () => { live = false; };
@@ -44,17 +46,18 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
       setByHand(true);
       return;
     }
-    onDone(format(kind === "reminder" ? s.reminded : s.sent, { to: message.to }));
+    onDone(format(kind === "reminder" ? s.reminded : s.sent, { to: message.to }), true);
   }
   async function manual() {
     setBusy(true);
     const result = kind === "reminder" ? await markReminded(doc.id) : await markSent(doc.id);
     setBusy(false);
     if (!result.ok) return setError(errorText(t, result.error, result.values));
-    onDone(kind === "reminder" ? s.remindedByHand : s.markedSent);
+    onDone(kind === "reminder" ? s.remindedByHand : s.markedSent, false);
   }
   return (
-    <Dialog open title={title} closeLabel={t.shell.close} onClose={onClose}>
+    <Dialog open title={title} onClose={onClose} labels={t.dialog} size="l"
+      dirty={!byHand && message !== null && prepared !== null && JSON.stringify(message) !== JSON.stringify(prepared)}>
       {byHand ? (
         <>
           <div className="callout quiet" role="note">
@@ -112,6 +115,7 @@ export function FinaliseDialog({ t, doc, upcoming, companyMissing, clientMissing
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const blocked = companyMissing.length > 0 || clientMissing.length > 0 || !doc.clientId;
+  const title = doc.type === "credit" ? f.creditTitle : f.title;
   async function go() {
     setBusy(true);
     const result = await finalise(doc.id);
@@ -119,42 +123,39 @@ export function FinaliseDialog({ t, doc, upcoming, companyMissing, clientMissing
     if (!result.ok) return setError(errorText(t, result.error, result.values));
     onDone(result.value.number);
   }
+  if (!blocked) {
+    // The act that cannot be taken back: the kit's Confirm (it opens on
+    // "Not yet"; its button repeats the act and the number).
+    return (
+      <Confirm open tone="accent" title={title} busy={busy}
+        body={<><p>{format(doc.type === "credit" ? f.creditBody : f.body, { number: upcoming ?? "" })}</p><p className="hint">{f.law}</p></>}
+        confirmLabel={format(f.confirm, { number: upcoming ?? "" })} cancelLabel={f.notYet} onConfirm={() => void go()} onCancel={onClose}>
+        {error && <p className="error" role="alert">{error}</p>}
+      </Confirm>
+    );
+  }
   return (
-    <Dialog open title={doc.type === "credit" ? f.creditTitle : f.title} closeLabel={t.shell.close} onClose={onClose}>
-      {blocked ? (
-        <>
-          <div className="callout" role="note">
-            <Alert />
-            <div>
-              {companyMissing.length > 0 && (
-                <>
-                  <p><strong>{f.companyMissing}</strong></p>
-                  <ul className="missing-list">{companyMissing.map(m => <li key={m}>{t.settings.fields[m as keyof Catalogue["settings"]["fields"]] ?? m}</li>)}</ul>
-                  {!canSettings && <p>{f.askAdmin}</p>}
-                </>
-              )}
-              {!doc.clientId && <p><strong>{t.errors.no_client}</strong></p>}
-              {clientMissing.some(m => m !== "vatNumber") && <p><strong>{f.clientMissing}</strong></p>}
-              {clientMissing.includes("vatNumber") && <p><strong>{f.clientVatMissing}</strong></p>}
-            </div>
-          </div>
-          <div className="dialog-actions">
-            {companyMissing.length !== 0 && canSettings && <a className="button" href="/chest/settings">{f.toSettings}</a>}
-            {clientMissing.length !== 0 && doc.clientId && <a className="button" href={`/chest/clients/${doc.clientId}`}>{f.toClient}</a>}
-            <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p>{format(doc.type === "credit" ? f.creditBody : f.body, { number: upcoming ?? "" })}</p>
-          <p className="hint">{f.law}</p>
-          {error && <p className="error" role="alert">{error}</p>}
-          <div className="dialog-actions">
-            <button type="button" className="button quiet" onClick={onClose}>{f.notYet}</button>
-            <button type="button" className="button accent" disabled={busy} onClick={() => void go()}><Seal />{format(f.confirm, { number: upcoming ?? "" })}</button>
-          </div>
-        </>
-      )}
+    <Dialog open title={title} onClose={onClose} labels={t.dialog}>
+      <div className="callout" role="note">
+        <Alert />
+        <div>
+          {companyMissing.length > 0 && (
+            <>
+              <p><strong>{f.companyMissing}</strong></p>
+              <ul className="missing-list">{companyMissing.map(m => <li key={m}>{t.settings.fields[m as keyof Catalogue["settings"]["fields"]] ?? m}</li>)}</ul>
+              {!canSettings && <p>{f.askAdmin}</p>}
+            </>
+          )}
+          {!doc.clientId && <p><strong>{t.errors.no_client}</strong></p>}
+          {clientMissing.some(m => m !== "vatNumber") && <p><strong>{f.clientMissing}</strong></p>}
+          {clientMissing.includes("vatNumber") && <p><strong>{f.clientVatMissing}</strong></p>}
+        </div>
+      </div>
+      <div className="dialog-actions">
+        <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
+        {companyMissing.length !== 0 && canSettings && <a className="button" href="/chest/settings">{f.toSettings}</a>}
+        {clientMissing.length !== 0 && doc.clientId && <a className="button" href={`/chest/clients/${doc.clientId}`}>{f.toClient}</a>}
+      </div>
     </Dialog>
   );
 }
@@ -177,7 +178,7 @@ export function InvoiceDialog({ t, doc, onClose, onDone }: Close & { t: Catalogu
     onDone(result.value.id);
   }
   return (
-    <Dialog open title={w.title} closeLabel={t.shell.close} onClose={onClose}>
+    <Dialog open title={w.title} onClose={onClose} labels={t.dialog} dirty={mode !== "whole" || percent !== "30"}>
       <form className="form-grid" onSubmit={submit} noValidate>
         <fieldset className="choice">
           <legend>{w.what}</legend>
@@ -187,7 +188,7 @@ export function InvoiceDialog({ t, doc, onClose, onDone }: Close & { t: Catalogu
         {mode === "deposit" && (
           <div className="field-row third">
             <label htmlFor="percent">{w.percent}</label>
-            <input id="percent" className="field num" inputMode="decimal" value={percent} onChange={e => setPercent(e.target.value)} aria-invalid={value === null ? true : undefined} autoFocus />
+            <input id="percent" className="field num" inputMode="decimal" value={percent} onChange={e => setPercent(e.target.value)} aria-invalid={value === null ? true : undefined} />
           </div>
         )}
         {error && <p className="error" role="alert">{error}</p>}
@@ -204,7 +205,7 @@ export function InvoiceDialog({ t, doc, onClose, onDone }: Close & { t: Catalogu
 // the method.
 export function PaymentDialog({ t, doc, locale, today, onClose, onDone }: Close & { t: Catalogue; doc: DocView; locale: Locale; today: string; onDone: (text: string) => void }) {
   const p = t.payment;
-  const [paidOn, setPaidOn] = useState(today);
+  const [paidOn, setPaidOn] = useState<string | null>(today);
   const [amount, setAmount] = useState(inputAmount(doc.due, doc.currency, locale));
   const [method, setMethod] = useState("transfer");
   const [note, setNote] = useState("");
@@ -212,6 +213,7 @@ export function PaymentDialog({ t, doc, locale, today, onClose, onDone }: Close 
   const [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!paidOn) return setError(t.errors.date_invalid);
     setBusy(true);
     const result = await addPayment(doc.id, { paidOn, amount, method, note });
     setBusy(false);
@@ -219,16 +221,16 @@ export function PaymentDialog({ t, doc, locale, today, onClose, onDone }: Close 
     onDone(result.value.due > 0 ? format(p.partly, { left: formatMoney(result.value.due, doc.currency, locale) }) : p.paid);
   }
   return (
-    <Dialog open title={p.title} closeLabel={t.shell.close} onClose={onClose}>
+    <Dialog open title={p.title} onClose={onClose} labels={t.dialog} dirty={amount !== inputAmount(doc.due, doc.currency, locale) || note !== "" || paidOn !== today || method !== "transfer"}>
       <form className="form-grid" onSubmit={submit} noValidate>
         <div className="field-row half">
           <label htmlFor="amount">{p.amount}</label>
-          <input id="amount" className="field num" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+          <input id="amount" className="field num" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} />
           <span className="hint">{format(p.left, { amount: formatMoney(doc.due, doc.currency, locale) })}</span>
         </div>
-        <div className="field-row half">
-          <label htmlFor="paid-on">{p.date}</label>
-          <input id="paid-on" className="field" type="date" value={paidOn} max={today} onChange={e => setPaidOn(e.target.value)} />
+        <div className="half">
+          <DateField id="paid-on" label={p.date} value={paidOn} onChange={setPaidOn} today={today} max={today} required labels={t.date}
+            chips={[{ label: t.date.today, value: today }, { label: t.date.yesterday, value: addDays(today, -1) }]} />
         </div>
         <div className="field-row half">
           <label htmlFor="method">{p.method}</label>
@@ -253,14 +255,15 @@ export function PaymentDialog({ t, doc, locale, today, onClose, onDone }: Close 
 
 // Repeating an issued invoice: every month, quarter or year, a draft is
 // prepared for billing. The first date is one period after the invoice's.
-export function RepeatDialog({ t, doc, locale, suggested, onClose, onDone }: Close & { t: Catalogue; doc: DocView; locale: Locale; suggested: Record<"month" | "quarter" | "year", string>; onDone: (date: string) => void }) {
+export function RepeatDialog({ t, doc, today, suggested, onClose, onDone }: Close & { t: Catalogue; doc: DocView; today: string; suggested: Record<"month" | "quarter" | "year", string>; onDone: (date: string) => void }) {
   const r = t.repeatDialog;
   const [every, setEvery] = useState<"month" | "quarter" | "year">("month");
-  const [first, setFirst] = useState(suggested.month);
+  const [first, setFirst] = useState<string | null>(suggested.month);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!first) return setError(t.errors.date_invalid);
     setBusy(true);
     const result = await repeatInvoice(doc.id, every, first);
     setBusy(false);
@@ -268,7 +271,7 @@ export function RepeatDialog({ t, doc, locale, suggested, onClose, onDone }: Clo
     onDone(result.value.nextOn);
   }
   return (
-    <Dialog open title={r.title} closeLabel={t.shell.close} onClose={onClose}>
+    <Dialog open title={r.title} onClose={onClose} labels={t.dialog} dirty={every !== "month" || first !== suggested.month}>
       <form className="form-grid" onSubmit={submit} noValidate>
         <p>{r.body}</p>
         <div className="field-row half">
@@ -277,9 +280,8 @@ export function RepeatDialog({ t, doc, locale, suggested, onClose, onDone }: Clo
             {(["month", "quarter", "year"] as const).map(k => <option key={k} value={k}>{r.options[k]}</option>)}
           </select>
         </div>
-        <div className="field-row half">
-          <label htmlFor="repeat-first">{r.first}</label>
-          <DateField id="repeat-first" value={first} locale={locale} label={r.first} placeholder={t.editor.pickDate} required onChange={setFirst} />
+        <div className="half">
+          <DateField id="repeat-first" label={r.first} value={first} onChange={setFirst} today={today} min={today} required labels={t.date} chips={false} />
         </div>
         {error && <p className="error" role="alert">{error}</p>}
         <div className="dialog-actions">

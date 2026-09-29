@@ -1,9 +1,10 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { Back, Coins, Copy, Download, Invoice, Seal, Send, Trash, Bell, Check, Close, Repeat } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
+import { Stamp } from "../../../../components/stamp.tsx";
 import { format, formatDay } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../../lib/money.ts";
@@ -56,10 +57,13 @@ export function DocumentView(props: DocumentViewProps) {
   const onState = useCallback((s: SaveState) => setSave(s), []);
   const onTotals = useCallback((g: number) => setGross(g), []);
 
-  const fail = (error: string, values?: Record<string, number | string>) => toast(format(t.errors[error as keyof Catalogue["errors"]] ?? t.errors.unknown, values ?? {}));
+  const errorText = (error: string, values?: Record<string, number | string>) => format(t.errors[error as keyof Catalogue["errors"]] ?? t.errors.unknown, values ?? {});
+  const fail = (error: string, values?: Record<string, number | string>) => toast({ text: errorText(error, values), tone: "error" });
+  // One toast per document: a new step replaces the last one's.
+  const say = (text: string, more: { undo?: () => Promise<boolean | string>; sent?: boolean } = {}) => toast({ id: `doc-${doc.id}`, text, ...more });
   async function ready(): Promise<boolean> {
     const ok = await flushRef.current();
-    if (!ok) toast(d.fixFirst);
+    if (!ok) toast({ text: d.fixFirst, tone: "error" });
     return ok;
   }
   async function run<T>(step: () => Promise<{ ok: true; value: T } | { ok: false; error: string; values?: Record<string, number | string> }>, done?: (value: T) => void) {
@@ -95,8 +99,8 @@ export function DocumentView(props: DocumentViewProps) {
       if (draft) return <button type="button" className="button block" onClick={() => void openDialog("send")}><Send />{d.actions.send}</button>;
       if (doc.state === "sent" || doc.state === "expired") return (
         <>
-          <button type="button" className="button block" onClick={() => void run(() => decide(doc.id, "accepted"), () => toast(d.toasts.accepted))}><Check />{d.actions.accepted}</button>
-          <button type="button" className="button quiet block" onClick={() => void run(() => decide(doc.id, "refused"), () => toast(d.toasts.refused, { label: t.common.undo, run: () => void decide(doc.id, "sent") }))}><Close />{d.actions.refused}</button>
+          <button type="button" className="button block" onClick={() => void run(() => decide(doc.id, "accepted"), () => say(d.toasts.accepted))}><Check />{d.actions.accepted}</button>
+          <button type="button" className="button quiet block" onClick={() => void run(() => decide(doc.id, "refused"), () => say(d.toasts.refused, { undo: async () => { const back = await decide(doc.id, "sent"); return back.ok || errorText(back.error, back.values); } }))}><Close />{d.actions.refused}</button>
         </>
       );
       if (doc.state === "accepted" && rights.draftInvoice) return <button type="button" className="button block" onClick={() => setOpen("invoice")}><Invoice />{d.actions.makeInvoice}</button>;
@@ -106,7 +110,7 @@ export function DocumentView(props: DocumentViewProps) {
       if (canFinalise) return <button type="button" className="button block" onClick={() => void openDialog("finalise")}><Seal />{credit ? d.actions.finaliseCredit : d.actions.finalise}</button>;
       if (invoice && rights.draftInvoice) return props.readyText
         ? <p className="hint">{props.readyText}</p>
-        : <button type="button" className="button block" onClick={() => void run(() => markReady(doc.id), () => toast(d.toasts.ready))}><Bell />{d.actions.handToBilling}</button>;
+        : <button type="button" className="button block" onClick={() => void run(() => markReady(doc.id), () => say(d.toasts.ready, { sent: true }))}><Bell />{d.actions.handToBilling}</button>;
       return null;
     }
     if (final && !doc.sentAt && rights.issue) return <button type="button" className="button block" onClick={() => setOpen("send")}><Send />{d.actions.sendToClient}</button>;
@@ -124,12 +128,12 @@ export function DocumentView(props: DocumentViewProps) {
   if (invoice && final && doc.due > 0 && rights.pay && (doc.sentAt === null || doc.state === "overdue")) add("pay", <button type="button" className="link-button" onClick={() => setOpen("payment")}>{d.actions.recordPayment}</button>);
   if (invoice && final && doc.due > 0 && rights.pay && doc.state !== "overdue") add("remind", <button type="button" className="link-button" onClick={() => setOpen("reminder")}>{d.actions.remind}</button>);
   if (invoice && final && doc.depositPercent === null && rights.issue && !doc.repeat && props.repeatDates) add("repeat", <button type="button" className="link-button" onClick={() => setOpen("repeat")}><Repeat /> {d.actions.repeat}</button>);
-  if (doc.repeat && rights.issue) add("stop", <button type="button" className="link-button" onClick={() => void run(() => stopRepeat(doc.repeat!.id), () => { toast(d.toasts.repeatStopped); router.refresh(); })}>{d.actions.stopRepeat}</button>);
-  if (invoice && final && rights.issue && doc.credited < doc.gross) add("credit", <button type="button" className="link-button" onClick={() => void run(() => startCreditNote(doc.id), v => { toast(d.toasts.creditStarted); router.push(`/chest/documents/${v.id}`); })}>{d.actions.creditNote}</button>);
-  if (quote && rights.quote && (doc.state === "accepted" || doc.state === "refused")) add("reopen", <button type="button" className="link-button" onClick={() => void run(() => decide(doc.id, "sent"), () => toast(d.toasts.reopened))}>{d.actions.reopen}</button>);
-  if (!credit && (quote ? rights.quote : rights.draftInvoice)) add("copy", <button type="button" className="link-button" onClick={() => void run(() => duplicate(doc.id), v => { toast(d.toasts.copied); router.push(`/chest/documents/${v.id}`); })}><Copy /> {d.actions.duplicate}</button>);
+  if (doc.repeat && rights.issue) add("stop", <button type="button" className="link-button" onClick={() => void run(() => stopRepeat(doc.repeat!.id), () => { say(d.toasts.repeatStopped); router.refresh(); })}>{d.actions.stopRepeat}</button>);
+  if (invoice && final && rights.issue && doc.credited < doc.gross) add("credit", <button type="button" className="link-button" onClick={() => void run(() => startCreditNote(doc.id), v => { say(d.toasts.creditStarted); router.push(`/chest/documents/${v.id}`); })}>{d.actions.creditNote}</button>);
+  if (quote && rights.quote && (doc.state === "accepted" || doc.state === "refused")) add("reopen", <button type="button" className="link-button" onClick={() => void run(() => decide(doc.id, "sent"), () => say(d.toasts.reopened))}>{d.actions.reopen}</button>);
+  if (!credit && (quote ? rights.quote : rights.draftInvoice)) add("copy", <button type="button" className="link-button" onClick={() => void run(() => duplicate(doc.id), v => { say(d.toasts.copied); router.push(`/chest/documents/${v.id}`); })}><Copy /> {d.actions.duplicate}</button>);
   if (draft && rights.edit) add("delete", <button type="button" className="link-button danger" onClick={() => void run(async () => removeDraft(doc.id), () => {
-    toast(d.toasts.deleted, { label: t.common.undo, run: () => void restoreDraft(doc.id).then(() => router.push(`/chest/documents/${doc.id}`)) });
+    say(d.toasts.deleted, { undo: async () => { const back = await restoreDraft(doc.id); if (!back.ok) return errorText(back.error, back.values); router.push(`/chest/documents/${doc.id}`); return true; } });
     router.push(listHref);
   })}><Trash /> {d.actions.deleteDraft}</button>);
 
@@ -137,7 +141,7 @@ export function DocumentView(props: DocumentViewProps) {
   const stateLabel = t.states[doc.state];
 
   return (
-    <main className="page">
+    <div className="page">
       <a className="back" href={listHref}><Back />{quote ? t.shell.quotes : t.shell.invoices}</a>
       <div className="document">
         <div>
@@ -146,12 +150,12 @@ export function DocumentView(props: DocumentViewProps) {
               {doc.status === "sent" ? d.editingSent + " · " : ""}{saveText}
             </p>
           )}
-          <Paper doc={doc} t={t} words={props.words} locale={locale} editing={rights.edit} clients={props.clients} items={props.items} canAddClient={rights.quote}
+          <Paper doc={doc} t={t} words={props.words} locale={locale} today={props.today} dateWords={t.date} editing={rights.edit} clients={props.clients} items={props.items} canAddClient={rights.quote}
             logo={props.logo} dates={props.dates} flushRef={flushRef} onState={onState} onTotals={onTotals} />
         </div>
         <aside className="side" aria-label={d.margin}>
           <section className="card">
-            <span className={`stamp big ${doc.state}`}>{stateLabel}</span>
+            <Stamp state={doc.state} label={stateLabel} big />
             <h2>{doc.kindText} {doc.number ?? ""}</h2>
             <p className="hint">{d.explain[doc.state]}</p>
             {doc.crmTitle && <p className="hint from-crm">{format(d.fromCrm, { title: doc.crmTitle })}</p>}
@@ -178,7 +182,7 @@ export function DocumentView(props: DocumentViewProps) {
                     <b className="num">{p.amount}</b>
                     {rights.pay ? (
                       <button type="button" className="icon-button" aria-label={format(d.removePayment, { amount: p.amount, date: p.date })} title={t.common.remove}
-                        onClick={() => void run(() => removePayment(p.id), () => toast(d.toasts.paymentRemoved, { label: t.common.undo, run: () => void restorePayment(p.id).then(r => { if (!r.ok) fail(r.error); }) }))}><Trash /></button>
+                        onClick={() => void run(() => removePayment(p.id), () => toast({ id: `payment-${p.id}`, text: d.toasts.paymentRemoved, undo: async () => { const back = await restorePayment(p.id); router.refresh(); return back.ok || errorText(back.error, back.values); } }))}><Trash /></button>
                     ) : <span />}
                   </li>
                 ))}
@@ -210,15 +214,15 @@ export function DocumentView(props: DocumentViewProps) {
       )}
 
       {(open === "send" || open === "reminder") && (
-        <SendDialog t={t} doc={doc} kind={open} mailWorks={props.mailWorks} pdfHref={pdfHref} onClose={() => setOpen(null)} onDone={text => { setOpen(null); toast(text); }} />
+        <SendDialog t={t} doc={doc} kind={open} mailWorks={props.mailWorks} pdfHref={pdfHref} onClose={() => setOpen(null)} onDone={(text, emailed) => { setOpen(null); say(text, emailed ? { sent: true } : {}); }} />
       )}
       {open === "finalise" && (
         <FinaliseDialog t={t} doc={doc} upcoming={props.upcoming} companyMissing={props.companyMissing} clientMissing={props.clientMissing} canSettings={props.rights.settings}
-          onClose={() => setOpen(null)} onDone={number => { setOpen(null); toast(format(credit ? d.toasts.creditFinalised : d.toasts.finalised, { number })); }} />
+          onClose={() => setOpen(null)} onDone={number => { setOpen(null); say(format(credit ? d.toasts.creditFinalised : d.toasts.finalised, { number })); }} />
       )}
-      {open === "invoice" && <InvoiceDialog t={t} doc={doc} onClose={() => setOpen(null)} onDone={id => { setOpen(null); toast(d.toasts.invoiceStarted); router.push(`/chest/documents/${id}`); }} />}
-      {open === "payment" && <PaymentDialog t={t} doc={doc} locale={locale} today={props.today} onClose={() => setOpen(null)} onDone={text => { setOpen(null); toast(text); }} />}
-      {open === "repeat" && props.repeatDates && <RepeatDialog t={t} doc={doc} locale={locale} suggested={props.repeatDates} onClose={() => setOpen(null)} onDone={date => { setOpen(null); toast(format(d.toasts.repeatSet, { date: formatDay(date, locale, { day: "numeric", month: "long", year: "numeric" }) })); router.refresh(); }} />}
-    </main>
+      {open === "invoice" && <InvoiceDialog t={t} doc={doc} onClose={() => setOpen(null)} onDone={id => { setOpen(null); say(d.toasts.invoiceStarted); router.push(`/chest/documents/${id}`); }} />}
+      {open === "payment" && <PaymentDialog t={t} doc={doc} locale={locale} today={props.today} onClose={() => setOpen(null)} onDone={text => { setOpen(null); say(text); }} />}
+      {open === "repeat" && props.repeatDates && <RepeatDialog t={t} doc={doc} today={props.today} suggested={props.repeatDates} onClose={() => setOpen(null)} onDone={date => { setOpen(null); say(format(d.toasts.repeatSet, { date: formatDay(date, locale, { day: "numeric", month: "long", year: "numeric" }) })); router.refresh(); }} />}
+    </div>
   );
 }

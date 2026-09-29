@@ -1,12 +1,13 @@
 "use client";
 
+import { DataTable, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
 import { Box, People, Upload } from "../../../components/icons.tsx";
 import { AppError } from "../../../lib/app-error.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import type { ImportReport } from "../../../lib/importers.ts";
-import { fieldsOf, guessMapping, importKinds, importLimits, mapRow, mappingReady, readTable, type Field, type ImportKind, type Mapping, type Table } from "../../../lib/parse-import.ts";
+import { fieldsOf, guessMapping, importKinds, importLimits, mapRow, mappingReady, readTable, type Field, type ImportKind, type Mapped, type Mapping, type Table } from "../../../lib/parse-import.ts";
 import { importFile } from "../actions.ts";
 
 type Picked = { text: string; table: Table; mapping: Mapping; fileName: string };
@@ -18,6 +19,7 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
   const w = t.importer;
   const [kind, setKind] = useState<ImportKind>(initialKind);
   const [picked, setPicked] = useState<Picked | null>(null);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<{ report: ImportReport; kind: ImportKind } | null>(null);
   const [pending, start] = useTransition();
@@ -26,7 +28,6 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
   async function read(file: File) {
     setError(null);
     setReport(null);
-    if (file.size > importLimits.bytes) return setError(t.errors.import_too_large);
     const text = await file.text();
     try {
       const table = readTable(text);
@@ -35,6 +36,16 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
       setPicked(null);
       setError(format(t.errors[e instanceof AppError ? e.code : "import_invalid"], e instanceof AppError ? e.values : {}));
     }
+  }
+  // The file stays in this browser (the kit's picker, without upload): it
+  // is read here to show it, and sent as text when imported. Taking it
+  // away (×) lets another be chosen.
+  function onFiles(update: (current: readonly PickedFile[]) => PickedFile[]) {
+    const next = update(files);
+    setFiles(next);
+    const added = next.find(f => !files.some(x => x.key === f.key));
+    if (added?.file) void read(added.file);
+    if (next.length === 0) { setPicked(null); setError(null); }
   }
   function changeKind(next: ImportKind) {
     setKind(next);
@@ -48,6 +59,7 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
       if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
       setReport({ report: r.value, kind });
       setPicked(null);
+      setFiles([]);
     });
   }
 
@@ -91,51 +103,49 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
           </div>
         </fieldset>
         <p className="hint">{w.how}</p>
-        <label className="button file-input">
-          <Upload />{picked ? w.another : w.choose}
-          <input type="file" accept=".csv,text/csv,.txt,text/plain" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void read(f); }} />
-        </label>
+        <FilePicker label={w.file} files={files} onChange={onFiles} maxFiles={1} maxSize={importLimits.bytes} accept={[".csv", "text/csv", ".txt", "text/plain"]} labels={{ ...t.files, addOne: w.choose }} />
         {error && <p className="error" role="alert">{error}</p>}
       </section>
       {picked && (
         <section className="panel" aria-labelledby="columns">
           <h2 id="columns">{w.columns}</h2>
           <p className="hint">{picked.fileName} · {plural(w.rows, picked.table.rows.length, locale)} · {w.columnsHint}</p>
-          <div className="table-wrap">
-            <table className="table mapping">
-              <thead><tr><th scope="col">{w.column}</th><th scope="col">{w.example}</th><th scope="col">{w.field}</th></tr></thead>
-              <tbody>
-                {picked.table.head.map((h, i) => {
-                  const example = picked.table.rows.find(r => (r[i] ?? "").trim() !== "")?.[i] ?? "";
-                  return (
-                    <tr key={i}>
-                      <th scope="row">{h || "—"}</th>
-                      <td className="muted example">{example}</td>
-                      <td>
-                        <label className="visually-hidden" htmlFor={`map-${i}`}>{format(w.fieldOf, { column: h })}</label>
-                        <select id={`map-${i}`} className="field compact" value={picked.mapping[i] ?? ""} onChange={e => {
-                          const field = e.target.value as Field | "";
-                          setPicked({ ...picked, mapping: picked.mapping.map((m, j) => (j === i ? field : m === field && field !== "" ? "" : m)) });
-                        }}>
-                          <option value="">{w.ignore}</option>
-                          {(fieldsOf[kind] as readonly Field[]).map(f => <option key={f} value={f}>{label(f)}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="mapping compact-table">
+            <DataTable
+              caption={w.columns}
+              labels={t.table}
+              rows={picked.table.head.map((h, i) => ({ i, h, example: picked.table.rows.find(r => (r[i] ?? "").trim() !== "")?.[i] ?? "" }))}
+              rowKey={r => String(r.i)}
+              columns={[
+                { key: "column", label: w.column, rowHeader: true, render: r => r.h || "—" },
+                { key: "example", label: w.example, hideOnPhone: true, render: r => <span className="example">{r.example}</span> },
+                { key: "field", label: w.field, render: r => (
+                  <>
+                    <label className="visually-hidden" htmlFor={`map-${r.i}`}>{format(w.fieldOf, { column: r.h })}</label>
+                    <select id={`map-${r.i}`} className="field compact" value={picked.mapping[r.i] ?? ""} onChange={e => {
+                      const field = e.target.value as Field | "";
+                      setPicked({ ...picked, mapping: picked.mapping.map((m, j) => (j === r.i ? field : m === field && field !== "" ? "" : m)) });
+                    }}>
+                      <option value="">{w.ignore}</option>
+                      {(fieldsOf[kind] as readonly Field[]).map(f => <option key={f} value={f}>{label(f)}</option>)}
+                    </select>
+                  </>
+                ) },
+              ]}
+            />
           </div>
           {shown.length > 0 && (
             <>
               <h3 className="preview-title">{w.preview}</h3>
               <p className="hint">{w.previewHint}</p>
-              <div className="table-wrap">
-                <table className="table preview">
-                  <thead><tr>{shown.map(f => <th key={f} scope="col">{label(f)}</th>)}</tr></thead>
-                  <tbody>{preview.map((row, i) => <tr key={i}>{shown.map(f => <td key={f}>{row[f] ?? ""}</td>)}</tr>)}</tbody>
-                </table>
+              <div className="preview compact-table">
+                <DataTable
+                  caption={w.preview}
+                  labels={t.table}
+                  rows={preview.map((row, i) => ({ i, row }))}
+                  rowKey={r => String(r.i)}
+                  columns={shown.map(f => ({ key: f, label: label(f), render: (r: { row: Mapped }) => <span className="cut">{r.row[f] ?? ""}</span> }))}
+                />
               </div>
             </>
           )}

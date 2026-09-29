@@ -43,11 +43,11 @@ await step("phone: Hugo starts a quote from the desk, picks the client and two l
   expect(totals.replace(/\s/gu, " ").includes("2 310,00 €"), "total in the document's French: " + totals);
 });
 
-await step("a mistake is forgiven: remove a line, undo", async () => {
-  await page.locator('summary[aria-label="Line 2: move, copy or remove"]').click();
-  await page.getByRole("button", { name: "Remove the line" }).click();
+await step("a mistake is forgiven: delete a line, undo", async () => {
+  await page.getByRole("button", { name: "Line 2: move, copy or delete" }).click();
+  await page.getByRole("menuitem", { name: "Delete the line" }).click();
   expect((await page.locator(".totals").innerText()).replace(/\s/gu, " ").includes("1 950,00 €"), "total without line 2");
-  await page.locator(".toast button").click();
+  await page.locator(".ck-toast-undo").click();
   await saved();
   expect((await page.locator(".totals").innerText()).replace(/\s/gu, " ").includes("2 310,00 €"), "line back");
 });
@@ -96,7 +96,7 @@ await step("Sofia (billing) finalises it: the next number, frozen", async () => 
   expect(await page.locator("textarea.ink").count() === 0, "nothing editable any more");
 });
 
-await step("Sofia sends it and records a partial payment, then removes and restores it", async () => {
+await step("Sofia sends it and records a partial payment, then deletes and restores it", async () => {
   await page.getByRole("button", { name: "Send to the client" }).click();
   await page.waitForSelector("#subject");
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -106,8 +106,8 @@ await step("Sofia sends it and records a partial payment, then removes and resto
   await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.waitForSelector("text=Recorded.");
   await page.waitForSelector(".stamp.big.partly_paid");
-  await page.getByRole("button", { name: /Remove the payment of/u }).click();
-  await page.locator(".toast button").click();
+  await page.getByRole("button", { name: /Delete the payment of/u }).click();
+  await page.locator(".ck-toast-undo").click();
   await page.waitForTimeout(800);
   await page.reload();
   expect(await page.locator(".payments li").count() === 1, "payment restored");
@@ -174,14 +174,14 @@ await step("drafts are forgiving: delete one, undo", async () => {
   await as(context, origin, "ines");
   await french();
   await page.goto(origin + "/chest/quotes?state=draft");
-  const before = await page.locator(".ledger-row").count();
-  await page.locator(".ledger-row a.main").first().click();
+  const before = await page.locator(".ck-table tbody tr").count();
+  await page.locator(".ck-table tbody .doc-link").first().click();
   await page.getByRole("button", { name: /Supprimer le brouillon/u }).click();
   await page.waitForURL(/\/chest\/quotes$/u);
-  await page.locator(".toast button").click();
+  await page.locator(".ck-toast-undo").click();
   await page.waitForURL(/\/chest\/documents\/\d+$/u);
   await page.goto(origin + "/chest/quotes?state=draft");
-  expect(await page.locator(".ledger-row").count() === before, "draft back");
+  expect(await page.locator(".ck-table tbody tr").count() === before, "draft back");
 });
 
 await step("a deal won in Clients becomes a draft quote for Hugo; reopened untouched, it goes", async () => {
@@ -200,7 +200,7 @@ await step("a deal won in Clients becomes a draft quote for Hugo; reopened untou
   expect((await page.locator(".totals").innerText()).replace(/\s/gu, " ").includes("3 000,00 €"), "the deal's amount, VAT added");
   await page.request.post(origin + "/_dev/deliver", { form: { type: "crm.deal.won", data: JSON.stringify(deal) } });
   await page.goto(origin + "/chest/quotes?state=draft");
-  expect(await page.locator(".ledger-row", { hasText: "Nouvelle vitrine" }).count() === 1, "once only");
+  expect(await page.locator(".ck-table tbody tr", { hasText: "Nouvelle vitrine" }).count() === 1, "once only");
   await page.request.post(origin + "/_dev/deliver", { form: { type: "crm.deal.reopened", data: JSON.stringify({ deal: "flow-42" }) } });
   const gone = await page.request.get(url);
   expect(gone.status() === 404, "untouched draft deleted: " + gone.status());
@@ -219,18 +219,18 @@ await step("an issued invoice is a Factur-X: its PDF carries factur-x.xml", asyn
 
 await step("a late invoice's first action is the reminder; a unit reads in the plural", async () => {
   await page.goto(origin + "/chest/invoices?state=overdue");
-  await page.locator(".ledger-row a.main").first().click();
+  await page.locator(".ck-table tbody .doc-link").first().click();
   await page.waitForSelector(".stamp.big.overdue");
   expect(await page.locator(".wide-actions").getByRole("button", { name: "Send a reminder" }).count() === 1, "remind is the primary action");
   await page.goto(origin + "/chest/invoices");
-  await page.locator(".ledger-row", { hasText: "Jardins" }).first().locator("a.main").click();
+  await page.locator(".ck-table tbody tr", { hasText: "Jardins" }).first().locator(".doc-link").click();
   const paper = await page.locator(".sheet").innerText();
   expect(/10 exemplaires/u.test(paper), "10 exemplaires on the paper");
 });
 
 await step("Sofia makes a paid invoice repeat every quarter, then stops it", async () => {
   await page.goto(origin + "/chest/invoices?state=paid");
-  await page.locator(".ledger-row a.main").first().click();
+  await page.locator(".ck-table tbody .doc-link").first().click();
   await page.getByRole("button", { name: "Repeat this invoice" }).click();
   await page.getByLabel("Every").selectOption("quarter");
   await page.getByRole("button", { name: "Repeat it" }).click();
@@ -248,9 +248,9 @@ await step("Hugo brings his clients from Axonaut: columns matched, first rows sh
   await page.getByRole("link", { name: "Import a file" }).click();
   await page.waitForURL(/\/chest\/import\?kind=clients$/u);
   await page.locator('input[type=file]').setInputFiles(new URL("../../../tools/private/quotes/test/fixtures/axonaut-clients.csv", import.meta.url).pathname);
-  await page.waitForSelector("table.mapping");
+  await page.waitForSelector(".mapping table");
   expect(await page.getByLabel("Where column SIRET goes").inputValue() === "siret", "SIRET recognised");
-  expect((await page.locator("table.preview").innerText()).includes("Boulangerie Dupain SAS"), "preview");
+  expect((await page.locator(".preview table").innerText()).includes("Boulangerie Dupain SAS"), "preview");
   await page.getByRole("button", { name: /^Import 6 rows$/u }).click();
   await page.waitForSelector("text=clients imported.");
   const report = await page.locator(".report").innerText();
@@ -269,8 +269,10 @@ await step("Camille continues the numbering of her previous tool, and turns remi
   await page.locator(".sequence", { hasText: "Factures" }).getByRole("button", { name: "Continuer depuis mon ancien outil" }).click();
   await page.locator("#next-seq").fill("348");
   await page.getByRole("button", { name: "Commencer à F-0348" }).click();
-  await page.waitForSelector("text=Le prochain sera F-0348.");
+  // The toast (the dialog's own hint says the same words while typing).
+  await page.locator(".ck-toast", { hasText: "Le prochain sera F-0348." }).waitFor();
   await page.locator("details.history summary").click();
+  await page.locator("details.history", { hasText: "a fixé le prochain numéro à F-0348" }).waitFor({ timeout: 5000 }).catch(() => {});
   expect((await page.locator("details.history").innerText()).includes("a fixé le prochain numéro à F-0348"), "kept in the history");
   await page.getByText("Avec l’année", { exact: true }).click();
   await page.waitForSelector("text=Les numéros seront de la forme F-");
@@ -278,15 +280,21 @@ await step("Camille continues the numbering of her previous tool, and turns remi
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForSelector("text=Enregistré.");
   await page.request.post(origin + "/_dev/schedule", { form: { name: "followup" } });
-  expect(/Relance : facture F-\d{4}-\d{4}/u.test(await dev()), "a late payer reminded by email");
+  expect(/Relance\s:\sfacture F-\d{4}-\d{4}/u.test(await dev()), "a late payer reminded by email");
 });
 
-await step("phone: the bottom bar holds every place, with words", async () => {
+await step("phone: every place with its words — five labelled tabs, the rest in More", async () => {
+  await english();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/chest");
-  await page.locator(".bar-more summary").click();
-  await page.locator(".bar-menu").getByRole("link", { name: "Catalogue" }).click();
+  const tabs = page.locator(".ck-nav");
+  for (const name of ["Desk", "Quotes", "Invoices", "Clients", "Catalogue"]) expect(await tabs.getByRole("link", { name }).isVisible(), `tab ${name} shown with its word`);
+  await tabs.getByRole("link", { name: "Catalogue" }).click();
   await page.waitForURL(/\/chest\/catalogue$/u);
+  expect(await tabs.getByRole("link", { name: "Catalogue" }).getAttribute("aria-current") === "page", "Catalogue is the current tab");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.waitForURL(/\/chest\/settings$/u);
 });
 
 await step("phone width: no page scrolls sideways", async () => {

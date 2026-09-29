@@ -1,10 +1,9 @@
 "use client";
 
+import { DateField, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import { Dialog } from "../../../../../../components/dialog.tsx";
+import { useCallback, useEffect, useId, useRef, useState, useTransition, type ReactNode } from "react";
 import { Globe, Mask, Picture, Users } from "../../../../../../components/icons.tsx";
-import { useToast } from "../../../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../../../lib/i18n/format.ts";
@@ -26,7 +25,6 @@ type Props = {
   formId: string;
   canEdit: boolean;
   canDelete: boolean;
-  answers: number;
   initial: Values;
   anonymityLocked: boolean;
   hasFiles: boolean;
@@ -35,7 +33,11 @@ type Props = {
   locale: string;
   mailWorks: boolean | null;
   cover: string | null;
-  t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"] };
+  // Today on the Chest's clock (the earliest closing day).
+  today: string;
+  // Whether the page wears Forms' own look (the default colour's name).
+  own: boolean;
+  t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"]; date: Catalogue["date"] };
 };
 type SaveState = "saved" | "saving" | "error";
 
@@ -45,11 +47,11 @@ export function SettingsView(p: Props) {
   const [save, setSave] = useState<SaveState>("saved");
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const [confirming, setConfirming] = useState(false);
   const [cover, setCoverUrl] = useState(p.cover);
   const [sendingCover, setSendingCover] = useState(false);
   const toast = useToast();
   const router = useRouter();
+  const hourId = useId();
   const ro = !p.canEdit;
   const latest = useRef(v);
   latest.current = v;
@@ -109,9 +111,9 @@ export function SettingsView(p: Props) {
   const run = (action: () => Promise<{ ok: boolean; error?: ErrorCode; values?: Record<string, string | number> }>, done?: string) => start(async () => {
     const r = await action();
     if (r.ok) {
-      if (done) toast(done);
+      if (done) toast({ id: "settings", text: done });
       router.refresh();
-    } else if (r.error) toast(words(r.error, r.values));
+    } else if (r.error) toast({ id: "settings", text: words(r.error, r.values), tone: "error" });
   });
 
   async function pickCover(file: File) {
@@ -119,13 +121,13 @@ export function SettingsView(p: Props) {
     const sent = await uploadImage(file, p.formId);
     if (!sent.ok) {
       setSendingCover(false);
-      return void toast(words(sent.error));
+      return void toast({ id: "cover", text: words(sent.error), tone: "error" });
     }
     const r = await setCover(p.formId, sent.ref);
     setSendingCover(false);
-    if (!r.ok) return void toast(words(r.error, r.values));
+    if (!r.ok) return void toast({ id: "cover", text: words(r.error, r.values), tone: "error" });
     setCoverUrl(r.value.url);
-    toast(s.coverSaved);
+    toast({ id: "cover", text: s.coverSaved });
   }
 
   const whoChoice = (value: "public" | "team" | "anonymous", icon: ReactNode, title: string, hint: string) => {
@@ -183,10 +185,11 @@ export function SettingsView(p: Props) {
             <label key={a} className={`swatch${v.accent === a ? " on" : ""}`} data-accent={a}>
               <input type="radio" name="accent" checked={v.accent === a} onChange={() => set("accent", a)} />
               <span className="swatch-dot" aria-hidden="true" />
-              <span className="visually-hidden">{s.colours[a]}</span>
+              <span className="visually-hidden">{a === "berry" && !p.own ? s.colours.look : s.colours[a]}</span>
             </label>
           ))}
         </div>
+        {!p.own && <p className="hint">{s.colourHint}</p>}
         <div className="cover-field">
           <span className="mini-label">{s.cover}</span>
           <div className="cover-row">
@@ -197,7 +200,7 @@ export function SettingsView(p: Props) {
                 <input type="file" accept="image/png,image/jpeg,image/webp" disabled={sendingCover} onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pickCover(f); }} />
               </label>
             )}
-            {!ro && cover && <button type="button" className="button link" onClick={() => start(async () => { const r = await setCover(p.formId, null); if (r.ok) { setCoverUrl(null); toast(s.coverRemoved); } else toast(words(r.error)); })}>{s.coverRemove}</button>}
+            {!ro && cover && <button type="button" className="button link" onClick={() => start(async () => { const r = await setCover(p.formId, null); if (r.ok) { setCoverUrl(null); toast({ id: "cover", text: s.coverRemoved }); } else toast({ id: "cover", text: words(r.error), tone: "error" }); })}>{s.coverRemove}</button>}
           </div>
           <p className="hint">{s.coverHint}</p>
         </div>
@@ -206,19 +209,16 @@ export function SettingsView(p: Props) {
       <fieldset className="panel" disabled={ro}>
         <legend>{s.taking}</legend>
         <div className="row-fields">
-          <label className="mini">
-            <span className="mini-label">{s.closesOn}</span>
-            <input className="field" type="date" lang={p.locale} value={v.closesDay} onChange={e => set("closesDay", e.target.value)} />
-          </label>
+          <div className="mini closes-day">
+            <DateField label={s.closesOn} value={v.closesDay || null} onChange={d => set("closesDay", d ?? "")} today={p.today} min={v.closesDay && v.closesDay < p.today ? null : p.today} disabled={ro} labels={p.t.date} />
+          </div>
           {v.closesDay && (
-            <label className="mini">
-              <span className="mini-label">{s.closesAt}</span>
-              <select className="field" value={v.closesHour} onChange={e => set("closesHour", Number(e.target.value))}>
-                {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{format(s.hour, { hour: String(h).padStart(2, "0") })}</option>)}
-              </select>
-            </label>
+            <div className="mini">
+              <label className="mini-label" htmlFor={hourId}>{s.closesAt}</label>
+              <TimeSelect id={hourId} step={60} max={1380} value={v.closesHour * 60} onChange={m => set("closesHour", Math.floor(m / 60))} disabled={ro} />
+            </div>
           )}
-          {v.closesDay && <button type="button" className="button link" onClick={() => set("closesDay", "")}>{s.closesNever}</button>}
+          {v.closesDay && !ro && <button type="button" className="button link" onClick={() => set("closesDay", "")}>{s.closesNever}</button>}
         </div>
         {v.closesDay && <p className="hint">{p.zoneNote}</p>}
         <label className="mini inline">
@@ -297,18 +297,12 @@ export function SettingsView(p: Props) {
       <section className="panel quiet-panel" aria-labelledby="form-actions">
         <h2 id="form-actions">{s.danger}</h2>
         <div className="row-actions">
-          <button type="button" className="button quiet" disabled={pending} onClick={() => start(async () => { const r = await duplicateForm(p.formId); if (r && !r.ok) toast(words(r.error, r.values)); })}>{b.duplicateForm}</button>
-          {p.canDelete && <button type="button" className="button quiet danger" disabled={pending} onClick={() => (p.answers > 0 ? setConfirming(true) : run(() => deleteGo()))}>{b.deleteForm}</button>}
+          <button type="button" className="button quiet" disabled={pending} onClick={() => start(async () => { const r = await duplicateForm(p.formId); if (r && !r.ok) toast({ id: "duplicate", text: words(r.error, r.values), tone: "error" }); })}>{b.duplicateForm}</button>
+          {/* Deleting asks nothing: the form waits 30 days in Deleted
+              forms, and the home page's toast offers Undo. */}
+          {p.canDelete && <button type="button" className="button quiet danger" disabled={pending} onClick={() => run(() => deleteGo())}>{b.deleteForm}</button>}
         </div>
       </section>
-
-      <Dialog open={confirming} title={b.deleteTitle} closeLabel={b.cancel} onClose={() => setConfirming(false)}>
-        <p>{plural(b.deleteBody, p.answers, p.locale)}</p>
-        <div className="dialog-actions">
-          <button type="button" className="button danger-solid" disabled={pending} onClick={() => { setConfirming(false); run(() => deleteGo()); }}>{b.deleteForm}</button>
-          <button type="button" className="button quiet" onClick={() => setConfirming(false)}>{b.cancel}</button>
-        </div>
-      </Dialog>
     </form>
   );
 

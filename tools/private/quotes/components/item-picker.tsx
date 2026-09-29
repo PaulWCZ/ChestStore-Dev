@@ -1,11 +1,10 @@
 "use client";
 
+import { Dialog, SearchBox } from "@argentic/chest-ui/components";
 import { useMemo, useState } from "react";
 import type { Catalogue, Locale } from "../lib/i18n/index.ts";
 import { formatMoney, formatRate } from "../lib/money.ts";
 import type { ItemOption } from "../lib/views.ts";
-import { Dialog } from "./dialog.tsx";
-import { Search } from "./icons.tsx";
 
 // Adding a line from the catalogue: its words, unit, price and VAT rate
 // copied onto the document (which keeps them if the catalogue changes).
@@ -17,13 +16,9 @@ export function ItemPicker({ t, items, currency, locale, onPick, onClose }: { t:
     return items.filter(i => !needle || fold(i.name + " " + i.description).includes(needle)).slice(0, 200);
   }, [q, items]);
   return (
-    <Dialog open title={t.picker.itemTitle} closeLabel={t.shell.close} onClose={onClose}>
+    <Dialog open title={t.picker.itemTitle} onClose={onClose} labels={t.dialog}>
       <div className="picker">
-        <div className="search">
-          <Search />
-          <label className="visually-hidden" htmlFor="item-q">{t.list.search}</label>
-          <input id="item-q" className="field" type="search" value={q} placeholder={t.picker.itemSearch} onChange={e => setQ(e.target.value)} autoFocus />
-        </div>
+        <SearchBox action="" id="item-q" value={q} shortcut={false} onSearch={setQ} labels={{ ...t.searchBox, placeholder: t.picker.itemSearch }} maxLength={80} />
         {shown.length > 0 ? (
           <ul>
             {shown.map(i => (
@@ -37,7 +32,7 @@ export function ItemPicker({ t, items, currency, locale, onPick, onClose }: { t:
               </li>
             ))}
           </ul>
-        ) : <p className="muted">{items.length === 0 ? t.picker.noItems : t.list.none}</p>}
+        ) : <p className="muted" role="status">{items.length === 0 ? t.picker.noItems : t.list.none}</p>}
         <a className="link-button" href="/chest/catalogue">{t.picker.manage}</a>
       </div>
     </Dialog>

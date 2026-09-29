@@ -147,10 +147,14 @@ and that person is rarely the one who manages the company's legal settings.
   invoice, Make the invoice, then (billing) Finalise the invoice, Finalise
   as F-…, Send to the client, Send.
 - **Mistakes**: every line removal, deleted draft, archived client or item,
-  removed payment and refused quote has *Undo*; drafts are never lost
+  deleted payment and refused quote has *Undo* (the store's toast: it waits
+  while pointed at or focused, Ctrl+Z works, and nothing that already left
+  — an email, a bell item — ever offers it); drafts are never lost
   (autosave, and the browser warns before leaving unsaved changes). The one
-  step that cannot be undone — finalising — says so in plain words, shows
-  the number it will take, and lists what is missing first.
+  step that cannot be undone — finalising — asks in the page (never the
+  browser's box), says so in plain words, shows the number it will take,
+  and lists what is missing first. A dialog with something typed in it
+  asks before throwing it away.
 
 ## Routes
 
@@ -171,6 +175,32 @@ and that person is rarely the one who manages the company's legal settings.
 | `/chest-events` | Members' lifecycle (Chest only) |
 | `/chest-jobs/badges` | The morning badge refresh (proposal, Chest only) |
 | `/chest-jobs/followup` | The morning follow-up: recurring drafts, automatic reminders (proposal, Chest only) |
+
+## Looks
+
+The tool wears whatever look the company chose in its Chest, with the same
+features: its own identity, **Letterpress** (crisp paper, blue-black ink,
+an oxblood seal, a Caslon — `lib/theme.ts`), any theme of the store's
+catalogue (the 17 identities, "Chest", "High contrast"), or the company's
+own brand imported from its guidelines — for all its tools or for this one.
+The look is resolved on the server (`chest.theme()` → `resolveTheme`) and
+written as one `<style>` with the page's nonce: no script, no flash. In
+brand mode the company's logo stands where the tool's mark does. Every
+look keeps every text readable (WCAG AA, light and dark: the kit checks
+each theme; `lab/chest-dev/audit.mjs` checks the pages).
+
+**The PDF does not change with the look.** A quote or an invoice is a
+legal document: the PDF (PDF/A-3, Factur-X, its own writer and embedded
+Liberation fonts) keeps its neutral print design — black on white — in
+every look (a test holds `lib/pdf/` away from the theme). The paper on
+screen is the look's; the paper that leaves is always the same.
+
+The screens are built from the store's UI kit (`@argentic/chest-ui`,
+vendored in `vendor/`): the shell with its labelled sections (on a phone
+a row of five labelled tabs under the header; export and settings in
+"More"), toasts, dialogs and the confirmation, date fields typed in the
+member's language, the file picker, the tables, filters and search box,
+empty states and state badges (drawn as the tool's rubber stamps).
 
 ## On a Chest
 

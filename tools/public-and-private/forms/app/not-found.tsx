@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import { viewer, publicWords } from "../lib/session.ts";
 
 // Nothing here: a member is offered the way back to their forms; a visitor
@@ -7,11 +8,7 @@ export default async function NotFound() {
   if (v) {
     return (
       <main className="page" id="main">
-        <div className="empty">
-          <h1>{v.t.notFound.title}</h1>
-          <p>{v.t.notFound.body}</p>
-          <a className="button quiet" href="/chest">{v.t.notFound.back}</a>
-        </div>
+        <EmptyState headingLevel={1} title={v.t.notFound.title} body={v.t.notFound.body} action={<a className="button quiet" href="/chest">{v.t.notFound.back}</a>} />
       </main>
     );
   }

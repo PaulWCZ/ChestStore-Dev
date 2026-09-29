@@ -2,8 +2,8 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| Libre Caslon Text (font, the screens) | [Impallari Type](https://github.com/impallari/Libre-Caslon-Text), via `@fontsource/libre-caslon-text` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-libre-caslon-text.txt` |
-| Hanken Grotesk (font, the screens) | [marcologous/hanken-grotesk](https://github.com/marcologous/hanken-grotesk), via `@fontsource-variable/hanken-grotesk` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-hanken-grotesk.txt` |
+| Libre Caslon Text (font, the screens; in the UI kit's registry) | [Impallari Type](https://github.com/impallari/Libre-Caslon-Text), via `@fontsource/libre-caslon-text` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-libre-caslon-text.txt` |
+| Hanken Grotesk (font, the screens; in the UI kit's registry) | [marcologous/hanken-grotesk](https://github.com/marcologous/hanken-grotesk), via `@fontsource-variable/hanken-grotesk` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-hanken-grotesk.txt` |
 | Liberation Sans Regular and Bold, Liberation Serif Regular, Bold and Italic 2.1.5 (fonts, the PDFs) | [liberationfonts](https://github.com/liberationfonts), as packaged by Debian/Ubuntu (`fonts-liberation` 1:2.1.5-3), files unmodified | OFL-1.1 (Reserved Font Name "Liberation") | `lib/pdf/fonts/*.ttf`, licence and copyright in `lib/pdf/fonts/LICENSE-liberation.txt` |
 | CSV reader | Written for the studio's Clients tool (same licence, same studio), copied | MIT (this repository) | `parseCsv` in `lib/csv.ts`, `lib/fold.ts` |
 | ZIP writer, CSV writer | Written for the studio's Expenses tool (same licence, same studio), copied | MIT (this repository) | `lib/zip.ts`, `lib/csv.ts` |
@@ -77,5 +77,5 @@ note, deposit invoices), Invoice Ninja (ELv2 — recurring invoices,
 reminders), Crater and InvoiceShelf (AGPL-3.0 — calm quote → invoice flow),
 SolidInvoice (MIT — VAT rate kept on each line).
 
-Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`) are
+Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`, `@argentic/chest-ui` — the studio's UI kit, MIT, packed in `vendor/`) are
 installed from npm under their own licences. No PDF library is used.

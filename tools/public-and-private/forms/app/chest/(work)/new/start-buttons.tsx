@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
-import { useToast } from "../../../../components/toast.tsx";
 import { createForm } from "../../actions.ts";
 
 // Buttons that start a form from a template, one click each.
@@ -17,7 +17,7 @@ export function StartButtons({ keys, words, errors }: { keys: string[]; words: R
           setWhich(k);
           start(async () => {
             const r = await createForm(k);
-            if (r && !r.ok) toast(errors[r.error] ?? errors.unknown);
+            if (r && !r.ok) toast({ text: errors[r.error] ?? errors.unknown, tone: "error" });
           });
         }}>{words[k]}</button>
       ))}

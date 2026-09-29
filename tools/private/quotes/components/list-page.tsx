@@ -1,5 +1,6 @@
-import { BlankSheet, Plus, Search } from "./icons.tsx";
-import { Ledger } from "./ledger.tsx";
+import { EmptyState, Filters, PageHeader, SearchBox } from "@argentic/chest-ui/components";
+import { BlankSheet, Plus } from "./icons.tsx";
+import { DocTable } from "./doc-table.tsx";
 import { NewDocument } from "./new-document.tsx";
 import type { ListRow } from "../lib/documents.ts";
 import type { Catalogue, Locale } from "../lib/i18n/index.ts";
@@ -7,7 +8,9 @@ import { formatMoney } from "../lib/money.ts";
 import { rowView } from "../lib/rows.ts";
 
 // A list of quotes or of invoices: its filters (the states, as links that
-// keep the search), a search box that works without script, the ledger.
+// keep the search: the kit's Filters), a search box that works without
+// script ("/" reaches it), the ledger (the kit's DataTable) with the total
+// of what is shown.
 export type Filter = { key: string; label: string; match: (r: ListRow) => boolean };
 
 export function ListPage({ t, locale, path, title, intro, filters, current, q, rows, create, empty }: {
@@ -16,6 +19,7 @@ export function ListPage({ t, locale, path, title, intro, filters, current, q, r
   path: string;
   title: string;
   intro: string;
+  // The first one is "all" (no filter).
   filters: Filter[];
   current: string;
   q: string;
@@ -23,55 +27,37 @@ export function ListPage({ t, locale, path, title, intro, filters, current, q, r
   create: { type: "quote" | "invoice"; label: string } | null;
   empty: { title: string; body: string; action: string };
 }) {
-  const active = filters.find(f => f.key === current) ?? filters[0]!;
+  const [all, ...states] = filters;
+  const active = states.find(f => f.key === current) ?? all!;
   const shown = rows.filter(active.match);
-  const href = (key: string) => `${path}?${new URLSearchParams({ ...(key !== filters[0]!.key ? { state: key } : {}), ...(q ? { q } : {}) }).toString()}`.replace(/\?$/u, "");
   const currencies = new Set(shown.map(r => r.currency));
   const totalValue = shown.reduce((s, r) => s + (r.type === "credit" ? -r.gross : r.gross), 0);
+  const params = { ...(active !== all ? { state: active.key } : {}), ...(q ? { q } : {}) };
+  const h = t.list.head;
   return (
-    <main className="page">
-      <div className="page-head">
-        <div>
-          <h1>{title}</h1>
-          <p>{intro}</p>
-        </div>
-        {create && <div className="actions"><NewDocument type={create.type} errors={t.errors}><Plus />{create.label}</NewDocument></div>}
-      </div>
+    <div className="page">
+      <PageHeader size="m" title={title} intro={intro} action={create ? <NewDocument type={create.type} errors={t.errors}><Plus />{create.label}</NewDocument> : undefined} />
       {rows.length === 0 && !q ? (
-        <div className="empty">
-          <BlankSheet />
-          <h2>{empty.title}</h2>
-          <p>{empty.body}</p>
-          {create && <div className="actions"><NewDocument type={create.type} errors={t.errors}><Plus />{empty.action}</NewDocument></div>}
-        </div>
+        <EmptyState icon={<BlankSheet />} title={empty.title} body={empty.body} action={create ? <NewDocument type={create.type} errors={t.errors}><Plus />{empty.action}</NewDocument> : undefined} />
       ) : (
         <>
           <div className="toolbar">
-            <nav className="filters" aria-label={t.list.filters}>
-              {filters.map(f => (
-                <a key={f.key} href={href(f.key)} aria-current={f.key === active.key ? "true" : undefined}>
-                  {f.label} <span className="n">{rows.filter(f.match).length}</span>
-                </a>
-              ))}
-            </nav>
-            <form className="search" role="search" action={path}>
-              {active.key !== filters[0]!.key && <input type="hidden" name="state" value={active.key} />}
-              <Search />
-              <label className="visually-hidden" htmlFor="q">{t.list.search}</label>
-              <input id="q" className="field" type="search" name="q" defaultValue={q} placeholder={t.list.searchPlaceholder} />
-            </form>
+            <Filters path={path} params={params} labels={t.filters}
+              groups={[{ key: "state", label: t.list.filters, all: true, options: states.map(f => ({ value: f.key, label: f.label, count: rows.filter(f.match).length })) }]} />
+            <SearchBox action={path} value={q} keep={{ state: params.state }} labels={t.searchBox} maxLength={80} />
           </div>
           {shown.length === 0 ? (
-            <p className="muted">{t.list.none}</p>
+            <p className="muted" role="status">{t.list.none}</p>
           ) : (
-            <Ledger
+            <DocTable
               rows={shown.map(r => rowView(r, t, locale))}
-              head={t.list.head}
-              {...(currencies.size === 1 && shown.length > 1 ? { total: { label: t.list.total, amount: formatMoney(totalValue, [...currencies][0]!, locale) } } : {})}
+              words={{ caption: title, number: h.number, client: h.client, what: h.what, date: h.date, amount: h.amount, state: h.state, total: t.list.total }}
+              labels={t.table}
+              total={currencies.size === 1 && shown.length > 1 ? formatMoney(totalValue, [...currencies][0]!, locale) : null}
             />
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }

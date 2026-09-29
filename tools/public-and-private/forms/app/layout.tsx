@@ -1,9 +1,13 @@
+import { ThemeStyle } from "@argentic/chest-ui/react";
+import { lookColors, nonceOf } from "@argentic/chest-ui/runtime";
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { catalogue } from "../lib/i18n/index.ts";
 import { pageLocale } from "../lib/session.ts";
-import "./fonts/dm-sans.css";
-import "./fonts/dm-serif-display.css";
+import { currentLook, ownLook } from "../lib/theme.ts";
+// The kit's components first, so the tool's own CSS can restyle them.
+import "@argentic/chest-ui/components.css";
 import "./tokens.css";
 import "./globals.css";
 
@@ -17,20 +21,23 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.meta.name, description: t.meta.tagline, robots: { index: false, follow: false } };
 }
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f3fa" },
-    { media: "(prefers-color-scheme: dark)", color: "#16121f" },
-  ],
-};
+export async function generateViewport(): Promise<Viewport> {
+  return { width: "device-width", initialScale: 1, themeColor: lookColors(await currentLook()) };
+}
 
+// The look (lib/theme.ts: Forms' own, or the theme or brand the company
+// chose in its Chest) is one <style> in the head, with the page's nonce:
+// its colours, fonts and dark mode arrive with the page, no script.
+// data-look says whether it is Forms' own: a form's colours then keep
+// their soft page grounds (app/tokens.css).
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const locale = await pageLocale();
+  const [locale, look, nonce] = await Promise.all([pageLocale(), currentLook(), headers().then(h => nonceOf(h.get("content-security-policy")))]);
   return (
     <html lang={locale}>
-      <body>{children}</body>
+      <head>
+        <ThemeStyle look={look} nonce={nonce} />
+      </head>
+      <body data-look={ownLook(look) ? "own" : "chosen"}>{children}</body>
     </html>
   );
 }

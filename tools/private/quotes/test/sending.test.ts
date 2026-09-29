@@ -116,7 +116,7 @@ test("a reminder, by email or by hand, is counted on the invoice", async () => {
   await finalise(sql, asMember(sofia), inv.id, today);
   const later = "2026-11-15";
   const message = draftMessage(await getDocument(sql, asMember(sofia), inv.id, later), "reminder", context);
-  assert.ok(message.subject.startsWith("Relance : facture F-2026-"));
+  assert.ok(message.subject.startsWith("Relance\u202f: facture F-2026-"));
   assert.ok(message.text.includes("il reste 600,00 € à payer") || message.text.replace(/\s/gu, " ").includes("il reste 600,00 € à payer"));
   await assert.rejects(sendReminder(sql, asMember(ines), inv.id, message, later), refused("forbidden"));
   assert.equal((await sendReminder(sql, asMember(sofia), inv.id, message, later)).delivery, "email");

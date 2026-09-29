@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState } from "@argentic/chest-ui/components";
 import { Back, Search } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { findPerson, type Found } from "../../../../lib/answers.ts";
@@ -17,7 +18,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
   const v = await viewer();
   if (!v) return null;
   const { t, locale, member } = v;
-  if (!can(member, "privacy.erase")) return <div className="narrow"><div className="empty"><p>{t.privacy.forbidden}</p></div></div>;
+  if (!can(member, "privacy.erase")) return <div className="narrow"><EmptyState title={t.privacy.forbidden} /></div>;
   const raw = (await searchParams)["q"];
   const q = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
   let found: Found[] | null = null;
@@ -58,7 +59,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
         <EraseForm
           rows={found.map(f => ({ id: f.id, form: f.formTitle, when: f.createdAt ? formatDate(f.createdAt, locale, zone, { dateStyle: "medium", timeStyle: "short" }) : "", who: f.respondent ? nameOf(who.get(f.respondent), locale) : (f.email ?? "") }))}
           locale={locale}
-          t={{ p: t.privacy, errors: t.errors }}
+          t={{ p: t.privacy, errors: t.errors, table: t.table }}
         />
       )}
     </div>

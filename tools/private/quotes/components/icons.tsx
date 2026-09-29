@@ -45,7 +45,7 @@ export const Upload = () => <Icon><path d="M12 20V9M7 14l5-5 5 5M4 5h16" /></Ico
 export function BlankSheet() {
   return (
     <svg className="art" viewBox="0 0 96 96" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" focusable="false">
-      <path d="M22 10h38l14 14v62H22z" fill="var(--paper)" />
+      <path d="M22 10h38l14 14v62H22z" fill="var(--surface)" />
       <path d="M60 10v14h14" />
       <path d="M31 38h34M31 46h34M31 54h22" strokeDasharray="2 3" />
       <circle cx="64" cy="72" r="9" stroke="var(--accent)" strokeWidth="2" />

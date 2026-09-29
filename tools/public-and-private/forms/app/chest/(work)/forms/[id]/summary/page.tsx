@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import { KindIcon, StarIcon } from "../../../../../../components/icons.tsx";
 import { allAnswers } from "../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../lib/app-error.ts";
@@ -16,13 +17,13 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
   if (!v) return null;
   const { t, locale, member } = v;
   const id = (await params).id;
-  const head = <AnswersSwitch base={`/chest/forms/${id}`} list={t.answers.viewList} summary={t.answers.viewSummary} label={t.answers.views} />;
+  const head = <AnswersSwitch base={`/chest/forms/${id}`} current="summary" list={t.answers.viewList} summary={t.answers.viewSummary} label={t.answers.views} />;
   let data;
   try {
     data = await allAnswers(db(), member, id);
   } catch (error) {
     if (error instanceof AppError && error.code === "too_few") {
-      return <div className="panel-page">{head}<div className="empty"><h2>{t.answers.floorTitle}</h2><p>{format(t.answers.floor, { floor: limits.anonymousFloor, count: error.values["count"] ?? 0 })}</p></div></div>;
+      return <div className="panel-page">{head}<EmptyState title={t.answers.floorTitle} body={format(t.answers.floor, { floor: limits.anonymousFloor, count: error.values["count"] ?? 0 })} /></div>;
     }
     throw error;
   }
@@ -138,7 +139,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       {head}
       <p className="answers-count">{plural(t.answers.count, data.answers.length, locale)}</p>
       {data.versions.size > 1 && <p className="hint">{s.versions}</p>}
-      {data.answers.length === 0 ? <div className="empty"><p>{s.empty}</p></div> : (
+      {data.answers.length === 0 ? <EmptyState title={s.empty} /> : (
         <ol className="summary-list">
           {summaries.map(x => (
             <li key={x.column.question.id} className="summary-card">

@@ -4,9 +4,10 @@ import { notFound } from "next/navigation";
 import { RespondFrame, RespondNotice } from "../../components/respond-frame.tsx";
 import { Runner } from "../../components/runner.tsx";
 import { db } from "../../lib/db.ts";
+import { currentLook } from "../../lib/theme.ts";
+import { zonedParts } from "../../lib/zone.ts";
 import { bySlug, openState } from "../../lib/forms.ts";
 import { formToken } from "../../lib/guard.ts";
-import { companyLogo } from "../../lib/brand.ts";
 import { catalogue, format } from "../../lib/i18n/index.ts";
 import { imageUrl, pictureUrls } from "../../lib/images.ts";
 import { prefill } from "../../lib/logic.ts";
@@ -45,7 +46,7 @@ export default async function PublicForm({ params, searchParams }: Props) {
   const state = openState(form);
   const query = Object.fromEntries(Object.entries(await searchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
   return (
-    <RespondFrame accent={form.accent} company={company} logo={await companyLogo()} locale={locale} languages={offered} languageLabel={t.public.language} back={`/${slug}`} footer={format(t.respond.footer, { company })}>
+    <RespondFrame accent={form.accent} company={company} logo={(await currentLook()).logo} locale={locale} languages={offered} languageLabel={t.public.language} back={`/${slug}`} footer={format(t.respond.footer, { company })}>
       {state.open ? (
         <Runner
           definition={definition}
@@ -58,7 +59,8 @@ export default async function PublicForm({ params, searchParams }: Props) {
           initial={{ ...prefill(found.definition, query), ...prefill(definition, query) }}
           thanks={{ title: form.thanksTitle, body: form.thanksBody }}
           redirectUrl={form.redirectUrl}
-          words={t.respond}
+          words={{ ...t.respond, date: t.date, files: t.files }}
+          today={zonedParts(new Date(), chest.timeZone()).day}
           errors={t.errors}
           locale={locale}
           token={formToken()}

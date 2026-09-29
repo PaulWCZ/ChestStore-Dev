@@ -1,70 +1,57 @@
 "use client";
 
+import { DataTable, Dialog, EmptyState, PageHeader, SearchBox, Tabs } from "@argentic/chest-ui/components";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ClientForm, blankClient } from "../../../components/client-form.tsx";
-import { Dialog } from "../../../components/dialog.tsx";
-import { People, Plus, Search, Upload } from "../../../components/icons.tsx";
+import { People, Plus, Upload } from "../../../components/icons.tsx";
 import type { Client } from "../../../lib/clients.ts";
 import { plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 
-// The clients: a searchable list, a new one in a dialog. A client is opened
-// to change their card and see their documents.
+// The clients: a searchable list (the kit's table), a new one in a dialog
+// that asks before losing what was typed. A client is opened to change
+// their card and see their documents.
 export function ClientsView({ t, locale, clients, archived, q, total, canWrite, defaultLanguage }: { t: Catalogue; locale: Locale; clients: Client[]; archived: boolean; q: string; total: number; canWrite: boolean; defaultLanguage: Locale }) {
   const c = t.clients;
   const router = useRouter();
   const [adding, setAdding] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const close = () => { setAdding(false); setDirty(false); };
+  const add = <button type="button" className="button" onClick={() => setAdding(true)}><Plus />{c.add}</button>;
+  const importLink = <a className="button quiet" href="/chest/import?kind=clients"><Upload />{c.import}</a>;
   return (
-    <main className="page">
-      <div className="page-head">
-        <div>
-          <h1>{c.title}</h1>
-          <p>{c.intro}</p>
-        </div>
-        {canWrite && <div className="actions"><a className="button quiet" href="/chest/import?kind=clients"><Upload />{c.import}</a><button type="button" className="button" onClick={() => setAdding(true)}><Plus />{c.add}</button></div>}
-      </div>
+    <div className="page">
+      <PageHeader size="m" title={c.title} intro={c.intro} secondary={canWrite ? importLink : undefined} action={canWrite ? add : undefined} />
       {total === 0 && !archived ? (
-        <div className="empty">
-          <People />
-          <h2>{c.empty.title}</h2>
-          <p>{c.empty.body}</p>
-          {canWrite && <div className="actions"><button type="button" className="button" onClick={() => setAdding(true)}><Plus />{c.add}</button><a className="button quiet" href="/chest/import?kind=clients"><Upload />{c.import}</a></div>}
-        </div>
+        <EmptyState icon={<People />} title={c.empty.title} body={c.empty.body} action={canWrite ? <>{add}{importLink}</> : undefined} />
       ) : (
         <>
           <div className="toolbar">
-            <nav className="filters" aria-label={t.list.filters}>
-              <a href="/chest/clients" aria-current={!archived ? "true" : undefined}>{c.active}</a>
-              <a href="/chest/clients?archived=1" aria-current={archived ? "true" : undefined}>{c.archived}</a>
-            </nav>
-            <form className="search" role="search" action="/chest/clients">
-              {archived && <input type="hidden" name="archived" value="1" />}
-              <Search />
-              <label className="visually-hidden" htmlFor="q">{t.list.search}</label>
-              <input id="q" className="field" type="search" name="q" defaultValue={q} placeholder={c.search} />
-            </form>
+            <Tabs label={t.list.filters} current={archived ? "archived" : "active"} link={Link}
+              items={[{ id: "active", label: c.active, href: "/chest/clients" }, { id: "archived", label: c.archived, href: "/chest/clients?archived=1" }]} />
+            <SearchBox action="/chest/clients" value={q} keep={{ archived: archived ? "1" : undefined }} labels={{ ...t.searchBox, placeholder: c.search }} maxLength={80} />
           </div>
-          {clients.length === 0 ? <p className="muted">{t.list.none}</p> : (
-            <div className="ledger">
-              <ul className="plain">
-                {clients.map(x => (
-                  <li key={x.id} className="ledger-row clients-row">
-                    <a className="main" href={`/chest/clients/${x.id}`}><span className="visually-hidden">{x.name}</span></a>
-                    <span className="who" aria-hidden="true">{x.name}</span>
-                    <span className="what" aria-hidden="true">{[x.contact, x.email].filter(Boolean).join(" · ")}</span>
-                    <span className="date" aria-hidden="true">{[x.postcode, x.city].filter(Boolean).join(" ")}</span>
-                    <span className="amount" aria-hidden="true">{plural(c.documents, x.documents, locale)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {clients.length === 0 ? <p className="muted" role="status">{t.list.none}</p> : (
+            <DataTable
+              caption={archived ? `${c.title} · ${c.archived}` : c.title}
+              rows={clients}
+              rowKey={x => x.id}
+              labels={t.table}
+              columns={[
+                { key: "name", label: c.columns.name, rowHeader: true, value: x => x.name, render: x => <a className="doc-link" href={`/chest/clients/${x.id}`}>{x.name}</a> },
+                { key: "contact", label: c.columns.contact, hideOnPhone: true, render: x => <span className="what">{[x.contact, x.email].filter(Boolean).join(" · ")}</span> },
+                { key: "place", label: c.columns.place, hideOnPhone: true, value: x => x.city, render: x => <span className="date">{[x.postcode, x.city].filter(Boolean).join(" ")}</span> },
+                { key: "documents", label: c.columns.documents, align: "end", value: x => x.documents, render: x => <span className="amount">{plural(c.documents, x.documents, locale)}</span> },
+              ]}
+            />
           )}
         </>
       )}
-      <Dialog open={adding} title={c.add} closeLabel={t.shell.close} onClose={() => setAdding(false)}>
-        <ClientForm t={t} initial={blankClient(defaultLanguage)} onCancel={() => setAdding(false)} onSaved={saved => { setAdding(false); router.push(`/chest/clients/${saved.id}`); }} />
+      <Dialog open={adding} title={c.add} onClose={close} dirty={dirty} labels={t.dialog} size="l">
+        {adding && <ClientForm t={t} initial={blankClient(defaultLanguage)} onDirty={setDirty} onCancel={close} onSaved={saved => { close(); router.push(`/chest/clients/${saved.id}`); }} />}
       </Dialog>
-    </main>
+    </div>
   );
 }

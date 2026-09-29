@@ -1,12 +1,14 @@
 "use client";
 
+import { FilePicker, PageHeader, useToast, type PickedFile, type Upload } from "@argentic/chest-ui/components";
+import { putWithProgress } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ReactNode } from "react";
-import { Alert, Info, Trash, Upload } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
+import { useEffect, useState, type ReactNode } from "react";
+import { Alert, Info, Trash } from "../../../components/icons.tsx";
 import type { Accounts, Company } from "../../../lib/company.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
+import { limits } from "../../../lib/model.ts";
 import { inputAmount, inputPercent } from "../../../lib/money.ts";
 import { removeLogo, saveLogo, updateCompany } from "../actions.ts";
 
@@ -36,8 +38,7 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
   const [gaps, setGaps] = useState(missing);
   const [error, setError] = useState<{ field: keyof Fields | null; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const file = useRef<HTMLInputElement>(null);
+  const [logoFiles, setLogoFiles] = useState<readonly PickedFile[]>([]);
   const set = (patch: Partial<Fields>) => setF(v => ({ ...v, ...patch }));
   const bad = (k: keyof Fields) => (error?.field === k ? true : undefined);
   // The VAT number is not needed under the exemption, even before saving.
@@ -53,32 +54,34 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
     setBusy(false);
     if (!result.ok) {
       setError({ field: fieldOf[result.error] ?? null, text: format(t.errors[result.error], result.values ?? {}) });
-      toast(format(t.errors[result.error], result.values ?? {}));
+      toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
       return;
     }
     setError(null);
     setGaps(result.value.missing);
-    toast(result.value.missing.length === 0 ? s.savedComplete : s.saved);
+    toast({ id: "settings", text: result.value.missing.length === 0 ? s.savedComplete : s.saved });
     router.refresh();
   }
 
-  async function upload(chosen: File) {
-    setUploading(true);
-    try {
-      const grant = await fetch("/chest/api/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: chosen.type, size: chosen.size }) });
-      const answer = (await grant.json()) as { url?: string; object?: string; error?: string };
-      if (!grant.ok || !answer.url || !answer.object) return toast(t.errors[(answer.error ?? "unknown") as keyof Catalogue["errors"]] ?? t.errors.unknown);
-      const put = await fetch(answer.url, { method: "PUT", body: chosen, headers: { "Content-Type": chosen.type } });
-      if (!put.ok) return toast(put.status === 413 ? t.errors.logo_too_large : put.status === 415 ? t.errors.logo_type : t.errors.file_missing);
-      const saved = await saveLogo(answer.object);
-      if (!saved.ok) return toast(t.errors[saved.error]);
-      toast(s.logoSaved);
-      router.refresh();
-    } finally {
-      setUploading(false);
-      if (file.current) file.current.value = "";
-    }
-  }
+  // The logo goes from this browser to the Chest's files (the tool grants
+  // one upload), then the tool checks what arrived and keeps it.
+  const upload: Upload = async (chosen, { onProgress, signal }) => {
+    const grant = await fetch("/chest/api/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: chosen.type, size: chosen.size }), signal });
+    const answer = (await grant.json().catch(() => ({}))) as { url?: string; object?: string; error?: string };
+    if (!grant.ok || !answer.url || !answer.object) return { ok: false, error: t.errors[(answer.error ?? "unknown") as keyof Catalogue["errors"]] ?? t.errors.unknown };
+    const put = await putWithProgress(answer.url, chosen, { headers: { "Content-Type": chosen.type }, onProgress, signal });
+    if (put.status >= 300) return { ok: false, error: put.status === 413 ? t.errors.logo_too_large : put.status === 415 ? t.errors.logo_type : t.errors.file_missing };
+    const saved = await saveLogo(answer.object);
+    if (!saved.ok) return { ok: false, error: t.errors[saved.error] };
+    return { ok: true, ref: answer.object };
+  };
+  // Once kept, it shows in the preview: the picker is empty again.
+  useEffect(() => {
+    if (!logoFiles.some(x => x.status === "ready")) return;
+    setLogoFiles([]);
+    toast({ id: "logo", text: s.logoSaved });
+    router.refresh();
+  }, [logoFiles, toast, router, s.logoSaved]);
 
   const text = (k: keyof Fields, label: string, options: { hint?: string; className?: string; max?: number; placeholder?: string; list?: string; inputMode?: "numeric" | "decimal" | "email" | "tel" | "url"; required?: boolean } = {}) => (
     <div className={`field-row ${options.className ?? ""}`}>
@@ -90,13 +93,8 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
   );
 
   return (
-    <main className="page narrow">
-      <div className="page-head">
-        <div>
-          <h1>{s.title}</h1>
-          <p>{canEdit ? s.intro : s.readOnly}</p>
-        </div>
-      </div>
+    <div className="page narrow">
+      <PageHeader size="m" title={s.title} intro={canEdit ? s.intro : s.readOnly} />
       {shownGaps.length > 0 && (
         <div className="callout" role="note">
           <Alert />
@@ -156,14 +154,16 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
               <span className="field-label">{s.fields.logo}</span>
               <div className="logo-box">
                 <div className="preview">{logo ? <img src={logo} alt={s.logoAlt} /> : s.noLogo}</div>
-                {canEdit && (
-                  <>
-                    <input ref={file} id="s-logo" type="file" accept="image/png,image/jpeg" hidden onChange={e => { const chosen = e.target.files?.[0]; if (chosen) void upload(chosen); }} />
-                    <button type="button" className="button quiet small" disabled={uploading} onClick={() => file.current?.click()}><Upload />{uploading ? s.uploading : logo ? s.changeLogo : s.addLogo}</button>
-                    {logo && <button type="button" className="button ghost small" onClick={() => void removeLogo().then(r => { if (r.ok) { toast(s.logoRemoved); router.refresh(); } })}><Trash />{s.removeLogo}</button>}
-                  </>
-                )}
-                <span className="hint">{s.hints.logo}</span>
+                <div className="logo-actions">
+                  {canEdit && (
+                    <>
+                      <FilePicker label={s.fields.logo} files={logoFiles} onChange={update => setLogoFiles(update)} upload={upload} maxFiles={1} maxSize={limits.logoSize}
+                        accept={["image/png", "image/jpeg"]} labels={{ ...t.files, addOne: logo ? s.changeLogo : s.addLogo }} />
+                      {logo && <button type="button" className="button ghost small" onClick={() => void removeLogo().then(r => { if (r.ok) { toast({ id: "logo", text: s.logoRemoved }); router.refresh(); } else toast({ text: t.errors[r.error], tone: "error" }); })}><Trash />{s.removeLogo}</button>}
+                    </>
+                  )}
+                  <span className="hint">{s.hints.logo}</span>
+                </div>
               </div>
             </div>
             {text("email", s.fields.email, { className: "third", inputMode: "email", max: 254, hint: s.hints.email })}
@@ -260,6 +260,6 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
           <p>{s.law.keep}</p>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { Avatar } from "../../../../../../components/avatar.tsx";
+import { Avatar, DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import type { Choice } from "@argentic/chest-ui/components/logic";
+import { useId, useMemo, useState, useTransition } from "react";
 import { CopyButton } from "../../../../../../components/copy-button.tsx";
 import { Close, Globe, Link as LinkIcon } from "../../../../../../components/icons.tsx";
-import { useToast } from "../../../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../../../lib/i18n/index.ts";
 import { format } from "../../../../../../lib/i18n/format.ts";
@@ -22,8 +22,11 @@ type Props = {
   shared: (Person & { level: "editor" | "viewer"; manager: boolean })[];
   taken: string[];
   canManage: boolean;
-  embed: { sites: string[]; canEdit: boolean; title: string } | null;
-  t: { share: Catalogue["share"]; levels: Catalogue["levels"]; errors: Catalogue["errors"]; yes: string; no: string };
+  embed: { sites: string[]; canEdit: boolean; title: string; colour: { fill: string; ink: string } } | null;
+  // Today on the Chest's clock (a date question's prefilled value).
+  today: string;
+  locale: string;
+  t: { share: Catalogue["share"]; levels: Catalogue["levels"]; errors: Catalogue["errors"]; yes: string; no: string; date: Catalogue["date"]; peoplePicker: Catalogue["peoplePicker"] };
 };
 
 // The code a website pastes: the form in a frame that takes the form's
@@ -33,7 +36,8 @@ const quoted = (s: string) => '"' + s.replace(/&/gu, "&amp;").replace(/"/gu, "&q
 const frameCode = (url: string, title: string) =>
   `<iframe src=${quoted(url)} title=${quoted(title)} style="width:100%;min-height:640px;border:0" loading="lazy" data-chest-form></iframe>\n` +
   `<script>addEventListener("message",function(e){if(e.origin!==${JSON.stringify(new URL(url).origin)}||!e.data||e.data.type!=="chest-forms:height")return;document.querySelectorAll("iframe[data-chest-form]").forEach(function(f){if(f.contentWindow===e.source)f.style.height=e.data.height+"px"})})</script>`;
-const buttonCode = (url: string, label: string) => `<a href=${quoted(url)} target="_blank" rel="noopener" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#5b2a86;color:#fff;font:600 16px system-ui;text-decoration:none">${label.replace(/</gu, "&lt;")}</a>`;
+// The button wears the form's colour as the page shows it (light).
+const buttonCode = (url: string, label: string, colour: { fill: string; ink: string }) => `<a href=${quoted(url)} target="_blank" rel="noopener" style="display:inline-block;padding:12px 20px;border-radius:10px;background:${colour.fill};color:${colour.ink};font:600 16px system-ui;text-decoration:none">${label.replace(/</gu, "&lt;")}</a>`;
 
 export function ShareView(p: Props) {
   const { share: s, levels } = p.t;
@@ -45,9 +49,15 @@ export function ShareView(p: Props) {
   const prefilled = useMemo(() => (p.link && q && value.trim() ? `${p.link}?${new URLSearchParams({ [q.key ?? q.id]: value.trim() }).toString()}` : null), [p.link, q, value]);
   const say = (code: ErrorCode, values?: Record<string, string | number>) => format(p.t.errors[code] ?? p.t.errors.unknown, values ?? {});
 
-  const act = (memberId: string, lvl: "editor" | "viewer" | null, done: string) => start(async () => {
+  // Taking someone off can be undone: they are given their level back.
+  const act = (memberId: string, lvl: "editor" | "viewer" | null, done: string, before?: "editor" | "viewer") => start(async () => {
     const r = await shareForm(p.formId, memberId, lvl);
-    toast(r.ok ? done : say(r.error, r.values));
+    if (!r.ok) return void toast({ id: `share-${memberId}`, text: say(r.error, r.values), tone: "error" });
+    toast({
+      id: `share-${memberId}`,
+      text: done,
+      ...(before ? { undo: async () => { const back = await shareForm(p.formId, memberId, before); return back.ok || say(back.error, back.values); } } : {}),
+    });
   });
 
   return (
@@ -58,7 +68,7 @@ export function ShareView(p: Props) {
           <>
             <div className="link-box big"><LinkIcon /><code>{p.link}</code></div>
             <div className="row-actions">
-              <CopyButton text={p.link} label={s.copy} done={s.copied} className="button" />
+              <CopyButton text={p.link} label={s.copy} done={s.copied} failed={s.copyFailed} className="button" />
               <a className="button quiet" href={p.link} target="_blank" rel="noreferrer">{s.open}</a>
             </div>
             {!p.open && <p className="notice">{s.closedNote}</p>}
@@ -90,17 +100,22 @@ export function ShareView(p: Props) {
                   <option value="yes">{p.t.yes}</option>
                   <option value="no">{p.t.no}</option>
                 </select>
-              ) : (
-                <input className="field" type={q?.kind === "date" ? "date" : "text"} value={value} onChange={e => setValue(e.target.value)} />
-              )}
+              ) : q?.kind !== "date" ? (
+                <input className="field" value={value} onChange={e => setValue(e.target.value)} />
+              ) : null}
             </label>
+            {q?.kind === "date" && (
+              <div className="mini grow">
+                <DateField label={s.prefillValue} value={value || null} onChange={d => setValue(d ?? "")} today={p.today} labels={p.t.date} />
+              </div>
+            )}
           </div>
           {q && !q.key && <p className="hint">{s.prefillKeyHint}</p>}
           {prefilled && (
             <>
               <p className="mini-label">{s.prefillLink}</p>
               <div className="link-box"><code>{prefilled}</code></div>
-              <CopyButton text={prefilled} label={s.copy} done={s.copied} />
+              <CopyButton text={prefilled} label={s.copy} done={s.copied} failed={s.copyFailed} />
             </>
           )}
         </section>
@@ -112,10 +127,10 @@ export function ShareView(p: Props) {
         <h2 id="share-people">{s.people}</h2>
         <p className="hint">{s.peopleHint}</p>
         <ul className="people-list">
-          <li><Avatar name={p.owner.name} photo={p.owner.photo} /><span className="person-name">{p.owner.name}</span><span className="level">{levels.owner}</span></li>
+          <li><Avatar name={p.owner.name} photo={p.owner.photo} size="s" /><span className="person-name">{p.owner.name}</span><span className="level">{levels.owner}</span></li>
           {p.shared.map(x => (
             <li key={x.id}>
-              <Avatar name={x.name} photo={x.photo} />
+              <Avatar name={x.name} photo={x.photo} size="s" />
               <span className="person-name">{x.name}</span>
               {x.manager ? <span className="level">{levels.manager}</span> : p.canManage ? (
                 <>
@@ -126,89 +141,51 @@ export function ShareView(p: Props) {
                   </select>
                 </>
               ) : <span className="level">{levels[x.level]}</span>}
-              {p.canManage && <button type="button" className="icon-button" disabled={pending} onClick={() => act(x.id, null, format(s.removed, { name: x.name }))}><Close /><span className="visually-hidden">{format(s.removeOne, { name: x.name })}</span></button>}
+              {p.canManage && <button type="button" className="icon-button" disabled={pending} onClick={() => act(x.id, null, format(s.removed, { name: x.name }), x.level)}><Close /><span className="visually-hidden">{format(s.removeOne, { name: x.name })}</span></button>}
             </li>
           ))}
         </ul>
         {p.shared.length === 0 && <p className="hint">{s.nobody}</p>}
-        {p.canManage && <PeoplePicker taken={p.taken} s={s} levels={levels} pending={pending} say={say} onAdd={(id, name, level) => act(id, level, format(s.added, { name }))} />}
+        {p.canManage && <AddPerson taken={p.taken} s={s} levels={levels} pending={pending} words={p.t.peoplePicker} locale={p.locale} onAdd={(id, name, level) => act(id, level, format(s.added, { name }))} />}
         {!p.canManage && <p className="hint">{s.ownerNote}</p>}
       </section>
     </div>
   );
 }
 
-// Someone to share with: type a few letters of a name, the Chest finds
-// them (arrows choose, Enter picks); then their level, then Add.
-function PeoplePicker({ taken, s, levels, pending, say, onAdd }: { taken: string[]; s: Catalogue["share"]; levels: Catalogue["levels"]; pending: boolean; say: (c: ErrorCode) => string; onAdd: (id: string, name: string, level: "editor" | "viewer") => void }) {
-  const id = useId();
-  const [text, setText] = useState("");
-  const [found, setFound] = useState<{ id: string; name: string; photo: string | null }[]>([]);
-  const [active, setActive] = useState(0);
-  const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
+// Someone to share with: the kit's people picker (type a few letters of a
+// name, the Chest finds them; arrows choose, Enter picks), then their
+// level, then Add.
+function AddPerson({ taken, s, levels, pending, words, locale, onAdd }: { taken: string[]; s: Catalogue["share"]; levels: Catalogue["levels"]; pending: boolean; words: Catalogue["peoplePicker"]; locale: string; onAdd: (id: string, name: string, level: "editor" | "viewer") => void }) {
+  const [picked, setPicked] = useState<Choice[]>([]);
   const [level, setLevel] = useState<"editor" | "viewer">("viewer");
-  const [open, setOpen] = useState(false);
-  const toast = useToast();
-  const asked = useRef(0);
-  useEffect(() => {
-    if (!open || picked) return;
-    const n = ++asked.current;
-    const timer = setTimeout(async () => {
-      const r = await findPeople(text);
-      if (n !== asked.current) return;
-      if (!r.ok) return void toast(say(r.error));
-      setFound(r.value.filter(x => !taken.includes(x.id)));
-      setActive(0);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [text, open, picked, taken, toast, say]);
-  const choose = (x: { id: string; name: string }) => {
-    setPicked(x);
-    setText(x.name);
-    setOpen(false);
+  const levelId = useId();
+  const search = async (query: string): Promise<Choice[]> => {
+    const r = await findPeople(query);
+    if (!r.ok) throw new Error(r.error);
+    return r.value.filter(x => !taken.includes(x.id)).map(x => ({ kind: "member" as const, id: x.id, name: x.name, photo: x.photo }));
   };
-  const list = open && !picked && found.length > 0;
+  const person = picked[0];
   return (
-    <form className="add-person" onSubmit={e => { e.preventDefault(); if (picked) { onAdd(picked.id, picked.name, level); setPicked(null); setText(""); setFound([]); } }}>
-      <div className="mini grow combo">
-        <label className="mini-label" htmlFor={id}>{s.addPerson}</label>
-        <input id={id} className="field" role="combobox" aria-expanded={list} aria-controls={`${id}-list`} aria-autocomplete="list" aria-activedescendant={list ? `${id}-${active}` : undefined}
-          value={text} placeholder={s.pick} autoComplete="off"
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onChange={e => { setText(e.target.value); setPicked(null); setOpen(true); }}
-          onKeyDown={e => {
-            if (!list) return;
-            if (e.key === "ArrowDown") { e.preventDefault(); setActive(a => Math.min(a + 1, found.length - 1)); }
-            else if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
-            else if (e.key === "Enter") { e.preventDefault(); choose(found[active]!); }
-            else if (e.key === "Escape") setOpen(false);
-          }} />
-        {list && (
-          <ul className="combo-list" id={`${id}-list`} role="listbox" aria-label={s.addPerson}>
-            {found.map((x, i) => (
-              <li key={x.id} id={`${id}-${i}`} role="option" aria-selected={i === active} className={i === active ? "active" : ""} onMouseDown={e => { e.preventDefault(); choose(x); }}>
-                <Avatar name={x.name} photo={x.photo} size={26} />{x.name}
-              </li>
-            ))}
-          </ul>
-        )}
+    <form className="add-person" onSubmit={e => { e.preventDefault(); if (person) { onAdd(person.id, person.name, level); setPicked([]); } }}>
+      <div className="mini grow">
+        <PeoplePicker label={s.addPerson} value={picked} onChange={setPicked} search={search} labels={words} lang={locale} />
       </div>
-      <label className="mini">
-        <span className="mini-label">{s.levelLabel}</span>
-        <select className="field" value={level} onChange={e => setLevel(e.target.value as "editor" | "viewer")}>
+      <div className="mini">
+        <label className="mini-label" htmlFor={levelId}>{s.levelLabel}</label>
+        <select id={levelId} className="field" value={level} onChange={e => setLevel(e.target.value as "editor" | "viewer")}>
           <option value="viewer">{levels.viewer}</option>
           <option value="editor">{levels.editor}</option>
         </select>
-      </label>
-      <button type="submit" className="button" disabled={!picked || pending}>{s.add}</button>
+      </div>
+      <button type="submit" className="button" disabled={!person || pending}>{s.add}</button>
     </form>
   );
 }
 
 // On the company's website: the websites allowed (managers), the frame's
 // code and a button's code. Said plainly: the frame waits for the Chest.
-function Embed({ link, embed, s, say }: { link: string; embed: { sites: string[]; canEdit: boolean; title: string }; s: Catalogue["share"]; say: (c: ErrorCode, v?: Record<string, string | number>) => string }) {
+function Embed({ link, embed, s, say }: { link: string; embed: { sites: string[]; canEdit: boolean; title: string; colour: { fill: string; ink: string } }; s: Catalogue["share"]; say: (c: ErrorCode, v?: Record<string, string | number>) => string }) {
   const [sites, setSites] = useState(embed.sites.join("\n"));
   const [pending, start] = useTransition();
   const toast = useToast();
@@ -220,14 +197,14 @@ function Embed({ link, embed, s, say }: { link: string; embed: { sites: string[]
       <label className="mini-label" htmlFor={`${id}-sites`}>{s.embedSites}</label>
       <textarea id={`${id}-sites`} className="field" rows={2} value={sites} readOnly={!embed.canEdit} placeholder={s.embedPlaceholder} onChange={e => setSites(e.target.value)} />
       {embed.canEdit ? (
-        <div><button type="button" className="button quiet small" disabled={pending} onClick={() => start(async () => { const r = await saveEmbedSites(sites); if (r.ok) { setSites(r.value.sites.join("\n")); toast(s.embedSaved); } else toast(say(r.error, r.values)); })}>{s.embedSave}</button></div>
+        <div><button type="button" className="button quiet small" disabled={pending} onClick={() => start(async () => { const r = await saveEmbedSites(sites); if (r.ok) { setSites(r.value.sites.join("\n")); toast({ id: "embed", text: s.embedSaved }); } else toast({ id: "embed", text: say(r.error, r.values), tone: "error" }); })}>{s.embedSave}</button></div>
       ) : <p className="hint">{s.embedManagers}</p>}
       <label className="mini-label" htmlFor={`${id}-frame`}>{s.embedCode}</label>
       <textarea id={`${id}-frame`} className="field embed-code" readOnly rows={4} value={frameCode(link, embed.title)} />
-      <div><CopyButton text={frameCode(link, embed.title)} label={s.embedCopy} done={s.embedCopied} /></div>
+      <div><CopyButton text={frameCode(link, embed.title)} label={s.embedCopy} done={s.embedCopied} failed={s.copyFailed} /></div>
       <label className="mini-label" htmlFor={`${id}-button`}>{s.embedButton}</label>
-      <textarea id={`${id}-button`} className="field embed-code" readOnly rows={2} value={buttonCode(link, s.embedButtonText)} />
-      <div><CopyButton text={buttonCode(link, s.embedButtonText)} label={s.embedCopy} done={s.embedCopied} /></div>
+      <textarea id={`${id}-button`} className="field embed-code" readOnly rows={2} value={buttonCode(link, s.embedButtonText, embed.colour)} />
+      <div><CopyButton text={buttonCode(link, s.embedButtonText, embed.colour)} label={s.embedCopy} done={s.embedCopied} failed={s.copyFailed} /></div>
       <p className="notice">{s.embedNote}</p>
     </section>
   );

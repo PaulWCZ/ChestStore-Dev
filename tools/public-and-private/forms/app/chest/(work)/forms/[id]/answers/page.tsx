@@ -1,6 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState, Filters, SearchBox } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../../../../../components/auto-refresh.tsx";
-import { Download, Search, Zip } from "../../../../../../components/icons.tsx";
+import { Download, Zip } from "../../../../../../components/icons.tsx";
 import { anonymousTexts, followStates, listAnswers } from "../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../lib/db.ts";
@@ -12,16 +13,20 @@ import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { columnsOf, optionLabels } from "../../../../../../lib/summary.ts";
 import { seen } from "../../../../../../lib/tell.ts";
+import { zonedParts } from "../../../../../../lib/zone.ts";
 import { AnswersSwitch } from "../answers-switch.tsx";
+import { AnswersTable, FilterDates, type AnswerRow } from "./answers-table.tsx";
 import { AutoFilter } from "./auto-filter.tsx";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 const many = (v: string | string[] | undefined) => (Array.isArray(v) ? v : v ? [v] : []);
 
-// Answers: a table (cards on a phone), searched and filtered — the
-// filters apply at once —, newest or oldest first, the columns chosen;
-// each opens on its own page. Opening it clears the member's bell item.
+// Answers: the kit's table, searched (the kit's search box, "/") and
+// filtered — where it stands as chips with their counts, a choice, the
+// days; the filters apply at once and live in the address —, newest or
+// oldest first (the "When" column), the columns chosen; each opens on its
+// own page. Opening it clears the member's bell item.
 // An anonymous form has no table: its written answers, each on its own,
 // shuffled (lib/answers.ts anonymousTexts), and the summary.
 export default async function AnswersPage({ params, searchParams }: Props) {
@@ -41,7 +46,7 @@ export default async function AnswersPage({ params, searchParams }: Props) {
       {!form.anonymous && <a className="button quiet small" href={`${base}/archive`} download><Zip />{t.answers.archive}</a>}
     </span>
   );
-  const head = <AnswersSwitch base={base} list={t.answers.viewList} summary={t.answers.viewSummary} label={t.answers.views} />;
+  const head = <AnswersSwitch base={base} current="list" list={t.answers.viewList} summary={t.answers.viewSummary} label={t.answers.views} />;
 
   if (form.anonymous) {
     let data;
@@ -52,7 +57,7 @@ export default async function AnswersPage({ params, searchParams }: Props) {
         return (
           <div className="answers-page">
             {head}
-            <div className="empty"><h2>{t.answers.floorTitle}</h2><p>{format(t.answers.floor, { floor: limits.anonymousFloor, count: error.values["count"] ?? 0 })}</p></div>
+            <EmptyState title={t.answers.floorTitle} body={format(t.answers.floor, { floor: limits.anonymousFloor, count: error.values["count"] ?? 0 })} />
           </div>
         );
       }
@@ -89,15 +94,18 @@ export default async function AnswersPage({ params, searchParams }: Props) {
   const data = await listAnswers(sql, member, id, { q, question, option, status, from, to, sort, page: one(query["page"]) }, zone);
   const words = { yes: t.respond.yes, no: t.respond.no, other: t.respond.other };
   const every = columnsOf(data.versions, form.draft).filter(c => !c.removed);
-  const chosen = many(query["cols"]).filter(c => every.some(x => x.question.id === c));
+  // The columns chosen: the checkboxes' form repeats "cols", the other
+  // links keep them comma-separated.
+  const chosen = many(query["cols"]).flatMap(c => c.split(",")).filter(c => every.some(x => x.question.id === c));
   const columns = chosen.length > 0 ? every.filter(c => chosen.includes(c.question.id)) : every.slice(0, 4);
   const labels = optionLabels(data.versions);
   const filterable = columnsOf(data.versions, form.draft).filter(c => withOptions(c.question.kind) || c.question.kind === "yesno");
   const who = await people(data.answers.flatMap(a => (a.respondent ? [a.respondent] : [])));
   const pages = Math.max(1, Math.ceil(data.matching / limits.page));
-  const keep = new URLSearchParams({ ...(q ? { q } : {}), ...(where ? { where } : {}), ...(status ? { status } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}), ...(sort ? { sort } : {}) });
-  for (const c of chosen) keep.append("cols", c);
+  const keep = new URLSearchParams({ ...(q ? { q } : {}), ...(where ? { where } : {}), ...(status ? { status } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}), ...(sort ? { sort } : {}), ...(chosen.length ? { cols: chosen.join(",") } : {}) });
   const link = (page: number) => { const x = new URLSearchParams(keep); x.set("page", String(page)); return `${base}/answers?${x}`; };
+  const unsorted = new URLSearchParams(keep);
+  unsorted.delete("sort");
   const filters = q || where || status || from || to;
   const whoOf = (a: (typeof data.answers)[number]) => (a.respondent ? (a.respondent === member.id ? t.people.you : nameOf(who.get(a.respondent), locale)) : (a.email ?? t.answers.visitor));
   const whenOf = (a: (typeof data.answers)[number]) => (a.createdAt ? formatDate(a.createdAt, locale, zone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : formatDate(a.month + "T12:00:00Z", locale, "UTC", { month: "long", year: "numeric" }));
@@ -106,55 +114,53 @@ export default async function AnswersPage({ params, searchParams }: Props) {
     return text.length > 90 ? text.slice(0, 89) + "…" : text;
   };
   const answerLink = (a: (typeof data.answers)[number]) => `${base}/answers/${a.id}${keep.size ? "?" + keep : ""}`;
+  const rows: AnswerRow[] = data.answers.map(a => ({
+    id: a.id,
+    when: whenOf(a),
+    at: a.createdAt ?? a.month,
+    who: whoOf(a),
+    email: !a.respondent && a.email ? a.email : null,
+    cells: Object.fromEntries(columns.map(c => [c.question.id, cellOf(a, c)])),
+    status: a.status,
+    statusLabel: t.follow.states[a.status],
+    href: answerLink(a),
+    openLabel: `${t.answers.openAnswer}: ${whoOf(a)}, ${whenOf(a)}`,
+  }));
+  const today = zonedParts(new Date(), zone).day;
   return (
     <div className="answers-page">
       <AutoRefresh seconds={30} />
       <div className="answers-bar">{head}<span className="spacer" />{data.total > 0 && exports}</div>
       {data.total > 0 && (
-        <AutoFilter action={`${base}/answers`} className="answers-filter" label={t.answers.filterLabel}>
-          <label className="search-field">
-            <Search />
-            <span className="visually-hidden">{t.answers.search}</span>
-            <input className="field" type="search" name="q" defaultValue={q} placeholder={t.answers.search} enterKeyHint="search" />
-          </label>
-          {filterable.length > 0 && (
-            <label className="mini">
-              <span className="visually-hidden">{t.answers.filter}</span>
-              <select className="field" name="where" defaultValue={where}>
-                <option value="">{t.answers.filterAll}</option>
-                {filterable.map(c => (
-                  <optgroup key={c.question.id} label={c.question.title}>
-                    {c.question.kind === "yesno"
-                      ? [["yes", t.respond.yes], ["no", t.respond.no]].map(([k, l]) => <option key={k} value={`${c.question.id}:${k}`}>{format(t.answers.filterWhere, { question: c.question.title, option: l! })}</option>)
-                      : [...(c.question.options ?? []).map(o => [o.id, labels.get(o.id) ?? o.label] as const), ...(c.question.other ? [["other", t.respond.other] as const] : [])].map(([k, l]) => <option key={k} value={`${c.question.id}:${k}`}>{format(t.answers.filterWhere, { question: c.question.title, option: l })}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-          )}
-          <label className="mini">
-            <span className="visually-hidden">{t.follow.label}</span>
-            <select className="field" name="status" defaultValue={status}>
-              <option value="">{t.follow.all}</option>
-              {followStates.map(s => <option key={s} value={s}>{`${t.follow.states[s]} (${data.counts[s]})`}</option>)}
-            </select>
-          </label>
-          <label className="mini date-mini"><span className="mini-label">{t.answers.from}</span><input className="field" type="date" name="from" defaultValue={from} lang={locale} /></label>
-          <label className="mini date-mini"><span className="mini-label">{t.answers.to}</span><input className="field" type="date" name="to" defaultValue={to} lang={locale} /></label>
-          <label className="mini">
-            <span className="visually-hidden">{t.answers.order}</span>
-            <select className="field" name="sort" defaultValue={sort}>
-              <option value="">{t.answers.newest}</option>
-              <option value="oldest">{t.answers.oldest}</option>
-            </select>
-          </label>
-          {chosen.map(c => <input key={c} type="hidden" name="cols" value={c} />)}
-          {filters && <a className="button link" href={`${base}/answers`}>{t.answers.clear}</a>}
-        </AutoFilter>
+        <div className="answers-filters">
+          <SearchBox action={`${base}/answers`} value={q} maxLength={100} keep={Object.fromEntries([...keep].filter(([k]) => k !== "q"))} labels={{ ...t.search, label: t.answers.search, placeholder: t.answers.search }} />
+          <Filters path={`${base}/answers`} params={keep} labels={t.filters}
+            groups={[{ key: "status", label: t.follow.label, all: true, options: followStates.map(s => ({ value: s, label: t.follow.states[s], count: data.counts[s] })) }]} />
+          <AutoFilter action={`${base}/answers`} className="answers-filter" label={t.answers.filterLabel}>
+            {[...keep].filter(([k]) => !["where", "from", "to"].includes(k)).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+            {filterable.length > 0 && (
+              <label className="mini">
+                <span className="mini-label">{t.answers.filter}</span>
+                <select className="field" name="where" defaultValue={where}>
+                  <option value="">{t.answers.filterAll}</option>
+                  {filterable.map(c => (
+                    <optgroup key={c.question.id} label={c.question.title}>
+                      {c.question.kind === "yesno"
+                        ? [["yes", t.respond.yes], ["no", t.respond.no]].map(([k, l]) => <option key={k} value={`${c.question.id}:${k}`}>{format(t.answers.filterWhere, { question: c.question.title, option: l! })}</option>)
+                        : [...(c.question.options ?? []).map(o => [o.id, labels.get(o.id) ?? o.label] as const), ...(c.question.other ? [["other", t.respond.other] as const] : [])].map(([k, l]) => <option key={k} value={`${c.question.id}:${k}`}>{format(t.answers.filterWhere, { question: c.question.title, option: l })}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            )}
+            <FilterDates from={from} to={to} today={today} t={{ from: t.answers.from, to: t.answers.to, date: t.date }} />
+          </AutoFilter>
+          {filters && <a className="button link" href={`${base}/answers${chosen.length ? `?cols=${chosen.join(",")}` : ""}`}>{t.filters.clear}</a>}
+        </div>
       )}
       <p className="answers-count" role="status">{filters ? plural(t.answers.matching, data.matching, locale) : plural(t.answers.count, data.total, locale)}</p>
       {data.total === 0 ? (
-        <div className="empty"><h2>{t.answers.none}</h2><p>{t.answers.noneHint}</p><a className="button quiet" href={`${base}/share`}>{t.tabs.share}</a></div>
+        <EmptyState title={t.answers.none} body={t.answers.noneHint} action={<a className="button" href={`${base}/share`}>{t.tabs.share}</a>} />
       ) : data.answers.length === 0 ? (
         <p className="quiet-note">{t.answers.noMatch}</p>
       ) : (
@@ -173,30 +179,13 @@ export default async function AnswersPage({ params, searchParams }: Props) {
               </AutoFilter>
             </details>
           )}
-          <div className="table-wrap" tabIndex={0} role="region" aria-label={t.answers.title}>
-            <table className="answers-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t.answers.when}</th>
-                  <th scope="col">{t.answers.who}</th>
-                  {columns.map(c => <th key={c.question.id} scope="col">{c.question.title}</th>)}
-                  <th scope="col">{t.follow.label}</th>
-                  <th scope="col"><span className="visually-hidden">{t.answers.open}</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.answers.map(a => (
-                  <tr key={a.id}>
-                    <td className="nowrap">{whenOf(a)}</td>
-                    <td className="who-cell">{!a.respondent && a.email ? <a href={`mailto:${a.email}`}>{a.email}</a> : whoOf(a)}</td>
-                    {columns.map(c => <td key={c.question.id} data-label={c.question.title}>{cellOf(a, c) || <span className="dim">—</span>}</td>)}
-                    <td data-label={t.follow.label}><span className={`follow follow-${a.status}`}>{t.follow.states[a.status]}</span></td>
-                    <td><a className="button small quiet" href={answerLink(a)} aria-label={`${t.answers.openAnswer}: ${whoOf(a)}, ${whenOf(a)}`}>{t.answers.open}</a></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <AnswersTable
+            rows={rows}
+            columns={columns.map(c => ({ id: c.question.id, title: c.question.title }))}
+            sort={sort ? "oldest" : "newest"}
+            sortBase={`${base}/answers${unsorted.size ? "?" + unsorted : ""}`}
+            t={{ caption: t.answers.title, when: t.answers.when, who: t.answers.who, status: t.follow.label, open: t.answers.open, empty: t.answers.noMatch, table: t.table }}
+          />
         </>
       )}
       {pages > 1 && (

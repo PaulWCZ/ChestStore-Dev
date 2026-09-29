@@ -1,22 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useToast } from "@argentic/chest-ui/components";
+import { useEffect, useState } from "react";
 import { addClient, updateClient } from "../app/chest/actions.ts";
 import { format, languageNames } from "../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../lib/i18n/index.ts";
 import type { Client } from "../lib/clients.ts";
-import { useToast } from "./toast.tsx";
 
 // A client's card: who they are, where to send, what the law prints. Used
 // to add one (from the list, or while writing a document) and to change one.
+// `onDirty` says whether something was typed (a dialog around it then asks
+// before closing).
 export type ClientFields = { kind: "company" | "person"; name: string; contact: string; email: string; phone: string; address: string; postcode: string; city: string; country: string; deliveryAddress: string; siren: string; vatNumber: string; language: Locale; reverseCharge: boolean; notes: string; account: string };
 
 export const blankClient = (language: Locale): ClientFields => ({ kind: "company", name: "", contact: "", email: "", phone: "", address: "", postcode: "", city: "", country: "FR", deliveryAddress: "", siren: "", vatNumber: "", language, reverseCharge: false, notes: "", account: "" });
 
 const fieldOf: Record<string, keyof ClientFields> = { siren_invalid: "siren", vat_number_invalid: "vatNumber", email_invalid: "email", country_invalid: "country", empty: "name", account_invalid: "account" };
 
-export function ClientForm({ t, initial, id, onSaved, onCancel, compact = false, readOnly = false }: { t: Catalogue; initial: ClientFields; id?: string; onSaved: (client: Client) => void; onCancel?: () => void; compact?: boolean; readOnly?: boolean }) {
+export function ClientForm({ t, initial, id, onSaved, onCancel, onDirty, compact = false, readOnly = false }: { t: Catalogue; initial: ClientFields; id?: string; onSaved: (client: Client) => void; onCancel?: () => void; onDirty?: (dirty: boolean) => void; compact?: boolean; readOnly?: boolean }) {
   const [f, setF] = useState(initial);
+  const dirty = JSON.stringify(f) !== JSON.stringify(initial);
+  useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
   const [error, setError] = useState<{ field: keyof ClientFields | null; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -34,7 +38,7 @@ export function ClientForm({ t, initial, id, onSaved, onCancel, compact = false,
       return;
     }
     setError(null);
-    if (id) toast(w.saved);
+    if (id) toast({ id: `client-${id}`, text: w.saved });
     onSaved(result.value);
   }
   return (
@@ -95,7 +99,7 @@ export function ClientForm({ t, initial, id, onSaved, onCancel, compact = false,
             <label htmlFor="c-vat">{w.vatNumber}</label>
             <input id="c-vat" className="field" value={f.vatNumber} maxLength={20} readOnly={readOnly} aria-invalid={invalid("vatNumber")} onChange={e => set({ vatNumber: e.target.value })} />
           </div>
-          <label className="check" style={{ gridColumn: "span 6" }}>
+          <label className="check">
             <input type="checkbox" checked={f.reverseCharge} disabled={readOnly} onChange={e => set({ reverseCharge: e.target.checked })} />
             <span>{w.reverseCharge}<br /><span className="hint">{eu ? w.reverseChargeHintEu : w.reverseChargeHint}</span></span>
           </label>

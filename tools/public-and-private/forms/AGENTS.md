@@ -25,7 +25,10 @@ must not break.
 | `lib/importer.ts` | Google Forms / Typeform definitions → a draft (pure) |
 | `lib/zip.ts` | A streaming ZIP writer (the "Everything (ZIP)" export) and a reader for tests |
 | `lib/leave-guard.ts` | Unsaved changes are saved before the tool's tabs and links leave (builder, settings) |
-| `lib/brand.ts` | The company's logo from `chest.theme()` |
+| `lib/theme.ts` | Forms' identity (`defineTheme`, "Invitation") and `currentLook()`: the look the Chest chose, else the identity; `ownLook()` |
+| `app/tokens.css` | Forms' own tokens, made of contract tokens only: sizes, the kinds' colours, the marigold, **a form's colour** (`[data-accent]` → `--form*`) |
+| `components/guarded-link.tsx` | The link of the kit's tabs inside a form: saves what waits before leaving |
+| `components/state-badge.tsx` | A form's state and an answer's follow-up as the kit's `StatusBadge` |
 | `lib/summary.ts`, `lib/export.ts`, `lib/csv.ts` | Summary per question across versions, NPS; CSV rows and the formula-safe writer |
 | `lib/templates.ts` | Templates; their words are in the catalogues (`templates.*`) |
 | `lib/lifecycle.ts` | Members leaving or erased |
@@ -34,6 +37,27 @@ must not break.
 | `app/chest/(work)/…`, `app/chest/actions.ts` | The team's part: home, templates, the form's tabs, privacy |
 | `app/chest/f/[slug]` | A team form, answered in the Chest |
 | `app/chest-jobs/[name]`, `app/chest-events` | Deliveries from the Chest (signed) |
+
+## The UI kit (`@argentic/chest-ui` 0.2.1-studio.1, `vendor/`)
+
+Used: `AppShell`, `BrandMark`, `NoAccess`, `Toasts`/`useToast` (Undo for
+deleting a question, a page, an answer, a form, taking someone off a
+form, closing/reopening; `sent` once a bell item left), `Dialog` (the form
+is live), `Confirm` (erasing a person's answers), `Tabs` (a form's tabs,
+answers/summary), `Segmented`, `PeoplePicker` (sharing), `DateField`
+(closing day, answers' days, a share link's prefill, the date question),
+`TimeSelect` (closing hour), `FilePicker` (the file question, importing a
+form), `DataTable` (answers, a person's answers), `Filters` (where an
+answer stands), `SearchBox`, `EmptyState`, `Avatar`, `StatusBadge`,
+`LanguageSwitch`, `useAutoRefresh`. Words: the kit's sections in the
+catalogues (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`,
+`filters`, `search`), checked by `node scripts/lint-words.mjs`.
+
+Kept on purpose: the runner's own choice pills, stars, scales, matrix and
+ranking (the product's heart, in the form's colour); the picture slot of a
+picture-choice option and the cover picker (a thumbnail, stored at once);
+the privacy lookup form (at least 3 characters, a *Find* button); the
+first-visit card (three templates in one click).
 
 ## Commands
 
@@ -60,7 +84,14 @@ TEST_DATABASE_URL=postgres://… npm test
   no event, no answer content in an email). Tests in `test/answers.test.ts`
   and `test/followup.test.ts` guard it.
 - Every page saves by itself (one model): a new editing page registers
-  its flush with `holdLeaving` and links go through `NavLink`.
+  its flush with `holdLeaving` and links go through `GuardedLink` (the
+  kit's `Tabs` take it as `link`).
+- CSS names only contract tokens and `app/tokens.css`'s own; never a
+  colour (`test/theme.test.ts`). A form's colour is `--form`, `--form-ink`,
+  `--form-text`, `--form-line`, `--form-soft`, `--form-ground`: text on
+  a form's page uses `--form-text`, fills `--form` with `--form-ink`.
+- Never `window.confirm`/`prompt`: reversible acts get Undo in a toast,
+  irreversible ones the kit's `Confirm`.
 - A form's second language only holds texts (`alt.texts`, keyed by what
   they translate); ids and logic are the form's own. `localize()` before
   rendering to a respondent, never before `check()`.

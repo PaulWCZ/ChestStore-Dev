@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import { Back } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { plural } from "../../../../lib/i18n/index.ts";
@@ -13,7 +14,7 @@ export default async function NewForm() {
   if (!v) return null;
   const { member, t, locale } = v;
   if (!can(member, "forms.create")) {
-    return <div className="narrow"><a className="back-link" href="/chest"><Back />{t.create.back}</a><div className="empty"><p>{t.home.noCreate}</p></div></div>;
+    return <div className="narrow"><a className="back-link" href="/chest"><Back />{t.create.back}</a><EmptyState title={t.home.noCreate} /></div>;
   }
   const choices: Choice[] = templateKeys.map(key => {
     const { definition, settings } = template(key, t);
@@ -33,7 +34,7 @@ export default async function NewForm() {
       <h1 className="page-title">{t.create.title}</h1>
       <p className="lede">{t.create.lede}</p>
       <Picker choices={choices} creating={t.create.creating} errors={t.errors} />
-      <ImportForm t={t.create} errors={t.errors} />
+      <ImportForm t={t.create} errors={t.errors} files={t.files} />
     </div>
   );
 }

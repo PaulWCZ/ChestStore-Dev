@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import * as chest from "@argentic/chest-sdk/chest";
+import { SearchBox } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { Globe, Inbox, Mask, Plus, Search, Shield, Trash, Users } from "../../../components/icons.tsx";
+import { Globe, Inbox, Mask, Plus, Shield, Trash, Users } from "../../../components/icons.tsx";
+import { FollowBadge, StateBadge } from "../../../components/state-badge.tsx";
 import { sent } from "../../../lib/answers.ts";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
@@ -9,7 +11,7 @@ import { list, teamForms, trash, type Listed } from "../../../lib/forms.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDate, plural, relative } from "../../../lib/i18n/index.ts";
 import { viewer } from "../../../lib/session.ts";
-import { DeletedBanner } from "./deleted-banner.tsx";
+import { DeletedToast } from "./deleted-banner.tsx";
 import { StartButtons } from "./new/start-buttons.tsx";
 import { templateKeys } from "../../../lib/templates.ts";
 
@@ -36,7 +38,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <li key={f.id}>
         <a className="form-card" href={`/chest/forms/${f.id}${f.level === "viewer" ? "/answers" : ""}`}>
           <span className="form-card-top">
-            <span className={`status status-${status}`}>{t.status[status as keyof Catalogue["status"]]}</span>
+            <StateBadge state={status} label={t.status[status as keyof Catalogue["status"]]} />
             <span className="audience" title={f.audience === "public" ? t.home.public : f.anonymous ? t.home.anonymous : t.home.team}>
               {f.audience === "public" ? (<Globe />) : f.anonymous ? (<Mask />) : (<Users />)}
               <span className="visually-hidden">{f.audience === "public" ? t.home.public : f.anonymous ? t.home.anonymous : t.home.team}</span>
@@ -63,7 +65,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   return (
     <div className="home">
       <AutoRefresh seconds={30} />
-      {typeof deleted === "string" && /^[1-9][0-9]{0,17}$/u.test(deleted) && <DeletedBanner formId={deleted} text={t.builder.deletedForm} undo={t.builder.undo} />}
+      {typeof deleted === "string" && /^[1-9][0-9]{0,17}$/u.test(deleted) && <DeletedToast formId={deleted} text={t.builder.deletedForm} errors={t.errors} />}
       <div className="home-head">
         <h1>{t.home.title}</h1>
         {creator && <a className="button" href="/chest/new"><Plus />{t.home.new}</a>}
@@ -95,7 +97,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
                 <a href={`/chest/sent/${x.id}`} className="sent-link">
                   <span className="to-answer-title">{x.formTitle}</span>
                   <span className="dim">{formatDate(x.createdAt, locale, zone, { day: "numeric", month: "short" })}</span>
-                  <span className={`follow follow-${x.status}`}>{t.follow.states[x.status]}</span>
+                  <FollowBadge state={x.status} label={t.follow.states[x.status]} />
                 </a>
               </li>
             ))}
@@ -104,14 +106,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       )}
 
       {(all.length > 0 || search) && (
-        <form className="home-search" method="get" action="/chest" role="search">
-          <label className="search-field">
-            <Search />
-            <span className="visually-hidden">{t.home.search}</span>
-            <input className="field" type="search" name="q" defaultValue={search} placeholder={t.home.search} enterKeyHint="search" />
-          </label>
+        <div className="home-search">
+          <SearchBox action="/chest" value={search} maxLength={100} labels={{ ...t.search, label: t.home.search, placeholder: t.home.search }} />
           {search && <a className="button link" href="/chest">{t.home.clearSearch}</a>}
-        </form>
+        </div>
       )}
       {search && all.length === 0 && <p className="quiet-note">{t.home.noMatch}</p>}
 

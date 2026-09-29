@@ -1,11 +1,11 @@
 "use client";
 
+import { DateField, Menu, useToast } from "@argentic/chest-ui/components";
+import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ClientPicker } from "../../../../components/client-picker.tsx";
-import { DateField } from "../../../../components/date-field.tsx";
-import { Down, More, Plus, Section, Trash, Up, Box, Copy, Close } from "../../../../components/icons.tsx";
+import { Down, Plus, Section, Trash, Up, Box, Copy } from "../../../../components/icons.tsx";
 import { ItemPicker } from "../../../../components/item-picker.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Line } from "../../../../lib/documents.ts";
 import { format, formatDay, languageNames } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
@@ -56,6 +56,10 @@ export type PaperProps = {
   t: Catalogue;
   words: Record<Locale, Catalogue["pdf"]>;
   locale: Locale;
+  // The Chest's today (the server's), and the kit's date words in the
+  // member's language: the days written on the paper are typed in it.
+  today: string;
+  dateWords: DateWords;
   editing: boolean;
   clients: ClientOption[];
   items: ItemOption[];
@@ -117,7 +121,7 @@ export function Paper(props: PaperProps) {
     if (!result.ok) {
       dirty.current = true;
       onState("error");
-      toast(format(t.errors[result.error], result.values ?? {}));
+      toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
       return false;
     }
     onState(dirty.current ? "pending" : "saved");
@@ -168,7 +172,7 @@ export function Paper(props: PaperProps) {
     if (!gone) return;
     setLines(ls => ls.filter(l => l.key !== key));
     changed();
-    toast(t.editor.lineRemoved, { label: t.common.undo, run: () => { setLines(ls => [...ls.slice(0, at), gone, ...ls.slice(at)]); changed(); } });
+    toast({ id: `line-${key}`, text: t.editor.lineRemoved, undo: () => { setLines(ls => [...ls.slice(0, at), gone, ...ls.slice(at)]); changed(); return true; } });
   };
 
   const readOnlyDescription = (text: string) => {
@@ -230,17 +234,15 @@ export function Paper(props: PaperProps) {
     );
   };
 
+  // A line's rare acts, in the kit's menu (the ARIA menu button).
   const lineMenu = (l: EditLine, i: number) => (
     <div className="grip">
-      <details className="menu">
-        <summary className="icon-button" aria-label={format(e.lineMenu, { n: i + 1 })} title={e.lineMenuShort}><More /></summary>
-        <div className="menu-list">
-          <button type="button" disabled={i === 0} onClick={ev => { move(l.key, -1); (ev.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}><Up />{e.moveUp}</button>
-          <button type="button" disabled={i === lines.length - 1} onClick={ev => { move(l.key, 1); (ev.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}><Down />{e.moveDown}</button>
-          {l.kind === "line" && <button type="button" onClick={ev => { setLines(ls => [...ls.slice(0, i + 1), { ...l, key: newKey(), depositOf: null }, ...ls.slice(i + 1)]); changed(); (ev.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}><Copy />{e.duplicateLine}</button>}
-          <button type="button" onClick={() => remove(l.key)}><Trash />{e.removeLine}</button>
-        </div>
-      </details>
+      <Menu label={format(e.lineMenu, { n: i + 1 })} items={[
+        { label: e.moveUp, icon: <Up />, disabled: i === 0, onSelect: () => move(l.key, -1) },
+        { label: e.moveDown, icon: <Down />, disabled: i === lines.length - 1, onSelect: () => move(l.key, 1) },
+        ...(l.kind === "line" ? [{ label: e.duplicateLine, icon: <Copy />, onSelect: () => { setLines(ls => [...ls.slice(0, i + 1), { ...l, key: newKey(), depositOf: null }, ...ls.slice(i + 1)]); changed(); } }] : []),
+        { label: e.removeLine, icon: <Trash />, tone: "danger" as const, onSelect: () => remove(l.key) },
+      ]} />
     </div>
   );
 
@@ -273,8 +275,8 @@ export function Paper(props: PaperProps) {
             <dd>{doc.issueDate ? dates.issue : t.editor.dateAtNumbering}</dd>
             {doc.type === "quote" && (
               <>
-                <dt>{editing ? <label htmlFor="valid">{w.validUntil}</label> : w.validUntil}</dt>
-                <dd>{editing ? <DateField id="valid" value={header.validUntil} locale={lang} label={w.validUntil} placeholder={t.editor.pickDate} required onChange={v => setH({ validUntil: v })} /> : dates.valid}</dd>
+                <dt className={editing ? "at-field" : undefined} aria-hidden={editing ? true : undefined}>{w.validUntil}</dt>
+                <dd>{editing ? <DateField id="valid" label={w.validUntil} value={header.validUntil || null} onChange={v => setH({ validUntil: v ?? "" })} today={props.today} required chips={false} labels={props.dateWords} /> : dates.valid}</dd>
               </>
             )}
             {doc.type === "invoice" && (
@@ -289,13 +291,8 @@ export function Paper(props: PaperProps) {
             )}
             {(editing || doc.deliveryDate) && doc.type !== "credit" && (
               <>
-                <dt>{editing ? <label htmlFor="delivery">{w.deliveryDate}</label> : w.deliveryDate}</dt>
-                <dd>{editing ? (
-                  <span className="date-pair">
-                    <DateField id="delivery" value={header.deliveryDate} locale={lang} label={w.deliveryDate} placeholder={t.editor.pickDate} onChange={v => setH({ deliveryDate: v })} />
-                    {header.deliveryDate && <button type="button" className="icon-button small" aria-label={t.editor.clearDate} title={t.editor.clearDate} onClick={() => setH({ deliveryDate: "" })}><Close /></button>}
-                  </span>
-                ) : dates.delivery}</dd>
+                <dt className={editing ? "at-field" : undefined} aria-hidden={editing ? true : undefined}>{w.deliveryDate}</dt>
+                <dd>{editing ? <DateField id="delivery" label={w.deliveryDate} value={header.deliveryDate || null} onChange={v => setH({ deliveryDate: v ?? "" })} today={props.today} chips={false} labels={props.dateWords} /> : dates.delivery}</dd>
               </>
             )}
             {doc.reference && (
@@ -364,7 +361,7 @@ export function Paper(props: PaperProps) {
           <span className="r">{w.amount}</span>
           {editing && <span />}
         </div>
-        {lines.length === 0 && editing && <p className="muted small" style={{ padding: "12px 0" }}>{e.noLines}</p>}
+        {lines.length === 0 && editing && <p className="muted small no-lines">{e.noLines}</p>}
         {lines.map((l, i) => l.kind === "section" ? (
           <div key={l.key} className="line section">
             {editing ? (
@@ -416,7 +413,7 @@ export function Paper(props: PaperProps) {
         ) : header.notes ? (
           <>
             <span className="caps">{w.notes}</span>
-            <p className="desc-read" style={{ whiteSpace: "pre-wrap" }}>{header.notes}</p>
+            <p className="desc-read">{header.notes}</p>
           </>
         ) : null}
       </div>

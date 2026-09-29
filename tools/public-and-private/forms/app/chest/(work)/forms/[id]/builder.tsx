@@ -1,12 +1,11 @@
 "use client";
 
+import { Dialog, Segmented, useToast } from "@argentic/chest-ui/components";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { CopyButton } from "../../../../../components/copy-button.tsx";
-import { Dialog } from "../../../../../components/dialog.tsx";
 import { Branch, Close, Copy, Down, Eye, KindIcon, Languages, Pencil, Picture, Plus, Trash, Up } from "../../../../../components/icons.tsx";
 import { Runner, type RunnerWords } from "../../../../../components/runner.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../../lib/i18n/format.ts";
@@ -52,7 +51,7 @@ import { acceptPicture, discardDraft, keepMine, publishForm, saveDraft } from ".
 // it to edit it. A form may have a second language: the builder then
 // edits either version of its words (the questions themselves are one).
 
-type Words = { b: Catalogue["builder"]; respond: Record<Language, RunnerWords>; errors: Record<Language, Catalogue["errors"]>; share: Catalogue["share"] };
+type Words = { b: Catalogue["builder"]; respond: Record<Language, RunnerWords>; errors: Record<Language, Catalogue["errors"]>; share: Catalogue["share"]; dialog: Catalogue["dialog"] };
 type Props = {
   id: string;
   slug: string;
@@ -71,6 +70,8 @@ type Props = {
   pictures: Record<string, string>;
   cover: string | null;
   imported?: string | null;
+  // Today on the Chest's clock (the preview's date questions).
+  today: string;
 };
 type SaveState = "saved" | "saving" | "error" | "conflict";
 
@@ -146,7 +147,7 @@ export function Builder(props: Props) {
     if (saveRef.current === "conflict") return true;
     if (!waiting.current && !pending.current && saveRef.current !== "error") return true;
     const ok = await flush();
-    if (!ok) toast(b.leaveUnsaved);
+    if (!ok) toast({ id: "save", text: b.leaveUnsaved, tone: "error" });
     return ok;
   }), [flush, toast, b.leaveUnsaved]);
 
@@ -214,7 +215,7 @@ export function Builder(props: Props) {
     setPublishing(false);
     if (!result.ok) {
       if (result.error === "incomplete") setShowProblems(true);
-      else toast(errorText(props.words.errors[props.locale], result.error, result.values));
+      else toast({ id: "publish", text: errorText(props.words.errors[props.locale], result.error, result.values), tone: "error" });
       return;
     }
     setUnpublished(false);
@@ -225,18 +226,18 @@ export function Builder(props: Props) {
   async function discard() {
     const result = await discardDraft(props.id);
     if (result.ok) {
-      toast(b.discarded);
+      toast({ id: "discard", text: b.discarded });
       window.location.reload();
-    } else toast(errorText(props.words.errors[props.locale], result.error, result.values));
+    } else toast({ id: "discard", text: errorText(props.words.errors[props.locale], result.error, result.values), tone: "error" });
   }
 
   // After a conflict: keep this version over the one saved meanwhile.
   async function keep() {
     const result = await keepMine(props.id, JSON.stringify(latest.current));
-    if (!result.ok) return void toast(errorText(props.words.errors[props.locale], result.error, result.values));
+    if (!result.ok) return void toast({ id: "keep", text: errorText(props.words.errors[props.locale], result.error, result.values), tone: "error" });
     revision.current = result.value.revision;
     setSave("saved");
-    toast(b.kept);
+    toast({ id: "keep", text: b.kept });
   }
 
   function removeQuestion(id: string) {
@@ -245,7 +246,8 @@ export function Builder(props: Props) {
       for (const p of d.pages) p.questions = p.questions.filter(q => q.id !== id);
     });
     setSelected(null);
-    toast(b.removed, { label: b.undo, run: () => setDef(before) });
+    // Undo puts the form back as it was (the next save sends it).
+    toast({ id: `question-${id}`, text: b.removed, undo: () => { setDef(before); return true; } });
   }
 
   function addQuestion(pageId: string, kind: Kind) {
@@ -312,7 +314,7 @@ export function Builder(props: Props) {
       d.pages[Math.max(0, i - 1)]!.questions.push(...(gone?.questions ?? []));
       for (const p of d.pages) p.jumps = p.jumps.filter(j => j.to !== pageId);
     });
-    toast(b.pageRemoved, { label: b.undo, run: () => setDef(before) });
+    toast({ id: `page-${pageId}`, text: b.pageRemoved, undo: () => { setDef(before); return true; } });
   }
 
   // A picture for a picture choice's option: sent by this browser, checked
@@ -320,12 +322,12 @@ export function Builder(props: Props) {
   const addPicture = async (file: File): Promise<Option["image"] | null> => {
     const sent = await uploadImage(file, props.id);
     if (!sent.ok) {
-      toast(errorText(props.words.errors[props.locale], sent.error));
+      toast({ id: "picture", text: errorText(props.words.errors[props.locale], sent.error), tone: "error" });
       return null;
     }
     const taken = await acceptPicture(props.id, sent.ref);
     if (!taken.ok) {
-      toast(errorText(props.words.errors[props.locale], taken.error, taken.values));
+      toast({ id: "picture", text: errorText(props.words.errors[props.locale], taken.error, taken.values), tone: "error" });
       return null;
     }
     if (taken.value.url) setPictures(p => ({ ...p, [taken.value.image.object]: taken.value.url! }));
@@ -357,6 +359,7 @@ export function Builder(props: Props) {
           focus={selected}
           pictures={pictures}
           cover={props.cover}
+          today={props.today}
         />
       </div>
     </aside>
@@ -374,9 +377,8 @@ export function Builder(props: Props) {
           </>
         )}
         <span className="spacer" />
-        <div className="segmented phone-only" role="group">
-          <button type="button" aria-pressed={view === "edit"} onClick={() => setView("edit")}><Pencil />{b.edit}</button>
-          <button type="button" aria-pressed={view === "preview"} onClick={() => setView("preview")}><Eye />{b.preview}</button>
+        <div className="phone-only">
+          <Segmented label={b.showing} value={view} onChange={setView} options={[{ value: "edit", label: b.edit, icon: <Pencil /> }, { value: "preview", label: b.preview, icon: <Eye /> }]} />
         </div>
         {props.canEdit && unpublished && props.version !== 0 && <button type="button" className="button link desktop-only" onClick={() => void discard()}>{b.discard}</button>}
         {props.canEdit && (
@@ -484,14 +486,11 @@ export function Builder(props: Props) {
         {preview}
       </div>
 
-      <Dialog open={live} title={b.live} closeLabel={b.close} onClose={() => setLive(false)}>
+      <Dialog open={live} title={b.live} onClose={() => setLive(false)} labels={props.words.dialog}
+        footer={<><a className="button quiet" href={props.link} target="_blank" rel="noreferrer">{b.open}</a><CopyButton text={props.link} label={props.words.share.copy} done={props.words.share.copied} failed={props.words.share.copyFailed} className="button" /></>}>
         <p>{b.liveBody}</p>
         <div className="link-box">
           <code>{props.link}</code>
-        </div>
-        <div className="dialog-actions">
-          <CopyButton text={props.link} label={props.words.share.copy} done={props.words.share.copied} className="button" />
-          <a className="button quiet" href={props.link} target="_blank" rel="noreferrer">{b.open}</a>
         </div>
       </Dialog>
     </div>
@@ -517,10 +516,7 @@ function Languages_({ def, canEdit, editing, missing, b, name, onLanguage, onSec
         <SelectField label={b.second} value={def.alt?.language ?? ""} ro={!canEdit || editing === "alt"} options={[["", b.secondNone], ...others.map(l => [l, name(l)] as [string, string])]} onChange={v => onSecond(v === "" ? null : (v as Language))} />
       )}
       {def.language && def.alt && (
-        <div className="segmented" role="group" aria-label={b.editing}>
-          <button type="button" aria-pressed={editing === "main"} onClick={() => onEditing("main")}>{name(def.language)}</button>
-          <button type="button" aria-pressed={editing === "alt"} onClick={() => onEditing("alt")}>{name(def.alt.language)}</button>
-        </div>
+        <Segmented label={b.editing} value={editing} onChange={onEditing} options={[{ value: "main", label: name(def.language) }, { value: "alt", label: name(def.alt.language) }]} />
       )}
       {def.alt && missing > 0 && <p className="hint languages-note">{plural(b.untranslated, missing, def.language ?? "en", { language: name(def.alt.language) })}</p>}
     </div>

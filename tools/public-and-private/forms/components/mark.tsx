@@ -8,7 +8,7 @@ export function Mark() {
       <path d="M30 4v8a6 6 0 0 0 6 6h8Z" fill="var(--accent-soft)" />
       <circle cx="15.5" cy="24" r="4" fill="none" stroke="var(--accent-ink)" strokeWidth="2.6" />
       <path d="M24 24h10" stroke="var(--accent-ink)" strokeWidth="2.6" strokeLinecap="round" />
-      <circle cx="15.5" cy="34.5" r="4.6" fill="var(--highlight)" />
+      <circle cx="15.5" cy="34.5" r="4.6" fill="var(--marigold)" />
       <path d="M24 34.5h8" stroke="var(--accent-ink)" strokeWidth="2.6" strokeLinecap="round" />
     </svg>
   );

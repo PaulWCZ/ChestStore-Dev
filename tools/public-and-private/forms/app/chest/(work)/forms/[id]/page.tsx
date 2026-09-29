@@ -1,3 +1,4 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { atLeast } from "../../../../../lib/access.ts";
 import { db } from "../../../../../lib/db.ts";
@@ -7,6 +8,7 @@ import { imageUrl, pictureUrls } from "../../../../../lib/images.ts";
 import { formLink } from "../../../../../lib/public-origin.ts";
 import { formOr404 } from "../../../../../lib/pages.ts";
 import { viewer } from "../../../../../lib/session.ts";
+import { zonedParts } from "../../../../../lib/zone.ts";
 import { Builder } from "./builder.tsx";
 
 // The Questions tab: the builder and its live preview (in either of the
@@ -34,7 +36,8 @@ export default async function BuildPage({ params, searchParams }: { params: Prom
       accent={form.accent}
       anonymous={form.anonymous}
       link={formLink(await headers(), form)}
-      words={{ b: t.builder, respond: { en: en.respond, fr: fr.respond }, errors: { en: en.errors, fr: fr.errors }, share: t.share }}
+      words={{ b: t.builder, respond: { en: { ...en.respond, date: en.date, files: en.files }, fr: { ...fr.respond, date: fr.date, files: fr.files } }, errors: { en: en.errors, fr: fr.errors }, share: t.share, dialog: t.dialog }}
+      today={zonedParts(new Date(), chest.timeZone()).day}
       locale={locale}
       pictures={await pictureUrls(form.draft, "team")}
       cover={await imageUrl(form.cover, "team")}

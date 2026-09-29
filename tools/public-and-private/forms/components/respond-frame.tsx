@@ -1,26 +1,25 @@
+import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
+import { storeLanguages } from "@argentic/chest-ui/components/logic";
 import type { ReactNode } from "react";
+import { locales, type Locale } from "../lib/i18n/index.ts";
 import type { Accent } from "../lib/model.ts";
-import type { Locale } from "../lib/i18n/index.ts";
-import { LanguageSwitch } from "./language-switch.tsx";
 
-// The frame of a respondent's page: the form's colour as a soft ground, the
-// company's name, the language switch on the public host, a footer that
+// The frame of a respondent's page: the form's colour on its page (its
+// ground in Forms' own look, app/tokens.css), the company's name — or its
+// logo when the company gave the Chest its brand (the look's logo,
+// lib/theme.ts) —, the language switch on the public host, a footer that
 // says where answers go. Never the Chest's name: the visitor answers the
 // company.
-// The company's logo when its Chest gives one (the brand the owner chose,
-// chest.theme(): lib/brand.ts), its name otherwise.
-export function RespondFrame({ accent, company, logo, locale, languages, languageLabel, back, footer, aside, children }: { accent: Accent; company: string; logo?: { url: string; dark: string | null } | null; locale?: Locale; languages?: readonly Locale[]; languageLabel?: string; back?: string; footer: string; aside?: ReactNode; children: ReactNode }) {
+export function RespondFrame({ accent, company, logo, locale, languages, languageLabel, back, footer, aside, children }: { accent: Accent; company: string; logo?: { readonly url: string; readonly alt?: string; readonly dark?: string | null } | null; locale?: Locale; languages?: readonly Locale[]; languageLabel?: string; back?: string; footer: string; aside?: ReactNode; children: ReactNode }) {
+  // `languages`: the ones a form is written in (a form in one language
+  // shows no switch: its page speaks that language).
+  const shown = storeLanguages.filter(l => (locales as readonly string[]).includes(l.code) && (!languages || (languages as readonly string[]).includes(l.code)));
   return (
     <div className="respond-page" data-accent={accent} lang={locale}>
       <div className="respond-glow" aria-hidden="true" />
       <header className="respond-top">
-        {logo ? (
-          <picture className="respond-logo">
-            {logo.dark && <source media="(prefers-color-scheme: dark)" srcSet={logo.dark} />}
-            <img src={logo.url} alt={company} />
-          </picture>
-        ) : <span className="respond-company">{company}</span>}
-        {locale && languageLabel && <LanguageSwitch current={locale} label={languageLabel} back={back ?? "/"} only={languages} />}
+        {logo ? <BrandMark logo={{ ...logo, alt: company }} /> : <span className="respond-company">{company}</span>}
+        {locale && languageLabel && shown.length > 1 && <LanguageSwitch languages={shown} current={locale} label={languageLabel} back={back ?? "/"} />}
         {aside}
       </header>
       <main className="respond-main" id="main">{children}</main>

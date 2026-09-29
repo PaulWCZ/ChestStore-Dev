@@ -8,35 +8,48 @@ marigold dot of warmth. **Warm, lively, clear.** The builder is a tidy
 desk; the respondent's page is the show — big serif questions, one at a
 time, keys to press, a seal when it is sent.
 
-## Tokens
+## Tokens — the identity is a theme
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+Forms' identity is a theme of the UI kit's contract, **"Invitation"**
+(`lib/theme.ts`, `defineTheme`): every colour lives there, light and dark,
+checked by `checkTheme` and `checkPalette` (`test/theme.test.ts`). The CSS
+names only contract tokens (`--bg`, `--ink`, `--accent`, `--cat-5-ink`…)
+and Forms' own tokens, made of them (`app/tokens.css`). The company may
+give Forms another look in its Chest — a catalogue theme or its brand —
+and everything below follows.
 
-| Token | Light | Dark | Use |
+| Contract token | Light | Dark | Use |
 |---|---|---|---|
 | `--bg` | `#f5f3fa` lavender mist | `#16121f` | page |
 | `--surface` | `#ffffff` | `#201a2c` | cards, panels |
-| `--surface-2` | `#eeebf6` | `#2a2338` | tracks, quiet fills |
-| `--ink` | `#1d1631` aubergine ink | `#f3effa` | text — 15.8:1 on mist; 16.3:1 dark |
-| `--ink-2` | `#574d6b` | `#bdb3cf` | secondary — 7.1:1 on mist, 6.7:1 on `--surface-2`, 7.8:1 on white; 9.2:1 / 7.5:1 dark |
-| `--accent` | `#b0124f` berry | `#ff8fb8` | the main action, the current tab, bars — white on berry 6.9:1, berry on mist 6.3:1; dark 8.7:1 |
-| `--accent-soft` | `#fbe3ec` | `#4a1f33` | chosen cards, the folded corner — ink on it 14.3:1 |
-| `--highlight` | `#f6c945` marigold | same | the mark's dot, stars in the summary, the "to answer" edge (never text) |
-| `--ok` / `--warn` / `--danger` | `#1f7a4d` / `#7a4f00` / `#b3261e` | `#6fd6a0` / `#ffd27a` / `#ff8a80` | states — 4.7:1, 6.5:1 on their tints; danger 6.5:1 on white |
-| `--form`, `--form-ink`, `--form-soft` | per form colour | per form colour | the respondent's page |
-| `--font-display` | DM Serif Display | | titles, questions, big numbers |
-| `--font-body` | DM Sans (variable) | | everything else |
-| `--radius-*` | 8 / 12 / 20 / 28 px, pills | | soft cards, pill buttons, square-ish answer keys |
-| `--fast`, `--slow` | 140 / 320 ms | 0 with reduced motion | |
+| `--ink` / `--ink-2` | `#1d1631` aubergine / `#574d6b` | `#f3effa` / `#bdb3cf` | text |
+| `--line-strong` | `#8b80a3` | `#7a6f96` | field borders — the old `#b9b0cf` was 2.1:1 on white, now 3:1 or more (WCAG 1.4.11) |
+| `--accent` | `#b0124f` berry | `#ff8fb8` | the main action, the current tab, bars |
+| `--accent-soft` | `#fbe3ec` | `#4a1f33` | chosen cards, the folded corner |
+| `--highlight` | `#f6c945` marigold | derived (dark, it carries light text) | the marker |
+| `--cat-5`… | berry, indigo (1), teal (6), tangerine (3), forest (2), ink (8) | their light tints | **a form's colours** and the kinds of questions |
+| `--font-display` / `--font-body` | DM Serif Display / DM Sans | | titles and questions / everything else |
+| `--radius-*` | 8 / 12 / 20 px | | soft cards, pill buttons |
 
-**A form's colour.** Six, each checked (text colour on its page ground, and
-its button's text): berry `#b0124f` 6.2:1 on `#fdf0f5`, white on it 6.9:1;
-indigo `#3d3fc4` 6.9:1 / 7.8:1; teal `#0b6b6b` 5.8:1 / 6.3:1; tangerine
-`#b3470b` 5.1:1 / 5.5:1; forest `#2c6a31` 6.0:1 / 6.5:1; ink `#1d1631`
-15.6:1 / 17.3:1. In dark mode each has a light tint on a deep ground
-(8.2:1 to 14.7:1). A free colour picker was refused on purpose: every
-colour a company can choose is readable.
+Forms' own tokens (`app/tokens.css`): `--text-hero` and `--text-q` (the big
+serif sizes, from the theme's scale), `--radius-xl`, `--radius-round`
+(pills, square in a square theme), `--shadow-card`, `--marigold` (the
+mark's dot, the summary's stars: the marker, or the ochre slot in dark
+mode), `--kind-*` (the builder's question kinds on the palette's slots),
+and **a form's colour** `--form`, `--form-ink`, `--form-text`,
+`--form-line`, `--form-soft`, `--form-ground`.
+
+**A form's colour.** Six, each a family of the categorical palette, set in
+Forms' identity to the exact colours it always had (text on its page
+ground, and its button's text): berry `#b0124f` on `#fdf0f5`, indigo
+`#3d3fc4` on `#f1f1fd`, teal `#0b6b6b` on `#eef8f7`, tangerine `#b3470b`
+on `#fff4ec` (5.1:1, the lowest), forest `#2c6a31` on `#f0f7ee`, ink
+`#1d1631` on `#f3f2f6`; in dark mode a light tint on a deep ground. In any
+other look a colour is that look's shade of the family on its surface,
+and berry — the default — is the look's action colour: the company's
+brand wins on its public pages unless the author chose another colour. A
+free colour picker was refused on purpose: every colour a company can
+choose is readable, in every look (measured in the tests).
 
 ## Components
 
@@ -64,8 +77,11 @@ colour a company can choose is readable.
 - **Summary cards**: horizontal bars with count and percent written, the
   top answer bold; the average in the serif; the NPS as a number, a split
   bar and a legend with words and numbers.
-- Toasts at the bottom with *Undo*; erasing a person's answers asks for a
-  typed word.
+- The kit's shell, toasts with *Undo* (deleting a question, a page, an
+  answer, a form), dialogs, date fields, file picker, table, filters and
+  badges, in the look of the page; erasing a person's answers asks in the
+  kit's `Confirm`. In brand mode the company's logo stands beside the
+  mark.
 
 ## Icon
 

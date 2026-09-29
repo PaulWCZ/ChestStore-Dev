@@ -1,13 +1,14 @@
 "use client";
 
+import { DateField, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ErrorCode } from "../lib/app-error.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { format, plural } from "../lib/i18n/format.ts";
-import { asked, filesIn, has, isGrid, isPick, isRanking, read, walk, type AnswerError, type Answers, type FileRef, type Grid, type Pick } from "../lib/logic.ts";
-import { manyPicks, typesFor, withOptions, type Accent, type Definition, type Layout, type Question } from "../lib/model.ts";
+import { asked, has, isGrid, isPick, isRanking, read, walk, type AnswerError, type Answers, type FileRef, type Grid, type Pick } from "../lib/logic.ts";
+import { limits, manyPicks, typesFor, withOptions, type Accent, type Definition, type Layout, type Question } from "../lib/model.ts";
 import { uploadFile } from "../lib/upload-client.ts";
-import { Arrow, Back, Check, Close, Down, Paperclip, StarIcon, Up } from "./icons.tsx";
+import { Arrow, Back, Check, Down, StarIcon, Up } from "./icons.tsx";
 
 // The respondent's form: the same component on the public page, on a team
 // form in the Chest, and as the builder's live preview. It runs the logic
@@ -17,8 +18,15 @@ import { Arrow, Back, Check, Close, Down, Paperclip, StarIcon, Up } from "./icon
 // Two layouts: one question at a time (Enter to go on, letters to choose,
 // a single choice moves on by itself) or all the questions of a page.
 // What is typed is kept on this device until sent (not in the preview).
+//
+// A date is the kit's DateField (typed in the form's language or chosen on
+// a calendar, never the browser's date field), a file the kit's
+// FilePicker (limits said first, progress, remove, retry). Both wear the
+// form's colour (app/tokens.css).
 
-export type RunnerWords = Catalogue["respond"];
+// The respondent's words, and the kit's date and file words, all in the
+// form's language.
+export type RunnerWords = Catalogue["respond"] & { date: Catalogue["date"]; files: Catalogue["files"] };
 export type SendResult = { ok: true; copy: boolean } | { ok: false; error: ErrorCode; fields?: Record<string, AnswerError> };
 type Raw = Record<string, unknown>;
 
@@ -47,6 +55,8 @@ export type RunnerProps = {
   // The addresses of the form's pictures (by object), and its cover's.
   pictures?: Record<string, string>;
   cover?: string | null;
+  // Today on the Chest's clock (a date question's "Today" and "Tomorrow").
+  today: string;
 };
 
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -85,7 +95,10 @@ export function Runner(props: RunnerProps) {
   const [restored, setRestored] = useState(false);
   // Where the respondent was, one question at a time: a reload goes back there.
   const [resumeAt, setResumeAt] = useState(0);
-  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  // The files chosen for each file question (the kit's picker: sending,
+  // ready, failed); what is ready is the question's answer.
+  const [picked, setPicked] = useState<Record<string, readonly PickedFile[]>>({});
+  const uploading = Object.values(picked).some(list => list.some(f => f.status === "sending"));
   const headingRef = useRef<HTMLDivElement>(null);
 
   // Restore what was typed on this device (after the first render: the
@@ -166,7 +179,7 @@ export function Runner(props: RunnerProps) {
       const p = problem(q, raw[q.id]);
       if (p) all[q.id] = p;
     }
-    if (Object.values(uploading).some(Boolean)) return;
+    if (uploading) return;
     if (Object.keys(all).length > 0) return showErrors(all);
     if (mode === "preview" || !props.send) {
       setStage("thanks");
@@ -219,6 +232,9 @@ export function Runner(props: RunnerProps) {
   function previous() {
     setIndex(Math.max(0, clampIndex - 1));
   }
+  // The latest next(), for what runs after a render (a date just read).
+  const nextRef = useRef(next);
+  nextRef.current = next;
 
   // Classic layout: go on when every question of the page can be sent.
   function nextPage() {
@@ -243,24 +259,30 @@ export function Runner(props: RunnerProps) {
       return;
     }
     if (stage !== "form" || mode === "preview") return;
-    headingRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus({ preventScroll: false });
+    // The question's field, or its heading; a date question's field is
+    // inside the kit's DateField.
+    const target = headingRef.current?.querySelector<HTMLElement>("[data-autofocus]");
+    (target?.matches("input, textarea, select, [tabindex]") ? target : target?.querySelector<HTMLElement>("input:not([type=hidden])"))?.focus({ preventScroll: false });
   }, [clampIndex, stage, mode]);
 
-  // A file sent: the question's one file, or one more of its files.
-  const rawRef = useRef(raw);
-  rawRef.current = raw;
-  const upload = useCallback(async (q: Question, file: File) => {
-    if (!props.grantUrl || mode === "preview") return;
-    setUploading(u => ({ ...u, [q.id]: true }));
-    const result = await uploadFile(file, props.grantUrl, { slug: props.slug, question: q.id, token: props.token ?? "" }, typesFor(q.accept ?? "any"));
-    setUploading(u => ({ ...u, [q.id]: false }));
-    if (!result.ok) return setFileError(q.id, result.error);
-    const sent = { ref: result.ref, name: file.name } satisfies FileRef;
-    if ((q.max ?? 1) > 1) set(q.id, [...(filesIn(rawRef.current[q.id]) as FileRef[]), sent].slice(0, q.max));
-    else set(q.id, sent);
-  }, [props.grantUrl, props.slug, props.token, mode, set]);
-  const [fileErrors, setFileErrors] = useState<Record<string, ErrorCode>>({});
-  const setFileError = (id: string, e: ErrorCode | null) => setFileErrors(f => ({ ...f, [id]: e ?? undefined } as Record<string, ErrorCode>));
+  // A file sent straight to the Chest (lib/upload-client.ts), with its
+  // progress; the answer is what the Chest or the tool gave back for it.
+  const upload = useCallback((q: Question) => async (file: File, options: { onProgress: (fraction: number) => void; signal: AbortSignal }) => {
+    if (!props.grantUrl || mode === "preview") return { ok: false as const, error: props.errors.unavailable };
+    const result = await uploadFile(file, props.grantUrl, { slug: props.slug, question: q.id, token: props.token ?? "" }, typesFor(q.accept ?? "any"), options);
+    return result.ok ? { ok: true as const, ref: result.ref } : { ok: false as const, error: format(props.errors[result.error] ?? props.errors.unknown, { max: 0 }) };
+  }, [props.grantUrl, props.slug, props.token, props.errors, mode]);
+  // What is ready becomes the question's answer: its one file, or its files.
+  useEffect(() => {
+    for (const [id, list] of Object.entries(picked)) {
+      const q = def.pages.flatMap(p => p.questions).find(x => x.id === id);
+      if (!q) continue;
+      const ready: FileRef[] = list.filter(f => f.status === "ready" && f.ref).map(f => ({ ref: f.ref!, name: f.name }));
+      const value = (q.max ?? 1) > 1 ? (ready.length > 0 ? ready : undefined) : ready[0];
+      if (JSON.stringify(value) !== JSON.stringify(raw[id])) set(id, value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked]);
 
   const field = (q: Question, number: number | null, autofocus: boolean) => (
     <QuestionField
@@ -269,10 +291,10 @@ export function Runner(props: RunnerProps) {
       number={number}
       value={raw[q.id]}
       error={errors[q.id] ?? null}
-      fileError={fileErrors[q.id] ?? null}
-      uploading={uploading[q.id] === true}
+      files={picked[q.id] ?? []}
+      onFiles={update => setPicked(all => ({ ...all, [q.id]: update(all[q.id] ?? []) }))}
+      upload={upload(q)}
       onChange={v => set(q.id, v)}
-      onUpload={file => { setFileError(q.id, null); void upload(q, file); }}
       onPicked={props.layout === "steps" ? () => setTimeout(() => setIndex(i => (i === clampIndex && clampIndex < sequence.length - 1 ? i + 1 : i)), 380) : undefined}
       w={w}
       errorsWords={props.errors}
@@ -282,6 +304,7 @@ export function Runner(props: RunnerProps) {
       filesOff={props.filesOff === true}
       preview={mode === "preview"}
       pictures={props.pictures ?? {}}
+      today={props.today}
     />
   );
 
@@ -361,7 +384,15 @@ export function Runner(props: RunnerProps) {
     const more = q ? all.slice(all.findIndex(x => x.id === q.id) + 1).some(x => !shown.has(x.id) && x.kind !== "statement") : false;
     const percent = countable.length === 0 ? 0 : Math.round((Math.max(0, position) / countable.length) * 100);
     const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-      if (!q || e.defaultPrevented) return;
+      if (!q) return;
+      // Enter in a date's field: the field reads the date first (and says
+      // when it cannot); then, when it could, the form goes on.
+      if (e.defaultPrevented && e.key === "Enter" && (e.target as HTMLElement).classList.contains("ck-date-input")) {
+        const box = (e.target as HTMLElement).closest(".ck-date");
+        setTimeout(() => { if (!box?.classList.contains("ck-invalid")) nextRef.current(); }, 0);
+        return;
+      }
+      if (e.defaultPrevented) return;
       if (e.key === "Enter" && !e.shiftKey && (e.target as HTMLElement).tagName !== "TEXTAREA" && (e.target as HTMLElement).tagName !== "BUTTON" && (e.target as HTMLElement).tagName !== "A") {
         e.preventDefault();
         next();
@@ -395,7 +426,7 @@ export function Runner(props: RunnerProps) {
         <div className="step" key={q?.id ?? "none"} ref={headingRef}>
           {q && field(q, q.kind === "statement" ? null : position + 1, true)}
           <div className="runner-actions">
-            <button type="button" className="button form-button" onClick={next} disabled={sending || Object.values(uploading).some(Boolean)}>
+            <button type="button" className="button form-button" onClick={next} disabled={sending || uploading}>
               {last && !more ? (sending ? w.sending : w.submit) : q?.kind === "statement" ? w.continue : w.next} {!(last && !more) && <Check />}
             </button>
             <span className="enter-hint" aria-hidden="true">{q?.kind === "long" ? w.pressCtrlEnter : w.pressEnter}</span>
@@ -435,7 +466,7 @@ export function Runner(props: RunnerProps) {
         {banner}
         <div className="classic-actions">
           {clampIndex > 0 && <button type="button" className="button quiet" onClick={() => { setIndex(clampIndex - 1); window.scrollTo({ top: 0 }); }}><Back /> {w.back}</button>}
-          <button type="submit" className="button form-button" disabled={sending || Object.values(uploading).some(Boolean)}>{lastPage ? (sending ? w.sending : w.submit) : w.continue}</button>
+          <button type="submit" className="button form-button" disabled={sending || uploading}>{lastPage ? (sending ? w.sending : w.submit) : w.continue}</button>
           {path.pages.length > 1 && <span className="step-count">{format(w.progress, { done: clampIndex + 1, total: path.pages.length })}</span>}
         </div>
       </form>
@@ -451,10 +482,10 @@ type FieldProps = {
   number: number | null;
   value: unknown;
   error: AnswerError | null;
-  fileError: ErrorCode | null;
-  uploading: boolean;
+  files: readonly PickedFile[];
+  onFiles: (update: (current: readonly PickedFile[]) => PickedFile[]) => void;
+  upload: (file: File, options: { onProgress: (fraction: number) => void; signal: AbortSignal }) => Promise<{ ok: true; ref: string } | { ok: false; error: string }>;
   onChange: (v: unknown) => void;
-  onUpload: (file: File) => void;
   onPicked?: () => void;
   w: RunnerWords;
   errorsWords: Catalogue["errors"];
@@ -464,6 +495,7 @@ type FieldProps = {
   filesOff: boolean;
   preview: boolean;
   pictures: Record<string, string>;
+  today: string;
 };
 
 function QuestionField(p: FieldProps) {
@@ -472,7 +504,7 @@ function QuestionField(p: FieldProps) {
   const inputId = `q-${q.id}`;
   const helpId = `${base}-help`;
   const errorId = `${base}-error`;
-  const describedBy = [q.help ? helpId : "", p.error || p.fileError ? errorId : ""].filter(Boolean).join(" ") || undefined;
+  const describedBy = [q.help ? helpId : "", p.error ? errorId : ""].filter(Boolean).join(" ") || undefined;
   const invalid = p.error ? true : undefined;
   const auto = p.autofocus ? { "data-autofocus": true } : {};
   // A pick with the mouse or a finger moves on by itself (one question at a
@@ -491,7 +523,7 @@ function QuestionField(p: FieldProps) {
     </>
   );
   const help = q.help ? <p className="q-help" id={helpId}>{q.help}</p> : null;
-  const errorText = p.error ? hint(q, p.error, w) : p.fileError ? format(p.errorsWords[p.fileError] ?? p.errorsWords.unknown, { max: 0 }) : null;
+  const errorText = p.error ? hint(q, p.error, w) : null;
   const error = errorText ? <p className="q-error" id={errorId} role="alert">{errorText}</p> : null;
 
   if (q.kind === "statement") {
@@ -503,8 +535,22 @@ function QuestionField(p: FieldProps) {
     );
   }
 
+  // A date: the kit's DateField, the question as its heading. Its label
+  // (the question's words, for screen readers) is hidden: the heading
+  // shows them; its help and error are the field's own, so they are read
+  // with it.
+  if (q.kind === "date") {
+    const value = typeof p.value === "string" && p.value ? p.value : null;
+    return (
+      <div className={`question kind-date${p.error ? " has-error" : ""}`} {...auto}>
+        <p className="q-heading" aria-hidden="true">{heading}</p>
+        <DateField id={inputId} label={q.title + (q.required ? ` (${w.requiredMark})` : "")} value={value} onChange={d => p.onChange(d ?? undefined)} today={p.today} required={q.required} labels={w.date} {...(q.help ? { hint: q.help } : {})} error={errorText} />
+      </div>
+    );
+  }
+
   // Text-like questions: a label and one field.
-  if (["short", "long", "email", "phone", "number", "date", "dropdown"].includes(q.kind)) {
+  if (["short", "long", "email", "phone", "number", "dropdown"].includes(q.kind)) {
     const text = typeof p.value === "string" ? p.value : typeof p.value === "number" ? String(p.value) : "";
     const common = { id: inputId, "aria-describedby": describedBy, "aria-invalid": invalid, "aria-required": q.required || undefined, ...auto };
     let control: ReactNode;
@@ -519,10 +565,10 @@ function QuestionField(p: FieldProps) {
         </select>
       );
     } else {
-      const type = q.kind === "email" ? "email" : q.kind === "phone" ? "tel" : q.kind === "date" ? "date" : "text";
+      const type = q.kind === "email" ? "email" : q.kind === "phone" ? "tel" : "text";
       const inputMode = q.kind === "number" ? "decimal" : q.kind === "email" ? "email" : q.kind === "phone" ? "tel" : undefined;
       const autoComplete = q.kind === "email" ? "email" : q.kind === "phone" ? "tel" : undefined;
-      control = <input className="answer-input" type={type} inputMode={inputMode} autoComplete={autoComplete} value={text} maxLength={q.kind === "short" ? (q.max ?? 500) : undefined} placeholder={!p.steps || q.kind === "date" ? undefined : q.kind === "number" ? w.numberHere : w.typeHere} onChange={e => p.onChange(e.target.value)} {...common} />;
+      control = <input className="answer-input" type={type} inputMode={inputMode} autoComplete={autoComplete} value={text} maxLength={q.kind === "short" ? (q.max ?? 500) : undefined} placeholder={!p.steps ? undefined : q.kind === "number" ? w.numberHere : w.typeHere} onChange={e => p.onChange(e.target.value)} {...common} />;
     }
     const bounds = q.kind === "number" ? rangeText(q, w) : null;
     return (
@@ -744,36 +790,20 @@ function QuestionField(p: FieldProps) {
     );
   }
 
-  // A file, or several (up to the question's number).
-  const sent = filesIn(p.value) as FileRef[];
-  const room = sent.length < (q.max ?? 1);
-  const accept = typesFor(q.accept ?? "any").join(",");
-  const kinds = q.accept === "images" ? w.file.images : q.accept === "documents" ? w.file.documents : w.file.any;
-  const drop = (f: File) => p.onUpload(f);
-  const removeAt = (i: number) => (q.max ?? 1) > 1 ? p.onChange(sent.length > 1 ? sent.filter((_, k) => k !== i) : undefined) : p.onChange(undefined);
+  // A file, or several (up to the question's number): the kit's picker,
+  // the limits said before one tries, each file sent at once with its
+  // progress, removable.
+  const max = q.max ?? 1;
   return (
     <div className={`question kind-file${p.error ? " has-error" : ""}`}>
-      <label className="q-heading" htmlFor={inputId}>{heading}</label>
+      <p className="q-heading"><span id={inputId} tabIndex={-1} className="q-focus" {...auto}>{heading}</span></p>
       {help}
       {p.filesOff ? (
         <p className="q-help">{w.file.off}</p>
       ) : (
         <>
-          {sent.map((file, i) => (
-            <div key={file.ref} className="file-chosen">
-              <Paperclip /><span className="file-name">{file.name}</span>
-              <button type="button" className="icon-button" onClick={() => removeAt(i)}><Close /><span className="visually-hidden">{format(w.file.removeOne, { name: file.name })}</span></button>
-            </div>
-          ))}
-          {room && (
-            <div className={`dropzone${p.uploading ? " busy" : ""}`}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) drop(f); }}>
-              <input id={inputId} type="file" className="file-input" accept={accept} disabled={p.uploading || p.preview} aria-describedby={describedBy} aria-invalid={invalid} onChange={e => { const f = e.target.files?.[0]; if (f) drop(f); e.target.value = ""; }} {...auto} />
-              <span className="dropzone-text" aria-hidden="true"><Paperclip /> {p.uploading ? w.file.uploading : <><strong>{sent.length > 0 ? w.file.another : w.file.choose}</strong> <span className="drop-hint">{w.file.drop}</span></>}</span>
-              <span className="dropzone-hint">{p.preview ? w.file.notInPreview : `${kinds} · ${w.file.max}${(q.max ?? 1) > 1 ? " · " + format(w.file.upTo, { max: q.max ?? 1 }) : ""}`}</span>
-            </div>
-          )}
+          <FilePicker label={q.title} files={p.files} onChange={p.onFiles} upload={p.upload} accept={typesFor(q.accept ?? "any")} maxSize={limits.fileSize} maxFiles={max} disabled={p.preview} labels={w.files} />
+          <p className="q-help">{p.preview ? w.file.notInPreview : q.accept === "images" ? w.file.images : q.accept === "documents" ? w.file.documents : w.file.any}</p>
         </>
       )}
       {error}

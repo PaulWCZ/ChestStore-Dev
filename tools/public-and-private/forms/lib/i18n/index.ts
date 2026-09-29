@@ -1,3 +1,4 @@
+import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -8,8 +9,10 @@ export const locales = ["en", "fr"] as const;
 export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
-// A catalogue has the shape of the English one, every leaf a string.
-type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
+// A catalogue has the shape of the English one, every leaf a string — but
+// the kit's date words, which are the kit's type (DateWords: an order, a
+// first day of the week, twelve months…).
+type Shape<T> = { readonly [K in keyof T]: T[K] extends { readonly order: string; readonly weekStart: number } ? DateWords : T[K] extends string ? string : Shape<T[K]> };
 export type Catalogue = Shape<typeof en>;
 
 const catalogues: Record<Locale, Catalogue> = { en, fr };

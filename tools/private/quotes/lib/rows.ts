@@ -13,6 +13,10 @@ export type RowView = {
   who: string;
   what: string;
   date: string;
+  // The day the list sorts by (ISO), and the amount in minor units (a
+  // credit note negative).
+  sortDate: string;
+  value: number;
   amount: string;
   sub: string | null;
   state: State;
@@ -38,6 +42,8 @@ export function rowView(r: ListRow, t: Catalogue, locale: Locale): RowView {
     who: r.clientName || t.list.noClient,
     what: r.title || kindOf(r, t),
     date,
+    sortDate: r.status === "draft" ? r.updatedAt.slice(0, 10) : r.type === "invoice" ? r.dueDate ?? r.issueDate ?? "" : r.issueDate ?? "",
+    value: r.type === "credit" ? -r.gross : r.gross,
     amount: formatMoney(r.type === "credit" ? -r.gross : r.gross, r.currency, locale),
     sub,
     state: r.state,

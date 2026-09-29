@@ -1,11 +1,11 @@
-import { NavLink } from "../../../../../components/nav-link.tsx";
+import { Tabs } from "@argentic/chest-ui/components";
 
-// The Answers tab's two views: the answers themselves, and their summary.
-export function AnswersSwitch({ base, list, summary, label }: { base: string; list: string; summary: string; label: string }) {
+// The Answers tab's two views, the kit's link tabs: the answers
+// themselves, and their summary.
+export function AnswersSwitch({ base, current, list, summary, label }: { base: string; current: "list" | "summary"; list: string; summary: string; label: string }) {
   return (
-    <nav className="segmented view-switch" aria-label={label}>
-      <NavLink href={`${base}/answers`} exact>{list}</NavLink>
-      <NavLink href={`${base}/summary`} exact>{summary}</NavLink>
-    </nav>
+    <div className="view-switch">
+      <Tabs items={[{ id: "list", label: list, href: `${base}/answers` }, { id: "summary", label: summary, href: `${base}/summary` }]} current={current} label={label} />
+    </div>
   );
 }

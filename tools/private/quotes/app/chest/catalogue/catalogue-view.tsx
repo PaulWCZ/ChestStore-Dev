@@ -1,10 +1,10 @@
 "use client";
 
+import { DataTable, Dialog, EmptyState, PageHeader, Tabs, useToast } from "@argentic/chest-ui/components";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
 import { Box, Plus, Upload } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import type { Item } from "../../../lib/items.ts";
@@ -12,19 +12,21 @@ import { formatMoney, formatRate, inputAmount, vatRates } from "../../../lib/mon
 import { addItem, archiveItem, updateItem } from "../actions.ts";
 
 // The catalogue: what the company sells, priced excluding VAT, ready to put
-// on a quote in one click.
+// on a quote in one click. An item is changed in a dialog that asks before
+// losing what was typed; archiving it offers Undo.
 type Fields = { name: string; description: string; unit: string; unitPrice: string; vatRate: number; goods: boolean };
 
 export function CatalogueView({ t, locale, items, archived, canWrite, currency }: { t: Catalogue; locale: Locale; items: Item[]; archived: boolean; canWrite: boolean; currency: string }) {
   const c = t.catalogue;
   const router = useRouter();
   const toast = useToast();
-  const [editing, setEditing] = useState<{ id: string | null; fields: Fields } | null>(null);
+  const [editing, setEditing] = useState<{ id: string | null; fields: Fields; initial: Fields } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const open = (item: Item | null) => {
     setError(null);
-    setEditing({ id: item?.id ?? null, fields: item ? { name: item.name, description: item.description, unit: item.unit, unitPrice: inputAmount(item.unitPrice, currency, locale), vatRate: item.vatRate, goods: item.goods } : { name: "", description: "", unit: "", unitPrice: "", vatRate: 2000, goods: false } });
+    const fields: Fields = item ? { name: item.name, description: item.description, unit: item.unit, unitPrice: inputAmount(item.unitPrice, currency, locale), vatRate: item.vatRate, goods: item.goods } : { name: "", description: "", unit: "", unitPrice: "", vatRate: 2000, goods: false };
+    setEditing({ id: item?.id ?? null, fields, initial: fields });
   };
   const set = (patch: Partial<Fields>) => setEditing(e => (e ? { ...e, fields: { ...e.fields, ...patch } } : e));
   async function submit(e: React.FormEvent) {
@@ -35,64 +37,53 @@ export function CatalogueView({ t, locale, items, archived, canWrite, currency }
     setBusy(false);
     if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
     setEditing(null);
-    toast(editing.id ? c.saved : format(c.added, { name: result.value.name }));
+    toast({ id: `item-${result.value.id}`, text: editing.id ? c.saved : format(c.added, { name: result.value.name }) });
     router.refresh();
   }
   async function archive(item: Item, value: boolean) {
     const result = await archiveItem(item.id, value);
-    if (!result.ok) return toast(t.errors[result.error]);
-    toast(value ? format(c.archivedToast, { name: item.name }) : c.restored, value ? { label: t.common.undo, run: () => void archiveItem(item.id, false).then(() => router.refresh()) } : undefined);
+    if (!result.ok) return toast({ text: t.errors[result.error], tone: "error" });
+    toast(value
+      ? { id: `archive-${item.id}`, text: format(c.archivedToast, { name: item.name }), undo: async () => { const back = await archiveItem(item.id, false); router.refresh(); return back.ok || t.errors[back.error]; } }
+      : { id: `archive-${item.id}`, text: c.restored });
     router.refresh();
   }
   const units = Object.values(t.pdf.units).map(u => u.one);
   return (
-    <main className="page">
-      <div className="page-head">
-        <div>
-          <h1>{c.title}</h1>
-          <p>{c.intro}</p>
-        </div>
-        {canWrite && <div className="actions"><a className="button quiet" href="/chest/import?kind=items"><Upload />{c.import}</a><button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button></div>}
+    <div className="page">
+      <PageHeader size="m" title={c.title} intro={c.intro}
+        secondary={canWrite ? <a className="button quiet" href="/chest/import?kind=items"><Upload />{c.import}</a> : undefined}
+        action={canWrite ? <button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button> : undefined} />
+      <div className="view-tabs">
+        <Tabs label={t.list.filters} current={archived ? "archived" : "active"} link={Link}
+          items={[{ id: "active", label: c.active, href: "/chest/catalogue" }, { id: "archived", label: c.archived, href: "/chest/catalogue?archived=1" }]} />
       </div>
-      <nav className="filters" aria-label={t.list.filters}>
-        <a href="/chest/catalogue" aria-current={!archived ? "true" : undefined}>{c.active}</a>
-        <a href="/chest/catalogue?archived=1" aria-current={archived ? "true" : undefined}>{c.archived}</a>
-      </nav>
       {items.length === 0 ? (
-        <div className="empty">
-          <Box />
-          <h2>{archived ? c.noArchived : c.empty.title}</h2>
-          {!archived && <p>{c.empty.body}</p>}
-          {canWrite && !archived && <div className="actions"><button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button><a className="button quiet" href="/chest/import?kind=items"><Upload />{c.import}</a></div>}
-        </div>
+        <EmptyState icon={<Box />} title={archived ? c.noArchived : c.empty.title} body={archived ? undefined : c.empty.body}
+          action={canWrite && !archived ? <><button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button><a className="button quiet" href="/chest/import?kind=items"><Upload />{c.import}</a></> : undefined} />
       ) : (
-        <div className="ledger">
-          <div className="ledger-head ledger-row items-row" aria-hidden="true">
-            <span>{c.name}</span><span>{c.unit}</span><span className="amount">{c.price}</span><span className="amount">{c.vat}</span><span />
-          </div>
-          <ul className="plain">
-            {items.map(i => (
-              <li key={i.id} className="ledger-row items-row">
-                <span className="who">{i.name}{i.description && <span className="what"> — {i.description.split("\n")[0]}</span>}</span>
-                <span className="date">{i.unit}</span>
-                <span className="amount">{formatMoney(i.unitPrice, currency, locale)}</span>
-                <span className="amount">{formatRate(i.vatRate, locale)}</span>
-                <span className="state">
-                  {canWrite && (archived
-                    ? <button type="button" className="link-button" onClick={() => void archive(i, false)}>{c.restore}</button>
-                    : <button type="button" className="link-button" onClick={() => open(i)} aria-label={format(c.editNamed, { name: i.name })}>{c.edit}</button>)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <DataTable
+          caption={archived ? `${c.title} · ${c.archived}` : c.title}
+          rows={items}
+          rowKey={i => i.id}
+          labels={t.table}
+          columns={[
+            { key: "name", label: c.name, rowHeader: true, value: i => i.name, render: i => <><span className="who">{i.name}</span>{i.description && <span className="what">{i.description.split("\n")[0]}</span>}</> },
+            { key: "unit", label: c.unit, hideOnPhone: true, width: "narrow", render: i => <span className="date">{i.unit}</span> },
+            { key: "price", label: c.price, align: "end", width: "narrow", value: i => i.unitPrice, render: i => <span className="amount">{formatMoney(i.unitPrice, currency, locale)}</span> },
+            { key: "vat", label: c.vat, align: "end", width: "narrow", hideOnPhone: true, value: i => i.vatRate, render: i => <span className="num">{formatRate(i.vatRate, locale)}</span> },
+            ...(canWrite ? [{ key: "act", label: c.actions, align: "end" as const, width: "narrow" as const, render: (i: Item) => archived
+              ? <button type="button" className="link-button" onClick={() => void archive(i, false)}>{c.restore}</button>
+              : <button type="button" className="link-button" onClick={() => open(i)} aria-label={format(c.editNamed, { name: i.name })}>{c.edit}</button> }] : []),
+          ]}
+        />
       )}
-      <Dialog open={editing !== null} title={editing?.id ? c.editTitle : c.add} closeLabel={t.shell.close} onClose={() => setEditing(null)}>
+      <Dialog open={editing !== null} title={editing?.id ? c.editTitle : c.add} onClose={() => setEditing(null)} dirty={editing !== null && JSON.stringify(editing.fields) !== JSON.stringify(editing.initial)} labels={t.dialog}>
         {editing && (
           <form className="form-grid" onSubmit={submit} noValidate>
             <div className="field-row">
               <label htmlFor="i-name">{c.name}</label>
-              <input id="i-name" className="field" value={editing.fields.name} maxLength={160} required autoFocus onChange={e => set({ name: e.target.value })} />
+              <input id="i-name" className="field" value={editing.fields.name} maxLength={160} required onChange={e => set({ name: e.target.value })} />
             </div>
             <div className="field-row">
               <label htmlFor="i-description">{c.description}</label>
@@ -129,6 +120,6 @@ export function CatalogueView({ t, locale, items, archived, canWrite, currency }
           </form>
         )}
       </Dialog>
-    </main>
+    </div>
   );
 }

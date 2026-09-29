@@ -25,8 +25,8 @@ studio):
   not used: both impose their own look and are far larger than needed.
 
 Dependencies from npm under their own licences: `next`, `react`,
-`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
-studio's working copy in `vendor/`). Icons drawn for this tool.
+`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` and
+`@argentic/chest-ui` (MIT, the studio's working copies in `vendor/`). Icons drawn for this tool.
 
 ## Import formats (read, not copied)
 

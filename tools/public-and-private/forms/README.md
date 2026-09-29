@@ -130,6 +130,41 @@ built again from the studio's template to stand next to Tally and Typeform.
   answers by email address or name and erases them (*Erase a person's
   answers*).
 
+## Looks
+
+Forms wears any look, with the same features: its own identity
+(*Invitation*: lavender mist, aubergine ink, one berry, DM Serif Display
+and DM Sans — `lib/theme.ts`), any theme of the kit's catalogue, or the
+company's brand imported in its Chest — for all its tools or for Forms
+alone. The Chest chooses (`chest.theme()`, `lib/theme.ts` `currentLook`);
+Forms has no switch of its own. In brand mode the company's logo shows
+beside the name in the header and at the top of every respondent's page.
+
+**A form's colour** (Settings → Look, six choices) is a family of the
+look's categorical palette — indigo the blue, teal the teal, tangerine the
+orange, forest the green, ink the slate — so a teal form stays teal in any
+look, in that look's own shade. The first colour is the look's own action
+colour: Forms' berry in its own look, the theme's accent in a catalogue
+theme, **the company's colour in brand mode**. So on a public page the
+company's brand wins, unless the form's author chose one of the five other
+colours on purpose (Settings says so: "Your company chose how its tools
+look: the first colour is its own."). In Forms' own look a form's page
+takes its colour's soft ground; in any other look, the theme's surface
+(some themes' soft grounds are too strong for the hints and errors). Every
+text of a form's page is measured in every colour, in Forms' look, every
+catalogue theme and 300 random brands (`test/theme.test.ts`).
+
+The kit's components (`@argentic/chest-ui/components`) give the shell,
+toasts with a true *Undo*, dialogs, the people picker, the date fields
+(never the browser's own), the file picker, the answers' table, the
+filters and the search box; inside a form's page they wear the form's
+colour.
+
+Until the kit's catalogue holds Forms (it has the 17 other identities),
+other tools cannot wear *Invitation*; the entry it needs is in
+`reports/04-themes-and-kit.md` (studio) and below, in *Needs from the
+SDK*.
+
 ## Anonymous team forms — the design, and its limits
 
 - **No member id, no address, no time finer than the month** is stored
@@ -215,7 +250,7 @@ Capabilities: `database`, `files`, `members`, `notifications`; receives
 them): `mail.send`, `files.publicUploads`, `files.publicFiles` (covers and
 pictures), `emits: ["forms.answered"]`, `schedules` (`bell`, `cleanup`),
 and the tile's French words; the tool also calls `visitors`, `chest`
-(company, time zone, addresses, `theme()` for the logo) and
+(company, time zone, addresses, `theme()` for the look and the logo) and
 `notifications.broadcast`.
 When a member loses access or leaves, they are taken off the forms shared
 with them and the bell; forms they own stay (managers open them). On
@@ -241,7 +276,12 @@ if shipped and keeps working without them:
 - **Broadcast** (`notifications.broadcast`): without it, a team form's
   opening is not announced; its link is shared by hand.
 - **Chest settings** (`chest.company()`, `timeZone()`, `publicUrl()`,
-  `teamUrl()`, `theme()`: the brand's logo on respondents' pages).
+  `teamUrl()`, `theme()`: the look the company chose, and its logo).
+- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.1-studio.1): Forms'
+  identity as its 20th theme, `forms` (with the fonts `dm-sans` and
+  `dm-serif-display` in its registry), so any other tool may wear it and
+  `lib/theme.ts` becomes `identityOf("forms")`. Until then the identity
+  declares its fonts from its own files, latin subsets only.
 - **Public files** (`files.publicUrl`): covers and picture choices; without
   them, the pictures do not show on the public page.
 - **Events between tools** (`events.publish("forms.answered")`): without
@@ -299,8 +339,7 @@ seeded (files are the Chest's): the flow uploads one.
   in the old tool or a CSV).
 - A matrix takes one choice per row (no checkbox grid); a picture choice
   has no *Other*; a ranking has no "rank only the top 3".
-- Sharing is with one person at a time (no Chest group, no "everyone");
-  the closing date uses the browser's date field.
+- Sharing is with one person at a time (no Chest group, no "everyone").
 - One anonymous check-in tool too many: Forms' "Anonymous team check-in"
   template overlaps the Polls tool's pulse, and a form cannot recur each
   week — the store still has to decide who owns pulse surveys.

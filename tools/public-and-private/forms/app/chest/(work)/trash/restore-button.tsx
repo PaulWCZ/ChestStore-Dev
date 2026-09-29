@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { Restore } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import { restoreForm } from "../../actions.ts";
@@ -15,7 +15,7 @@ export function RestoreButton({ formId, label, done, errors }: { formId: string;
   return (
     <button type="button" className="button quiet small" disabled={pending} onClick={() => start(async () => {
       const r = await restoreForm(formId);
-      if (!r.ok) return void toast(format(errors[r.error] ?? errors.unknown, r.values ?? {}));
+      if (!r.ok) return void toast({ text: format(errors[r.error] ?? errors.unknown, r.values ?? {}), tone: "error" });
       toast(done);
       router.push(`/chest/forms/${formId}`);
     })}><Restore />{label}</button>

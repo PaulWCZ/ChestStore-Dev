@@ -54,7 +54,7 @@ test("reminders: off until an administrator turns them on, then one email per st
   assert.deepEqual(await followUp(sql, "2026-09-10"), { drafts: 0, emailed: 1, told: 0 });
   const mail = chest.outbox.at(-1)!;
   assert.deepEqual(mail.to, ["marie@dupain.test"]);
-  assert.ok(mail.subject.startsWith("Relance : facture F-2026-0001"));
+  assert.ok(mail.subject.startsWith("Relance\u202f: facture F-2026-0001"));
   assert.ok(mail.text.startsWith("Bonjour Marie Dupain,"));
   assert.equal(mail.attachments[0]?.name, "Facture-F-2026-0001.pdf");
   // Billing hears of it (Sofia finalised it).

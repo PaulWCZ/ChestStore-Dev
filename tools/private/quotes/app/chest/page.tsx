@@ -1,5 +1,6 @@
 import * as chest from "@argentic/chest-sdk/chest";
-import { Ledger } from "../../components/ledger.tsx";
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
+import { DocTable } from "../../components/doc-table.tsx";
 import { Alert, BlankSheet, Plus } from "../../components/icons.tsx";
 import { NewDocument } from "../../components/new-document.tsx";
 import { can } from "../../lib/access.ts";
@@ -41,19 +42,14 @@ export default async function DeskPage() {
     return format(t.desk.reasons.draft, { date: formatDay(r.updatedAt.slice(0, 10), locale) });
   };
   return (
-    <main className="page">
-      <div className="page-head">
-        <div>
-          <p>{formatDay(today, locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
-          <h1>{t.desk.title}</h1>
-        </div>
-        {canQuote && (
-          <div className="actions">
-            {can(member, "invoices.draft") && <NewDocument type="invoice" className="button quiet" errors={t.errors}><Plus />{t.desk.newInvoice}</NewDocument>}
-            <NewDocument type="quote" errors={t.errors}><Plus />{t.desk.newQuote}</NewDocument>
-          </div>
-        )}
-      </div>
+    <div className="page">
+      <p className="over-title">{formatDay(today, locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+      <PageHeader
+        size="m"
+        title={t.desk.title}
+        secondary={canQuote && can(member, "invoices.draft") ? <NewDocument type="invoice" className="button quiet" errors={t.errors}><Plus />{t.desk.newInvoice}</NewDocument> : undefined}
+        action={canQuote ? <NewDocument type="quote" errors={t.errors}><Plus />{t.desk.newQuote}</NewDocument> : undefined}
+      />
 
       {gaps.length > 0 && (
         <div className="callout" role="note">
@@ -67,18 +63,18 @@ export default async function DeskPage() {
       )}
 
       {d.empty ? (
-        <div className="empty">
-          <BlankSheet />
-          <h2>{t.desk.empty.title}</h2>
-          <p>{t.desk.empty.body}</p>
-          {canQuote && (
-            <div className="actions">
+        <EmptyState
+          icon={<BlankSheet />}
+          title={t.desk.empty.title}
+          body={t.desk.empty.body}
+          action={canQuote ? (
+            <>
               <NewDocument type="quote" errors={t.errors}><Plus />{t.desk.empty.action}</NewDocument>
               {can(member, "clients.write") && <a className="button quiet" href="/chest/import?kind=clients">{t.desk.empty.clients}</a>}
-            </div>
-          )}
-          {can(member, "clients.write") && <p className="hint">{t.desk.empty.switching}</p>}
-        </div>
+            </>
+          ) : undefined}
+          note={can(member, "clients.write") ? t.desk.empty.switching : undefined}
+        />
       ) : (
         <>
           <div className="figures">
@@ -125,11 +121,12 @@ export default async function DeskPage() {
               <div className="section-head">
                 <h2 id="recent">{t.desk.recent}</h2>
               </div>
-              <Ledger rows={d.recent.map(r => rowView(r, t, locale))} head={head} />
+              <DocTable rows={d.recent.map(r => rowView(r, t, locale))} labels={t.table}
+                words={{ caption: t.desk.recent, number: head.number, client: head.client, what: head.what, date: head.date, amount: head.amount, state: head.state, total: t.list.total }} />
             </section>
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }

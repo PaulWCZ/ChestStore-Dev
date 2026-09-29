@@ -56,7 +56,7 @@ await step("an unfinished question blocks publishing and says where; fixed, the 
   expect((await page.locator(".problems").innerText()).includes("A question has no text."), "problem shown");
   await page.locator(".qcard.has-problem .card-summary").click();
   await page.locator(".qcard.open").getByRole("button", { name: "Delete" }).click();
-  expect((await page.locator(".toast").innerText()).includes("Question deleted."), "undo toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Question deleted.") && (await page.locator(".ck-toast-undo").count()) === 1, "undo toast");
   await page.waitForSelector(".save-state.saved", { timeout: 10000 });
   await page.getByRole("button", { name: "Publish" }).click();
   await page.waitForSelector("dialog[open]");
@@ -134,8 +134,8 @@ await step("on a phone, a French visitor: the English form speaks English, one q
   await visitor.locator("input.answer-input").fill("Tarte au citron");
   await visitor.keyboard.press("Enter");
   await visitor.locator("input[type=file]").setInputFiles({ name: "menu.pdf", mimeType: "application/pdf", buffer: pdf });
-  await visitor.waitForSelector(".file-chosen, .q-error");
-  expect(await visitor.locator(".file-chosen").count() === 1, "file: " + (await visitor.locator(".step").innerText()));
+  await visitor.waitForSelector(".ck-file-ready, .ck-file-failed, .ck-file-problems .ck-error, .q-error", { timeout: 10000 });
+  expect(await visitor.locator(".ck-file-ready").count() === 1, "file: " + (await visitor.locator(".step").innerText()));
   await visitor.waitForTimeout(2200);
   await visitor.locator(".button.form-button", { hasText: "OK" }).click();
   await visitor.locator("label.pill", { hasText: "Fish" }).tap();
@@ -199,8 +199,8 @@ await step("the answer is followed up; the person who sent a team request sees w
   await english();
   await page.goto(origin + "/chest/forms/3/answers");
   await page.locator("tr", { hasText: "Sofia Rossi" }).getByRole("link", { name: "Open" }).click();
-  await page.getByRole("button", { name: "Done", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.locator(".follow-states label", { hasText: "Done" }).click();
+  await page.waitForSelector(".ck-toast");
   await page.locator("textarea").fill("The printer was fixed this morning.");
   await page.locator("h2", { hasText: "Follow-up" }).click();
   await page.waitForSelector("text=Note saved.");
@@ -247,7 +247,7 @@ await step("a form in two languages: French visitors read the French version, ot
   const g = await en.newPage();
   await g.goto(origin + "/p4x8vn2c");
   expect((await g.locator(".runner-title").innerText()).startsWith("Open day") && (await g.locator(".form-button").innerText()).includes("Send"), "English for an English visitor");
-  expect((await g.locator(".languages a").count()) === 2, "the switch offers the form's two languages");
+  expect((await g.locator(".ck-languages a").count()) === 2, "the switch offers the form's two languages");
   await en.close();
 });
 
@@ -257,7 +257,7 @@ await step("on a phone: the builder of a form with page rules never scrolls side
   await p.goto(origin + "/chest/forms/1");
   const width = await p.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 390, "page width " + width);
-  const tabs = await p.locator(".tabs a").evaluateAll(els => els.map(e => e.getBoundingClientRect().right));
+  const tabs = await p.locator(".form-top .ck-tabs a").evaluateAll(els => els.map(e => e.getBoundingClientRect().right));
   expect(tabs.length === 4 && tabs.every(r => r <= 390), "tabs fit: " + tabs.join(","));
   await p.close();
 });
@@ -266,10 +266,12 @@ await step("forms are found by title; a deleted form waits in Deleted forms and 
   await page.goto(origin + "/chest?q=lunch");
   expect((await page.locator(".form-card").count()) === 1, "search");
   await page.goto(formUrl + "/settings");
+  // Deleting asks nothing: the toast says what went and where it waits, with Undo.
   await page.getByRole("button", { name: "Delete this form" }).click();
-  expect((await page.locator("dialog[open]").innerText()).includes("2 answers go with it"), "the dialog says what goes");
-  await page.locator("dialog[open]").getByRole("button", { name: "Delete this form" }).click();
-  await page.waitForURL(/\/chest\?deleted=/u);
+  await page.waitForURL(/\/chest(\?deleted=\d+)?$/u);
+  await page.waitForSelector(".ck-toast");
+  const said = await page.locator(".ck-toast").innerText();
+  expect(said.includes("with its answers") && said.includes("Deleted forms") && (await page.locator(".ck-toast-undo").count()) === 1, "the toast says what goes, with Undo: " + said);
   await page.getByRole("link", { name: "1 deleted form" }).click();
   await page.getByRole("button", { name: "Bring it back" }).click();
   await page.waitForURL(/\/chest\/forms\/\d+$/u);
@@ -308,7 +310,7 @@ await step("a closed form says so to visitors; a form not shared is not found", 
   await english();
   await page.goto(formUrl);
   await page.getByRole("button", { name: "Stop taking answers" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await visitor.goto(link);
   expect((await visitor.locator("main").innerText()).includes("This form is closed"), "closed, in the form's language");
   const other = await page.request.get(origin + "/chest/forms/2");

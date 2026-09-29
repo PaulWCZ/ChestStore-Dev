@@ -1,6 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
+import { FollowBadge } from "../../../../../components/state-badge.tsx";
 import { sentOne } from "../../../../../lib/answers.ts";
 import { AppError } from "../../../../../lib/app-error.ts";
 import { db } from "../../../../../lib/db.ts";
@@ -34,7 +35,7 @@ export default async function SentPage({ params }: { params: Promise<{ answer: s
       </header>
       <section className="follow-up panel">
         <h2>{t.follow.title}</h2>
-        <p><span className={`follow follow-${answer.status}`}>{t.follow.states[answer.status]}</span></p>
+        <p><FollowBadge state={answer.status} label={t.follow.states[answer.status]} /></p>
         {answer.note ? <p className="follow-note">{answer.note}</p> : <p className="hint">{t.sent.noNote}</p>}
       </section>
       <dl className="answer-list">

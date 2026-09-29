@@ -6,9 +6,10 @@ import { Back } from "../../../../components/icons.tsx";
 import { Runner } from "../../../../components/runner.tsx";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
+import { currentLook } from "../../../../lib/theme.ts";
+import { zonedParts } from "../../../../lib/zone.ts";
 import { bySlug, openState } from "../../../../lib/forms.ts";
 
-import { companyLogo } from "../../../../lib/brand.ts";
 import { catalogue } from "../../../../lib/i18n/index.ts";
 import { imageUrl, pictureUrls } from "../../../../lib/images.ts";
 import { prefill } from "../../../../lib/logic.ts";
@@ -51,7 +52,7 @@ export default async function TeamForm({ params, searchParams }: Props) {
   const home = <a className="button quiet" href="/chest">{t.respond.thanks.home}</a>;
   const back = <a className="respond-back" href="/chest"><Back />{t.meta.name}</a>;
   return (
-    <RespondFrame accent={form.accent} company={company} logo={await companyLogo()} locale={locale} footer={t.respond.footerTeam} aside={back}>
+    <RespondFrame accent={form.accent} company={company} logo={(await currentLook()).logo} locale={locale} footer={t.respond.footerTeam} aside={back}>
       {already ? (
         <RespondNotice title={t.respond.already.title} body={t.respond.already.body}>{home}</RespondNotice>
       ) : state.open ? (
@@ -66,7 +67,8 @@ export default async function TeamForm({ params, searchParams }: Props) {
           initial={{ ...prefill(found.definition, query), ...prefill(definition, query) }}
           thanks={{ title: form.thanksTitle, body: form.thanksBody }}
           redirectUrl={form.redirectUrl}
-          words={t.respond}
+          words={{ ...t.respond, date: t.date, files: t.files }}
+          today={zonedParts(new Date(), chest.timeZone()).day}
           errors={t.errors}
           locale={locale}
           grantUrl="/chest/api/upload"

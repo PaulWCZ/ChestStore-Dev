@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
 import { KindIcon, Plus } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import type { Accent, Kind } from "../../../../lib/model.ts";
 import { createForm } from "../../actions.ts";
@@ -23,7 +23,7 @@ export function Picker({ choices, creating, errors }: { choices: Choice[]; creat
               setWhich(c.key);
               start(async () => {
                 const r = await createForm(c.key);
-                if (r && !r.ok) toast(errors[r.error] ?? errors.unknown);
+                if (r && !r.ok) toast({ text: errors[r.error] ?? errors.unknown, tone: "error" });
               });
             }}>
             <span className="template-art" aria-hidden="true">

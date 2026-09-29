@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Back, Globe, Mask, Users } from "../../../../../components/icons.tsx";
-import { NavLink } from "../../../../../components/nav-link.tsx";
+import { GuardedLink } from "../../../../../components/guarded-link.tsx";
 import { atLeast } from "../../../../../lib/access.ts";
 import { AppError } from "../../../../../lib/app-error.ts";
 import { db } from "../../../../../lib/db.ts";
 import { open, openState } from "../../../../../lib/forms.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { FormTitle, StatusControl } from "./form-head.tsx";
+import { FormTabs } from "./form-tabs.tsx";
+import { StateBadge } from "../../../../../components/state-badge.tsx";
 
 // A form's frame: its name, its state (and, for its editors, the one
 // action that changes it: stop or take answers again), and its tabs —
@@ -32,10 +34,10 @@ export default async function FormLayout({ children, params }: { children: React
   return (
     <div className="form-frame">
       <div className="form-top">
-        <NavLink className="back-link" href="/chest"><Back />{t.shell.home}</NavLink>
+        <GuardedLink className="back-link" href="/chest"><Back />{t.shell.home}</GuardedLink>
         <div className="form-name">
           <FormTitle initial={form.draft.title} untitled={t.builder.untitled} />
-          <span className={`status status-${status}`}>{t.status[status as keyof typeof t.status]}</span>
+          <StateBadge state={status} label={t.status[status as keyof typeof t.status]} />
           <span className="audience">
             {form.audience === "public" ? (<><Globe />{t.home.public}</>) : form.anonymous ? (<><Mask />{t.home.anonymous}</>) : (<><Users />{t.home.team}</>)}
           </span>
@@ -43,12 +45,7 @@ export default async function FormLayout({ children, params }: { children: React
             <StatusControl formId={form.id} open={form.status === "published"} canReopen={!(form.maxAnswers !== null && form.answerCount >= form.maxAnswers)} t={{ close: t.builder.closeForm, reopen: t.builder.reopen, closed: t.builder.closedToast, reopened: t.builder.reopened, errors: t.errors }} />
           )}
         </div>
-        <nav className="tabs" aria-label={t.tabs.label}>
-          <NavLink href={base} exact>{t.tabs.build}</NavLink>
-          <NavLink href={`${base}/share`}>{t.tabs.share}</NavLink>
-          {editor && <NavLink href={`${base}/settings`}>{t.tabs.settings}</NavLink>}
-          <NavLink href={`${base}/answers`} also={[`${base}/summary`]}>{t.tabs.answers}</NavLink>
-        </nav>
+        <FormTabs base={base} editor={editor} label={t.tabs.label} words={{ build: t.tabs.build, share: t.tabs.share, settings: t.tabs.settings, answers: t.tabs.answers }} />
       </div>
       {children}
     </div>

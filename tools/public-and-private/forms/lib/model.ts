@@ -494,6 +494,11 @@ export const layouts = ["steps", "classic"] as const;
 export type Layout = (typeof layouts)[number];
 export const accents = ["berry", "indigo", "teal", "tangerine", "forest", "ink"] as const;
 export type Accent = (typeof accents)[number];
+// A form's colour is a family of the look's categorical palette (the same
+// in every theme: 1 blue, 2 green, 3 orange, 5 pink, 6 teal, 8 slate), so
+// it keeps its colour in any look (app/tokens.css, lib/theme.ts). Berry is
+// the pink in Forms' own look, the look's own action colour in any other.
+export const formSlots: Record<Accent, number> = { berry: 5, indigo: 1, teal: 6, tangerine: 3, forest: 2, ink: 8 };
 export const retentions = [1, 3, 6, 12, 24, 36] as const;
 export type Status = "draft" | "published" | "closed";
 

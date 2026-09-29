@@ -10,6 +10,7 @@ import { viewer } from "../../../../../../lib/session.ts";
 import { zonedParts } from "../../../../../../lib/zone.ts";
 import { imageUrl } from "../../../../../../lib/images.ts";
 import { getSetting } from "../../../../../../lib/settings.ts";
+import { currentLook, ownLook } from "../../../../../../lib/theme.ts";
 import { SettingsView } from "./settings-view.tsx";
 
 // Settings: who answers, how it looks, until when, what happens after, who
@@ -34,7 +35,6 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
       formId={form.id}
       canEdit={atLeast(level, "editor")}
       canDelete={atLeast(level, "owner")}
-      answers={form.answerCount}
       mailWorks={(await getSetting<boolean>(sql, "mail_works")) ?? null}
       cover={await imageUrl(form.cover, "team")}
       initial={{
@@ -49,7 +49,9 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
       people={ids.map(id => ({ id, name: id === member.id ? t.people.you : nameOf(who.get(id), locale) }))}
       zoneNote={format(t.settings.zone, { zone })}
       locale={locale}
-      t={{ s: t.settings, errors: t.errors, b: t.builder }}
+      today={zonedParts(new Date(), zone).day}
+      own={ownLook(await currentLook())}
+      t={{ s: t.settings, errors: t.errors, b: t.builder, date: t.date }}
     />
   );
 }

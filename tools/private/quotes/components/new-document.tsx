@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { createDocument } from "../app/chest/actions.ts";
-import { useToast } from "./toast.tsx";
 
 // Starts a draft (a quote or an invoice, for a client when one is named)
 // and opens it: the paper is the form.
@@ -18,7 +18,7 @@ export function NewDocument({ type, clientId = null, className = "button", error
       if (result.ok) router.push(`/chest/documents/${result.value.id}`);
       else {
         setBusy(false);
-        toast(errors[result.error] ?? errors["unknown"] ?? "");
+        toast({ text: errors[result.error] ?? errors["unknown"] ?? "", tone: "error" });
       }
     }}>
       {children}

@@ -1,110 +1,105 @@
-/* Forms — design tokens (DESIGN.md). Lavender mist, aubergine ink, berry.
-   Light by default, dark by the system's choice. Ratios in DESIGN.md
-   (scripts/contrast.mjs). */
+/* Forms' own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — Forms' identity "Invitation" in lib/theme.ts, or the
+   theme or brand the company chose in its Chest — in a <style> of
+   app/layout.tsx. Here only what is Forms' alone, always defined from
+   contract tokens, never from a colour, so it follows every theme. */
 :root {
-  color-scheme: light;
-  --bg: #f5f3fa;
-  --surface: #ffffff;
-  --surface-2: #eeebf6;
-  --line: #dcd6ea;
-  --line-strong: #b9b0cf;
-  --ink: #1d1631;
-  --ink-2: #574d6b;
-  --accent: #b0124f;
-  --accent-ink: #ffffff;
-  --accent-soft: #fbe3ec;
-  --focus: #5b3fd6;
-  --danger: #b3261e;
-  --danger-soft: #fdecea;
-  --ok: #1f7a4d;
-  --ok-soft: #e4f4ea;
-  --warn: #7a4f00;
-  --warn-soft: #fff3d6;
-  --highlight: #f6c945;
+  /* The big serif words: a form's title, a question. Sizes follow the
+     theme's scale, and grow with the screen. */
+  --text-hero: clamp(var(--text-xl), calc(var(--text-xl) * 0.7 + 2.4vw), calc(var(--text-2xl) * 1.22));
+  --text-q: clamp(calc(var(--text-l) * 1.2), calc(var(--text-l) * 0.88 + 1.8vw), var(--text-2xl));
 
-  /* A form's colour (its respondents' page): set by [data-accent]. */
-  --form: #b0124f;
-  --form-ink: #ffffff;
-  --form-soft: #fdf0f5;
+  /* The biggest panels (the first-visit card), and pills: round in a
+     theme with round corners, square in a square one (the Chest theme's
+     radius is 0). */
+  --radius-xl: calc(var(--radius-l) * 1.4);
+  --radius-round: min(var(--radius-pill), calc(var(--radius-s) * 100));
 
-  --font-display: "DM Serif Display", Georgia, "Times New Roman", serif;
-  --font-body: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-2xl: clamp(1.75rem, 1.2rem + 2.4vw, 2.75rem);
-  --text-q: clamp(1.5rem, 1.1rem + 1.8vw, 2.25rem);
+  /* Cards float on the page: a hairline under them and the theme's
+     raised shadow. */
+  --shadow-card: 0 1px 0 var(--line), var(--shadow-2);
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-  --space-8: 72px;
+  /* The height of the kit's header bar, for what sticks under it. */
+  --bar-h: 61px;
 
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --radius-l: 20px;
-  --radius-xl: 28px;
+  /* The marigold dot of the mark, the stars of a summary, the edge of
+     "For you to answer": decoration only, never text. The marker in a
+     light scheme; in a dark one the marker is dark (it carries light
+     text), so the ochre slot, seen at 3:1 on dark grounds. */
+  --marigold: var(--highlight);
 
-  --shadow-1: 0 1px 2px rgb(29 22 49 / 0.06), 0 1px 1px rgb(29 22 49 / 0.04);
-  --shadow-2: 0 10px 30px -12px rgb(29 22 49 / 0.28), 0 2px 6px rgb(29 22 49 / 0.06);
-  --shadow-card: 0 1px 0 var(--line), 0 12px 32px -20px rgb(29 22 49 / 0.35);
-
-  --fast: 140ms;
-  --slow: 320ms;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* The kinds of questions in the builder, each on its family's slot:
+     text (blue), contact (teal), numbers and dates (orange), choices
+     (pink), ratings (ochre), files (green). Text on a soft ground is its
+     ink: a measured pair. */
+  --kind-text: var(--cat-1-soft);
+  --kind-text-ink: var(--cat-1-ink);
+  --kind-contact: var(--cat-6-soft);
+  --kind-contact-ink: var(--cat-6-ink);
+  --kind-number: var(--cat-3-soft);
+  --kind-number-ink: var(--cat-3-ink);
+  --kind-choice: var(--cat-5-soft);
+  --kind-choice-ink: var(--cat-5-ink);
+  --kind-rating: var(--cat-7-soft);
+  --kind-rating-ink: var(--cat-7-ink);
+  --kind-file: var(--cat-2-soft);
+  --kind-file-ink: var(--cat-2-ink);
 }
-
+@media (max-width: 760px) {
+  :root { --bar-h: 53px; }
+}
 @media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg: #16121f;
-    --surface: #201a2c;
-    --surface-2: #2a2338;
-    --line: #3b3350;
-    --line-strong: #5a5072;
-    --ink: #f3effa;
-    --ink-2: #bdb3cf;
-    --accent: #ff8fb8;
-    --accent-ink: #2a0716;
-    --accent-soft: #4a1f33;
-    --focus: #b9a6ff;
-    --danger: #ff8a80;
-    --danger-soft: #3d1a1c;
-    --ok: #6fd6a0;
-    --ok-soft: #173326;
-    --warn: #ffd27a;
-    --warn-soft: #3a2d10;
-    --highlight: #f6c945;
-    --form: #ff8fb8;
-    --form-ink: #2a0716;
-    --form-soft: #221019;
-    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-2: 0 12px 32px -12px rgb(0 0 0 / 0.7);
-    --shadow-card: 0 1px 0 var(--line), 0 12px 32px -20px rgb(0 0 0 / 0.8);
-  }
+  :root { --marigold: var(--cat-7); }
 }
 
-/* The six colours a form may take, each checked for contrast (DESIGN.md). */
-[data-accent="berry"] { --form: #b0124f; --form-ink: #ffffff; --form-soft: #fdf0f5; }
-[data-accent="indigo"] { --form: #3d3fc4; --form-ink: #ffffff; --form-soft: #f1f1fd; }
-[data-accent="teal"] { --form: #0b6b6b; --form-ink: #ffffff; --form-soft: #eef8f7; }
-[data-accent="tangerine"] { --form: #b3470b; --form-ink: #ffffff; --form-soft: #fff4ec; }
-[data-accent="forest"] { --form: #2c6a31; --form-ink: #ffffff; --form-soft: #f0f7ee; }
-[data-accent="ink"] { --form: #1d1631; --form-ink: #ffffff; --form-soft: #f3f2f6; }
-@media (prefers-color-scheme: dark) {
-  [data-accent="berry"] { --form: #ff8fb8; --form-ink: #2a0716; --form-soft: #221019; }
-  [data-accent="indigo"] { --form: #a9abff; --form-ink: #12134a; --form-soft: #15162e; }
-  [data-accent="teal"] { --form: #6fd8d2; --form-ink: #062625; --form-soft: #0f1f1f; }
-  [data-accent="tangerine"] { --form: #ffb07a; --form-ink: #3a1600; --form-soft: #231710; }
-  [data-accent="forest"] { --form: #8fd694; --form-ink: #0c260f; --form-soft: #13200f; }
-  [data-accent="ink"] { --form: #e8e3f5; --form-ink: #16121f; --form-soft: #1a1722; }
-}
+/* A form's colour (Settings → How it looks): its respondents' page, its
+   buttons, its chosen answers. Six choices, each a family of the
+   categorical palette, so a form keeps its colour in any look, in that
+   look's shade of it:
 
-@media (prefers-reduced-motion: reduce) {
-  :root { --fast: 0ms; --slow: 0ms; }
+     --form        the fill of its buttons and chosen answers
+     --form-ink    text on --form
+     --form-text   its colour as text and as lines that must be seen
+     --form-line   the edge of a filled control
+     --form-soft   a quiet ground in its colour
+     --form-ground the page behind the questions
+
+   The default ("berry") is the page's own action colour: Forms' berry
+   in its own look, the theme's accent in a catalogue theme, the brand's
+   colour in brand mode — on a public page the company's brand wins,
+   unless the form's author chose one of the five other colours.
+
+   The page's ground is the soft ground of the colour in Forms' own look
+   (every text on it measured in lib/theme.ts, test/theme.test.ts), and
+   the theme's surface in any other look: there the soft grounds are not
+   measured against the secondary text and the errors (some themes'
+   soft grounds are strong — Workshop's post-its). */
+[data-accent] {
+  --form: var(--accent);
+  --form-ink: var(--accent-ink);
+  --form-text: var(--accent-text);
+  --form-line: var(--accent-line);
+  --form-soft: var(--accent-soft);
+  --form-ground: var(--surface);
+}
+[data-accent="indigo"] { --form: var(--cat-1-ink); --form-ink: var(--surface); --form-text: var(--cat-1-ink); --form-line: var(--cat-1-ink); --form-soft: var(--cat-1-soft); }
+[data-accent="teal"] { --form: var(--cat-6-ink); --form-ink: var(--surface); --form-text: var(--cat-6-ink); --form-line: var(--cat-6-ink); --form-soft: var(--cat-6-soft); }
+[data-accent="tangerine"] { --form: var(--cat-3-ink); --form-ink: var(--surface); --form-text: var(--cat-3-ink); --form-line: var(--cat-3-ink); --form-soft: var(--cat-3-soft); }
+[data-accent="forest"] { --form: var(--cat-2-ink); --form-ink: var(--surface); --form-text: var(--cat-2-ink); --form-line: var(--cat-2-ink); --form-soft: var(--cat-2-soft); }
+[data-accent="ink"] { --form: var(--cat-8-ink); --form-ink: var(--surface); --form-text: var(--cat-8-ink); --form-line: var(--cat-8-ink); --form-soft: var(--cat-8-soft); }
+[data-look="own"] [data-accent="berry"] { --form: var(--cat-5-ink); --form-ink: var(--surface); --form-text: var(--cat-5-ink); --form-line: var(--cat-5-ink); --form-soft: var(--cat-5-soft); }
+[data-look="own"] [data-accent] { --form-ground: var(--form-soft); }
+
+/* Inside a form's page, the kit's pieces (the date's calendar, the file
+   picker, a chosen chip) wear the form's colour: the action colour is
+   the form's there. Not for the default colour in a chosen look, where
+   the form's colour is already the page's action colour. */
+[data-look="own"] [data-accent],
+[data-accent]:not([data-accent="berry"]) {
+  --accent: var(--form);
+  --accent-ink: var(--form-ink);
+  --accent-text: var(--form-text);
+  --accent-line: var(--form-line);
+  --accent-soft: var(--form-soft);
 }

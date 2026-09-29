@@ -9,55 +9,70 @@ a quote on the paper it will print on.
 
 ## Tokens
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+The identity is a **theme of the store's UI kit**: `lib/theme.ts`
+(`defineTheme`, the very same source as the kit catalogue's "letterpress"
+theme — `test/theme.test.ts` holds the two equal and checks every contrast
+pair of the contract, light and dark). The company may give the tool
+another look (a catalogue theme, its brand): the stylesheets name only the
+contract's tokens (`@argentic/chest-ui`, `tokens/CONTRACT.md`) and two of
+the tool's own, in `app/tokens.css`, defined from them (`--page-width`,
+`--shadow-paper` = the look's raised shadow). No colour is written in any
+stylesheet (tested).
 
-| Token | Light | Dark | Use |
+| Contract token | Letterpress light | dark | Use here |
 |---|---|---|---|
-| `--desk` | `#f3f1ec` | `#12151f` | the page behind the paper |
-| `--paper` | `#ffffff` | `#1a1e2b` | sheets, cards, fields |
-| `--paper-2` | `#f7f5f1` | `#222736` | quiet fills, a field being written |
-| `--ink` | `#161b2e` blue-black | `#e8e4db` | text, primary buttons — 17.07:1 on paper, 15.12:1 on desk; dark 13.09:1 |
-| `--ink-2` | `#4f5468` | `#a9adbd` | secondary text — 7.50:1 on paper, 6.64:1 on desk; dark 7.43:1 |
-| `--ink-3` | `#686d80` | `#9a9eaf` | placeholders — 5.14:1 / 4.72:1 on paper-2; dark 5.59:1 |
-| `--line` | `#8e8a80` | `#6b7186` | field borders — 3.44:1 / 3.43:1 (non-text, AA 3:1) |
-| `--accent` | `#8a1f30` oxblood | `#f08f9c` | the seal: overdue, totals, the current tab — 9.05:1 on paper, white on it 9.05:1; dark 7.21:1, `#1a0d10` on it 8.22:1 |
-| `--accent-soft` | `#f7e8ea` | `#2a1c22` | overdue and refused stamps — accent on it 7.63:1; dark 7.08:1 |
-| `--green` on `--green-soft` | `#1c6a47` on `#e6f1ea` | `#7fd1a6` on `#16271f` | accepted, paid — 5.66:1; dark 8.61:1 |
-| `--focus` | `#2346a8` | `#8fb3ff` | focus ring — 8.36:1; dark 7.96:1 |
+| `--bg` | `#f3f1ec` desk | `#12151f` | the page behind the paper |
+| `--surface` | `#ffffff` paper | `#1a1e2b` | sheets, cards, fields |
+| `--surface-2` | `#f7f5f1` | `#222736` | quiet fills, a field being written |
+| `--ink` | `#161b2e` blue-black | `#e8e4db` | text, the rules of the ledger and the lines |
+| `--ink-2` | `#4f5468` | `#a9adbd` | secondary text |
+| `--line` / `--line-strong` | `#dcd8cf` / `#8e8a80` | `#333a4d` / `#6b7186` | hairlines / field edges and the dotted writing lines (3:1) |
+| `--accent` (+ `-ink`, `-line`, `-text`) | `#8a1f30` oxblood | `#f08f9c` | the seal: the main action, the total, the number to come, the current tab |
+| `--ok`, `--danger`, `--wait` (+ soft, ink) | `#1c6a47`, derived | derived | paid/accepted, overdue/refused and errors, partly paid |
+| `--focus` | `#2346a8` | `#8fb3ff` | focus ring |
 
-**Type**: *Libre Caslon Text* (headings, the document's name, the subject,
-totals; Impallari, OFL-1.1) and *Hanken Grotesk* (everything you click and
-read; OFL-1.1, variable), self-hosted. Figures tabular and right-aligned
-wherever they are compared. The PDF uses the readers' own Times and
-Helvetica (WinAnsi, accents and € intact), the same hierarchy.
-**Space**: 4, 8, 12, 16, 24, 32, 48, 72. **Radii**: 3/6/10 px — paper is
-almost square. **Shadow**: a sheet lifts off the desk with a long, soft
-shadow; cards stay flat with a hairline. **Motion**: 120/240 ms, none with
+**Type**: *Libre Caslon Text* (display: headings, the document's name, the
+subject, totals; Impallari, OFL-1.1) and *Hanken Grotesk* (body: everything
+you click and read; OFL-1.1, variable), the tool's own files in
+`public/fonts/` (the kit writes their `@font-face`). Figures tabular and
+right-aligned wherever they are compared. **Space**: 4…72. **Radii**:
+3/6/10 px — paper is almost square. **Motion**: the look's, none with
 reduced motion.
+
+**The PDF** is not themed: Liberation Serif and Sans (the widths of Times
+and Helvetica), embedded, black on white, in every look.
 
 ## Components
 
-The **sheet** (letterhead, the document's name in Caslon with its number
-underlined in oxblood, dates, the two parties, subject in italics, lines,
-totals with the grand total sealed in oxblood, notes, fine print) — read
-only, or with **ink fields**: text written on a dotted line that turns to a
-solid ink line when focused; a faint "Draft" watermark on drafts. Lines:
-description, then quantity × unit price, discount, VAT as small labelled
-fields, the amount on the right; a "…" menu per line (move, copy, remove,
-undo). The **margin card**: a rubber **stamp** of the state (dashed Draft,
-ink Sent/Unpaid, green Accepted/Paid, oxblood Overdue/Refused, struck
-Expired/Cancelled), the facts, the one next action as a full-width button,
-the rest as links. **Ledger** lists (number, client, subject, date,
-amount, stamp; cards on phones). **Figures** on the desk (a ruled top, a
-Caslon amount). Buttons (ink, quiet, ghost, danger), fields, option cards,
-filter pills, dialogs, pickers with search, toasts with *Undo*, callouts,
-empty states with a blank sheet and a seal. **On phones**: a bottom bar
-at the thumb (Desk, Quotes, Invoices, More — words under each icon), the
-paper first and its one next action in a sticky bar with the total; dates
-on the paper written as the document writes them (28/10/2026), the
-calendar opening on tap. **PDFs** are set in Liberation Serif and Sans
-(the widths of Times and Helvetica), embedded.
+From the kit (`@argentic/chest-ui/components`), restyled by their `ck-`
+classes where the letterpress needs it: the **shell** (the mark, five
+labelled sections with the overdue count inked like the seal, "More" for
+export and settings, the member), **page headers**, **toasts** with a
+truthful *Undo*, **dialogs** that ask before losing what was typed, the
+**Confirm** of finalising (the one act that cannot be undone), **date
+fields** (typed "29/10", "demain"…, a calendar; on the paper they are
+written on a dotted line), the **file picker** (logo, import), **tables**
+(the ledger: ruled header, sortable, the total of what is shown),
+**filters**, **search box** ("/"), **tabs**, **empty states**,
+**StatusBadge** — inked as a rubber **stamp** (dashed Draft, ink
+Sent/Unpaid/Issued, "ok" Accepted/Paid, "danger" Overdue/Refused, "wait"
+Partly paid, struck Expired/Cancelled; a shape and a word, never colour
+alone).
+
+The tool's own: the **sheet** (letterhead, the document's name in Caslon
+with its number underlined by the seal, dates, the two parties, subject in
+italics, lines, totals with the grand total sealed, notes, fine print) —
+read only, or with **ink fields**: text written on a dotted line that turns
+to a solid ink line when focused; a faint "Draft" watermark on drafts.
+Lines: description, then quantity × unit price, discount, VAT as small
+labelled fields, the amount on the right; a "…" menu per line (move, copy,
+delete — with Undo). The **margin card**: the stamp, the facts, the one
+next action as a full-width button, the rest as links. **Figures** on the
+desk (a ruled top, a Caslon amount). **On phones**: the sections in a row
+of labelled tabs under the header (the store's one rule), the paper first
+and its one next action in a sticky bar with the total (the page's action,
+not a navigation); the client and item pickers (records of the tool, not
+people: not the kit's PeoplePicker).
 
 ## Icon
 

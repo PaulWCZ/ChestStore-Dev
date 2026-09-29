@@ -1,10 +1,9 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
 import { Alert } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { DocumentType, NumberFormat } from "../../../lib/model.ts";
@@ -29,8 +28,8 @@ export function NumberingPanel({ t, canEdit, format: current, examples, sequence
   async function choose(next: NumberFormat) {
     if (next === current) return;
     const result = await setNumberFormat(next);
-    if (!result.ok) return toast(t.errors[result.error]);
-    toast(format(n.formatSaved, { example: examples[next] }));
+    if (!result.ok) return toast({ text: t.errors[result.error], tone: "error" });
+    toast({ id: "number-format", text: format(n.formatSaved, { example: examples[next] }) });
     router.refresh();
   }
   async function save() {
@@ -40,7 +39,7 @@ export function NumberingPanel({ t, canEdit, format: current, examples, sequence
     setBusy(false);
     if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
     setEditing(null);
-    toast(format(n.saved, { number: result.value.next }));
+    toast({ id: `sequence-${editing.type}`, text: format(n.saved, { number: result.value.next }) });
     router.refresh();
   }
 
@@ -75,7 +74,7 @@ export function NumberingPanel({ t, canEdit, format: current, examples, sequence
           <ol className="timeline">{history.map(h => <li key={h.id}><span>{h.text}<br /><span className="when">{h.when}</span></span></li>)}</ol>
         </details>
       )}
-      <Dialog open={editing !== null} title={n.continueTitle} closeLabel={t.shell.close} onClose={() => setEditing(null)}>
+      <Dialog open={editing !== null} title={n.continueTitle} onClose={() => setEditing(null)} labels={t.dialog} dirty={editing !== null && value !== String(editing.nextSeq)}>
         {editing && (
           <form className="form-grid" onSubmit={e => { e.preventDefault(); void save(); }} noValidate>
             <p>{format(n.continueBody, { kind: n.kinds[editing.type] })}</p>
@@ -83,7 +82,7 @@ export function NumberingPanel({ t, canEdit, format: current, examples, sequence
               <label htmlFor="next-seq">{n.continueField}</label>
               <div className="prefixed">
                 <span className="prefix num" aria-hidden="true">{editing.prefix}</span>
-                <input id="next-seq" className="field num" inputMode="numeric" value={value} maxLength={8} aria-invalid={error ? true : undefined} aria-describedby="next-seq-hint" onChange={e => setValue(e.target.value)} autoFocus />
+                <input id="next-seq" className="field num" inputMode="numeric" value={value} maxLength={8} aria-invalid={error ? true : undefined} aria-describedby="next-seq-hint" onChange={e => setValue(e.target.value)} />
               </div>
               <span className="hint" id="next-seq-hint">{preview ? format(n.continueExample, { number: preview }) : " "}</span>
             </div>

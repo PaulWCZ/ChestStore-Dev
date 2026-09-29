@@ -38,7 +38,16 @@ legal defect for the company using it.
   `0003_continue.sql` redefines `frozen_document()` (adds `pdf_format`).
 - `app/chest/actions.ts` — thin server actions; `app/chest/**` pages and
   views; `app/chest/documents/[id]/paper.tsx` — the paper editor.
-- `lib/i18n/en.ts`, `fr.ts` — every word, including the PDF's and emails'.
+- `lib/i18n/en.ts`, `fr.ts` — every word, including the PDF's and emails',
+  and the UI kit's sections (`toast`, `dialog`, `date`, `files`, `table`,
+  `filters`, `searchBox`).
+- `lib/theme.ts` — the identity (Letterpress, the kit catalogue's theme)
+  and `currentLook()`; `app/layout.tsx` writes it with the page's nonce;
+  `app/tokens.css` holds only the tool's own tokens.
+- `components/shell.tsx` (the kit's AppShell and "More" menu),
+  `stamp.tsx` (StatusBadge as a stamp), `doc-table.tsx` (the kit's
+  DataTable as the ledger), `list-page.tsx`; `mark.tsx` and `icons.tsx`
+  are the tool's own drawings.
 
 ## Commands
 
@@ -65,4 +74,18 @@ anything touching numbering), `npm run build`, the studio's
   `test/pdf.test.ts` that reads it back from the PDF bytes.
 - Identity only from `member(request)`; store `mbr_…` ids; rights in
   `lib/access.ts` with a test per role.
-- Words only in `lib/i18n/*` (the tests look for words in `.tsx` files).
+- Words only in `lib/i18n/*` (the tests look for words in `.tsx` files);
+  `node scripts/lint-words.mjs tools/private/quotes` stays at 0 (the
+  store's glossary: Undo « Annuler l’action », Delete « Supprimer »,
+  narrow no-break spaces in French).
+- The look: CSS names only contract tokens (`@argentic/chest-ui`,
+  `tokens/CONTRACT.md`) and `app/tokens.css`; never a colour. Text only on
+  measured pairs (`--accent-text` on `--bg`/`--surface`, a state's `-ink`
+  on its soft ground). Use the kit's components (toast, Dialog/Confirm,
+  DateField, FilePicker, DataTable, Filters, SearchBox, Tabs, EmptyState,
+  StatusBadge, AppShell) before writing one; never `window.confirm`, never
+  `<input type="date">`; a reversible act is a toast with `undo`, what
+  already left (an email, a bell item) is `sent: true`.
+- **The PDF never follows the look**: nothing in `lib/pdf/`,
+  `lib/archive.ts` or `lib/einvoice.ts` reads the theme (tested). Legal
+  documents keep their neutral print design.
