@@ -173,6 +173,20 @@ Intercom): there is no chat bubble.
 | `/chest-mail` | the Chest only (signed) — proposal | received email and bounces |
 | `/chest-jobs/cleanup` | the Chest only (signed) — proposal | nightly retention |
 
+## Looks
+
+Support wears its own look, "Calm counter" (DESIGN.md) — or any theme of
+the store's catalogue (the 17 tools' identities, "Chest", "High
+contrast"), or **the company's brand** (its colours, fonts, corners and
+logo), as the company chooses in its Chest, for all its tools or for
+Support alone. The features are the same in every look; every text stays
+readable (WCAG AA), light and dark. In brand mode the company's logo
+replaces Support's mark in the header, and the public contact form and
+follow-up pages carry the company's logo, colours and fonts: the customer
+is on the company's own page. The look is resolved on the server
+(`lib/theme.ts`, `chest.theme()` — Proposal (studio)); nothing runs in the
+browser for it. Outside a Chest that offers looks, Support wears its own.
+
 ## On a Chest
 
 - `public: true`, `csp: "tool"` (Next.js needs its own nonce policy).
@@ -186,11 +200,13 @@ Intercom): there is no chat bubble.
   on customer data applies: say it in your privacy notice.
 - **A member leaves**: their tickets go back to *Unassigned*. **Erasure**:
   their answers stay (customers received them), signed "Former member".
-- No WebSocket: the inbox and a ticket re-read themselves every 20 s.
+- No WebSocket: the inbox and a ticket re-read themselves every 20 s (the kit's `useAutoRefresh`).
 
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`.
+- **`chest.theme()`** — **Proposal (studio)**: the look the company chose
+  (README, "Looks"); without it, Support's own.
 - **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`,
   mailbox `support`), with **receiving** (studio.12): thread addresses
   (`send({mailbox, thread})`, `Received.thread`), `mail.handle` with

@@ -19,10 +19,13 @@ what must not break.
 | `lib/reports.ts` | The reports (admins) |
 | `lib/export.ts`, `lib/zip.ts` | The ZIP export: two CSVs and a JSON |
 | `lib/frame.ts` | The websites that may frame the public pages, cached 30 s, read by `proxy.ts` |
-| `components/body.tsx`, `components/keys.tsx`, `components/folder-menu.tsx` | A message's words (links, folded quotes); keyboard shortcuts; the phone's folder menu and round button |
+| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Calm counter" (`defineTheme`, equal to the catalogue's `counter`) and `currentLook` (the company's choice, else the identity); Support's own tokens, from contract tokens; the styles (contract tokens only) |
+| `components/team-shell.tsx` | The kit's `AppShell` + toasts + auto-refresh, and the column (a row of chips on a phone) of folders and saved views |
+| `components/body.tsx`, `components/keys.tsx` | A message's words (links, folded quotes); keyboard shortcuts (`?` sheet in the kit's `Dialog`; `busy()`: never while typing or while a dialog is open) |
+| `components/public-shell.tsx` | The public pages' frame: the company's name, or its logo in brand mode; the kit's `LanguageSwitch` |
 | `lib/attachments.ts` | Files on messages: who may upload (visitor, member), the grant, taking claims/uploads once and moving them to `files/`, removal, the nightly sweep |
-| `components/file-picker.tsx` | The browser side of an upload (public and team) |
-| `components/badges.tsx`, `components/inbox-filters.tsx` | Priority chip, "waiting since", the inbox's filters |
+| `components/attachments.tsx` | The kit's `FilePicker` wired to the tool's grants (public claims, members' object names) |
+| `components/badges.tsx`, `components/inbox-filters.tsx`, `components/report-table.tsx` | State and priority on the kit's `StatusBadge`, "waiting since"; the kit's `Filters` with Next's `Link`; the reports' `DataTable` |
 | `lib/form-token.ts` | The form's signed "shown at" time |
 | `lib/mailer.ts` | Confirmation and replies through the Chest's mail, falling back to the page |
 | `lib/tell.ts` | Bell and tile for those who answer |
@@ -69,6 +72,17 @@ npm ci && npm test && npm run build   # all three must pass
 - **Framing**: only `/`, `/t/…` and `/lang/…` may carry the admin's
   `frame-ancestors`; `/chest` always `'none'`.
 - **Working hours** are computed on the server (`lib/hours.ts`, the
-  Chest's time zone); client components format dates only after mount.
+  Chest's time zone); client components write dates with the kit's
+  `formatDate` and date words (no `Intl` in a client render).
+- **The UI kit first** (`@argentic/chest-ui/components`, `lab/BUILDING.md`):
+  toasts (`undo` returns `true` or the reason it failed; an answer that
+  left is `sent: true`, never an Undo), `Dialog`/`Confirm` (never
+  `window.confirm`), `PeoplePicker`, `DateField` (never a browser date
+  field), `FilePicker`, `Filters`, `SearchBox`, `StatusBadge`, `Tabs`,
+  `DataTable`, `EmptyState`, `Avatar`, `AppShell`. The kit's words are
+  sections of the catalogues (`toast`, `dialog`, `peoplePicker`, `dates`,
+  `files`, `table`); `node scripts/lint-words.mjs` stays at 0 errors.
+- **No colour in CSS or TSX**: contract tokens only (`test/theme.test.ts`
+  checks it); text only on measured pairs.
 - Identity from `member()` only; rights in `lib/access.ts`; words in every
   catalogue; client components never import the SDK or `lib/db.ts`.

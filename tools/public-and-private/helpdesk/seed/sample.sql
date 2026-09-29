@@ -18,7 +18,7 @@ begin
   insert into tags (name) values ('Order change');
 
   insert into settings (key, value) values ('company_name', '"Atelier Martin"'),
-    ('intros', '{"en": "Questions about an order, a delivery or an invoice? Write to us: we answer within one working day.", "fr": "Une question sur une commande, une livraison ou une facture ? Écrivez-nous : nous répondons sous un jour ouvré."}'),
+    ('intros', '{"en": "Questions about an order, a delivery or an invoice? Write to us: we answer within one working day.", "fr": "Une question sur une commande, une livraison ou une facture ? Écrivez-nous : nous répondons sous un jour ouvré."}'),
     ('hours', '{"on": true, "days": [{"start": 540, "end": 1080}, {"start": 540, "end": 1080}, {"start": 540, "end": 1080}, {"start": 540, "end": 1080}, {"start": 540, "end": 1020}, null, null], "holidays": ["2026-11-01", "2026-11-11", "2026-12-25"]}');
 
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, created_at, updated_at, priority, waiting_since)

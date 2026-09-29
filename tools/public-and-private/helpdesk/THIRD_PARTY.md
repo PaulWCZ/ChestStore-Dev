@@ -18,8 +18,9 @@ FreeScout's Tags module (https://freescout.net/module/tags/, AGPL-3.0):
 tags added on a conversation, a click shows every tagged conversation,
 an admin page to rename and delete. Dependencies from npm under
 their own licences: `next`, `react`, `react-dom` (MIT), `postgres`
-(Unlicense), `@argentic/chest-sdk` (MIT, the studio's working copy in
-`vendor/`). Icons drawn for this tool.
+(Unlicense), `@argentic/chest-sdk` and `@argentic/chest-ui` (MIT, the studio's
+working copies, packed in `vendor/`; the kit's file picker and inbox
+filters started from this tool's own). Icons drawn for this tool.
 
 After the critique (2026-09-29), ideas only, no code: threading a reply
 by a tagged reply address and then by In-Reply-To/References (Help

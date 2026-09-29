@@ -22,7 +22,7 @@
   {"name": "contact-form-brand", "path": "/", "member": "hugo", "locale": "fr", "look": {"tool": "brand:sample"}},
   {"name": "follow-up-brand-dark", "path": "/t/demoFollowUpLinkForTheScreens000", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
   {"name": "contact-form-chest", "path": "/", "member": "hugo", "locale": "en", "look": {"all": "catalogue:chest"}, "only": ["desktop"]},
-  {"name": "ticket-closed-undo", "path": "/chest/tickets/1001", "member": "camille", "locale": "fr", "actions": [{"click": ".side-card button:has-text('Terminer')"}, {"wait": 700}], "only": ["desktop"]},
+  {"name": "inbox-undo", "path": "/chest?folder=closed", "member": "camille", "locale": "fr", "actions": [{"click": ".tickets li:nth-child(1) .row-check input"}, {"click": ".bulk-bar button:has-text('Terminer')"}, {"wait": 900}], "only": ["desktop", "phone"]},
   {"name": "inbox-bulk", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "actions": [{"click": ".tickets li:nth-child(1) .row-check input"}, {"click": ".tickets li:nth-child(2) .row-check input"}, {"wait": 300}], "only": ["desktop", "phone"]},
   {"name": "keys", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "actions": [{"wait": 800}, {"press": "?"}, {"wait": 400}], "only": ["desktop"]},
   {"name": "settings-erase-fr", "path": "/chest/settings", "member": "camille", "locale": "fr", "actions": [{"fill": ["#erase", "jean.dupont@example.com"]}, {"click": "button:has-text('Effacer')"}, {"wait": 400}], "only": ["phone"]},
