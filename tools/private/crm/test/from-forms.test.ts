@@ -7,6 +7,7 @@ import * as companies from "../lib/companies.ts";
 import * as contacts from "../lib/contacts.ts";
 import { formKey, readFormContact } from "../lib/from-forms.ts";
 import { catalogue, format } from "../lib/i18n/index.ts";
+import { answerLink, withWhen } from "../lib/page-data.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo } from "./support/members.ts";
@@ -182,4 +183,33 @@ test("the person's data stays theirs: deleting the contact (GDPR) takes the form
   assert.ok(exported.activities.some(a => a.kind === "form" && a.body === "Private words"));
   await contacts.deleteContact(sql, asMember(camille), id);
   assert.equal((await sql`select 1 from activities where body = 'Private words'`).length, 0);
+});
+
+test("the line links to the answer in Forms, made when the page is shown from the stored path; no link while Forms is not installed", async () => {
+  const data = contact({ contact: { name: "Léa Martin", email: "lea.linked@example.com" } });
+  assert.equal(await told(data), 204);
+  const [id] = await byEmail("lea.linked@example.com");
+  const [line] = await formLines(id!);
+  assert.equal(line!.data["path"], `/chest/forms/5/answers/${data.answer.id}`, "the path is kept, never an address");
+  // This fake Chest has no Forms: the form is named without a link.
+  assert.equal(withWhen([line!], "en")[0]!.link, null);
+  chest.installTool("forms");
+  try {
+    assert.equal(withWhen([line!], "en")[0]!.link, `https://forms-chest.chest.test/chest/forms/5/answers/${data.answer.id}`);
+    // Forms at a custom domain: the same stored line follows it.
+    chest.installTool("forms", { team: "https://forms.atelier-martin.fr" });
+    assert.equal(answerLink(line!), `https://forms.atelier-martin.fr/chest/forms/5/answers/${data.answer.id}`);
+    // Only a "form" line, only a path Forms' team host would open.
+    const [created] = (await activities.timeline(database.sql, { contactId: id! })).filter(a => a.kind === "created");
+    assert.equal(answerLink(created!), null);
+    assert.equal(answerLink({ kind: "form", data: { path: "" } }), null, "an answer that came without a path");
+    assert.equal(answerLink({ kind: "form", data: { path: "/f/contact" } }), null, "not under /chest");
+    assert.equal(answerLink({ kind: "form", data: { path: "//evil.example/chest" } }), null);
+    assert.equal(answerLink({ kind: "form", data: { path: "/chest/../admin" } }), null);
+    assert.equal(answerLink({ kind: "form", data: { path: 5 } }), null);
+  } finally {
+    chest.removeTool("forms");
+  }
+  // Removed from the Chest: no link again.
+  assert.equal(answerLink(line!), null);
 });

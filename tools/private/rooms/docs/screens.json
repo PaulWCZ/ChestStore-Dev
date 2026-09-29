@@ -25,5 +25,6 @@
   {"name": "places-fr", "path": "/chest/places", "member": "camille", "locale": "fr"},
   {"name": "occupancy-fr", "path": "/chest/places/export", "member": "camille", "locale": "fr"},
   {"name": "booking-admin", "path": "/chest/rooms", "member": "camille", "locale": "en", "actions": [{"click": "button:has-text('Book a room')"}, {"wait": 400}]},
-  {"name": "rooms-port", "path": "/chest/rooms", "member": "ines", "locale": "fr", "look": {"tool": "brand:port"}}
+  {"name": "rooms-port", "path": "/chest/rooms", "member": "ines", "locale": "fr", "look": {"tool": "brand:port"}},
+  {"name": "week-port", "path": "/chest", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}}
 ]

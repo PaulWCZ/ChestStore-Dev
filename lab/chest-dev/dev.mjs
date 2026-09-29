@@ -18,7 +18,8 @@
 //   front (uploads, file links, photos), /_dev is the harness: who you are,
 //   the bell, badges, files, and buttons that play the Chest (member
 //   lifecycle events, proposals such as scheduled tasks, the outbox and
-//   received mail, the calendar feeds, the Chest's groups, webhooks).
+//   received mail, the calendar feeds, the Chest's groups, webhooks);
+// - the tools whose events it receives, installed beside it (CHEST_TOOL_URLS).
 //
 // Environment: DEV_DATABASE_URL (a PostgreSQL superuser URL, default
 // postgres://postgres:postgres@127.0.0.1:5432/postgres).
@@ -145,6 +146,12 @@ const chest = await testing.fakeChest({
   emits: proposals.emits ?? [],
   storage: { publicUploads: proposals.files?.publicUploads === true, publicFiles: proposals.files?.publicFiles === true },
   receives: manifest.receives ?? [],
+  // The other tools installed beside this one (Proposal (studio):
+  // chest.toolUrl, CHEST_TOOL_URLS): those whose events it receives
+  // ("forms.request" → forms), at the fake's team host
+  // https://<name>-chest.chest.test — never reached, but a link back to
+  // them shows as on a Chest. This tool is always there, at the origin.
+  tools: Object.fromEntries((proposals.receives ?? []).map(type => String(type).split(".")[0]).filter(name => /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(name) && name.length <= 63 && name !== manifest.name && !["member", "group"].includes(name)).map(name => [name, true])),
   origin,
   schedules: proposals.schedules ?? [],
   ...(proposals.checks ? { checks: proposals.checks } : {}),

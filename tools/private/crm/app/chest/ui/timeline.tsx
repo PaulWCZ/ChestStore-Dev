@@ -2,7 +2,7 @@
 
 import { useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { Check, Clock, Flag, Lost, Mail, Meeting, Note, Pencil, Person, Phone, Pipeline, Plus, Trash, Trophy } from "../../../components/icons.tsx";
 import type { Activity } from "../../../lib/activities.ts";
 import { format } from "../../../lib/i18n/format.ts";
@@ -15,7 +15,9 @@ const logged = new Set(["call", "meeting", "email", "note"]);
 
 // When each thing happened, written by the server ("3 days ago"): the
 // browser's own calendar data might write it otherwise.
-export type TimelineItem = Activity & { when: string; whenFull: string };
+// A "form" line may carry the link back to the answer in Forms (made by
+// the server: lib/page-data.ts, answerLink), else null.
+export type TimelineItem = Activity & { when: string; whenFull: string; link: string | null };
 type Props = {
   items: TimelineItem[];
   people: People;
@@ -39,6 +41,15 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
   const shown = items.filter(a => !hidden.has(a.id));
   const who = (id: string) => (id === me ? t.people.you : people[id]?.name ?? t.people.unknown);
   const stage = (id: unknown) => (typeof id === "string" || typeof id === "number" ? stageNames[String(id)] ?? t.timeline.removedStage : t.timeline.removedStage);
+
+  // "Filled in the form “Contact us”", the form's name a link to the answer
+  // in Forms when there is one.
+  function formLine(a: TimelineItem): ReactNode {
+    const form = String(a.data["form"] ?? "");
+    const at = t.timeline.form.indexOf("{form}");
+    if (!a.link || at < 0) return format(t.timeline.form, { form });
+    return <>{t.timeline.form.slice(0, at)}<a href={a.link} target="_blank" rel="noopener">{form}</a>{t.timeline.form.slice(at + "{form}".length)}</>;
+  }
 
   function sentence(a: Activity): string | null {
     const name = who(a.author);
@@ -96,7 +107,7 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
             <span className="event-icon" aria-hidden="true"><Icon /></span>
             <div className="event-main">
               <p className="event-head">
-                {text === null ? <><strong>{t.timeline.kinds[a.kind]}</strong><span className="sep" aria-hidden="true">·</span><span>{a.data["by"] ? format(t.timeline.importedBy, { name: String(a.data["by"]) }) : who(a.author)}</span></> : <span>{text}</span>}
+                {text === null ? <><strong>{t.timeline.kinds[a.kind]}</strong><span className="sep" aria-hidden="true">·</span><span>{a.data["by"] ? format(t.timeline.importedBy, { name: String(a.data["by"]) }) : who(a.author)}</span></> : <span>{a.kind === "form" ? formLine(a) : text}</span>}
                 {elsewhere && <span className="event-on">{format(t.timeline.on, { what: "" })}<Link prefetch={false} href={elsewhere.href}>{elsewhere.label}</Link></span>}
                 <time dateTime={a.at} title={a.whenFull}>{a.when}</time>
               </p>

@@ -1,3 +1,4 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, canRemoveFile } from "./access.ts";
 import type { Attachment } from "./attachments.ts";
@@ -39,9 +40,21 @@ export function dealFormProps(choices: Awaited<ReturnType<typeof formChoices>>, 
   return { fields: choices.fields.deals, stages: choices.openStages, team: choices.team, me, canAssign: choices.canAssign, canCreateCompany: choices.canCreateCompany, today: today(), t };
 }
 
-// A timeline as its view shows it: each item's time in words, written here.
-export function withWhen(items: Activity[], locale: Locale, now = new Date()): (Activity & { when: string; whenFull: string })[] {
-  return items.map(a => ({ ...a, when: relative(a.at, locale, now), whenFull: formatDate(a.at, locale, { dateStyle: "full", timeStyle: "short" }) }));
+// A timeline as its view shows it: each item's time in words, written here,
+// and the link back to the answer in Forms of a "Filled in the form" line.
+export function withWhen(items: Activity[], locale: Locale, now = new Date()): (Activity & { when: string; whenFull: string; link: string | null })[] {
+  return items.map(a => ({ ...a, when: relative(a.at, locale, now), whenFull: formatDate(a.at, locale, { dateStyle: "full", timeStyle: "short" }), link: answerLink(a) }));
+}
+
+// answerLink is the address of the answer in Forms that a "form" line
+// came from (lib/from-forms.ts keeps its path, never an address: Forms'
+// address changes with a custom domain). Made now, from the addresses the
+// Chest gives (Proposal (studio): chest.toolLink); null when Forms is not
+// installed on this Chest or the path is not one it would open — the line
+// then names the form without a link.
+export function answerLink(a: Pick<Activity, "kind" | "data">): string | null {
+  const path = a.data["path"];
+  return a.kind === "form" && typeof path === "string" && path !== "" ? chest.toolLink("forms", path) : null;
 }
 
 // A record's own fields as its page shows them: the label and the value in

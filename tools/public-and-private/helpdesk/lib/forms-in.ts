@@ -135,19 +135,11 @@ export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">):
 }
 
 // formsLink is the address of the answer in Forms, for the link back on
-// the ticket. The Chest does not give a tool another tool's address yet:
-// it is Forms' team host, made from Support's own after the Chest's
-// scheme (<tool>-chest.<chest>), or null when Support's address does not
-// follow it (then the ticket names the form without a link).
-export function formsLink(path: string | null, teamUrl = chest.teamUrl(), tool = process.env["CHEST_TOOL"] ?? ""): string | null {
-  if (!path || !pathPattern.test(path) || !teamUrl || !/^[a-z0-9-]{1,63}$/u.test(tool)) return null;
-  let url: URL;
-  try {
-    url = new URL(teamUrl);
-  } catch {
-    return null;
-  }
-  const own = tool + "-chest.";
-  if (url.protocol !== "https:" || !url.hostname.startsWith(own)) return null;
-  return `https://forms-chest.${url.hostname.slice(own.length)}${url.port ? ":" + url.port : ""}${path}`;
+// the ticket: made when the page is shown, from the path the ticket keeps
+// (never an address: Forms' changes with a custom domain) and the
+// addresses the Chest gives (Proposal (studio): chest.toolLink). null when
+// Forms is not installed on this Chest or the path is not an answer's page
+// — the ticket then names the form without a link.
+export function formsLink(path: string | null): string | null {
+  return path && pathPattern.test(path) ? chest.toolLink("forms", path) : null;
 }

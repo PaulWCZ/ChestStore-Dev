@@ -39,5 +39,6 @@
   {"name": "careers-theme-all", "path": "/", "locale": "en", "look": {"all": "catalogue:confetti"}},
   {"name": "settings-brand", "path": "/chest/settings", "member": "camille", "locale": "fr", "look": {"all": "brand:sample"}},
   {"name": "interview-link", "path": "/chest/candidates/1", "member": "camille", "locale": "en", "actions": [{"click": "button:has-text('Interview')"}, {"wait": 400}]},
-  {"name": "new-job", "path": "/chest/jobs/new", "member": "camille", "locale": "fr"}
+  {"name": "new-job", "path": "/chest/jobs/new", "member": "camille", "locale": "fr"},
+  {"name": "board-port", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "look": {"tool": "brand:port"}}
 ]

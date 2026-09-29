@@ -48,5 +48,6 @@
   {"name": "answers-cards-fr", "path": "/chest/forms/1/answers", "member": "ines", "locale": "fr", "only": ["phone"]},
   {"name": "answers-filter-open", "path": "/chest/forms/1/answers", "member": "ines", "locale": "en", "only": ["phone"], "actions": [{"click": ".filter-toggle"}, {"wait": 300}]},
   {"name": "home-to-answer-phone", "path": "/chest", "member": "hugo", "locale": "en", "only": ["phone"]},
-  {"name": "settings-routes", "path": "/chest/forms/5/settings", "member": "ines", "locale": "en", "actions": [{"hover": ".route-fields"}, {"wait": 200}]}
+  {"name": "settings-routes", "path": "/chest/forms/5/settings", "member": "ines", "locale": "en", "actions": [{"hover": ".route-fields"}, {"wait": 200}]},
+  {"name": "home-port", "path": "/chest", "member": "camille", "locale": "en", "look": {"tool": "brand:port"}}
 ]

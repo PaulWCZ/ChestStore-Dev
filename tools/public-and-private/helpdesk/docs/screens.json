@@ -29,5 +29,6 @@
   {"name": "settings-holiday", "path": "/chest/settings", "member": "camille", "locale": "en", "full": true, "only": ["desktop"]},
   {"name": "reports-fr", "path": "/chest/reports", "member": "camille", "locale": "fr", "only": ["phone"], "full": true},
   {"name": "inbox-filters", "path": "/chest", "member": "ines", "locale": "en", "only": ["phone"], "actions": [{"click": "button.filter-toggle"}, {"wait": 300}]},
-  {"name": "contact-form-port", "path": "/", "member": "hugo", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:port"}}
+  {"name": "contact-form-port", "path": "/", "member": "hugo", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:port"}},
+  {"name": "inbox-port", "path": "/chest", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}}
 ]

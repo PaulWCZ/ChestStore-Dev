@@ -172,6 +172,9 @@ await step("Forms tells of someone who filled in the contact form: a new contact
   await line.waitFor();
   const text = await line.innerText();
   expect(text.includes("Filled in the form “Contact us”") && text.includes("Six oak chairs, please."), "the line and the message: " + text);
+  // The form's name links to the answer in Forms, at Forms' address as the
+  // Chest gives it (the harness installs Forms: CHEST_TOOL_URLS).
+  expect(await line.getByRole("link", { name: "Contact us" }).getAttribute("href") === "https://forms-chest.chest.test/chest/forms/5/answers/flowanswer000001", "the link back to the answer in Forms");
   expect((await page.locator(".timeline").innerText()).includes("Added from the form “Contact us”"), "added from the form");
   const main = await page.locator("main").innerText();
   expect(main.includes("nina.roux@example.com") && main.includes("Roux Menuiserie"), "email and company");

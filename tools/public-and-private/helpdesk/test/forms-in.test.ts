@@ -198,11 +198,24 @@ test("readRequest: a team form's member wins over an address; paths of the Chest
   assert.equal(read(request({ answer: { id: "k3", language: "en", path: "/chest/forms/5/answers/k3" } }))!.source.answer.path, "/chest/forms/5/answers/k3");
 });
 
-test("the link back to the answer: Forms' team host after the Chest's scheme, else none", () => {
+test("the link back to the answer: Forms' address as the Chest gives it, none while Forms is not installed", async () => {
   const path = "/chest/forms/5/answers/k3abc";
-  assert.equal(formsLink(path, "https://helpdesk-chest.atelier.argentic.work", "helpdesk"), "https://forms-chest.atelier.argentic.work/chest/forms/5/answers/k3abc");
-  assert.equal(formsLink(path, "http://127.0.0.1:4000", "helpdesk"), null, "a local harness: no link");
-  assert.equal(formsLink(path, "https://support.example.com", "helpdesk"), null, "another scheme: no guess");
-  assert.equal(formsLink(null, "https://helpdesk-chest.atelier.argentic.work", "helpdesk"), null);
-  assert.equal(formsLink("/chest/../x", "https://helpdesk-chest.atelier.argentic.work", "helpdesk"), null);
+  // This fake Chest has no Forms: the ticket names the form without a link.
+  assert.equal(formsLink(path), null);
+  const withForms = await fakeChest({ tools: { forms: true }, settings: { publicUrl: "https://support.atelier.test" } });
+  try {
+    assert.equal(formsLink(path), "https://forms-chest.chest.test/chest/forms/5/answers/k3abc");
+    assert.equal(formsLink(null), null);
+    assert.equal(formsLink("/chest/../x"), null);
+    assert.equal(formsLink("/f/contact"), null, "only an answer's page on Forms' team host");
+    assert.equal(formsLink("//evil.example/chest"), null);
+    // Forms at a custom domain: the stored path follows it.
+    withForms.installTool("forms", { team: "https://forms.atelier-martin.fr" });
+    assert.equal(formsLink(path), "https://forms.atelier-martin.fr/chest/forms/5/answers/k3abc");
+    // Removed from the Chest: no link (never a dead one).
+    withForms.removeTool("forms");
+    assert.equal(formsLink(path), null);
+  } finally {
+    await withForms.close();
+  }
 });

@@ -166,8 +166,8 @@ of the public form:
 - **The ticket**: the event's subject (else the form's title), its details,
   then every other answer, one a line ("Your phone number: …", in the
   answer's language); channel *Forms*; under the title, **From the form
-  “Contact us”**, linked to the answer in Forms when Support can tell
-  Forms' address (below).
+  “Contact us”**, linked to the answer in Forms while Forms is installed
+  on the Chest (below).
 - **As a request of the public form**: the rules on arrival, the bell for
   those who answer (or the one a rule gave it to), the tiles; to a
   customer, the confirmation email with the follow-up link when the Chest
@@ -183,11 +183,12 @@ of the public form:
   direction characters); the link back is only a `/chest/…` path. An event
   of another shape, or with nobody to answer, is accepted and ignored — the
   log says so without a word of its content.
-- **The link back**: the Chest does not give a tool another tool's address
-  yet. Support makes Forms' from its own team address and the Chest's host
-  scheme (`<tool>-chest.<chest>` → `forms-chest.<chest>`); when its address
-  does not follow it (the studio's harness), the form is named without a
-  link.
+- **The link back**: the ticket keeps the answer's path only (never an
+  address, which changes when Forms gets a custom domain); the ticket's
+  page makes the link when it is shown, with `chest.toolLink("forms",
+  path)` (`lib/forms-in.ts`, `formsLink`). While Forms is not installed on
+  the Chest, the form is named without a link. Following it opens Forms
+  only for a member who has Forms; its host tells the others.
 
 ## Roles
 
@@ -299,9 +300,11 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
   `X-Forwarded-For`, assumed set by the Chest's front.
 
 - **Events between tools** — **Proposal (studio)**: `forms.request` from
-  Forms (above). Without it, Forms' answers stay in Forms. **Another tool's
-  address** is not given by the Chest: the link back to an answer is made
-  after the host scheme; the SDK should give `chest.toolUrl(name)`.
+  Forms (above). Without it, Forms' answers stay in Forms.
+- **`chest.toolLink`** — **Proposal (studio)** (SDK report §4.18): the
+  link back to an answer in Forms, from the addresses the Chest gives in
+  `CHEST_TOOL_URLS`. On a Chest without it, the form is named without a
+  link.
 
 ## Develop
 

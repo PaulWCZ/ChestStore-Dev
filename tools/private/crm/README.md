@@ -261,9 +261,14 @@ the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
   a replayed or doubled delivery makes no second contact, line or bell
   item. An event of another shape, or with neither an email nor a phone,
   is accepted and ignored.
-- The answer's own page in Forms is not linked yet: a tool does not know
-  another tool's address (the answer's `path` is kept in the line's data
-  for when it can).
+- **Links back to the answer**: the form's name on that line opens the
+  answer in Forms. The line keeps the answer's path only (never an
+  address, which changes when Forms gets a custom domain); the link is made
+  when the page is shown, with `chest.toolLink("forms", path)`
+  (`lib/page-data.ts`, `answerLink`). While Forms is not installed on the
+  Chest — or the path is not an answer's page on Forms' team host — the
+  form is named without a link. Following it opens Forms only for a member
+  who has Forms; its host tells the others.
 
 In the harness, `/_dev` → *Deliver an event of another tool* (`forms.contact`
 and its data as JSON) plays Forms (a new event id each time); `test/from-forms.test.ts` plays it with the SDK's
@@ -280,6 +285,10 @@ and its data as JSON) plays Forms (a new event id each time); `test/from-forms.t
   simply stays hidden.
 - `events` between tools — **Proposal (studio)**, `emits` and `receives`
   (`forms.contact`) in `chest.proposals.json`: see "With the other tools".
+- `chest.toolLink` — **Proposal (studio)** (SDK report §4.18): the address
+  of the answer in Forms, from the addresses the Chest gives in
+  `CHEST_TOOL_URLS`. On a Chest without it, the form is named without a
+  link.
 - `files` — the shipped capability (uploads from a member's browser,
   signed links): files on deals, companies and contacts.
 - `calendar` — **Proposal (studio)**, `"calendar": true` in

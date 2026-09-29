@@ -31,5 +31,6 @@
   {"name": "search-frais-fr", "path": "/chest/search?q=note%20de%20frais", "member": "lea", "locale": "fr"},
   {"name": "edit-reader", "path": "/chest/pages/3/edit", "member": "hugo", "locale": "en", "only": ["desktop"]},
   {"name": "comments-passage", "path": "/chest/pages/2", "member": "tom", "locale": "en", "actions": [{"click": ".comment-quote .quote-link"}, {"wait": 700}], "only": ["desktop"]},
-  {"name": "page-port", "path": "/chest/pages/2", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}}
+  {"name": "page-port", "path": "/chest/pages/2", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}},
+  {"name": "page-brand", "path": "/chest/pages/2", "member": "camille", "locale": "en", "look": {"tool": "brand:sample"}}
 ]

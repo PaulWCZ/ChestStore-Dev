@@ -224,6 +224,9 @@ await step("Forms sends a request (forms.request): a ticket from the form, once;
   await page.waitForURL(/\/chest\/tickets\/[0-9]+$/u);
   const text = await page.locator("main, #main").first().innerText();
   expect(text.includes("From the form “Contact us”"), "the source, in the reader's language");
+  // Linked to the answer in Forms, at Forms' address as the Chest gives it
+  // (the harness installs Forms: CHEST_TOOL_URLS).
+  expect(await page.getByRole("link", { name: "From the form “Contact us”" }).getAttribute("href") === "https://forms-chest.chest.test/chest/forms/5/answers/flowNinaAnswer01", "the link back to the answer in Forms");
   expect(text.includes("Your phone number: +33 6 12 34 56 78"), "the other answers in the message");
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("We received your request: Quote for oak chairs"), "confirmed by email with the follow-up link");
