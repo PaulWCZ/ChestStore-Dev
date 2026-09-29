@@ -18,7 +18,7 @@ export function refuse(error: ErrorCode, status: number, values?: Record<string,
 }
 
 export function failure(error: unknown): Response {
-  if (error instanceof AppError) return refuse(error.code, error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : error.code === "file_too_large" ? 413 : 400, error.values);
+  if (error instanceof AppError) return refuse(error.code, error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : error.code === "file_too_large" ? 413 : error.code === "unavailable" ? 503 : 400, error.values);
   if (error instanceof TooLarge) return refuse("file_too_large", 413);
   if (error instanceof ChestError) return refuse("unavailable", 503);
   throw error;

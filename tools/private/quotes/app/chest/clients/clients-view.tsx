@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ClientForm, blankClient } from "../../../components/client-form.tsx";
 import { Dialog } from "../../../components/dialog.tsx";
-import { People, Plus, Search } from "../../../components/icons.tsx";
+import { People, Plus, Search, Upload } from "../../../components/icons.tsx";
 import type { Client } from "../../../lib/clients.ts";
 import { plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
@@ -22,14 +22,14 @@ export function ClientsView({ t, locale, clients, archived, q, total, canWrite, 
           <h1>{c.title}</h1>
           <p>{c.intro}</p>
         </div>
-        {canWrite && <div className="actions"><button type="button" className="button" onClick={() => setAdding(true)}><Plus />{c.add}</button></div>}
+        {canWrite && <div className="actions"><a className="button quiet" href="/chest/import?kind=clients"><Upload />{c.import}</a><button type="button" className="button" onClick={() => setAdding(true)}><Plus />{c.add}</button></div>}
       </div>
       {total === 0 && !archived ? (
         <div className="empty">
           <People />
           <h2>{c.empty.title}</h2>
           <p>{c.empty.body}</p>
-          {canWrite && <div className="actions"><button type="button" className="button" onClick={() => setAdding(true)}><Plus />{c.add}</button></div>}
+          {canWrite && <div className="actions"><button type="button" className="button" onClick={() => setAdding(true)}><Plus />{c.add}</button><a className="button quiet" href="/chest/import?kind=clients"><Upload />{c.import}</a></div>}
         </div>
       ) : (
         <>

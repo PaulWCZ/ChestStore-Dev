@@ -18,7 +18,7 @@ export async function POST(request: Request): Promise<Response> {
   const body = (await request.json().catch(() => null)) as { slug?: unknown; question?: unknown; token?: unknown; type?: unknown; size?: unknown } | null;
   if (!body) return answer({ error: "invalid" }, 400);
   try {
-    checkForm(body.token);
+    checkForm(body.token, 0);
     const sql = db();
     const found = await bySlug(sql, body.slug);
     if (!found || found.form.audience !== "public") throw new AppError("not_found");

@@ -14,7 +14,7 @@ import * as spaces from "../lib/spaces.ts";
 import { readZip, writeZip } from "../lib/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, tom } from "./support/members.ts";
+import { camille, everyone, groups, hugo, ines, lea, tom } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -59,8 +59,8 @@ test("a Notion export becomes a space: tree, titles without ids, links, images; 
     { name: `Tools ${hex("d")}/Laptops ${hex("e")}.md`, data: "Ask Tom." },
   ]);
   const outer = writeZip([{ name: "Export-123-Part-1.zip", data: inner }]);
-  await assert.rejects(importFiles(sql, asMember(hugo), { spaceName: "Notion", files: [{ name: "export.zip", data: outer }], untitled: "Untitled" }), /forbidden/u);
-  const result = await importFiles(sql, asMember(ines), { spaceName: "Notion", files: [{ name: "export.zip", data: outer }], untitled: "Untitled" });
+  await assert.rejects(importFiles(sql, asMember(hugo), { spaceName: "Notion", files: [{ name: "export.zip", data: outer }], words: { untitled: "Untitled", attachments: "Attachments" } }), /forbidden/u);
+  const result = await importFiles(sql, asMember(ines), { spaceName: "Notion", files: [{ name: "export.zip", data: outer }], words: { untitled: "Untitled", attachments: "Attachments" } });
   assert.equal(result.pages, 4);
   assert.equal(result.files, 1);
   assert.deepEqual(result.skipped, { files: [`Team ${hex("c")}.csv`], images: 1 });
@@ -81,11 +81,11 @@ test("a Notion export becomes a space: tree, titles without ids, links, images; 
   assert.deepEqual(references(holidays.doc).pages, [handbook.id]);
   assert.equal((await history.versions(sql, asMember(hugo), holidays.id))[0]?.kind, "imported");
   // Into an existing space, plain .md files at its top.
-  const into = await importFiles(sql, asMember(ines), { spaceId: result.spaceId, files: [{ name: "Onboarding.md", data: text("Day one.") }], untitled: "Untitled" });
+  const into = await importFiles(sql, asMember(ines), { spaceId: result.spaceId, files: [{ name: "Onboarding.md", data: text("Day one.") }], words: { untitled: "Untitled", attachments: "Attachments" } });
   assert.equal(into.pages, 1);
-  await assert.rejects(importFiles(sql, asMember(ines), { spaceName: "Empty", files: [{ name: "photo.jpg", data: png }], untitled: "Untitled" }), /import_empty/u);
+  await assert.rejects(importFiles(sql, asMember(ines), { spaceName: "Empty", files: [{ name: "photo.jpg", data: png }], words: { untitled: "Untitled", attachments: "Attachments" } }), /import_empty/u);
   assert.ok(!(await spaces.listSpaces(sql, asMember(ines))).some(s => s.name === "Empty"));
-  await assert.rejects(importFiles(sql, asMember(ines), { spaceName: "Bad", files: [{ name: "broken.zip", data: text("nope") }], untitled: "Untitled" }), /import_invalid/u);
+  await assert.rejects(importFiles(sql, asMember(ines), { spaceName: "Bad", files: [{ name: "broken.zip", data: text("nope") }], words: { untitled: "Untitled", attachments: "Attachments" } }), /import_invalid/u);
 });
 
 test("exports: a page as Markdown and as a web page; a space as a zip whose links still work", async () => {
@@ -119,6 +119,25 @@ test("exports: a page as Markdown and as a web page; a space as a zip whose link
   const branch = readZip((await exportZip(sql, asMember(hugo), { pageId: b.id }, "https://wiki.test", { missing: "gone" })).data);
   assert.deepEqual(branch.map(e => e.name), ["Details.md"]);
   await assert.rejects(exportZip(sql, asMember({ ...lea, role: null }), { spaceId: s.id }, "https://wiki.test", { missing: "gone" }), /not_found/u);
+});
+
+test("everything at once: every space the member sees, a folder each, links between spaces kept", async () => {
+  const { sql } = database;
+  const a = await spaces.createSpace(sql, asMember(camille), { name: "All A" });
+  const b = await spaces.createSpace(sql, asMember(camille), { name: "All B (office)", visibility: "groups", groups: [groups.office] });
+  const target = await pages.createPage(sql, asMember(camille), { spaceId: a.id, title: "Target" });
+  const from = await pages.createPage(sql, asMember(camille), { spaceId: b.id, title: "From" });
+  await editing.startEditing(sql, asMember(camille), from.id);
+  await editing.publish(sql, asMember(camille), from.id, { title: "From", doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "See " }, { type: "pageRef", attrs: { id: target.id } }] }] }, baseVersion: 1 });
+  const all = await exportZip(sql, asMember(camille), { all: "Wiki" }, "https://wiki.test", { missing: "gone" });
+  assert.equal(all.name, "Wiki.zip");
+  const names = readZip(all.data).map(e => e.name);
+  assert.ok(names.includes("All A/Target.md") && names.includes("All B (office)/From.md"), names.join(", "));
+  const text = new TextDecoder().decode(readZip(all.data).find(e => e.name === "All B (office)/From.md")!.data);
+  assert.ok(text.includes("](../All%20A/Target.md)"), text);
+  // Hugo (sales) gets only what he reads.
+  const his = readZip((await exportZip(sql, asMember(hugo), { all: "Wiki" }, "https://wiki.test", { missing: "gone" })).data).map(e => e.name);
+  assert.ok(his.includes("All A/Target.md") && !his.some(n => n.startsWith("All B")));
 });
 
 test("someone who leaves frees the pages they were editing; an erasure removes their id everywhere, once", async () => {

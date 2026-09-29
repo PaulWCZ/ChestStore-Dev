@@ -4,26 +4,33 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
 import Link from "next/link";
-import { Archive, Calendar, Chat, CheckList, Clip, Clock, Close, Download, File, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
+import { Dialog } from "../../../../components/dialog.tsx";
+import { Archive, Calendar, Chat, Check, CheckList, Clip, Clock, Close, Copy, Dots, Download, Fields, File, Flag, MoveTo, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
+import { Markdown } from "../../../../components/markdown.tsx";
 import { useToast } from "../../../../components/toast.tsx";
-import type { Column, Label } from "../../../../lib/boards.ts";
-import type { Activity, Attachment, CardDetail, Comment } from "../../../../lib/cards.ts";
+import type { Column, Field, Label } from "../../../../lib/boards.ts";
+import type { Activity, Attachment, CardDetail, CheckItem, Comment } from "../../../../lib/cards.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import type { Color } from "../../../../lib/model.ts";
 import { repeatKinds, suggest, type Repeat, type RepeatKind } from "../../../../lib/repeat.ts";
 import {
-  addComment, addItem, addLabel, archiveCard, deleteCard, detach, editComment, moveCard, removeComment, removeItem, setAssignees, setLabel, setRepeat, updateCard, updateItem,
+  addChecklist, addComment, addItem, addLabel, archiveCard, deleteCard, detach, duplicateCard, editComment, moveCard, moveToBoard, removeChecklist, removeComment, removeItem, renameChecklist, restoreComment, setAssignees, setLabel, setRepeat, setValue, updateCard, updateItem,
 } from "../../actions.ts";
 
-export type PanelCard = Omit<CardDetail, "thread" | "history" | "files"> & {
+export type PanelItem = CheckItem & { dueLabel: string | null; late: boolean };
+export type PanelCard = Omit<CardDetail, "thread" | "history" | "files" | "items"> & {
   access: string;
   createdWhen: string;
   dueLabel: string | null;
+  startLabel: string | null;
   thread: (Comment & { when: string; date: string })[];
   history: (Activity & { when: string })[];
   files: (Attachment & { when: string })[];
+  items: PanelItem[];
 };
+// A board a card may go to, with its columns.
+export type Target = { id: string; name: string; columns: { id: string; name: string }[] };
 // What the page wrote of the card's repeat (dates and day names are
 // written on the server).
 export type RepeatView = {
@@ -33,14 +40,17 @@ export type RepeatView = {
   days: { value: number; short: string; long: string }[];
   today: string;
 };
-type Words = { card: Catalogue["card"]; activity: Catalogue["activity"]; errors: Catalogue["errors"]; colors: Catalogue["colors"] };
+type Words = { card: Catalogue["card"]; activity: Catalogue["activity"]; errors: Catalogue["errors"]; colors: Catalogue["colors"]; fields: Catalogue["fields"] };
 type People = Record<string, { name: string; photo: string | null }>;
 type Person = { id: string; name: string; photo: string | null };
 type Props = {
   card: PanelCard;
-  board: { id: string; color: string; archived: boolean; writable: boolean };
+  board: { id: string; name: string; color: string; archived: boolean; writable: boolean };
   columns: Column[];
   labels: Label[];
+  fields: Field[];
+  targets: Target[];
+  times: string[];
   people: People;
   audience: Person[];
   me: string;
@@ -51,7 +61,7 @@ const labelColors: Color[] = ["sun", "tomato", "berry", "grape", "sky", "sea", "
 
 // A card, in full, beside the board. Each change is saved at once; the
 // page refreshes itself from the server after it.
-export function CardPanel({ card, board, columns, labels, people, audience, me, repeat, t }: Props) {
+export function CardPanel({ card, board, columns, labels, fields, targets, times, people, audience, me, repeat, t }: Props) {
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
@@ -77,13 +87,24 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
       else after?.();
     });
   const nameOf = (id: string) => people[id]?.name ?? audience.find(p => p.id === id)?.name ?? t.card.nobody;
+  const [moving, setMoving] = useState(false);
+  // Done in one click: the card goes to the board's first "done" column
+  // (and back where it was with "Undo"); a done card reopens in the first
+  // column that is not.
+  const doneColumn = columns.find(c => c.done);
+  const openColumn = columns.find(c => !c.done);
+  const markDone = () => {
+    if (!doneColumn) return;
+    const from = card.columnId;
+    run(() => moveCard(card.id, doneColumn.id, null, null), () => toast(format(t.card.doneToast, { column: doneColumn.name }), { label: t.card.undo, run: () => start(async () => { await moveCard(card.id, from, null, null); }) }));
+  };
 
   return (
     <>
       <div className="scrim" onClick={close} aria-hidden="true" />
       <div className={`panel c-${board.color}`} role="dialog" aria-modal="true" aria-labelledby="card-title" tabIndex={-1} ref={panel}>
         <div className="panel-head">
-          <TitleField card={card} writable={writable} t={t} onSave={title => run(() => updateCard(card.id, { title }))} />
+          <TitleField card={card} writable={writable} t={t} onSave={title => run(() => updateCard(card.id, { title }))} onEmpty={() => toast(t.card.titleNeeded)} />
           <button type="button" className="icon-button" onClick={close}><Close /><span className="visually-hidden">{t.card.close}</span></button>
         </div>
         <div className="panel-body">
@@ -99,6 +120,17 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
             </div>
           )}
 
+          {writable && (doneColumn || card.done) && (
+            <div className="done-bar">
+              {card.done ? (
+                <>
+                  <span className="chip done big"><Check />{t.card.doneBadge}</span>
+                  {openColumn && <button type="button" className="button quiet small" onClick={() => { const from = card.columnId; run(() => moveCard(card.id, openColumn.id, null, null), () => toast(format(t.card.reopenedToast, { column: openColumn.name }), { label: t.card.undo, run: () => start(async () => { await moveCard(card.id, from, null, null); }) })); }}>{t.card.reopen}</button>}
+                </>
+              ) : <button type="button" className="button done-button" onClick={markDone}><Check />{t.card.markDone}</button>}
+            </div>
+          )}
+
           <div className="facts">
             <div className="fact">
               <label className="label" htmlFor="card-column">{t.card.column}</label>
@@ -111,11 +143,31 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
             <div className="fact">
               <label className="label" htmlFor="card-due"><Calendar /> {t.card.due}</label>
               {writable ? (
-                <div className="row">
-                  <input id="card-due" type="date" className="field" defaultValue={card.due ?? ""} key={card.due ?? "none"} onChange={e => run(() => updateCard(card.id, { due: e.target.value || null }))} />
-                  {card.due && <button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { due: null }))}>{t.card.removeDue}</button>}
-                </div>
+                <>
+                  <div className="row">
+                    <input id="card-due" type="date" className="field date" defaultValue={card.due ?? ""} key={card.due ?? "none"} aria-describedby={card.due ? "card-due-said" : undefined} onChange={e => run(() => updateCard(card.id, { due: e.target.value || null }))} />
+                    {card.due && (
+                      <>
+                        <label className="visually-hidden" htmlFor="card-time">{t.card.dueTime}</label>
+                        <select id="card-time" className="select time" value={card.dueTime ?? ""} onChange={e => run(() => updateCard(card.id, { dueTime: e.target.value || null }))}>
+                          <option value="">{t.card.anyTime}</option>
+                          {times.map(x => <option key={x} value={x}>{x}</option>)}
+                        </select>
+                      </>
+                    )}
+                  </div>
+                  {card.due && <span className="hint" id="card-due-said">{card.dueLabel} <button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { due: null }))}>{t.card.removeDue}</button></span>}
+                </>
               ) : <span>{card.dueLabel ?? t.card.noDue}</span>}
+            </div>
+            <div className="fact">
+              <label className="label" htmlFor="card-start"><Flag /> {t.card.start}</label>
+              {writable ? (
+                <>
+                  <input id="card-start" type="date" className="field date" defaultValue={card.start ?? ""} key={card.start ?? "none"} aria-describedby={card.start ? "card-start-said" : undefined} onChange={e => run(() => updateCard(card.id, { start: e.target.value || null }))} />
+                  {card.start && <span className="hint" id="card-start-said">{card.startLabel} <button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { start: null }))}>{t.card.removeStart}</button></span>}
+                </>
+              ) : <span>{card.startLabel ?? t.card.noStart}</span>}
             </div>
           </div>
 
@@ -131,15 +183,20 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
               onCreate={(name, color) => run(async () => { const r = await addLabel(board.id, { name, color }); if (r.ok) await setLabel(card.id, r.value.id, true); return r; })} />
           </Section>
 
+          {fields.length > 0 && (
+            <Section icon={<Fields />} title={t.fields.title}>
+              <div className="facts">
+                {fields.map(f => <FieldInput key={f.id} field={f} value={card.values[f.id] ?? ""} writable={writable} t={t} onSave={value => run(() => setValue(card.id, f.id, value))} />)}
+              </div>
+            </Section>
+          )}
+
           <Section icon={<Text />} title={t.card.description}>
             <Description card={card} writable={writable} t={t} onSave={description => run(() => updateCard(card.id, { description }))} />
           </Section>
 
           <Section icon={<CheckList />} title={t.card.checklist}>
-            <Checklist card={card} writable={writable} t={t}
-              onAdd={text => run(() => addItem(card.id, text))}
-              onToggle={(id, done) => run(() => updateItem(id, { done }))}
-              onRemove={id => run(() => removeItem(id))} />
+            <Checklists card={card} writable={writable} audience={audience} people={people} me={me} t={t} run={run} />
           </Section>
 
           <Section icon={<Clip />} title={t.card.files}>
@@ -150,7 +207,7 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
             <Thread card={card} people={people} audience={audience} me={me} canComment={canComment} canModerate={card.access === "own"} t={t}
               onAdd={(body, mentions) => run(() => addComment(card.id, body, mentions))}
               onEdit={(id, body) => run(() => editComment(id, body))}
-              onRemove={id => run(() => removeComment(id))} />
+              onRemove={id => run(() => removeComment(id), () => toast(t.card.commentRemoved, { label: t.card.undo, run: () => start(async () => { const r = await restoreComment(id); if (!r.ok) toast(format(t.errors[r.error], r.values)); }) }))} />
           </Section>
 
           <Section icon={<Clock />} title={t.card.history}>
@@ -162,12 +219,93 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
 
           {writable && (
             <div className="panel-foot">
+              {targets.length > 0 && <button type="button" className="button quiet" onClick={() => setMoving(true)}><MoveTo />{t.card.moveOrCopy}</button>}
               <button type="button" className="button quiet" onClick={() => run(() => archiveCard(card.id, true), () => { close(); toast(t.card.archivedToast, { label: t.card.undo, run: () => start(async () => { await archiveCard(card.id, false); }) }); })}><Archive />{t.card.archive}</button>
             </div>
           )}
         </div>
       </div>
+      {moving && <MoveDialog card={card} board={board} targets={targets} t={t} onClose={() => setMoving(false)} />}
     </>
+  );
+}
+
+// "Move or copy…": a board (this one first), a column; move it there, or
+// put a copy there.
+function MoveDialog({ card, board, targets, t, onClose }: { card: PanelCard; board: Props["board"]; targets: Target[]; t: Words; onClose: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const [to, setTo] = useState(targets[0]?.id ?? "");
+  const lanes = targets.find(x => x.id === to)?.columns ?? [];
+  const [column, setColumn] = useState(lanes[0]?.id ?? "");
+  const choose = (boardId: string) => {
+    setTo(boardId);
+    const next = targets.find(x => x.id === boardId)?.columns ?? [];
+    setColumn(boardId === board.id ? card.columnId : next[0]?.id ?? "");
+  };
+  const where = targets.find(x => x.id === to)?.name ?? "";
+  const go = (copy: boolean) => start(async () => {
+    if (copy) {
+      const r = await duplicateCard(card.id, to, column);
+      if (!r.ok) return toast(format(t.errors[r.error], r.values));
+      onClose();
+      toast(t.card.copied);
+      router.push(`/chest/boards/${r.value.boardId}?card=${r.value.id}`, { scroll: false });
+      return;
+    }
+    const r = await moveToBoard(card.id, to, column);
+    if (!r.ok) return toast(format(t.errors[r.error], r.values));
+    onClose();
+    toast(r.value.dropped > 0 ? format(t.card.movedDropped, { board: where, count: r.value.dropped }) : format(t.card.movedTo, { board: where }));
+    if (r.value.boardId !== board.id) router.push(`/chest/boards/${r.value.boardId}?card=${card.id}`, { scroll: false });
+  });
+  return (
+    <Dialog open title={t.card.moveOrCopy} closeLabel={t.card.cancel} onClose={onClose}>
+      <div className="stack">
+        <div>
+          <label className="label" htmlFor="move-board">{t.card.toBoard}</label>
+          <select id="move-board" className="select" value={to} onChange={e => choose(e.target.value)}>
+            {targets.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="move-column">{t.card.toColumn}</label>
+          <select id="move-column" className="select" value={column} onChange={e => setColumn(e.target.value)}>
+            {lanes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        {to !== board.id && <p className="hint">{t.card.moveHint}</p>}
+        <div className="dialog-foot">
+          <button type="button" className="button quiet" disabled={pending || !column} onClick={() => go(true)}><Copy />{t.card.copy}</button>
+          <button type="button" className="button" disabled={pending || !column} onClick={() => go(false)}><MoveTo />{t.card.move}</button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// One of the board's fields: text, a number, one choice. Saved when the
+// field is left (a choice at once).
+function FieldInput({ field, value, writable, t, onSave }: { field: Field; value: string; writable: boolean; t: Words; onSave: (value: string | null) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const key = `field-${field.id}`;
+  if (!writable) return <div className="fact"><span className="label">{field.name}</span><span>{value || "—"}</span></div>;
+  return (
+    <div className="fact">
+      <label className="label" htmlFor={key}>{field.name}</label>
+      {field.kind === "choice" ? (
+        <select id={key} className="select" value={value} onChange={e => onSave(e.target.value || null)}>
+          <option value="">{t.fields.none}</option>
+          {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input id={key} className="field" value={text} inputMode={field.kind === "number" ? "decimal" : undefined} maxLength={500}
+          onChange={e => setText(e.target.value)} onBlur={() => { if (text.trim() !== value) onSave(text.trim() || null); }}
+          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { e.stopPropagation(); setText(value); } }} />
+      )}
+    </div>
   );
 }
 
@@ -240,14 +378,19 @@ function describe(h: Activity, nameOf: (id: string) => string, columns: Column[]
     due: String(h.data["due"] ?? ""),
     column: column(h.data["to"]),
     file: String(h.data["file"] ?? ""),
+    start: String(h.data["start"] ?? ""),
+    step: String(h.data["step"] ?? ""),
+    from: String(h.data["from"] ?? ""),
+    board: String(h.data["to"] ?? ""),
   });
 }
 
-function TitleField({ card, writable, t, onSave }: { card: PanelCard; writable: boolean; t: Words; onSave: (title: string) => void }) {
+function TitleField({ card, writable, t, onSave, onEmpty }: { card: PanelCard; writable: boolean; t: Words; onSave: (title: string) => void; onEmpty: () => void }) {
   const [value, setValue] = useState(card.title);
   useEffect(() => setValue(card.title), [card.title]);
   const save = () => {
     const text = value.replace(/\s+/gu, " ").trim();
+    if (!text) onEmpty();
     if (text && text !== card.title) onSave(text);
     else setValue(card.title);
   };
@@ -349,7 +492,7 @@ function Description({ card, writable, t, onSave }: { card: PanelCard; writable:
   if (!editing) {
     return (
       <div className={`description${card.description ? "" : " empty-text"}`} onClick={() => writable && setEditing(true)} role={writable ? "button" : undefined} tabIndex={writable ? 0 : undefined} onKeyDown={e => { if (writable && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setEditing(true); } }}>
-        {card.description ? <Linkified text={card.description} /> : writable ? t.card.descriptionPlaceholder : ""}
+        {card.description ? <Markdown text={card.description} /> : writable ? t.card.descriptionPlaceholder : ""}
       </div>
     );
   }
@@ -362,24 +505,59 @@ function Description({ card, writable, t, onSave }: { card: PanelCard; writable:
       <div className="row">
         <button type="submit" className="button small">{t.card.save}</button>
         <button type="button" className="link-button" onClick={() => setEditing(false)}>{t.card.cancel}</button>
+        <span className="hint">{t.card.markdownHint}</span>
       </div>
     </form>
   );
 }
 
-// Links in a text become links (http and https only); everything else stays
-// text — React escapes it.
-function Linkified({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]])/gu);
-  return <>{parts.map((part, i) => (i % 2 === 1 ? <a key={i} href={part} target="_blank" rel="noopener noreferrer nofollow" onClick={e => e.stopPropagation()}>{part}</a> : part))}</>;
-}
+type Run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, after?: () => void) => void;
 
-function Checklist({ card, writable, t, onAdd, onToggle, onRemove }: { card: PanelCard; writable: boolean; t: Words; onAdd: (text: string) => void; onToggle: (id: string, done: boolean) => void; onRemove: (id: string) => void }) {
-  const [items, setItems] = useState(card.items);
-  useEffect(() => setItems(card.items), [card.items]);
-  const done = items.filter(i => i.done).length;
+// The card's checklists: the main one, then any others with a title. A
+// step may be given to someone, with a date: it shows in their "My tasks".
+function Checklists({ card, writable, audience, people, me, t, run }: { card: PanelCard; writable: boolean; audience: Person[]; people: People; me: string; t: Words; run: Run }) {
+  const [adding, setAdding] = useState(false);
+  const lists: { id: string | null; title: string | null }[] = [{ id: null, title: null }, ...card.checklists.map(l => ({ id: l.id, title: l.title }))];
   return (
     <div className="stack">
+      {lists.map(l => (
+        <ChecklistBlock key={l.id ?? "main"} list={l} items={card.items.filter(i => i.checklistId === l.id)} card={card} writable={writable} audience={audience} people={people} me={me} t={t} run={run} />
+      ))}
+      {writable && (adding ? (
+        <form className="row" onSubmit={e => { e.preventDefault(); const title = String(new FormData(e.currentTarget).get("title") ?? "").trim(); if (!title) return; run(() => addChecklist(card.id, title), () => setAdding(false)); }}>
+          <label htmlFor="new-checklist" className="visually-hidden">{t.card.checklistTitle}</label>
+          <input id="new-checklist" name="title" className="field" style={{ flex: 1 }} maxLength={80} placeholder={t.card.checklistTitle} autoFocus onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setAdding(false); } }} />
+          <button type="submit" className="button small">{t.card.addChecklist}</button>
+          <button type="button" className="link-button" onClick={() => setAdding(false)}>{t.card.cancel}</button>
+        </form>
+      ) : <div><button type="button" className="link-button" onClick={() => setAdding(true)}><Plus /> {t.card.addChecklist}</button></div>)}
+    </div>
+  );
+}
+
+function ChecklistBlock({ list, items: given, card, writable, audience, people, me, t, run }: { list: { id: string | null; title: string | null }; items: PanelItem[]; card: PanelCard; writable: boolean; audience: Person[]; people: People; me: string; t: Words; run: Run }) {
+  const [items, setItems] = useState(given);
+  useEffect(() => setItems(given), [given]);
+  const [open, setOpen] = useState<string | null>(null);
+  const done = items.filter(i => i.done).length;
+  const key = list.id ?? "main";
+  const nameOf = (id: string) => (id === me ? t.card.you : people[id]?.name ?? audience.find(p => p.id === id)?.name ?? "?");
+  if (list.id === null && items.length === 0 && !writable) return <p className="muted small">{t.card.noSteps}</p>;
+  return (
+    <div className="checklist-block">
+      {list.title !== null && (
+        <div className="row checklist-title">
+          {writable ? (
+            <>
+              <label className="visually-hidden" htmlFor={`checklist-${key}`}>{t.card.checklistTitle}</label>
+              <input id={`checklist-${key}`} className="field title-field" defaultValue={list.title} maxLength={80}
+                onBlur={e => { const v = e.target.value.trim(); if (v && v !== list.title) run(() => renameChecklist(list.id!, v)); else e.target.value = list.title!; }}
+                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+              <button type="button" className="icon-button" onClick={() => run(() => removeChecklist(list.id!))}><Trash /><span className="visually-hidden">{format(t.card.removeChecklist, { title: list.title })}</span></button>
+            </>
+          ) : <h3>{list.title}</h3>}
+        </div>
+      )}
       {items.length > 0 && (
         <>
           <div className="row"><span className="small muted">{format(t.card.progress, { done, total: items.length })}</span></div>
@@ -389,17 +567,41 @@ function Checklist({ card, writable, t, onAdd, onToggle, onRemove }: { card: Pan
       <ul className="checklist">
         {items.map(item => (
           <li key={item.id} className={`check-item${item.done ? " done" : ""}`}>
-            <input type="checkbox" id={`item-${item.id}`} checked={item.done} disabled={!writable}
-              onChange={e => { setItems(items.map(i => (i.id === item.id ? { ...i, done: e.target.checked } : i))); onToggle(item.id, e.target.checked); }} />
-            <label htmlFor={`item-${item.id}`} style={{ flex: 1 }}><span>{item.text}</span></label>
-            {writable && <button type="button" className="icon-button" onClick={() => { setItems(items.filter(i => i.id !== item.id)); onRemove(item.id); }}><Close /><span className="visually-hidden">{format(t.card.removeItem, { text: item.text })}</span></button>}
+            <div className="check-line">
+              <input type="checkbox" id={`item-${item.id}`} checked={item.done} disabled={!writable}
+                onChange={e => { setItems(items.map(i => (i.id === item.id ? { ...i, done: e.target.checked } : i))); run(() => updateItem(item.id, { done: e.target.checked })); }} />
+              <label htmlFor={`item-${item.id}`} className="check-text"><span>{item.text}</span></label>
+              {item.assignee && <span className="chip" title={format(t.card.stepGivenTo, { name: nameOf(item.assignee) })}><Avatar name={nameOf(item.assignee)} photo={people[item.assignee]?.photo ?? null} size={18} />{nameOf(item.assignee)}</span>}
+              {item.dueLabel && <span className={`chip${item.late ? " due-late" : ""}`}><Calendar />{item.dueLabel}</span>}
+              {writable && (
+                <button type="button" className="icon-button" aria-expanded={open === item.id} onClick={() => setOpen(open === item.id ? null : item.id)}>
+                  <Dots /><span className="visually-hidden">{format(t.card.stepDetails, { text: item.text })}</span>
+                </button>
+              )}
+            </div>
+            {writable && open === item.id && (
+              <div className="step-details">
+                <div className="fact">
+                  <label className="label" htmlFor={`step-who-${item.id}`}><People /> {t.card.stepWho}</label>
+                  <select id={`step-who-${item.id}`} className="select" value={item.assignee ?? ""} onChange={e => run(() => updateItem(item.id, { assignee: e.target.value || null }))}>
+                    <option value="">{t.card.nobody}</option>
+                    {audience.map(p => <option key={p.id} value={p.id}>{p.id === me ? t.card.you : p.name}</option>)}
+                  </select>
+                </div>
+                <div className="fact">
+                  <label className="label" htmlFor={`step-due-${item.id}`}><Calendar /> {t.card.stepDue}</label>
+                  <input id={`step-due-${item.id}`} type="date" className="field date" defaultValue={item.due ?? ""} key={item.due ?? "none"} onChange={e => run(() => updateItem(item.id, { due: e.target.value || null }))} />
+                </div>
+                <button type="button" className="link-button danger" onClick={() => { setItems(items.filter(i => i.id !== item.id)); setOpen(null); run(() => removeItem(item.id)); }}>{format(t.card.removeItem, { text: item.text })}</button>
+              </div>
+            )}
           </li>
         ))}
       </ul>
       {writable && (
-        <form className="row" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const text = String(new FormData(form).get("item") ?? "").trim(); if (!text) return; onAdd(text); form.reset(); }}>
-          <label htmlFor="new-item" className="visually-hidden">{t.card.addItem}</label>
-          <input id="new-item" name="item" className="field" style={{ flex: 1 }} maxLength={300} placeholder={t.card.itemPlaceholder} />
+        <form className="row" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const text = String(new FormData(form).get("item") ?? "").trim(); if (!text) return; run(() => addItem(card.id, text, list.id)); form.reset(); }}>
+          <label htmlFor={`new-item-${key}`} className="visually-hidden">{t.card.addItem}</label>
+          <input id={`new-item-${key}`} name="item" className="field" style={{ flex: 1 }} maxLength={300} placeholder={t.card.itemPlaceholder} />
           <button type="submit" className="button small quiet"><Plus />{t.card.addItem}</button>
         </form>
       )}

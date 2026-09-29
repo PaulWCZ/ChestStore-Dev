@@ -23,16 +23,44 @@ after(async () => {
 });
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
-test("a fresh tool: jours ouvrés, 1 June, five kinds of leave, paid leave earning 25 days", async () => {
+test("a fresh tool: jours ouvrés, 1 June, seven kinds of leave, paid leave earning 25 days as N-1 / N", async () => {
   const s = await settings(database.sql);
-  assert.deepEqual(s, { counting: "ouvres", alsace: false, workedHolidays: [], periodStartMonth: 6 });
+  assert.deepEqual(s, { counting: "ouvres", alsace: false, workedHolidays: [], periodStartMonth: 6, touched: false });
   const all = await types(database.sql);
-  assert.deepEqual(all.map(t => t.key), ["paid", "rtt", "unpaid", "sick", "other"]);
+  assert.deepEqual(all.map(t => t.key), ["paid", "rtt", "unpaid", "sick", "other", "family", "remote"]);
   const paid = all[0]!;
   assert.equal(paid.perYear, 25);
   assert.ok(paid.balance && paid.approval && paid.halfDays);
+  assert.deepEqual([paid.period, paid.periodMonth, paid.unused, paid.overdraw, paid.away], ["acquired", null, "carry", true, true]);
+  // RTT: the days of a calendar year, counted on the days the person works.
+  const rtt = all[1]!;
+  assert.deepEqual([rtt.period, rtt.periodMonth, rtt.counting], ["yearly", 1, "worked"]);
   const sick = all[3]!;
   assert.ok(!sick.approval && !sick.notes && !sick.balance && sick.counting === "calendar");
+  // Family events need an answer, in whole days; remote work is declared,
+  // counted on worked days, and is not an absence.
+  const family = all[5]!;
+  assert.ok(family.approval && !family.halfDays && !family.balance && family.away);
+  const remote = all[6]!;
+  assert.ok(!remote.approval && !remote.away && remote.counting === "worked");
+});
+
+test("a kind's year: HR chooses N-1 / N, a calendar year or one running balance, its first month, and what happens to days left", async () => {
+  const { sql } = database;
+  const rtt = (await types(sql)).find(t => t.key === "rtt")!;
+  const lost = await saveType(sql, asMember(camille), rtt.id, { unused: "lose", periodMonth: 4 });
+  assert.deepEqual([lost.period, lost.periodMonth, lost.unused], ["yearly", 4, "lose"]);
+  await assert.rejects(saveType(sql, asMember(camille), rtt.id, { unused: "pay" }), refused("invalid"));
+  await assert.rejects(saveType(sql, asMember(camille), rtt.id, { period: "monthly" }), refused("invalid"));
+  await assert.rejects(saveType(sql, asMember(camille), rtt.id, { periodMonth: 13 }), refused("invalid"));
+  await assert.rejects(saveType(sql, asMember(camille), rtt.id, { counting: "hours" }), refused("invalid"));
+  await assert.rejects(saveType(sql, asMember(hugo), rtt.id, { unused: "carry" }), refused("forbidden"));
+  const back = await saveType(sql, asMember(camille), rtt.id, { unused: "carry", periodMonth: 1, overdraw: false });
+  assert.deepEqual([back.unused, back.periodMonth, back.overdraw], ["carry", 1, false]);
+  await saveType(sql, asMember(camille), rtt.id, { overdraw: true });
+  // A kind without a balance has no year.
+  const unpaid = (await types(sql)).find(t => t.key === "unpaid")!;
+  assert.equal((await saveType(sql, asMember(camille), unpaid.id, { period: "acquired" })).period, "running");
 });
 
 test("HR changes the rules; switching to jours ouvrables gives paid leave 30 days a year; nobody else may", async () => {
@@ -42,7 +70,7 @@ test("HR changes the rules; switching to jours ouvrables gives paid leave 30 day
   await assert.rejects(updateSettings(sql, asMember(camille), { workedHolidays: ["myBirthday"] }), refused("invalid"));
   await assert.rejects(updateSettings(sql, asMember(camille), { periodStartMonth: 13 }), refused("invalid"));
   const s = await updateSettings(sql, asMember(camille), { counting: "ouvrables", alsace: true, workedHolidays: ["whitMonday", "whitMonday"], periodStartMonth: 1 });
-  assert.deepEqual(s, { counting: "ouvrables", alsace: true, workedHolidays: ["whitMonday"], periodStartMonth: 1 });
+  assert.deepEqual(s, { counting: "ouvrables", alsace: true, workedHolidays: ["whitMonday"], periodStartMonth: 1, touched: true });
   assert.equal((await types(sql)).find(t => t.key === "paid")!.perYear, 30);
   assert.ok(!daysOff(s, "2026-05-25", "2026-05-25").has("2026-05-25"));
   assert.ok(daysOff(s, "2026-04-03", "2026-04-03").has("2026-04-03"));

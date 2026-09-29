@@ -4,9 +4,9 @@ import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { db } from "../../../../lib/db.ts";
 import { expense, warnings } from "../../../../lib/expenses.ts";
-import { format, formatDate, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
+import { format, formatDate, plural, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
 import { thumbnailTypes } from "../../../../lib/model.ts";
-import { formatMoney, recoverable } from "../../../../lib/money.ts";
+import { formatMoney, rateText, recoverable } from "../../../../lib/money.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { stampOf, warningText } from "../../../../lib/rows.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -30,7 +30,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   const { expense: e, access, history } = found;
   const [cats, company, warned] = await Promise.all([categories(sql, { archived: true }), settings(sql), warnings(sql, [e], { anyone: access.decide || can(member, "see.all") })]);
   const category = cats.find(c => c.id === e.categoryId);
-  const who = await people([e.owner, ...(e.approver ? [e.approver] : []), ...history.map(h => h.actor)]);
+  const who = await people([e.owner, ...(e.approver ? [e.approver] : []), ...history.map(h => h.actor), ...e.guests.members]);
   const name = (id: string) => (id === member.id ? t.people.youInText : id === "chest" ? t.people.accountants : nameOf(who.get(id), locale));
   const date = (d: string) => formatDate(d.length === 10 ? d + "T12:00:00Z" : d, locale, { day: "numeric", month: "long", year: "numeric" });
 
@@ -41,7 +41,10 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     facts.push([t.detail.fields.scale, `${format(t.trip.scaleNote, { year: e.trip.scaleYear })} · ${vehicleName(e.trip.vehicle, t)} ${powerName(e.trip.vehicle, e.trip.power, t)}${e.trip.electric ? " · " + t.trip.electric : ""}`]);
   } else {
     if (e.merchant) facts.push([t.detail.fields.merchant, e.merchant]);
+    const guests = [...e.guests.members.map(g => nameOf(who.get(g), locale)), ...e.guests.names];
+    if (guests.length > 0) facts.push([t.detail.fields.guests, `${guests.join(", ")}\n${plural(t.form.perPerson, guests.length + 1, locale, { amount: formatMoney(Math.round(e.amount / (guests.length + 1)), e.currency, locale) })}`]);
     facts.push([t.detail.fields.paidBy, e.paidBy === "me" ? t.form.paidByMe : t.form.paidByCompany]);
+    if (e.rate !== null && e.base !== null && e.baseCurrency) facts.push([t.detail.fields.rate, `1 ${e.currency} = ${rateText(e.rate, locale)} ${e.baseCurrency}\n${format(t.form.converted, { amount: formatMoney(e.base, e.baseCurrency, locale) })}`]);
     if (e.vat !== null) facts.push([t.detail.fields.vat, formatMoney(e.vat, e.currency, locale) + (can(member, "see.all") && category ? ` · ${category.vatRecovery} % → ${formatMoney(recoverable(e.vat, category.vatRecovery), e.currency, locale)}` : "")]);
   }
   if (can(member, "see.all") && category?.account) facts.push([t.detail.fields.account, category.account]);

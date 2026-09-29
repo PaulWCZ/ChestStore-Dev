@@ -449,3 +449,106 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
   .grid-table .person .avatar { display: none; }
   .grid-table .col-head .day-badge { width: 44px; }
 }
+
+/* ——— Phones: nothing widens the page. The date grid scrolls inside its
+   own frame (names column sticky); every column of the layout may shrink
+   below its content. ——— */
+.stack > *, .side > *, .results-card, .results-card .q { min-width: 0; }
+/* The screen-reader words of the grid's cells are positioned absolutely:
+   the frame that scrolls must hold them, or they stretch the page. */
+.grid-wrap { position: relative; }
+.best-line { display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); border-radius: var(--radius-m); background: var(--mint-soft); color: var(--mint-ink); }
+.best-line strong { color: var(--ink); }
+.best-line svg { margin-top: 3px; color: var(--mint-ink); }
+
+/* ——— The team pulse tile ——— */
+.kind-tile.pulse { --tint: var(--mint-soft); --dot: var(--mint); }
+
+/* ——— Sign-up sheets ——— */
+.places { flex: none; font-size: var(--text-xs); font-weight: 700; color: var(--mint-ink); background: var(--mint-soft); padding: 2px 8px; border-radius: var(--radius-pill); white-space: nowrap; }
+.places.none { color: var(--no-ink); background: var(--no); }
+.when-text .places { justify-self: start; margin-top: 4px; }
+.pick-option.full { opacity: 0.75; cursor: not-allowed; }
+.pick-option.full > input { cursor: not-allowed; }
+.tri.two { grid-template-columns: repeat(2, auto); }
+@media (max-width: 560px) { .tri.two { grid-template-columns: repeat(2, 1fr); } }
+.tri input:disabled + span { opacity: 0.45; cursor: not-allowed; }
+.slots-count { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
+.slots-count .label { margin: 0; }
+.slots-count .field { width: 110px; }
+
+/* ——— eNPS: eleven buttons, 0 to 10 ——— */
+.scale-buttons.eleven { grid-template-columns: repeat(11, minmax(0, 1fr)); max-width: 620px; gap: 4px; }
+.scale-buttons.eleven span { aspect-ratio: auto; min-height: 44px; border-radius: 12px; font-size: 1.0625rem; }
+.enps .scale-ends { max-width: 620px; }
+@media (max-width: 560px) {
+  .scale-buttons.eleven { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-2); }
+}
+.enps-result { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4); align-items: center; }
+.enps-score strong { font-size: 1.75rem; }
+.bar-row.band.promoters .bar i { background: var(--mint); }
+.bar-row.band.passives .bar i { background: var(--sun); }
+.bar-row.band.detractors .bar i { background: var(--coral); }
+@media (max-width: 560px) { .enps-result { grid-template-columns: 1fr; justify-items: start; } .enps-result .bars { width: 100%; } }
+
+/* ——— Over time ——— */
+.trend-card h2, .comments-card h2 { display: flex; align-items: center; gap: var(--space-2); }
+.trend-line { display: grid; gap: var(--space-2); }
+.trend-line + .trend-line { margin-top: var(--space-5); padding-top: var(--space-5); border-top: 2px solid var(--line); }
+.trend-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.trend-head h3 { font-size: var(--text-m); }
+.trend-now { display: flex; align-items: baseline; gap: var(--space-2); font-size: var(--text-s); color: var(--ink-2); }
+.trend-now strong { font: 600 var(--text-xl)/1 var(--font-display); color: var(--ink); }
+.delta { font-weight: 700; }
+.delta.up { color: var(--mint-ink); }
+.delta.down { color: var(--coral-text); }
+.trend-chart { width: 100%; max-width: 560px; height: auto; overflow: visible; }
+.trend-chart .grid { stroke: var(--line); stroke-width: 1; }
+.trend-chart .grid.zero { stroke: var(--ink-2); stroke-dasharray: 3 3; }
+.trend-chart .tick { fill: var(--ink-2); font-size: 13px; font-family: var(--font-body); }
+.trend-chart .line { fill: none; stroke: var(--coral-text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend-chart .dot { fill: var(--surface); stroke: var(--coral-text); stroke-width: 2; }
+.trend-chart .dot.current { fill: var(--coral); stroke: var(--line-strong); }
+.trend-chart .dot.empty { fill: var(--no); stroke: var(--no-ink); stroke-width: 1; }
+.trend-table summary { cursor: pointer; font-weight: 700; font-size: var(--text-s); color: var(--coral-text); min-height: 44px; display: flex; align-items: center; }
+.trend-table table { width: 100%; border-collapse: collapse; font-size: var(--text-s); font-variant-numeric: tabular-nums; margin-bottom: var(--space-2); }
+.trend-table th, .trend-table td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--line); }
+.trend-table th small { color: var(--ink-2); font-weight: 400; }
+
+/* ——— Comments ——— */
+.comments { list-style: none; margin: 0 0 var(--space-4); padding: 0; display: grid; gap: var(--space-3); }
+.comments li { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: start; }
+.comment-body { min-width: 0; }
+.comment-meta { font-size: var(--text-s); }
+.comment-meta span { color: var(--ink-2); }
+.comment-text { white-space: pre-line; overflow-wrap: anywhere; }
+.comment-form { display: grid; gap: var(--space-2); justify-items: end; }
+.comment-form .field { width: 100%; }
+
+/* ——— Who is asked: groups and people ——— */
+.audience { display: grid; gap: var(--space-4); margin: var(--space-2) 0 0 var(--space-6); }
+@media (max-width: 560px) { .audience { margin-left: 0; } }
+.people-pick { display: grid; gap: var(--space-2); }
+.picked, .found { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.picked .chip { font-size: var(--text-s); background: var(--coral-soft); color: var(--ink); padding-right: 2px; }
+.chip-x { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--ink); cursor: pointer; }
+.chip-x:hover { background: var(--surface); }
+.repeat { margin-top: var(--space-5); }
+.repeat legend { display: flex; align-items: center; gap: var(--space-2); }
+
+/* ——— Organise ——— */
+.confirm { display: grid; gap: var(--space-3); padding: var(--space-3); border: 2px solid var(--sun-ledge); border-radius: var(--radius-m); background: var(--sun-soft); }
+.confirm .hint { color: var(--sun-ink); }
+.narrow-card { max-width: 560px; }
+
+@media (min-width: 640px) { .kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.side .button { white-space: normal; text-align: left; line-height: 1.25; height: auto; min-height: 44px; }
+.trend-card h2, .comments-card h2 { margin-bottom: var(--space-4); font-size: var(--text-l); }
+/* On a phone the chart is drawn smaller than its 560 units: its words and
+   marks grow to stay readable. */
+@media (max-width: 560px) {
+  .trend-chart .tick { font-size: 26px; }
+  .trend-chart .line { stroke-width: 4; }
+  .trend-chart .dot { stroke-width: 3; r: 8px; }
+  .trend-chart .dot.current { r: 10px; }
+}

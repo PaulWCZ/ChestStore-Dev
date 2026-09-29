@@ -1,15 +1,16 @@
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Check, Clock, KindIcon, Mask, People } from "../../components/icons.tsx";
-import { can } from "../../lib/access.ts";
+import { Check, Clock, KindIcon, Mask, People, Pulse, Repeat } from "../../components/icons.tsx";
+import { can, settles } from "../../lib/access.ts";
 import { everyone, inAudience } from "../../lib/audience.ts";
 import { dates, optionText } from "../../lib/dates.ts";
 import { db } from "../../lib/db.ts";
 import { format, plural } from "../../lib/i18n/index.ts";
 import { kinds } from "../../lib/model.ts";
 import { nameOf, people } from "../../lib/people.ts";
-import { home, type Card } from "../../lib/polls.ts";
+import { home, policy, type Card } from "../../lib/polls.ts";
 import { viewer } from "../../lib/session.ts";
 import { catchUp, refreshOne } from "../../lib/tell.ts";
+import { PolicySwitch } from "./policy-switch.tsx";
 
 // The home page: what waits for my answer first, then (organisers) the
 // three kinds of poll to start one, my polls, the open ones I answered, and
@@ -29,7 +30,8 @@ export default async function Home() {
   const mineOpen = data.mine.filter(c => c.status === "open");
   const team = mineOpen.length > 0 ? (await everyone()).people : [];
   const total = (c: Card) => team.filter(p => inAudience(p, c)).length;
-  const organiser = can(member, "create");
+  const rules = await policy(sql);
+  const organiser = can(member, "create", rules);
   const nothing = data.toAnswer.length + data.mine.length + data.answered.length + data.closed.length === 0;
 
   function card(c: Card, variant: "ask" | "mine" | "answered" | "closed") {
@@ -43,6 +45,7 @@ export default async function Home() {
           <span className={"chip " + c.kind}><KindIcon kind={c.kind} />{t.kinds[c.kind].chip}</span>
           {c.status === "draft" && <span className="chip draft">{t.home.draft}</span>}
           {c.anonymous && <span className="chip quiet"><Mask />{t.home.anonymous}</span>}
+          {c.repeat && <span className="chip quiet"><Repeat />{c.round ? format(t.home.round, { round: c.round }) : t.repeat[c.repeat]}</span>}
         </div>
         <h3><a href={href}>{c.title}</a></h3>
         <div className="meta">
@@ -98,6 +101,11 @@ export default async function Home() {
                 <span className="line">{t.kinds[k].line}</span>
               </a>
             ))}
+            <a className="kind-tile pulse" href="/chest/new?kind=survey&preset=pulse">
+              <span className="kind-icon"><Pulse /></span>
+              <strong>{t.home.pulse.name}</strong>
+              <span className="line">{t.home.pulse.line}</span>
+            </a>
           </div>
         </section>
       )}
@@ -120,6 +128,13 @@ export default async function Home() {
         <section className="section" aria-labelledby="closed">
           <div className="section-head"><h2 id="closed">{t.home.closed}</h2></div>
           <div className="cards">{data.closed.map(c => card(c, "closed"))}</div>
+        </section>
+      )}
+
+      {settles(member) && (
+        <section className="section" aria-labelledby="settings">
+          <div className="section-head"><h2 id="settings">{t.settings.title}</h2></div>
+          <div className="card narrow-card"><PolicySwitch on={rules.membersCreate} t={{ settings: t.settings, errors: t.errors }} /></div>
         </section>
       )}
     </>

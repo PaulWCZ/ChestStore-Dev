@@ -21,11 +21,15 @@ const refuses = (code: ErrorCode) => (e: unknown) => e instanceof AppError && e.
 
 test("the company's settings: accountants only, a real currency, a yes/no reminder", async () => {
   const { sql } = database;
-  assert.deepEqual(await settings.settings(sql), { currency: "EUR", reminder: true });
+  assert.deepEqual(await settings.settings(sql), { currency: "EUR", reminder: true, setupDone: false, journal: { code: "NDF", employees: "421000", vat: "445660", card: "467000" }, payer: "" });
   await assert.rejects(settings.updateSettings(sql, asMember(ines), { currency: "CHF" }), refuses("forbidden"));
   await assert.rejects(settings.updateSettings(sql, asMember(camille), { currency: "FRF1" }), refuses("currency_invalid"));
   await assert.rejects(settings.updateSettings(sql, asMember(camille), { reminder: "yes" }), refuses("invalid"));
-  assert.deepEqual(await settings.updateSettings(sql, asMember(camille), { currency: "CHF", reminder: false }), { currency: "CHF", reminder: false });
+  const changed = await settings.updateSettings(sql, asMember(camille), { currency: "CHF", reminder: false, setupDone: true, journal: { vat: " 445661 " }, payer: " Atelier  Roux SARL " });
+  assert.deepEqual(changed, { currency: "CHF", reminder: false, setupDone: true, journal: { code: "NDF", employees: "421000", vat: "445661", card: "467000" }, payer: "Atelier Roux SARL" });
+  await assert.rejects(settings.updateSettings(sql, asMember(camille), { journal: { code: "N D F" } }), refuses("account_invalid"));
+  await assert.rejects(settings.updateSettings(sql, asMember(camille), { journal: { card: "" } }), refuses("account_invalid"));
+  await assert.rejects(settings.updateSettings(sql, asMember(camille), { setupDone: "yes" }), refuses("invalid"));
   await settings.updateSettings(sql, asMember(camille), { currency: "EUR", reminder: true });
 });
 

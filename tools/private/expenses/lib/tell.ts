@@ -82,3 +82,16 @@ export async function refresh(sql: Query, people: string[]): Promise<void> {
   if (ids.length === 0) return;
   await badges(await waitingCounts(sql, ids, accounting));
 }
+
+// Bank details changed: a classic fraud is to change someone's account just
+// before a payment. The person hears it when someone else did it; the
+// accountants hear it when a person changed their own.
+export async function bankChanged(actor: Member, owner: string, last4: string): Promise<void> {
+  if (owner === "company") return;
+  if (owner !== actor.id) {
+    await notify([owner], t => ({ title: format(t.bell.bankByOther, { name: actor.name, last4 }) }), { path: "/chest/settings", key: `bank:${owner}` });
+    return;
+  }
+  const recipients = (await accountants()).filter(a => a !== actor.id);
+  await notify(recipients, t => ({ title: format(t.bell.bankOwn, { name: actor.name, last4 }) }), { path: "/chest/pay", key: `bank:${owner}` });
+}

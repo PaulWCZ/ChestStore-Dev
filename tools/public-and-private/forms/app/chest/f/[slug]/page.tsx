@@ -2,6 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RespondFrame, RespondNotice } from "../../../../components/respond-frame.tsx";
+import { Back } from "../../../../components/icons.tsx";
 import { Runner } from "../../../../components/runner.tsx";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
@@ -40,8 +41,9 @@ export default async function TeamForm({ params, searchParams }: Props) {
   const query = Object.fromEntries(Object.entries(await searchParams).map(([k, val]) => [k, Array.isArray(val) ? val[0] : val]));
   const company = chest.company() || t.meta.name;
   const home = <a className="button quiet" href="/chest">{t.respond.thanks.home}</a>;
+  const back = <a className="respond-back" href="/chest"><Back />{t.meta.name}</a>;
   return (
-    <RespondFrame accent={form.accent} company={company} footer={t.respond.footerTeam}>
+    <RespondFrame accent={form.accent} company={company} footer={t.respond.footerTeam} aside={back}>
       {already ? (
         <RespondNotice title={t.respond.already.title} body={t.respond.already.body}>{home}</RespondNotice>
       ) : state.open ? (
@@ -61,7 +63,6 @@ export default async function TeamForm({ params, searchParams }: Props) {
           locale={locale}
           grantUrl="/chest/api/upload"
           send={answerTeam}
-          after={<p className="runner-after">{home}</p>}
         />
       ) : (
         <RespondNotice title={t.respond.closed.title} body={state.reason === "full" ? t.respond.closed.full : state.reason === "date" ? t.respond.closed.date : t.respond.closed.body}>{home}</RespondNotice>

@@ -18,8 +18,8 @@ import { chestZone } from "./zone.ts";
 // language, and the number on its tile (the polls waiting for their answer).
 //
 // - 'ask': a poll is sent — everyone asked hears of it (not its organiser).
-// - 'remind': the day before it closes, or when its organiser asks, those
-//   who have not answered — in the bell and, where the Chest sends email
+// - 'remind': the day before it closes; 'nudge': when its organiser asks
+//   ("Remind those who haven't answered") — those who have not answered — in the bell and, where the Chest sends email
 //   (Proposal (studio): mail), by email too.
 // - 'final': a date poll's date is chosen — everyone asked.
 // - the organiser hears that their poll closed by its date.
@@ -38,7 +38,7 @@ export const finalKey = (pollId: string) => `poll:${pollId}:final`;
 const closedKey = (pollId: string) => `poll:${pollId}:closed`;
 export const commentKey = (pollId: string) => `poll:${pollId}:comments`;
 
-type Kind = "ask" | "remind" | "final";
+type Kind = "ask" | "remind" | "nudge" | "final";
 type Told = { done: true } | { done: false; after: string | null };
 
 function words(kind: Kind, poll: Poll, t: Catalogue, locale: Locale, organiser: string, zone: string): { title: string; body: string } {
@@ -49,6 +49,7 @@ function words(kind: Kind, poll: Poll, t: Catalogue, locale: Locale, organiser: 
       body: cut(poll.closesAt ? format(t.bell.askUntil, { date: d.at(poll.closesAt) }) : t.bell.askBody[poll.kind], 280),
     };
   }
+  if (kind === "nudge") return { title: cut(format(t.bell.nudge, { title: poll.title }), 80), body: cut(poll.closesAt ? format(t.bell.nudgeUntil, { name: organiser, date: d.at(poll.closesAt) }) : format(t.bell.nudgeBody, { name: organiser }), 280) };
   if (kind === "remind") return { title: cut(format(t.bell.remind, { title: poll.title }), 80), body: cut(poll.closesAt ? format(t.bell.remindBody, { date: d.at(poll.closesAt) }) : t.bell.askBody[poll.kind], 280) };
   const option = poll.questions[0]?.options.find(o => o.id === poll.finalOption);
   const when = option?.day ? optionText({ day: option.day, start: option.start, end: option.end }, locale, zone, { range: t.dates.range, dayAndTime: t.dates.dayAndTime }) : "";
@@ -111,7 +112,7 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
         if (error instanceof ChestError) return { done: false, after: cursor };
         throw error;
       }
-      if (kind === "remind") await emailReminders(poll, group, catalogue(locale), locale, name(locale), zone);
+      if (kind === "remind" || kind === "nudge") await emailReminders(poll, group, catalogue(locale), locale, name(locale), zone);
     }
     if (kind === "ask") await badges(await pendingCounts(sql, people));
     if (!found.next) return { done: true };
@@ -126,7 +127,7 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
 // a courtesy on top of the bell: a Chest that cannot send email yet (no
 // "mail"), or the day's quota reached, sends nothing more and the bell
 // item stands. The key makes a repeated delivery of the same reminder send
-// nothing twice.
+// nothing twice. Someone without an address is skipped, not the others.
 async function emailReminders(poll: Poll, people: Person[], t: Catalogue, locale: Locale, organiser: string, zone: string): Promise<void> {
   const d = dates(locale, zone);
   const base = chest.teamUrl();
@@ -141,6 +142,8 @@ async function emailReminders(poll: Poll, people: Person[], t: Catalogue, locale
         key: `remind.${poll.id}.${stamp}.${p.id.slice(4, 30)}`.slice(0, 64),
       });
     } catch (error) {
+      // Someone the Chest has no address for (or who bounced): the next.
+      if (error instanceof ChestError && (error.code === "invalid_address" || error.code === "suppressed")) continue;
       if (error instanceof ChestError) return;
       throw error;
     }
@@ -161,7 +164,7 @@ async function withdrawFrom(key: string, ids: Iterable<string>): Promise<void> {
 }
 
 async function tell(sql: Sql, poll: Poll, kind: Kind, after: string | null): Promise<Told> {
-  if (kind === "remind") {
+  if (kind === "remind" || kind === "nudge") {
     const done = await answeredBy(sql, poll.id);
     return tellPages(sql, poll, kind, askKey(poll.id), after, p => p.id !== poll.organiser && !done.has(p.id));
   }
@@ -247,7 +250,7 @@ export async function settle(sql: Sql, now = new Date()): Promise<string[]> {
     if (!claimed) continue;
     const poll = await load(sql, id);
     await withdraw(askKey(poll.id));
-    await sql`delete from tellings where poll_id = ${poll.id} and kind in ('ask', 'remind')`;
+    await sql`delete from tellings where poll_id = ${poll.id} and kind in ('ask', 'remind', 'nudge')`;
     await refreshAsked(sql, poll);
     if (poll.closedByDate && poll.organiser !== "erased") {
       await notify([poll.organiser], t => ({ title: cut(format(t.bell.closed, { title: poll.title }), 80), body: poll.kind === "date" ? t.bell.closedDate : t.bell.closedBody }), { path: pollPath(poll.id), key: closedKey(poll.id) });

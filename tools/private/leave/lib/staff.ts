@@ -104,3 +104,13 @@ export async function setEmployeeNumber(sql: Sql, actor: Member | null, person: 
     insert into staff (member_id, employee_number) values (${who}, ${number})
     on conflict (member_id) do update set employee_number = excluded.employee_number, updated_at = now()`;
 }
+
+// Everyone the tool holds records of — to find those who left: a last day
+// set, or balance lines or requests of someone the Chest no longer lists.
+export async function formerIds(sql: Query): Promise<string[]> {
+  const rows = await sql<{ member_id: string }[]>`
+    select member_id from staff where end_date is not null
+    union select member_id from ledger where member_id <> 'erased'
+    union select member_id from requests where member_id <> 'erased'`;
+  return rows.map(r => r.member_id);
+}

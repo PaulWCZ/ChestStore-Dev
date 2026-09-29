@@ -3,10 +3,11 @@ import type { Query } from "./db.ts";
 import type { Expense } from "./expenses.ts";
 import type { Catalogue, Locale } from "./i18n/index.ts";
 import { today } from "./model.ts";
-import { commonCurrencies, inputAmount } from "./money.ts";
+import { commonCurrencies, inputAmount, rateText } from "./money.ts";
 import { thumbnailTypes } from "./model.ts";
 import type { Scale, VehicleKind } from "./scale.ts";
-import { categories, scales, settings, vehicleOf, type Vehicle } from "./settings.ts";
+import { categories, rates, scales, settings, vehicleOf, type Vehicle } from "./settings.ts";
+import { holders, nameOf, people } from "./people.ts";
 import { categoryName, powerName, vehicleName } from "./words.ts";
 
 // What the add and edit screens need, as plain data for their views.
@@ -14,7 +15,11 @@ export type ComposeData = {
   today: string;
   currency: string;
   currencies: string[];
-  categories: { id: string; name: string }[];
+  // The company's exchange rates (millionths), by currency.
+  rates: Record<string, number>;
+  categories: { id: string; name: string; guests: boolean }[];
+  // The team, to name who was at a meal (the actor left out).
+  team: { id: string; name: string }[];
   merchants: string[];
   vehicle: (Vehicle & { label: string }) | null;
   scales: { year: number; data: Scale }[];
@@ -22,7 +27,7 @@ export type ComposeData = {
 };
 
 export async function composeData(sql: Query, actor: Member, t: Catalogue, keepCategory?: string): Promise<ComposeData> {
-  const [cats, company, vehicle, all] = await Promise.all([categories(sql, { archived: true }), settings(sql), vehicleOf(sql, actor.id), scales(sql)]);
+  const [cats, company, vehicle, all, everyone, known] = await Promise.all([categories(sql, { archived: true }), settings(sql), vehicleOf(sql, actor.id), scales(sql), holders(), rates(sql)]);
   const merchants = await sql<{ merchant: string }[]>`
     select merchant from expenses where member_id = ${actor.id} and merchant <> '' and deleted_at is null
     group by merchant order by max(created_at) desc limit 30`;
@@ -34,7 +39,9 @@ export async function composeData(sql: Query, actor: Member, t: Catalogue, keepC
     today: today(),
     currency: company.currency,
     currencies: [...new Set([company.currency, ...commonCurrencies])],
-    categories: cats.filter(c => !c.mileage && (!c.archived || c.id === keepCategory)).map(c => ({ id: c.id, name: categoryName(c, t) })),
+    rates: Object.fromEntries(known.map(r => [r.currency, r.rate])),
+    categories: cats.filter(c => !c.mileage && (!c.archived || c.id === keepCategory)).map(c => ({ id: c.id, name: categoryName(c, t), guests: c.guests })),
+    team: everyone.filter(h => h.id !== actor.id).map(h => ({ id: h.id, name: h.name })).sort((a, b) => a.name.localeCompare(b.name)),
     merchants: merchants.map(m => m.merchant),
     vehicle: vehicle ? { ...vehicle, label: `${vehicleName(vehicle.kind, t)} · ${powerName(vehicle.kind, vehicle.power, t)}${vehicle.electric ? " · " + t.trip.electric : ""}` } : null,
     scales: all.map(s => ({ year: s.year, data: s.data })),
@@ -48,6 +55,8 @@ export type Initial = {
   spentOn: string;
   amount: string;
   currency: string;
+  // A rate its owner typed ("" when it follows the company's).
+  rate: string;
   vat: string;
   categoryId: string;
   merchant: string;
@@ -58,14 +67,22 @@ export type Initial = {
   to: string;
   distance: string;
   refusedReason: string | null;
+  guests: { members: { id: string; name: string }[]; names: string[] };
 };
 
-export function initialOf(e: Expense, locale: Locale): Initial {
+// The names of the guests an expense already has, for the edit screen.
+export async function guestNames(e: Expense, locale: Locale): Promise<{ id: string; name: string }[]> {
+  const who = await people(e.guests.members);
+  return e.guests.members.map(id => ({ id, name: nameOf(who.get(id), locale) }));
+}
+
+export function initialOf(e: Expense, locale: Locale, members: { id: string; name: string }[] = []): Initial {
   return {
     id: e.id,
     spentOn: e.spentOn,
     amount: inputAmount(e.amount, e.currency, locale),
     currency: e.currency,
+    rate: e.rateSource === "typed" && e.rate !== null ? rateText(e.rate, locale) : "",
     vat: e.vat === null ? "" : inputAmount(e.vat, e.currency, locale),
     categoryId: e.categoryId,
     merchant: e.merchant,
@@ -76,5 +93,6 @@ export function initialOf(e: Expense, locale: Locale): Initial {
     to: e.trip?.to ?? "",
     distance: e.trip ? String(e.trip.distance / 10).replace(".", locale === "fr" ? "," : ".") : "",
     refusedReason: e.refusedReason,
+    guests: { members, names: e.guests.names },
   };
 }

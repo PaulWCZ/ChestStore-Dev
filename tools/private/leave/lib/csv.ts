@@ -43,14 +43,16 @@ export function parseCsv(text: string, maxRows = 20000): string[][] {
 
 // A cell a spreadsheet would run as a formula (=, +, -, @, tab, return) is
 // written behind a quote: exports never carry an injection.
-function cell(value: unknown): string {
+// A cell is quoted only when it holds the separator, a quote or a line
+// break ("12,5" stays bare in a French file).
+function cell(value: unknown, separator: string): string {
   let text = value === null || value === undefined ? "" : String(value);
   if (/^[=+\-@\t\r]/u.test(text)) text = "'" + text;
-  return /[",;\n\r]/u.test(text) ? '"' + text.replace(/"/gu, '""') + '"' : text;
+  return text.includes(separator) || /["\n\r]/u.test(text) ? '"' + text.replace(/"/gu, '""') + '"' : text;
 }
 
 // separator: "," by default; ";" for French spreadsheets, whose decimal
 // mark is a comma.
 export function toCsv(rows: unknown[][], separator: "," | ";" = ","): string {
-  return "﻿" + rows.map(r => r.map(cell).join(separator)).join("\r\n") + "\r\n";
+  return "﻿" + rows.map(r => r.map(c => cell(c, separator)).join(separator)).join("\r\n") + "\r\n";
 }

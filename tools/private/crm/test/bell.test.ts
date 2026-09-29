@@ -28,7 +28,7 @@ test("given a deal or a next step, one is told in their language; done, the item
   const given = await deals.setOwner(sql, asMember(camille), d.id, ines.id);
   await tell.dealGiven(asMember(camille), given.given, { id: d.id, title: d.title, value: d.value });
   assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body?.replace(/\s/gu, " "), n.key]), [[ines.id, "Camille Martin vous a confié une affaire", "Printers · 2 400 €", `deal:${d.id}:owner`]]);
-  const s = await steps.setStep(sql, asMember(camille), { deal: d.id }, { text: "Demo", due: today(), owner: hugo.id });
+  const s = await steps.addStep(sql, asMember(camille), { deal: d.id }, { text: "Demo", due: today(), owner: hugo.id });
   await tell.stepGiven(asMember(camille), s.given, s.step, { kind: "deal", id: d.id, title: d.title });
   const bell = chest.notifications.find(n => n.member === hugo.id)!;
   assert.equal(bell.title, "Camille Martin gave you a next step");
@@ -41,7 +41,7 @@ test("given a deal or a next step, one is told in their language; done, the item
   assert.equal(chest.notifications.some(n => n.key === `step:${s.step.id}`), false);
   assert.equal(chest.badges.get(hugo.id), undefined);
   // Giving it to oneself tells nobody.
-  const mine = await steps.setStep(sql, asMember(hugo), { deal: d.id }, { text: "Mine", due: today(), owner: hugo.id }).catch(e => e);
+  const mine = await steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "Mine", due: today(), owner: hugo.id }).catch(e => e);
   assert.ok(mine instanceof Error, "Hugo does not own the deal");
 });
 
@@ -51,9 +51,9 @@ test("the weekday morning: each person's due steps in one item, in their languag
   const d1 = await deals.addDeal(sql, asMember(ines), { title: "Laptops" });
   const d2 = await deals.addDeal(sql, asMember(ines), { title: "Screens" });
   const d3 = await deals.addDeal(sql, asMember(hugo), { title: "Later" });
-  await steps.setStep(sql, asMember(ines), { deal: d1.id }, { text: "Call the buyer", due: addDays(today(), -1) });
-  await steps.setStep(sql, asMember(ines), { deal: d2.id }, { text: "Send the quote", due: today() });
-  await steps.setStep(sql, asMember(hugo), { deal: d3.id }, { text: "Next month", due: addDays(today(), 30) });
+  await steps.addStep(sql, asMember(ines), { deal: d1.id }, { text: "Call the buyer", due: addDays(today(), -1) });
+  await steps.addStep(sql, asMember(ines), { deal: d2.id }, { text: "Send the quote", due: today() });
+  await steps.addStep(sql, asMember(hugo), { deal: d3.id }, { text: "Next month", due: addDays(today(), 30) });
   const gone = await activities.log(sql, asMember(ines), { deal: d1.id }, "note", "Oops");
   await activities.remove(sql, asMember(ines), gone.id);
   await sql`update activities set removed_at = now() - interval '2 days' where id = ${gone.id}`;

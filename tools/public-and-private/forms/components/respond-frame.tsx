@@ -7,13 +7,14 @@ import { LanguageSwitch } from "./language-switch.tsx";
 // company's name, the language switch on the public host, a footer that
 // says where answers go. Never the Chest's name: the visitor answers the
 // company.
-export function RespondFrame({ accent, company, locale, languageLabel, back, footer, children }: { accent: Accent; company: string; locale?: Locale; languageLabel?: string; back?: string; footer: string; children: ReactNode }) {
+export function RespondFrame({ accent, company, locale, languageLabel, back, footer, aside, children }: { accent: Accent; company: string; locale?: Locale; languageLabel?: string; back?: string; footer: string; aside?: ReactNode; children: ReactNode }) {
   return (
     <div className="respond-page" data-accent={accent}>
       <div className="respond-glow" aria-hidden="true" />
       <header className="respond-top">
         <span className="respond-company">{company}</span>
         {locale && languageLabel && <LanguageSwitch current={locale} label={languageLabel} back={back ?? "/"} />}
+        {aside}
       </header>
       <main className="respond-main" id="main">{children}</main>
       <footer className="respond-foot">{footer}</footer>

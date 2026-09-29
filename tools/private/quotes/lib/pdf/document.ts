@@ -3,6 +3,7 @@ import { noVat, operationOf } from "../documents.ts";
 import { catalogue, format, formatDay, type Locale } from "../i18n/index.ts";
 import { formatMoney, formatNumber, formatQuantity, formatRate } from "../money.ts";
 import { addressLines, spacedSiren, type Buyer, type Seller } from "../parties.ts";
+import { facturx } from "../einvoice.ts";
 import { totals } from "../totals.ts";
 import { unitText } from "../units.ts";
 import type { Image } from "./image.ts";
@@ -32,6 +33,9 @@ export type PdfInput = {
   // The date a draft is shown with (today); a numbered document has its own.
   today: string;
   created: Date;
+  // An issued invoice's or credit note's structured data (lib/einvoice.ts),
+  // attached as factur-x.xml: the PDF is then a Factur-X.
+  facturx?: string;
 };
 
 const ink: Rgb = [0.086, 0.106, 0.18];
@@ -317,6 +321,7 @@ export function renderPdf(input: PdfInput): Uint8Array {
     const terms: string[] = [];
     terms.push(doc.dueDate ? format(t.dueBy, { date: date(doc.dueDate) }) : doc.paymentDays === 0 ? t.dueOnReceipt : format(t.dueIn, { days: doc.paymentDays }));
     if (seller.iban) terms.push(format(t.transfer, { iban: seller.iban, bic: seller.bic ? format(t.bic, { bic: seller.bic }) : "", bank: seller.bank ? seller.bank + " — " : "" }).replace(/\s+$/u, ""));
+    if (seller.paymentLink) terms.push(format(t.payOnline, { link: seller.paymentLink }));
     terms.push(seller.penaltyRate === null ? t.penaltiesLegal : format(t.penalties, { rate: formatRate(seller.penaltyRate, locale) }));
     if (!buyer || buyer.kind === "company") terms.push(t.indemnity);
     terms.push(seller.earlyDiscount ? format(t.earlyDiscount, { terms: seller.earlyDiscount }) : t.noDiscount);
@@ -373,7 +378,15 @@ export function renderPdf(input: PdfInput): Uint8Array {
     creator: catalogue(locale).meta.name,
     created: input.created,
     language: locale === "fr" ? "fr-FR" : "en-GB",
-  });
+  }, input.facturx ? {
+    name: facturx.fileName,
+    data: new TextEncoder().encode(input.facturx),
+    type: "text/xml",
+    description: "Factur-X (EN 16931)",
+    // The PDF and the data are the same invoice in two forms.
+    relationship: "Alternative",
+    facturx: { conformanceLevel: facturx.conformanceLevel, version: facturx.version },
+  } : undefined);
 }
 
 // A cell's text cut to its column, with an ellipsis.

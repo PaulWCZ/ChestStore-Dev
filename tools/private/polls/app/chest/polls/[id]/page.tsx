@@ -1,19 +1,24 @@
 import { notFound, redirect } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Avatar } from "../../../../components/avatar.tsx";
-import { Back, CalendarPlus, Clock, Eye, Info, KindIcon, Mask, People } from "../../../../components/icons.tsx";
+import { Back, CalendarPlus, Clock, Eye, Info, KindIcon, Mask, Pencil, People, Repeat } from "../../../../components/icons.tsx";
 import { all, groups as chestGroups } from "../../../../lib/audience.ts";
 import { AppError } from "../../../../lib/app-error.ts";
+import { canComment, list as listComments } from "../../../../lib/comments.ts";
 import { dates, optionText } from "../../../../lib/dates.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, plural } from "../../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { view, type PollView } from "../../../../lib/polls.ts";
+import { seriesState, trend } from "../../../../lib/series.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { local } from "../../../../lib/time.ts";
 import { catchUp } from "../../../../lib/tell.ts";
 import { AnswerArea, type AnswerQuestion } from "./answer-area.tsx";
+import { Comments } from "./comments.tsx";
 import { FinalPicker, Manage } from "./manage.tsx";
 import { Results, type DateLabel, type Named } from "./results.tsx";
+import { TrendCard } from "./trend.tsx";
 
 // A poll: what it asks, the answer form, the results when they show, and
 // for its organiser the participation and the controls.
@@ -44,8 +49,16 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
   const showMissing = pv.manages && !poll.anonymous && poll.status === "open";
   const missing = showMissing ? audience.people.filter(p => !pv.participants.includes(p.id)) : [];
 
-  // Names: the organiser, the participants, those not answered yet.
-  const ids = new Set<string>([poll.organiser, ...pv.participants]);
+  // Comments (named polls), and a pulse survey's rounds over time.
+  const notes = poll.anonymous ? [] : await listComments(sql, member, poll.id);
+  const series = await seriesState(sql, poll.seriesId);
+  const lines = poll.seriesId ? await trend(sql, member, poll) : [];
+  const roundLabels = new Map<string, string>();
+  for (const line of lines) for (const p of line.points) { const day = local(p.openedAt, zone).day; roundLabels.set(p.pollId, d.dayNumber(day) + " " + d.month(day)); }
+
+  // Names: the organiser, the participants, those not answered yet, the
+  // authors of comments.
+  const ids = new Set<string>([poll.organiser, ...pv.participants, ...notes.map(c => c.author)]);
   for (const q of pv.results ?? []) {
     if (q.kind === "date") for (const row of q.grid) ids.add(row.member);
     if (q.kind === "text") for (const x of q.texts) if (x.member) ids.add(x.member);
@@ -103,6 +116,8 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
           <span>{poll.organiser === member.id ? t.poll.byYou : format(t.poll.by, { name: organiserName })}</span>
           <span><People />{format(t.poll.askedTo, { who: to })}</span>
           <span><Clock />{poll.status === "closed" ? format(t.poll.closedOn, { date: d.at(poll.closedAt!) }) : poll.closesAt ? format(t.poll.closes, { date: d.at(poll.closesAt) }) : t.poll.noClose}</span>
+          {series && poll.round !== null && <span><Repeat />{format(t.poll.round, { round: poll.round, every: t.repeat[series.every] })}{" · "}{series.nextAt ? format(t.poll.nextRound, { date: d.at(series.nextAt) }) : t.poll.noMoreRounds}</span>}
+          {poll.editedAfter !== null && <span><Pencil />{plural(t.poll.editedAfter, poll.editedAfter, locale)}</span>}
         </div>
       </header>
 
@@ -129,6 +144,9 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
               mine={pv.mine}
               changeNote={poll.closesAt ? format(t.poll.changeUntil, { date: d.at(poll.closesAt) }) : t.poll.changeAnyTime}
               said={said}
+              slots={poll.slots}
+              taken={pv.taken}
+              locale={locale}
               t={{ poll: t.poll, errors: t.errors }}
             />
           )}
@@ -136,7 +154,7 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
           <section className="card results-card" aria-labelledby="results">
             <h2 id="results">{t.results.title}</h2>
             {pv.state === "shown" && pv.results ? (
-              <Results results={pv.results} single={single} names={pv.names ? names : null} dateLabels={dateLabels} finalOption={poll.finalOption} locale={locale} t={t} />
+              <Results results={pv.results} single={single} names={pv.names ? names : null} dateLabels={dateLabels} finalOption={poll.finalOption} signup={poll.slots !== null} locale={locale} t={t} />
             ) : pv.state === "threshold" ? (
               <div className="threshold">
                 <Mask />
@@ -144,10 +162,23 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
                 <span className="dots" aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <i key={i} className={i < pv.answers ? "on" : ""} />)}</span>
                 <span>{plural(t.results.thresholdCount, pv.answers, locale)}</span>
               </div>
+            ) : poll.anonymous ? (
+              <p className="note anon"><Mask />{t.poll.resultsAfterAnonymous}</p>
             ) : (
               <p className="note"><Clock />{t.poll.resultsAfter}</p>
             )}
           </section>
+
+          {lines.length > 0 && <TrendCard trend={lines} labels={roundLabels} locale={locale} t={t} />}
+
+          {!poll.anonymous && (
+            <Comments
+              pollId={poll.id}
+              comments={notes.map(c => ({ id: c.id, name: names.get(c.author)?.name ?? t.people.unknown, photo: names.get(c.author)?.photo ?? null, when: d.ago(c.createdAt), body: c.body, removable: c.removable }))}
+              canWrite={canComment(member, poll)}
+              t={{ comments: t.comments, errors: t.errors }}
+            />
+          )}
         </div>
 
         <aside className="side">
@@ -183,7 +214,17 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
                   />
                 </div>
               )}
-              <Manage pollId={poll.id} status={poll.status} canEdit={pv.edits} canExport={pv.state === "shown"} canReopen={poll.finalOption === null} t={{ manage: t.manage, final: t.final, errors: t.errors }} />
+              <Manage
+                pollId={poll.id}
+                status={poll.status}
+                anonymous={poll.anonymous}
+                canEdit={pv.edits}
+                canExport={pv.state === "shown"}
+                canReopen={poll.finalOption === null && !poll.anonymous && poll.seriesId === null}
+                canNudge={poll.status === "open" && pv.answers < total}
+                series={series ? { stopped: series.stopped } : null}
+                t={{ manage: t.manage, final: t.final, errors: t.errors }}
+              />
             </section>
           )}
         </aside>

@@ -50,3 +50,6 @@ export const Eye = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 
 export const Chat = () => <Icon><path d="M4.5 5.5h15v10h-9l-4.5 3.5v-3.5H4.5z" /></Icon>;
 export const Stamp = () => <Icon><path d="M8 3.5h10.5V16M5.5 6.5h10v14h-10z" /><path d="M8.5 11h4M8.5 14.5h4" /></Icon>;
 export const Calendar = () => <Icon><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3v4M16 3v4M9 14.5l2 2 4-4" /></Icon>;
+export const Heading = () => <Icon><path d="M6 5v14M16 5v14M6 12h10M19 19h2" /></Icon>;
+export const Pin = () => <Icon><path d="M9 4h6l-1 5 3 3H7l3-3-1-5zM12 12v8" /></Icon>;
+export const Seal = () => <Icon><path d="M12 3l2.2 1.6 2.7-.2.9 2.6 2.2 1.6-.8 2.6.8 2.6-2.2 1.6-.9 2.6-2.7-.2L12 21l-2.2-1.6-2.7.2-.9-2.6L4 15.4l.8-2.6L4 10.2l2.2-1.6.9-2.6 2.7.2z" /><path d="M9 12l2 2 4-4" /></Icon>;

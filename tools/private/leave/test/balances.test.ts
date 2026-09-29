@@ -98,12 +98,12 @@ test("RTT for everyone at once", async () => {
 test("importing opening balances: names matched whatever their accents, case or order; problems said, nothing guessed", async () => {
   const people = everyone.map(p => ({ id: p.id, name: p.name, firstName: p.firstName, lastName: p.lastName }));
   const all = await types(database.sql);
-  const names = all.map(t => ({ typeId: t.id, names: [t.name ?? "", ...(t.key ? [en.types[t.key], fr.types[t.key], t.key] : [])] }));
-  const csv = "﻿Nom;Congés payés;RTT;Ancienneté\r\nines moreau;12,5;3;2\r\nDUBOIS Léa;20;;\r\nJean Inconnu;5;1;\r\nTom Walker;abc;2;\r\n";
+  const names = all.filter(t => t.balance).map(t => ({ typeId: t.id, key: t.key, split: t.period === "acquired", names: [t.name ?? "", ...(t.key ? [en.types[t.key], fr.types[t.key], t.key] : [])] }));
+  const csv = "\uFEFFNom;Congés payés;RTT;Ancienneté\r\nines moreau;12,5;3;2\r\nDUBOIS Léa;20;;\r\nJean Inconnu;5;1;\r\nTom Walker;abc;2;\r\n";
   const plan = planImport(csv, names, people);
-  assert.deepEqual(plan.columns.map(c => c.typeId), [null, paid, rtt, null]);
+  assert.deepEqual(plan.columns.map(c => c.field), ["name", `b:${paid}:total`, `b:${rtt}:total`, "ignore"]);
   assert.deepEqual(plan.rows.map(r => [r.line, r.memberId, r.problem]), [[2, ines.id, null], [3, lea.id, null], [4, null, "unknown"], [5, tom.id, "bad_number"]]);
-  assert.deepEqual(plan.rows[0]!.values, [{ typeId: paid, days: 12.5 }, { typeId: rtt, days: 3 }]);
+  assert.deepEqual(plan.rows[0]!.values, [{ typeId: paid, days: 12.5, earning: null }, { typeId: rtt, days: 3, earning: null }]);
   const twins = [...people, { id: "mbr_twinaaaaaaaaaaaaaaaaaaaaaa", name: "Inès Moreau", firstName: "Inès", lastName: "Moreau" }];
   assert.equal(planImport(csv, names, twins).rows[0]!.problem, "ambiguous");
   assert.throws(() => planImport("just one column\nx", names, people), refused("import_invalid"));

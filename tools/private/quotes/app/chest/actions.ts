@@ -11,11 +11,15 @@ import { db } from "../../lib/db.ts";
 import * as documents from "../../lib/documents.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { isLocale, type Locale } from "../../lib/i18n/index.ts";
+import * as importers from "../../lib/importers.ts";
 import * as items from "../../lib/items.ts";
 import { checkLogo } from "../../lib/logo.ts";
 import * as payments from "../../lib/payments.ts";
 import * as sending from "../../lib/sending.ts";
 import { currentMember } from "../../lib/session.ts";
+import * as numbering from "../../lib/numbering.ts";
+import { settledLate } from "../../lib/reminders.ts";
+import * as repeats from "../../lib/repeats.ts";
 import { readyForBilling, refreshBadges, settled } from "../../lib/tell.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
@@ -101,6 +105,7 @@ export async function finalise(id: string): Promise<Result<{ number: string }>> 
     const today = chest.today();
     const d = await documents.finalise(sql, actor, id, today);
     await settled(d.id);
+    if (d.type === "credit" && d.invoiceId) await settledLate(d.invoiceId);
     try {
       const full = await documents.getDocument(sql, actor, d.id, today);
       await keep(sql, full, await draw(sql, full, today));
@@ -132,7 +137,7 @@ export async function messageFor(id: string, kind: sending.Kind): Promise<Result
     const full = await documents.getDocument(sql, actor, id, today);
     const c = await company.company(sql);
     const upcoming = full.number === null ? await documents.upcomingNumber(sql, full.type, today) : undefined;
-    const message = sending.draftMessage(full, kind, { company: c.tradeName || c.legalName, sender: actor?.name ?? "", iban: c.iban, bic: c.bic, today, ...(upcoming ? { upcoming } : {}) });
+    const message = sending.draftMessage(full, kind, { company: c.tradeName || c.legalName, sender: actor?.name ?? "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "", ...(upcoming ? { upcoming } : {}) });
     return { ...message, ...(upcoming ? { upcoming } : {}) };
   });
 }
@@ -154,6 +159,7 @@ export async function markReminded(id: string): Promise<Result> {
 export async function addPayment(id: string, input: payments.PaymentInput): Promise<Result<{ id: string; due: number }>> {
   return act(async actor => {
     const done = await payments.addPayment(db(), actor, id, input, chest.today());
+    if (done.due <= 0) await settledLate(id);
     await refreshBadges(db(), chest.today());
     return done;
   });
@@ -193,10 +199,39 @@ export async function archiveItem(id: string, archived: boolean): Promise<Result
   return act(async actor => { await items.archiveItem(db(), actor, id, archived); return null; });
 }
 
+// importFile brings the rows of a spreadsheet into the clients or the
+// catalogue; the file is read again on the server.
+export async function importFile(kind: string, text: string, mapping: (string | null)[]): Promise<Result<importers.ImportReport>> {
+  return act(async actor => {
+    const locale = chest.locale();
+    return importers.importTable(db(), actor, kind, text, mapping, { currency: chest.currency(), defaultLanguage: isLocale(locale) ? locale : "en" });
+  });
+}
+
 // --- Settings --------------------------------------------------------------------
 
 export async function updateCompany(input: company.CompanyInput): Promise<Result<{ missing: string[] }>> {
   return act(async actor => ({ missing: company.missing(await company.updateCompany(db(), actor, input)) }));
+}
+
+// Numbering: go on from the previous tool's last number, or number without
+// the year. Both are kept in the numbering's history.
+export async function continueSequence(type: string, next: string): Promise<Result<{ next: string }>> {
+  return act(async actor => ({ next: (await numbering.continueSequence(db(), actor, type, next, chest.today())).next }));
+}
+
+export async function setNumberFormat(format: string): Promise<Result> {
+  return act(async actor => { await numbering.setNumberFormat(db(), actor, format); return null; });
+}
+
+// --- Recurring invoices -------------------------------------------------------------
+
+export async function repeatInvoice(id: string, every: string, startsOn: string | null): Promise<Result<{ nextOn: string }>> {
+  return act(async actor => ({ nextOn: (await repeats.repeatInvoice(db(), actor, id, every, startsOn, chest.today())).nextOn }));
+}
+
+export async function stopRepeat(repeatId: string): Promise<Result> {
+  return act(async actor => { await repeats.stopRepeat(db(), actor, repeatId); return null; });
 }
 
 export async function saveLogo(object: string): Promise<Result> {

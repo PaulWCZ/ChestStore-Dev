@@ -8,7 +8,14 @@ export const limits = {
   note: 1000,
   place: 120,
   reason: 500,
+  // Guests at a meal: 30 people of the Chest and 30 from outside at most.
+  guests: 30,
+  guestName: 120,
   categoryName: 60,
+  // The company's name in a transfer file (SEPA: 70 characters).
+  payer: 70,
+  // The name on a bank account (SEPA: 70 characters).
+  holder: 70,
   account: 20,
   fileName: 200,
   // A receipt: a photo or a PDF of 10 MiB at most.

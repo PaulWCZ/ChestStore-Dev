@@ -21,7 +21,7 @@ import { saveDraft } from "../../actions.ts";
 // and the totals follow each keystroke, computed by the same code as the
 // server's (lib/totals.ts).
 
-type EditLine = { key: string; kind: "line" | "section"; itemId: string | null; description: string; quantity: string; unit: string; unitPrice: string; discount: string; vatRate: number; goods: boolean };
+type EditLine = { key: string; kind: "line" | "section"; itemId: string | null; description: string; quantity: string; unit: string; unitPrice: string; discount: string; vatRate: number; goods: boolean; depositOf?: string | null };
 type Header = { clientId: string | null; title: string; language: Locale; deliveryDate: string; validUntil: string; paymentDays: string; vatTreatment: "standard" | "reverse_charge"; notes: string };
 export type SaveState = "saved" | "pending" | "saving" | "invalid" | "error";
 
@@ -30,7 +30,7 @@ const newKey = () => `l${++counter}`;
 
 function editLine(l: Line, currency: string, locale: Locale): EditLine {
   return {
-    key: newKey(), kind: l.kind, itemId: l.itemId, description: l.description, unit: l.unit, vatRate: l.vatRate, goods: l.goods,
+    key: newKey(), kind: l.kind, itemId: l.itemId, description: l.description, unit: l.unit, vatRate: l.vatRate, goods: l.goods, depositOf: l.depositOf ?? null,
     quantity: l.kind === "line" ? formatQuantity(l.quantity, locale, false) : "",
     unitPrice: l.kind === "line" ? inputAmount(l.unitPrice, currency, locale) : "",
     discount: l.discount > 0 ? inputPercent(l.discount, locale) : "",
@@ -111,7 +111,7 @@ export function Paper(props: PaperProps) {
       title: h.title, language: h.language, notes: h.notes, deliveryDate: h.deliveryDate || null,
       ...(doc.type === "quote" && h.validUntil ? { validUntil: h.validUntil } : {}),
       ...(doc.type === "invoice" ? { paymentDays: Number(h.paymentDays) } : {}),
-      lines: ls.map((l, i) => ({ kind: l.kind, itemId: l.itemId, description: l.description, unit: l.unit, vatRate: l.vatRate, goods: l.goods, quantity: values[i]!.quantity ?? 0, unitPrice: values[i]!.unitPrice ?? 0, discount: values[i]!.discount ?? 0 })),
+      lines: ls.map((l, i) => ({ kind: l.kind, itemId: l.itemId, description: l.description, unit: l.unit, vatRate: l.vatRate, goods: l.goods, quantity: values[i]!.quantity ?? 0, unitPrice: values[i]!.unitPrice ?? 0, discount: values[i]!.discount ?? 0, depositOf: l.depositOf ?? null })),
     });
     if (!result.ok) {
       dirty.current = true;
@@ -236,7 +236,7 @@ export function Paper(props: PaperProps) {
         <div className="menu-list">
           <button type="button" disabled={i === 0} onClick={ev => { move(l.key, -1); (ev.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}><Up />{e.moveUp}</button>
           <button type="button" disabled={i === lines.length - 1} onClick={ev => { move(l.key, 1); (ev.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}><Down />{e.moveDown}</button>
-          {l.kind === "line" && <button type="button" onClick={ev => { setLines(ls => [...ls.slice(0, i + 1), { ...l, key: newKey() }, ...ls.slice(i + 1)]); changed(); (ev.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}><Copy />{e.duplicateLine}</button>}
+          {l.kind === "line" && <button type="button" onClick={ev => { setLines(ls => [...ls.slice(0, i + 1), { ...l, key: newKey(), depositOf: null }, ...ls.slice(i + 1)]); changed(); (ev.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}><Copy />{e.duplicateLine}</button>}
           <button type="button" onClick={() => remove(l.key)}><Trash />{e.removeLine}</button>
         </div>
       </details>
@@ -429,7 +429,7 @@ export function Paper(props: PaperProps) {
       </footer>
 
       {picking === "client" && (
-        <ClientPicker t={t} clients={clients.filter(c => !c.archived)} canAdd={props.canAddClient} onClose={() => setPicking(null)}
+        <ClientPicker t={t} clients={clients.filter(c => !c.archived)} canAdd={props.canAddClient} language={header.language} onClose={() => setPicking(null)}
           onPick={picked => {
             setClients(list => (list.some(c => c.id === picked.id) ? list : [...list, picked]));
             setH({ clientId: picked.id, language: picked.language, vatTreatment: picked.reverseCharge ? "reverse_charge" : "standard" });

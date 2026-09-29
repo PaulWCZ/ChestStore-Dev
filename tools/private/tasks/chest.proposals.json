@@ -1,4 +1,7 @@
 {
+  "mail": {
+    "send": true
+  },
   "schedules": [
     {
       "name": "morning",

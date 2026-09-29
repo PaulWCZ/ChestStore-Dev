@@ -8,6 +8,8 @@ import type { Query, Sql } from "./db.ts";
 import { format } from "./i18n/index.ts";
 import { cut, notify, withdraw } from "./notify.ts";
 import { dueUntold, markTold } from "./reviews.ts";
+import { membersOfTool } from "./groups.ts";
+import { concerns, type ReadAsk } from "./reads.ts";
 import { audienceOf } from "./spaces.ts";
 import { watchers } from "./watching.ts";
 
@@ -18,7 +20,9 @@ import { watchers } from "./watching.ts";
 // - comments:<page> — a new comment, to the page's author, those who
 //   commented before and its watchers;
 // - saved:<page> — someone else saved the page, to its watchers;
-// - review:<page> — the page is due for a check, to its review owner.
+// - review:<page> — the page is due for a check, to its review owner;
+// - read:<page> — the page's editors ask its readers to confirm they read
+//   it, to each of them until they do.
 //
 // Nobody is ever told about a page they cannot read (checked at the moment
 // of telling, against the space's access and the member's current role and
@@ -61,14 +65,34 @@ export async function reviewSettled(pageId: string): Promise<void> {
   await withdraw(`review:${pageId}`);
 }
 
-const keysOf = (pageId: string) => [`comments:${pageId}`, `saved:${pageId}`, `review:${pageId}`];
+const keysOf = (pageId: string) => [`comments:${pageId}`, `saved:${pageId}`, `review:${pageId}`, `read:${pageId}`];
+
+// The members asked to confirm they read a page: those who read its space
+// now (and are in its groups, when the editors chose some). Without an
+// answer from the Chest, nobody.
+export async function askedToRead(space: SpaceAudience, ask: ReadAsk, all?: Member[]): Promise<Member[]> {
+  return (all ?? await membersOfTool()).filter(m => spaceAccess(m, space) !== "none" && concerns(ask, m));
+}
+
+// A page to read and confirm: each person asked is told (not the one
+// asking); asked again, the item is replaced.
+export async function readAsked(actor: Member, page: { id: string; title: string; space: SpaceAudience }, ask: ReadAsk): Promise<number> {
+  const told = (await askedToRead(page.space, ask)).map(m => m.id).filter(id => id !== actor.id);
+  await notify(told, t => ({ title: format(t.bell.read, { name: actor.name, title: cut(page.title, 44) }), body: t.bell.readBody }), { path: pagePath(page.id), key: `read:${page.id}` });
+  return told.length;
+}
+
+// Confirmed, or no longer asked: the item goes (from one person, or all).
+export async function readSettled(pageId: string, members?: string[]): Promise<void> {
+  await withdraw(`read:${pageId}`, members);
+}
 
 // Pages in the trash: what was said about them goes from every bell (only
 // for the pages someone could have been told about).
 export async function forget(sql: Query, pageIds: string[]): Promise<void> {
   if (pageIds.length === 0) return;
   const told = await sql<{ id: string }[]>`
-    select id from pages p where id in ${sql(pageIds)} and (review_months is not null
+    select id from pages p where id in ${sql(pageIds)} and (review_months is not null or read_asked_at is not null
       or exists (select 1 from page_watchers w where w.page_id = p.id) or exists (select 1 from page_comments c where c.page_id = p.id))
     limit 200`;
   for (const { id } of told) for (const key of keysOf(String(id))) await withdraw(key);
@@ -85,6 +109,18 @@ export async function moved(sql: Query, pageId: string, spaceId: string): Promis
       || array(select member_id from page_watchers w where w.page_id = p.id)
       || array(select distinct author from page_comments c where c.page_id = p.id), null) as people
     from pages p where p.id in (select id from down) limit 500`;
+  // Pages whose readers were asked to confirm: whoever lost them loses the item.
+  const asked = await sql<{ id: string; read_asked_at: Date; read_version: number; read_groups: string[] }[]>`
+    with recursive down (id) as (select ${pageId}::bigint union all select c.id from pages c join down d on c.parent_id = d.id)
+    select id, read_asked_at, read_version, read_groups from pages where id in (select id from down) and read_asked_at is not null limit 500`;
+  if (asked.length > 0) {
+    const all = await membersOfTool();
+    for (const a of asked) {
+      const kept = new Set((await askedToRead(space, { at: a.read_asked_at, by: null, version: a.read_version, groups: a.read_groups }, all)).map(m => m.id));
+      const lost = all.map(m => m.id).filter(id => !kept.has(id));
+      for (let i = 0; i < lost.length; i += 500) await withdraw(`read:${a.id}`, lost.slice(i, i + 500));
+    }
+  }
   const everyone = [...new Set(rows.flatMap(r => r.people))].filter(p => p.startsWith("mbr_"));
   if (everyone.length === 0) return;
   const still = new Set(await audience(space, everyone));

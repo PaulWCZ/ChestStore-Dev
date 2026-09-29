@@ -25,8 +25,8 @@ export async function GET(request: Request): Promise<Response> {
       .map(r => ({ ...r, name: r.memberId === "erased" ? t.people.erased : nameOf(who.get(r.memberId), locale) }))
       .sort((a, b) => a.name.localeCompare(b.name, locale) || a.start.localeCompare(b.start));
     const csv = toCsv([
-      [t.export.person, t.export.type, t.export.firstDay, t.export.firstHalf, t.export.lastDay, t.export.lastHalf, t.export.daysInMonth, t.export.days],
-      ...lines.map(r => [r.name, typeName(typeOf.get(r.typeId), t.types), r.start, r.startHalf === "am" ? t.export.morning : t.export.noon, r.end, r.endHalf === "am" ? t.export.noon : t.export.evening, numberOf(r.daysInMonth), numberOf(r.days)]),
+      [t.export.number, t.export.person, t.export.type, t.export.firstDay, t.export.firstHalf, t.export.lastDay, t.export.lastHalf, t.export.daysInMonth, t.export.days],
+      ...lines.map(r => [r.employeeNumber ?? "", r.name, typeName(typeOf.get(r.typeId), t.types), r.start, r.startHalf === "am" ? t.export.morning : t.export.noon, r.end, r.endHalf === "am" ? t.export.noon : t.export.evening, numberOf(r.daysInMonth), numberOf(r.days)]),
     ], t.export.separator === ";" ? ";" : ",");
     return new Response(csv, {
       headers: {

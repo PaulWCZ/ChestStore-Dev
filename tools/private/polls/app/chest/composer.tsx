@@ -419,7 +419,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
             <p className="hint">{c.resultsHint}</p>
           </fieldset>
         ))}
-        {(value.kind === "survey" && value.repeat) || round ? <p className="hint"><RepeatIcon /> {c.repeatHint}</p> : (
+        {round ? <p className="hint"><RepeatIcon /> {c.repeatHint}</p> : value.kind === "survey" && value.repeat ? null : (
         <fieldset>
           <legend className="label">{c.closes}</legend>
           <label className="radio-line"><input type="radio" name="closes" checked={value.closes === null} onChange={() => set({ closes: null })} />{c.never}</label>

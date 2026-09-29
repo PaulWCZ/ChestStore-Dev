@@ -3,25 +3,27 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { Avatar } from "../../../../../components/avatar.tsx";
-import { Archive, Close, Download, Lock, People, Plus, Restore, Tag, Trash } from "../../../../../components/icons.tsx";
+import { Archive, Close, Download, Fields, Lock, People, Plus, Restore, Tag, Trash } from "../../../../../components/icons.tsx";
 import { useToast } from "../../../../../components/toast.tsx";
-import type { Column, Label } from "../../../../../lib/boards.ts";
-import { format } from "../../../../../lib/i18n/format.ts";
+import type { Column, Field, Label } from "../../../../../lib/boards.ts";
+import { format, plural } from "../../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import type { Color } from "../../../../../lib/model.ts";
-import { addLabel, archiveBoard, archiveCard, archiveColumn, deleteBoard, deleteCard, removeLabel, setBoardPeople, updateBoard, updateLabel } from "../../../actions.ts";
+import { addField, addLabel, archiveBoard, archiveCard, archiveColumn, deleteBoard, deleteCard, removeField, removeLabel, setBoardPeople, updateBoard, updateField, updateLabel } from "../../../actions.ts";
 
-type Words = { settings: Catalogue["settings"]; colors: Catalogue["colors"]; errors: Catalogue["errors"]; card: Catalogue["card"] };
+type Words = { settings: Catalogue["settings"]; colors: Catalogue["colors"]; errors: Catalogue["errors"]; card: Catalogue["card"]; fields: Catalogue["fields"] };
 type Person = { id: string; name: string; photo: string | null };
 const palette: Color[] = ["sun", "tomato", "berry", "grape", "sky", "sea", "leaf", "sand", "slate"];
 
-export function Settings({ board, members, everyone, groups, labels, archivedColumns, archivedCards, t }: {
-  board: { id: string; name: string; color: Color; visibility: "team" | "private"; archived: boolean; own: boolean; groups: string[] };
+export function Settings({ board, members, everyone, groups, labels, fields, archivedColumns, archivedCards, locale, t }: {
+  board: { id: string; name: string; color: Color; visibility: "team" | "private"; archived: boolean; own: boolean; writable: boolean; groups: string[] };
   members: (Person & { owner: boolean })[];
   everyone: Person[];
   groups: { id: string; name: string }[];
   labels: Label[];
-  archivedColumns: Column[];
+  fields: Field[];
+  archivedColumns: (Column & { cards: number })[];
+  locale: string;
   archivedCards: { id: string; title: string }[];
   t: Words;
 }) {
@@ -40,7 +42,7 @@ export function Settings({ board, members, everyone, groups, labels, archivedCol
   const s = t.settings;
   const [people, setPeople] = useState(members);
   const [chosenGroups, setGroups] = useState(board.groups);
-  const [adding, setAdding] = useState("");
+  const [visibility, setVisibility] = useState(board.visibility);
   const savePeople = (next: typeof people, nextGroups = chosenGroups) => {
     setPeople(next);
     setGroups(nextGroups);
@@ -76,12 +78,12 @@ export function Settings({ board, members, everyone, groups, labels, archivedCol
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }} disabled={readOnly}>
           <legend className="visually-hidden">{s.who}</legend>
           <div className="choices">
-            <label className="choice"><input type="radio" name="visibility" value="team" defaultChecked={board.visibility === "team"} onChange={() => run(() => updateBoard(board.id, { visibility: "team" }), s.saved)} />{s.team}</label>
-            <label className="choice"><input type="radio" name="visibility" value="private" defaultChecked={board.visibility === "private"} onChange={() => run(() => updateBoard(board.id, { visibility: "private" }), s.saved)} /><span><Lock /> {s.private}</span></label>
+            <label className="choice"><input type="radio" name="visibility" value="team" checked={visibility === "team"} onChange={() => { setVisibility("team"); run(() => updateBoard(board.id, { visibility: "team" }), s.saved); }} />{s.team}</label>
+            <label className="choice"><input type="radio" name="visibility" value="private" checked={visibility === "private"} onChange={() => { setVisibility("private"); run(() => updateBoard(board.id, { visibility: "private" }), s.saved); }} /><span><Lock /> {s.private}</span></label>
           </div>
         </fieldset>
-        <h3>{s.people}</h3>
-        <p className="hint">{s.owners}</p>
+        <h3>{visibility === "private" ? s.people : s.ownersTitle}</h3>
+        <p className="hint">{visibility === "private" ? s.owners : s.ownersTeam}</p>
         <ul className="list-rows">
           {people.map(p => (
             <li key={p.id}>
@@ -97,18 +99,18 @@ export function Settings({ board, members, everyone, groups, labels, archivedCol
             </li>
           ))}
         </ul>
-        {!readOnly && everyone.length > 0 && (
-          <form className="row" onSubmit={e => { e.preventDefault(); const p = everyone.find(x => x.id === adding); if (p) savePeople([...people, { ...p, owner: false }]); setAdding(""); }}>
-            <label className="visually-hidden" htmlFor="add-person">{s.addPerson}</label>
-            <select id="add-person" className="select" style={{ flex: 1 }} value={adding} onChange={e => setAdding(e.target.value)}>
-              <option value="">{s.addPerson}</option>
+        {!readOnly && everyone.some(p => !people.some(x => x.id === p.id)) && (
+          <div className="row">
+            <label className="visually-hidden" htmlFor="add-person">{visibility === "private" ? s.addPerson : s.addOwner}</label>
+            {/* Chosen, added: one step. In a team board, whom one adds owns it. */}
+            <select id="add-person" className="select" style={{ flex: 1 }} value="" onChange={e => { const p = everyone.find(x => x.id === e.target.value); if (p) savePeople([...people, { ...p, owner: visibility === "team" }]); }}>
+              <option value="">{visibility === "private" ? s.addPerson : s.addOwner}</option>
               {everyone.filter(p => !people.some(x => x.id === p.id)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <button type="submit" className="button small quiet" disabled={!adding}><Plus />{s.addPerson}</button>
-          </form>
+          </div>
         )}
-        <h3>{s.groups}</h3>
-        {groups.length === 0 ? <p className="hint">{s.noGroups}</p> : (
+        {visibility === "private" && <h3>{s.groups}</h3>}
+        {visibility !== "private" ? null : groups.length === 0 ? <p className="hint">{s.noGroups}</p> : (
           <div className="row">
             {groups.map(g => (
               <label key={g.id} className="choice" style={{ padding: "var(--space-2) var(--space-3)" }}>
@@ -151,13 +153,21 @@ export function Settings({ board, members, everyone, groups, labels, archivedCol
         )}
       </Box>
 
+      <Box title={t.fields.title} icon={<Fields />}>
+        <p className="hint">{t.fields.hint}</p>
+        <ul className="list-rows">
+          {fields.map(f => <FieldRow key={f.id} field={f} writable={board.writable} t={t} run={run} />)}
+        </ul>
+        {board.writable && <NewField boardId={board.id} t={t} run={run} />}
+      </Box>
+
       {(archivedColumns.length > 0 || archivedCards.length > 0 || !readOnly) && (
         <Box title={s.archivedCards} icon={<Archive />}>
           {archivedColumns.length > 0 && (
             <>
               <h3>{s.archivedColumns}</h3>
               <ul className="list-rows">
-                {archivedColumns.map(c => <li key={c.id}><span style={{ flex: 1 }}>{c.name}</span>{!readOnly && <button type="button" className="button small quiet" onClick={() => run(() => archiveColumn(c.id, false))}><Restore />{s.restore}</button>}</li>)}
+                {archivedColumns.map(c => <li key={c.id}><span style={{ flex: 1 }}>{c.name} <span className="muted small">{plural(s.columnCards, c.cards, locale)}</span></span>{board.writable && <button type="button" className="button small quiet" onClick={() => run(() => archiveColumn(c.id, false))}><Restore />{s.restore}</button>}</li>)}
               </ul>
             </>
           )}
@@ -204,6 +214,57 @@ export function Settings({ board, members, everyone, groups, labels, archivedCol
         </Box>
       )}
     </div>
+  );
+}
+
+type Run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, done?: string, after?: () => void) => void;
+
+// A field of the board: its name, and for a choice its options (one per
+// line). Removing it removes its values from the cards.
+function FieldRow({ field, writable, t, run }: { field: Field; writable: boolean; t: Words; run: Run }) {
+  return (
+    <li>
+      <form className="stack" style={{ flex: 1 }} onSubmit={e => { e.preventDefault(); const d = new FormData(e.currentTarget); run(() => updateField(field.id, { name: String(d.get("name") ?? ""), ...(field.kind === "choice" ? { options: String(d.get("options") ?? "").split("\n") } : {}) }), t.settings.saved); }}>
+        <div className="row">
+          <label className="visually-hidden" htmlFor={`field-name-${field.id}`}>{t.fields.name}</label>
+          <input id={`field-name-${field.id}`} name="name" className="field" style={{ flex: 1, minWidth: 140 }} defaultValue={field.name} maxLength={40} disabled={!writable} />
+          <span className="chip">{t.fields.kinds[field.kind]}</span>
+          {writable && <button type="submit" className="button small quiet">{t.settings.save}</button>}
+          {writable && <button type="button" className="icon-button" onClick={() => run(() => removeField(field.id))}><Trash /><span className="visually-hidden">{format(t.fields.remove, { name: field.name })}</span></button>}
+        </div>
+        {field.kind === "choice" && (
+          <div>
+            <label className="label" htmlFor={`field-options-${field.id}`}>{t.fields.options}</label>
+            <textarea id={`field-options-${field.id}`} name="options" className="field" rows={Math.min(8, field.options.length + 1)} defaultValue={field.options.join("\n")} disabled={!writable} />
+          </div>
+        )}
+      </form>
+    </li>
+  );
+}
+
+function NewField({ boardId, t, run }: { boardId: string; t: Words; run: Run }) {
+  const [kind, setKind] = useState<Field["kind"]>("text");
+  return (
+    <form className="stack new-field" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const d = new FormData(form); run(() => addField(boardId, { name: String(d.get("name") ?? ""), kind, ...(kind === "choice" ? { options: String(d.get("options") ?? "").split("\n") } : {}) }), undefined, () => { form.reset(); setKind("text"); }); }}>
+      <div className="row">
+        <label className="visually-hidden" htmlFor="new-field-name">{t.fields.name}</label>
+        <input id="new-field-name" name="name" className="field" style={{ flex: 1, minWidth: 140 }} maxLength={40} placeholder={t.fields.namePlaceholder} />
+        <label className="visually-hidden" htmlFor="new-field-kind">{t.fields.kind}</label>
+        <select id="new-field-kind" className="select" style={{ width: "auto" }} value={kind} onChange={e => setKind(e.target.value as Field["kind"])}>
+          <option value="text">{t.fields.kinds.text}</option>
+          <option value="number">{t.fields.kinds.number}</option>
+          <option value="choice">{t.fields.kinds.choice}</option>
+        </select>
+        <button type="submit" className="button small quiet"><Plus />{t.fields.add}</button>
+      </div>
+      {kind === "choice" && (
+        <div>
+          <label className="label" htmlFor="new-field-options">{t.fields.options}</label>
+          <textarea id="new-field-options" name="options" className="field" rows={3} placeholder={t.fields.optionsPlaceholder} />
+        </div>
+      )}
+    </form>
   );
 }
 

@@ -41,3 +41,6 @@ export const Card = () => <Icon><rect x="3" y="5" width="18" height="14" rx="1.5
 export const Shield = () => <Icon><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8.2-7.5 9.5-4.3-1.3-7.5-5-7.5-9.5V6z" /></Icon>;
 export const Spark = () => <Icon><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18" /></Icon>;
 export const Undo = () => <Icon><path d="M9 7L4.5 11.5 9 16M5 11.5h9.5a5 5 0 010 10H12" /></Icon>;
+export const Merge = () => <Icon><path d="M6 3.5v4a5 5 0 005 5h1a5 5 0 015 5v3" /><path d="M18 3.5v4a5 5 0 01-2.5 4.3" /><path d="M14 18l3 3 3-3" /></Icon>;
+export const Chart = () => <Icon><path d="M4 20V4M4 20h16" /><rect x="7" y="11" width="3" height="6" /><rect x="12" y="7" width="3" height="10" /><rect x="17" y="13" width="3" height="4" /></Icon>;
+export const Paperclip = () => <Icon><path d="M20 11.5l-8.2 8.2a5 5 0 01-7.1-7.1l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.3 8.3a1.7 1.7 0 01-2.4-2.4l7.6-7.6" /></Icon>;

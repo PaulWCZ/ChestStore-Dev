@@ -192,14 +192,16 @@ function counted(day: Day, rules: Rules): boolean {
 
 // cost is what a span takes, in the rules' days (a multiple of ½). tail:
 // false leaves out the days after the end (a span cut at a month's end,
-// whose rest counts them).
-export function cost(span: Span, rules: Rules, options: { tail?: boolean } = {}): number {
+// whose rest counts them); head: false counts from the span's first day
+// even if the person does not work it (the rest of a span cut at a
+// month's start: the leave had begun).
+export function cost(span: Span, rules: Rules, options: { tail?: boolean; head?: boolean } = {}): number {
   if (!spanValid(span)) return 0;
   const legal = rules.counting === "ouvres" || rules.counting === "ouvrables";
   const last = daysBetween(span.start, span.end);
   let first = 0;
   // Paid leave starts on the first day the person would have worked.
-  if (legal) {
+  if (legal && options.head !== false) {
     while (first <= last && !works(addDays(span.start, first), rules)) first++;
     if (first > last) return 0;
   }

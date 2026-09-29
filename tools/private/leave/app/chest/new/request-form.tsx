@@ -4,13 +4,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Back } from "../../../components/icons.tsx";
-import { addDays, cost, daysOffFor, isDay, weekday, type Half, type Span } from "../../../lib/calendar.ts";
+import { addDays, cost, daysOffFor, isDay, weekday, works, type Counting, type Half, type Span } from "../../../lib/calendar.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay, formatDays, plural } from "../../../lib/i18n/format.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
+import { leftIfApproved } from "../../../lib/left.ts";
 import { askLeave } from "../actions.ts";
 
-export type FormType = { id: string; name: string; color: string; halfDays: boolean; calendar: boolean; approval: boolean; notes: boolean; left: number | null };
+export type FormType = {
+  id: string; key: string | null; name: string; color: string; halfDays: boolean; counting: "company" | "worked" | "calendar"; approval: boolean; notes: boolean; overdraw: boolean;
+  // The balance: the one "left", the days waiting, and both in words.
+  left: { left: number; pending: number; line: string } | null;
+};
 type Words = { form: Catalogue["form"]; units: Catalogue["units"]; holidays: Catalogue["holidays"]; errors: Catalogue["errors"]; span: Catalogue["span"] };
 
 type OneDay = "whole" | "morning" | "afternoon";
@@ -18,15 +23,21 @@ type OneDay = "whole" | "morning" | "afternoon";
 export function RequestForm(props: {
   types: FormType[];
   rules: { counting: "ouvres" | "ouvrables"; alsace: boolean; workedHolidays: string[] };
+  workDays: number[] | null;
   first: string;
   earliest: string;
   latest: string;
   locale: string;
   answerer: string;
+  people: { id: string; name: string }[] | null;
+  who: string;
+  whoName: string | null;
+  events: { key: string; days: number; name: string }[];
   t: Words;
 }) {
   const { types, rules, locale, t } = props;
   const router = useRouter();
+  const forSomeone = props.whoName !== null;
   const [typeId, setTypeId] = useState(types[0]?.id ?? "");
   const [start, setStart] = useState(props.first);
   const [end, setEnd] = useState(props.first);
@@ -34,6 +45,7 @@ export function RequestForm(props: {
   const [startHalf, setStartHalf] = useState<Half>("am");
   const [endHalf, setEndHalf] = useState<Half>("pm");
   const [note, setNote] = useState("");
+  const [event, setEvent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const type = types.find(ty => ty.id === typeId) ?? types[0];
@@ -46,34 +58,48 @@ export function RequestForm(props: {
     return { start, startHalf, end, endHalf };
   }, [start, end, single, oneDay, startHalf, endHalf, type?.halfDays]);
 
+  const counting: Counting = type?.counting === "calendar" ? "calendar" : type?.counting === "worked" ? "worked" : rules.counting;
   const valid = span !== null && span.end >= span.start && !(span.start === span.end && span.startHalf === "pm" && span.endHalf === "am");
-  const days = valid && type ? cost(span, { counting: type.calendar ? "calendar" : rules.counting, daysOff: daysOffFor(rules, span.start, addDays(span.end, 14)) }) : 0;
-  const holidaysIn = valid && type && !type.calendar ? [...daysOffFor(rules, span.start, span.end)].filter(([d]) => weekday(d) !== 0 && (weekday(d) !== 6 || rules.counting === "ouvrables")) : [];
-  const after = type?.left !== null && type?.left !== undefined ? type.left - days : null;
+  const days = valid && type ? cost(span, { counting, daysOff: daysOffFor(rules, span.start, addDays(span.end, 14)), workDays: props.workDays }) : 0;
+  const holidaysIn = valid && type && counting !== "calendar" ? [...daysOffFor(rules, span.start, span.end)].filter(([d]) => works(d, { daysOff: new Set(), workDays: props.workDays }) || (weekday(d) === 6 && counting === "ouvrables")) : [];
+  // What is left after, counting the other requests still waiting.
+  const after = type?.left ? leftIfApproved(type.left) - days : null;
+  const blocked = after !== null && after < 0 && days > 0 && !type!.overdraw;
+  const legal = props.events.find(e => e.key === event);
+  const needsEvent = type?.key === "family";
 
   function changeStart(value: string) {
     setStart(value);
     if (isDay(value) && (!isDay(end) || end < value)) setEnd(value);
   }
 
-  function submit(event: React.FormEvent) {
-    event.preventDefault();
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
     if (!span || !type) return;
     setError(null);
     startTransition(async () => {
-      const result = await askLeave({ typeId: type.id, ...span, note: type.notes ? note : "" });
+      const result = await askLeave({ typeId: type.id, ...span, note: type.notes ? note : "", ...(forSomeone ? { memberId: props.who } : {}), ...(needsEvent ? { event } : {}) });
       if (!result.ok) {
         setError(format(t.errors[result.error as ErrorCode], result.values));
         return;
       }
-      router.push(result.value.status === "approved" ? "/chest?done=declared" : "/chest?done=sent");
+      router.push(forSomeone ? `/chest/people/${props.who}?done=recorded` : result.value.status === "approved" ? "/chest?done=declared" : "/chest?done=sent");
     });
   }
 
   return (
     <form className="ask" onSubmit={submit}>
-      <Link className="back" href="/chest"><Back />{t.form.back}</Link>
-      <h1>{t.form.title}</h1>
+      <Link className="back" href={forSomeone ? `/chest/people/${props.who}` : "/chest"}><Back />{t.form.back}</Link>
+      <h1>{forSomeone ? format(t.form.titleFor, { name: props.whoName! }) : t.form.title}</h1>
+      {props.people && (
+        <div className="field-group for-whom">
+          <label className="field-label" htmlFor="for">{t.form.forWhom}</label>
+          <select id="for" className="field" value={props.who} onChange={e => router.push(e.target.value === props.people![0]!.id ? "/chest/new" : `/chest/new?for=${e.target.value}`)}>
+            {props.people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          {forSomeone && <p className="muted small">{t.form.recordHint}</p>}
+        </div>
+      )}
 
       <fieldset className="kinds">
         <legend>{t.form.type}</legend>
@@ -81,10 +107,21 @@ export function RequestForm(props: {
           <label key={ty.id} className={`kind-option k-${ty.color}${ty.id === typeId ? " chosen" : ""}`}>
             <input type="radio" name="type" value={ty.id} checked={ty.id === typeId} onChange={() => setTypeId(ty.id)} />
             <span className="kind-name">{ty.name}</span>
-            {ty.left !== null && <span className="kind-left">{format(t.form.left, { days: formatDays(ty.left, locale) })}</span>}
+            {ty.left !== null && <span className="kind-left">{ty.left.line}</span>}
           </label>
         ))}
       </fieldset>
+
+      {needsEvent && (
+        <div className="field-group">
+          <label className="field-label" htmlFor="event">{t.form.event}</label>
+          <select id="event" className="field" required value={event} onChange={e => setEvent(e.target.value)}>
+            <option value="" disabled>{t.form.eventPick}</option>
+            {props.events.map(ev => <option key={ev.key} value={ev.key}>{ev.name}</option>)}
+          </select>
+          {legal && <p className="muted small">{plural(t.form.eventDays, legal.days, locale)}</p>}
+        </div>
+      )}
 
       <div className="dates">
         <div className="date-field">
@@ -119,19 +156,21 @@ export function RequestForm(props: {
       <div className="quote" aria-live="polite">
         <span className="quote-label">{t.form.costs}</span>
         <strong className="quote-days">{valid ? plural(t.units.days, days, locale) : "–"}</strong>
-        {after !== null && valid && days > 0 && <span className="quote-after">{format(t.form.after, { left: formatDays(after, locale) })}</span>}
-        {after !== null && after < 0 && days > 0 && <p className="quote-warn">{format(t.form.below, { days: formatDays(-after, locale) })}</p>}
+        {after !== null && valid && days > 0 && <span className="quote-after">{format(type!.left!.pending > 0 ? t.form.afterWaiting : t.form.after, { left: formatDays(after, locale) })}</span>}
+        {after !== null && after < 0 && days > 0 && <p className="quote-warn">{format(blocked ? t.form.notEnough : t.form.below, { days: formatDays(-after, locale) })}</p>}
+        {legal && valid && legal.days < days && <p className="quote-warn">{plural(t.form.eventMore, legal.days, locale)}</p>}
         {valid && days === 0 && <p className="quote-warn">{t.errors.no_days}</p>}
         {!valid && <p className="quote-warn">{t.errors.bad_dates}</p>}
         {holidaysIn.map(([d, key]) => (
           <p key={d} className="quote-hint">{format(t.form.holidayIncluded, { day: formatDay(d, locale), name: t.holidays[key] })}</p>
         ))}
-        {type?.calendar ? <p className="quote-hint">{t.form.calendarDays}</p> : rules.counting === "ouvrables" ? <p className="quote-hint">{t.form.saturdays}</p> : null}
+        {counting === "calendar" ? <p className="quote-hint">{t.form.calendarDays}</p> : counting === "worked" ? <p className="quote-hint">{t.form.workedDays}</p> : rules.counting === "ouvrables" ? <p className="quote-hint">{t.form.saturdays}</p> : null}
+        {props.workDays && counting !== "calendar" && counting !== "worked" && <p className="quote-hint">{t.form.partTime}</p>}
       </div>
 
       {type?.notes ? (
         <div className="note-field">
-          <label htmlFor="note">{t.form.note} <span className="muted">({t.form.optional})</span></label>
+          <label htmlFor="note">{forSomeone ? t.form.noteRecorded : t.form.note} <span className="muted">({t.form.optional})</span></label>
           <textarea id="note" className="field" rows={2} maxLength={300} placeholder={t.form.notePlaceholder} value={note} onChange={e => setNote(e.target.value)} />
         </div>
       ) : (
@@ -140,8 +179,10 @@ export function RequestForm(props: {
 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="send">
-        <button type="submit" className="button big" disabled={pending || !valid || days <= 0}>{pending ? t.form.sending : type?.approval ? t.form.send : t.form.record}</button>
-        <span className="muted">{type?.approval ? props.answerer : t.form.declaredHint}</span>
+        <button type="submit" className="button big" disabled={pending || !valid || days <= 0 || blocked || (needsEvent && !event)}>
+          {pending ? t.form.sending : forSomeone || !type?.approval ? t.form.record : t.form.send}
+        </button>
+        <span className="muted">{forSomeone ? t.form.recordedHint : type?.approval ? props.answerer : t.form.declaredHint}</span>
       </div>
     </form>
   );

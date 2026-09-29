@@ -6,6 +6,10 @@
     {
       "name": "badges",
       "cron": "50 6 * * *"
+    },
+    {
+      "name": "followup",
+      "cron": "10 7 * * *"
     }
   ],
   "receives": [

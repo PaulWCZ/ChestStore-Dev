@@ -58,6 +58,7 @@ test("an erasure keeps the accounting records under 'erased', deletes notes, dra
   const unused = await upload(chest, sql, asMember(hugo));
   await expenses.submit(sql, asMember(hugo), [kept.id], yes);
   await expenses.decide(sql, asMember(camille), [kept.id], "approve");
+  const withHugo = (await expenses.saveExpense(sql, asMember(lea), null, { ...lunch("30"), guestMembers: [hugo.id, camille.id] })).expense;
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: hugo.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
   assert.equal(await chest.emit(event, POST), 204);
@@ -73,6 +74,8 @@ test("an erasure keeps the accounting records under 'erased', deletes notes, dra
       + (select count(*) from approvers where member_id = ${hugo.id} or approver_id = ${hugo.id})::int + (select count(*) from claims where member_id = ${hugo.id})::int
       + (select count(*) from expenses where member_id = ${hugo.id} or decided_by = ${hugo.id} or approver_id = ${hugo.id})::int as n`;
   assert.equal(left[0]!["n"], 0);
+  // As someone else's guest, a former member.
+  assert.deepEqual((await expenses.expense(sql, asMember(lea), withHugo.id)).expense.guests.members, ["erased", camille.id]);
 });
 
 test("an event not signed by the Chest is refused", async () => {

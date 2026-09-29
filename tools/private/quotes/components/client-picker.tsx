@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Catalogue } from "../lib/i18n/index.ts";
+import type { Catalogue, Locale } from "../lib/i18n/index.ts";
 import type { ClientOption } from "../lib/views.ts";
 import { ClientForm, blankClient } from "./client-form.tsx";
 import { Dialog } from "./dialog.tsx";
@@ -9,7 +9,8 @@ import { Plus, Search } from "./icons.tsx";
 
 // Choosing the client of a document: search the list, or add one without
 // leaving the paper.
-export function ClientPicker({ t, clients, canAdd, onPick, onClose }: { t: Catalogue; clients: ClientOption[]; canAdd: boolean; onPick: (c: ClientOption) => void; onClose: () => void }) {
+// A client added here writes in the document's language until changed.
+export function ClientPicker({ t, clients, canAdd, language, onPick, onClose }: { t: Catalogue; clients: ClientOption[]; canAdd: boolean; language: Locale; onPick: (c: ClientOption) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const shown = useMemo(() => {
@@ -20,7 +21,7 @@ export function ClientPicker({ t, clients, canAdd, onPick, onClose }: { t: Catal
   return (
     <Dialog open title={adding ? t.picker.newClient : t.picker.clientTitle} closeLabel={t.shell.close} onClose={onClose}>
       {adding ? (
-        <ClientForm t={t} compact initial={{ ...blankClient("fr"), name: q }} onCancel={() => setAdding(false)} onSaved={c => onPick({ ...c, countryName: c.country })} />
+        <ClientForm t={t} compact initial={{ ...blankClient(language), name: q }} onCancel={() => setAdding(false)} onSaved={c => onPick({ ...c, countryName: c.country })} />
       ) : (
         <div className="picker">
           <div className="search">

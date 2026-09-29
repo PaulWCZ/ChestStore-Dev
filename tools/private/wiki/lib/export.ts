@@ -8,7 +8,7 @@ import { fileOf, type PageFile } from "./files.ts";
 import { toMarkdown } from "./markdown.ts";
 import { page, titles, tree, type TreeNode } from "./pages.ts";
 import { escapeHtml, render } from "./render.ts";
-import { space } from "./spaces.ts";
+import { listSpaces, space } from "./spaces.ts";
 import { writeZip } from "./zip.ts";
 
 // Exports: nothing written in the wiki is locked in. A page as Markdown or
@@ -121,11 +121,25 @@ ${html}
   return { name: fileNameOf(p.title) + ".html", html: document };
 }
 
-// The zip of a branch (a page and its subpages) or of a whole space.
-export async function exportZip(sql: Query, actor: Member | null, what: { pageId?: unknown; spaceId?: unknown }, origin: string, words: Words): Promise<{ name: string; data: Uint8Array<ArrayBuffer> }> {
+// The zip of a branch (a page and its subpages), of a whole space, or of
+// every space the actor sees (a folder each: a backup, or leaving).
+export async function exportZip(sql: Query, actor: Member | null, what: { pageId?: unknown; spaceId?: unknown; all?: string }, origin: string, words: Words): Promise<{ name: string; data: Uint8Array<ArrayBuffer> }> {
   let nodes: TreeNode[];
   let name: string;
-  if (what.pageId !== undefined) {
+  // Every space: each its own top folder.
+  const folders = new Map<string, string>();
+  if (what.all !== undefined) {
+    const seen = new Set<string>();
+    const all = await listSpaces(sql, actor);
+    for (const s of all) {
+      let folder = fileNameOf(s.name);
+      for (let k = 2; seen.has(folder.toLowerCase()); k++) folder = `${fileNameOf(s.name)} (${k})`;
+      seen.add(folder.toLowerCase());
+      folders.set(s.id, folder);
+    }
+    nodes = await tree(sql, actor, all.map(s => s.id));
+    name = fileNameOf(what.all);
+  } else if (what.pageId !== undefined) {
     const p = await page(sql, actor, what.pageId);
     const all = await tree(sql, actor, [p.spaceId]);
     const inside = new Set([p.id]);
@@ -149,7 +163,7 @@ export async function exportZip(sql: Query, actor: Member | null, what: { pageId
   const pathOf = (n: TreeNode): string => {
     const known = paths.get(n.id);
     if (known) return known;
-    const parent = n.parentId && byId.has(n.parentId) ? pathOf(byId.get(n.parentId)!) + "/" : "";
+    const parent = n.parentId && byId.has(n.parentId) ? pathOf(byId.get(n.parentId)!) + "/" : folders.has(n.spaceId) ? folders.get(n.spaceId)! + "/" : "";
     const base = parent + fileNameOf(n.title);
     let candidate = base;
     for (let k = 2; used.has(candidate.toLowerCase()); k++) candidate = `${base} (${k})`;

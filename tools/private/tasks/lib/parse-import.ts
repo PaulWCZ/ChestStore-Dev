@@ -53,7 +53,7 @@ const colorOf = (trello: unknown, index: number): Color => (typeof trello === "s
 type TrelloJson = {
   name?: unknown;
   lists?: { id?: unknown; name?: unknown; closed?: unknown; pos?: unknown }[];
-  cards?: { id?: unknown; name?: unknown; desc?: unknown; idList?: unknown; closed?: unknown; pos?: unknown; due?: unknown; start?: unknown; idLabels?: unknown; idMembers?: unknown; idChecklists?: unknown; attachments?: unknown; badges?: { attachments?: unknown } }[];
+  cards?: { id?: unknown; name?: unknown; desc?: unknown; idList?: unknown; closed?: unknown; pos?: unknown; due?: unknown; start?: unknown; idLabels?: unknown; idMembers?: unknown; idChecklists?: unknown; attachments?: { name?: unknown; url?: unknown; isUpload?: unknown }[]; badges?: { attachments?: unknown } }[];
   labels?: { id?: unknown; name?: unknown; color?: unknown }[];
   checklists?: { id?: unknown; idCard?: unknown; name?: unknown; checkItems?: { name?: unknown; state?: unknown; pos?: unknown }[] }[];
   members?: { id?: unknown; fullName?: unknown }[];
@@ -62,6 +62,16 @@ type TrelloJson = {
 
 const array = <T>(value: unknown): T[] => (Array.isArray(value) ? value as T[] : []);
 const num = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+
+// A Trello "attachment" that is a link (its name is its address, or it was
+// not uploaded) is a link, not a file: it comes into the description, as
+// WeKan's importer does. Uploaded files stay in Trello (counted).
+const isLink = (a: { name?: unknown; url?: unknown; isUpload?: unknown }): boolean => typeof a.url === "string" && /^https?:\/\//u.test(a.url) && (a.isUpload === false || a.name === a.url);
+function withLinks(desc: unknown, attachments: { name?: unknown; url?: unknown; isUpload?: unknown }[]): string {
+  const links = attachments.filter(isLink).map(a => (typeof a.name === "string" && a.name !== a.url ? `- [${oneLine(a.name, 100).replace(/[[\]]/gu, "")}](${String(a.url)})` : `- ${String(a.url)}`));
+  const text = typeof desc === "string" ? desc.trim() : "";
+  return links.length === 0 ? text : [text, links.join("\n")].filter(Boolean).join("\n\n");
+}
 
 export function fromTrello(text: string): ImportedBoard {
   let data: TrelloJson;
@@ -86,7 +96,7 @@ export function fromTrello(text: string): ImportedBoard {
       done: false,
       cards: cards.filter(c => c.idList === list.id).slice(0, limits.cardsPerBoard).map(c => ({
         title: oneLine(c.name, limits.title) || "—",
-        description: cut(c.desc, limits.description),
+        description: cut(withLinks(c.desc, array<{ name?: unknown; url?: unknown; isUpload?: unknown }>(c.attachments)), limits.description),
         due: dayOf(c.due),
         start: dayOf(c.start),
         labels: array<unknown>(c.idLabels).map(l => labelName.get(String(l))).filter((l): l is string => !!l),
@@ -94,7 +104,7 @@ export function fromTrello(text: string): ImportedBoard {
         checklist: checklists.filter(k => k.idCard === c.id).flatMap(k => array<{ name?: unknown; state?: unknown; pos?: unknown }>(k.checkItems).sort((a, b) => num(a.pos) - num(b.pos))).slice(0, limits.checkItemsPerCard).map(i => ({ text: oneLine(i.name, limits.checkItem) || "—", done: i.state === "complete" })),
         comments: comments.filter(a => a.data?.card?.id === c.id).reverse().map(a => ({ author: oneLine(a.memberCreator?.fullName, 120), text: cut(a.data?.text, limits.comment), at: typeof a.date === "string" ? a.date : null })).filter(x => x.text),
         archived: c.closed === true,
-        files: Math.max(array<unknown>(c.attachments).length, num(c.badges?.attachments)),
+        files: Math.max(array<{ name?: unknown; url?: unknown; isUpload?: unknown }>(c.attachments).filter(a => !isLink(a)).length, num(c.badges?.attachments) - array<{ name?: unknown; url?: unknown; isUpload?: unknown }>(c.attachments).filter(isLink).length),
       })),
     })),
   };

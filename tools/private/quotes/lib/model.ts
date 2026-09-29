@@ -272,3 +272,14 @@ export function oneOf<T extends string>(list: readonly T[], value: unknown): T {
   if (typeof value !== "string" || !(list as readonly string[]).includes(value)) throw new AppError("invalid");
   return value as T;
 }
+
+// A client's code in the company's books (its auxiliary account): 1 to 20
+// letters or digits, as the accountant wrote it ("DUPAIN", "C00042").
+export function accountCode(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value !== "string") throw new AppError("account_invalid");
+  const text = value.trim().toUpperCase().replace(/[\s.-]/gu, "");
+  if (text === "") return "";
+  if (!/^[0-9A-Z]{1,20}$/u.test(text)) throw new AppError("account_invalid");
+  return text;
+}

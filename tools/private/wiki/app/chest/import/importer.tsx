@@ -64,14 +64,21 @@ export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: st
   }
   return (
     <form className="stack importer" onSubmit={e => { e.preventDefault(); void submit(); }}>
-      <p className="hint">{t.importer.how}</p>
+      <div className="hint">
+        <p>{t.importer.how}</p>
+        <ul>
+          <li>{t.importer.howConfluence}</li>
+          <li>{t.importer.howNotion}</li>
+          <li>{t.importer.howGoogle}</li>
+        </ul>
+      </div>
       <div>
         <span className="label">{t.importer.files}</span>
         <label className="dropzone">
           <Upload />
           <span>{files.length > 0 ? plural(t.importer.chosen, files.length, locale) : t.importer.choose}</span>
           {files.length > 0 && <span className="muted small">{files.map(f => f.name).slice(0, 3).join(", ")}{files.length > 3 ? "…" : ""}</span>}
-          <input type="file" multiple accept=".zip,.md,.markdown,.txt" onChange={e => choose(e.target.files)} />
+          <input type="file" multiple accept=".zip,.md,.markdown,.txt,.html,.htm" onChange={e => choose(e.target.files)} />
         </label>
         <p className="muted small">{t.importer.limits}</p>
       </div>

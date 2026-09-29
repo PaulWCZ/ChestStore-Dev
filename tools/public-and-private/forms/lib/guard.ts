@@ -12,8 +12,11 @@ export const guardLimits = { answersPerVisitorHour: 20, answersPerHour: 1000, up
 
 export const formToken = () => visitors.formToken();
 
-export function checkForm(token: unknown): void {
-  const verdict = visitors.checkForm(token, { minimumSeconds: guardLimits.minimumSeconds });
+// checkForm: the answer itself must come from a form the tool showed, and
+// not faster than a person reads; a file sent along only from a form the
+// tool showed (a one-question form is quick to fill).
+export function checkForm(token: unknown, minimumSeconds: number = guardLimits.minimumSeconds): void {
+  const verdict = visitors.checkForm(token, { minimumSeconds });
   if (verdict === "too_fast") throw new AppError("too_fast");
   if (verdict === "invalid") throw new AppError("invalid");
 }

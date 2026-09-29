@@ -71,7 +71,7 @@ export const en = {
     emptyTitle: "No polls yet",
     emptyBody: "When someone asks the team a question, it shows up here.",
     emptyOrganiser: "Ask your first question: it takes a minute.",
-    pulse: { name: "A team pulse", line: "A few anonymous questions every week, and the trend." },
+    pulse: { name: "A team pulse", line: "Anonymous questions every week, and how it evolves." },
     round: "Round {round}",
   },
   repeat: {
@@ -262,6 +262,8 @@ export const en = {
     trendHiddenHint: "“Open”: results when the round closes. “Hidden”: fewer than 5 answers.",
     average5: "Average out of 5",
     answers5: "Answers",
+    seeNumbers: "See the numbers",
+    round: "Round",
   },
   manage: {
     title: "Organise",
@@ -289,7 +291,7 @@ export const en = {
   comments: {
     title: "Comments",
     label: "Your comment",
-    placeholder: "“I can do the 17th, but only after 8 pm”",
+    placeholder: "Add a comment…",
     post: "Post",
     posting: "Posting…",
     none: "No comments yet.",
@@ -325,6 +327,9 @@ export const en = {
     closedBody: "See the results.",
     closedDate: "Pick the date and tell everyone.",
     comment: "{name} commented: {title}",
+    nudge: "Reminder: {title}",
+    nudgeBody: "{name} is waiting for your answer.",
+    nudgeUntil: "{name} is waiting for your answer. It closes {date}.",
   },
   mail: {
     subject: "Reminder: {title}",

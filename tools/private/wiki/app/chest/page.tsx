@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { Book, Plus, Search, Upload } from "../../components/icons.tsx";
+import { Book, Download, Pen, Pin, Plus, Search, Upload } from "../../components/icons.tsx";
+import { NewPageButton } from "../../components/new-page.tsx";
 import { NewSpaceButton } from "../../components/new-space.tsx";
 import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { myDrafts } from "../../lib/editing.ts";
-import { format, formatDate, plural, relative } from "../../lib/i18n/index.ts";
+import { format, formatDate, newPageWords, plural, relative } from "../../lib/i18n/index.ts";
 import { recent } from "../../lib/pages.ts";
+import { pinned } from "../../lib/pins.ts";
+import { toRead } from "../../lib/reads.ts";
 import { myReviews } from "../../lib/reviews.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { viewer } from "../../lib/session.ts";
@@ -20,7 +23,7 @@ export default async function Home() {
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
-  const [spaces, latest, drafts, checks] = await Promise.all([listSpaces(sql, member), recent(sql, member, { limit: 8 }), myDrafts(sql, member), myReviews(sql, member)]);
+  const [spaces, latest, drafts, checks, reading, pins] = await Promise.all([listSpaces(sql, member), recent(sql, member, { limit: 8 }), myDrafts(sql, member), myReviews(sql, member), toRead(sql, member), pinned(sql, member)]);
   const who = await people(latest.map(p => p.updatedBy));
   const now = new Date();
   const writer = can(member, "write");
@@ -35,7 +38,7 @@ export default async function Home() {
             <div className="welcome-actions">
               <ExampleButton label={t.home.empty.example} hint={t.home.empty.exampleHint} errors={t.errors} />
               <div className="row-actions">
-                <NewSpaceButton className="button quiet" t={{ newSpace: t.newSpace, common: t.common, errors: t.errors }}><Plus />{t.shell.newSpace}</NewSpaceButton>
+                <NewPageButton className="button quiet" target={{ spaceId: "new", spaceName: t.starter.space, parentId: null, parentTitle: null }} t={newPageWords(t)}><Pen />{t.space.firstPage}</NewPageButton>
                 <Link className="button quiet" href="/chest/import"><Upload />{t.home.empty.import}</Link>
               </div>
             </div>
@@ -54,6 +57,15 @@ export default async function Home() {
           <input id="ask" name="q" type="search" placeholder={t.home.searchPlaceholder} maxLength={100} autoComplete="off" />
           <button type="submit" className="button">{t.home.searchButton}</button>
         </form>
+        {pins.length > 0 && (
+          <nav className="pins" aria-label={t.home.pinned}>
+            <ul>
+              {pins.map(p => (
+                <li key={p.id} className={`color-${spaces.find(s => s.id === p.spaceId)?.color ?? "green"}`}><Link href={`/chest/pages/${p.id}`}><Pin />{p.title}</Link></li>
+              ))}
+            </ul>
+          </nav>
+        )}
       </section>
       {drafts.length > 0 && (
         <section className="drafts" aria-labelledby="drafts-title">
@@ -64,6 +76,19 @@ export default async function Home() {
                 <span className="draft-title">{d.title}</span>
                 <span className="muted">{relative(d.updatedAt, locale, now)}</span>
                 <Link className="button quiet small" href={`/chest/pages/${d.pageId}/edit`}>{t.home.continue}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {reading.length > 0 && (
+        <section className="checks to-read" aria-labelledby="to-read-title">
+          <h2 id="to-read-title" className="kicker">{t.reads.home}</h2>
+          <ul>
+            {reading.map(r => (
+              <li key={r.id}>
+                <Link className="draft-title" href={`/chest/pages/${r.id}`}>{r.title}</Link>
+                <span className="muted">{format(t.reads.since, { date: formatDate(r.askedAt, locale, { day: "numeric", month: "short" }) })}</span>
               </li>
             ))}
           </ul>
@@ -111,7 +136,10 @@ export default async function Home() {
               </li>
             ))}
           </ul>
-          {writer && <NewSpaceButton className="button quiet small" t={{ newSpace: t.newSpace, common: t.common, errors: t.errors }}><Plus />{t.shell.newSpace}</NewSpaceButton>}
+          <div className="row-actions spaces-foot">
+            {writer && <NewSpaceButton className="button quiet small" t={{ newSpace: t.newSpace, common: t.common, errors: t.errors }}><Plus />{t.shell.newSpace}</NewSpaceButton>}
+            {writer && <a className="button quiet small" href="/chest/export" download><Download />{t.home.exportAll}</a>}
+          </div>
         </section>
       </div>
     </main>

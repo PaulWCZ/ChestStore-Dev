@@ -130,7 +130,7 @@ await step("Hugo fixes the taxi (a photo of the receipt and a note), then sends 
   await page.waitForURL(/\/edit$/u);
   await page.locator(".capture .pick-file input[type=file]").setInputFiles(receipt);
   await page.waitForSelector("text=Receipt added", { timeout: 8000 });
-  await page.getByText("VAT and note").click();
+  if (!(await page.locator("#note").isVisible())) await page.getByText("VAT and note").click();
   await page.locator("#note").fill("Found the receipt in my coat");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForURL(/\/chest$/u);

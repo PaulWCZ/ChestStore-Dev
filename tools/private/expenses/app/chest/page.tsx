@@ -7,7 +7,9 @@ import { nameOf, people } from "../../lib/people.ts";
 import { rowView } from "../../lib/rows.ts";
 import { viewer } from "../../lib/session.ts";
 import { categories, settings } from "../../lib/settings.ts";
+import { can } from "../../lib/access.ts";
 import { HomeView, type HomeGroup } from "./home-view.tsx";
+import { SetupBanner } from "./setup-banner.tsx";
 
 const shown = 400;
 
@@ -41,6 +43,7 @@ export default async function MyExpenses() {
   return (
     <main className="page">
       <AutoRefresh seconds={30} />
+      {can(member, "settings") && !company.setupDone && <SetupBanner t={t.home.setup} errors={t.errors} />}
       <HomeView
         locale={locale}
         empty={list.length === 0}

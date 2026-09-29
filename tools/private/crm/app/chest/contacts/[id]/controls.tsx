@@ -3,23 +3,36 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Dialog } from "../../../../components/dialog.tsx";
-import { Download, Pencil, Shield, Trash } from "../../../../components/icons.tsx";
+import { Dots, Download, Merge, Pencil, Shield, Trash } from "../../../../components/icons.tsx";
+import type { FieldDef } from "../../../../lib/custom.ts";
 import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { deleteContact } from "../../actions.ts";
 import { ContactDialog } from "../../ui/contact-form.tsx";
 import type { ContactValues } from "../../ui/values.ts";
-import type { Choice, Teammate } from "../../ui/shared.ts";
+import { MergeDialog } from "../../ui/merge-dialog.tsx";
+import type { Teammate } from "../../ui/shared.ts";
 
-export function ContactControls({ contact, ownerName, canEdit, companies, team, me, canAssign, t }: { contact: ContactValues & { id: string }; ownerName: string; canEdit: boolean; companies: Choice[]; team: Teammate[]; me: string; canAssign: boolean; t: Catalogue }) {
+// A person's owner and edit; merging a duplicate in the "…" menu.
+export function ContactControls({ contact, ownerName, canEdit, canMerge, fields, team, me, canAssign, t }: { contact: ContactValues & { id: string }; ownerName: string; canEdit: boolean; canMerge: boolean; fields: FieldDef[]; team: Teammate[]; me: string; canAssign: boolean; t: Catalogue }) {
   const [editing, setEditing] = useState(false);
+  const [merging, setMerging] = useState(false);
   return (
     <div className="record-bar">
       <span className="owner-line"><span className="label-mono">{t.common.owner}</span> {ownerName}</span>
       <span className="spacer" />
       {canEdit && <button type="button" className="button small quiet" onClick={() => setEditing(true)}><Pencil />{t.common.edit}</button>}
-      {editing && <ContactDialog open onClose={() => setEditing(false)} initial={contact} companies={companies} team={team} me={me} canAssign={canAssign} t={t} />}
+      {canMerge && (
+        <details className="menu">
+          <summary className="icon-button" title={t.common.more}><Dots /><span className="visually-hidden">{t.common.more}</span></summary>
+          <div className="menu-pop right">
+            <button type="button" onClick={e => { (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; setMerging(true); }}><Merge />{t.common.merge.action}</button>
+          </div>
+        </details>
+      )}
+      {editing && <ContactDialog open onClose={() => setEditing(false)} initial={contact} fields={fields} team={team} me={me} canAssign={canAssign} canCreate={canEdit} t={t} />}
+      {merging && <MergeDialog table="contacts" id={contact.id} name={contact.name} onClose={() => setMerging(false)} t={t} />}
     </div>
   );
 }

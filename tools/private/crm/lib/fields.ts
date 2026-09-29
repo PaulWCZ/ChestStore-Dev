@@ -153,3 +153,10 @@ export function fieldClause(sql: Query, alias: string, fields: FieldDef[], filte
   if (parts.length === 0) parts.push(sql`${column} ? ${key}`);
   return parts.reduce((all, p) => sql`${all} and ${p}`);
 }
+
+// A list's field filter, as its address writes it (cf, cv, cmin, cmax).
+export function fieldFilterOf(get: (key: string) => string): FieldFilter | undefined {
+  const field = get("cf");
+  if (!/^[1-9][0-9]{0,17}$/u.test(field)) return undefined;
+  return { field, value: get("cv").slice(0, 100), min: get("cmin").slice(0, 30), max: get("cmax").slice(0, 30) };
+}

@@ -7,7 +7,8 @@ import { db } from "../../../lib/db.ts";
 import { everyoneOrNone } from "../../../lib/directory.ts";
 import { format, formatDays, plural, relative, spanText } from "../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../lib/people.ts";
-import { between, waiting } from "../../../lib/requests.ts";
+import { afterRequest } from "../../../lib/left.ts";
+import { between, pendingOf, waiting } from "../../../lib/requests.ts";
 import { answerers } from "../../../lib/routing.ts";
 import { types } from "../../../lib/rules.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -24,7 +25,8 @@ export default async function ApprovalsPage() {
   if (!can(member, "approve")) notFound();
   const sql = db();
   const list = await waiting(sql, member);
-  const [all, dir, bal] = await Promise.all([types(sql, { archived: true }), everyoneOrNone(), balancesOf(sql, [...new Set(list.map(r => r.memberId))])]);
+  const ids = [...new Set(list.map(r => r.memberId))];
+  const [all, dir, bal, open] = await Promise.all([types(sql, { archived: true }), everyoneOrNone(), balancesOf(sql, ids), pendingOf(sql, ids)]);
   const from = list.reduce((a, r) => (r.start < a ? r.start : a), "9999-12-31");
   const to = list.reduce((a, r) => (r.end > a ? r.end : a), "0000-01-01");
   const around = list.length > 0 ? await between(sql, member, from, to) : [];
@@ -35,12 +37,16 @@ export default async function ApprovalsPage() {
   const cards: Card[] = list.map(r => {
     const ty = typeOf.get(r.typeId);
     const b = bal.get(r.memberId)?.find(x => x.typeId === r.typeId);
+    // The balance after this request and the person's other waiting
+    // requests of the kind that come before it.
+    const after = b && b.setUp && !r.cancelAsked ? afterRequest(b.left, open.filter(o => o.memberId === r.memberId && o.typeId === r.typeId), r) : null;
     const person = who.get(r.memberId);
     const also = [...new Set(around.filter(e => e.memberId !== r.memberId && e.status === "approved" && overlaps(e, r)).map(e => nameOf(who.get(e.memberId), locale)))];
     const mine = !hr || (dir.reached ? answerers({ memberId: r.memberId, approverId: r.approverId }, dir.people).includes(member.id) : r.approverId === null || r.approverId === member.id);
     return {
       id: r.id,
       name: nameOf(person, locale),
+      avatarName: person?.name ?? "",
       firstName: person?.name.split(" ")[0] || nameOf(person, locale),
       photo: person?.photo ?? null,
       type: typeName(ty, t.types),
@@ -49,8 +55,9 @@ export default async function ApprovalsPage() {
       days: plural(t.units.days, r.days, locale),
       note: r.note,
       cancelAsked: r.cancelAsked,
-      balance: b && b.setUp ? (r.cancelAsked ? format(t.approvals.now, { days: formatDays(b.left, locale) }) : format(t.approvals.after, { days: formatDays(b.left - r.days, locale) })) : null,
-      short: b && b.setUp && !r.cancelAsked ? b.left - r.days < 0 : false,
+      balance: b && b.setUp ? (after ? format(t.approvals.after, { days: formatDays(after.after, locale) }) : format(t.approvals.now, { days: formatDays(b.left, locale) })) : null,
+      balanceNote: after && after.before > 0 ? plural(t.approvals.counting, after.before, locale) : null,
+      short: after ? after.after < 0 : false,
       alsoAway: also.length > 0 ? format(t.approvals.alsoAway, { names: also.join(", ") }) : null,
       asked: format(t.approvals.asked, { when: relative(r.createdAt, locale, now) }),
       approver: r.approverId ? format(t.approvals.with, { name: nameOf(who.get(r.approverId), locale) }) : null,

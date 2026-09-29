@@ -2,13 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import * as activities from "../../lib/activities.ts";
+import { detach, forgetObjects } from "../../lib/attachments.ts";
+import { bulk, type BulkAction } from "../../lib/bulk.ts";
 import * as companies from "../../lib/companies.ts";
 import * as contacts from "../../lib/contacts.ts";
 import { db } from "../../lib/db.ts";
 import * as deals from "../../lib/deals.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
+import * as fields from "../../lib/fields.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 import type { ImportReport } from "../../lib/importers.ts";
+import { mergeCompanies, mergeContacts } from "../../lib/merge.ts";
 import { search, type Lookalike } from "../../lib/search.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as share from "../../lib/share.ts";
@@ -32,9 +36,18 @@ async function act<T>(step: (actor: Actor) => Promise<T>, refresh = true): Promi
   return result;
 }
 
-type CompanyInput = { name?: string; website?: string; phone?: string; address?: string; industry?: string; notes?: string; tags?: string; owner?: string | null };
-type ContactInput = { name?: string; email?: string; phone?: string; title?: string; company?: string | null; notes?: string; tags?: string; owner?: string | null };
-type DealInput = { title?: string; company?: string | null; contact?: string | null; value?: string; stage?: string; expectedClose?: string | null; owner?: string | null; reason?: string };
+type Custom = Record<string, string>;
+type CompanyInput = { name?: string; website?: string; phone?: string; email?: string; address?: string; postcode?: string; city?: string; country?: string; siren?: string; vat?: string; industry?: string; notes?: string; tags?: string; owner?: string | null; custom?: Custom };
+type ContactInput = { name?: string; email?: string; phone?: string; phone2?: string; url?: string; title?: string; company?: string | null; notes?: string; tags?: string; owner?: string | null; custom?: Custom };
+type DealInput = { title?: string; company?: string | null; contact?: string | null; value?: string; stage?: string; expectedClose?: string | null; owner?: string | null; reason?: string; custom?: Custom };
+
+// What a deletion leaves to settle: the bell items of the steps that went,
+// the tiles' numbers, the stored files.
+async function settle(gone: { steps: { id: string; owner: string | null }[]; objects: string[] }): Promise<void> {
+  for (const s of gone.steps) await tell.stepSettled(s.id);
+  await tell.refreshBadges(db(), gone.steps.map(s => s.owner));
+  await forgetObjects(gone.objects);
+}
 
 // Companies.
 export async function addCompany(input: CompanyInput): Promise<Result<{ id: string; name: string }>> {
@@ -44,7 +57,7 @@ export async function updateCompany(id: string, input: CompanyInput): Promise<Re
   return act(async actor => { await companies.updateCompany(db(), actor, id, input); return null; });
 }
 export async function deleteCompany(id: string): Promise<Result<null>> {
-  return act(async actor => { await companies.deleteCompany(db(), actor, id); return null; });
+  return act(async actor => { await settle({ steps: [], ...(await companies.deleteCompany(db(), actor, id)) }); return null; });
 }
 
 // Contacts.
@@ -55,13 +68,24 @@ export async function updateContact(id: string, input: ContactInput): Promise<Re
   return act(async actor => { await contacts.updateContact(db(), actor, id, input); return null; });
 }
 export async function deleteContact(id: string): Promise<Result<null>> {
+  return act(async actor => { await settle(await contacts.deleteContact(db(), actor, id)); return null; });
+}
+
+// Many at once, and duplicates merged.
+export async function bulkChange(table: "companies" | "contacts" | "deals", ids: string[], action: BulkAction): Promise<Result<{ done: number; skipped: number }>> {
   return act(async actor => {
-    const sql = db();
-    const gone = await contacts.deleteContact(sql, actor, id);
-    if (gone.stepId) await tell.stepSettled(gone.stepId);
-    await tell.refreshBadges(sql, [gone.stepOwner]);
-    return null;
+    if (table !== "companies" && table !== "contacts" && table !== "deals") throw new AppError("invalid");
+    const done = await bulk(db(), actor, table, ids, action);
+    await settle(done);
+    for (const g of done.given) await tell.dealGiven(actor, g.owner, g);
+    return { done: done.done, skipped: done.skipped };
   });
+}
+export async function matchingIds(table: "companies" | "contacts", filter: { q?: string; owner?: string; tag?: string; stale?: boolean; field?: { field: string; value?: string; min?: string; max?: string } }): Promise<Result<string[]>> {
+  return act(actor => (table === "companies" ? companies.companyIds(db(), actor, filter) : contacts.contactIds(db(), actor, filter)), false);
+}
+export async function merge(table: "companies" | "contacts", from: string, into: string): Promise<Result<{ id: string }>> {
+  return act(actor => (table === "companies" ? mergeCompanies(db(), actor, from, into) : mergeContacts(db(), actor, from, into)));
 }
 
 // Duplicates: asked while a person types (no refresh).
@@ -69,9 +93,15 @@ export async function checkLookalikes(input: { kind: "company" | "contact"; name
   return act(async actor => (await import("../../lib/search.ts")).lookalikes(db(), actor, input), false);
 }
 
-// Quick search for pickers (no refresh).
+// Quick search, and the pickers' choices as one types (no refresh).
 export async function quickSearch(q: string): Promise<Result<Awaited<ReturnType<typeof search>>>> {
   return act(actor => search(db(), actor, q), false);
+}
+export async function pickCompanies(q: string): Promise<Result<{ id: string; name: string; detail: string }[]>> {
+  return act(actor => companies.companyChoices(db(), actor, q), false);
+}
+export async function pickContacts(q: string, company: string | null): Promise<Result<{ id: string; name: string; detail: string; companyId: string | null; companyName: string | null }[]>> {
+  return act(actor => contacts.contactChoices(db(), actor, q, company), false);
 }
 
 // Deals.
@@ -103,11 +133,8 @@ export async function setDealOwner(id: string, owner: string | null): Promise<Re
 }
 export async function deleteDeal(id: string): Promise<Result<null>> {
   return act(async actor => {
-    const sql = db();
-    const gone = await deals.deleteDeal(sql, actor, id);
+    await settle(await deals.deleteDeal(db(), actor, id));
     await tell.dealSettled(id);
-    if (gone.stepId) await tell.stepSettled(gone.stepId);
-    await tell.refreshBadges(sql, [gone.stepOwner]);
     return null;
   });
 }
@@ -127,26 +154,39 @@ export async function restoreActivity(id: string): Promise<Result<null>> {
 }
 
 // Next steps.
-export async function setStep(on: { deal?: string; contact?: string }, input: { text: string; due: string; owner?: string | null }): Promise<Result<steps.Step>> {
+type StepInput = { text: string; due: string; time?: string | null; owner?: string | null };
+async function titleOf(actor: Actor, step: steps.Step): Promise<{ kind: "deal" | "contact"; id: string; title: string } | null> {
+  const sql = db();
+  if (step.dealId) return { kind: "deal", id: step.dealId, title: (await deals.deal(sql, actor, step.dealId)).title };
+  if (step.contactId) return { kind: "contact", id: step.contactId, title: (await contacts.contact(sql, actor, step.contactId)).name };
+  return null;
+}
+export async function addStep(on: { deal?: string; contact?: string } | null, input: StepInput): Promise<Result<steps.Step>> {
   return act(async actor => {
     const sql = db();
-    const done = await steps.setStep(sql, actor, on, input);
+    const done = await steps.addStep(sql, actor, on, input);
+    if (done.given) await tell.stepGiven(actor, done.given, done.step, await titleOf(actor, done.step));
+    await tell.refreshBadges(sql, [done.step.owner]);
+    return done.step;
+  });
+}
+export async function updateStep(id: string, input: StepInput): Promise<Result<steps.Step>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await steps.updateStep(sql, actor, id, input);
     if (done.previousOwner && done.previousOwner !== done.step.owner) await tell.stepSettled(done.step.id, [done.previousOwner]);
-    if (done.given) {
-      const title = done.step.dealId ? (await deals.deal(sql, actor, done.step.dealId)).title : (await contacts.contact(sql, actor, done.step.contactId)).name;
-      await tell.stepGiven(actor, done.given, done.step, { kind: done.step.dealId ? "deal" : "contact", id: (done.step.dealId ?? done.step.contactId)!, title });
-    }
+    if (done.given) await tell.stepGiven(actor, done.given, done.step, await titleOf(actor, done.step));
     await tell.refreshBadges(sql, [done.previousOwner, done.step.owner]);
     return done.step;
   });
 }
-export async function completeStep(id: string): Promise<Result<steps.Step>> {
+export async function completeStep(id: string): Promise<Result<{ last: boolean }>> {
   return act(async actor => {
     const sql = db();
     const done = await steps.completeStep(sql, actor, id);
     await tell.stepSettled(done.step.id);
     await tell.refreshBadges(sql, [done.step.owner]);
-    return done.step;
+    return { last: done.last };
   });
 }
 export async function reopenStep(id: string): Promise<Result<null>> {
@@ -167,6 +207,11 @@ export async function clearStep(id: string): Promise<Result<null>> {
   });
 }
 
+// Files: removing one (adding goes through app/chest/api/files).
+export async function removeFile(id: string): Promise<Result<null>> {
+  return act(async actor => { await forgetObjects([await detach(db(), actor, id)]); return null; });
+}
+
 // Stages (managers).
 export async function addStage(name: string, probability: string): Promise<Result<null>> {
   return act(async actor => { await stages.addStage(db(), actor, { name, probability }); return null; });
@@ -181,15 +226,40 @@ export async function removeStage(id: string): Promise<Result<null>> {
   return act(async actor => { await stages.removeStage(db(), actor, id); return null; });
 }
 
+// The team's own fields (managers).
+export async function addField(input: { object: string; label: string; kind: string; options?: string }): Promise<Result<null>> {
+  return act(async actor => { await fields.addField(db(), actor, input); return null; });
+}
+export async function updateField(id: string, input: { label?: string; options?: string }): Promise<Result<null>> {
+  return act(async actor => { await fields.updateField(db(), actor, id, input); return null; });
+}
+export async function moveField(id: string, direction: "up" | "down"): Promise<Result<null>> {
+  return act(async actor => { await fields.moveField(db(), actor, id, direction === "up" ? "up" : "down"); return null; });
+}
+export async function removeField(id: string): Promise<Result<null>> {
+  return act(async actor => { await fields.removeField(db(), actor, id); return null; });
+}
+
 // Import: the page read the file to show what will come; the server reads
 // it again (never trusting the page's reading).
-export async function importTable(kind: string, text: string, mapping: string[]): Promise<Result<ImportReport>> {
+type ImportOptions = { fileName?: string; ownerFallback?: string; fillEmpty?: boolean };
+export async function importTable(kind: string, text: string, mapping: string[], options: ImportOptions = {}): Promise<Result<ImportReport>> {
   return act(async actor => {
     const { importTable: run } = await import("../../lib/importers.ts");
     const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
-    return run(db(), actor, kind, text, mapping, t.stages);
+    return run(db(), actor, kind, text, mapping, t.stages, options);
   });
 }
-export async function importVcards(text: string): Promise<Result<ImportReport>> {
-  return act(async actor => (await import("../../lib/importers.ts")).importVcards(db(), actor, text));
+export async function importVcards(text: string, options: ImportOptions = {}): Promise<Result<ImportReport>> {
+  return act(async actor => (await import("../../lib/importers.ts")).importVcards(db(), actor, text, options));
+}
+export async function importOwners(names: string[]): Promise<Result<string[]>> {
+  return act(async actor => (await import("../../lib/importers.ts")).unknownOwners(actor, names), false);
+}
+export async function undoImport(id: string): Promise<Result<{ removed: number }>> {
+  return act(async actor => {
+    const done = await (await import("../../lib/importers.ts")).undoImport(db(), actor, id);
+    await settle(done);
+    return { removed: done.removed };
+  });
 }

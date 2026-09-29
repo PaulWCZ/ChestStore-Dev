@@ -28,7 +28,7 @@ before(async () => {
   const r1 = await upload(chest, sql, asMember(hugo), "%PDF-1.4 lunch");
   const r2 = await upload(chest, sql, asMember(hugo), "%PDF-1.4 hotel");
   const r3 = await upload(chest, sql, asMember(lea), "%PDF-1.4 pens");
-  ids["lunch"] = (await expenses.saveExpense(sql, asMember(hugo), null, { spentOn: "2026-09-10", amount: "42,50", vat: "3,86", categoryId: cat["meals"], merchant: "=HYPERLINK(\"x\")", note: "Client: Dupont SA" }, r1)).expense.id;
+  ids["lunch"] = (await expenses.saveExpense(sql, asMember(hugo), null, { spentOn: "2026-09-10", amount: "42,50", vat: "3,86", categoryId: cat["meals"], merchant: "=HYPERLINK(\"x\")", note: "Client: Dupont SA", guestMembers: [lea.id], guestNames: ["Jean Dupont (Acme)"] }, r1)).expense.id;
   ids["hotel"] = (await expenses.saveExpense(sql, asMember(hugo), null, { spentOn: "2026-09-11", amount: "120", vat: "10,91", categoryId: cat["lodging"], merchant: "Hôtel du Parc", paidBy: "company" }, r2)).expense.id;
   await settings.setVehicle(sql, asMember(hugo), { kind: "car", power: "5", electric: false });
   ids["trip"] = (await expenses.saveTrip(sql, asMember(hugo), null, { spentOn: "2026-09-12", from: "Paris", to: "Lyon", distance: "465" })).id;
@@ -57,11 +57,11 @@ test("the CSV: the month's approved and paid expenses, in the accountant's langu
   const bytes = new Uint8Array(await response.arrayBuffer());
   assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]); // the BOM: accents survive in spreadsheets
   const lines = new TextDecoder().decode(bytes).trim().split("\r\n");
-  assert.equal(lines[0], "Date;Personne;Catégorie;Compte;Où;Détails;Montant HT;TVA;TVA récupérable;Montant TTC;Devise;Payé avec;Statut;Validée par;Remboursée le;Fichier justificatif;Référence");
+  assert.equal(lines[0], "Date;Personne;Catégorie;Compte;Où;Détails;Montant HT;TVA;TVA récupérable;Montant TTC;Devise;Taux de change;Montant en EUR;Payé avec;Statut;Validée par;Remboursée le;Fichier justificatif;Référence;Invités");
   assert.equal(lines.length, 5);
-  assert.equal(lines[1], `10/09/2026;Hugo Bernard;Repas;625700;"'=HYPERLINK(""x"")";Client: Dupont SA;38,64;3,86;3,86;42,50;EUR;Argent personnel;Remboursée;Camille Martin;28/09/2026;2026-09-10_Hugo-Bernard_42-50EUR_E${ids["lunch"]}.pdf;E${ids["lunch"]}`);
+  assert.equal(lines[1], `10/09/2026;Hugo Bernard;Repas;625700;"'=HYPERLINK(""x"")";Client: Dupont SA;38,64;3,86;3,86;42,50;EUR;;42,50;Argent personnel;Remboursée;Camille Martin;28/09/2026;2026-09-10_Hugo-Bernard_42-50EUR_E${ids["lunch"]}.pdf;E${ids["lunch"]};Léa Dubois, Jean Dupont (Acme)`);
   // The hotel: VAT not recoverable (0 %), company card.
-  assert.equal(lines[2]!.split(";").slice(6, 13).join(";"), "109,09;10,91;0,00;120,00;EUR;Carte société;Carte société");
+  assert.equal(lines[2]!.split(";").slice(6, 15).join(";"), "109,09;10,91;0,00;120,00;EUR;;120,00;Carte société;Carte société");
   // The trip: no VAT, the scale in the details.
   assert.equal(lines[3]!.split(";")[5], "Paris → Lyon, 465 km, Voiture 5 CV, Barème kilométrique 2025");
   assert.equal(lines[3]!.split(";").slice(6, 10).join(";"), "295,74;0,00;0,00;295,74");
@@ -71,7 +71,7 @@ test("the CSV: the month's approved and paid expenses, in the accountant's langu
   const english = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...lea, locale: "en" }))).status;
   assert.equal(english, 403);
   const en = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...camille, locale: "en" }))).text();
-  assert.equal(en.trim().split("\r\n")[1], `2026-09-15,Léa Dubois,Fuel,606100,Station,,8.25,1.65,1.32,9.90,EUR,Own money,Approved,Camille Martin,,2026-09-15_Lea-Dubois_9-90EUR_E${ids["pens"]}.pdf,E${ids["pens"]}`);
+  assert.equal(en.trim().split("\r\n")[1], `2026-09-15,Léa Dubois,Fuel,606100,Station,,8.25,1.65,1.32,9.90,EUR,,9.90,Own money,Approved,Camille Martin,,2026-09-15_Lea-Dubois_9-90EUR_E${ids["pens"]}.pdf,E${ids["pens"]},`);
 });
 
 test("the ZIP: every receipt named by date and person, and the CSV, streamed", async () => {

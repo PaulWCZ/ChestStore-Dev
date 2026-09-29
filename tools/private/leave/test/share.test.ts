@@ -16,7 +16,7 @@ after(async () => {
 
 const request: LeaveRequest = {
   id: "42", memberId: "mbr_" + "h".repeat(26), typeId: "1", start: "2026-10-12", startHalf: "am", end: "2026-10-16", endHalf: "am",
-  days: 4.5, note: "Family wedding", status: "approved", cancelAsked: false, decidedBy: "mbr_" + "c".repeat(26), decidedAt: "2026-10-01T09:00:00.000Z", reason: "", createdAt: "2026-09-30T09:00:00.000Z",
+  days: 4.5, note: "Family wedding", status: "approved", cancelAsked: false, decidedBy: "mbr_" + "c".repeat(26), decidedAt: "2026-10-01T09:00:00.000Z", reason: "", createdAt: "2026-09-30T09:00:00.000Z", event: "wedding",
 };
 
 test("an approved leave is told as who and which days — never its kind nor its note", async () => {

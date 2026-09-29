@@ -160,24 +160,33 @@ test("activities: one tap logs a call; a note needs words; the author edits, a m
   await assert.rejects(activities.remove(sql, asMember(camille), created.id), refused("forbidden"));
 });
 
-test("next steps: one open per deal or contact; done logs it and says what was done; my day; the tile's count", async () => {
+test("next steps: several open per deal or contact, with a time; done logs it; my day; the tile's count", async () => {
   const { sql } = database;
   const d = await deals.addDeal(sql, asMember(hugo), { title: "Coffee machines" });
   const now = today();
-  const first = await steps.setStep(sql, asMember(hugo), { deal: d.id }, { text: "Send the quote", due: now });
+  const first = await steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "Send the quote", due: now });
   assert.equal(first.given, null);
-  const again = await steps.setStep(sql, asMember(hugo), { deal: d.id }, { text: "Send the quote v2", due: now, owner: ines.id });
-  assert.equal(again.step.id, first.step.id, "replaced, not doubled");
-  assert.equal(again.given, ines.id);
-  assert.equal(again.previousOwner, hugo.id);
-  await assert.rejects(steps.setStep(sql, asMember(ines), { deal: d.id }, { text: "Mine", due: now }), refused("forbidden"));
-  await assert.rejects(steps.setStep(sql, asMember(hugo), { deal: d.id }, { text: "x", due: "2026-02-30" }), refused("bad_date"));
-  await assert.rejects(steps.setStep(sql, asMember(hugo), { deal: d.id }, { text: "x", due: now, owner: lea.id }), refused("invalid"));
+  const second = await steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "Call the buyer", due: now, time: "14:30" });
+  assert.notEqual(second.step.id, first.step.id, "a second open step, not a replacement");
+  assert.equal(second.step.time, "14:30");
+  const changed = await steps.updateStep(sql, asMember(hugo), first.step.id, { text: "Send the quote v2", due: now, time: "09:00", owner: ines.id });
+  assert.equal(changed.given, ines.id);
+  assert.equal(changed.previousOwner, hugo.id);
+  assert.deepEqual((await steps.openSteps(sql, { dealId: d.id })).map(s => [s.text, s.time]), [["Send the quote v2", "09:00"], ["Call the buyer", "14:30"]]);
+  const read = await deals.deal(sql, asMember(lea), d.id);
+  assert.equal(read.step?.text, "Send the quote v2", "the soonest is the next step");
+  assert.equal(read.steps, 2);
+  await assert.rejects(steps.addStep(sql, asMember(ines), { deal: d.id }, { text: "Mine", due: now }), refused("forbidden"));
+  await assert.rejects(steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "x", due: "2026-02-30" }), refused("bad_date"));
+  await assert.rejects(steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "x", due: now, time: "25:00" }), refused("bad_time"));
+  await assert.rejects(steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "x", due: now, owner: lea.id }), refused("invalid"));
   const mine = await steps.myDay(sql, asMember(ines));
-  assert.deepEqual(mine.map(s => [s.text, s.on.kind, s.on.title]), [["Send the quote v2", "deal", "Coffee machines"]]);
+  assert.deepEqual(mine.map(s => [s.text, s.on?.kind, s.on?.title]), [["Send the quote v2", "deal", "Coffee machines"]]);
   assert.equal((await steps.urgentCounts(sql, [ines.id, hugo.id])).get(ines.id), 1);
-  // Inès may say it is done: it is hers, even on Hugo's deal.
-  const done = await steps.completeStep(sql, asMember(ines), again.step.id);
+  // Inès may say it is done: it is hers, even on Hugo's deal. Another step
+  // is still open: it was not the last.
+  const done = await steps.completeStep(sql, asMember(ines), changed.step.id);
+  assert.equal(done.last, false);
   const logged = await activities.timeline(sql, { dealId: d.id });
   assert.equal(logged[0]?.kind, "step");
   assert.equal(logged[0]?.body, "Send the quote v2");
@@ -189,13 +198,34 @@ test("next steps: one open per deal or contact; done logs it and says what was d
   assert.ok(!(await activities.timeline(sql, { dealId: d.id })).some(a => a.kind === "step"));
   await steps.clearStep(sql, asMember(hugo), done.step.id);
   assert.deepEqual(await steps.myDay(sql, asMember(ines)), []);
+  assert.equal((await steps.completeStep(sql, asMember(hugo), second.step.id)).last, true, "the last one: the page asks what comes next");
   // A contact's step: anyone of sales.
   const p = await contacts.addContact(sql, asMember(hugo), { name: "Paul Girard" });
-  const s = await steps.setStep(sql, asMember(ines), { contact: p.id }, { text: "Call back", due: now });
+  const s = await steps.addStep(sql, asMember(ines), { contact: p.id }, { text: "Call back", due: now });
   assert.equal((await contacts.contact(sql, asMember(lea), p.id)).step?.id, s.step.id);
-  await assert.rejects(steps.setStep(sql, asMember(lea), { contact: p.id }, { text: "x", due: now }), refused("forbidden"));
+  await assert.rejects(steps.addStep(sql, asMember(lea), { contact: p.id }, { text: "x", due: now }), refused("forbidden"));
   await assert.rejects(steps.clearStep(sql, asMember(lea), s.step.id), refused("forbidden"));
   await assert.rejects(steps.completeStep(sql, asMember(lea), s.step.id), refused("forbidden"));
+});
+
+test("a step of one's own: about no client, seen and changed only by its owner and who planned it", async () => {
+  const { sql } = database;
+  const now = today();
+  const own = await steps.addStep(sql, asMember(hugo), null, { text: "Prepare the trade show", due: now, time: "08:30" });
+  assert.equal(own.step.dealId, null);
+  assert.equal(own.step.contactId, null);
+  const day = await steps.myDay(sql, asMember(hugo));
+  assert.ok(day.some(x => x.id === own.step.id && x.on === null));
+  await assert.rejects(steps.addStep(sql, asMember(lea), null, { text: "x", due: now }), refused("forbidden"));
+  await assert.rejects(steps.addStep(sql, asMember(hugo), null, { text: "x", due: now, owner: null }), refused("invalid"));
+  await assert.rejects(steps.completeStep(sql, asMember(ines), own.step.id), refused("not_found"));
+  await assert.rejects(steps.clearStep(sql, asMember(ines), own.step.id), refused("not_found"));
+  const done = await steps.completeStep(sql, asMember(hugo), own.step.id);
+  assert.equal(done.activityId, null, "nothing to log it on");
+  // A manager may plan one for someone of the team.
+  const given = await steps.addStep(sql, asMember(camille), null, { text: "Visit the new office", due: now, owner: ines.id });
+  assert.equal(given.given, ines.id);
+  await steps.clearStep(sql, asMember(camille), given.step.id);
 });
 
 test("GDPR: a contact is exported whole, then deleted for good with everything written about them", async () => {
@@ -206,7 +236,7 @@ test("GDPR: a contact is exported whole, then deleted for good with everything w
   await activities.log(sql, asMember(ines), { contact: p.id }, "note", "Allergic to cats (should not be here)");
   await activities.log(sql, asMember(ines), { deal: d.id }, "meeting", "Met Sophie at her office");
   const companyNote = await activities.log(sql, asMember(ines), { company: co.id }, "note", "Firm moves in May");
-  await steps.setStep(sql, asMember(ines), { contact: p.id }, { text: "Send the invite", due: today() });
+  await steps.addStep(sql, asMember(ines), { contact: p.id }, { text: "Send the invite", due: today() });
   const file = await contacts.exportContact(sql, asMember(lea), p.id);
   assert.equal(file.contact.email, "sophie@blanc.fr");
   assert.equal(file.deals.length, 1);

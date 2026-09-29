@@ -14,9 +14,12 @@ export async function dealGiven(actor: Member, to: string | null, deal: { id: st
   await notify([to], (t, locale) => ({ title: format(t.bell.dealGiven, { name: actor.name }), body: cut(`${deal.title} · ${money(deal.value, locale)}`, 280) }), { path: `/chest/deals/${deal.id}`, key: `deal:${deal.id}:owner` });
 }
 
-export async function stepGiven(actor: Member, to: string | null, step: { id: string; text: string; due: string }, on: { kind: "deal" | "contact"; id: string; title: string }): Promise<void> {
+export async function stepGiven(actor: Member, to: string | null, step: { id: string; text: string; due: string; time: string | null }, on: { kind: "deal" | "contact"; id: string; title: string } | null): Promise<void> {
   if (!to || to === actor.id) return;
-  await notify([to], (t, locale) => ({ title: format(t.bell.stepGiven, { name: actor.name }), body: cut(format(t.bell.stepBody, { text: step.text, day: formatDay(step.due, locale, { weekday: "short", day: "numeric", month: "short" }), on: on.title }), 280) }), { path: `/chest/${on.kind === "deal" ? "deals" : "contacts"}/${on.id}`, key: `step:${step.id}` });
+  await notify([to], (t, locale) => {
+    const day = formatDay(step.due, locale, { weekday: "short", day: "numeric", month: "short" }) + (step.time ? " " + step.time : "");
+    return { title: format(t.bell.stepGiven, { name: actor.name }), body: cut(on ? format(t.bell.stepBody, { text: step.text, day, on: on.title }) : format(t.bell.stepBodySelf, { text: step.text, day }), 280) };
+  }, { path: on ? `/chest/${on.kind === "deal" ? "deals" : "contacts"}/${on.id}` : "/chest", key: `step:${step.id}` });
 }
 
 // A step done, cleared or given to someone else no longer asks anything

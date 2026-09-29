@@ -28,7 +28,7 @@ test("someone who leaves: their deals, clients and next steps go unassigned, the
   const co = await companies.addCompany(sql, asMember(hugo), { name: "Leaving Co" });
   const p = await contacts.addContact(sql, asMember(hugo), { name: "Left Contact", company: co.id });
   const d = await deals.addDeal(sql, asMember(hugo), { title: "Left deal", contact: p.id, value: 900 });
-  await steps.setStep(sql, asMember(hugo), { deal: d.id }, { text: "Call", due: today() });
+  await steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "Call", due: today() });
   const note = await activities.log(sql, asMember(hugo), { deal: d.id }, "note", "Hugo's note");
   assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
   const after = await deals.deal(sql, asMember(camille), d.id);
@@ -48,7 +48,7 @@ test("an erasure: their id is gone everywhere, their notes stay for the team, ac
   const d = await deals.addDeal(sql, asMember(ines), { title: "Erased deal" });
   await deals.setOwner(sql, asMember(camille), d.id, ines.id);
   const note = await activities.log(sql, asMember(ines), { deal: d.id }, "note", "Ines's note");
-  await steps.setStep(sql, asMember(ines), { deal: d.id }, { text: "Follow up", due: today() });
+  await steps.addStep(sql, asMember(ines), { deal: d.id }, { text: "Follow up", due: today() });
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
   assert.equal(await chest.emit(event, POST), 204);

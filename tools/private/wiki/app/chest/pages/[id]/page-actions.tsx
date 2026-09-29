@@ -4,28 +4,29 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Dialog } from "../../../../components/dialog.tsx";
-import { Calendar, Check, Clock, Dots, Download, Eye, Move, Pen, Plus, Printer, Stamp, Trash } from "../../../../components/icons.tsx";
+import { Calendar, Check, Clock, Dots, Download, Eye, Move, Pen, People, Pin, Plus, Printer, Seal, Stamp, Trash } from "../../../../components/icons.tsx";
 import { Menu } from "../../../../components/menu.tsx";
 import { NewPageDialog, type NewPageWords, type PageTarget } from "../../../../components/new-page.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
-import { deletePage, discardDraft, keepDraft, markReviewed, movePage, restorePage, setReview, setTemplate, setWatching } from "../../actions.ts";
+import { askRead, confirmRead, deletePage, setPinned, discardDraft, keepDraft, markReviewed, movePage, restorePage, setReview, setTemplate, setWatching } from "../../actions.ts";
 
 export type TemplateWords = { tag: string; mark: string; unmark: string; marked: string; unmarked: string };
-type Words = NewPageWords & { page: Catalogue["page"]; move: Catalogue["move"]; shell: Catalogue["shell"]; watch: Catalogue["watch"]; review: Omit<Catalogue["review"], "due">; marks: TemplateWords; spaceName: string; locale: string };
+type Words = NewPageWords & { page: Catalogue["page"]; move: Catalogue["move"]; shell: Catalogue["shell"]; watch: Catalogue["watch"]; review: Omit<Catalogue["review"], "due">; reads: Catalogue["reads"]; marks: TemplateWords; spaceName: string; locale: string };
 // What the page's reader has set on it: watching, a template, a reminder.
-export type PageState = { watching: boolean; template: boolean; review: { months: number | null; ownerName: string | null; mine: boolean } };
+export type PageState = { watching: boolean; template: boolean; review: { months: number | null; ownerName: string | null; mine: boolean }; readAsked: boolean; pinned: boolean };
 const reviewChoices = [3, 6, 12] as const;
 export type MovePlace = { spaces: { id: string; name: string }[]; nodes: { id: string; spaceId: string; parentId: string | null; title: string }[] };
 
 // The actions of a page: "Edit" first (editors), then a menu for the rest —
 // a page inside, move, history, print, download, delete (with undo).
-export function PageActions({ page, writer, editHref, t, places, state }: { page: { id: string; title: string; spaceId: string; parentId: string | null; hasChildren: boolean }; writer: boolean; editHref: string; t: Words; places?: MovePlace; state: PageState }) {
+export function PageActions({ page, writer, editHref, t, places, state, groups = [] }: { page: { id: string; title: string; spaceId: string; parentId: string | null; hasChildren: boolean }; writer: boolean; editHref: string; t: Words; places?: MovePlace; state: PageState; groups?: { id: string; name: string }[] }) {
   const router = useRouter();
   const toast = useToast();
   const [moving, setMoving] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [asking, setAsking] = useState(false);
   const [child, setChild] = useState<PageTarget | null>(null);
   const [watching, setWatched] = useState(state.watching);
   const [pending, start] = useTransition();
@@ -50,6 +51,16 @@ export function PageActions({ page, writer, editHref, t, places, state }: { page
       if (!result.ok) return toast(format(t.errors[result.error], result.values));
       router.refresh();
       toast(format(next ? t.marks.marked : t.marks.unmarked, { title: page.title, space: t.spaceName }));
+    });
+  }
+
+  function pin() {
+    const next = !state.pinned;
+    start(async () => {
+      const result = await setPinned(page.id, next);
+      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      router.refresh();
+      toast(next ? t.page.pinned : t.page.unpinned);
     });
   }
 
@@ -78,7 +89,11 @@ export function PageActions({ page, writer, editHref, t, places, state }: { page
       <Menu label={t.page.more} icon={<Dots />}>
         {writer && <button type="button" onClick={() => setChild({ spaceId: page.spaceId, spaceName: t.spaceName, parentId: page.id, parentTitle: page.title })}><Plus />{t.shell.newSubpage}</button>}
         {writer && places && <button type="button" onClick={() => setMoving(true)}><Move />{t.page.move}</button>}
+        {writer && <button type="button" disabled={pending} onClick={pin}><Pin />{state.pinned ? t.page.unpin : t.page.pin}</button>}
         {writer && <button type="button" disabled={pending} onClick={template}><Stamp />{state.template ? t.marks.unmark : t.marks.mark}</button>}
+        {writer && (state.readAsked
+          ? <Link href={`/chest/pages/${page.id}/reads`}><People />{t.reads.menuSeen}</Link>
+          : <button type="button" onClick={() => setAsking(true)}><Seal />{t.reads.menu}</button>)}
         {writer && <button type="button" onClick={() => setReviewing(true)}><Calendar />{state.review.months ? format(t.review.menuSet, { months: state.review.months }) : t.review.menu}</button>}
         <Link href={`/chest/pages/${page.id}/history`}><Clock />{t.page.history}</Link>
         <button type="button" onClick={() => window.print()}><Printer />{t.page.print}</button>
@@ -88,6 +103,7 @@ export function PageActions({ page, writer, editHref, t, places, state }: { page
         {writer && <button type="button" className="danger" disabled={pending} onClick={remove}><Trash />{t.page.delete}</button>}
       </Menu>
       {places && <MoveDialog open={moving} onClose={() => setMoving(false)} page={page} places={places} t={t} />}
+      {writer && <AskReadDialog open={asking} onClose={() => setAsking(false)} page={page} groups={groups} t={t} />}
       {writer && <ReviewDialog open={reviewing} onClose={() => setReviewing(false)} page={page} review={state.review} t={t} />}
       <NewPageDialog target={child} onClose={() => setChild(null)} t={t} />
     </div>
@@ -255,6 +271,78 @@ export function DraftNotice({ pageId, editHref, t }: { pageId: string; editHref:
         <Link className="button small" href={editHref}>{t.continue}</Link>
         <button type="button" className="button small quiet" disabled={pending} onClick={discard}>{t.discard}</button>
       </div>
+    </div>
+  );
+}
+
+// Asking the page's readers to confirm they read it: everyone who reads
+// the space, or some groups.
+function AskReadDialog({ open, onClose, page, groups, t }: { open: boolean; onClose: () => void; page: { id: string; title: string }; groups: { id: string; name: string }[]; t: Words }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [some, setSome] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  function submit() {
+    setError(null);
+    start(async () => {
+      const result = await askRead(page.id, some ? chosen : []);
+      if (!result.ok) return setError(format(t.errors[result.error], result.values));
+      onClose();
+      router.refresh();
+      toast(plural(t.reads.asked, result.value.asked, t.locale));
+    });
+  }
+  return (
+    <Dialog open={open} title={t.reads.title} closeLabel={t.common.close} onClose={onClose}>
+      <form className="stack" onSubmit={e => { e.preventDefault(); submit(); }}>
+        <p className="where">{format(t.reads.intro, { title: page.title })}</p>
+        <fieldset className="plain">
+          <legend className="visually-hidden">{t.reads.title}</legend>
+          <div className="choices">
+            <label className="choice"><input type="radio" name="read-who" checked={!some} onChange={() => setSome(false)} />{t.reads.everyone}</label>
+            {groups.length > 0 && <label className="choice"><input type="radio" name="read-who" checked={some} onChange={() => setSome(true)} /><People />{t.reads.groups}</label>}
+          </div>
+          {some && (
+            <div className="group-list">
+              {groups.map(g => (
+                <label key={g.id} className="check">
+                  <input type="checkbox" checked={chosen.includes(g.id)} onChange={e => setChosen(list => (e.target.checked ? [...list, g.id] : list.filter(x => x !== g.id)))} />
+                  {g.name}
+                </label>
+              ))}
+            </div>
+          )}
+        </fieldset>
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="dialog-foot">
+          <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
+          <button type="submit" className="button" disabled={pending || (some && chosen.length === 0)}>{t.reads.submit}</button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+// On a page its reader is asked to confirm: read it, then one button.
+export function ReadRequest({ pageId, again, t }: { pageId: string; again: boolean; t: { banner: string; bannerAgain: string; confirm: string; confirmed: string; errors: Catalogue["errors"] } }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  function confirm() {
+    start(async () => {
+      const result = await confirmRead(pageId);
+      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      router.refresh();
+      toast(t.confirmed);
+    });
+  }
+  return (
+    <div className="notice ask-read" role="status">
+      <Seal />
+      <p>{again ? t.bannerAgain : t.banner}</p>
+      <button type="button" className="button small" disabled={pending} onClick={confirm}><Check />{t.confirm}</button>
     </div>
   );
 }

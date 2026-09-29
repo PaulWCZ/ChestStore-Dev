@@ -13,6 +13,7 @@ import { format, moment } from "../../../../../lib/i18n/format.ts";
 import { draftEverySeconds, heartbeatSeconds } from "../../../../../lib/model.ts";
 import { keepEditing, openEditor, publishPage, saveDraft, stopEditing, type Holder } from "../../../actions.ts";
 import { extensions } from "./extensions.ts";
+import { matching, SlashMenu, slashItems, type Slash, type SlashItem } from "./slash.tsx";
 
 type Words = { editor: Catalogue["editor"]; errors: Catalogue["errors"]; common: Catalogue["common"]; missing: string };
 type PageInfo = { id: string; title: string; doc: Doc; version: number };
@@ -91,6 +92,35 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
   const editorRef = useRef<TiptapEditor | null>(null);
   const changedRef = useRef<() => void>(() => {});
   const uploadRef = useRef<(file: File) => Promise<void>>(async () => {});
+  // The "/" menu (slash.tsx): open while the text from its "/" to the
+  // cursor is one word.
+  const [slash, setSlashState] = useState<Slash | null>(null);
+  const slashRef = useRef<Slash | null>(null);
+  const setSlash = useCallback((next: Slash | null) => { slashRef.current = next; setSlashState(next); }, []);
+  const items = useMemo(() => slashItems(t.editor, { link: () => setLinkOpen(true), pick: () => setPickOpen(true), file: () => fileInput.current?.click() }), [t.editor]);
+  const itemsRef = useRef<SlashItem[]>(items);
+  itemsRef.current = items;
+  const choose = useCallback((item: SlashItem) => {
+    const e = editorRef.current;
+    const at = slashRef.current;
+    setSlash(null);
+    if (!e || !at) return;
+    e.chain().focus().deleteRange({ from: at.from, to: Math.max(at.from, e.state.selection.from) }).run();
+    item.run(e);
+  }, [setSlash]);
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
+  const track = useCallback(() => {
+    const at = slashRef.current;
+    const e = editorRef.current;
+    if (!at || !e) return;
+    const pos = e.state.selection.from;
+    const text = pos > at.from ? e.state.doc.textBetween(at.from, pos, "\n", "\ufffc") : "";
+    if (!text.startsWith("/") || text.length > 24 || /\s/u.test(text)) return setSlash(null);
+    if (text.slice(1) !== at.query) setSlash({ ...at, query: text.slice(1), index: 0 });
+  }, [setSlash]);
+  const trackRef = useRef(track);
+  trackRef.current = track;
 
   useEffect(() => {
     if (start.restored) toast(format(t.editor.restored, { time: start.restored }));
@@ -105,6 +135,40 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
     injectCSS: false,
     editorProps: {
       attributes: { class: "prose editable", "aria-label": t.editor.bodyPlaceholder, spellcheck: "true" },
+      handleTextInput: (view, from, _to, text) => {
+        if (text !== "/") return false;
+        const $from = view.state.doc.resolve(from);
+        if ($from.parent.type.spec.code) return false;
+        const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 1), $from.parentOffset, undefined, "\ufffc");
+        if (before !== "" && !/\s/u.test(before)) return false;
+        setTimeout(() => {
+          const box = view.coordsAtPos(from);
+          const x = Math.max(8, Math.min(box.left, window.innerWidth - 272));
+          setSlash({ from, query: "", index: 0, x, y: box.bottom + 6 });
+        }, 0);
+        return false;
+      },
+      handleKeyDown: (_view, event) => {
+        const at = slashRef.current;
+        if (!at) return false;
+        const list = matching(itemsRef.current, at.query);
+        const count = Math.max(list.length, 1);
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          setSlash({ ...at, index: (at.index + (event.key === "ArrowDown" ? 1 : count - 1)) % count });
+          return true;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          const item = list[at.index];
+          if (!item) return false;
+          chooseRef.current(item);
+          return true;
+        }
+        if (event.key === "Escape") {
+          setSlash(null);
+          return true;
+        }
+        return false;
+      },
       handlePaste: (_view, event) => {
         const files = [...(event.clipboardData?.files ?? [])];
         if (files.length === 0) return false;
@@ -119,7 +183,9 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
         return true;
       },
     },
-    onUpdate: () => changedRef.current(),
+    onUpdate: () => { changedRef.current(); trackRef.current(); },
+    onSelectionUpdate: () => trackRef.current(),
+    onBlur: () => setSlash(null),
   });
   useEffect(() => { editorRef.current = editor; }, [editor]);
 
@@ -286,6 +352,7 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
         />
         <EditorContent editor={editor} />
       </div>
+      {slash && <SlashMenu slash={slash} items={matching(items, slash.query)} label={t.editor.slashLabel} empty={t.editor.slashNone} onChoose={choose} />}
       {editor && <LinkDialog open={linkOpen} editor={editor} onClose={() => setLinkOpen(false)} t={t} />}
       {editor && <PagePicker open={pickOpen} pages={pages.filter(p => p.id !== page.id)} onClose={() => setPickOpen(false)} onPick={id => { editor.chain().focus().insertPageRef(id).run(); setPickOpen(false); }} t={t} />}
     </div>
@@ -293,7 +360,7 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
 }
 
 // The formatting bar: what most pages need, in plain words for screen
-// readers and tooltips; on a phone it scrolls sideways.
+// readers and tooltips; on a phone it wraps on two rows.
 function Toolbar({ editor, t, onLink, onPick, onFile }: { editor: TiptapEditor; t: Words; onLink: () => void; onPick: () => void; onFile: () => void }) {
   const s = useEditorState({
     editor,

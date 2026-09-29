@@ -2,12 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
-import { Camera, Car, Check, FileIcon, Receipt } from "../../components/icons.tsx";
+import { Camera, Car, Check, Close, FileIcon, Receipt } from "../../components/icons.tsx";
 import { useToast } from "../../components/toast.tsx";
 import type { ComposeData, Initial } from "../../lib/compose.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, intl, plural } from "../../lib/i18n/format.ts";
-import { formatMoney, inputAmount, parseAmount, vatInside, vatRates } from "../../lib/money.ts";
+import { convert, formatMoney, inputAmount, parseAmount, parseRate, rateText, vatInside, vatRates } from "../../lib/money.ts";
 import { limits, receiptTypes } from "../../lib/model.ts";
 import { tripCents } from "../../lib/scale.ts";
 import { km } from "../../lib/words.ts";
@@ -132,6 +132,43 @@ function ReceiptPicker({ t, initial, onChange, onBusy, onError }: {
   );
 }
 
+type Guests = { members: { id: string; name: string }[]; names: string[] };
+
+// Who was at a meal: colleagues picked by name from the team, people from
+// outside typed as they are ("Jean Dupont (Acme)"). Enter or "Add" adds
+// what is typed: a colleague's exact name becomes that colleague.
+function GuestsField({ team, value, onChange, perPerson, t }: { team: ComposeData["team"]; value: Guests; onChange: (g: Guests) => void; perPerson: string | null; t: ComposeWords }) {
+  const [text, setText] = useState("");
+  function add() {
+    const typed = text.trim().replace(/\s+/gu, " ");
+    if (!typed) return;
+    const colleague = team.find(m => m.name.toLocaleLowerCase() === typed.toLocaleLowerCase());
+    if (colleague) {
+      if (!value.members.some(m => m.id === colleague.id)) onChange({ ...value, members: [...value.members, colleague] });
+    } else if (!value.names.includes(typed)) onChange({ ...value, names: [...value.names, typed.slice(0, limits.guestName)] });
+    setText("");
+  }
+  const chips = [...value.members.map(m => ({ key: m.id, name: m.name, drop: () => onChange({ ...value, members: value.members.filter(x => x.id !== m.id) }) })),
+    ...value.names.map(n => ({ key: "n:" + n, name: n, drop: () => onChange({ ...value, names: value.names.filter(x => x !== n) }) }))];
+  return (
+    <div className="field-row guests">
+      <label htmlFor="guest">{t.form.guests}</label>
+      {chips.length > 0 && (
+        <ul className="guest-list">
+          {chips.map(c => <li key={c.key} className="chip small-name">{c.name}<button type="button" className="chip-x" onClick={c.drop} aria-label={format(t.form.guestRemove, { name: c.name })}><Close /></button></li>)}
+        </ul>
+      )}
+      <div className="guest-add">
+        <input id="guest" className="field" list="team" value={text} maxLength={limits.guestName} placeholder={t.form.guestsPlaceholder} autoComplete="off" aria-describedby="guest-hint"
+          onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        <button type="button" className="button quiet" onClick={add} disabled={!text.trim()}>{t.form.guestsAdd}</button>
+      </div>
+      <datalist id="team">{team.map(m => <option key={m.id} value={m.name} />)}</datalist>
+      <span id="guest-hint" className="hint">{perPerson ?? t.form.guestsHint}</span>
+    </div>
+  );
+}
+
 export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; initial: Initial | null; locale: string; t: ComposeWords }) {
   const saved = useSaved(t, locale);
   const [pending, start] = useTransition();
@@ -142,10 +179,20 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
   const [currency, setCurrency] = useState(initial?.currency ?? data.currency);
   const [amount, setAmount] = useState(initial?.amount ?? "");
   const [vat, setVat] = useState(initial?.vat ?? "");
+  const [rate, setRate] = useState(initial?.rate ?? "");
   const [paidBy, setPaidBy] = useState<"me" | "company">(initial?.paidBy ?? "me");
   const [category, setCategory] = useState(initial?.categoryId ?? "");
+  const [guests, setGuests] = useState<Guests>(initial?.guests ?? { members: [], names: [] });
   const amountRef = useRef<HTMLInputElement>(null);
   const parsed = parseAmount(amount, currency);
+  // Another currency than the company's: the rate typed, else the company's.
+  const foreign = currency !== data.currency;
+  const companyRate = data.rates[currency] ?? null;
+  const rateUsed = foreign ? (rate.trim() ? parseRate(rate) : companyRate) : null;
+  const converted = foreign && rateUsed !== null && parsed !== null && parsed > 0 ? format(t.form.converted, { amount: formatMoney(convert(parsed, currency, rateUsed, data.currency), data.currency, locale) }) : null;
+  const asksGuests = data.categories.find(c => c.id === category)?.guests ?? false;
+  const atTable = 1 + guests.members.length + guests.names.length;
+  const perPerson = atTable > 1 && parsed !== null && parsed > 0 ? plural(t.form.perPerson, atTable, locale, { amount: formatMoney(Math.round(parsed / atTable), currency, locale) }) : null;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -157,7 +204,8 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
     }
     if (!category) return setError(t.errors.category_invalid);
     setError(null);
-    const input = { spentOn: String(form.get("date") ?? ""), amount, currency, vat, categoryId: category, merchant: String(form.get("merchant") ?? ""), note: String(form.get("note") ?? ""), paidBy, receiptName };
+    const input = { spentOn: String(form.get("date") ?? ""), amount, currency, vat, rate: foreign ? rate : "", categoryId: category, merchant: String(form.get("merchant") ?? ""), note: String(form.get("note") ?? ""), paidBy, receiptName,
+      guestMembers: asksGuests ? guests.members.map(m => m.id) : [], guestNames: asksGuests ? guests.names : [] };
     start(async () => {
       const result = await saveExpense(initial?.id ?? null, input, receipt);
       if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
@@ -175,7 +223,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
           <input id="amount" ref={amountRef} name="amount" inputMode="decimal" autoComplete="off" placeholder={inputAmount(0, currency, locale)} value={amount} onChange={e => setAmount(e.target.value)} aria-invalid={error === t.errors.amount_invalid} aria-describedby="amount-hint" />
           <span className="unit" aria-hidden="true">{symbolOf(currency, locale)}</span>
         </div>
-        <span id="amount-hint" className="hint">{t.form.amountHint}</span>
+        <span id="amount-hint" className="hint">{converted ?? t.form.amountHint}</span>
       </div>
 
       <fieldset className="chips" role="radiogroup">
@@ -187,6 +235,8 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
           </label>
         ))}
       </fieldset>
+
+      {asksGuests && <GuestsField team={data.team} value={guests} onChange={setGuests} perPerson={perPerson} t={t} />}
 
       <div className="two stack">
         <div className="field-row">
@@ -235,6 +285,14 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
               {data.currencies.map(c => <option key={c} value={c}>{c} · {symbolOf(c, locale)}</option>)}
             </select>
           </div>
+          {foreign && (
+            <div className="field-row">
+              <label htmlFor="rate">{format(t.form.rate, { from: currency, to: data.currency })}</label>
+              <input id="rate" className="field mono" inputMode="decimal" autoComplete="off" value={rate} onChange={e => setRate(e.target.value)}
+                placeholder={companyRate !== null ? rateText(companyRate, locale) : ""} aria-describedby="rate-hint" aria-invalid={rate.trim() !== "" && parseRate(rate) === null} />
+              <span id="rate-hint" className="hint">{(companyRate !== null ? [format(t.form.rateCompany, { rate: rateText(companyRate, locale) }), t.form.rateHint] : [t.form.rateNone]).join(" · ")}</span>
+            </div>
+          )}
           <div className="field-row">
             <label htmlFor="note">{t.form.note}</label>
             <textarea id="note" name="note" className="field" maxLength={limits.note} placeholder={t.form.notePlaceholder} defaultValue={initial?.note ?? ""} />

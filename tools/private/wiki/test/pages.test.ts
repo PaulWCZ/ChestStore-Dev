@@ -6,6 +6,7 @@ import { lines, normalize } from "../lib/doc.ts";
 import * as editing from "../lib/editing.ts";
 import * as history from "../lib/history.ts";
 import * as pages from "../lib/pages.ts";
+import * as pins from "../lib/pins.ts";
 import { search } from "../lib/search.ts";
 import * as spaces from "../lib/spaces.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -268,6 +269,8 @@ test("links between pages survive renames and show who links here; a gone page r
   const read = await pages.page(sql, asMember(hugo), from.id);
   assert.deepEqual([...(await pages.titles(sql, asMember(hugo), read.doc))], [[target.id, "New name"]]);
   assert.deepEqual(await pages.backlinks(sql, asMember(hugo), target.id), [{ id: from.id, title: "Index" }]);
+  // The history's comparison names the linked page, not a blank.
+  assert.ok(JSON.stringify((await history.diff(sql, asMember(hugo), from.id, 2)).rows).includes("See New name"));
   // The page's words name the linked page (as it was called when saved), so search finds it by it.
   assert.ok((await search(sql, asMember(hugo), "see old")).some(h => h.id === from.id));
   await pages.deletePage(sql, asMember(ines), target.id);
@@ -316,4 +319,21 @@ test("the example handbook: a space and linked pages in the editor's language", 
   assert.equal(first.space.name, "Livret d’accueil");
   assert.equal((await pages.tree(sql, asMember(hugo), [made.spaceId])).length, 5);
   assert.equal((await pages.titles(sql, asMember(hugo), first.doc)).size, 2);
+});
+
+test("pinned pages: editors pin a few to the home page; readers see those they may read", async () => {
+  const { sql } = database;
+  const open = await spaces.createSpace(sql, asMember(ines), { name: "Pins" });
+  const hr = await spaces.createSpace(sql, asMember(camille), { name: "Pins HR", visibility: "groups", groups: [groups.office] });
+  const a = await pages.createPage(sql, asMember(ines), { spaceId: open.id, title: "Holidays" });
+  const b = await pages.createPage(sql, asMember(camille), { spaceId: hr.id, title: "Pay days" });
+  await assert.rejects(pins.setPinned(sql, asMember(hugo), a.id, true), /forbidden/u);
+  assert.equal(await pins.setPinned(sql, asMember(ines), a.id, true), true);
+  assert.equal(await pins.setPinned(sql, asMember(camille), b.id, true), true);
+  assert.deepEqual((await pins.pinned(sql, asMember(hugo))).map(p => p.title), ["Holidays"]);
+  assert.deepEqual((await pins.pinned(sql, asMember(camille))).map(p => p.title), ["Holidays", "Pay days"]);
+  await pages.deletePage(sql, asMember(ines), a.id);
+  assert.deepEqual((await pins.pinned(sql, asMember(hugo))).map(p => p.title), []);
+  assert.equal(await pins.setPinned(sql, asMember(camille), b.id, false), false);
+  assert.equal(await pins.isPinned(sql, b.id), false);
 });

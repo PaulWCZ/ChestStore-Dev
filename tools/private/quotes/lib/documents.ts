@@ -43,6 +43,9 @@ export type Line = {
   vatRate: number;
   goods: boolean;
   net: number;
+  // The deposit invoice this line takes back (the final invoice of a
+  // quote), for the accountant's entries.
+  depositOf?: string | null;
 };
 
 export type Doc = {
@@ -122,8 +125,8 @@ export const toDoc = (r: Row): Doc => ({
   crmTitle: r.crm_title ?? null, crmReopenedAt: iso(r.crm_reopened_at ?? null),
 });
 
-type LineRow = { document_id: number; kind: "line" | "section"; item_id: number | null; description: string; quantity: number; unit: string; unit_price: number; discount: number; vat_rate: number; goods: boolean; net: number };
-const toLine = (r: LineRow): Line => ({ kind: r.kind, itemId: str(r.item_id), description: r.description, quantity: r.quantity, unit: r.unit, unitPrice: r.unit_price, discount: r.discount, vatRate: r.vat_rate, goods: r.goods, net: r.net });
+type LineRow = { document_id: number; kind: "line" | "section"; item_id: number | null; description: string; quantity: number; unit: string; unit_price: number; discount: number; vat_rate: number; goods: boolean; net: number; deposit_of?: number | null };
+const toLine = (r: LineRow): Line => ({ kind: r.kind, itemId: str(r.item_id), description: r.description, quantity: r.quantity, unit: r.unit, unitPrice: r.unit_price, discount: r.discount, vatRate: r.vat_rate, goods: r.goods, net: r.net, depositOf: str(r.deposit_of ?? null) });
 
 // --- States ----------------------------------------------------------------
 
@@ -296,6 +299,7 @@ async function insertLines(sql: Query, documentId: number | string, lines: reado
   await sql`insert into lines ${sql(lines.map((l, i) => ({
     document_id: Number(documentId), position: i + 1, kind: l.kind, item_id: l.itemId === null ? null : Number(l.itemId), description: l.description,
     quantity: l.quantity, unit: l.unit, unit_price: l.unitPrice, discount: l.discount, vat_rate: l.vatRate, goods: l.goods, net: l.kind === "line" ? lineNet(l) : 0,
+    deposit_of: l.depositOf ? Number(l.depositOf) : null,
   })))}`;
 }
 
@@ -343,7 +347,7 @@ async function recompute(sql: Query, documentId: string): Promise<Doc> {
 
 // --- Editing a draft -------------------------------------------------------
 
-export type LineInput = Partial<Record<"kind" | "itemId" | "description" | "quantity" | "unit" | "unitPrice" | "discount" | "vatRate" | "goods", unknown>>;
+export type LineInput = Partial<Record<"kind" | "itemId" | "description" | "quantity" | "unit" | "unitPrice" | "discount" | "vatRate" | "goods" | "depositOf", unknown>>;
 export type DraftInput = Partial<Record<"clientId" | "title" | "language" | "deliveryDate" | "validUntil" | "paymentDays" | "vatTreatment" | "notes", unknown>> & { lines?: unknown };
 
 const int = (value: unknown, min: number, max: number, code: "quantity_invalid" | "amount_invalid" | "discount_invalid"): number => {
@@ -375,6 +379,7 @@ export function checkLines(value: unknown): Line[] {
       vatRate,
       goods: raw.goods === true,
       net: 0,
+      depositOf: raw.depositOf === null || raw.depositOf === undefined || raw.depositOf === "" ? null : id(raw.depositOf),
     };
     line.net = lineNet(line);
     return line;
@@ -424,6 +429,12 @@ export async function saveDraft(sql: Sql, actor: Member | null, documentId: unkn
     if (d.type !== "credit") set["franchise"] = (await company(tx)).franchise;
     if (Object.keys(set).length > 0) await tx`update documents set ${tx(set)} where id = ${docId}`;
     if (lines !== undefined) {
+      // A line may only take back a deposit invoice of this invoice's own
+      // quote; any other mark is dropped.
+      const marked = [...new Set(lines.map(l => l.depositOf).filter((x): x is string => !!x))];
+      const deposits = marked.length === 0 || d.type !== "invoice" || !d.quoteId ? new Set<string>()
+        : new Set((await tx<{ id: number }[]>`select id from documents where id = any(${marked.map(Number)}::bigint[]) and type = 'invoice' and quote_id = ${d.quoteId} and deposit_percent is not null`).map(r => String(r.id)));
+      for (const l of lines) if (l.depositOf && !deposits.has(l.depositOf)) l.depositOf = null;
       await tx`delete from lines where document_id = ${docId}`;
       await insertLines(tx, docId, lines);
     }
@@ -480,12 +491,16 @@ export async function upcomingNumber(sql: Query, type: DocumentType, today: stri
   return documentNumber(prefixOf(c, type), period, (row?.last ?? 0) + 1);
 }
 
-// What a document must hold before it is numbered.
-function ready(c: Company, client: Client | null, lines: readonly Line[]): void {
+// What a document must hold before it is numbered. Under reverse charge
+// the buyer is identified by its VAT number (or, in France, its SIREN):
+// the law prints it, and the structured invoice cannot go without it
+// (EN 16931, BR-AE-02).
+function ready(c: Company, client: Client | null, lines: readonly Line[], vatTreatment: VatTreatment = "standard"): void {
   const gaps = missing(c);
   if (gaps.length > 0) throw new AppError("company_incomplete", { fields: gaps.join(",") });
   if (!client) throw new AppError("no_client");
   const clientGaps = clientMissing(client);
+  if (vatTreatment === "reverse_charge" && !c.franchise && !client.vatNumber && !client.siren) clientGaps.push("vatNumber");
   if (clientGaps.length > 0) throw new AppError("client_incomplete", { fields: clientGaps.join(",") });
   const items = lines.filter(l => l.kind === "line");
   if (items.length === 0) throw new AppError("no_lines");
@@ -508,7 +523,7 @@ export async function sendQuote(sql: Sql, actor: Member | null, documentId: unkn
     const c = await company(tx);
     const client = d.clientId ? await clientFor(tx, d.clientId).catch(e => { if (e instanceof AppError && e.code === "client_archived") return null; throw e; }) : null;
     const lines = await linesOf(tx, docId);
-    ready(c, client, lines);
+    ready(c, client, lines, d.vatTreatment);
     const set: Record<string, unknown> = { seller: tx.json(sellerOf(c) as never), buyer: tx.json(buyerOf(client!) as never), franchise: c.franchise, sent_at: new Date(), sent_by: actor!.id, emailed_to: emailedTo };
     if (d.status === "draft" && d.number !== null) Object.assign(set, { status: "sent", issue_date: today });
     else if (d.status === "draft") {
@@ -605,7 +620,7 @@ export async function invoiceFromQuote(sql: Sql, actor: Member | null, quoteId: 
           lines.push({
             kind: "line", itemId: null,
             description: format(multi ? t.deductionOfRate : t.deduction, { number: inv.number ?? "", rate: formatRate(rate, quote.language) }),
-            quantity: 1000, unit: "", unitPrice: -base, discount: 0, vatRate: isVatRate(rate) ? rate : 0, goods: false, net: -base,
+            quantity: 1000, unit: "", unitPrice: -base, discount: 0, vatRate: isVatRate(rate) ? rate : 0, goods: false, net: -base, depositOf: String(inv.id),
           });
         }
       }
@@ -656,7 +671,7 @@ export async function finalise(sql: Sql, actor: Member | null, documentId: unkno
     const [clientRow] = d.clientId ? await tx`select * from clients where id = ${d.clientId}` : [];
     const client = clientRow ? toClient(clientRow as Parameters<typeof toClient>[0]) : null;
     const lines = await linesOf(tx, docId);
-    ready(c, client, lines);
+    ready(c, client, lines, d.vatTreatment);
     const franchise = d.type === "credit" ? d.franchise : c.franchise;
     const t = totals(lines, { noVat: franchise || d.vatTreatment === "reverse_charge" });
     if (d.type === "invoice" && t.gross < 0) throw new AppError("negative_total");

@@ -45,6 +45,7 @@ export function rowView(e: Expense, ctx: { t: Catalogue; locale: Locale; categor
   const what = e.trip ? format(t.trip.detail, { from: e.trip.from, to: e.trip.to }) : e.merchant || category;
   const subParts = e.trip ? [format(t.trip.km, { km: km(e.trip.distance, locale) })] : e.merchant ? [category] : [];
   if (ctx.who) subParts.unshift(ctx.who);
+  if (e.base !== null && e.baseCurrency && e.baseCurrency !== e.currency) subParts.push(format(t.form.converted, { amount: formatMoney(e.base, e.baseCurrency, locale) }));
   return {
     id: e.id,
     href: `/chest/expenses/${e.id}`,

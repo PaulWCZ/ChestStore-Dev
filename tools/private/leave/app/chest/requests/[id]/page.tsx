@@ -8,7 +8,8 @@ import { db } from "../../../../lib/db.ts";
 import { format, formatDate, formatDays, plural, spanText } from "../../../../lib/i18n/index.ts";
 import { today } from "../../../../lib/model.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
-import { history, request, undoMinutes, type Seen, type Step } from "../../../../lib/requests.ts";
+import { afterRequest } from "../../../../lib/left.ts";
+import { history, pendingOf, request, undoMinutes, type Seen, type Step } from "../../../../lib/requests.ts";
 import { leaveType } from "../../../../lib/rules.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { typeName } from "../../../../lib/type-name.ts";
@@ -34,6 +35,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
   const who = await people([r.memberId, ...steps.map(s => s.actor)]);
   const person = who.get(r.memberId);
   const b = r.sight !== "own" && r.status === "pending" ? (await balancesOf(sql, [r.memberId])).get(r.memberId)?.find(x => x.typeId === r.typeId) : undefined;
+  const after = b && b.setUp ? afterRequest(b.left, (await pendingOf(sql, [r.memberId])).filter(o => o.typeId === r.typeId), r).after : null;
   const status = r.cancelAsked ? "cancelAsked" : r.status === "approved" && r.decidedBy === "chest" ? "declared" : r.status;
   const actorName = (id: string) => (id === "chest" ? t.people.chest : id === member.id ? t.people.you : nameOf(who.get(id), locale));
   const recent = r.decidedBy === member.id && r.decidedAt !== null && Date.now() - Date.parse(r.decidedAt) < undoMinutes * 60000;
@@ -50,9 +52,9 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           <span className={`status s-${status}`}>{t.status[status]}</span>
         </header>
         <dl className="facts">
-          <div><dt>{t.request.what}</dt><dd><span className={`kind k-${ty.color}`}>{typeName(ty, t.types)}</span></dd></div>
+          <div><dt>{t.request.what}</dt><dd><span className={`kind k-${ty.color}`}>{typeName(ty, t.types)}</span>{r.event ? <span className="muted"> · {t.events[r.event]}</span> : null}</dd></div>
           <div><dt>{t.request.when}</dt><dd>{spanText(r, locale, t.span, { year: true })}</dd></div>
-          <div><dt>{t.request.cost}</dt><dd>{plural(t.units.days, r.days, locale)}{b && b.setUp ? <span className="muted"> · {format(t.approvals.after, { days: formatDays(b.left - r.days, locale) })}</span> : null}</dd></div>
+          <div><dt>{t.request.cost}</dt><dd>{plural(t.units.days, r.days, locale)}{after !== null ? <span className="muted"> · {format(t.approvals.after, { days: formatDays(after, locale) })}</span> : null}</dd></div>
           {r.note && <div><dt>{t.request.note}</dt><dd className="pre">{r.note}</dd></div>}
           {r.reason && <div><dt>{t.request.reason}</dt><dd className="pre">{r.reason}</dd></div>}
         </dl>

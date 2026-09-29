@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Avatar } from "../../../components/avatar.tsx";
-import { Car } from "../../../components/icons.tsx";
+import { BankForm, type BankCurrent } from "../../../components/bank-form.tsx";
+import { Car, Wallet } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, intl } from "../../../lib/i18n/format.ts";
@@ -14,8 +15,11 @@ import { addCategory, saveScale, setApprover, setVehicle, updateCategory, update
 type Option = { value: string; label: string };
 type Words = Catalogue["settings"];
 type Errors = Catalogue["errors"];
-type CategoryRow = { id: string; name: string; placeholder: string; account: string; vatRecovery: string; cap: string; mileage: boolean; archived: boolean };
+type CategoryRow = { id: string; name: string; placeholder: string; account: string; vatRecovery: string; cap: string; mileage: boolean; archived: boolean; guests: boolean };
 type Company = {
+  payer: string;
+  bank: BankCurrent;
+  sealed: boolean;
   currency: string;
   currencies: string[];
   reminder: boolean;
@@ -45,25 +49,38 @@ function useRun(errors: Errors) {
   return { run, pending };
 }
 
-export function SettingsView({ locale, vehicle, company, t, errors }: {
-  locale: string;
-  vehicle: { kinds: Option[]; powers: Record<string, Option[]>; current: { kind: string; power: string; electric: boolean } | null; electric: string };
-  company: Company | null;
-  t: Words;
-  errors: Errors;
-}) {
+export type { Company };
+export type VehicleData = { kinds: Option[]; powers: Record<string, Option[]>; current: { kind: string; power: string; electric: boolean } | null; electric: string };
+
+// Settings → Me: what each person sets for themselves.
+export function MyView({ vehicle, bank, t, errors, cancel }: { vehicle: VehicleData; bank: BankCurrent; t: Words; errors: Errors; cancel: string }) {
   return (
     <div className="settings">
       <VehicleForm vehicle={vehicle} t={t} errors={errors} />
-      {company && <CompanyForm company={company} t={t} errors={errors} />}
-      {company && <Categories company={company} t={t} errors={errors} />}
-      {company && <Approvers company={company} t={t} errors={errors} />}
-      {company && <ScaleEditor company={company} locale={locale} t={t} errors={errors} />}
+      <section id="bank" className="paper" aria-labelledby="bank-title">
+        <h2 id="bank-title" style={{ display: "flex", gap: 8, alignItems: "center" }}><Wallet />{t.bank.title}</h2>
+        <p className="hint">{t.bank.intro}</p>
+        <hr className="rule" />
+        <BankForm owner="me" current={bank} t={t.bank} errors={errors} save={t.bank.save} cancel={cancel} />
+      </section>
     </div>
   );
 }
 
-function VehicleForm({ vehicle, t, errors }: { vehicle: { kinds: Option[]; powers: Record<string, Option[]>; current: { kind: string; power: string; electric: boolean } | null; electric: string }; t: Words; errors: Errors }) {
+// Settings → Company: the accountant's.
+export function CompanyView({ locale, company, t, errors, cancel }: { locale: string; company: Company; t: Words; errors: Errors; cancel: string }) {
+  return (
+    <div className="settings">
+      <CompanyForm company={company} t={t} errors={errors} />
+      <CompanyBank company={company} t={t} errors={errors} cancel={cancel} />
+      <Categories company={company} t={t} errors={errors} />
+      <Approvers company={company} t={t} errors={errors} />
+      <ScaleEditor company={company} locale={locale} t={t} errors={errors} />
+    </div>
+  );
+}
+
+function VehicleForm({ vehicle, t, errors }: { vehicle: VehicleData; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
   const [kind, setKind] = useState(vehicle.current?.kind ?? "car");
   const powers = vehicle.powers[kind] ?? [];
@@ -116,6 +133,29 @@ function CompanyForm({ company, t, errors }: { company: Company; t: Words; error
   );
 }
 
+function CompanyBank({ company, t, errors, cancel }: { company: Company; t: Words; errors: Errors; cancel: string }) {
+  const { run, pending } = useRun(errors);
+  const [payer, setPayer] = useState(company.payer);
+  return (
+    <section id="bank" className="paper" aria-labelledby="company-bank-title">
+      <h2 id="company-bank-title">{t.bank.companyTitle}</h2>
+      <p className="hint">{t.bank.companyIntro}</p>
+      <hr className="rule" />
+      <div className="form-grid">
+        <form className="pay-form" onSubmit={e => { e.preventDefault(); run(() => updateCompany({ payer }), () => t.company.saved); }}>
+          <div className="field-row" style={{ flex: "1 1 280px" }}>
+            <label htmlFor="payer">{t.bank.payer}</label>
+            <input id="payer" className="field" value={payer} onChange={e => setPayer(e.target.value)} maxLength={70} autoComplete="organization" />
+          </div>
+          <button type="submit" className="button quiet" disabled={pending || payer.trim() === company.payer}>{t.categories.save}</button>
+        </form>
+        <BankForm owner="company" current={company.bank} t={t.bank} errors={errors} save={t.bank.companySave} cancel={cancel} holder={false} idPrefix="company-bank" />
+        {!company.sealed && <p className="hint">{t.bank.notSealed}</p>}
+      </div>
+    </section>
+  );
+}
+
 function Categories({ company, t, errors }: { company: Company; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
   const [name, setName] = useState("");
@@ -124,14 +164,14 @@ function Categories({ company, t, errors }: { company: Company; t: Words; errors
     run(() => updateCategory(id, { [field]: field === "vatRecovery" ? Number(value) : field === "cap" ? (value.trim() === "" ? null : value) : value }), () => t.company.saved);
   };
   return (
-    <section className="paper" aria-labelledby="categories-title">
+    <section id="categories" className="paper" aria-labelledby="categories-title">
       <h2 id="categories-title">{t.categories.title}</h2>
       <p className="hint">{t.categories.intro}</p>
       <hr className="rule" />
       <div className="table-wrap">
         <table className="grid">
           <thead>
-            <tr><th>{t.categories.name}</th><th>{t.categories.account}</th><th>{t.categories.vatRecovery}</th><th title={t.categories.capHint}>{t.categories.cap}</th><th><span className="visually-hidden">{t.categories.hide}</span></th></tr>
+            <tr><th>{t.categories.name}</th><th>{t.categories.account}</th><th>{t.categories.vatRecovery}</th><th title={t.categories.capHint}>{t.categories.cap}</th><th>{t.categories.guests}</th><th><span className="visually-hidden">{t.categories.hide}</span></th></tr>
           </thead>
           <tbody>
             {company.categories.map(c => (
@@ -144,6 +184,7 @@ function Categories({ company, t, errors }: { company: Company; t: Words; errors
                 <td><label className="visually-hidden" htmlFor={`cat-account-${c.id}`}>{t.categories.account}</label><input id={`cat-account-${c.id}`} className="field num mono" defaultValue={c.account} maxLength={20} onBlur={e => save(c.id, "account", e.target.value.trim(), c.account)} /></td>
                 <td><label className="visually-hidden" htmlFor={`cat-vat-${c.id}`}>{t.categories.vatRecovery}</label><input id={`cat-vat-${c.id}`} className="field num short" inputMode="numeric" defaultValue={c.vatRecovery} onBlur={e => save(c.id, "vatRecovery", e.target.value.trim(), c.vatRecovery)} /></td>
                 <td>{!c.mileage && <><label className="visually-hidden" htmlFor={`cat-cap-${c.id}`}>{t.categories.cap}</label><input id={`cat-cap-${c.id}`} className="field num" inputMode="decimal" defaultValue={c.cap} placeholder="—" onBlur={e => save(c.id, "cap", e.target.value.trim(), c.cap)} /></>}</td>
+                <td>{!c.mileage && <input type="checkbox" className="pick" aria-label={`${t.categories.guests}: ${c.name || c.placeholder}`} defaultChecked={c.guests} disabled={pending} onChange={e => run(() => updateCategory(c.id, { guests: e.target.checked }), () => t.company.saved)} />}</td>
                 <td>{!c.mileage && <button type="button" className="link-button" disabled={pending} onClick={() => run(() => updateCategory(c.id, { archived: !c.archived }))}>{c.archived ? t.categories.show : t.categories.hide}</button>}</td>
               </tr>
             ))}
@@ -164,7 +205,7 @@ function Categories({ company, t, errors }: { company: Company; t: Words; errors
 function Approvers({ company, t, errors }: { company: Company; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
   return (
-    <section className="paper" aria-labelledby="approvers-title">
+    <section id="approvers" className="paper" aria-labelledby="approvers-title">
       <h2 id="approvers-title">{t.approvers.title}</h2>
       <p className="hint">{t.approvers.intro}</p>
       <hr className="rule" />
@@ -207,7 +248,7 @@ function ScaleEditor({ company, locale, t, errors }: { company: Company; locale:
   };
   const next = Math.max(company.year, ...years) + (years.includes(company.year) ? 1 : 0);
   return (
-    <section className="paper" aria-labelledby="scale-title">
+    <section id="scale" className="paper" aria-labelledby="scale-title">
       <div className="paper-head">
         <h2 id="scale-title">{t.scale.title}</h2>
         <span className="stamp">{t.scale.check}</span>

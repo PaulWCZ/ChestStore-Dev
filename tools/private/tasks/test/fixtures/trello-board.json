@@ -1,0 +1,86 @@
+{
+  "id": "66f1a2b3c4d5e6f708192a3b",
+  "name": "Salon Batimat 2026",
+  "desc": "",
+  "closed": false,
+  "idOrganization": "5f0e1d2c3b4a596877665544",
+  "shortUrl": "https://trello.com/b/AbCdEf12",
+  "url": "https://trello.com/b/AbCdEf12/salon-batimat-2026",
+  "prefs": { "permissionLevel": "org", "background": "blue" },
+  "labelNames": { "green": "Fait", "yellow": "", "orange": "Fournisseurs", "red": "Urgent", "purple": "", "blue": "" },
+  "dateLastActivity": "2026-09-24T14:12:08.201Z",
+  "labels": [
+    { "id": "66f1a2b3c4d5e6f708192a40", "idBoard": "66f1a2b3c4d5e6f708192a3b", "name": "Urgent", "color": "red" },
+    { "id": "66f1a2b3c4d5e6f708192a41", "idBoard": "66f1a2b3c4d5e6f708192a3b", "name": "Fournisseurs", "color": "orange" },
+    { "id": "66f1a2b3c4d5e6f708192a42", "idBoard": "66f1a2b3c4d5e6f708192a3b", "name": "", "color": "sky_light" }
+  ],
+  "lists": [
+    { "id": "66f1a2b3c4d5e6f708192a50", "name": "À faire", "closed": false, "pos": 16384, "idBoard": "66f1a2b3c4d5e6f708192a3b", "subscribed": false },
+    { "id": "66f1a2b3c4d5e6f708192a51", "name": "En cours", "closed": false, "pos": 32768, "idBoard": "66f1a2b3c4d5e6f708192a3b", "subscribed": false },
+    { "id": "66f1a2b3c4d5e6f708192a52", "name": "Terminé", "closed": false, "pos": 49152, "idBoard": "66f1a2b3c4d5e6f708192a3b", "subscribed": false },
+    { "id": "66f1a2b3c4d5e6f708192a53", "name": "Vieilles idées", "closed": true, "pos": 65536, "idBoard": "66f1a2b3c4d5e6f708192a3b", "subscribed": false }
+  ],
+  "members": [
+    { "id": "5a1b2c3d4e5f60718293a4b5", "fullName": "Inès Moreau", "username": "inesmoreau", "initials": "IM" },
+    { "id": "5a1b2c3d4e5f60718293a4b6", "fullName": "Hugo Bernard", "username": "hugob", "initials": "HB" },
+    { "id": "5a1b2c3d4e5f60718293a4b7", "fullName": "Jeanne Prestataire", "username": "jeanne_ext", "initials": "JP" }
+  ],
+  "cards": [
+    {
+      "id": "66f1a2b3c4d5e6f708192a60", "idShort": 1, "name": "Réserver le stand B12", "desc": "Surface **9 m²**, angle.",
+      "closed": false, "pos": 16384, "idList": "66f1a2b3c4d5e6f708192a50", "idBoard": "66f1a2b3c4d5e6f708192a3b",
+      "due": "2026-10-15T08:00:00.000Z", "dueComplete": false, "start": "2026-10-01T00:00:00.000Z",
+      "idLabels": ["66f1a2b3c4d5e6f708192a40"], "idMembers": ["5a1b2c3d4e5f60718293a4b5", "5a1b2c3d4e5f60718293a4b7"],
+      "idChecklists": ["66f1a2b3c4d5e6f708192a70"], "idAttachmentCover": null,
+      "badges": { "attachments": 2, "checkItems": 2, "checkItemsChecked": 1, "comments": 1, "description": true, "due": "2026-10-15T08:00:00.000Z" },
+      "attachments": [
+        { "id": "66f1a2b3c4d5e6f708192a90", "name": "plan-stand.pdf", "url": "https://trello.com/1/cards/66f1a2b3c4d5e6f708192a60/attachments/66f1a2b3c4d5e6f708192a90/download/plan-stand.pdf", "bytes": 482113, "mimeType": "application/pdf", "isUpload": true, "idMember": "5a1b2c3d4e5f60718293a4b5", "date": "2026-09-20T10:01:00.000Z" },
+        { "id": "66f1a2b3c4d5e6f708192a91", "name": "https://www.batimat.com/exposer", "url": "https://www.batimat.com/exposer", "bytes": null, "mimeType": "", "isUpload": false, "idMember": "5a1b2c3d4e5f60718293a4b6", "date": "2026-09-21T09:00:00.000Z" }
+      ],
+      "shortUrl": "https://trello.com/c/Xy12Ab34", "dateLastActivity": "2026-09-24T14:12:08.201Z"
+    },
+    {
+      "id": "66f1a2b3c4d5e6f708192a61", "idShort": 2, "name": "Commander les goodies", "desc": "",
+      "closed": false, "pos": 32768, "idList": "66f1a2b3c4d5e6f708192a50", "idBoard": "66f1a2b3c4d5e6f708192a3b",
+      "due": null, "dueComplete": false, "start": null,
+      "idLabels": ["66f1a2b3c4d5e6f708192a41", "66f1a2b3c4d5e6f708192a42"], "idMembers": ["5a1b2c3d4e5f60718293a4b6"],
+      "idChecklists": [], "badges": { "attachments": 0, "checkItems": 0, "checkItemsChecked": 0, "comments": 0, "description": false, "due": null },
+      "attachments": []
+    },
+    {
+      "id": "66f1a2b3c4d5e6f708192a62", "idShort": 3, "name": "Imprimer les kakémonos", "desc": "",
+      "closed": false, "pos": 16384, "idList": "66f1a2b3c4d5e6f708192a51", "idBoard": "66f1a2b3c4d5e6f708192a3b",
+      "due": "2026-10-10T16:00:00.000Z", "dueComplete": false, "start": null,
+      "idLabels": [], "idMembers": [], "idChecklists": [], "badges": { "attachments": 1, "checkItems": 0, "checkItemsChecked": 0, "comments": 0, "description": false },
+      "attachments": [
+        { "id": "66f1a2b3c4d5e6f708192a92", "name": "kakemono-v3.png", "url": "https://trello.com/1/cards/66f1a2b3c4d5e6f708192a62/attachments/66f1a2b3c4d5e6f708192a92/download/kakemono-v3.png", "bytes": 1822344, "mimeType": "image/png", "isUpload": true, "date": "2026-09-22T08:00:00.000Z" }
+      ]
+    },
+    {
+      "id": "66f1a2b3c4d5e6f708192a63", "idShort": 4, "name": "Envoyer les badges exposants", "desc": "",
+      "closed": true, "pos": 16384, "idList": "66f1a2b3c4d5e6f708192a52", "idBoard": "66f1a2b3c4d5e6f708192a3b",
+      "due": null, "idLabels": [], "idMembers": [], "idChecklists": [], "badges": { "attachments": 0 }, "attachments": []
+    }
+  ],
+  "checklists": [
+    {
+      "id": "66f1a2b3c4d5e6f708192a70", "name": "Checklist", "idBoard": "66f1a2b3c4d5e6f708192a3b", "idCard": "66f1a2b3c4d5e6f708192a60", "pos": 16384,
+      "checkItems": [
+        { "id": "66f1a2b3c4d5e6f708192a80", "name": "Demander le devis", "state": "complete", "pos": 16384, "idChecklist": "66f1a2b3c4d5e6f708192a70", "due": null, "idMember": null },
+        { "id": "66f1a2b3c4d5e6f708192a81", "name": "Payer l’acompte", "state": "incomplete", "pos": 32768, "idChecklist": "66f1a2b3c4d5e6f708192a70", "due": null, "idMember": null }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "66f1a2b3c4d5e6f708192aa0", "idMemberCreator": "5a1b2c3d4e5f60718293a4b7", "type": "commentCard", "date": "2026-09-23T15:30:00.000Z",
+      "data": { "text": "Le devis arrive lundi.", "card": { "id": "66f1a2b3c4d5e6f708192a60", "name": "Réserver le stand B12", "idShort": 1 }, "board": { "id": "66f1a2b3c4d5e6f708192a3b", "name": "Salon Batimat 2026" }, "list": { "id": "66f1a2b3c4d5e6f708192a50", "name": "À faire" } },
+      "memberCreator": { "id": "5a1b2c3d4e5f60718293a4b7", "fullName": "Jeanne Prestataire", "username": "jeanne_ext" }
+    },
+    {
+      "id": "66f1a2b3c4d5e6f708192aa1", "idMemberCreator": "5a1b2c3d4e5f60718293a4b6", "type": "createCard", "date": "2026-09-19T09:00:00.000Z",
+      "data": { "card": { "id": "66f1a2b3c4d5e6f708192a61", "name": "Commander les goodies" }, "list": { "id": "66f1a2b3c4d5e6f708192a50", "name": "À faire" } },
+      "memberCreator": { "id": "5a1b2c3d4e5f60718293a4b6", "fullName": "Hugo Bernard", "username": "hugob" }
+    }
+  ]
+}

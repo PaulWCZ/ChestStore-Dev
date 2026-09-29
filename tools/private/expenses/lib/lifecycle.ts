@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { forgetInRuns } from "./payments.ts";
 import { forget } from "./receipts.ts";
 import { refresh, settleWaiting } from "./tell.ts";
 
@@ -16,7 +17,8 @@ import { refresh, settleWaiting } from "./tell.ts";
 //   code). Those stay, but the person's id is replaced by 'erased'
 //   everywhere and their notes are deleted. Their drafts — never sent, not
 //   records of anything — are deleted with their receipts, and so are their
-//   vehicle and unused uploads. Then the erasure is acknowledged.
+//   vehicle, bank details (also in past transfer files) and unused uploads.
+//   Then the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   const owners = await sql.begin(async tx => {
     await tx`delete from approvers where approver_id = ${memberId}`;
@@ -37,12 +39,19 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
       delete from expenses where member_id = ${memberId} and (status = 'draft' or deleted_at is not null) returning receipt_object`;
     await tx`update expenses set member_id = 'erased', note = '' where member_id = ${memberId}`;
     await tx`update expenses set approver_id = 'erased' where approver_id = ${memberId}`;
+    await tx`update expenses set guest_members = array_replace(guest_members, ${memberId}, 'erased') where ${memberId} = any(guest_members)`;
     await tx`update expenses set decided_by = 'erased' where decided_by = ${memberId}`;
     await tx`update expenses set paid_marked_by = 'erased' where paid_marked_by = ${memberId}`;
     await tx`update claims set member_id = 'erased' where member_id = ${memberId}`;
     await tx`update history set actor = 'erased' where actor = ${memberId}`;
     await tx`update mileage_scales set updated_by = 'erased' where updated_by = ${memberId}`;
     await tx`delete from vehicles where member_id = ${memberId}`;
+    await tx`delete from bank_accounts where owner = ${memberId}`;
+    await tx`update bank_accounts set updated_by = 'erased' where updated_by = ${memberId}`;
+    await tx`update payment_runs set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`update payment_runs set cancelled_by = 'erased' where cancelled_by = ${memberId}`;
+    await tx`update rates set updated_by = 'erased' where updated_by = ${memberId}`;
+    await forgetInRuns(tx, memberId);
     const uploads = await tx<{ object: string }[]>`delete from uploads where member_id = ${memberId} returning object`;
     return [...drafts.map(d => d.receipt_object).filter((o): o is string => o !== null), ...uploads.map(u => u.object)];
   });

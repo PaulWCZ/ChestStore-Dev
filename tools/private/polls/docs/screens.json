@@ -26,7 +26,7 @@
  },
  {
   "name": "pulse-fr",
-  "path": "/chest/polls/3",
+  "path": "/chest/polls/9",
   "member": "lea",
   "locale": "fr"
  },
@@ -64,6 +64,37 @@
     "wait": 200
    }
   ]
+ },
+ {
+  "name": "pulse-open",
+  "path": "/chest/polls/3",
+  "member": "hugo",
+  "locale": "en"
+ },
+ {
+  "name": "signup-fr",
+  "path": "/chest/polls/10",
+  "member": "lea",
+  "locale": "fr"
+ },
+ {
+  "name": "comments",
+  "path": "/chest/polls/1",
+  "member": "camille",
+  "locale": "en"
+ },
+ {
+  "name": "new-pulse",
+  "path": "/chest/new?kind=survey&preset=pulse",
+  "member": "hugo",
+  "locale": "en"
+ },
+ {
+  "name": "pulse-dark",
+  "path": "/chest/polls/9",
+  "member": "camille",
+  "locale": "en",
+  "dark": true
  },
  {
   "name": "home-dark",

@@ -97,25 +97,58 @@ test("an anonymous answer names no one: counts and texts only, all rows rewritte
   assert.equal(stamps.length, 1);
   // Once is all: an anonymous answer cannot be found again to change.
   await assert.rejects(answer(sql, asMember(hugo), made.id, { [scale]: { value: 1 } }, now), refuses("already"));
-  // Fewer than five answers: hidden, even from the organiser and admins.
-  for (const who of [sofia, camille, hugo]) {
-    const view = await polls.view(sql, asMember(who), made.id, now);
-    assert.equal(view.state, "threshold");
-    assert.equal(view.results, null);
-    assert.deepEqual(view.participants, [], "nobody listed");
-  }
-  await assert.rejects(polls.exportData(sql, asMember(sofia), made.id, now), refuses("forbidden"));
+  // While it is open, nobody sees a count move — not the organiser, not an
+  // admin, not a member — however many answers come in: watching the
+  // results after each answer would say who answered what.
+  const roles = [sofia, camille, hugo];
+  const look = async () => {
+    for (const who of roles) {
+      const view = await polls.view(sql, asMember(who), made.id, now);
+      assert.equal(view.state, "after_close", who.firstName);
+      assert.equal(view.results, null);
+      assert.deepEqual(view.participants, [], "nobody listed");
+    }
+    await assert.rejects(polls.exportData(sql, asMember(sofia), made.id, now), refuses("forbidden"));
+    await assert.rejects(polls.exportData(sql, asMember(camille), made.id, now), refuses("forbidden"));
+  };
+  await look();
   await answer(sql, asMember(sofia), made.id, { [scale]: { value: 5 } }, now);
+  await look();
+  await answer(sql, asMember(camille), made.id, { [scale]: { value: 1 } }, now);
+  await look();
+  // Closed: the results show to everyone at once.
+  await polls.closePoll(sql, asMember(sofia), made.id, now);
+  for (const who of roles) assert.equal((await polls.view(sql, asMember(who), made.id, now)).state, "shown");
   const view = await polls.view(sql, asMember(sofia), made.id, now);
-  assert.equal(view.state, "shown");
   assert.equal(view.names, false);
   assert.equal(view.mine, null);
   assert.equal(view.answered, true);
   const r = view.results!;
-  assert.ok(r[0]!.kind === "scale" && r[0]!.average === 3.8);
+  assert.ok(r[0]!.kind === "scale" && r[0]!.average === 3.3);
   assert.ok(r[1]!.kind === "text" && r[1]!.texts.every(x => x.member === null) && r[1]!.texts.length === 4);
   const data = await polls.exportData(sql, asMember(sofia), made.id, now);
   assert.deepEqual(data.rows, []);
+  // And it stays closed: reopening, then closing again, would let anyone
+  // compare the two results. Not even an admin can.
+  await assert.rejects(polls.reopenPoll(sql, asMember(sofia), made.id, now), refuses("anonymous_final"));
+  await assert.rejects(polls.reopenPoll(sql, asMember(camille), made.id, now), refuses("anonymous_final"));
+});
+
+test("anonymous is never live; closed under five answers, the results stay hidden from everyone", async () => {
+  const { sql } = database;
+  const made = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Is the workload fair?", options: ["Yes", "No"], anonymous: true, results: "live", open: true }, ctx);
+  const poll = await polls.load(sql, made.id);
+  assert.equal(poll.results, "closed", "live refused for an anonymous poll");
+  await assert.rejects(sql`update polls set results = 'live' where id = ${made.id}`, "the database refuses it too");
+  const q = poll.questions[0]!;
+  for (const p of [hugo, ines, lea, tom]) await answer(sql, asMember(p), made.id, { [q.id]: { options: [q.options[0]!.id] } }, now);
+  await polls.closePoll(sql, asMember(sofia), made.id, now);
+  for (const who of [sofia, camille, hugo]) {
+    const view = await polls.view(sql, asMember(who), made.id, now);
+    assert.equal(view.state, "threshold");
+    assert.equal(view.results, null);
+  }
+  await assert.rejects(polls.exportData(sql, asMember(camille), made.id, now), refuses("forbidden"));
 });
 
 test("shuffle keeps every item, in an order chance decides", () => {

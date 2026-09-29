@@ -12,6 +12,8 @@ import { currentMember } from "../../lib/session.ts";
 import * as spaces from "../../lib/spaces.ts";
 import { addExample as starter } from "../../lib/starter.ts";
 import * as comments from "../../lib/comments.ts";
+import * as pins from "../../lib/pins.ts";
+import * as reads from "../../lib/reads.ts";
 import * as reviews from "../../lib/reviews.ts";
 import * as tell from "../../lib/tell.ts";
 import * as templates from "../../lib/templates.ts";
@@ -65,8 +67,14 @@ const wordsOf = (actor: Actor) => catalogue(isLocale(actor.locale) ? actor.local
 
 // Pages. A new page starts blank, from a template of its space, or from a
 // built-in model in the editor's language.
+// On an empty wiki, "Write the first page" makes its space first ("new":
+// a Handbook, in the editor's language).
 export async function createPage(input: { spaceId: string; parentId?: string | null; title: string; start?: string }): Promise<Result<{ id: string }>> {
-  return act(actor => templates.createFrom(db(), actor, input, wordsOf(actor)));
+  return act(async actor => {
+    const words = wordsOf(actor);
+    const spaceId = input.spaceId === "new" ? (await spaces.createSpace(db(), actor, { name: words.starter.space, description: words.starter.description })).id : input.spaceId;
+    return templates.createFrom(db(), actor, { ...input, spaceId }, words);
+  });
 }
 
 export async function listTemplates(spaceId: string): Promise<Result<{ id: string; title: string }[]>> {
@@ -222,4 +230,35 @@ export async function markReviewed(pageId: string): Promise<Result<null>> {
     await tell.reviewSettled(String(pageId));
     return null;
   });
+}
+
+// Read and acknowledged: editors ask (everyone who reads the space, or
+// some groups); each person asked confirms; the bell item goes then.
+export async function askRead(pageId: string, groups?: string[]): Promise<Result<{ asked: number }>> {
+  return act(async actor => {
+    const p = await reads.ask(db(), actor, pageId, groups === undefined ? {} : { groups });
+    const state = await reads.readState(db(), actor, p.id);
+    return { asked: state.asked ? await tell.readAsked(actor, p, state.asked) : 0 };
+  });
+}
+
+export async function stopAskRead(pageId: string): Promise<Result<null>> {
+  return act(async actor => {
+    await reads.stopAsking(db(), actor, pageId);
+    await tell.readSettled(String(pageId));
+    return null;
+  });
+}
+
+export async function confirmRead(pageId: string): Promise<Result<{ version: number }>> {
+  return act(async actor => {
+    const done = await reads.confirm(db(), actor, pageId);
+    await tell.readSettled(String(pageId), [actor.id]);
+    return done;
+  });
+}
+
+// Pinning a page to the home page.
+export async function setPinned(pageId: string, on: boolean): Promise<Result<boolean>> {
+  return act(actor => pins.setPinned(db(), actor, pageId, on));
 }

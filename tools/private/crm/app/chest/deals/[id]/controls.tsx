@@ -10,27 +10,29 @@ import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { deleteDeal, moveDeal, setDealOwner } from "../../actions.ts";
 import { DealDialog } from "../../ui/deal-form.tsx";
 import { OwnerSelect } from "../../ui/owner-select.tsx";
-import type { Choice, ContactChoice, Teammate } from "../../ui/shared.ts";
+import type { DealFormProps } from "../../ui/deal-form.tsx";
+import type { Teammate } from "../../ui/shared.ts";
 import { ReasonDialog } from "../../ui/reason-dialog.tsx";
+import type { DealValues } from "../../ui/values.ts";
 
 type Stage = { id: string; name: string; kind: "open" | "won" | "lost"; probability: number };
 type Props = {
-  deal: { id: string; title: string; stageId: string; owner: string | null; company: string | null; contact: string | null; value: string; expectedClose: string };
+  deal: DealValues & { id: string; stageId: string };
   stages: Stage[];
   editable: boolean;
   canCreate: boolean;
-  companies: Choice[];
-  contacts: ContactChoice[];
-  stageChoices: Choice[];
+  form: DealFormProps;
   team: Teammate[];
   me: string;
   canAssign: boolean;
   t: Catalogue;
 };
 
-// A deal's controls: its stages as a path (one click moves it), Won and
-// Lost (with a reason), its owner, edit and delete.
-export function DealControls({ deal, stages, editable, canCreate, companies, contacts, stageChoices, team, me, canAssign, t }: Props) {
+// A deal's controls: its stages as a path (one click moves it; on a phone,
+// a list to choose from), Won and Lost (with a reason), its owner, edit and
+// delete. Won is the loud button only once the deal reached its last open
+// stage: before that, planning the next step matters more.
+export function DealControls({ deal, stages, editable, canCreate, form, team, me, canAssign, t }: Props) {
   const [pending, start] = useTransition();
   const [closing, setClosing] = useState<Stage | null>(null);
   const [editing, setEditing] = useState(false);
@@ -42,6 +44,7 @@ export function DealControls({ deal, stages, editable, canCreate, companies, con
   const won = stages.find(s => s.kind === "won")!;
   const lost = stages.find(s => s.kind === "lost")!;
   const at = open.findIndex(s => s.id === deal.stageId);
+  const ripe = at === open.length - 1;
   const move = (stage: Stage, reason?: string) => start(async () => {
     const r = await moveDeal(deal.id, stage.id, null, null, reason);
     if (!r.ok) return toast(format(t.errors[r.error], r.values));
@@ -60,10 +63,18 @@ export function DealControls({ deal, stages, editable, canCreate, companies, con
           </li>
         ))}
       </ol>
+      {editable && current.kind === "open" && (
+        <p className="stage-select">
+          <label className="label-mono" htmlFor="deal-stage">{t.deal.stageSelect}</label>
+          <select id="deal-stage" className="field" value={deal.stageId} disabled={pending} onChange={e => { const s = open.find(x => x.id === e.target.value); if (s) move(s); }}>
+            {open.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </p>
+      )}
       <div className="deal-actions">
         {editable && current.kind === "open" && (
           <>
-            <button type="button" className="button won" disabled={pending} onClick={() => setClosing(won)}><Trophy />{t.deal.markWon}</button>
+            <button type="button" className={ripe ? "button won" : "button quiet won-outline"} disabled={pending} onClick={() => setClosing(won)}><Trophy />{t.deal.markWon}</button>
             <button type="button" className="button quiet lost-outline" disabled={pending} onClick={() => setClosing(lost)}><Lost />{t.deal.markLost}</button>
           </>
         )}
@@ -92,8 +103,7 @@ export function DealControls({ deal, stages, editable, canCreate, companies, con
       </div>
       {closing && <ReasonDialog stage={closing} title={deal.title} onCancel={() => setClosing(null)} onConfirm={reason => { const s = closing; setClosing(null); move(s, reason); }} t={t} />}
       {editing && (
-        <DealDialog open onClose={() => setEditing(false)} initial={{ id: deal.id, title: deal.title, company: deal.company, contact: deal.contact, value: deal.value, stage: deal.stageId, expectedClose: deal.expectedClose, owner: deal.owner }}
-          companies={companies} contacts={contacts} stages={stageChoices} team={team} me={me} canAssign={canAssign} t={t} />
+        <DealDialog open onClose={() => setEditing(false)} initial={deal} {...form} />
       )}
       {deleting && (
         <Dialog open title={t.deal.deleteTitle} closeLabel={t.common.close} onClose={() => setDeleting(false)}>

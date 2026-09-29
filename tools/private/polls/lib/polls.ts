@@ -268,7 +268,7 @@ export async function closePoll(sql: Sql, actor: Member | null, pollId: unknown,
     if (poll.status === "closed") throw new AppError("closed");
     if (poll.status !== "open") throw new AppError("locked");
     await tx`update polls set status = 'closed', closed_at = ${now}, closed_by_date = false, settled_at = null, updated_at = ${now} where id = ${poll.id}`;
-    await tx`delete from tellings where poll_id = ${poll.id} and kind in ('ask', 'remind')`;
+    await tx`delete from tellings where poll_id = ${poll.id} and kind in ('ask', 'remind', 'nudge')`;
     return load(tx, poll.id);
   });
 }
@@ -359,6 +359,7 @@ export type Card = {
   groups: string[];
   people: string[];
   repeat: Repeat | null;
+  seriesId: string | null;
   round: number | null;
   closesAt: string | null;
   closedAt: string | null;
@@ -392,17 +393,26 @@ export async function home(sql: Sql, actor: Member | null, now = new Date()): Pr
     if (!sees(actor, rights(poll))) continue;
     cards.push({
       id: poll.id, kind: poll.kind, title: poll.title, organiser: poll.organiser, status: poll.status, anonymous: poll.anonymous, everyone: poll.everyone, groups: poll.groups, people: poll.people,
-      repeat: poll.repeat, round: poll.round,
+      repeat: poll.repeat, seriesId: poll.seriesId, round: poll.round,
       closesAt: poll.closesAt, closedAt: poll.closedAt, updatedAt: poll.updatedAt, answered: r.answered, answers: r.answers,
       final: r.final_day ? { day: dayText(r.final_day)!, start: r.final_start, end: r.final_end } : null, mine: poll.organiser === actor.id,
     });
   }
   const isAsked = (c: Card) => asked(actor, { everyone: c.everyone, groups: c.groups, people: c.people });
+  // A pulse survey shows once: its open round, or else its latest; the
+  // earlier rounds are on its page, over time.
+  const latest = new Map<string, Card>();
+  for (const c of cards) {
+    if (c.seriesId === null) continue;
+    const had = latest.get(c.seriesId);
+    if (!had || (c.round ?? 0) > (had.round ?? 0)) latest.set(c.seriesId, c);
+  }
+  const shown = cards.filter(c => c.seriesId === null || latest.get(c.seriesId) === c);
   return {
-    toAnswer: cards.filter(c => c.status === "open" && isAsked(c) && !c.answered),
-    mine: cards.filter(c => c.mine && c.status !== "closed").sort((a, b) => (a.status === b.status ? b.updatedAt.localeCompare(a.updatedAt) : a.status === "draft" ? 1 : -1)),
-    answered: cards.filter(c => c.status === "open" && !c.mine && c.answered),
-    closed: cards.filter(c => c.status === "closed").sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "")),
+    toAnswer: shown.filter(c => c.status === "open" && isAsked(c) && !c.answered),
+    mine: shown.filter(c => c.mine && c.status !== "closed").sort((a, b) => (a.status === b.status ? b.updatedAt.localeCompare(a.updatedAt) : a.status === "draft" ? 1 : -1)),
+    answered: shown.filter(c => c.status === "open" && !c.mine && c.answered),
+    closed: shown.filter(c => c.status === "closed").sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "")),
   };
 }
 
@@ -510,7 +520,7 @@ export async function nudge(sql: Sql, actor: Member | null, pollId: unknown, now
     if (poll.status !== "open") throw new AppError("closed");
     if (poll.nudgedAt && now.getTime() - new Date(poll.nudgedAt).getTime() < limits.nudgeHours * 3600_000) throw new AppError("nudged", { hours: limits.nudgeHours });
     await tx`update polls set nudged_at = ${now} where id = ${poll.id}`;
-    await tx`insert into tellings (poll_id, kind, created_at) values (${poll.id}, 'remind', ${now}) on conflict (poll_id, kind) do update set after = null, lease = null, created_at = ${now}`;
+    await tx`insert into tellings (poll_id, kind, created_at) values (${poll.id}, 'nudge', ${now}) on conflict (poll_id, kind) do update set after = null, lease = null, created_at = ${now}`;
     return { ...poll, nudgedAt: now.toISOString() };
   });
 }

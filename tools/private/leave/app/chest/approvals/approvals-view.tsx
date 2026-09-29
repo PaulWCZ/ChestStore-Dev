@@ -14,6 +14,7 @@ import { answer, settleCancel, takeBack } from "../actions.ts";
 export type Card = {
   id: string;
   name: string;
+  avatarName: string;
   firstName: string;
   photo: string | null;
   type: string;
@@ -23,6 +24,7 @@ export type Card = {
   note: string;
   cancelAsked: boolean;
   balance: string | null;
+  balanceNote: string | null;
   short: boolean;
   alsoAway: string | null;
   asked: string;
@@ -95,7 +97,7 @@ function Item({ card, t, hide }: { card: Card; t: Words; hide: (id: string, hidd
   return (
     <li className="card" id={`r-${card.id}`}>
       <div className="card-head">
-        <Avatar name={card.name} photo={card.photo} size={40} />
+        <Avatar name={card.avatarName} photo={card.photo} size={40} />
         <div>
           <p className="card-who"><Link href={`/chest/requests/${card.id}`}>{card.name}</Link></p>
           <p className="muted small">{card.asked}{card.approver && !card.mine ? " · " + card.approver : ""}</p>
@@ -104,7 +106,7 @@ function Item({ card, t, hide }: { card: Card; t: Words; hide: (id: string, hidd
       </div>
       {card.cancelAsked && <p className="flag">{t.approvals.asksCancel}</p>}
       <p className="card-when"><strong>{card.when}</strong> <span className="muted">· {card.days}</span></p>
-      {card.balance && <p className={card.short ? "card-balance short" : "card-balance"}>{card.balance}</p>}
+      {card.balance && <p className={card.short ? "card-balance short" : "card-balance"}>{card.balance}{card.balanceNote && <span className="muted small"> · {card.balanceNote}</span>}</p>}
       {card.note && <blockquote className="card-note"><span className="visually-hidden">{t.approvals.note}: </span>{card.note}</blockquote>}
       {card.alsoAway && <p className="muted small">{card.alsoAway}</p>}
       {card.cancelAsked ? (

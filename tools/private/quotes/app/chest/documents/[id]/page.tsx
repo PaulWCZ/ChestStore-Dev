@@ -89,6 +89,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const upcoming = full.number ? undefined : await upcomingNumber(sql, full.type, today);
   const gaps = missing(c);
   const clientGaps = full.client ? clientMissing(full.client) : [];
+  if (full.client && full.vatTreatment === "reverse_charge" && !c.franchise && !full.client.vatNumber && !full.client.siren) clientGaps.push("vatNumber");
 
   return (
     <DocumentView

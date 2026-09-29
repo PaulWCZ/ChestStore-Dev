@@ -33,6 +33,9 @@ alter table company add column payment_link text not null default '';
 alter table company add column reminders_on boolean not null default false;
 alter table company add column reminder_days int[] not null default '{7,15,30}';
 alter table company add column reminders_email boolean not null default true;
+-- The last day the morning's follow-up ran (reminders, recurring drafts):
+-- without the Chest's schedules, the first visit of the day runs it.
+alter table company add column followed_up_on date;
 
 -- The accounts of the accountant's entries (journal code, client, sales,
 -- deposits, VAT per rate), as {"journal": "VE", "client": "411", …}.
@@ -58,6 +61,9 @@ create table repeats (
   id bigint generated always as identity primary key,
   source_id bigint not null references documents (id),
   every text not null check (every in ('month', 'quarter', 'year')),
+  -- The first draft's day; each next one is counted from it (the 31st
+  -- stays the last day of shorter months).
+  starts_on date not null,
   next_on date not null,
   active boolean not null default true,
   made int not null default 0,

@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { AppError } from "../../../../../lib/app-error.ts";
-import { composeData, initialOf } from "../../../../../lib/compose.ts";
+import { composeData, guestNames, initialOf } from "../../../../../lib/compose.ts";
 import { composeWords } from "../../../../../lib/compose-words.ts";
 import { db } from "../../../../../lib/db.ts";
 import { expense } from "../../../../../lib/expenses.ts";
@@ -23,7 +23,7 @@ export default async function EditExpense({ params }: { params: Promise<{ id: st
   if (!found.access.own || found.expense.status !== "draft") redirect(`/chest/expenses/${id}`);
   const e = found.expense;
   const data = await composeData(sql, member, t, e.categoryId);
-  const initial = initialOf(e, locale);
+  const initial = initialOf(e, locale, await guestNames(e, locale));
   return (
     <main className="page">
       <div className="page-head">

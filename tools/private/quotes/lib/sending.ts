@@ -25,7 +25,7 @@ export type Message = { to: string; subject: string; text: string };
 export type Kind = "send" | "reminder";
 
 // The message the send dialog starts from.
-export function draftMessage(full: Full, kind: Kind, context: { company: string; sender: string; iban: string; bic: string; today: string; upcoming?: string }): Message {
+export function draftMessage(full: Full, kind: Kind, context: { company: string; sender: string; iban: string; bic: string; today: string; upcoming?: string; paymentLink?: string }): Message {
   const t = catalogue(full.language).mail;
   const money = (minor: number) => formatMoney(minor, full.currency, full.language);
   const day = (d: string | null) => (d ? formatDay(d, full.language, { day: "numeric", month: "long", year: "numeric" }) : "");
@@ -42,14 +42,15 @@ export function draftMessage(full: Full, kind: Kind, context: { company: string;
   };
   const subject = kind === "reminder" ? t.reminderSubject : full.type === "quote" ? t.quoteSubject : full.type === "credit" ? t.creditSubject : t.invoiceSubject;
   const body = kind === "reminder" ? t.reminderBody : full.type === "quote" ? t.quoteBody : full.type === "credit" ? t.creditBody : t.invoiceBody;
-  const payment = full.type === "invoice" && context.iban ? "\n\n" + format(t.transfer, { iban: context.iban, bic: context.bic ? format(t.bic, { bic: context.bic }) : "" }) : "";
+  const payment = (full.type === "invoice" && context.iban ? "\n\n" + format(t.transfer, { iban: context.iban, bic: context.bic ? format(t.bic, { bic: context.bic }) : "" }) : "")
+    + (full.type === "invoice" && context.paymentLink ? "\n\n" + format(t.payOnline, { link: context.paymentLink }) : "");
   const text = [
     format(t.greeting, { name: buyer?.contact ? " " + buyer.contact : "" }),
     "",
     format(body, values) + payment,
     "",
     t.signoff,
-    context.sender,
+    ...(context.sender ? [context.sender] : []),
     context.company,
   ].join("\n");
   return { to: buyer?.email ?? "", subject: format(subject, values), text };
@@ -158,4 +159,35 @@ export async function sendReminder(sql: Sql, actor: Member | null, documentId: u
 // markReminded records a reminder the member made themselves.
 export async function markReminded(sql: Sql, actor: Member | null, documentId: unknown): Promise<void> {
   await recordReminder(sql, actor, documentId, null);
+}
+
+// sendAutomaticReminder emails the reminder of a late invoice by itself
+// (lib/reminders.ts, on the company's reminder rules): the usual reminder
+// in the client's language, signed with the company's name, its PDF
+// attached. "no_mail" when the Chest cannot send email: nothing went.
+export async function sendAutomaticReminder(sql: Sql, full: Full, step: number, today: string): Promise<Delivery> {
+  const c = await company(sql);
+  const name = c.tradeName || c.legalName;
+  const to = full.buyer?.email ?? full.client?.email ?? "";
+  if (!to) return "no_mail";
+  const message = draftMessage(full, "reminder", { company: name, sender: "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "" });
+  const bytes = await pdfOfFull(sql, full, today);
+  try {
+    await mail.send({
+      to, subject: message.subject, text: message.text, fromName: name.slice(0, 100).replace(/[\r\n]/gu, " "),
+      ...(c.email ? { replyTo: c.email } : {}),
+      attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }],
+      key: `reminder-${full.id}-${step}`,
+    });
+  } catch (error) {
+    if (error instanceof CapabilityNotGranted) {
+      await rememberMail(sql, false);
+      return "no_mail";
+    }
+    if (error instanceof ChestError && (error.code === "suppressed" || error.code === "invalid_address")) return "no_mail";
+    throw error;
+  }
+  await rememberMail(sql, true);
+  await sql`update documents set reminded_at = now(), reminders = reminders + 1, emailed_to = ${to} where id = ${full.id} and type = 'invoice' and status = 'final'`;
+  return "email";
 }

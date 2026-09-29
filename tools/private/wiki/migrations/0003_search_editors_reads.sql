@@ -56,3 +56,27 @@ create table space_editors (
   primary key (space_id, who)
 );
 create index space_editors_who on space_editors (who);
+
+-- "Read and acknowledged": an editor asks the readers of a page (everyone
+-- who reads its space, or some groups of them) to confirm they read it —
+-- a policy, the company's rules. Each confirmation records the version
+-- read; asking again after changes asks about the new version.
+alter table pages add column read_asked_at timestamptz;
+alter table pages add column read_asked_by text;
+alter table pages add column read_version int;
+alter table pages add column read_groups text[] not null default '{}';
+alter table pages add constraint pages_read_complete check ((read_asked_at is null) = (read_version is null));
+create index pages_read_asked on pages (space_id) where read_asked_at is not null and deleted_at is null;
+create table page_reads (
+  page_id bigint not null references pages (id) on delete cascade,
+  member_id text not null check (member_id ~ '^mbr_[a-z2-7]{26}$'),
+  version int not null,
+  read_at timestamptz not null default now(),
+  primary key (page_id, member_id)
+);
+create index page_reads_member on page_reads (member_id);
+
+-- Pages an editor pins to the home page ("Holidays", "Who to ask"), for
+-- everyone who reads them.
+alter table pages add column pinned_at timestamptz;
+create index pages_pinned on pages (pinned_at) where pinned_at is not null and deleted_at is null;

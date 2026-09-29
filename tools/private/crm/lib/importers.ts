@@ -144,7 +144,12 @@ async function importCompany(ctx: Context, m: Mapped): Promise<"created" | "dupl
   };
   const known = ctx.companies.get(fold(name));
   if (known) {
-    if (ctx.fillEmpty) await fillCompany(ctx, known, v, custom);
+    if (ctx.fillEmpty) {
+      // An address goes whole, or not at all.
+      const [here] = await ctx.tx<{ address: string; city: string }[]>`select address, city from companies where id = ${known}`;
+      const address = here && here.address === "" && here.city === "" ? { address: v.address, postcode: v.postcode, city: v.city } : {};
+      await fill(ctx, "companies", known, {  website: v.website, phone: v.phone, email: v.email, country: v.country, siren: v.siren, vat: v.vat, industry: v.industry, notes: v.notes, ...address  } as Record<string, string>, custom);
+    }
     return "duplicate";
   }
   const at = createdAt(m);
@@ -163,26 +168,22 @@ async function createdRecord(ctx: Context, anchor: { companyId?: string | null; 
   if (at) await ctx.tx`update activities set at = ${at} where id = ${activity}`;
 }
 
-// Fill what is empty on a company already here, never overwrite.
-async function fillCompany(ctx: Context, companyId: string, v: Record<string, string | string[]>, custom: Custom): Promise<void> {
-  const [before] = await ctx.tx<{ changed: boolean }[]>`
-    update companies set
-      website = case when website = '' then ${v["website"] as string} else website end,
-      phone = case when phone = '' then ${v["phone"] as string} else phone end,
-      email = case when email = '' then ${v["email"] as string} else email end,
-      address = case when address = '' and city = '' then ${v["address"] as string} else address end,
-      postcode = case when postcode = '' and address = '' then ${v["postcode"] as string} else postcode end,
-      city = case when city = '' and address = '' then ${v["city"] as string} else city end,
-      country = case when country = '' then ${v["country"] as string} else country end,
-      siren = case when siren = '' then ${v["siren"] as string} else siren end,
-      vat = case when vat = '' then ${v["vat"] as string} else vat end,
-      industry = case when industry = '' then ${v["industry"] as string} else industry end,
-      notes = case when notes = '' then ${v["notes"] as string} else notes end,
-      custom = ${ctx.tx.json(custom)}::jsonb || custom,
-      updated_at = now()
-    where id = ${companyId}
-    returning (xmax <> 0) as changed`;
-  if (before) ctx.report.updated++;
+// Fill what is empty on a record already here, never overwrite: says
+// whether anything changed.
+async function fill(ctx: Context, table: "companies" | "contacts", recordId: string, values: Record<string, string | null>, custom: Custom): Promise<void> {
+  const [current] = await ctx.tx<Record<string, unknown>[]>`select * from ${ctx.tx(table)} where id = ${recordId}`;
+  if (!current) return;
+  const set: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(values)) {
+    const now = current[k];
+    if (v !== null && v !== "" && (now === "" || now === null)) set[k] = v;
+  }
+  const had = (current["custom"] ?? {}) as Custom;
+  const added = Object.fromEntries(Object.entries(custom).filter(([k]) => had[k] === undefined));
+  if (Object.keys(added).length > 0) set["custom"] = ctx.tx.json({ ...had, ...added });
+  if (Object.keys(set).length === 0) return;
+  await ctx.tx`update ${ctx.tx(table)} set ${ctx.tx(set)}, updated_at = now() where id = ${recordId}`;
+  ctx.report.updated++;
 }
 
 async function importContact(ctx: Context, m: Mapped | Card): Promise<"created" | "duplicate"> {
@@ -207,19 +208,7 @@ async function importContact(ctx: Context, m: Mapped | Card): Promise<"created" 
   if (same) {
     if (ctx.fillEmpty) {
       const companyId = same.companyId ? null : await companyFor(ctx, m.company);
-      const [done] = await ctx.tx<{ id: string }[]>`
-        update contacts set
-          email = case when email = '' then ${address} else email end,
-          phone = case when phone = '' then ${v.phone} else phone end,
-          phone2 = case when phone2 = '' then ${v.phone2} else phone2 end,
-          url = case when url = '' then ${v.url} else url end,
-          title = case when title = '' then ${v.title} else title end,
-          notes = case when notes = '' then ${v.notes} else notes end,
-          company_id = coalesce(company_id, ${companyId}),
-          custom = ${ctx.tx.json(custom)}::jsonb || custom,
-          updated_at = now()
-        where id = ${same.id} returning id`;
-      if (done) ctx.report.updated++;
+      await fill(ctx, "contacts", same.id, { email: address, phone: v.phone, phone2: v.phone2, url: v.url, title: v.title, notes: v.notes, company_id: companyId }, custom);
     }
     return "duplicate";
   }
@@ -327,7 +316,6 @@ async function importActivity(ctx: Context, m: Mapped): Promise<"created"> {
     ctx.report.steps++;
     return "created";
   }
-  if (m.owner && !owner) ownerOf(ctx, m.owner);
   const logged = kind === "task" ? "note" : kind;
   if (body === "" && logged === "note") throw new AppError("empty");
   const at = day ? new Date(`${day}T${time ?? "12:00"}:00Z`) : null;
@@ -511,16 +499,16 @@ export async function undoImport(sql: Sql, actor: Member | null, importId: unkno
     const objects = (await tx<{ object: string }[]>`
       select object from attachments where deal_id in (select id from deals where import_id = ${row.id}) or contact_id in (select id from contacts where import_id = ${row.id}) or company_id in (select id from companies where import_id = ${row.id})`).map(r => r.object);
     let removed = 0;
-    removed += (await tx`delete from steps where import_id = ${row.id}`).length;
-    removed += (await tx`delete from activities where import_id = ${row.id}`).length;
-    removed += (await tx`delete from deals where import_id = ${row.id} returning id`).length;
+    removed += (await tx`delete from steps where import_id = ${row.id}`).count;
+    removed += (await tx`delete from activities where import_id = ${row.id} and kind <> 'created'`).count;
+    removed += (await tx`delete from deals where import_id = ${row.id}`).count;
     for (const c of await tx<{ id: string }[]>`select id from contacts where import_id = ${row.id}`) {
       await forget(tx, String(c.id));
       removed++;
     }
     const companies = await tx<{ id: string }[]>`select id from companies where import_id = ${row.id}`;
     for (const c of companies) await tx`delete from activities where company_id = ${c.id} and deal_id is null and contact_id is null`;
-    removed += (await tx`delete from companies where import_id = ${row.id} returning id`).length;
+    removed += (await tx`delete from companies where import_id = ${row.id}`).count;
     await tx`update imports set undone_at = now() where id = ${row.id}`;
     return { removed, steps: steps.map(s => ({ id: String(s.id), owner: s.owner })), objects };
   });

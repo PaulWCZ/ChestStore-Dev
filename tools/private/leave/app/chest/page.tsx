@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Avatar } from "../../components/avatar.tsx";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Arrow, Plus } from "../../components/icons.tsx";
+import { Arrow, Check, Plus } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import { balancesOf } from "../../lib/balances.ts";
+import { balanceNotes } from "../../lib/balance-words.ts";
+import { setupSteps } from "../../lib/setup.ts";
 import { addDays, weekday } from "../../lib/calendar.ts";
 import { db } from "../../lib/db.ts";
 import { format, formatDay, formatDays, plural, spanText } from "../../lib/i18n/index.ts";
@@ -38,18 +40,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const sql = db();
   const now = today();
   const monday = addDays(now, -((weekday(now) + 6) % 7));
-  const [all, myBalances, myRequests, week, open] = await Promise.all([
+  const [all, myBalances, myRequests, week, open, steps] = await Promise.all([
     types(sql, { archived: true }),
     balancesOf(sql, [member.id]).then(m => m.get(member.id) ?? []),
     mine(sql, member),
     between(sql, member, monday, addDays(monday, 6)),
     can(member, "approve") ? waiting(sql, member) : Promise.resolve([]),
+    can(member, "settings") ? setupSteps(sql) : Promise.resolve(null),
   ]);
   const typeOf = new Map(all.map(ty => [ty.id, ty]));
-  const others = week.filter(e => e.memberId !== member.id && e.status === "approved");
+  const others = week.filter(e => e.memberId !== member.id && e.status === "approved" && e.away);
   const who = await people(others.map(e => e.memberId));
   const done = (await searchParams).done;
 
+  // Coming up: the soonest first; earlier: the latest first.
   const rows: RequestRow[] = myRequests.map(r => {
     const ty = typeOf.get(r.typeId);
     return {
@@ -63,6 +67,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
       canCancel: r.status === "pending",
       canAskCancel: r.status === "approved" && !r.cancelAsked && r.start > now,
       reason: r.reason,
+      start: r.start,
     };
   });
 
@@ -77,10 +82,26 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
         <HeroArt />
         <div className="hero-text">
           <h1>{format(t.home.hello, { name: member.firstName || member.name })}</h1>
-          {main && main.setUp && <p className="hero-line">{format(t.home.summary, { days: plural(t.units.days, main.left, locale), type: inSentence(typeName(typeOf.get(main.typeId), t.types)) })}</p>}
+          {main && main.setUp && <p className="hero-line">{format(t.home.summary, { days: plural(t.units.days, main.left, locale), type: inSentence(typeName(typeOf.get(main.typeId), t.types)) })}{main.pending > 0 ? " " + plural(t.home.summaryWaiting, main.pending, locale) : ""}</p>}
           <Link className="button big" href="/chest/new"><Plus />{t.home.ask}</Link>
         </div>
       </div>
+
+      {steps && !steps.done && (
+        <section className="setup" aria-labelledby="setup">
+          <h2 id="setup" className="section-title">{t.setup.title}</h2>
+          <p className="muted">{t.setup.body}</p>
+          <ol className="setup-steps">
+            {steps.list.map(step => (
+              <li key={step.key} className={step.done ? "done" : undefined}>
+                <span className="setup-tick" aria-hidden="true">{step.done ? <Check /> : null}</span>
+                <Link href={step.href}>{t.setup[step.key]}</Link>
+                <span className="visually-hidden">{step.done ? t.setup.doneWord : t.setup.todoWord}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       {open.length > 0 && (
         <Link className="banner" href="/chest/approvals">
@@ -101,8 +122,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
                   {b.setUp ? (
                     <>
                       <span className="balance-figure"><strong>{formatDays(b.left, locale)}</strong> <span>{t.units.left}</span></span>
-                      {b.perMonth > 0 && <span className="balance-note">{format(t.home.perMonth, { days: formatDays(b.perMonth, locale) })}</span>}
-                      {b.pending > 0 && <span className="balance-note">{plural(t.home.waiting, b.pending, locale)}</span>}
+                      {balanceNotes(b, ty?.period ?? "running", locale, t).map(n => <span key={n} className="balance-note">{n}</span>)}
                     </>
                   ) : (
                     <>
@@ -140,7 +160,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           <div className="empty">
             <h3>{t.home.empty}</h3>
             <p>{t.home.emptyBody}</p>
-            <Link className="button" href="/chest/new"><Plus />{t.home.ask}</Link>
           </div>
         ) : (
           <MyRequests rows={rows} t={{ home: t.home, status: t.status, errors: t.errors }} />

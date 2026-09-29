@@ -2,96 +2,110 @@
 
 import { useState, useTransition } from "react";
 import { Avatar } from "../../../components/avatar.tsx";
-import { Check, Flag, Pencil } from "../../../components/icons.tsx";
+import { Check, Flag, Pencil, Plus, Trash } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
-import { format, formatDay } from "../../../lib/i18n/format.ts";
-import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
-import { addDays, dueState, nextWorkday } from "../../../lib/model.ts";
+import { format } from "../../../lib/i18n/format.ts";
+import type { Catalogue } from "../../../lib/i18n/index.ts";
+import { addDays, dueState, nextWorkday, stepTimes } from "../../../lib/model.ts";
 import type { Step } from "../../../lib/steps.ts";
-import { clearStep, completeStep, reopenStep, setStep } from "../actions.ts";
+import { addStep, clearStep, completeStep, reopenStep, updateStep } from "../actions.ts";
 import { OwnerSelect } from "./owner-select.tsx";
 import type { People, Teammate } from "./shared.ts";
 
+// A step as its view shows it: when, in words the server wrote.
+export type ShownStep = Step & { label: string };
+type On = { deal: string } | { contact: string };
 type Props = {
-  step: Step | null;
-  // The day as the server writes it (a browser's calendar data may name
-  // months differently: the page would not match what the server sent).
-  dueLabel: string | null;
-  on: { deal: string } | { contact: string };
+  steps: ShownStep[];
+  on: On;
   team: Teammate[];
   people: People;
   me: string;
   canEdit: boolean;
   canAssign: boolean;
   today: string;
-  locale: Locale;
   t: Catalogue;
 };
 
-// The next step of a deal or a contact: what, when, who. "Done" logs it
-// and asks what comes next, at once.
-export function StepBox({ step, dueLabel, on, team, people, me, canEdit, canAssign, today, locale, t }: Props) {
-  const [mode, setMode] = useState<"view" | "edit" | "next">("view");
+// The next steps of a deal or a contact: what, when (and at what time),
+// who — soonest first; several may be open ("call Tuesday 14:30", "send
+// samples Thursday"). "Done" logs one; when it was the last, the box asks
+// what comes next, at once.
+export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today, t }: Props) {
+  const [mode, setMode] = useState<{ kind: "view" } | { kind: "edit"; step: Step | null } | { kind: "next" }>({ kind: "view" });
   const [pending, start] = useTransition();
   const toast = useToast();
-  const canComplete = step !== null && (canEdit || step.owner === me);
-  const state = step ? dueState(step.due, today) : null;
+  const first = steps[0];
+  const state = first ? dueState(first.due, today) : null;
 
-  function done() {
-    if (!step) return;
+  function done(step: Step) {
     start(async () => {
       const r = await completeStep(step.id);
       if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(t.step.doneToast, { label: t.common.undo, run: () => start(async () => { await reopenStep(step.id); setMode("view"); }) });
-      if (canEdit) setMode("next");
+      toast(t.step.doneToast, { label: t.common.undo, run: () => start(async () => { await reopenStep(step.id); setMode({ kind: "view" }); }) });
+      if (canEdit && r.value.last) setMode({ kind: "next" });
     });
   }
 
-  if (mode !== "view" && canEdit) {
+  if (mode.kind !== "view" && canEdit) {
     return (
       <section className="step-box editing" aria-labelledby="step-title">
-        <h2 id="step-title" className="label-mono"><Flag />{mode === "next" ? t.step.whatNext : t.step.title}</h2>
-        <StepForm initial={mode === "edit" ? step : null} on={on} team={team} me={me} canAssign={canAssign} today={today} onDone={() => setMode("view")} onSkip={mode === "next" ? () => setMode("view") : null} t={t} />
+        <h2 id="step-title" className="label-mono"><Flag />{mode.kind === "next" ? t.step.whatNext : t.step.title}</h2>
+        <StepForm initial={mode.kind === "edit" ? mode.step : null} on={on} team={team} me={me} canAssign={canAssign} today={today} onDone={() => setMode({ kind: "view" })} onSkip={mode.kind === "next" ? () => setMode({ kind: "view" }) : null} t={t} />
       </section>
     );
   }
   return (
     <section className={`step-box${state ? " " + state : ""}`} aria-labelledby="step-title">
-      <h2 id="step-title" className="label-mono"><Flag />{t.step.title}</h2>
-      {step ? (
+      <h2 id="step-title" className="label-mono"><Flag />{t.step.title}{steps.length > 1 && <span className="count num">{steps.length}</span>}</h2>
+      {steps.length === 0 ? (
         <>
-          <p className="step-text">{step.text}</p>
-          <p className="step-meta">
-            <span className={`due ${state}`}>{state === "late" ? t.step.late + " · " : ""}{step.due === today ? t.step.today : dueLabel ?? formatDay(step.due, locale, { weekday: "short", day: "numeric", month: "short" })}</span>
-            <span className="who">
-              <Avatar name={people[step.owner ?? ""]?.name ?? t.common.unassigned} photo={people[step.owner ?? ""]?.photo ?? null} size={20} />
-              {step.owner === me ? t.people.you : people[step.owner ?? ""]?.name ?? t.common.unassigned}
-            </span>
-          </p>
-          <div className="row">
-            {canComplete && <button type="button" className="button small" disabled={pending} onClick={done}><Check />{t.step.done}</button>}
-            {canEdit && <button type="button" className="button small quiet" onClick={() => setMode("edit")}><Pencil />{t.step.change}</button>}
-            {canEdit && (
-              <button type="button" className="link-button" disabled={pending} onClick={() => start(async () => {
-                const r = await clearStep(step.id);
-                toast(r.ok ? t.step.cleared : format(t.errors[r.error], r.values));
-              })}>{t.step.clear}</button>
-            )}
-          </div>
+          <p className="muted">{t.step.none}</p>
+          {canEdit && <button type="button" className="button small" onClick={() => setMode({ kind: "edit", step: null })}><Flag />{t.step.add}</button>}
         </>
       ) : (
         <>
-          <p className="muted">{t.step.none}</p>
-          {canEdit && <button type="button" className="button small" onClick={() => setMode("edit")}><Flag />{t.step.add}</button>}
+          <ul className="step-items">
+            {steps.map(step => {
+              const s = dueState(step.due, today);
+              const canComplete = canEdit || step.owner === me;
+              return (
+                <li key={step.id} className={`step-item ${s}`}>
+                  <p className="step-text">{step.text}</p>
+                  <p className="step-meta">
+                    <span className={`due ${s}`}>{step.label}</span>
+                    <span className="who">
+                      <Avatar name={people[step.owner ?? ""]?.name ?? t.common.unassigned} photo={people[step.owner ?? ""]?.photo ?? null} size={20} />
+                      {step.owner === me ? t.people.you : people[step.owner ?? ""]?.name ?? t.common.unassigned}
+                    </span>
+                  </p>
+                  <div className="row">
+                    {canComplete && <button type="button" className="button small" disabled={pending} onClick={() => done(step)}><Check />{t.step.done}</button>}
+                    {canEdit && <button type="button" className="button small quiet" onClick={() => setMode({ kind: "edit", step })}><Pencil />{t.step.change}</button>}
+                    {canEdit && (
+                      <button type="button" className="icon-button small" disabled={pending} title={t.step.remove} onClick={() => start(async () => {
+                        const r = await clearStep(step.id);
+                        toast(r.ok ? t.step.cleared : format(t.errors[r.error], r.values));
+                      })}><Trash /><span className="visually-hidden">{t.step.remove}</span></button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {canEdit && <button type="button" className="link-button" onClick={() => setMode({ kind: "edit", step: null })}><Plus />{t.step.another}</button>}
         </>
       )}
     </section>
   );
 }
 
-export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSkip, t }: { initial: Step | null; on: { deal: string } | { contact: string }; team: Teammate[]; me: string; canAssign: boolean; today: string; onDone: () => void; onSkip: (() => void) | null; t: Catalogue }) {
+// Plan a step, or change one: what, when (today, tomorrow, in a week, or a
+// day; a time if it matters), who. `on` null: a step of one's own.
+export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSkip, t }: { initial: Step | null; on: On | null; team: Teammate[]; me: string; canAssign: boolean; today: string; onDone: () => void; onSkip: (() => void) | null; t: Catalogue }) {
   const [text, setText] = useState(initial?.text ?? "");
   const [due, setDue] = useState(initial?.due ?? nextWorkday(today));
+  const [time, setTime] = useState(initial?.time ?? "");
   const [owner, setOwner] = useState<string | null>(initial?.owner ?? me);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -101,13 +115,14 @@ export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSk
     { label: t.step.tomorrow, day: nextWorkday(today) },
     { label: t.step.inWeek, day: addDays(today, 7) },
   ];
-  const key = "deal" in on ? "d" + on.deal : "c" + on.contact;
+  const key = on === null ? "self" : "deal" in on ? "d" + on.deal : "c" + on.contact;
   return (
     <form className="form step-form" onSubmit={e => {
       e.preventDefault();
       setError(null);
       start(async () => {
-        const r = await setStep(on, { text, due, owner });
+        const input = { text, due, time: time || null, owner };
+        const r = initial ? await updateStep(initial.id, input) : await addStep(on, input);
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
         toast(t.step.planned);
         onDone();
@@ -123,6 +138,12 @@ export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSk
           {quick.map(q => <button key={q.label} type="button" className={`chip-button${due === q.day ? " on" : ""}`} aria-pressed={due === q.day} onClick={() => setDue(q.day)}>{q.label}</button>)}
           <label className="visually-hidden" htmlFor={`step-due-${key}`}>{t.step.due}</label>
           <input id={`step-due-${key}`} className="field date" type="date" value={due} onChange={e => setDue(e.target.value)} required />
+          <label className="visually-hidden" htmlFor={`step-time-${key}`}>{t.step.time}</label>
+          <select id={`step-time-${key}`} className="field time" value={time} onChange={e => setTime(e.target.value)}>
+            <option value="">{t.step.noTime}</option>
+            {!stepTimes.includes(time) && time !== "" && <option value={time}>{time}</option>}
+            {stepTimes.map(x => <option key={x} value={x}>{x}</option>)}
+          </select>
         </div>
       </div>
       <div className="field-block">

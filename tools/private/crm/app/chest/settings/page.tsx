@@ -3,6 +3,7 @@ import { db } from "../../../lib/db.ts";
 import { stageWords } from "../../../lib/page-data.ts";
 import { viewer } from "../../../lib/session.ts";
 import { StagesEditor } from "./stages-editor.tsx";
+import { SettingsTabs } from "./tabs.tsx";
 
 // The stages of the pipeline, for managers: names, order, chance to win.
 export default async function Settings() {
@@ -19,6 +20,7 @@ export default async function Settings() {
           <h1>{t.settings.title}</h1>
           <p className="lede">{t.settings.intro}</p>
         </div>
+        <SettingsTabs current="stages" t={t} />
       </div>
       {can(member, "stages") ? (
         <StagesEditor stages={stages.map(s => ({ id: s.id, kind: s.kind, name: s.name ?? "", shown: names[s.id]!, standard: s.key ? t.stages[s.key] : null, probability: s.probability, deals: counts.get(s.id) ?? 0 }))} locale={v.locale} t={t} />

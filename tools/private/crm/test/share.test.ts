@@ -30,13 +30,13 @@ async function move(dealId: string, stageId: string, reason?: string) {
   return done;
 }
 
-test("a deal moved to Won is told with its amount, company and contact — what Clients does not hold is null", async () => {
+test("a deal moved to Won is told with its amount, company (address, SIREN, VAT) and contact — what is blank is null", async () => {
   const { sql } = database;
   const stages = await listStages(sql);
   const [lead, qualified] = stages;
   const won = stages.find(s => s.kind === "won")!;
   const lost = stages.find(s => s.kind === "lost")!;
-  const co = await companies.addCompany(sql, asMember(hugo), { name: "Garage Petit", address: "7 route de Vannes\n44100 Nantes" });
+  const co = await companies.addCompany(sql, asMember(hugo), { name: "Garage Petit", address: "7 route de Vannes", postcode: "44100", city: "Nantes", country: "France", siren: "732 829 320 00074", vat: "FR 12 732829320" });
   const p = await contacts.addContact(sql, asMember(hugo), { name: "Pierre Petit", email: "pierre@garage-petit.fr", company: co.id });
   const d = await deals.addDeal(sql, asMember(hugo), { title: "Workshop lockers", contact: p.id, value: "6 400,50" });
   await move(d.id, qualified!.id);
@@ -50,7 +50,7 @@ test("a deal moved to Won is told with its amount, company and contact — what 
     title: "Workshop lockers",
     amount: 640050,
     currency: "EUR",
-    company: { ref: co.id, name: "Garage Petit", address: "7 route de Vannes\n44100 Nantes", postcode: null, city: null, country: null, siren: null, vat: null, email: null },
+    company: { ref: co.id, name: "Garage Petit", address: "7 route de Vannes", postcode: "44100", city: "Nantes", country: "FR", siren: "732829320", vat: "FR12732829320", email: null },
     contact: { name: "Pierre Petit", email: "pierre@garage-petit.fr" },
     owner: hugo.id,
   });

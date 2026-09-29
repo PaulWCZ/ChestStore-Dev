@@ -128,7 +128,7 @@ export async function seriesState(sql: Query, seriesId: string | null): Promise<
 // scale: its average; eNPS: its score), one point per round — null for a
 // round whose results do not show to this reader yet (open, or under five
 // answers for an anonymous round). The last 12 rounds.
-export type TrendPoint = { round: number; pollId: string; openedAt: string; value: number | null; answered: number; current: boolean };
+export type TrendPoint = { round: number; pollId: string; openedAt: string; value: number | null; answered: number; current: boolean; open: boolean };
 export type Trend = { position: number; kind: "scale" | "enps"; text: string; points: TrendPoint[] }[];
 
 export async function trend(sql: Query, actor: Member, poll: Poll): Promise<Trend> {
@@ -170,7 +170,7 @@ export async function trend(sql: Query, actor: Member, poll: Poll): Promise<Tren
       const q = round.questions[line.position];
       const r = shown && q && q.kind === line.kind ? computed.find(x => x.id === q.id) : undefined;
       const value = r?.kind === "scale" ? r.average : r?.kind === "enps" ? r.score : null;
-      line.points.push({ round: round.round ?? 0, pollId: round.id, openedAt: round.openedAt ?? round.createdAt, value, answered, current: round.id === poll.id });
+      line.points.push({ round: round.round ?? 0, pollId: round.id, openedAt: round.openedAt ?? round.createdAt, value, answered, current: round.id === poll.id, open: round.status === "open" });
     }
   }
   return out;

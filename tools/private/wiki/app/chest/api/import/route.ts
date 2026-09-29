@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
     const result = await importFiles(db(), actor, {
       ...(typeof space === "string" && space ? { spaceId: space } : { spaceName: typeof name === "string" && name.trim() ? name : t.importer.defaultName }),
       files,
-      untitled: t.importer.untitled,
+      words: { untitled: t.importer.untitled, attachments: t.importer.attachments },
     });
     return answer(result);
   } catch (error) {

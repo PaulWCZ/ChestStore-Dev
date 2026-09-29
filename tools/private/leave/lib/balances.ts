@@ -6,6 +6,7 @@ import type { Query, Sql } from "./db.ts";
 import { clean, decimalDays, day, limits, memberId, numeric, today } from "./model.ts";
 import { leaveType, settings, types, type LeaveType, type Settings } from "./rules.ts";
 import { staffOf, staffRow, type Staff } from "./staff.ts";
+export { afterRequest, daysLeft, leftIfApproved } from "./left.ts";
 
 // Balances, as a ledger: every change is a line (opening, adjustment,
 // taken, returned), never changed. A person's balance of a type is their
@@ -48,6 +49,7 @@ export type Balance = {
   sinceOpening: boolean; // the count starts at an opening balance (not at the start date)
   until: Day | null; // the person's last day: nothing is earned after it
   pending: number; // asked, not yet answered: not deducted yet
+  booked: number; // with takenBy: approved leave after that day, not in `left`
   setUp: boolean; // an opening balance, a start date, or a line: HR set this person up
   years: { last: Year | null; current: Year }; // CP N-1 and CP N (paid leave), for the pay slip
   closes: Close[]; // the ends of years with days carried over or lost
@@ -67,7 +69,9 @@ const later = (a: Day, b: Day): Day => (a > b ? a : b);
 
 // compute: one person's balance of one type, from their lines (in the
 // order written), their start and last days and the rules. Pure.
-export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "startDate"> & Partial<Pick<Staff, "endDate">>, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0): Balance {
+// takenBy: for payroll's files, leave that starts after this day is not
+// taken yet: it is counted apart ("booked"), not in the years.
+export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "startDate"> & Partial<Pick<Staff, "endDate">>, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0, options: { takenBy?: Day } = {}): Balance {
   const mode: Period = type.period ?? "running";
   const month = type.periodMonth ?? s.periodStartMonth;
   const lose = mode !== "running" && type.unused === "lose";
@@ -122,12 +126,17 @@ export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "st
   });
   for (const n of nets.values()) {
     if (n.days < 0) debits.push({ on: n.on, days: -n.days, order: n.order });
-    else if (n.days > 0) add(credit, yearOf(n.on), n.days);
+    else if (n.days > 0) add(credit, creditYear(n.on, null), n.days);
   }
   // The oldest days first; a year whose days were lost is no longer there
   // to take from; what is missing is taken early from the day's own year.
   debits.sort((a, b) => (a.on < b.on ? -1 : a.on > b.on ? 1 : a.order - b.order));
+  let booked = 0;
   for (const d of debits) {
+    if (options.takenBy && d.on > options.takenBy) {
+      booked = round2(booked + d.days);
+      continue;
+    }
     const own = yearOf(d.on);
     const floor = lose ? (mode === "acquired" ? before(own) : own) : null;
     let need = d.days;
@@ -180,7 +189,7 @@ export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "st
     acquired,
     earning,
     carried: round2(carried),
-    deadline: lose && mode !== "running" ? periodEnd : null,
+    deadline: lose ? periodEnd : null,
     earnedThisPeriod,
     earnedTotal: round2((months * type.perYear) / 12),
     months,
@@ -189,6 +198,7 @@ export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "st
     sinceOpening: since !== null && since === opening && opening !== staff.startDate,
     until: staff.endDate ?? null,
     pending: round2(pending),
+    booked,
     setUp: since !== null || lines.length > 0,
     years: { last: mode === "acquired" ? yearAt(before(cur)) : null, current: yearAt(cur) },
     closes,
@@ -197,20 +207,24 @@ export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "st
 
 // balancesOf: the balances of these people, for each type that has one.
 // No rights here: callers check them (lib/balances' own readers below).
-export async function balancesOf(sql: Query, ids: string[], on = today()): Promise<Map<string, Balance[]>> {
+// on: a day before today gives the balances as they were then — lines
+// written after it left out, leave after it not taken yet (payroll's
+// "balances on" file).
+export async function balancesOf(sql: Query, ids: string[], on = today(), options: { takenBy?: boolean } = {}): Promise<Map<string, Balance[]>> {
   const found = new Map<string, Balance[]>(ids.map(i => [i, []]));
   if (ids.length === 0) return found;
   const [s, all, staff] = await Promise.all([settings(sql), types(sql), staffOf(sql, ids)]);
   const counted = all.filter(t => t.balance);
   if (counted.length === 0) return found;
+  const past = on < today();
   const lines = await sql<LineRow[]>`
     select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, request_id, bucket, created_by, created_at
-    from ledger where member_id in ${sql(ids)} order by id`;
-  const pending = await sql<{ member_id: string; type_id: string; days: string }[]>`
+    from ledger where member_id in ${sql(ids)} ${past ? sql`and created_at < ${addDays(on, 1)}::date` : sql``} order by id`;
+  const pending = past ? [] : await sql<{ member_id: string; type_id: string; days: string }[]>`
     select member_id, type_id, sum(days) as days from requests where member_id in ${sql(ids)} and status = 'pending' group by member_id, type_id`;
   for (const who of ids) {
     const mine = lines.filter(l => l.member_id === who).map(toLine);
-    found.set(who, counted.map(t => compute(t, mine.filter(l => l.typeId === t.id), staff.get(who)!, s, on, numeric(pending.find(p => p.member_id === who && String(p.type_id) === t.id)?.days))));
+    found.set(who, counted.map(t => compute(t, mine.filter(l => l.typeId === t.id), staff.get(who)!, s, on, numeric(pending.find(p => p.member_id === who && String(p.type_id) === t.id)?.days), past || options.takenBy ? { takenBy: on } : {})));
   }
   return found;
 }
@@ -243,16 +257,25 @@ async function counted(sql: Query, typeId: unknown): Promise<LeaveType> {
   return t;
 }
 
+const bucketOf = (value: unknown): Bucket | null => {
+  if (value === undefined || value === null || value === "") return null;
+  if (value !== "acquired" && value !== "earning") throw new AppError("invalid");
+  return value;
+};
+
 // adjust: HR adds or removes days, with a reason (a correction, days given
-// for an event, sick-leave days earned while off).
-export async function adjust(sql: Sql, actor: Member | null, input: { memberId: unknown; typeId: unknown; days: unknown; reason: unknown }): Promise<void> {
+// for an event, sick-leave days earned while off). Paid leave added is
+// acquired (to take now) unless said "being earned"; removed days come out
+// of the oldest first.
+export async function adjust(sql: Sql, actor: Member | null, input: { memberId: unknown; typeId: unknown; days: unknown; reason: unknown; bucket?: unknown }): Promise<void> {
   if (!can(actor, "people.all")) throw new AppError("forbidden");
   const who = memberId(input.memberId);
   const t = await counted(sql, input.typeId);
   const days = decimalDays(input.days, limits.adjustment, { signed: true });
   if (days === 0) throw new AppError("invalid");
   const reason = clean(input.reason, limits.reason);
-  await sql`insert into ledger (member_id, type_id, kind, days, on_date, reason, created_by) values (${who}, ${t.id}, 'adjustment', ${days}, ${today()}, ${reason}, ${actor!.id})`;
+  const bucket = t.period === "acquired" && days > 0 ? bucketOf(input.bucket) : null;
+  await sql`insert into ledger (member_id, type_id, kind, days, on_date, reason, bucket, created_by) values (${who}, ${t.id}, 'adjustment', ${days}, ${today()}, ${reason}, ${bucket}, ${actor!.id})`;
 }
 
 // giveEveryone: the same adjustment for each of these people at once (RTT
@@ -273,19 +296,28 @@ export async function giveEveryone(sql: Sql, actor: Member | null, input: { type
 
 // setOpening: HR states a balance as it is on a day ("12.5 days left on
 // 1 October") — everything recorded before no longer counts, what is earned
-// after is added.
-export async function setOpening(sql: Sql, actor: Member | null, input: { memberId: unknown; typeId: unknown; days: unknown; onDate?: unknown; reason?: unknown }): Promise<void> {
+// after is added. Paid leave: the days acquired (CP N-1, to take now) and,
+// if given, the days being earned (CP N).
+export async function setOpening(sql: Sql, actor: Member | null, input: { memberId: unknown; typeId: unknown; days: unknown; earning?: unknown; onDate?: unknown; reason?: unknown }): Promise<void> {
   if (!can(actor, "people.all")) throw new AppError("forbidden");
   const who = memberId(input.memberId);
   const t = await counted(sql, input.typeId);
   const days = decimalDays(input.days, limits.adjustment, { signed: true });
+  const earning = t.period === "acquired" && input.earning !== undefined && input.earning !== "" ? decimalDays(input.earning, limits.adjustment, { signed: true }) : null;
   const on = input.onDate === undefined || input.onDate === "" ? today() : day(input.onDate);
   const reason = clean(input.reason ?? "", limits.reason, { optional: true });
-  await sql`insert into ledger (member_id, type_id, kind, days, on_date, reason, created_by) values (${who}, ${t.id}, 'opening', ${days}, ${on}, ${reason || null}, ${actor!.id})`;
+  await sql.begin(async tx => {
+    await tx`insert into ledger (member_id, type_id, kind, days, on_date, reason, bucket, created_by) values (${who}, ${t.id}, 'opening', ${days}, ${on}, ${reason || null}, ${earning === null ? null : "acquired"}, ${actor!.id})`;
+    if (earning !== null) await tx`insert into ledger (member_id, type_id, kind, days, on_date, reason, bucket, created_by) values (${who}, ${t.id}, 'opening', ${earning}, ${on}, ${reason || null}, 'earning', ${actor!.id})`;
+  });
 }
 
+// An opening of the import: a person's balance of a kind — paid leave
+// possibly in two parts, acquired and being earned.
+export type OpeningRow = { memberId: string; typeId: string; days: number | null; earning: number | null };
+
 // openings: many opening balances at once (the import), in one transaction.
-export async function openings(sql: Sql, actor: Member | null, rows: { memberId: string; typeId: string; days: number }[], onDate: unknown, reason: string): Promise<number> {
+export async function openings(sql: Sql, actor: Member | null, rows: OpeningRow[], onDate: unknown, reason: string): Promise<number> {
   if (!can(actor, "people.all")) throw new AppError("forbidden");
   const on = day(onDate);
   if (rows.length === 0) throw new AppError("import_empty");
@@ -295,8 +327,10 @@ export async function openings(sql: Sql, actor: Member | null, rows: { memberId:
   await sql.begin(async tx => {
     for (const r of rows) {
       const who = memberId(r.memberId);
-      const days = decimalDays(r.days, limits.adjustment, { signed: true });
-      await tx`insert into ledger (member_id, type_id, kind, days, on_date, reason, created_by) values (${who}, ${r.typeId}, 'opening', ${days}, ${on}, ${note || null}, ${actor!.id})`;
+      const split = byType.get(r.typeId)!.period === "acquired" && r.earning !== null;
+      const days = decimalDays(r.days ?? 0, limits.adjustment, { signed: true });
+      await tx`insert into ledger (member_id, type_id, kind, days, on_date, reason, bucket, created_by) values (${who}, ${r.typeId}, 'opening', ${days}, ${on}, ${note || null}, ${split ? "acquired" : null}, ${actor!.id})`;
+      if (split) await tx`insert into ledger (member_id, type_id, kind, days, on_date, reason, bucket, created_by) values (${who}, ${r.typeId}, 'opening', ${decimalDays(r.earning, limits.adjustment, { signed: true })}, ${on}, ${note || null}, 'earning', ${actor!.id})`;
     }
   });
   return rows.length;

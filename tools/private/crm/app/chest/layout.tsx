@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Avatar } from "../../components/avatar.tsx";
-import { Building, Dots, Gear, Person, Pipeline, Search, Today, Upload } from "../../components/icons.tsx";
+import { Building, Chart, Dots, Download, Gear, Person, Pipeline, Search, Today, Upload } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
 import { NavLink } from "../../components/nav-link.tsx";
 import { SlashSearch } from "../../components/slash-search.tsx";
@@ -21,6 +21,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
     { href: "/chest/deals", exact: false, icon: <Pipeline />, label: t.shell.deals },
     { href: "/chest/companies", exact: false, icon: <Building />, label: t.shell.companies },
     { href: "/chest/contacts", exact: false, icon: <Person />, label: t.shell.contacts },
+    { href: "/chest/team", exact: false, icon: <Chart />, label: t.shell.team },
   ];
   return (
     <Toasts>
@@ -46,7 +47,8 @@ export default async function MembersLayout({ children }: { children: ReactNode 
             <summary className="icon-button" title={t.shell.more}><Dots /><span className="visually-hidden">{t.shell.more}</span></summary>
             <div className="menu-pop">
               {can(member, "import") && <a href="/chest/import"><Upload />{t.shell.import}</a>}
-              {can(member, "stages") && <a href="/chest/settings"><Gear />{t.shell.stages}</a>}
+              {can(member, "stages") && <a href="/chest/settings"><Gear />{t.shell.settings}</a>}
+              {can(member, "export.all") && <a href="/chest/export/all" download><Download />{t.shell.exportAll}</a>}
             </div>
           </details>
         )}

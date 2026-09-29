@@ -170,9 +170,9 @@ export async function answerTeam(payload: string): Promise<Taken> {
     const p = readPayload(payload);
     const found = await forms.bySlug(db(), p.slug);
     if (!found || found.form.audience !== "team") throw new AppError("not_found");
-    const taken = await take(db(), found.form, p, actor, isLocale(actor.locale) ? actor.locale : "en");
-    done();
-    return taken;
+    // No revalidation here: the page would re-render as "already answered"
+    // under the respondent's thank-you. Every page is rendered per request.
+    return await take(db(), found.form, p, actor, isLocale(actor.locale) ? actor.locale : "en");
   } catch (error) {
     if (error instanceof AppError) return { ok: false, error: error.code };
     console.error("answer not saved", error instanceof Error ? error.name + ": " + error.message : "error");

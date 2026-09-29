@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { can } from "../../../../lib/access.ts";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Flash } from "../../../../components/flash.tsx";
-import { Clock, Lock, Pen } from "../../../../components/icons.tsx";
+import { Check, Clock, Lock, Pen } from "../../../../components/icons.tsx";
 import { db } from "../../../../lib/db.ts";
 import { lockOf } from "../../../../lib/editing.ts";
 import { AppError } from "../../../../lib/errors.ts";
@@ -15,8 +15,11 @@ import { render } from "../../../../lib/render.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { listSpaces } from "../../../../lib/spaces.ts";
 import { isWatching } from "../../../../lib/watching.ts";
+import { groupsOfTool } from "../../../../lib/groups.ts";
+import { isPinned } from "../../../../lib/pins.ts";
+import { readState } from "../../../../lib/reads.ts";
 import { Comments } from "./comments.tsx";
-import { DraftNotice, PageActions, ReviewAsk, type MovePlace } from "./page-actions.tsx";
+import { DraftNotice, PageActions, ReadRequest, ReviewAsk, type MovePlace } from "./page-actions.tsx";
 
 // Reading a page: the default for everyone. Where it is, its title, who
 // changed it last, the text set for reading; for editors one obvious
@@ -35,7 +38,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
     if (error instanceof AppError) notFound();
     throw error;
   }
-  const [path, known, linked, lock, nodes, draft, thread, watching] = await Promise.all([
+  const [path, known, linked, lock, nodes, draft, thread, watching, read, pin] = await Promise.all([
     ancestors(sql, p.id),
     titles(sql, member, p.doc),
     backlinks(sql, member, p.id),
@@ -44,6 +47,8 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
     sql`select 1 from drafts where page_id = ${p.id} and member_id = ${member.id}`,
     commentsOf(sql, member, p.id),
     isWatching(sql, member, p.id),
+    readState(sql, member, p.id),
+    isPinned(sql, p.id),
   ]);
   const { html, headings } = render(p.doc, { title: i => known.get(i), missing: t.page.missing });
   const who = await people([p.updatedBy, ...(lock ? [lock.memberId] : []), ...thread.map(c => c.author), ...(p.review?.owner ? [p.review.owner] : [])]);
@@ -59,7 +64,9 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
   const owner = p.review?.owner ?? null;
   // Where the page may move: the spaces the editor writes in, and their pages.
   let places: MovePlace | undefined;
+  let groups: { id: string; name: string }[] = [];
   if (writer) {
+    groups = read.asked ? [] : await groupsOfTool();
     const writable = (await listSpaces(sql, member)).filter(s => s.access === "write");
     const all = await tree(sql, member, writable.map(s => s.id));
     places = { spaces: writable.map(s => ({ id: s.id, name: s.name })), nodes: all.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title })) };
@@ -86,8 +93,9 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
                 page={{ id: p.id, title: p.title, spaceId: p.spaceId, parentId: p.parentId, hasChildren: children.length > 0 }}
                 writer={writer}
                 editHref={`/chest/pages/${p.id}/edit`}
-                t={{ ...newPageWords(t), page: t.page, move: t.move, shell: t.shell, watch: t.watch, review: t.review, marks: { tag: t.templates.tag, mark: t.templates.mark, unmark: t.templates.unmark, marked: t.templates.marked, unmarked: t.templates.unmarked }, spaceName: p.space.name, locale }}
-                state={{ watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id } }}
+                t={{ ...newPageWords(t), page: t.page, move: t.move, shell: t.shell, watch: t.watch, review: t.review, reads: t.reads, marks: { tag: t.templates.tag, mark: t.templates.mark, unmark: t.templates.unmark, marked: t.templates.marked, unmarked: t.templates.unmarked }, spaceName: p.space.name, locale }}
+                state={{ watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id }, readAsked: read.asked !== null, pinned: pin }}
+                groups={groups}
                 {...(places ? { places } : {})}
               />
             </div>
@@ -95,6 +103,13 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
           {!writer && can(member, "write") && <p className="muted small read-only"><Lock />{format(t.page.readOnly, { space: p.space.name })}</p>}
           {holder && (
             <p className="notice" role="status"><Lock />{format(holder.idle ? t.page.editingIdle : t.page.editing, { name: nameOf(who.get(holder.memberId), locale), time: moment(holder.since, locale, now) })}</p>
+          )}
+          {read.concerned && read.asked && (read.mine === null || read.mine.version < read.asked.version) && (
+            <ReadRequest pageId={p.id} again={read.mine !== null}
+              t={{ banner: t.reads.banner, bannerAgain: t.reads.bannerAgain, confirm: t.reads.confirm, confirmed: t.reads.confirmed, errors: t.errors }} />
+          )}
+          {read.concerned && read.asked && read.mine !== null && read.mine.version >= read.asked.version && (
+            <p className="muted small read-only"><Check />{format(t.reads.youRead, { when: relative(read.mine.at, locale, now) })}</p>
           )}
           {writer && p.review?.due && (
             <ReviewAsk pageId={p.id} months={p.review.months} editHref={`/chest/pages/${p.id}/edit`}

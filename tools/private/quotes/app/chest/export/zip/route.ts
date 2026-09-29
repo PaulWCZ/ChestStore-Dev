@@ -9,7 +9,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!who) return refuse("forbidden", 401);
   try {
     const query = new URL(request.url).searchParams;
-    const { stream, fileName } = await exportZip(db(), who.actor, who.locale, period(query.get("from"), query.get("to")), chest.today());
+    const { stream, fileName } = await exportZip(db(), who.actor, who.locale, period(query.get("from"), query.get("to")), chest.today(), chest.currency());
     return new Response(stream, { headers: { "Content-Type": "application/zip", "Content-Disposition": attachment(fileName), "Cache-Control": "no-store" } });
   } catch (error) {
     return failure(error);

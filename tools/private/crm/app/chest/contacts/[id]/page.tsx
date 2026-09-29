@@ -1,28 +1,33 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
-import { Back, Building, Card, Mail, Phone } from "../../../../components/icons.tsx";
+import { Back, Building, Card, Globe, Mail, Phone } from "../../../../components/icons.tsx";
 import { can, canDeleteRecord } from "../../../../lib/access.ts";
 import { timeline } from "../../../../lib/activities.ts";
+import { listFiles } from "../../../../lib/attachments.ts";
 import { contact as readContact } from "../../../../lib/contacts.ts";
 import { db } from "../../../../lib/db.ts";
 import { listDeals } from "../../../../lib/deals.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { format, formatDay, money, relative } from "../../../../lib/i18n/index.ts";
-import { phoneHref, today } from "../../../../lib/model.ts";
-import { formChoices, withWhen } from "../../../../lib/page-data.ts";
+import { format, money, relative } from "../../../../lib/i18n/index.ts";
+import { phoneHref, today, websiteHref } from "../../../../lib/model.ts";
+import { dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen } from "../../../../lib/page-data.ts";
 import { directory } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { openSteps } from "../../../../lib/steps.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { NewDealButton } from "../../ui/deal-form.tsx";
+import { FilesBox } from "../../ui/files-box.tsx";
 import { StepBox } from "../../ui/step-box.tsx";
 import { Timeline } from "../../ui/timeline.tsx";
+import { customForm, emptyDeal } from "../../ui/values.ts";
 import { ContactControls, PrivacyPanel } from "./controls.tsx";
 
 const threeYears = 3 * 365.25 * 864e5;
 
-// One person: call or write in one tap, their next step, what happened,
-// their deals — and their personal data (export, delete for good).
+// One person: call or write in one tap, their next steps, what happened,
+// their deals, their files — and their personal data (export, delete for
+// good).
 export default async function ContactPage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
@@ -30,12 +35,19 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const sql = db();
   const c = await readContact(sql, member, id).catch(e => { if (e instanceof AppError && e.code === "not_found") notFound(); throw e; });
-  const [items, deals, choices] = await Promise.all([timeline(sql, { contactId: c.id }), listDeals(sql, member, { contact: c.id, status: "" }, 200), formChoices(sql, member, t)]);
-  const names = await directory([c.owner, c.step?.owner, ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : []))], locale);
+  const [items, deals, choices, steps, files] = await Promise.all([
+    timeline(sql, { contactId: c.id }),
+    listDeals(sql, member, { contact: c.id, status: "" }, 200),
+    formChoices(sql, member, t),
+    openSteps(sql, { contactId: c.id }),
+    listFiles(sql, member, { contact: c.id }),
+  ]);
+  const names = await directory([c.owner, ...steps.map(s => s.owner), ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...files.map(f => f.addedBy)], locale);
   const kinds = new Map(choices.stages.map(s => [s.id, s.kind]));
   const now = new Date();
+  const day = today();
   const stale = Date.now() - Date.parse(c.lastContact ?? c.createdAt) > threeYears;
-  const dealProps = { companies: choices.companies, contacts: choices.contacts, stages: choices.stageChoices.filter(s => kinds.get(s.id) === "open"), team: choices.team, me: member.id, canAssign: choices.canAssign, t };
+  const details = shownFields(choices.fields, "contacts", c.custom, locale);
   return (
     <main className="page record">
       <AutoRefresh seconds={45} />
@@ -46,9 +58,11 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
         <p className="record-links">
           {c.title && <span>{c.title}</span>}
           {c.company && <Link prefetch={false} href={`/chest/companies/${c.company.id}`}><Building />{c.company.name}</Link>}
+          {c.url && <a href={websiteHref(c.url)} target="_blank" rel="noopener noreferrer nofollow"><Globe />{c.url.replace(/^https?:\/\/(www\.)?/u, "")}</a>}
         </p>
         <div className="reach">
           {c.phone && <a className="button" href={phoneHref(c.phone)}><Phone />{t.common.call}<span className="num reach-detail">{c.phone}</span></a>}
+          {c.phone2 && <a className={c.phone ? "button quiet" : "button"} href={phoneHref(c.phone2)}><Phone />{c.phone ? t.contact.callOther : t.common.call}<span className="num reach-detail">{c.phone2}</span></a>}
           {c.email && <a className="button quiet" href={`mailto:${c.email}`}><Mail />{t.common.write}<span className="reach-detail">{c.email}</span></a>}
           <a className="button quiet" href={`/chest/contacts/${c.id}/vcard`} download><Card />{t.contact.vcard}</a>
         </div>
@@ -56,10 +70,11 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
       </div>
       {stale && <p className="notice warn">{t.contact.staleWarning}</p>}
       <ContactControls
-        contact={{ id: c.id, name: c.name, email: c.email, phone: c.phone, title: c.title, company: c.company?.id ?? null, notes: c.notes, tags: c.tags.join(", "), owner: c.owner }}
+        contact={{ id: c.id, name: c.name, email: c.email, phone: c.phone, phone2: c.phone2, url: c.url, title: c.title, company: c.company, notes: c.notes, tags: c.tags.join(", "), owner: c.owner, custom: customForm(c.custom) }}
         ownerName={names[c.owner ?? ""]?.name ?? t.common.unassigned}
         canEdit={can(member, "records.write")}
-        companies={choices.companies}
+        canMerge={canDeleteRecord(member, c)}
+        fields={choices.fields.contacts}
         team={choices.team}
         me={member.id}
         canAssign={choices.canAssign}
@@ -67,7 +82,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
       />
       <div className="record-grid">
         <div className="record-main">
-          <StepBox step={c.step} dueLabel={c.step ? formatDay(c.step.due, locale, { weekday: "short", day: "numeric", month: "short" }) : null} on={{ contact: c.id }} team={choices.team} people={names} me={member.id} canEdit={can(member, "records.write")} canAssign={choices.canAssign} today={today()} locale={locale} t={t} />
+          <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, day, locale, t) }))} on={{ contact: c.id }} team={choices.team} people={names} me={member.id} canEdit={can(member, "records.write")} canAssign={choices.canAssign} today={day} t={t} />
           {can(member, "activities.log") ? <Composer on={{ contact: c.id }} t={t} /> : <p className="muted">{t.log.readOnly}</p>}
           <h2 className="label-mono section-gap">{t.timeline.title}</h2>
           <Timeline items={withWhen(items, locale)} people={names} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="contact" locale={locale} t={t} />
@@ -76,7 +91,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
           <section className="panel" aria-labelledby="deals-title">
             <div className="panel-head">
               <h2 id="deals-title" className="label-mono">{t.contact.deals} <span className="count num">{deals.total}</span></h2>
-              {can(member, "deals.create") && <NewDealButton className="link-button" label={t.company.addDeal} initial={{ title: "", company: c.company?.id ?? null, contact: c.id, value: "", stage: dealProps.stages[0]?.id ?? "", expectedClose: "", owner: member.id }} {...dealProps} />}
+              {can(member, "deals.create") && <NewDealButton className="link-button" label={t.company.addDeal} initial={emptyDeal(member.id, choices.openStages[0]?.id ?? "", c.company, { id: c.id, name: c.name })} {...dealFormProps(choices, member.id, t)} />}
             </div>
             {deals.rows.length === 0 ? <p className="muted">{t.contact.noDeals}</p> : (
               <ul className="mini-list">
@@ -89,6 +104,13 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
               </ul>
             )}
           </section>
+          {details.length > 0 && (
+            <section className="panel" aria-labelledby="details-title">
+              <h2 id="details-title" className="label-mono">{t.common.details}</h2>
+              <dl className="facts">{details.map(d => <div key={d.label}><dt>{d.label}</dt><dd>{d.value}</dd></div>)}</dl>
+            </section>
+          )}
+          <FilesBox on={{ contact: c.id }} files={shownFiles(files, names, member, locale, t)} canAdd={can(member, "activities.log")} t={t} />
           {c.notes && (
             <section className="panel">
               <h2 className="label-mono">{t.common.notes}</h2>

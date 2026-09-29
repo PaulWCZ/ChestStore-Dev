@@ -35,3 +35,16 @@ test("VAT inside an amount, and the part the company recovers", () => {
   assert.equal(recoverable(333, 80), 266);
   assert.equal(recoverable(1000, 0), 0);
 });
+
+test("rates are read as people type them and convert exactly, half up", async () => {
+  const { convert, parseRate, rateText } = await import("../lib/money.ts");
+  assert.equal(parseRate("1,1653"), 1_165_300);
+  assert.equal(parseRate(" 0.006123 "), 6_123);
+  assert.equal(parseRate("162"), 162_000_000);
+  for (const bad of ["", "0", "0,000000", "1,1234567", "-1", "abc", "1.2.3"]) assert.equal(parseRate(bad), null, bad);
+  assert.equal(convert(1250, "GBP", 1_165_300, "EUR"), 1457); // £12.50 → €14.566… → €14.57
+  assert.equal(convert(4000, "JPY", 6_123, "EUR"), 2449); // ¥4,000 (no decimals) → €24.49
+  assert.equal(convert(100, "EUR", 162_000_000, "JPY"), 162); // €1.00 → ¥162
+  assert.equal(rateText(1_165_300, "fr"), "1,1653");
+  assert.equal(rateText(1_000_000, "en"), "1.00");
+});

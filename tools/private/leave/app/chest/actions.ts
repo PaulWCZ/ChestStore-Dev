@@ -8,7 +8,7 @@ import { db } from "../../lib/db.ts";
 import { everyone } from "../../lib/directory.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { catalogue, locales } from "../../lib/i18n/index.ts";
-import { planImport, type ImportPlan } from "../../lib/import.ts";
+import { planImport, planLeave, type ImportPlan, type KindMap, type KindNames, type LeavePlan, type Mapping, type Person } from "../../lib/import.ts";
 import * as requests from "../../lib/requests.ts";
 import * as rules from "../../lib/rules.ts";
 import * as share from "../../lib/share.ts";
@@ -35,7 +35,8 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
 export async function askLeave(input: requests.RequestInput): Promise<Result<{ id: string; status: requests.Status }>> {
   return act(async actor => {
     const r = await requests.createRequest(db(), actor, input);
-    await tell.asked(db(), actor, r);
+    if (r.memberId !== actor.id) await tell.recorded(db(), actor, r);
+    else await tell.asked(db(), actor, r);
     await share.approved(r);
     return { id: r.id, status: r.status };
   });
@@ -99,11 +100,23 @@ export async function setStartDate(memberId: string, day: string | null): Promis
   return act(async actor => { await staff.setStartDate(db(), actor, memberId, day); return null; });
 }
 
-export async function adjustBalance(input: { memberId: string; typeId: string; days: string; reason: string }): Promise<Result<null>> {
+export async function setEndDate(memberId: string, day: string | null): Promise<Result<null>> {
+  return act(async actor => { await staff.setEndDate(db(), actor, memberId, day); return null; });
+}
+
+export async function setWorkDays(memberId: string, days: number[] | null): Promise<Result<null>> {
+  return act(async actor => { await staff.setWorkDays(db(), actor, memberId, days); return null; });
+}
+
+export async function setEmployeeNumber(memberId: string, value: string): Promise<Result<null>> {
+  return act(async actor => { await staff.setEmployeeNumber(db(), actor, memberId, value); return null; });
+}
+
+export async function adjustBalance(input: { memberId: string; typeId: string; days: string; reason: string; bucket?: string }): Promise<Result<null>> {
   return act(async actor => { await balances.adjust(db(), actor, input); return null; });
 }
 
-export async function setBalance(input: { memberId: string; typeId: string; days: string; onDate: string; reason: string }): Promise<Result<null>> {
+export async function setBalance(input: { memberId: string; typeId: string; days: string; earning?: string; onDate: string; reason: string }): Promise<Result<null>> {
   return act(async actor => { await balances.setOpening(db(), actor, input); return null; });
 }
 
@@ -114,27 +127,63 @@ export async function giveEveryone(input: { typeId: string; days: string; reason
   });
 }
 
-// The import: checked first (nothing written), then applied — the file is
+// The imports: checked first (nothing written), then applied — the file is
 // read again on the server, never trusted from the check.
-async function plan(text: string): Promise<ImportPlan> {
-  const all = await rules.types(db());
-  const names = all.filter(t => t.balance).map(t => ({ typeId: t.id, names: [t.name ?? "", ...(t.key ? [t.key, ...locales.map(l => catalogue(l).types[t.key!])] : [])] }));
-  return planImport(text, names, await everyone());
+async function kindNames(options: { balances?: boolean } = {}): Promise<KindNames[]> {
+  const all = (await rules.types(db())).filter(t => !options.balances || t.balance);
+  return all.map(t => ({ typeId: t.id, key: t.key, split: t.period === "acquired", names: [t.name ?? "", ...(t.key ? [t.key, ...locales.map(l => catalogue(l).types[t.key!])] : [])] }));
 }
 
-export async function checkImport(text: string): Promise<Result<ImportPlan>> {
+async function directoryWithNumbers(): Promise<Person[]> {
+  const [dir, known] = await Promise.all([everyone(), staff.allStaff(db())]);
+  return dir.map(p => ({ id: p.id, name: p.name, firstName: p.firstName, lastName: p.lastName, employeeNumber: known.get(p.id)?.employeeNumber ?? null }));
+}
+
+async function plan(text: string, mapping: Mapping): Promise<ImportPlan> {
+  return planImport(text, await kindNames({ balances: true }), await directoryWithNumbers(), mapping);
+}
+
+export async function checkImport(text: string, mapping: Mapping = {}): Promise<Result<ImportPlan>> {
   return act(async actor => {
     if (!can(actor, "people.all")) throw new AppError("forbidden");
-    return plan(text);
+    return plan(text, mapping);
   });
 }
 
-export async function applyImport(text: string, onDate: string, reason: string): Promise<Result<number>> {
+export async function applyImport(text: string, mapping: Mapping, onDate: string, reason: string): Promise<Result<{ balances: number; people: number }>> {
   return act(async actor => {
     if (!can(actor, "people.all")) throw new AppError("forbidden");
-    const p = await plan(text);
-    const rows = p.rows.filter(r => r.problem === null && r.memberId).flatMap(r => r.values.map(v => ({ memberId: r.memberId!, ...v })));
-    return balances.openings(db(), actor, rows, onDate, reason);
+    const p = await plan(text, mapping);
+    const ok = p.rows.filter(r => r.problem === null && r.memberId);
+    const rows = ok.flatMap(r => r.values.map(v => ({ memberId: r.memberId!, ...v })));
+    const n = rows.length > 0 ? await balances.openings(db(), actor, rows, onDate, reason) : 0;
+    const touched = new Set<string>();
+    for (const r of ok) {
+      if (r.start) { await staff.setStartDate(db(), actor, r.memberId, r.start); touched.add(r.memberId!); }
+      if (r.number) { await staff.setEmployeeNumber(db(), actor, r.memberId, r.number); touched.add(r.memberId!); }
+    }
+    if (n === 0 && touched.size === 0) throw new AppError("import_empty");
+    return { balances: n, people: touched.size };
+  });
+}
+
+export async function checkLeaveImport(text: string, mapping: Mapping = {}, kindMap: KindMap = {}): Promise<Result<LeavePlan>> {
+  return act(async actor => {
+    if (!can(actor, "people.all")) throw new AppError("forbidden");
+    return planLeave(text, await kindNames(), await directoryWithNumbers(), mapping, kindMap);
+  });
+}
+
+export async function applyLeaveImport(text: string, mapping: Mapping, kindMap: KindMap, counted: boolean, reason: string): Promise<Result<{ done: number; skipped: { line: number; problem: string }[] }>> {
+  return act(async actor => {
+    if (!can(actor, "people.all")) throw new AppError("forbidden");
+    const p = planLeave(text, await kindNames(), await directoryWithNumbers(), mapping, kindMap);
+    const lines = p.rows.filter(r => r.problem === null && r.memberId && r.typeId && r.start && r.end)
+      .map(r => ({ line: r.line, memberId: r.memberId!, typeId: r.typeId!, start: r.start!, startHalf: r.startHalf, end: r.end!, endHalf: r.endHalf }));
+    const result = await requests.importLeave(db(), actor, lines, counted === true, reason);
+    for (const r of result.done) await share.approved(r);
+    await tell.refreshBadges(db());
+    return { done: result.done.length, skipped: result.skipped };
   });
 }
 

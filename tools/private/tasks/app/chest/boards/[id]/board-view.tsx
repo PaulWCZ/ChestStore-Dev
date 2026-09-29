@@ -25,28 +25,34 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
-import { Archive, Arrow, Back, Calendar, Chat, Check, CheckList, Clip, Columns, Dots, Gear, ListIcon, Plus, RepeatIcon, Text } from "../../../../components/icons.tsx";
+import { Dialog } from "../../../../components/dialog.tsx";
+import { Archive, Arrow, Back, Calendar, Chat, Check, CheckList, Clip, Columns, Dots, Gear, ListIcon, Lock, Plus, RepeatIcon, Text } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { BoardAccess } from "../../../../lib/access.ts";
-import type { Column, Label } from "../../../../lib/boards.ts";
+import type { Column, Field, Label } from "../../../../lib/boards.ts";
 import type { CardSummary } from "../../../../lib/cards.ts";
 import { format, intl, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { addCard, addColumn, archiveBoard, archiveColumn, moveCard, moveColumn, updateColumn } from "../../actions.ts";
+import { CalendarView } from "./calendar-view.tsx";
+import { ListView } from "./list-view.tsx";
+import type { CalendarMonth } from "./page.tsx";
 
 type Words = { board: Catalogue["board"]; card: Catalogue["card"]; errors: Catalogue["errors"]; colors: Catalogue["colors"] };
-type People = Record<string, { name: string; photo: string | null }>;
+export type People = Record<string, { name: string; photo: string | null }>;
 type Props = {
-  board: { id: string; name: string; color: string; access: BoardAccess; archived: boolean };
+  board: { id: string; name: string; color: string; access: BoardAccess; archived: boolean; privacy: string | null };
   columns: Column[];
   labels: Label[];
+  fields: Field[];
   cards: CardSummary[];
   people: People;
   audience: { id: string; name: string; photo: string | null }[];
   me: string;
   today: string;
   locale: Locale;
-  view: "board" | "list";
+  view: "board" | "list" | "calendar";
+  calendar: CalendarMonth | null;
   filter: { who: string; label: string };
   t: Words;
 };
@@ -62,7 +68,7 @@ const raw = (key: UniqueIdentifier) => String(key).replace(/^(card|lane):/u, "")
 type Lanes = Record<string, string[]>;
 const lanesOf = (columns: Column[], cards: CardSummary[]): Lanes => Object.fromEntries(columns.map(c => [c.id, cards.filter(k => k.columnId === c.id).map(k => k.id)]));
 
-export function BoardView({ board, columns, labels, cards, people, audience, me, today, locale, view, filter, t }: Props) {
+export function BoardView({ board, columns, labels, fields, cards, people, audience, me, today, locale, view, calendar, filter, t }: Props) {
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
@@ -80,11 +86,13 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
   const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[error], values));
   const matches = (c: CardSummary) => (filter.who === "" || (filter.who === "me" ? c.assignees.includes(me) : c.assignees.includes(filter.who))) && (filter.label === "" || c.labels.includes(filter.label));
   const filtered = filter.who !== "" || filter.label !== "";
-  const setFilter = (key: "who" | "label" | "view", value: string) => {
-    const params = new URLSearchParams({ ...(view === "list" ? { view: "list" } : {}), ...(filter.who ? { who: filter.who } : {}), ...(filter.label ? { label: filter.label } : {}) });
-    if (value) params.set(key, value); else params.delete(key);
-    router.replace(`${path}${params.size ? "?" + params.toString() : ""}`, { scroll: false });
+  // The address keeps the view and the filters (a link shows the same).
+  const query = (change: Record<string, string>) => {
+    const params = new URLSearchParams({ ...(view !== "board" ? { view } : {}), ...(view === "calendar" && calendar ? { month: calendar.month } : {}), ...(filter.who ? { who: filter.who } : {}), ...(filter.label ? { label: filter.label } : {}) });
+    for (const [key, value] of Object.entries(change)) if (value) params.set(key, value); else params.delete(key);
+    return `${path}${params.size ? "?" + params.toString() : ""}`;
   };
+  const setFilter = (key: "who" | "label", value: string) => router.replace(query({ [key]: value }), { scroll: false });
 
   // The keyboard moves a card as on a board: up and down among the cards of
   // its column, left and right to the neighbouring column (its top).
@@ -117,10 +125,12 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
     const rect = target ? droppableRects.get(target) : undefined;
     return rect ? { x: rect.left + 4, y: rect.top + 4 } : undefined;
   };
+  // Enter opens a card; Space picks it up (dnd-kit starts on both by
+  // default, which left the keyboard no way to open one).
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates, keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space", "Enter"] } }),
   );
   // What a dragged card is over: under a pointer, the card (or else the
   // column) under it; from the keyboard, the nearest card, a column only
@@ -203,11 +213,12 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
       <div className="board-head">
         <Link className="icon-button" href="/chest/boards" title={t.board.back}><Back /><span className="visually-hidden">{t.board.back}</span></Link>
         <h1>{board.name}</h1>
+        {board.privacy && <Link className="privacy" href={`/chest/boards/${board.id}/settings`} title={t.board.privateTitle}><Lock /><span className="visually-hidden">{t.board.privateTitle}: </span>{board.privacy}</Link>}
         <span className="spacer" />
         <div className="filters">
           <label className="visually-hidden" htmlFor="filter-who">{t.board.filter}</label>
           <select id="filter-who" value={filter.who} onChange={e => setFilter("who", e.target.value)}>
-            <option value="">{t.board.everyone}</option>
+            <option value="">{t.board.allPeople}</option>
             <option value="me">{t.board.onlyMine}</option>
             {audience.filter(p => p.id !== me).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -220,11 +231,12 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
               </select>
             </>
           )}
-          {filtered && <button type="button" className="link-button" onClick={() => router.replace(path + (view === "list" ? "?view=list" : ""), { scroll: false })}>{t.board.clear}</button>}
+          {filtered && <button type="button" className="link-button" onClick={() => router.replace(query({ who: "", label: "" }), { scroll: false })}>{t.board.clear}</button>}
         </div>
         <nav className="segmented" aria-label={t.board.views}>
-          <Link href={`${path}${filter.who || filter.label ? "?" + new URLSearchParams({ ...(filter.who ? { who: filter.who } : {}), ...(filter.label ? { label: filter.label } : {}) }).toString() : ""}`} aria-current={view === "board" ? "page" : undefined} scroll={false}><Columns />{t.board.boardView}</Link>
-          <Link href={`${path}?${new URLSearchParams({ view: "list", ...(filter.who ? { who: filter.who } : {}), ...(filter.label ? { label: filter.label } : {}) }).toString()}`} aria-current={view === "list" ? "page" : undefined} scroll={false}><ListIcon />{t.board.listView}</Link>
+          <Link href={query({ view: "", month: "" })} aria-current={view === "board" ? "page" : undefined} scroll={false}><Columns />{t.board.boardView}</Link>
+          <Link href={query({ view: "list", month: "" })} aria-current={view === "list" ? "page" : undefined} scroll={false}><ListIcon />{t.board.listView}</Link>
+          <Link href={query({ view: "calendar" })} aria-current={view === "calendar" ? "page" : undefined} scroll={false}><Calendar />{t.board.calendarView}</Link>
         </nav>
         <Link className="icon-button" href={`/chest/boards/${board.id}/settings`} title={t.board.settings}><Gear /><span className="visually-hidden">{t.board.settings}</span></Link>
       </div>
@@ -237,10 +249,21 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
       {!board.archived && !writable && <div className="notice"><span>{t.board.readOnly}</span></div>}
 
       {view === "list" ? (
-        <ListView columns={columns} lanes={lanes} byId={byId} labels={labels} people={people} matches={matches} today={today} locale={locale} t={t} />
+        <ListView columns={columns} cards={cards.filter(matches)} labels={labels} fields={fields} people={people} today={today} locale={locale} t={t} />
+      ) : view === "calendar" && calendar ? (
+        <CalendarView calendar={calendar} cards={cards.filter(matches)} labels={labels} writable={writable} locale={locale} query={query} onError={fail} t={t} />
       ) : (
         <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setLanes(lanesOf(columns, cards)); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
-          <div className="lanes">
+          {columns.length > 1 && (
+            <nav className="lane-jump" aria-label={t.board.columns}>
+              {columns.map((c, i) => (
+                <button key={c.id} type="button" className="chip" onClick={() => document.getElementById(`lane-${c.id}`)?.closest(".lane")?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" })}>
+                  <span aria-hidden="true">{i + 1}</span> {c.name} <span className="muted">{(lanes[c.id] ?? []).length}</span>
+                </button>
+              ))}
+            </nav>
+          )}
+          <div className={`lanes${dragging ? " is-dragging" : ""}`}>
             {columns.map((column, i) => (
               <Lane
                 key={column.id}
@@ -256,6 +279,7 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
                 writable={writable}
                 first={i === 0}
                 last={i === columns.length - 1}
+                others={columns.filter(c => c.id !== column.id)}
                 neighbours={{ before: columns[i - 1]?.id ?? null, beforeBefore: columns[i - 2]?.id ?? null, after: columns[i + 1]?.id ?? null, afterAfter: columns[i + 2]?.id ?? null }}
                 onOpen={openCard}
                 onError={fail}
@@ -271,8 +295,8 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
   );
 }
 
-function Lane({ boardId, column, ids, byId, labels, people, matches, today, locale, writable, first, last, neighbours, onOpen, onError, t }: {
-  boardId: string; column: Column; ids: string[]; byId: Map<string, CardSummary>; labels: Label[]; people: People; matches: (c: CardSummary) => boolean; today: string; locale: Locale; writable: boolean; first: boolean; last: boolean;
+function Lane({ boardId, column, ids, byId, labels, people, matches, today, locale, writable, first, last, others, neighbours, onOpen, onError, t }: {
+  boardId: string; column: Column; ids: string[]; byId: Map<string, CardSummary>; labels: Label[]; people: People; matches: (c: CardSummary) => boolean; today: string; locale: Locale; writable: boolean; first: boolean; last: boolean; others: Column[];
   neighbours: { before: string | null; beforeBefore: string | null; after: string | null; afterAfter: string | null };
   onOpen: (id: string) => void; onError: (e: keyof Catalogue["errors"], v?: Record<string, string | number>) => void; t: Words;
 }) {
@@ -281,7 +305,21 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
   const [, start] = useTransition();
   const toast = useToast();
   const menu = useRef<HTMLDetailsElement>(null);
+  const [archiving, setArchiving] = useState(false);
   const shown = ids.filter(id => byId.has(id) && matches(byId.get(id)!));
+  // Archiving a column that holds cards asks where they go; an empty one
+  // goes at once. Either way: "Undo".
+  const archive = (to: string | null) => {
+    if (menu.current) menu.current.open = false;
+    setArchiving(false);
+    start(async () => {
+      const r = await archiveColumn(column.id, true, to);
+      if (!r.ok) return onError(r.error, r.values);
+      const where = others.find(c => c.id === to)?.name ?? "";
+      const text = r.value.moved > 0 ? plural(t.board.columnArchivedMoved, r.value.moved, locale, { column: where }) : r.value.cards > 0 ? plural(t.board.columnArchivedWith, r.value.cards, locale) : t.board.columnArchived;
+      toast(text, { label: t.card.undo, run: () => start(async () => { await archiveColumn(column.id, false); }) });
+    });
+  };
   const run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"] }>) => {
     if (menu.current) menu.current.open = false;
     start(async () => {
@@ -310,11 +348,12 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
               {!first && <button type="button" onClick={() => run(() => moveColumn(column.id, neighbours.beforeBefore, neighbours.before))}><Back />{t.board.moveLeft}</button>}
               {!last && <button type="button" onClick={() => run(() => moveColumn(column.id, neighbours.after, neighbours.afterAfter))}><Arrow />{t.board.moveRight}</button>}
               <hr />
-              <button type="button" onClick={() => run(async () => { const r = await archiveColumn(column.id, true); if (r.ok) toast(t.board.columnArchived, { label: t.card.undo, run: () => start(async () => { await archiveColumn(column.id, false); }) }); return r; })}><Archive />{t.board.archiveColumn}</button>
+              <button type="button" onClick={() => { if (menu.current) menu.current.open = false; if (ids.length === 0) archive(null); else setArchiving(true); }}><Archive />{t.board.archiveColumn}</button>
             </div>
           </details>
         )}
       </div>
+      {archiving && <ArchiveColumn column={column} count={ids.length} others={others} locale={locale} onArchive={archive} onClose={() => setArchiving(false)} t={t} />}
       <SortableContext items={ids.map(cardKey)} strategy={verticalListSortingStrategy} disabled={!writable}>
         <ul ref={setNodeRef} className={`lane-cards${isOver ? " drop-hint" : ""}`} data-empty={t.board.emptyColumn}>
           {shown.map(id => <SortableCard key={id} card={byId.get(id)!} labels={labels} people={people} today={today} locale={locale} writable={writable} onOpen={onOpen} t={t} />)}
@@ -329,6 +368,7 @@ function SortableCard(props: { card: CardSummary; labels: Label[]; people: Peopl
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardKey(props.card.id), disabled: !props.writable });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const open = () => props.onOpen(props.card.id);
+  // Enter opens (never while this card is being moved: then Enter drops it).
   return (
     // The list item stays a list item; the card inside is what one drags,
     // focuses and opens.
@@ -338,7 +378,7 @@ function SortableCard(props: { card: CardSummary; labels: Label[]; people: Peopl
         onClick={open}
         onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
           listeners?.["onKeyDown"]?.(e);
-          if (e.key === "Enter" && !e.defaultPrevented) open();
+          if (e.key === "Enter" && !e.defaultPrevented && !isDragging) open();
         }}
         aria-roledescription={undefined}>
         <CardTile {...props} />
@@ -357,7 +397,7 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
       <span className="card-title">{card.title}</span>
       {(due || card.repeats || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
         <span className="meta">
-          {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}</span>}
+          {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}{card.dueTime && " · " + card.dueTime}</span>}
           {card.repeats && !card.done && <span className="stat" title={t.card.repeatBadge}><RepeatIcon /><span className="visually-hidden">{t.card.repeatBadge}</span></span>}
           {card.hasDescription && <span className="stat" title={t.card.description}><Text /></span>}
           {card.checklist.total > 0 && <span className={`stat${card.checklist.done === card.checklist.total ? " chip done" : ""}`} title={t.card.checklist}><CheckList />{card.checklist.done}/{card.checklist.total}</span>}
@@ -433,31 +473,41 @@ function AddLane({ boardId, onError, t }: { boardId: string; onError: (e: keyof 
   );
 }
 
-function ListView({ columns, lanes, byId, labels, people, matches, today, locale, t }: { columns: Column[]; lanes: Lanes; byId: Map<string, CardSummary>; labels: Label[]; people: People; matches: (c: CardSummary) => boolean; today: string; locale: Locale; t: Words }) {
-  const path = usePathname();
-  const rows = columns.flatMap(c => (lanes[c.id] ?? []).map(id => byId.get(id)).filter((k): k is CardSummary => !!k && matches(k)).map(k => ({ card: k, column: c })));
-  if (rows.length === 0) return <div className="table-wrap"><p className="muted">{t.board.list.empty}</p></div>;
+// "Archive the column" when it holds cards: where do they go?
+function ArchiveColumn({ column, count, others, locale, onArchive, onClose, t }: { column: Column; count: number; others: Column[]; locale: Locale; onArchive: (to: string | null) => void; onClose: () => void; t: Words }) {
+  const firstOpen = others.find(c => !c.done) ?? others[0];
+  const [choice, setChoice] = useState<"move" | "keep">(firstOpen ? "move" : "keep");
+  const [to, setTo] = useState(firstOpen?.id ?? "");
   return (
-    <div className="table-wrap">
-      <table className="cards">
-        <thead>
-          <tr><th scope="col">{t.board.list.title}</th><th scope="col">{t.board.list.column}</th><th scope="col">{t.board.list.assignees}</th><th scope="col">{t.board.list.due}</th><th scope="col">{t.board.list.labels}</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(({ card, column }) => {
-            const state = !card.due || card.done ? "" : card.due < today ? "due-late" : card.due === today ? "due-today" : "";
-            return (
-              <tr key={card.id} className={card.done ? "is-done" : undefined}>
-                <td><Link href={`${path}?view=list&card=${card.id}`} scroll={false}>{card.title}</Link></td>
-                <td>{column.name}</td>
-                <td><span className="avatars">{card.assignees.map(a => <Avatar key={a} name={people[a]?.name ?? "?"} photo={people[a]?.photo ?? null} size={24} title={people[a]?.name} />)}</span></td>
-                <td>{card.due && <span className={`chip ${state}`}>{new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(card.due + "T00:00:00Z"))}</span>}</td>
-                <td><span className="row">{card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l).map(l => <span key={l.id} className={`chip label-chip c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}</span></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <Dialog open title={format(t.board.archiveTitle, { column: column.name })} closeLabel={t.card.cancel} onClose={onClose}>
+      <form className="stack" onSubmit={e => { e.preventDefault(); onArchive(choice === "move" && to ? to : null); }}>
+        <p>{plural(t.board.archiveHolds, count, locale)}</p>
+        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="visually-hidden">{t.board.archiveWhere}</legend>
+          {others.length > 0 && (
+            <label className="choice-line">
+              <input type="radio" name="where" checked={choice === "move"} onChange={() => setChoice("move")} />
+              <span>{t.board.archiveMove}</span>
+            </label>
+          )}
+          {others.length > 0 && choice === "move" && (
+            <div className="indent">
+              <label className="visually-hidden" htmlFor={`archive-to-${column.id}`}>{t.board.archiveMove}</label>
+              <select id={`archive-to-${column.id}`} className="select" value={to} onChange={e => setTo(e.target.value)}>
+                {others.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+          <label className="choice-line">
+            <input type="radio" name="where" checked={choice === "keep"} onChange={() => setChoice("keep")} />
+            <span>{t.board.archiveKeep}</span>
+          </label>
+        </fieldset>
+        <div className="dialog-foot">
+          <button type="button" className="button quiet" onClick={onClose}>{t.card.cancel}</button>
+          <button type="submit" className="button"><Archive />{t.board.archiveColumn}</button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

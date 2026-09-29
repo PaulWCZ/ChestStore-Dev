@@ -5,28 +5,36 @@ import { useState, useTransition } from "react";
 import { Dialog } from "../../../components/dialog.tsx";
 import { Plus } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
+import type { FieldDef } from "../../../lib/custom.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { addDeal, updateDeal } from "../actions.ts";
+import { CustomInputs } from "./custom-fields.tsx";
 import { OwnerSelect } from "./owner-select.tsx";
+import { CompanyPicker, ContactPicker } from "./pickers.tsx";
+import type { Choice, Teammate } from "./shared.ts";
 import type { DealValues } from "./values.ts";
-import type { Choice, ContactChoice, Teammate } from "./shared.ts";
 
+export type DealFormProps = { fields: FieldDef[]; stages: Choice[]; team: Teammate[]; me: string; canAssign: boolean; canCreateCompany: boolean; t: Catalogue };
 
-// Add or edit a deal: what, for whom, how much, by when. Choosing a person
-// brings their company; choosing a company keeps only its people.
-export function DealDialog({ open, onClose, initial, companies, contacts, stages, team, me, canAssign, t }: { open: boolean; onClose: () => void; initial: DealValues; companies: Choice[]; contacts: ContactChoice[]; stages: Choice[]; team: Teammate[]; me: string; canAssign: boolean; t: Catalogue }) {
+// Add or edit a deal: what, for whom, how much, by when. The company and
+// the person are found by typing (a new company is added on the spot);
+// choosing a person brings their company; choosing a company offers its
+// people first.
+export function DealDialog({ open, onClose, initial, fields, stages, team, me, canAssign, canCreateCompany, t }: DealFormProps & { open: boolean; onClose: () => void; initial: DealValues }) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
   const toast = useToast();
   const editing = initial.id !== undefined;
-  const people = v.company ? contacts.filter(c => c.companyId === v.company || c.companyId === null) : contacts;
+  // The company of the person chosen (a person of another company does not
+  // stay when the company changes); at first, the deal's own company.
+  const [theirs, setTheirs] = useState<string | null>(initial.contact ? initial.company?.id ?? null : null);
   function submit() {
     setError(null);
     start(async () => {
-      const common = { title: v.title, company: v.company, contact: v.contact, value: v.value, expectedClose: v.expectedClose || null };
+      const common = { title: v.title, company: v.company?.id ?? null, contact: v.contact?.id ?? null, value: v.value, expectedClose: v.expectedClose || null, custom: v.custom };
       const r = editing ? await updateDeal(initial.id!, common) : await addDeal({ ...common, stage: v.stage, owner: v.owner });
       if (!r.ok) return setError(format(t.errors[r.error], r.values));
       onClose();
@@ -46,24 +54,16 @@ export function DealDialog({ open, onClose, initial, companies, contacts, stages
         <div className="form-grid">
           <div className="field-block">
             <label className="label" htmlFor="dl-company">{t.deal.company}</label>
-            <select id="dl-company" className="field" value={v.company ?? ""} onChange={e => {
-              const company = e.target.value || null;
-              setV(x => ({ ...x, company, contact: x.contact && contacts.find(c => c.id === x.contact)?.companyId !== company && company !== null ? null : x.contact }));
-            }}>
-              <option value="">{t.deal.noCompany}</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <CompanyPicker id="dl-company" value={v.company} canCreate={canCreateCompany} t={t}
+              onChange={company => setV(x => ({ ...x, company, contact: company && x.contact && theirs && theirs !== company.id ? null : x.contact }))} />
           </div>
           <div className="field-block">
             <label className="label" htmlFor="dl-contact">{t.deal.contact}</label>
-            <select id="dl-contact" className="field" value={v.contact ?? ""} onChange={e => {
-              const contact = e.target.value || null;
-              const theirs = contacts.find(c => c.id === contact)?.companyId ?? null;
-              setV(x => ({ ...x, contact, company: theirs ?? x.company }));
-            }}>
-              <option value="">{t.deal.noContact}</option>
-              {people.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <ContactPicker id="dl-contact" value={v.contact} company={v.company?.id ?? null} t={t}
+              onChange={contact => {
+                setTheirs(contact?.companyId ?? null);
+                setV(x => ({ ...x, contact, company: contact?.companyId ? { id: contact.companyId, name: contact.companyName ?? "" } : x.company }));
+              }} />
           </div>
           <div className="field-block">
             <label className="label" htmlFor="dl-value">{t.deal.valueLabel}</label>
@@ -88,6 +88,7 @@ export function DealDialog({ open, onClose, initial, companies, contacts, stages
             </div>
           )}
         </div>
+        <CustomInputs fields={fields} values={v.custom} onChange={custom => setV(x => ({ ...x, custom }))} prefix="dl" t={t} />
         {error && <p className="error" role="alert">{error}</p>}
         <div className="form-actions">
           <button type="submit" className="button" disabled={pending}>{pending ? t.common.saving : editing ? t.common.save : t.deal.create}</button>
@@ -99,7 +100,7 @@ export function DealDialog({ open, onClose, initial, companies, contacts, stages
 }
 
 // A button that opens the dialog, for the pages that offer "New deal".
-export function NewDealButton({ label, className = "button", initial, ...rest }: { label: string; className?: string; initial: DealValues; companies: Choice[]; contacts: ContactChoice[]; stages: Choice[]; team: Teammate[]; me: string; canAssign: boolean; t: Catalogue }) {
+export function NewDealButton({ label, className = "button", initial, ...rest }: DealFormProps & { label: string; className?: string; initial: DealValues }) {
   const [open, setOpen] = useState(false);
   return (
     <>

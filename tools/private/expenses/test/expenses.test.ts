@@ -100,17 +100,17 @@ test("warnings, never blocks: duplicate, no receipt, above the category's limit,
   const b = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ merchant: "chez paul" }))).expense;
   const c = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "12" }))).expense;
   const found = await expenses.warnings(sql, [a, b, c]);
-  assert.deepEqual(found.get(a.id)?.map(w => w.code), ["duplicate", "no_receipt", "over_cap"]);
+  assert.deepEqual(found.get(a.id)?.map(w => w.code), ["duplicate", "no_receipt", "no_guests", "over_cap"]);
   assert.equal(found.get(a.id)?.at(-1)?.cap, 4000);
-  assert.deepEqual(found.get(c.id)?.map(w => w.code), ["no_receipt"]);
+  assert.deepEqual(found.get(c.id)?.map(w => w.code), ["no_receipt", "no_guests"]);
   // The same file on two people's expenses: the approver sees it.
   const bytes = "%PDF-1.4 shared bill";
   const r1 = await upload(chest, sql, asMember(hugo), bytes);
   const r2 = await upload(chest, sql, asMember(lea), bytes);
   const h = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "30" }), r1)).expense;
   const l = (await expenses.saveExpense(sql, asMember(lea), null, lunch({ amount: "30" }), r2)).expense;
-  assert.equal((await expenses.warnings(sql, [h])).get(h.id), undefined);
-  assert.deepEqual((await expenses.warnings(sql, [h, l], { anyone: true })).get(l.id)?.map(w => w.code), ["receipt_reused"]);
+  assert.deepEqual((await expenses.warnings(sql, [h])).get(h.id)?.map(w => w.code), ["no_guests"]);
+  assert.deepEqual((await expenses.warnings(sql, [h, l], { anyone: true })).get(l.id)?.map(w => w.code), ["receipt_reused", "no_guests"]);
   await settings.updateCategory(sql, asMember(camille), cat["meals"], { cap: null });
 });
 
@@ -174,6 +174,23 @@ test("a refusal needs a reason and brings the expense back to its owner's drafts
   assert.equal((await expenses.expense(sql, asMember(lea), a.id)).expense.refusedReason, null);
   assert.equal(chest.badges.get(lea.id), undefined);
   assert.equal(chest.notifications.some(n => n.key === `refused:${a.id}`), false);
+});
+
+test("guests at a meal: colleagues by id (never the payer), outsiders by name; a meal without them is flagged", async () => {
+  const { sql } = database;
+  const saved = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestMembers: [ines.id, hugo.id, ines.id], guestNames: ["  Jean Dupont (Acme) ", "Jean Dupont (Acme)"] }))).expense;
+  assert.deepEqual(saved.guests, { members: [ines.id], names: ["Jean Dupont (Acme)"] });
+  assert.equal((await expenses.warnings(sql, [saved])).get(saved.id)?.some(w => w.code === "no_guests") ?? false, false);
+  await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestMembers: ["Inès"] })), refuses("invalid"));
+  await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestNames: "Jean" })), refuses("invalid"));
+  await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestNames: Array.from({ length: 31 }, (_, i) => "G" + i) })), refuses("too_many"));
+  await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestNames: ["x".repeat(121)] })), refuses("too_long"));
+  // Only categories that ask for guests flag a meal without them.
+  const taxi = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ categoryId: cat["travel"], amount: "12" }))).expense;
+  assert.deepEqual((await expenses.warnings(sql, [taxi])).get(taxi.id)?.map(w => w.code), ["no_receipt"]);
+  // Tolls and parking have their own category, VAT recoverable by default.
+  const [parking] = await sql`select account, vat_recovery, guests from categories where key = 'parking'`;
+  assert.deepEqual({ ...parking }, { account: "625100", vat_recovery: 100, guests: false });
 });
 
 test("a refused expense never goes back unchanged: not ticked, not sent, not approved in bulk", async () => {

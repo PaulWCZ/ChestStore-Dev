@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Dialog } from "../../../components/dialog.tsx";
-import { Box, Plus } from "../../../components/icons.tsx";
+import { Box, Plus, Upload } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
@@ -52,7 +52,7 @@ export function CatalogueView({ t, locale, items, archived, canWrite, currency }
           <h1>{c.title}</h1>
           <p>{c.intro}</p>
         </div>
-        {canWrite && <div className="actions"><button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button></div>}
+        {canWrite && <div className="actions"><a className="button quiet" href="/chest/import?kind=items"><Upload />{c.import}</a><button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button></div>}
       </div>
       <nav className="filters" aria-label={t.list.filters}>
         <a href="/chest/catalogue" aria-current={!archived ? "true" : undefined}>{c.active}</a>
@@ -63,7 +63,7 @@ export function CatalogueView({ t, locale, items, archived, canWrite, currency }
           <Box />
           <h2>{archived ? c.noArchived : c.empty.title}</h2>
           {!archived && <p>{c.empty.body}</p>}
-          {canWrite && !archived && <div className="actions"><button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button></div>}
+          {canWrite && !archived && <div className="actions"><button type="button" className="button" onClick={() => open(null)}><Plus />{c.add}</button><a className="button quiet" href="/chest/import?kind=items"><Upload />{c.import}</a></div>}
         </div>
       ) : (
         <div className="ledger">

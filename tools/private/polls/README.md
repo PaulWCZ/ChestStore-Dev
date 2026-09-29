@@ -1,9 +1,11 @@
 # Polls — ask the team a quick question, find a date, run a short survey
 
 *Polls* (French interface: *Sondages*) replaces Doodle, Framadate, Slack and
-Teams polls, and Officevibe-style pulse surveys, inside the company's own
-Chest. Everyone already signed in to the Chest can answer in a few seconds;
-the organiser sees the results as they come in, or when the poll closes.
+Teams polls, and Officevibe-style weekly pulse surveys (with eNPS and the
+trend over time), inside the company's own Chest. Everyone signed in to the
+Chest can ask the team and answer in a few seconds; the organiser sees the
+results as they come in, or when the poll closes — an anonymous poll shows
+them to everyone, organiser included, only once it closes.
 
 ## What it does
 
@@ -15,16 +17,41 @@ the organiser sees the results as they come in, or when the poll closes.
     (Doodle/Framadate style). The best date (most who can come, then most
     *Yes*, then the earliest) is highlighted.
   - **A short survey** — up to ten questions: choices, a 1–5 scale (with
-    words for both ends), free text.
-- **Who is asked**: everyone who has Polls, or chosen Chest groups. Those
-  asked get **one item in the Chest's bell**, in their own language, and a
-  **number on the Polls tile** until they answer.
+    words for both ends), free text, and **eNPS** (0–10, "How likely are
+    you to recommend working here to a friend?"; the score — share of 9–10
+    minus share of 0–6 — is shown with its meaning in plain words).
+  - **A team pulse** (fourth tile) — a survey ready to send: anonymous,
+    every week, three questions (how the week was, eNPS, anything to say).
+- **Anyone asks.** Every member of the tool can start a poll (as in Slack
+  or Teams); an admin can keep that to organisers (*Settings* on the home
+  page). A member's own poll is theirs to edit, close and delete.
+- **Repeating surveys**: *Repeat — every week / every month*. Each round is
+  a poll of its own, opened by itself at the same time for the same people,
+  and open until the next one starts. The poll page shows **Over time**: the
+  average of each 1–5 question and the eNPS score, round after round, with
+  the change since the last round and the numbers in a table. *Stop
+  repeating* (undo: *Repeat again*).
+- **Who is asked**: everyone who has Polls, or chosen Chest groups and/or
+  **people picked by name**. Those asked get **one item in the Chest's
+  bell**, in their own language, and a **number on the Polls tile** until
+  they answer.
+- **Sign-up sheets**: *Limit the places per answer* on a question or a date
+  poll ("2 people per stand slot", "3 seats per car"). Each answer shows
+  "2 places left" or "Full"; a full answer cannot be taken (the last place
+  goes to one person only); on dates, a *Yes* takes a place and *If need
+  be* is not offered. Named polls only.
+- **Comments** on a named poll ("I can do the 17th, but only after 8 pm"),
+  by those asked and those who manage it; the organiser hears of them in the
+  bell; deleting one is undone from the toast. Anonymous polls take none.
+- **Remind those who haven't answered** (the organiser, at most every 12
+  hours): a bell item and, where the Chest sends email, one email each.
 - **One answer per member**, bound to the member the Chest signs in — never
   to anything the browser sends. A named answer can be changed until the
   poll closes.
 - **Closing**: at a date and time (optional) or by hand (*Close now*, undone
   by *Undo*/*Reopen*). **Results** show live or only after the close — the
-  organiser chooses; the organiser always sees them.
+  organiser chooses; the organiser always sees them — except in an
+  anonymous poll (below).
 - **Results**: bars with counts and percentages; who answered what (named
   polls only); participation ("4 of 7 answered") and, for the organiser, who
   has not answered yet; the date poll's grid (people × dates); scale
@@ -40,6 +67,8 @@ the organiser sees the results as they come in, or when the poll closes.
 - **Drafts**: save a poll as a draft and send it later; a new poll's words
   are also kept in the browser until saved, so a closed tab loses nothing.
 - **Delete with undo**; a deleted poll is purged after 30 days.
+- **Honest edits**: once people have answered, only the words and the
+  closing time change, and the poll then says "Edited after 3 answers".
 
 ## Anonymous polls — the design, and its limits
 
@@ -91,7 +120,9 @@ What anonymity here does **not** protect against, honestly:
 | `member` | Answer the polls put to them; see results when the organiser allows it |
 
 Admins of the Chest (who arrive as organisers) also manage every poll that is
-not a draft: see its results, close, reopen, delete, download. Nobody — admin
+not a draft: see its results (an anonymous poll's only once closed, like
+everyone), close, reopen, delete, download, delete comments; and they choose
+whether every member may start a poll. Nobody — admin
 or organiser — sees who answered what in an anonymous poll. A poll someone may
 not see answers *not found*: a draft is its organiser's alone; an open or
 closed poll is seen by those asked, its organiser and admins.
@@ -183,7 +214,7 @@ npm run build     # types, then the Next.js build, as the Chest does
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/polls --prod --reset
---port 5500` (five sample polls from `seed/sample.sql`),
+--port 5500` (the sample polls of `seed/sample.sql`),
 `node lab/chest-dev/flows/polls.mjs 5500` (browser flows),
 `node lab/chest-dev/screens.mjs tools/private/polls --port 5500`,
 `node lab/chest-dev/audit.mjs tools/private/polls --port 5500`.

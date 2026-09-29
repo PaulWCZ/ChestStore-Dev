@@ -5,6 +5,7 @@ import { countryCode } from "./countries.ts";
 import { customValues, type Custom } from "./custom.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
+import type { FieldDef } from "./custom.ts";
 import { fieldClause, listFields, type FieldFilter } from "./fields.ts";
 import { clean, email, id, limits, owner as ownerOf, phone, phoneDigits, siren, tags, vat, website } from "./model.ts";
 import { checkAssignable } from "./team.ts";
@@ -113,12 +114,11 @@ export function pageOf(value: unknown): number {
 
 export type CompanyFilter = { q?: unknown; owner?: OwnerFilter; tag?: unknown; field?: FieldFilter };
 
-async function companyWhere(sql: Query, actor: Member, filter: CompanyFilter) {
+function companyWhere(sql: Query, actor: Member, fields: FieldDef[], filter: CompanyFilter) {
   const q = typeof filter.q === "string" ? clean(filter.q, limits.query, { optional: true }) : "";
   const tsq = q ? words(q) : null;
   const digits = q ? phoneQuery(q) : null;
   const tag = typeof filter.tag === "string" && filter.tag !== "" ? filter.tag.slice(0, limits.tag) : null;
-  const fields = filter.field ? await listFields(sql, "companies") : [];
   return sql`
     ${ownerClause(sql, "o.owner", filter.owner ?? "", actor)}
     and ${tag ? sql`exists (select 1 from unnest(o.tags) t where lower(t) = lower(${tag}))` : sql`true`}
@@ -131,7 +131,7 @@ export async function listCompanies(sql: Sql, actor: Member | null, filter: Comp
   const limit = options.limit ?? limits.pageSize;
   const page = pageOf(options.page);
   const sort: CompanySort = (companySorts as readonly unknown[]).includes(options.sort) ? options.sort as CompanySort : "name";
-  const where = await companyWhere(sql, actor!, filter);
+  const where = companyWhere(sql, actor!, filter.field ? await listFields(sql, "companies") : [], filter);
   const order = sort === "recent" ? sql`last_activity desc nulls last, o.folded, o.id`
     : sort === "created" ? sql`o.created_at desc, o.id desc`
     : sql`o.folded, o.id`;
@@ -143,7 +143,7 @@ export async function listCompanies(sql: Sql, actor: Member | null, filter: Comp
 // The ids a filter gives, for "select all that match" (bulk actions).
 export async function companyIds(sql: Sql, actor: Member | null, filter: CompanyFilter = {}): Promise<string[]> {
   reader(actor);
-  const where = await companyWhere(sql, actor!, filter);
+  const where = companyWhere(sql, actor!, filter.field ? await listFields(sql, "companies") : [], filter);
   return (await sql<{ id: string }[]>`select o.id from companies o where ${where} order by o.folded, o.id limit ${limits.bulk}`).map(r => String(r.id));
 }
 

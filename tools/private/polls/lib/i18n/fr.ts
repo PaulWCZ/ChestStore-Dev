@@ -70,7 +70,7 @@ export const fr: Catalogue = {
     emptyTitle: "Aucun sondage pour l’instant",
     emptyBody: "Quand quelqu’un posera une question à l’équipe, elle apparaîtra ici.",
     emptyOrganiser: "Posez votre première question : c’est l’affaire d’une minute.",
-    pulse: { name: "La météo de l’équipe", line: "Quelques questions anonymes chaque semaine, et leur évolution." },
+    pulse: { name: "La météo de l’équipe", line: "Des questions anonymes chaque semaine, et leur évolution." },
     round: "Édition {round}",
   },
   repeat: {
@@ -261,6 +261,8 @@ export const fr: Catalogue = {
     trendHiddenHint: "« En cours » : résultats à la fin de l’édition. « Masqué » : moins de 5 réponses.",
     average5: "Moyenne sur 5",
     answers5: "Réponses",
+    seeNumbers: "Voir les chiffres",
+    round: "Édition",
   },
   manage: {
     title: "Organiser",
@@ -288,7 +290,7 @@ export const fr: Catalogue = {
   comments: {
     title: "Commentaires",
     label: "Votre commentaire",
-    placeholder: "« Le 17, je peux, mais seulement après 20 h »",
+    placeholder: "Ajouter un commentaire…",
     post: "Publier",
     posting: "Publication…",
     none: "Pas encore de commentaire.",
@@ -324,6 +326,9 @@ export const fr: Catalogue = {
     closedBody: "Voir les résultats.",
     closedDate: "Choisissez la date et prévenez tout le monde.",
     comment: "{name} a commenté : {title}",
+    nudge: "Rappel : {title}",
+    nudgeBody: "{name} attend votre réponse.",
+    nudgeUntil: "{name} attend votre réponse. Il se termine {date}.",
   },
   mail: {
     subject: "Rappel : {title}",

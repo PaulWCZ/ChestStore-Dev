@@ -52,6 +52,14 @@ export async function asked(sql: Query, actor: Member, r: LeaveRequest): Promise
   await refreshBadges(sql, dir);
 }
 
+// Leave recorded for someone by HR or their approver: the person is told,
+// in their language.
+export async function recorded(sql: Query, actor: Member, r: LeaveRequest): Promise<void> {
+  const body = await describe(sql, r);
+  await notify([r.memberId], (t, locale) => ({ title: format(t.bell.recorded, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) + ":answer" });
+  await refreshBadges(sql);
+}
+
 // The requester hears the answer; the answerers' item goes.
 export async function answered(sql: Query, actor: Member, r: LeaveRequest): Promise<void> {
   await withdraw(key(r));

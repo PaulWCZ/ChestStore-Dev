@@ -10,7 +10,11 @@ import { AppError } from "../../../../lib/errors.ts";
 import { format, formatDate, formatDay, money } from "../../../../lib/i18n/index.ts";
 import { amountInput } from "../../../../lib/amount.ts";
 import { today } from "../../../../lib/model.ts";
-import { formChoices, withWhen } from "../../../../lib/page-data.ts";
+import { listFiles } from "../../../../lib/attachments.ts";
+import { dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen } from "../../../../lib/page-data.ts";
+import { openSteps } from "../../../../lib/steps.ts";
+import { FilesBox } from "../../ui/files-box.tsx";
+import { customForm } from "../../ui/values.ts";
 import { directory } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { Composer } from "../../ui/composer.tsx";
@@ -27,8 +31,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const sql = db();
   const d = await readDeal(sql, member, id).catch(e => { if (e instanceof AppError && e.code === "not_found") notFound(); throw e; });
-  const [items, choices] = await Promise.all([timeline(sql, { dealId: d.id }), formChoices(sql, member, t)]);
-  const people = await directory([d.owner, d.step?.owner, ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : []))], locale);
+  const [items, choices, steps, files] = await Promise.all([timeline(sql, { dealId: d.id }), formChoices(sql, member, t), openSteps(sql, { dealId: d.id }), listFiles(sql, member, { deal: d.id })]);
+  const people = await directory([d.owner, ...steps.map(s => s.owner), ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...files.map(f => f.addedBy)], locale);
   const editable = canEditDeal(member, d);
   const stage = choices.stages.find(s => s.id === d.stageId)!;
   const now = today();
@@ -52,13 +56,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         )}
       </div>
       <DealControls
-        deal={{ id: d.id, title: d.title, stageId: d.stageId, owner: d.owner, company: d.company?.id ?? null, contact: d.contact?.id ?? null, value: amountInput(d.value), expectedClose: d.expectedClose ?? "" }}
+        deal={{ id: d.id, title: d.title, stageId: d.stageId, stage: d.stageId, owner: d.owner, company: d.company, contact: d.contact, value: amountInput(d.value), expectedClose: d.expectedClose ?? "", custom: customForm(d.custom) }}
         stages={choices.stages.map(s => ({ id: s.id, name: choices.stageNames[s.id]!, kind: s.kind, probability: s.probability }))}
         editable={editable}
         canCreate={can(member, "deals.create")}
-        companies={choices.companies}
-        contacts={choices.contacts}
-        stageChoices={choices.stageChoices}
+        form={dealFormProps(choices, member.id, t)}
         team={choices.team}
         me={member.id}
         canAssign={choices.canAssign}
@@ -67,7 +69,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       {!editable && <p className="notice">{can(member, "deals.create") ? format(t.deal.readOnly, { name: ownerName }) : t.deal.readOnlyViewer}</p>}
       <div className="record-grid">
         <div className="record-main">
-          <StepBox step={d.step} dueLabel={d.step ? formatDay(d.step.due, locale, { weekday: "short", day: "numeric", month: "short" }) : null} on={{ deal: d.id }} team={choices.team} people={people} me={member.id} canEdit={editable} canAssign={choices.canAssign} today={now} locale={locale} t={t} />
+          <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, now, locale, t) }))} on={{ deal: d.id }} team={choices.team} people={people} me={member.id} canEdit={editable} canAssign={choices.canAssign} today={now} t={t} />
           {can(member, "activities.log") ? <Composer on={{ deal: d.id }} t={t} /> : <p className="muted">{t.log.readOnly}</p>}
           <h2 className="label-mono section-gap">{t.timeline.title}</h2>
           <Timeline items={withWhen(items, locale)} people={people} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="deal" locale={locale} t={t} />
@@ -80,7 +82,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             <div><dt>{t.deal.owner}</dt><dd>{ownerName}</dd></div>
             <div><dt>{t.deal.company}</dt><dd>{d.company ? <Link prefetch={false} href={`/chest/companies/${d.company.id}`}>{d.company.name}</Link> : <span className="muted">{t.deal.noCompany}</span>}</dd></div>
             <div><dt>{t.deal.contact}</dt><dd>{d.contact ? <Link prefetch={false} href={`/chest/contacts/${d.contact.id}`}>{d.contact.name}</Link> : <span className="muted">{t.deal.noContact}</span>}</dd></div>
+            {shownFields(choices.fields, "deals", d.custom, locale).map(f => <div key={f.label}><dt>{f.label}</dt><dd>{f.value}</dd></div>)}
           </dl>
+          <FilesBox on={{ deal: d.id }} files={shownFiles(files, people, member, locale, t)} canAdd={can(member, "activities.log")} t={t} />
         </aside>
       </div>
     </main>

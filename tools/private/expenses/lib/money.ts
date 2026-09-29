@@ -84,3 +84,30 @@ export const vatRates = [200, 100, 55, 21] as const;
 export function recoverable(vat: number, percent: number): number {
   return Math.round((vat * percent) / 100);
 }
+
+// Exchange rates: how many units of the company's currency one unit of
+// another is worth, kept in millionths ("1,1653" → 1165300), as people read
+// them on a card statement or the ECB's page. Six decimals at most.
+export function parseRate(text: unknown): number | null {
+  if (typeof text !== "string") return null;
+  const s = text.trim().replace(/\s/gu, "").replace(",", ".");
+  if (!/^\d{1,6}(\.\d{1,6})?$/u.test(s)) return null;
+  const [whole = "0", fraction = ""] = s.split(".");
+  const micro = Number(whole) * 1_000_000 + Number((fraction + "000000").slice(0, 6));
+  return micro > 0 ? micro : null;
+}
+
+export function rateText(micro: number, locale: string): string {
+  return new Intl.NumberFormat(intl(locale), { minimumFractionDigits: 2, maximumFractionDigits: 6, useGrouping: false }).format(micro / 1_000_000);
+}
+
+// convert gives an amount (minor units of `from`) in minor units of `to` at
+// a rate in millionths, rounded half up, exact (BigInt: no float drift).
+export function convert(amount: number, from: string, rateMicro: number, to: string): number {
+  const shift = minorDigits(to) - minorDigits(from);
+  let numerator = BigInt(amount) * BigInt(rateMicro);
+  let denominator = 1_000_000n;
+  if (shift > 0) numerator *= 10n ** BigInt(shift);
+  else if (shift < 0) denominator *= 10n ** BigInt(-shift);
+  return Number((numerator * 2n + denominator) / (denominator * 2n));
+}

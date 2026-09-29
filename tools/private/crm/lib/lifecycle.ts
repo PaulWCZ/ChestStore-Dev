@@ -36,6 +36,8 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
       await tx`update ${tx(table)} set created_by = 'erased' where created_by = ${memberId}`;
     }
     await tx`update activities set author = 'erased' where author = ${memberId}`;
+    await tx`update attachments set added_by = 'erased' where added_by = ${memberId}`;
+    await tx`update imports set author = 'erased' where author = ${memberId}`;
     await tx`update activities set data = data - 'member' where data->>'member' = ${memberId}`;
     await tx`update activities set data = jsonb_set(data, '{from}', '"erased"') where data->>'from' = ${memberId}`;
     await tx`update activities set data = jsonb_set(data, '{to}', '"erased"') where data->>'to' = ${memberId}`;

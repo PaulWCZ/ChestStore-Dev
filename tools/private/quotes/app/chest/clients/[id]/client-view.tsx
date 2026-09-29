@@ -42,7 +42,7 @@ export function ClientView({ t, client, rows, canWrite, canQuote, canInvoice }: 
           <p className="hint">{c.cardHint}</p>
           <ClientForm t={t} id={client.id} readOnly={!canWrite} initial={{
             kind: client.kind, name: client.name, contact: client.contact, email: client.email, phone: client.phone, address: client.address, postcode: client.postcode, city: client.city,
-            country: client.country, deliveryAddress: client.deliveryAddress, siren: client.siren, vatNumber: client.vatNumber, language: client.language, reverseCharge: client.reverseCharge, notes: client.notes,
+            country: client.country, deliveryAddress: client.deliveryAddress, siren: client.siren, vatNumber: client.vatNumber, language: client.language, reverseCharge: client.reverseCharge, notes: client.notes, account: client.account,
           }} onSaved={() => router.refresh()} />
           {canWrite && (
             <p className="hint archive-line">

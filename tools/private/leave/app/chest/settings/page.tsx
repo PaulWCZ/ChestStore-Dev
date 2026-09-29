@@ -27,7 +27,10 @@ export default async function SettingsPage() {
         settings={s}
         holidays={list}
         months={months}
-        types={all.map(ty => ({ id: ty.id, key: ty.key, name: ty.name ?? "", builtIn: ty.key ? t.types[ty.key] : "", color: ty.color, balance: ty.balance, perYear: ty.perYear, halfDays: ty.halfDays, counting: ty.counting, approval: ty.approval, notes: ty.notes, archived: ty.archived }))}
+        types={all.map(ty => ({
+          id: ty.id, key: ty.key, name: ty.name ?? "", builtIn: ty.key ? t.types[ty.key] : "", color: ty.color, balance: ty.balance, perYear: ty.perYear, halfDays: ty.halfDays,
+          counting: ty.counting, approval: ty.approval, notes: ty.notes, archived: ty.archived, period: ty.period, periodMonth: ty.periodMonth, unused: ty.unused, overdraw: ty.overdraw, away: ty.away,
+        }))}
         colors={colors.map(c => ({ key: c, name: t.colors[c] }))}
         t={{ settings: t.settings, errors: t.errors }}
       />

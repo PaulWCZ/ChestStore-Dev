@@ -3,7 +3,7 @@ import { Avatar } from "../../../components/avatar.tsx";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { Back, Next } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
-import { addDays, addMonths, coverage, monthDays, monthEnd, monthPattern, weekday, type Day } from "../../../lib/calendar.ts";
+import { addDays, addMonths, clip, coverage, fullWeek, monthDays, monthEnd, monthPattern, weekday, type Day } from "../../../lib/calendar.ts";
 import { db } from "../../../lib/db.ts";
 import { everyoneOrNone, groups as chestGroups } from "../../../lib/directory.ts";
 import { format, formatDay, spanText } from "../../../lib/i18n/index.ts";
@@ -12,7 +12,7 @@ import { nameOf, people } from "../../../lib/people.ts";
 import { between, type Entry } from "../../../lib/requests.ts";
 import { daysOff, settings, types } from "../../../lib/rules.ts";
 import { viewer } from "../../../lib/session.ts";
-import { approvees } from "../../../lib/staff.ts";
+import { approvees, staffOf } from "../../../lib/staff.ts";
 import { typeName } from "../../../lib/type-name.ts";
 
 // Who is away: a month, one row per person, one column per day — approved
@@ -53,12 +53,16 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const order = new Map(dir.people.map((p, i) => [p.id, i]));
   rows.sort((a, b) => (a === member.id ? -1 : b === member.id ? 1 : (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9) || nameOf(who.get(a), locale).localeCompare(nameOf(who.get(b), locale), locale)));
   const shownEntries = entries.filter(e => rows.includes(e.memberId));
+  // Each person's week: the days they do not work are shaded in their row.
+  const weeks = await staffOf(sql, rows);
+  const worksOn = (id: string, d: Day) => (weeks.get(id)?.workDays ?? fullWeek).includes(weekday(d));
   const byPerson = new Map<string, Entry[]>();
   for (const e of shownEntries) byPerson.set(e.memberId, [...(byPerson.get(e.memberId) ?? []), e]);
 
   const monthName = formatDay(first, locale, { month: "long", year: "numeric" });
   const link = (m: string, sh = show) => `/chest/calendar?month=${m}${sh !== "all" ? `&show=${encodeURIComponent(sh)}` : ""}`;
   const what = (e: Entry) => (e.typeId ? typeName(typeOf.get(e.typeId), t.types) : t.calendar.away) + (e.status === "pending" ? ` (${t.calendar.pending.toLowerCase()})` : "");
+  const remote = shownEntries.some(e => !e.away);
   const colorOf = (e: Entry) => (e.typeId ? typeOf.get(e.typeId)?.color ?? "sky" : "away");
   const halfWord = (c: "full" | "am" | "pm") => (c === "full" ? t.calendar.allDay : c === "am" ? t.calendar.morning : t.calendar.afternoon);
 
@@ -71,11 +75,16 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const shows = (d: Day) => weekday(d) !== 0 && weekday(d) !== 6 && !off.has(d);
   const joins = (e: Entry, d: Day, step: 1 | -1) => {
     const other = addDays(d, step);
-    return shows(other) && coverage(e, other) === "full" && coverage(e, d) === "full";
+    return shows(other) && worksOn(e.memberId, other) && coverage(e, other) === "full" && coverage(e, d) === "full";
   };
 
-  // The phone's list: each day with someone away or a holiday.
-  const listDays = days.filter(d => off.has(d) || (shows(d) && shownEntries.some(e => coverage(e, d) !== null)));
+  // The phone's list: one card per absence, by week, from today in the
+  // current month; the public holidays in their week.
+  const from = month === now.slice(0, 7) ? now : first;
+  const mondayOf = (d: Day) => addDays(d, -((weekday(d) + 6) % 7));
+  const cards = shownEntries.filter(e => e.end >= from).map(e => ({ e, part: clip(e, from, last)! })).filter(c => c.part);
+  const holidaysAhead = [...off].filter(([d]) => d >= from && weekday(d) !== 0 && weekday(d) !== 6);
+  const listWeeks = [...new Set([...cards.map(c => mondayOf(c.part.start < from ? from : c.part.start)), ...holidaysAhead.map(([d]) => mondayOf(d))])].sort();
 
   return (
     <main className="page wide">
@@ -99,6 +108,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <li><span className="swatch k-sky pending" />{t.calendar.pending}</li>
         <li><span className="swatch holiday" />{t.calendar.holiday}</li>
         <li><span className="swatch weekend" />{t.calendar.weekend}</li>
+        {remote && <li><span className="swatch k-sea" />{t.calendar.remote}</li>}
       </ul>
       {!dir.reached && <p className="notice">{t.calendar.unreachable}</p>}
 
@@ -135,9 +145,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                       // Nobody is "away" on a day nobody works: bars skip
                       // week-ends and public holidays, and join across
                       // the days they span.
-                      const here = shows(d) ? list.map(e => ({ e, c: coverage(e, d) })).filter(x => x.c !== null) as { e: Entry; c: "full" | "am" | "pm" }[] : [];
+                      const rest = !worksOn(id, d) && wd !== 0 && wd !== 6;
+                      const here = shows(d) && !rest ? list.map(e => ({ e, c: coverage(e, d) })).filter(x => x.c !== null) as { e: Entry; c: "full" | "am" | "pm" }[] : [];
                       return (
-                        <td key={d} className={dayClass(d, wd, off.has(d), now)}>
+                        <td key={d} className={dayClass(d, wd, off.has(d), now) + (rest ? " rest" : "")}>
                           {here.length > 0 && (
                             <span className="slot">
                               {here.map(({ e, c }) => (
@@ -159,27 +170,28 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       )}
 
       <div className="day-list">
-        {listDays.length === 0 ? <p className="muted">{t.calendar.nobody}</p> : listDays.map(d => {
-          const h = off.get(d);
-          const here = (shows(d) ? shownEntries : []).map(e => ({ e, c: coverage(e, d) })).filter(x => x.c !== null) as { e: Entry; c: "full" | "am" | "pm" }[];
+        {listWeeks.length === 0 ? <p className="muted">{t.calendar.nobody}</p> : listWeeks.map(monday => {
+          const sunday = addDays(monday, 6);
+          const inWeek = cards.filter(c => mondayOf(c.part.start < from ? from : c.part.start) === monday);
+          const hols = holidaysAhead.filter(([d]) => d >= monday && d <= sunday);
           return (
-            <section key={d} className={d === now ? "day today" : "day"} aria-label={formatDay(d, locale, { weekday: "long", day: "numeric", month: "long" })}>
-              <h2 className="day-title">{formatDay(d, locale, { weekday: "long", day: "numeric", month: "long" })}{h && <span className="holiday-tag">{t.holidays[h]}</span>}</h2>
-              {here.length > 0 && (
-                <ul>
-                  {here.map(({ e, c }) => {
-                    const p = who.get(e.memberId);
-                    return (
-                      <li key={e.id} className={e.status === "pending" ? "pending-row" : undefined}>
-                        <Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size={28} />
-                        <span className="day-who">{e.memberId === member.id ? t.people.you : nameOf(p, locale)}</span>
-                        <span className={`kind small k-${colorOf(e)}${e.status === "pending" ? " pending" : ""}`}>{what(e)}</span>
-                        <span className="muted small">{halfWord(c)}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+            <section key={monday} className="week-group" aria-label={format(t.calendar.weekOf, { day: formatDay(monday, locale, { day: "numeric", month: "long" }) })}>
+              <h2 className="day-title">{format(t.calendar.weekOf, { day: formatDay(monday, locale, { day: "numeric", month: "long" }) })}</h2>
+              <ul>
+                {hols.map(([d, key]) => (
+                  <li key={d} className="holiday-row"><span className="holiday-tag">{t.holidays[key]}</span><span className="muted small">{formatDay(d, locale)}</span></li>
+                ))}
+                {inWeek.map(({ e }) => {
+                  const p = who.get(e.memberId);
+                  return (
+                    <li key={e.id} className={e.status === "pending" ? "pending-row" : undefined}>
+                      <Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size={28} />
+                      <span className="day-who"><strong>{e.memberId === member.id ? t.people.you : nameOf(p, locale)}</strong><span className="muted small">{spanText(e, locale, t.span)}</span></span>
+                      <span className={`kind small k-${colorOf(e)}${e.status === "pending" ? " pending" : ""}`}>{what(e)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
             </section>
           );
         })}

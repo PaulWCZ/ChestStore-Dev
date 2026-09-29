@@ -16,6 +16,8 @@ type Props = {
   names: Named | null;
   dateLabels: Map<string, DateLabel>;
   finalOption: string | null;
+  // A sign-up sheet has no "best" date: each slot fills up on its own.
+  signup?: boolean;
   locale: string;
   t: Pick<Catalogue, "results" | "poll" | "people">;
 };
@@ -39,7 +41,7 @@ export function DayBadge({ label }: { label: DateLabel }) {
   );
 }
 
-export function Results({ results, single, names, dateLabels, finalOption, locale, t }: Props) {
+export function Results({ results, single, names, dateLabels, finalOption, signup = false, locale, t }: Props) {
   return (
     <>
       {results.map(q => {
@@ -80,10 +82,19 @@ export function Results({ results, single, names, dateLabels, finalOption, local
           );
         }
         if (q.kind === "date") {
-          const lit = (id: string) => (id === finalOption ? " final" : id === q.best && !finalOption ? " best" : "");
+          const bestId = signup ? null : q.best;
+          const lit = (id: string) => (id === finalOption ? " final" : id === bestId && !finalOption ? " best" : "");
+          // The best date in words, above the grid: on a phone the grid
+          // scrolls sideways, the answer stays in sight.
+          const top = !finalOption && bestId ? q.options.find(o => o.id === bestId) : undefined;
+          const topLabel = top ? dateLabels.get(top.id) : undefined;
+          const bestLine = top && topLabel ? (
+            <p className="best-line"><Star /><span><strong>{format(t.results.bestDate, { date: topLabel.text + (topLabel.hours ? " · " + topLabel.hours : "") })}</strong> · {plural(t.results.canMake, top.yes + top.maybe, locale)}</span></p>
+          ) : null;
           if (names && q.grid.length > 0) {
             return (
               <section key={q.id} className="q">
+                {bestLine}
                 <div className="grid-wrap" tabIndex={0} role="region" aria-label={t.results.title}>
                   <table className="grid-table">
                     <thead>
@@ -94,7 +105,7 @@ export function Results({ results, single, names, dateLabels, finalOption, local
                           return (
                             <th key={o.id} scope="col" className={lit(o.id).trim()}>
                               <span className="col-head">
-                                {o.best && <span className="best-tag"><Star />{t.results.best}</span>}
+                                {o.id === bestId && <span className="best-tag"><Star />{t.results.best}</span>}
                                 <DayBadge label={label} />
                                 <span className="time">{label.hours}</span>
                                 <span className="visually-hidden">{label.text}</span>
@@ -137,14 +148,15 @@ export function Results({ results, single, names, dateLabels, finalOption, local
           const most = Math.max(1, ...q.options.map(o => o.yes + o.maybe));
           return (
             <section key={q.id} className="q">
+              {bestLine}
               <div className="bars">
                 {q.options.map(o => {
                   const label = dateLabels.get(o.id)!;
                   const pct = Math.round(((o.yes + o.maybe) * 100) / Math.max(q.answered, 1));
                   return (
-                    <div key={o.id} className={"bar-row" + (o.best ? " top" : "")}>
+                    <div key={o.id} className={"bar-row" + (o.id === bestId ? " top" : "")}>
                       <div className="bar-label">
-                        <span className="what">{label.text}{label.hours ? " · " + label.hours : ""}{o.best && <span className="best-tag"><Star />{t.results.best}</span>}</span>
+                        <span className="what">{label.text}{label.hours ? " · " + label.hours : ""}{o.id === bestId && <span className="best-tag"><Star />{t.results.best}</span>}</span>
                         <span className="num"><strong>{o.yes + o.maybe}</strong> · {format(t.results.yesMaybe, { yes: o.yes, maybe: o.maybe })}</span>
                       </div>
                       <div className="bar" role="img" aria-label={format(t.results.percent, { value: pct })}><i style={{ ["--w" as string]: Math.round(((o.yes + o.maybe) * 100) / most) + "%" }} /></div>
@@ -179,6 +191,37 @@ export function Results({ results, single, names, dateLabels, finalOption, local
                 {(q.low || q.high) && <div className="scale-ends wide"><span>{q.low}</span><span>{q.high}</span></div>}
                 </div>
               </div>
+            </section>
+          );
+        }
+        if (q.kind === "enps") {
+          const bands = [
+            { key: "detractors", label: t.results.detractors, count: q.bands.detractors, percent: q.percents.detractors },
+            { key: "passives", label: t.results.passives, count: q.bands.passives, percent: q.percents.passives },
+            { key: "promoters", label: t.results.promoters, count: q.bands.promoters, percent: q.percents.promoters },
+          ];
+          return (
+            <section key={q.id} className="q">
+              {heading}
+              {answered}
+              <div className="enps-result">
+                <div className="average enps-score">
+                  <strong>{q.score === null ? "–" : (q.score > 0 ? "+" : "") + q.score.toLocaleString(locale)}</strong>
+                  <span>{t.results.enps}</span>
+                </div>
+                <div className="bars">
+                  {bands.map(b => (
+                    <div key={b.key} className={"bar-row band " + b.key}>
+                      <div className="bar-label">
+                        <span className="what">{b.label}</span>
+                        <span className="num"><strong>{format(t.results.percent, { value: b.percent })}</strong> · {plural(t.results.votes, b.count, locale)}</span>
+                      </div>
+                      <div className="bar" role="img" aria-label={format(t.results.percent, { value: b.percent })}><i style={{ ["--w" as string]: b.percent + "%" }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="hint">{t.results.enpsExplain}</p>
             </section>
           );
         }

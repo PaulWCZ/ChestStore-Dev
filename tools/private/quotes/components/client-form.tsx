@@ -9,11 +9,11 @@ import { useToast } from "./toast.tsx";
 
 // A client's card: who they are, where to send, what the law prints. Used
 // to add one (from the list, or while writing a document) and to change one.
-export type ClientFields = { kind: "company" | "person"; name: string; contact: string; email: string; phone: string; address: string; postcode: string; city: string; country: string; deliveryAddress: string; siren: string; vatNumber: string; language: Locale; reverseCharge: boolean; notes: string };
+export type ClientFields = { kind: "company" | "person"; name: string; contact: string; email: string; phone: string; address: string; postcode: string; city: string; country: string; deliveryAddress: string; siren: string; vatNumber: string; language: Locale; reverseCharge: boolean; notes: string; account: string };
 
-export const blankClient = (language: Locale): ClientFields => ({ kind: "company", name: "", contact: "", email: "", phone: "", address: "", postcode: "", city: "", country: "FR", deliveryAddress: "", siren: "", vatNumber: "", language, reverseCharge: false, notes: "" });
+export const blankClient = (language: Locale): ClientFields => ({ kind: "company", name: "", contact: "", email: "", phone: "", address: "", postcode: "", city: "", country: "FR", deliveryAddress: "", siren: "", vatNumber: "", language, reverseCharge: false, notes: "", account: "" });
 
-const fieldOf: Record<string, keyof ClientFields> = { siren_invalid: "siren", vat_number_invalid: "vatNumber", email_invalid: "email", country_invalid: "country", empty: "name" };
+const fieldOf: Record<string, keyof ClientFields> = { siren_invalid: "siren", vat_number_invalid: "vatNumber", email_invalid: "email", country_invalid: "country", empty: "name", account_invalid: "account" };
 
 export function ClientForm({ t, initial, id, onSaved, onCancel, compact = false, readOnly = false }: { t: Catalogue; initial: ClientFields; id?: string; onSaved: (client: Client) => void; onCancel?: () => void; compact?: boolean; readOnly?: boolean }) {
   const [f, setF] = useState(initial);
@@ -111,7 +111,12 @@ export function ClientForm({ t, initial, id, onSaved, onCancel, compact = false,
             <label htmlFor="c-delivery">{w.deliveryAddress}</label>
             <textarea id="c-delivery" className="field" rows={2} value={f.deliveryAddress} maxLength={300} readOnly={readOnly} onChange={e => set({ deliveryAddress: e.target.value })} />
           </div>
-          <div className="field-row">
+          <div className="field-row third">
+            <label htmlFor="c-account">{w.account}</label>
+            <input id="c-account" className="field" value={f.account} maxLength={20} readOnly={readOnly} aria-invalid={invalid("account")} aria-describedby="c-account-hint" onChange={e => set({ account: e.target.value.toUpperCase() })} />
+            <span className="hint" id="c-account-hint">{w.accountHint}</span>
+          </div>
+          <div className="field-row two-thirds">
             <label htmlFor="c-notes">{w.notes}</label>
             <textarea id="c-notes" className="field" rows={2} value={f.notes} maxLength={4000} readOnly={readOnly} onChange={e => set({ notes: e.target.value })} />
           </div>

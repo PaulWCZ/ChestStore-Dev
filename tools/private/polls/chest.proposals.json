@@ -5,6 +5,9 @@
       "cron": "*/15 * * * *"
     }
   ],
+  "mail": {
+    "send": true
+  },
   "translations": {
     "fr": {
       "title": "Sondages",

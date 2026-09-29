@@ -4,7 +4,7 @@ import type { Sql, Query } from "./db.ts";
 import { lines, normalize, type Doc } from "./doc.ts";
 import { AppError } from "./errors.ts";
 import { limits, lockIdleMinutes, lockLeaseSeconds } from "./model.ts";
-import { page, writeContent } from "./pages.ts";
+import { page, titles, writeContent } from "./pages.ts";
 
 // A page's history: every save is a version, kept whole. The history lists
 // them, shows one, compares it with the one before in plain words (a line
@@ -106,8 +106,10 @@ export function compare(before: string[], after: string[]): Row[] {
 export async function diff(sql: Query, actor: Member | null, pageId: unknown, number: unknown): Promise<{ version: Version; previous: VersionSummary | null; rows: Row[]; titleChanged: { from: string; to: string } | null }> {
   const v = await version(sql, actor, pageId, number);
   const previous = v.number > 1 ? await version(sql, actor, pageId, v.number - 1).catch(() => null) : null;
-  const before = previous ? lines(previous.doc) : [];
-  const rows = compare(before, lines(v.doc));
+  // Links to pages read as the pages' titles (those the actor sees).
+  const known = new Map([...(previous ? await titles(sql, actor, previous.doc) : []), ...(await titles(sql, actor, v.doc))]);
+  const before = previous ? lines(previous.doc, i => known.get(i)) : [];
+  const rows = compare(before, lines(v.doc, i => known.get(i)));
   return {
     version: v,
     previous: previous ? { number: previous.number, title: previous.title, author: previous.author, createdAt: previous.createdAt, kind: previous.kind, restoredFrom: previous.restoredFrom } : null,

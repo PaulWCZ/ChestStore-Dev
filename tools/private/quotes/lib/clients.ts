@@ -3,7 +3,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { isLocale, type Locale } from "./i18n/index.ts";
-import { clean, clientKinds, country, email, id, limits, oneOf, siren, vatNumber, type ClientKind } from "./model.ts";
+import { accountCode, clean, clientKinds, country, email, id, limits, oneOf, siren, vatNumber, type ClientKind } from "./model.ts";
 import type { Buyer } from "./parties.ts";
 
 // The people and companies the company sells to. A client who has
@@ -18,6 +18,9 @@ export type Client = Buyer & {
   language: Locale;
   reverseCharge: boolean;
   notes: string;
+  // Its code in the company's books (the auxiliary account of 411), "" when
+  // the accountant's entries make one (lib/journal.ts).
+  account: string;
   externalRef: string | null;
   archived: boolean;
   documents: number;
@@ -25,13 +28,13 @@ export type Client = Buyer & {
 
 type Row = {
   id: number; kind: ClientKind; name: string; contact: string; email: string; phone: string; address: string; postcode: string; city: string; country: string;
-  delivery_address: string; siren: string; vat_number: string; language: string; reverse_charge: boolean; notes: string; external_ref: string | null; archived_at: Date | null; documents?: number;
+  delivery_address: string; siren: string; vat_number: string; language: string; reverse_charge: boolean; notes: string; account?: string; external_ref: string | null; archived_at: Date | null; documents?: number;
 };
 
 export const toClient = (r: Row): Client => ({
   id: String(r.id), kind: r.kind, name: r.name, contact: r.contact, email: r.email, phone: r.phone, address: r.address, postcode: r.postcode, city: r.city,
   country: r.country, deliveryAddress: r.delivery_address, siren: r.siren, vatNumber: r.vat_number, language: isLocale(r.language) ? r.language : "en",
-  reverseCharge: r.reverse_charge, notes: r.notes, externalRef: r.external_ref, archived: r.archived_at !== null, documents: r.documents ?? 0,
+  reverseCharge: r.reverse_charge, notes: r.notes, account: r.account ?? "", externalRef: r.external_ref, archived: r.archived_at !== null, documents: r.documents ?? 0,
 });
 
 export async function listClients(sql: Query, actor: Member | null, options: { q?: string; archived?: boolean } = {}): Promise<Client[]> {
@@ -57,7 +60,7 @@ export async function getClient(sql: Query, actor: Member | null, clientId: unkn
   return toClient(row);
 }
 
-export type ClientInput = Partial<Record<"kind" | "name" | "contact" | "email" | "phone" | "address" | "postcode" | "city" | "country" | "deliveryAddress" | "siren" | "vatNumber" | "language" | "reverseCharge" | "notes", unknown>>;
+export type ClientInput = Partial<Record<"kind" | "name" | "contact" | "email" | "phone" | "address" | "postcode" | "city" | "country" | "deliveryAddress" | "siren" | "vatNumber" | "language" | "reverseCharge" | "notes" | "account", unknown>>;
 
 function fields(input: ClientInput, current?: Client) {
   const text = (key: keyof ClientInput, max: number, fallback: string, multiline = false) => (input[key] === undefined ? fallback : clean(input[key], max, { optional: true, multiline }));
@@ -84,6 +87,7 @@ function fields(input: ClientInput, current?: Client) {
     language,
     reverse_charge: reverseCharge,
     notes: text("notes", limits.notes, current?.notes ?? "", true),
+    account: input.account === undefined ? current?.account ?? "" : accountCode(input.account),
   };
 }
 

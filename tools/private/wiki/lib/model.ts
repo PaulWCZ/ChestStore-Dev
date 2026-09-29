@@ -18,6 +18,7 @@ export const limits = {
   importPages: 500,
   importBytes: 60 << 20,
   importFile: 2 << 20,
+  importHtml: 8 << 20,
   versionsShown: 200,
   comment: 5000,
   commentsPerPage: 1000,

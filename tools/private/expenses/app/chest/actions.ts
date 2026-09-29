@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import type { Member } from "@argentic/chest-sdk/member";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
+import * as bank from "../../lib/bank.ts";
 import * as expenses from "../../lib/expenses.ts";
+import * as payments from "../../lib/payments.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 import { mayApprove, nameOf, people } from "../../lib/people.ts";
 import { forget, inspect } from "../../lib/receipts.ts";
@@ -34,6 +36,9 @@ export async function saveExpense(expenseId: string | null, input: expenses.Expe
   return act(async actor => {
     const sql = db();
     const file = typeof receipt === "string" ? await inspect(sql, actor, receipt) : receipt === null ? null : undefined;
+    // Guests of the Chest must be people the Chest knows here.
+    const guests = expenses.guestsOf(input, actor.id).members;
+    if (guests.length > 0 && [...(await people(guests)).values()].some(p => p.status === "unknown")) throw new AppError("invalid");
     const saved = await expenses.saveExpense(sql, actor, expenseId, input, file);
     if (saved.dropped) await forget([saved.dropped]);
     return { id: saved.expense.id };
@@ -97,7 +102,7 @@ export async function setVehicle(input: { kind: string; power: string; electric:
   });
 }
 
-export async function updateCompany(input: { currency?: string; reminder?: boolean }): Promise<Result> {
+export async function updateCompany(input: { currency?: string; reminder?: boolean; setupDone?: boolean; journal?: Partial<settings.Journal>; payer?: string }): Promise<Result> {
   return act(async actor => { await settings.updateSettings(db(), actor, input); return null; });
 }
 
@@ -105,7 +110,7 @@ export async function addCategory(input: { name: string; account?: string; vatRe
   return act(async actor => ({ id: (await settings.addCategory(db(), actor, input)).id }));
 }
 
-export async function updateCategory(categoryId: string, input: { name?: string; account?: string; vatRecovery?: number; cap?: string | null; archived?: boolean }): Promise<Result> {
+export async function updateCategory(categoryId: string, input: { name?: string; account?: string; vatRecovery?: number; cap?: string | null; archived?: boolean; guests?: boolean }): Promise<Result> {
   return act(async actor => { await settings.updateCategory(db(), actor, categoryId, input); return null; });
 }
 
@@ -126,6 +131,41 @@ export async function saveScale(year: number, data: unknown, source: string): Pr
     const sql = db();
     await settings.saveScale(sql, actor, year, data, source);
     await expenses.recomputeAllTrips(sql);
+    return null;
+  });
+}
+
+// Bank details: the actor's own ("me"), a person's (accountants), the
+// company's ("company"). Answers what the page shows: the masked account.
+export async function saveBank(owner: string, input: { iban: string; bic?: string; holder?: string }): Promise<Result<{ masked: string }>> {
+  return act(async actor => {
+    const target = owner === "me" ? actor.id : owner;
+    const saved = await bank.setBankDetails(db(), actor, target, input);
+    await tell.bankChanged(actor, target, saved.masked.slice(-4));
+    return { masked: saved.masked };
+  });
+}
+
+export async function removeBank(owner: string): Promise<Result> {
+  return act(async actor => { await bank.removeBankDetails(db(), actor, owner === "me" ? actor.id : owner); return null; });
+}
+
+// One transfer file for everyone to pay back who has bank details; the
+// browser then downloads it (/chest/pay/files/<id>).
+export async function makeTransferFile(executionDate: string): Promise<Result<{ id: string; count: number; total: number; skipped: number }>> {
+  return act(async actor => {
+    const sql = db();
+    const made = await payments.createRun(sql, actor, { executionDate });
+    await tell.paid(sql, actor, made.decisions, made.run.executionDate);
+    return { id: made.run.id, count: made.run.count, total: made.run.total, skipped: made.skipped.length };
+  });
+}
+
+export async function cancelTransferFile(runId: string): Promise<Result> {
+  return act(async actor => {
+    const sql = db();
+    const owners = await payments.cancelRun(sql, actor, runId);
+    await tell.refresh(sql, owners);
     return null;
   });
 }

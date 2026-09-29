@@ -1,28 +1,32 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
-import { Back, Globe, Phone, Pin } from "../../../../components/icons.tsx";
+import { Back, Globe, Mail, Phone, Pin } from "../../../../components/icons.tsx";
 import { can, canDeleteRecord } from "../../../../lib/access.ts";
 import { timeline } from "../../../../lib/activities.ts";
+import { listFiles } from "../../../../lib/attachments.ts";
 import { company as readCompany } from "../../../../lib/companies.ts";
 import { listContacts } from "../../../../lib/contacts.ts";
+import { countryName } from "../../../../lib/countries.ts";
 import { db } from "../../../../lib/db.ts";
 import { listDeals } from "../../../../lib/deals.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { formatDay, money } from "../../../../lib/i18n/index.ts";
 import { phoneHref, websiteHref } from "../../../../lib/model.ts";
-import { formChoices, withWhen } from "../../../../lib/page-data.ts";
+import { dealFormProps, formChoices, shownFields, shownFiles, withWhen } from "../../../../lib/page-data.ts";
 import { directory } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { NewContactButton } from "../../ui/contact-form.tsx";
-import { emptyContact } from "../../ui/values.ts";
 import { NewDealButton } from "../../ui/deal-form.tsx";
+import { FilesBox } from "../../ui/files-box.tsx";
 import { Timeline } from "../../ui/timeline.tsx";
+import { customForm, emptyContact, emptyDeal } from "../../ui/values.ts";
 import { CompanyControls } from "./controls.tsx";
 
-// One company: how to reach it, its people, its deals, and everything that
-// happened with it (on its deals and with its people too).
+// One company: how to reach it, its people, its deals, its files, its own
+// details, and everything that happened with it (on its deals and with its
+// people too).
 export default async function CompanyPage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
@@ -30,15 +34,22 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const sql = db();
   const c = await readCompany(sql, member, id).catch(e => { if (e instanceof AppError && e.code === "not_found") notFound(); throw e; });
-  const [items, people, deals, choices] = await Promise.all([
+  const [items, people, deals, choices, files] = await Promise.all([
     timeline(sql, { companyId: c.id }),
-    listContacts(sql, member, { company: c.id }, 200),
+    listContacts(sql, member, { company: c.id }, { limit: 200 }),
     listDeals(sql, member, { company: c.id, status: "" }, 200),
     formChoices(sql, member, t),
+    listFiles(sql, member, { company: c.id }),
   ]);
-  const names = await directory([c.owner, ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : []))], locale);
+  const names = await directory([c.owner, ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...files.map(f => f.addedBy)], locale);
   const kinds = new Map(choices.stages.map(s => [s.id, s.kind]));
-  const dealProps = { companies: choices.companies, contacts: choices.contacts, stages: choices.stageChoices.filter(s => kinds.get(s.id) === "open"), team: choices.team, me: member.id, canAssign: choices.canAssign, t };
+  const place = [c.address.replace(/\n/gu, ", "), [c.postcode, c.city].filter(Boolean).join(" "), c.country ? countryName(c.country, locale) : ""].filter(Boolean).join(", ");
+  const details = [
+    ...(c.siren ? [{ label: t.company.siren, value: c.siren }] : []),
+    ...(c.vat ? [{ label: t.company.vat, value: c.vat }] : []),
+    ...shownFields(choices.fields, "companies", c.custom, locale),
+  ];
+  const self = { id: c.id, name: c.name };
   return (
     <main className="page record">
       <AutoRefresh seconds={45} />
@@ -49,18 +60,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         <p className="record-links">
           {c.website && <a href={websiteHref(c.website)} target="_blank" rel="noopener noreferrer nofollow"><Globe />{c.website.replace(/^https?:\/\//u, "")}</a>}
           {c.phone && <a href={phoneHref(c.phone)}><Phone /><span className="num">{c.phone}</span></a>}
-          {c.address && <span><Pin />{c.address.replace(/\n/gu, ", ")}</span>}
+          {c.email && <a href={`mailto:${c.email}`}><Mail />{c.email}</a>}
+          {place && <span><Pin />{place}</span>}
         </p>
         {c.tags.length > 0 && <p className="tags">{c.tags.map(tag => <Link prefetch={false} key={tag} className="tag" href={`/chest/companies?tag=${encodeURIComponent(tag)}`}>{tag}</Link>)}</p>}
       </div>
       <CompanyControls
-        company={{ id: c.id, name: c.name, website: c.website, phone: c.phone, address: c.address, industry: c.industry, notes: c.notes, tags: c.tags.join(", "), owner: c.owner }}
+        company={{ id: c.id, name: c.name, website: c.website, phone: c.phone, email: c.email, address: c.address, postcode: c.postcode, city: c.city, country: c.country, siren: c.siren, vat: c.vat, industry: c.industry, notes: c.notes, tags: c.tags.join(", "), owner: c.owner, custom: customForm(c.custom) }}
         ownerName={names[c.owner ?? ""]?.name ?? t.common.unassigned}
         canEdit={can(member, "records.write")}
         canDelete={canDeleteRecord(member, c)}
+        fields={choices.fields.companies}
         team={choices.team}
         me={member.id}
         canAssign={choices.canAssign}
+        locale={locale}
         t={t}
       />
       <div className="record-grid">
@@ -73,7 +87,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
           <section className="panel" aria-labelledby="people-title">
             <div className="panel-head">
               <h2 id="people-title" className="label-mono">{t.company.people} <span className="count num">{people.total}</span></h2>
-              {can(member, "records.write") && <NewContactButton className="link-button" label={t.company.addPerson} initial={emptyContact(member.id, c.id)} companies={choices.companies} stay team={choices.team} me={member.id} canAssign={choices.canAssign} t={t} />}
+              {can(member, "records.write") && <NewContactButton className="link-button" label={t.company.addPerson} initial={emptyContact(member.id, self)} fields={choices.fields.contacts} stay team={choices.team} me={member.id} canAssign={choices.canAssign} canCreate={choices.canCreateCompany} t={t} />}
             </div>
             {people.rows.length === 0 ? <p className="muted">{t.company.noPeople}</p> : (
               <ul className="mini-list">
@@ -89,7 +103,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
           <section className="panel" aria-labelledby="deals-title">
             <div className="panel-head">
               <h2 id="deals-title" className="label-mono">{t.company.deals} <span className="count num">{deals.total}</span></h2>
-              {can(member, "deals.create") && <NewDealButton className="link-button" label={t.company.addDeal} initial={{ title: "", company: c.id, contact: null, value: "", stage: dealProps.stages[0]?.id ?? "", expectedClose: "", owner: member.id }} {...dealProps} />}
+              {can(member, "deals.create") && <NewDealButton className="link-button" label={t.company.addDeal} initial={emptyDeal(member.id, choices.openStages[0]?.id ?? "", self)} {...dealFormProps(choices, member.id, t)} />}
             </div>
             {deals.rows.length === 0 ? <p className="muted">{t.company.noDeals}</p> : (
               <ul className="mini-list">
@@ -106,6 +120,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
               </ul>
             )}
           </section>
+          {details.length > 0 && (
+            <section className="panel" aria-labelledby="details-title">
+              <h2 id="details-title" className="label-mono">{t.common.details}</h2>
+              <dl className="facts">{details.map(d => <div key={d.label}><dt>{d.label}</dt><dd>{d.value}</dd></div>)}</dl>
+            </section>
+          )}
+          <FilesBox on={{ company: c.id }} files={shownFiles(files, names, member, locale, t)} canAdd={can(member, "activities.log")} t={t} />
           {c.notes && (
             <section className="panel">
               <h2 className="label-mono">{t.common.notes}</h2>

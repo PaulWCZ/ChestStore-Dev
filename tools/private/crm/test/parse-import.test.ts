@@ -5,22 +5,22 @@ import { dayOf, endOf, firstName, guessMapping, mapRow, readTable } from "../lib
 
 test("HubSpot's exports: their headers find their fields", () => {
   assert.deepEqual(guessMapping("contacts", ["Record ID", "First Name", "Last Name", "Email", "Phone Number", "Mobile Phone Number", "Job Title", "Associated Company", "Contact owner", "Lifecycle Stage"]),
-    ["", "firstName", "lastName", "email", "phone", "", "title", "company", "owner", ""]);
+    ["keep", "firstName", "lastName", "email", "phone", "phone2", "title", "company", "owner", "keep"]);
   assert.deepEqual(guessMapping("companies", ["Record ID", "Company name", "Company Domain Name", "Phone Number", "Industry", "Street Address", "City", "Postal Code", "Country/Region", "Company owner"]),
-    ["", "name", "website", "phone", "industry", "address", "city", "postcode", "country", "owner"]);
+    ["keep", "name", "website", "phone", "industry", "address", "city", "postcode", "country", "owner"]);
   assert.deepEqual(guessMapping("deals", ["Record ID", "Deal Name", "Deal Stage", "Amount", "Close Date", "Deal owner", "Pipeline", "Associated Company", "Associated Contact", "Closed Lost Reason"]),
-    ["", "title", "stage", "value", "closeDate", "owner", "", "company", "contact", "reason"]);
+    ["keep", "title", "stage", "value", "closeDate", "owner", "keep", "company", "contact", "reason"]);
 });
 
 test("Pipedrive's exports (English and French) and French spreadsheets", () => {
   assert.deepEqual(guessMapping("deals", ["Deal - Title", "Deal - Value", "Deal - Currency", "Deal - Organization", "Deal - Contact person", "Deal - Stage", "Deal - Status", "Deal - Owner", "Deal - Expected close date", "Deal - Lost reason"]),
-    ["title", "value", "", "company", "contact", "stage", "status", "owner", "closeDate", "reason"]);
+    ["title", "value", "keep", "company", "contact", "stage", "status", "owner", "closeDate", "reason"]);
   assert.deepEqual(guessMapping("contacts", ["Person - Name", "Person - Organization", "Person - Email - Work", "Person - Email - Home", "Person - Phone - Work", "Person - Labels", "Person - Owner"]),
-    ["name", "company", "email", "", "phone", "tags", "owner"]);
+    ["name", "company", "email", "keep", "phone", "tags", "owner"]);
   assert.deepEqual(guessMapping("companies", ["Organisation - Nom", "Organization - Address", "Organization - Owner", "Organization - Labels"]),
     ["name", "address", "owner", "tags"]);
   assert.deepEqual(guessMapping("contacts", ["Prénom", "Nom de famille", "Adresse e-mail", "Téléphone portable", "Fonction", "Société"]),
-    ["firstName", "lastName", "email", "phone", "title", "company"]);
+    ["firstName", "lastName", "email", "phone2", "title", "company"]);
 });
 
 test("a table: headers, rows, French separators; values as exports write them", () => {

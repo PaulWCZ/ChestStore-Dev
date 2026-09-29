@@ -19,6 +19,7 @@ export type RequestRow = {
   canCancel: boolean;
   canAskCancel: boolean;
   reason: string;
+  start: string;
 };
 
 type Words = { home: Catalogue["home"]; status: Catalogue["status"]; errors: Catalogue["errors"] };
@@ -61,7 +62,8 @@ export function MyRequests({ rows, t }: { rows: RequestRow[]; t: Words }) {
     });
   }
 
-  const upcoming = rows.filter(r => r.upcoming);
+  // The next leave first; earlier ones, the latest first (as they come).
+  const upcoming = rows.filter(r => r.upcoming).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : Number(a.id) - Number(b.id)));
   const earlier = rows.filter(r => !r.upcoming).slice(0, 12);
   const list = (items: RequestRow[]) => (
     <ul className="requests">

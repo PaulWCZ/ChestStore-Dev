@@ -3,6 +3,7 @@ import { can, canDeleteRecord } from "./access.ts";
 import { record, timeline, type Activity } from "./activities.ts";
 import { likePattern, ownerClause, pageOf, phoneQuery, words, type OwnerFilter } from "./companies.ts";
 import { customValues, type Custom } from "./custom.ts";
+import type { FieldDef } from "./custom.ts";
 import { fieldClause, listFields, type FieldFilter } from "./fields.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
@@ -71,13 +72,12 @@ export type ContactSort = (typeof contactSorts)[number];
 export type ContactFilter = { q?: unknown; owner?: OwnerFilter; tag?: unknown; company?: unknown; stale?: boolean; field?: FieldFilter };
 
 // stale: no contact for three years (or never, and added three years ago).
-async function contactWhere(sql: Query, actor: Member, filter: ContactFilter) {
+function contactWhere(sql: Query, actor: Member, fields: FieldDef[], filter: ContactFilter) {
   const q = typeof filter.q === "string" ? clean(filter.q, limits.query, { optional: true }) : "";
   const tsq = q ? words(q) : null;
   const digits = q ? phoneQuery(q) : null;
   const tag = typeof filter.tag === "string" && filter.tag !== "" ? filter.tag.slice(0, limits.tag) : null;
   const companyId = optionalId(filter.company ?? null);
-  const fields = filter.field ? await listFields(sql, "contacts") : [];
   return sql`
     ${ownerClause(sql, "c.owner", filter.owner ?? "", actor)}
     and ${tag ? sql`exists (select 1 from unnest(c.tags) t where lower(t) = lower(${tag}))` : sql`true`}
@@ -92,7 +92,7 @@ export async function listContacts(sql: Sql, actor: Member | null, filter: Conta
   const limit = options.limit ?? limits.pageSize;
   const page = pageOf(options.page);
   const sort: ContactSort = (contactSorts as readonly unknown[]).includes(options.sort) ? options.sort as ContactSort : "name";
-  const where = await contactWhere(sql, actor!, filter);
+  const where = contactWhere(sql, actor!, filter.field ? await listFields(sql, "contacts") : [], filter);
   const order = sort === "last" ? sql`c.last_contact_at desc nulls last, c.folded, c.id`
     : sort === "created" ? sql`c.created_at desc, c.id desc`
     : sql`c.folded, c.id`;
@@ -104,7 +104,7 @@ export async function listContacts(sql: Sql, actor: Member | null, filter: Conta
 // The ids a filter gives, for "select all that match" (bulk actions).
 export async function contactIds(sql: Sql, actor: Member | null, filter: ContactFilter = {}): Promise<string[]> {
   reader(actor);
-  const where = await contactWhere(sql, actor!, filter);
+  const where = contactWhere(sql, actor!, filter.field ? await listFields(sql, "contacts") : [], filter);
   return (await sql<{ id: string }[]>`select c.id from contacts c where ${where} order by c.folded, c.id limit ${limits.bulk}`).map(r => String(r.id));
 }
 

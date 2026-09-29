@@ -5,8 +5,9 @@ import type { Query } from "./db.ts";
 import { exportReceipts, exportRows, type ExportRow } from "./expenses.ts";
 import { catalogue, format, type Locale } from "./i18n/index.ts";
 import { monthRange, slug } from "./model.ts";
-import { plainAmount, recoverable } from "./money.ts";
+import { plainAmount, rateText, recoverable } from "./money.ts";
 import { nameOf, people, type Person } from "./people.ts";
+import { settings } from "./settings.ts";
 import { categoryName, km, powerName, vehicleName } from "./words.ts";
 import { ZipWriter } from "./zip.ts";
 
@@ -41,17 +42,17 @@ function details(r: ExportRow, locale: Locale): string {
   return r.note.replace(/\s+/gu, " ");
 }
 
-async function lines(sql: Query, actor: Member, selection: Selection): Promise<{ rows: ExportRow[]; who: Map<string, Person> }> {
+async function lines(sql: Query, actor: Member, selection: Selection): Promise<{ rows: ExportRow[]; who: Map<string, Person>; currency: string }> {
   const rows = await exportRows(sql, actor, monthRange(selection.month), selection.person);
-  const who = await people(rows.flatMap(r => [r.owner, r.decidedBy ?? ""]));
-  return { rows, who };
+  const who = await people(rows.flatMap(r => [r.owner, r.decidedBy ?? "", ...r.guests.members]));
+  return { rows, who, currency: (await settings(sql)).currency };
 }
 
-function csvText(rows: ExportRow[], who: Map<string, Person>, locale: Locale, receiptNames: Map<string, string>): string {
+function csvText(rows: ExportRow[], who: Map<string, Person>, locale: Locale, receiptNames: Map<string, string>, currency: string): string {
   const t = catalogue(locale);
   const c = t.csv;
   const money = (minor: number | null, currency: string) => (minor === null ? "" : plainAmount(minor, currency, locale));
-  const header = [c.date, c.person, c.category, c.account, c.merchant, c.details, c.net, c.vat, c.recoverable, c.gross, c.currency, c.paidBy, c.status, c.approvedBy, c.paidOn, c.receipt, c.reference];
+  const header = [c.date, c.person, c.category, c.account, c.merchant, c.details, c.net, c.vat, c.recoverable, c.gross, c.currency, c.rate, format(c.base, { currency }), c.paidBy, c.status, c.approvedBy, c.paidOn, c.receipt, c.reference, c.guests];
   const body = rows.map(r => {
     const vat = r.trip ? 0 : r.vat;
     return [
@@ -66,20 +67,23 @@ function csvText(rows: ExportRow[], who: Map<string, Person>, locale: Locale, re
       vat === null ? "" : money(recoverable(vat, r.vatRecovery), r.currency),
       money(r.amount, r.currency),
       r.currency,
+      r.rate !== null && r.currency !== currency ? rateText(r.rate, locale) : "",
+      r.base !== null && r.baseCurrency === currency ? money(r.base, currency) : "",
       r.paidBy === "me" ? c.me : c.company,
       r.paidBy === "company" && r.status === "approved" ? t.status.companyCard : t.status[r.status],
       r.decidedBy ? nameOf(who.get(r.decidedBy), locale) : "",
       r.paidOn ? csvDate(r.paidOn, locale) : "",
       receiptNames.get(r.id) ?? "",
       "E" + r.id,
+      [...r.guests.members.map(g => nameOf(who.get(g), locale)), ...r.guests.names].join(", "),
     ];
   });
   return toCsv([header, ...body], separatorFor(locale));
 }
 
 export async function exportCsv(sql: Query, actor: Member, locale: Locale, selection: Selection): Promise<{ text: string; fileName: string }> {
-  const { rows, who } = await lines(sql, actor, selection);
-  return { text: csvText(rows, who, locale, await objectNames(sql, rows, who, locale)), fileName: fileBase(selection, who, locale) + ".csv" };
+  const { rows, who, currency } = await lines(sql, actor, selection);
+  return { text: csvText(rows, who, locale, await objectNames(sql, rows, who, locale), currency), fileName: fileBase(selection, who, locale) + ".csv" };
 }
 
 // The receipt names the ZIP gives, by expense id.
@@ -106,7 +110,7 @@ function fileBase(selection: Selection, who: Map<string, Person>, locale: Locale
 // longer has is left out (its line in the CSV says no file).
 export async function exportZip(sql: Query, actor: Member, locale: Locale, selection: Selection): Promise<{ stream: ReadableStream<Uint8Array>; fileName: string }> {
   const receipts = await exportReceipts(sql, actor, monthRange(selection.month), selection.person);
-  const { rows, who } = await lines(sql, actor, selection);
+  const { rows, who, currency } = await lines(sql, actor, selection);
   const zip = new ZipWriter();
   const names = new Map<string, string>();
   let next = 0;
@@ -125,7 +129,7 @@ export async function exportZip(sql: Query, actor: Member, locale: Locale, selec
         }
         if (!finished) {
           finished = true;
-          const csv = new TextEncoder().encode(csvText(rows, who, locale, names));
+          const csv = new TextEncoder().encode(csvText(rows, who, locale, names, currency));
           for (const chunk of zip.file(fileBase(selection, who, locale) + ".csv", csv)) controller.enqueue(chunk);
           controller.enqueue(zip.finish());
         }

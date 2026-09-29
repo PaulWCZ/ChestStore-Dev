@@ -9,6 +9,7 @@ import { catalogue, format, numericDay, type Locale } from "./i18n/index.ts";
 import { day, limits, slug } from "./model.ts";
 import { formatRate, plainAmount, vatRates } from "./money.ts";
 import { pdfFileName } from "./pdf/document.ts";
+import { exportJournal } from "./journal.ts";
 import { ZipWriter } from "./zip.ts";
 
 // The accountant's export: the invoices and credit notes issued in a period
@@ -83,7 +84,33 @@ async function corrected(sql: Query, list: ListRow[]): Promise<Map<string, strin
   return new Map(found.map(f => [String(f.id), f.number ?? ""]));
 }
 
-export async function exportZip(sql: Query, actor: Member | null, locale: Locale, p: Period, today: string): Promise<{ stream: ReadableStream<Uint8Array>; fileName: string }> {
+// The clients and the catalogue as spreadsheets, with the importer's
+// column names (lib/parse-import.ts): what leaves this tool comes back
+// into it, or goes to the next one, as it is. Archived rows too, said so.
+export async function clientsCsv(sql: Query, actor: Member | null, locale: Locale): Promise<string> {
+  if (!can(actor, "export")) throw new AppError("forbidden");
+  const t = catalogue(locale);
+  const f = t.importer.fields.clients;
+  const rows = await sql<{ kind: string; name: string; contact: string; email: string; phone: string; address: string; postcode: string; city: string; country: string; siren: string; vat_number: string; delivery_address: string; language: string; account: string; reverse_charge: boolean; notes: string; archived_at: Date | null }[]>`
+    select * from clients order by lower(name), id limit ${limits.clients}`;
+  const header = [f.name, f.kind, f.contact, f.email, f.phone, f.address, f.postcode, f.city, f.country, f.siren, f.vatNumber, f.deliveryAddress, f.language, f.account, t.csv.reverseCharge, f.notes, t.csv.archived];
+  const body = rows.map(r => [r.name, r.kind === "person" ? t.csv.person : t.csv.company, r.contact, r.email, r.phone, r.address, r.postcode, r.city, r.country, r.siren, r.vat_number,
+    r.delivery_address, r.language, r.account, r.reverse_charge ? t.csv.yes : "", r.notes, r.archived_at ? t.csv.yes : ""]);
+  return toCsv([header, ...body], separatorFor(locale));
+}
+
+export async function itemsCsv(sql: Query, actor: Member | null, locale: Locale, currency: string): Promise<string> {
+  if (!can(actor, "export")) throw new AppError("forbidden");
+  const t = catalogue(locale);
+  const f = t.importer.fields.items;
+  const rows = await sql<{ name: string; description: string; unit: string; unit_price: number; vat_rate: number; goods: boolean; archived_at: Date | null }[]>`
+    select * from items order by lower(name), id limit ${limits.items * 5}`;
+  const header = [f.name, f.description, f.unit, f.unitPrice, f.vatRate, f.kind, t.csv.archived];
+  const body = rows.map(r => [r.name, r.description, r.unit, plainAmount(r.unit_price, currency, locale), formatRate(r.vat_rate, locale), r.goods ? t.csv.goods : t.csv.service, r.archived_at ? t.csv.yes : ""]);
+  return toCsv([header, ...body], separatorFor(locale));
+}
+
+export async function exportZip(sql: Query, actor: Member | null, locale: Locale, p: Period, today: string, currency = "EUR"): Promise<{ stream: ReadableStream<Uint8Array>; fileName: string }> {
   const list = await rows(sql, actor, p, today);
   if (list.length > limits.exportFiles) throw new AppError("export_too_large");
   const numbers = await corrected(sql, list);
@@ -102,8 +129,13 @@ export async function exportZip(sql: Query, actor: Member | null, locale: Locale
         }
         if (!finished) {
           finished = true;
-          const csv = new TextEncoder().encode(csvText(list, locale, numbers));
-          for (const chunk of zip.file(fileBase(p, locale) + ".csv", csv)) controller.enqueue(chunk);
+          const encode = (text: string) => new TextEncoder().encode(text);
+          for (const chunk of zip.file(fileBase(p, locale) + ".csv", encode(csvText(list, locale, numbers)))) controller.enqueue(chunk);
+          const journal = await exportJournal(sql, actor, locale, p);
+          for (const chunk of zip.file(journal.fileName, encode(journal.text))) controller.enqueue(chunk);
+          const t = catalogue(locale).csv;
+          for (const chunk of zip.file(t.clientsFile + ".csv", encode(await clientsCsv(sql, actor, locale)))) controller.enqueue(chunk);
+          for (const chunk of zip.file(t.itemsFile + ".csv", encode(await itemsCsv(sql, actor, locale, list[0]?.currency ?? currency)))) controller.enqueue(chunk);
           controller.enqueue(zip.finish());
         }
         controller.close();

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useOptimistic, useState, useTransition } from "react";
-import { Building, Check, Person, Pipeline } from "../../components/icons.tsx";
+import { Building, Check, Flag, Person, Pipeline, Plus } from "../../components/icons.tsx";
 import { useToast } from "../../components/toast.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../lib/i18n/index.ts";
@@ -27,14 +27,14 @@ export function DayList({ rows, team, me, canAssign, today, t }: Props) {
       remove(row.id);
       const r = await completeStep(row.id);
       if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(t.home.doneToast, { label: t.common.undo, run: () => start(async () => { setAsking(null); await reopenStep(row.id); }) });
-      if (row.canPlan) setAsking(row);
+      toast(r.value.last ? t.home.doneToast : t.step.doneToast, { label: t.common.undo, run: () => start(async () => { setAsking(null); await reopenStep(row.id); }) });
+      if (row.canPlan && r.value.last) setAsking(row);
     });
   }
   const groups: DueState[] = ["late", "today", "soon"];
   return (
     <div className="day-groups">
-      {asking && (
+      {asking && asking.on && (
         <section className="step-box editing ask" aria-labelledby="ask-title">
           <h2 id="ask-title" className="label-mono">{t.step.whatNext}</h2>
           <p className="ask-on"><Link prefetch={false} href={`/chest/${asking.on.kind === "deal" ? "deals" : "contacts"}/${asking.on.id}`}>{asking.on.title}</Link>{asking.on.company ? ` · ${asking.on.company}` : ""}</p>
@@ -56,13 +56,17 @@ export function DayList({ rows, team, me, canAssign, today, t }: Props) {
                   <div className="step-main">
                     <span className="step-text">{row.text}</span>
                     <span className="step-on">
-                      {row.on.kind === "deal" ? <Pipeline /> : <Person />}
-                      <Link prefetch={false} href={`/chest/${row.on.kind === "deal" ? "deals" : "contacts"}/${row.on.id}`}>{row.on.title}</Link>
-                      {row.on.company && <span className="muted"><Building />{row.on.company}</span>}
+                      {row.on === null ? <span className="muted"><Flag />{t.step.mine}</span> : (
+                        <>
+                          {row.on.kind === "deal" ? <Pipeline /> : <Person />}
+                          <Link prefetch={false} href={`/chest/${row.on.kind === "deal" ? "deals" : "contacts"}/${row.on.id}`}>{row.on.title}</Link>
+                          {row.on.company && <span className="muted"><Building />{row.on.company}</span>}
+                        </>
+                      )}
                     </span>
                   </div>
                   <span className="step-side">
-                    <span className={`due ${row.state}`}>{row.state === "today" ? t.step.today : row.dueLabel}</span>
+                    <span className={`due ${row.state}`}>{row.dueLabel}</span>
                     {row.valueLabel && <span className="num muted">{row.valueLabel}</span>}
                   </span>
                 </li>
@@ -75,3 +79,17 @@ export function DayList({ rows, team, me, canAssign, today, t }: Props) {
   );
 }
 
+
+// "A step for me": a to-do that is about no client ("prepare the trade
+// show"), planned from My day.
+export function SelfStepButton({ team, me, canAssign, today, t }: { team: Teammate[]; me: string; canAssign: boolean; today: string; t: Catalogue }) {
+  const [open, setOpen] = useState(false);
+  if (!open) return <button type="button" className="link-button self-step" onClick={() => setOpen(true)}><Plus />{t.home.addStep}</button>;
+  return (
+    <section className="step-box editing" aria-labelledby="self-title">
+      <h2 id="self-title" className="label-mono"><Flag />{t.step.selfTitle}</h2>
+      <p className="muted small-text">{t.step.selfHint}</p>
+      <StepForm initial={null} on={null} team={team} me={me} canAssign={canAssign} today={today} onDone={() => setOpen(false)} onSkip={null} t={t} />
+    </section>
+  );
+}

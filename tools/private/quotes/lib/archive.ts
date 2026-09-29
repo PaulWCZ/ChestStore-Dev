@@ -6,6 +6,7 @@ import { company } from "./company.ts";
 import type { Query } from "./db.ts";
 import { getDocument, type Full } from "./documents.ts";
 import { buyerOf, sellerOf, type Seller } from "./parties.ts";
+import { einvoiceXml } from "./einvoice.ts";
 import { renderPdf, pdfFileName } from "./pdf/document.ts";
 import { readImage, type Image } from "./pdf/image.ts";
 
@@ -23,7 +24,9 @@ async function logoOf(seller: Seller): Promise<Image | null> {
   if (!seller.logo) return null;
   try {
     const file = await files.get(seller.logo);
-    return file ? readImage(file.data) : null;
+    const image = file ? readImage(file.data) : null;
+    // PDF/A draws in sRGB: a logo in print colours (CMYK) cannot be in it.
+    return image && image.colorSpace !== "DeviceCMYK" ? image : null;
   } catch {
     return null;
   }
@@ -33,15 +36,20 @@ export async function draw(sql: Query, full: Full, today: string): Promise<Uint8
   const seller = full.seller ?? sellerOf(await company(sql));
   const buyer = full.buyer ?? (full.client ? buyerOf(full.client) : null);
   const ref = full.related.find(r => (full.type === "credit" ? r.id === full.invoiceId : r.id === full.quoteId));
+  const reference = ref && ref.number ? { number: ref.number, issueDate: ref.issueDate } : null;
+  // An issued invoice or credit note is a Factur-X: its EN 16931 data
+  // travels inside its PDF.
+  const facturx = frozen(full) && buyer ? einvoiceXml({ doc: full, lines: full.lines, seller, buyer, reference }) : undefined;
   return renderPdf({
     doc: full,
     lines: full.lines,
     seller,
     buyer,
-    reference: ref && ref.number ? { number: ref.number, issueDate: ref.issueDate } : null,
+    reference,
     logo: await logoOf(seller),
     today,
     created: new Date(full.finalisedAt ?? full.sentAt ?? full.updatedAt),
+    ...(facturx ? { facturx } : {}),
   });
 }
 
@@ -69,12 +77,12 @@ export async function pdfOfFull(sql: Query, full: Full, today: string): Promise<
 // keep stores an issued document's PDF once; when the Chest cannot take it
 // now, the next download tries again (the document's data is frozen, so
 // the PDF drawn then is the same).
-export async function keep(sql: Query, full: Pick<Full, "id" | "number" | "issueDate">, bytes: Uint8Array): Promise<void> {
+export async function keep(sql: Query, full: Pick<Full, "id" | "number" | "issueDate" | "type">, bytes: Uint8Array): Promise<void> {
   const object = `documents/${(full.issueDate ?? "0000").slice(0, 4)}/${(full.number ?? full.id).replace(/[^A-Za-z0-9_-]/gu, "_")}.pdf`;
   try {
     await files.put(object, bytes, "application/pdf");
     const sha = createHash("sha256").update(bytes).digest("hex");
-    await sql`update documents set pdf_object = ${object}, pdf_sha256 = ${sha} where id = ${full.id} and pdf_object is null`;
+    await sql`update documents set pdf_object = ${object}, pdf_sha256 = ${sha}, pdf_format = ${full.type === "quote" ? "pdf" : "factur-x"} where id = ${full.id} and pdf_object is null`;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }

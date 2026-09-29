@@ -30,8 +30,11 @@ alter table polls add constraint slots_named check (slots is null or not anonymo
 -- poll, so nobody reads old answers under new words unawares).
 alter table polls add column edited_after integer check (edited_after > 0);
 
--- The organiser's "Remind those who haven't answered": at most every 12 hours.
+-- The organiser's "Remind those who haven't answered": at most every 12
+-- hours, told like the day-before reminder (a telling of its own kind).
 alter table polls add column nudged_at timestamptz;
+alter table tellings drop constraint tellings_kind_check;
+alter table tellings add constraint tellings_kind_check check (kind in ('ask', 'remind', 'nudge', 'final'));
 
 -- A pulse survey that repeats: every round is a poll of the series, opened
 -- by the pass at its time, the same questions for the same people. A round

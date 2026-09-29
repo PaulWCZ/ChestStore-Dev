@@ -13,8 +13,9 @@ import type { Sql } from "./db.ts";
 //   reminders, which now go to whoever last saved each page.
 // - Erasure: the same, and their id disappears from everything — authors
 //   of pages, versions, files, spaces and comments read "Former member"
-//   ('erased'). The pages stay for the team. Then the erasure is
-//   acknowledged.
+//   ('erased'); their confirmations of reading go. The pages stay for the
+//   team. Then the erasure is acknowledged. (Someone who only leaves keeps
+//   their confirmations: they are the company's record.)
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
     await tx`delete from page_locks where member_id = ${memberId}`;
@@ -38,6 +39,8 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update page_versions set author = 'erased' where author = ${memberId}`;
     await tx`update page_files set added_by = 'erased' where added_by = ${memberId}`;
     await tx`update spaces set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`delete from page_reads where member_id = ${memberId}`;
+    await tx`update pages set read_asked_by = 'erased' where read_asked_by = ${memberId}`;
   });
 }
 

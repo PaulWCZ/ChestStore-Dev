@@ -332,3 +332,33 @@ span.pick { display: inline-block; width: 22px; }
 .thumb-button { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: var(--radius-s); display: inline-grid; }
 .lightbox { width: 100%; max-height: 70vh; object-fit: contain; background: #fff; border-radius: var(--radius-s); }
 .row.decision.warned { box-shadow: inset 3px 0 0 var(--amber); padding-left: var(--space-2); }
+
+/* Guests at a meal: chips that can be taken off, and one field to add. */
+.guest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.guest-list .chip { cursor: default; padding-right: 4px; max-width: 100%; }
+.chip-x { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-2); cursor: pointer; }
+.chip-x:hover { background: var(--surface-2); color: var(--ink); }
+.guest-add { display: flex; gap: var(--space-2); }
+.guest-add .field { flex: 1; min-width: 0; }
+
+/* The accountant's first checks. */
+.setup { border: 1.5px solid var(--ink); display: grid; gap: var(--space-3); }
+.setup-steps { margin: 0; padding-left: 1.4em; display: grid; gap: var(--space-2); }
+.setup-steps a { font-weight: 600; text-underline-offset: 3px; }
+.setup .actions-bar .button { flex: 0 1 auto; }
+
+/* Bank details: masked once saved; the IBAN checked while typed. */
+.bank-current { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.bank-current .actions-bar .button { flex: 0 1 auto; }
+.iban-input { position: relative; }
+.iban-input .field { padding-right: 44px; letter-spacing: 0.02em; }
+.iban-input .ok { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--green); display: grid; }
+.bank-line { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); font-size: var(--text-s); }
+.bank-line .mono { display: inline-flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.by-file { display: grid; gap: var(--space-3); border: 1.5px solid var(--ink); }
+.by-file .pay-form .button { flex: 1 1 auto; white-space: normal; text-align: left; }
+.row.file-row .main { display: grid; gap: 2px; min-width: 0; }
+@media (max-width: 560px) {
+  .row.file-row { grid-template-columns: auto 1fr; }
+  .row.file-row .right { grid-column: 1 / -1; justify-items: start; }
+}

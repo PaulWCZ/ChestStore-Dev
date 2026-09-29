@@ -133,7 +133,8 @@ export function FinaliseDialog({ t, doc, upcoming, companyMissing, clientMissing
                 </>
               )}
               {!doc.clientId && <p><strong>{t.errors.no_client}</strong></p>}
-              {clientMissing.length > 0 && <p><strong>{f.clientMissing}</strong></p>}
+              {clientMissing.some(m => m !== "vatNumber") && <p><strong>{f.clientMissing}</strong></p>}
+              {clientMissing.includes("vatNumber") && <p><strong>{f.clientVatMissing}</strong></p>}
             </div>
           </div>
           <div className="dialog-actions">

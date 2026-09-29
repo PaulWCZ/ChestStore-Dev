@@ -10,7 +10,7 @@ import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { editActivity, removeActivity, restoreActivity } from "../actions.ts";
 import type { People } from "./shared.ts";
 
-const icons = { call: Phone, meeting: Meeting, email: Mail, note: Note, step: Check, created: Plus, stage: Pipeline, won: Trophy, lost: Lost, reopened: Flag, owner: Person, unassigned: Person };
+const icons = { call: Phone, meeting: Meeting, email: Mail, note: Note, step: Check, created: Plus, stage: Pipeline, won: Trophy, lost: Lost, reopened: Flag, owner: Person, unassigned: Person, merged: Plus };
 const logged = new Set(["call", "meeting", "email", "note"]);
 
 // When each thing happened, written by the server ("3 days ago"): the
@@ -51,6 +51,7 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
       case "owner": return a.data["to"] ? format(t.timeline.owner, { name, to: who(String(a.data["to"])) }) : format(t.timeline.ownerNobody, { name });
       case "unassigned": return t.timeline.unassigned;
       case "step": return format(t.timeline.step, { name, text: a.body });
+      case "merged": return format(t.timeline.merged, { name, other: String(a.data["name"] ?? "") });
       default: return null;
     }
   }
@@ -83,7 +84,7 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
             <span className="event-icon" aria-hidden="true"><Icon /></span>
             <div className="event-main">
               <p className="event-head">
-                {text === null ? <><strong>{t.timeline.kinds[a.kind]}</strong><span className="sep" aria-hidden="true">·</span><span>{who(a.author)}</span></> : <span>{text}</span>}
+                {text === null ? <><strong>{t.timeline.kinds[a.kind]}</strong><span className="sep" aria-hidden="true">·</span><span>{a.data["by"] ? format(t.timeline.importedBy, { name: String(a.data["by"]) }) : who(a.author)}</span></> : <span>{text}</span>}
                 {elsewhere && <span className="event-on">{format(t.timeline.on, { what: "" })}<Link prefetch={false} href={elsewhere.href}>{elsewhere.label}</Link></span>}
                 <time dateTime={a.at} title={a.whenFull}>{a.when}</time>
               </p>
