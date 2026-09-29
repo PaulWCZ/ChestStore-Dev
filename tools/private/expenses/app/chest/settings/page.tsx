@@ -5,9 +5,9 @@ import { today } from "../../../lib/model.ts";
 import { vehicleKinds } from "../../../lib/scale.ts";
 import { viewer } from "../../../lib/session.ts";
 import { priorDistance, scaleFor, vehicleOf, vehicleProof } from "../../../lib/settings.ts";
-import { bankDetails } from "../../../lib/bank.ts";
-import { relative } from "../../../lib/i18n/index.ts";
-import { powerName, vehicleName } from "../../../lib/words.ts";
+import { bankCurrent, bankDetails } from "../../../lib/bank.ts";
+import { addressCountries } from "../../../lib/iban.ts";
+import { countryOptions, powerName, vehicleName } from "../../../lib/words.ts";
 import { SettingsNav } from "./settings-nav.tsx";
 import { MyView } from "./settings-view.tsx";
 
@@ -35,7 +35,7 @@ export default async function MySettings() {
         <h1>{t.settings.title}</h1>
         {can(member, "settings") && <SettingsNav current="me" t={t.settings} />}
       </div>
-      <MyView vehicle={vehicleData} bank={bank && { masked: bank.masked, bic: bank.bic, holder: bank.holder, since: relative(bank.updatedAt, locale) }} t={{ ...t.settings, files: t.files, table: t.table }} errors={t.errors} cancel={t.form.cancel} />
+      <MyView vehicle={vehicleData} bank={bankCurrent(bank, locale)} countries={countryOptions(addressCountries, locale)} t={{ ...t.settings, files: t.files, table: t.table }} errors={t.errors} cancel={t.form.cancel} />
     </div>
   );
 }

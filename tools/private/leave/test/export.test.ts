@@ -98,6 +98,9 @@ test("a payroll code HR changes (or removes) is the one both files carry", async
   const paid = all.find(t => t.key === "paid")!;
   // The defaults: the usual French codes.
   assert.deepEqual(Object.fromEntries(all.map(t => [t.key, t.payrollCode])), { paid: "CP", rtt: "RTT", unpaid: "CSS", sick: "MAL", other: null, family: "EVF", remote: null });
+  const monday = quietMonday(150);
+  await requests.createRequest(sql, asMember(camille), { typeId: paid.id, memberId: hugo.id, ...week(monday) });
+  const month = monday.slice(0, 7);
   await saveType(sql, asMember(camille), paid.id, { payrollCode: " cp01 " });
   const header = (await (await get({ ...camille, locale: "en" }, "?month=" + month)).text()).split("\r\n");
   assert.match(header[1] ?? "", /^0042,Hugo Bernard,Paid leave,CP01,/u);

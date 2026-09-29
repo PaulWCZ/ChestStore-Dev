@@ -262,7 +262,11 @@ await step("an editor has the Chest check a service; three failures ring the bel
   await context.clearCookies();
   await english();
   await page.goto(origin + "/?fresh=4");
-  expect((await page.locator("main").innerText()).includes("Measured by automatic checks"), "measured uptime on the public page");
+  // Four checks, one failed: too few to publish a figure ("25 %" would be
+  // false) — the page says since when the service is checked.
+  const checkoutText = (await page.locator(".measured").allInnerTexts()).filter(t => t.includes("Automatic checks since"));
+  expect(checkoutText.length === 1 && !checkoutText[0].includes("%"), "no measured figure before a full day of checks");
+  expect((await page.locator("main").innerText()).includes("Measured by automatic checks"), "a service checked for weeks shows its measured uptime");
   expect(!(await page.locator("h1").innerText()).includes("Major outage"), "nothing posted by itself");
 });
 
@@ -377,6 +381,28 @@ await step("someone with the tool but no role sees the team's status page, servi
   expect(!(await page.locator("main").innerText()).includes("Back office"), "never on the public page");
 });
 
+await step("a French editor on this English Chest writes in French: the form says so, the public page marks her text French", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/incidents/new");
+  expect((await page.getByLabel("Écrit en").inputValue()) === "fr", "written in her language by default");
+  expect(await page.getByRole("checkbox", { name: "Rédiger aussi en anglais" }).count() === 1, "the second version offered is English");
+  await page.getByLabel("Écrit en").selectOption("en");
+  expect(await page.getByRole("checkbox", { name: "Rédiger aussi en français" }).count() === 1, "choosing English moves the second version to French");
+  await page.getByLabel("Écrit en").selectOption("fr");
+  await page.getByLabel(/Qu’est-ce qui ne va pas/u).fill("Paiement indisponible");
+  await page.getByRole("checkbox", { name: "Catalogue" }).check();
+  await page.getByLabel(/Que dites-vous à vos clients/u).fill("Nous analysons le problème.");
+  await page.getByRole("button", { name: /Publier l’incident/u }).click();
+  await page.waitForURL(/\/chest\/incidents\/\d+$/u);
+  incidentUrl = page.url();
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/?fresh=written-in");
+  const card = page.locator(".incident", { hasText: "Paiement indisponible" });
+  expect(await card.locator("[lang=fr]").count() > 0, "her French text is marked French for an English visitor");
+});
+
 await step("French, phone width: the page reads without sideways scroll; the subscriber unsubscribes", async () => {
   await context.clearCookies();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -397,6 +423,9 @@ await step("French, phone width: the page reads without sideways scroll; the sub
   const wideTeam = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(!wideTeam, "team part: no sideways scroll");
   expect((await page.locator("h1").innerText()).includes("En ce moment"), "team part in French");
+  const post = await page.getByRole("link", { name: "Signaler un incident" }).boundingBox();
+  const plan = await page.getByRole("link", { name: "Prévoir une maintenance" }).boundingBox();
+  expect(post && plan && post.y < plan.y, "on a phone, the main action comes first");
 });
 
 await browser.close();

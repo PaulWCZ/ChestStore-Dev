@@ -7,6 +7,7 @@ import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calend
 import { forgetTheme } from "./chest.js";
 import { threadTag } from "./mail.js";
 import { forget } from "./members.js";
+import { checkInput as checkWebhookInput, checkMessage as checkWebhookMessage, deliveryIdPattern as webhookDeliveryPattern, format as formatWebhook, isPublicAddress, limits as webhookLimits, shownUrl, sign as signWebhook, targetIdPattern as webhookTargetPattern, type WebhookDelivery, type WebhookKind, type WebhookTarget } from "./webhooks.js";
 
 // For a tool's own tests, never imported by its production code: a member's
 // assertion signed as the Chest signs it, and a Chest's API in the test's
@@ -94,6 +95,39 @@ export type FakeChestOptions = {
   // /_chest/theme/ (the catalogue's fonts, a brand's fonts and logo), by
   // path below it ("fonts/inter-latin-wght-normal.woff2", "brand/logo.svg").
   themeFiles?: Record<string, { data: Uint8Array | string; type?: string }>;
+  // Proposal (studio): webhooks (chest.json "webhooks": {max}) — the Chest
+  // delivers to the addresses the tool adds. resolve plays DNS: a host name
+  // → the address it resolves to ("nxdomain": none); a name left out
+  // resolves to a public address. deliver, when given, receives each POST
+  // the Chest would make (a test's own receiver); otherwise every target
+  // answers 200 until chest.webhooks.respond() says otherwise. to is where
+  // webhook.disabled is posted (the tool's address, or a handler), also
+  // settable as chest.webhooks.to.
+  webhooks?: { max: number; resolve?: Record<string, string>; deliver?: (url: string, init: { method: "POST"; headers: Record<string, string>; body: string }) => Promise<Response | number>; to?: string | ((request: Request) => Response | Promise<Response>) };
+};
+
+// Proposal (studio): how a webhook target answers the fake Chest: an HTTP
+// status, or a network failure.
+export type FakeWebhookAnswer = number | "timeout" | "dns" | "tls" | "refused";
+// A target as the fake Chest keeps it: what list() shows, and the whole
+// address and the secrets that sign (the newest first).
+export type FakeWebhookTarget = WebhookTarget & { fullUrl: string; secrets: string[] };
+// A delivery as the fake keeps it: what journal() shows, the message, and
+// the last request made (url, headers — the signature — and body).
+export type FakeWebhookDelivery = WebhookDelivery & { text: string; data?: Record<string, unknown>; request: { url: string; headers: Record<string, string>; body: string } | null };
+export type FakeWebhooks = {
+  targets: FakeWebhookTarget[];
+  deliveries: FakeWebhookDelivery[];
+  // The webhook.disabled events the Chest posted to the tool, and the status
+  // it answered (null: no `to` to post to).
+  events: { id: string; type: "webhook.disabled"; target: string; reason: "failures" | "gone"; lastError: string | null; status: number | null }[];
+  to: string | ((request: Request) => Response | Promise<Response>) | null;
+  // How a target (by id, or by its whole address before it is added)
+  // answers from now on; 200 by default.
+  respond(target: string, answer: FakeWebhookAnswer): void;
+  // The time of every pending retry comes: each delivery "retrying" is
+  // attempted once more. Says how many were attempted.
+  retry(): Promise<number>;
 };
 
 // A choice as a test names it: what theme() answers, without its scope
@@ -176,6 +210,9 @@ export type FakeChest = {
   theme: { all: FakeThemeChoice | null; tools: Record<string, FakeThemeChoice | null> };
   themeFiles: Map<string, { data: Uint8Array; type: string }>;
   runs: { id: string; name: string; scheduledAt: string; attempt: number; status: number }[];
+  // Proposal (studio): the webhook targets, deliveries and events, and the
+  // controls that play the receivers.
+  webhooks: FakeWebhooks;
   run(name: string, to: string | ((request: Request) => Response | Promise<Response>), options?: { id?: string; scheduledAt?: string; attempt?: number }): Promise<number>;
   close(): Promise<void>;
 };
@@ -343,7 +380,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, checks: [], check: async () => 0, outbox: [], receive: async () => 0, calendar: new Map(), feed: () => "", feedUrl: () => "", newFeedUrl: () => "", bounce: async () => 0, schedules: [...(options.schedules ?? [])], theme: { all: options.theme?.all ?? null, tools: { ...options.theme?.tools } }, themeFiles: new Map(Object.entries(options.themeFiles ?? {}).map(([path, f]) => [path, { data: typeof f.data === "string" ? new TextEncoder().encode(f.data) : f.data, type: f.type ?? "application/octet-stream" }])), runs: [], run: async () => 0, close: async () => {} };
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, checks: [], check: async () => 0, outbox: [], receive: async () => 0, calendar: new Map(), feed: () => "", feedUrl: () => "", newFeedUrl: () => "", bounce: async () => 0, schedules: [...(options.schedules ?? [])], theme: { all: options.theme?.all ?? null, tools: { ...options.theme?.tools } }, themeFiles: new Map(Object.entries(options.themeFiles ?? {}).map(([path, f]) => [path, { data: typeof f.data === "string" ? new TextEncoder().encode(f.data) : f.data, type: f.type ?? "application/octet-stream" }])), runs: [], run: async () => 0, webhooks: { targets: [], deliveries: [], events: [], to: options.webhooks?.to ?? null, respond: () => {}, retry: async () => 0 }, close: async () => {} };
   const former = chest.former;
   let window = 0, calls = 0;
   // A member's groups as the tool sees them: all with "groups" (Proposal
@@ -640,6 +677,210 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     send(response, 200, { checks: chest.checks });
   }
 
+  // Webhooks (Proposal (studio)): the targets the tool added, the
+  // deliveries the Chest makes to them, as the Chest would — checks, ping,
+  // signature, retries, disabling — without the network.
+  const hooks = chest.webhooks;
+  const hookOptions = options.webhooks;
+  const answers = new Map<string, FakeWebhookAnswer>();
+  const hookKeys = new Map<string, FakeWebhookDelivery>();
+  let hookAdds: Window = { start: 0, count: 0 }, hookHour: Window = { start: 0, count: 0 };
+  const hookId = (prefix: string) => prefix + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");
+  const hookSecret = () => "whsec_" + randomBytes(32).toString("base64url");
+  const shownTarget = (t: FakeWebhookTarget) => ({ id: t.id, kind: t.kind, label: t.label, owner: t.owner, url: t.url, state: t.state, status: t.status, last_error: t.lastError, last_at: t.lastAt, failures: t.failures, created_at: t.createdAt });
+  const shownDelivery = (d: FakeWebhookDelivery) => ({ id: d.id, target: d.target, event: d.event, key: d.key, status: d.status, attempts: d.attempts, response_status: d.responseStatus, last_error: d.lastError, created_at: d.createdAt, delivered_at: d.deliveredAt, next_attempt_at: d.nextAttemptAt });
+  // resolveHost plays DNS and the Chest's rule on what a name resolves to.
+  const resolveHost = (host: string): "ok" | "dns" | "private_address" => {
+    const literal = host.startsWith("[") ? host.slice(1, -1) : host;
+    const address = hookOptions?.resolve?.[literal] ?? (/^[0-9.]+$|:/u.test(literal) ? literal : "93.184.215.14");
+    if (address === "nxdomain") return "dns";
+    return isPublicAddress(address) ? "ok" : "private_address";
+  };
+  // post makes one POST as the Chest would: to the test's receiver, or
+  // answered as respond() said.
+  async function post(key: string[], fullUrl: string, headers: Record<string, string>, body: string): Promise<{ status: number | null; error: string | null }> {
+    const reach = resolveHost(new URL(fullUrl).hostname);
+    if (reach !== "ok") return { status: null, error: reach };
+    if (hookOptions?.deliver) {
+      try {
+        const answer = await hookOptions.deliver(fullUrl, { method: "POST", headers, body });
+        const status = typeof answer === "number" ? answer : answer.status;
+        if (typeof answer !== "number") await answer.body?.cancel();
+        return status >= 300 && status < 400 ? { status, error: "redirect" } : { status, error: status >= 200 && status < 300 ? null : `http_${status}` };
+      } catch {
+        return { status: null, error: "refused" };
+      }
+    }
+    const answer = key.map(k => answers.get(k)).find(a => a !== undefined) ?? 200;
+    if (typeof answer === "string") return { status: null, error: answer };
+    return answer >= 300 && answer < 400 ? { status: answer, error: "redirect" } : { status: answer, error: answer >= 200 && answer < 300 ? null : `http_${answer}` };
+  }
+  const requestOf = (t: FakeWebhookTarget, id: string, event: string, body: string): Record<string, string> => ({
+    "Content-Type": "application/json", "User-Agent": "Chest-Webhooks/1",
+    ...(t.kind === "generic" ? { "Chest-Webhook-Id": id, "Chest-Webhook-Event": event, "Chest-Webhook-Signature": signWebhook(t.secrets, body, Math.floor(Date.now() / 1000)) } : {}),
+  });
+  // ping: a generic address answers a signed chest.ping with a 2xx.
+  async function ping(t: FakeWebhookTarget): Promise<boolean> {
+    const id = hookId("whd_");
+    const body = formatWebhook("generic", { id, event: "chest.ping", text: "Ping from your Chest: this address will receive notices from " + tool + ".", data: { challenge: randomBytes(16).toString("base64url") }, key: "ping", tool, createdAt: new Date().toISOString() });
+    const answer = await post([t.id, t.fullUrl], t.fullUrl, requestOf(t, id, "chest.ping", body), body);
+    return answer.error === null;
+  }
+  async function disable(t: FakeWebhookTarget, reason: "failures" | "gone"): Promise<void> {
+    t.state = "disabled";
+    t.status = "disabled";
+    for (const d of hooks.deliveries) if (d.target === t.id && (d.status === "pending" || d.status === "retrying")) Object.assign(d, { status: "failed", lastError: "disabled", nextAttemptAt: null });
+    const id = hookId("whe_");
+    const body = JSON.stringify({ id, type: "webhook.disabled", at: new Date().toISOString(), target: t.id, reason, last_error: t.lastError });
+    const kept: FakeWebhooks["events"][number] = { id, type: "webhook.disabled", target: t.id, reason, lastError: t.lastError, status: null };
+    hooks.events.push(kept);
+    const to = hooks.to;
+    if (!to) return;
+    const request = new Request((typeof to === "string" ? to.replace(/\/$/u, "") : "http://tool.test") + "/chest-webhooks", { method: "POST", headers: { "Content-Type": "application/json", "Chest-Webhooks": signEvent(id, body, { token, tool, label: "Chest-Webhooks v1" }) }, body });
+    try {
+      const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
+      await answer.body?.cancel();
+      kept.status = answer.status;
+    } catch {
+      kept.status = null;
+    }
+  }
+  // attempt: one try of a delivery, and what follows from its answer.
+  async function attempt(d: FakeWebhookDelivery): Promise<void> {
+    const t = hooks.targets.find(x => x.id === d.target);
+    if (!t || t.state === "disabled") return void Object.assign(d, { status: "failed", lastError: "disabled", nextAttemptAt: null });
+    const body = formatWebhook(t.kind, { id: d.id, event: d.event, text: d.text, ...(d.data ? { data: d.data } : {}), key: d.key, tool, createdAt: d.createdAt });
+    const headers = requestOf(t, d.id, d.event, body);
+    const answer = await post([t.id, t.fullUrl], t.fullUrl, headers, body);
+    const now = new Date().toISOString();
+    d.attempts++;
+    d.request = { url: t.fullUrl, headers, body };
+    d.responseStatus = answer.status;
+    d.lastError = answer.error;
+    t.lastAt = now;
+    if (answer.error === null) {
+      Object.assign(d, { status: "delivered", deliveredAt: now, nextAttemptAt: null });
+      Object.assign(t, { status: "delivered", lastError: null, failures: 0 });
+      return;
+    }
+    Object.assign(t, { status: "failed", lastError: answer.error, failures: t.failures + 1 });
+    const status = answer.status;
+    const gone = status === 410 || (t.kind !== "generic" && status === 404);
+    const again = status === null || status === 408 || status === 429 || status >= 500;
+    if (gone || t.failures >= webhookLimits.failuresToDisable) {
+      d.status = "failed";
+      d.nextAttemptAt = null;
+      return disable(t, gone ? "gone" : "failures");
+    }
+    if (again && d.attempts < webhookLimits.attempts.length) {
+      d.status = "retrying";
+      d.nextAttemptAt = new Date(Date.parse(d.createdAt) + webhookLimits.attempts[d.attempts]! * 1000).toISOString();
+    } else Object.assign(d, { status: "failed", nextAttemptAt: null });
+  }
+  hooks.respond = (target, answer) => void answers.set(target, answer);
+  hooks.retry = async () => {
+    const due = hooks.deliveries.filter(d => d.status === "retrying");
+    for (const d of due) await attempt(d);
+    return due.length;
+  };
+  async function webhooksRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+    // options.webhooks is the permission approved; without it, 403.
+    if (!hookOptions) return send(response, 403, { error: "capability_not_granted" });
+    const now = Date.now();
+    const readBody = async (): Promise<Record<string, unknown> | null> => {
+      const raw = await body(request, 64 << 10);
+      try { const v = JSON.parse(raw?.toString() ?? "") as unknown; return v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null; } catch { return null; }
+    };
+    if (url.pathname === "/webhooks" && request.method === "GET") return send(response, 200, { targets: hooks.targets.map(shownTarget) });
+    if (url.pathname === "/webhooks" && request.method === "POST") {
+      const given = await readBody();
+      // The Chest checks what the SDK checked: the same rules.
+      if (!given || checkWebhookInput(given).length > 0) return send(response, 400, { error: "invalid_target" });
+      if (hooks.targets.length >= hookOptions.max) return send(response, 429, { error: "quota_exceeded" });
+      if (!live(hookAdds, 3_600_000, now)) hookAdds = { start: now, count: 0 };
+      if (hookAdds.count >= webhookLimits.addsPerHour) return send(response, 429, { error: "quota_exceeded" }, wait(hookAdds, 3_600_000, now));
+      const fullUrl = given["url"] as string, kind = given["kind"] as WebhookKind;
+      if (resolveHost(new URL(fullUrl).hostname) !== "ok") return send(response, 422, { error: "address_refused" });
+      hookAdds.count++;
+      const t: FakeWebhookTarget = { id: hookId("whk_"), kind, label: (given["label"] as string).trim(), owner: typeof given["owner"] === "string" ? given["owner"] : null, url: shownUrl(fullUrl, kind), state: "active", status: null, lastError: null, lastAt: null, failures: 0, createdAt: new Date(now).toISOString(), fullUrl, secrets: kind === "generic" ? [hookSecret()] : [] };
+      if (kind === "generic" && !(await ping(t))) return send(response, 422, { error: "verification_failed" });
+      hooks.targets.push(t);
+      return send(response, 201, { id: t.id, secret: t.secrets[0] ?? null, target: shownTarget(t) });
+    }
+    if (url.pathname === "/webhooks/send" && request.method === "POST") {
+      const given = await readBody();
+      const ids = given?.["targets"];
+      if (!given || !Array.isArray(ids) || ids.length < 1 || ids.length > webhookLimits.perSend || !ids.every(i => typeof i === "string" && webhookTargetPattern.test(i))) return send(response, 400, { error: "invalid_message" });
+      const { targets: _targets, ...message } = given;
+      void _targets;
+      if (checkWebhookMessage(message).length > 0) return send(response, 400, { error: "invalid_message" });
+      const key = message["key"] as string;
+      const fresh = (d: FakeWebhookDelivery | undefined) => d !== undefined && now - Date.parse(d.createdAt) < 86_400_000;
+      const plan = [...new Set(ids as string[])].map(id => {
+        const t = hooks.targets.find(x => x.id === id);
+        if (!t) return { id, skip: "not_found" as const };
+        const first = hookKeys.get(id + "\u0000" + key);
+        if (fresh(first)) return { id, existing: first! };
+        if (t.state === "disabled") return { id, skip: "disabled" as const };
+        return { id, target: t };
+      });
+      const count = plan.filter(p => "target" in p).length;
+      if (!live(hookHour, 3_600_000, now)) hookHour = { start: now, count: 0 };
+      if (hookHour.count + count > webhookLimits.deliveriesPerHour) return send(response, 429, { error: "quota_exceeded" }, wait(hookHour, 3_600_000, now));
+      hookHour.count += count;
+      const answer: { deliveries: { id: string; target: string }[]; skipped: { target: string; reason: string }[] } = { deliveries: [], skipped: [] };
+      for (const p of plan) {
+        if ("skip" in p) { answer.skipped.push({ target: p.id, reason: p.skip! }); continue; }
+        if ("existing" in p) { answer.deliveries.push({ id: p.existing!.id, target: p.id }); continue; }
+        const d: FakeWebhookDelivery = { id: hookId("whd_"), target: p.id, event: message["event"] as string, key, status: "pending", attempts: 0, responseStatus: null, lastError: null, createdAt: new Date(now).toISOString(), deliveredAt: null, nextAttemptAt: null, text: message["text"] as string, ...(message["data"] ? { data: message["data"] as Record<string, unknown> } : {}), request: null };
+        hooks.deliveries.push(d);
+        hookKeys.set(p.id + "\u0000" + key, d);
+        answer.deliveries.push({ id: d.id, target: p.id });
+      }
+      // The Chest answers at once and delivers within seconds; the fake
+      // makes each first attempt before it answers, so a test reads the
+      // outcome right after send().
+      for (const p of answer.deliveries) {
+        const d = hooks.deliveries.find(x => x.id === p.id)!;
+        if (d.status === "pending") await attempt(d);
+      }
+      return send(response, 200, answer);
+    }
+    if (url.pathname === "/webhooks/deliveries" && request.method === "GET") {
+      const q = url.searchParams;
+      const limit = q.has("limit") ? Number(q.get("limit")) : 100;
+      const after = q.get("after"), target = q.get("target");
+      if (!Number.isInteger(limit) || limit < 1 || limit > 500 || (after !== null && !webhookDeliveryPattern.test(after)) || (target !== null && !webhookTargetPattern.test(target))) return send(response, 400, { error: "invalid_query" });
+      const all = hooks.deliveries.filter(d => (target === null || d.target === target) && now - Date.parse(d.createdAt) < 30 * 86_400_000).reverse();
+      const from = after === null ? 0 : all.findIndex(d => d.id === after) + 1;
+      const page = all.slice(from, from + limit);
+      return send(response, 200, { deliveries: page.map(shownDelivery), next: from + limit < all.length ? page.at(-1)!.id : null });
+    }
+    const one = /^\/webhooks\/(whk_[a-z2-7]{26})(\/enable|\/secret)?$/u.exec(url.pathname);
+    const t = one ? hooks.targets.find(x => x.id === one[1]) : undefined;
+    if (!one) return send(response, 404, { error: "not_found" });
+    if (!t) return send(response, 404, { error: "target_not_found" });
+    if (one[2] === undefined && request.method === "DELETE") {
+      hooks.targets.splice(hooks.targets.indexOf(t), 1);
+      for (const d of hooks.deliveries) if (d.target === t.id && (d.status === "pending" || d.status === "retrying")) Object.assign(d, { status: "failed", lastError: "removed", nextAttemptAt: null });
+      return send(response, 204);
+    }
+    if (one[2] === "/enable" && request.method === "POST") {
+      if (resolveHost(new URL(t.fullUrl).hostname) !== "ok") return send(response, 422, { error: "address_refused" });
+      if (t.kind === "generic" && !(await ping(t))) return send(response, 422, { error: "verification_failed" });
+      Object.assign(t, { state: "active", status: t.status === "disabled" ? null : t.status, failures: 0, lastError: null });
+      return send(response, 200, { target: shownTarget(t) });
+    }
+    if (one[2] === "/secret" && request.method === "POST") {
+      if (t.kind !== "generic") return send(response, 400, { error: "no_secret" });
+      // The old secret signs beside the new one (24 h on a real Chest; until
+      // the next rotation here).
+      t.secrets = [hookSecret(), t.secrets[0]!];
+      return send(response, 200, { secret: t.secrets[0] });
+    }
+    send(response, 404, { error: "not_found" });
+  }
+
   // Visitors of the public host (Proposal (studio)): counts per visitor
   // and name, per name, and per address across names (the Chest's
   // ceiling, 60 an hour unless options.visitors says otherwise).
@@ -925,6 +1166,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       : url.pathname === "/theme" ? themeRoute
       : url.pathname === "/visitors/count" ? visitorsRoute
       : url.pathname === "/checks" ? checksRoute
+      : url.pathname === "/webhooks" || url.pathname.startsWith("/webhooks/") ? webhooksRoute
       : url.pathname === "/members" || url.pathname.startsWith("/members/") || url.pathname === "/groups" || url.pathname.startsWith("/groups/") ? members
       : url.pathname === "/files" || url.pathname.startsWith("/files/") ? filesRoute
       : url.pathname === "/badges" || url.pathname.startsWith("/badges/") || url.pathname.startsWith("/notifications") ? notificationsRoute : null;

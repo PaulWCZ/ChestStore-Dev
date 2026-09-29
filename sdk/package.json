@@ -1,6 +1,6 @@
 {
   "name": "@argentic/chest-sdk",
-  "version": "0.3.0-studio.12",
+  "version": "0.3.0-studio.13",
   "description": "The client a Chest server tool embeds: the member the Chest asserts on a request, who else has the tool, the tool's own database, its private files, badges and notifications inside the Chest, the events of its members' lifecycle, and a fake Chest for its tests.",
   "keywords": [
     "chest",
@@ -13,7 +13,8 @@
     "members",
     "notifications",
     "events",
-    "calendar"
+    "calendar",
+    "webhooks"
   ],
   "homepage": "https://github.com/chest-by-argentic/Chest-SDK#readme",
   "bugs": {
@@ -87,6 +88,10 @@
       "types": "./dist/src/calendar.d.ts",
       "default": "./dist/src/calendar.js"
     },
+    "./webhooks": {
+      "types": "./dist/src/webhooks.d.ts",
+      "default": "./dist/src/webhooks.js"
+    },
     "./testing": {
       "types": "./dist/src/testing.d.ts",
       "default": "./dist/src/testing.js"
@@ -110,7 +115,8 @@
     "client/src/calendar.ts",
     "client/src/testing.ts",
     "client/src/visitors.ts",
-    "client/src/checks.ts"
+    "client/src/checks.ts",
+    "client/src/webhooks.ts"
   ],
   "publishConfig": {
     "access": "public",

@@ -252,6 +252,8 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
    "Choose a file" beside it; elsewhere the one button says "Add files". */
 .ck-file-camera, .ck-file-camera-input, .ck-file-choose { display: none; }
 @media (pointer: coarse) {
+  /* Nothing is dropped with a finger: no "or drop them here" (0.2.3). */
+  .ck-drop-hint { display: none; }
   .ck-file-camera { display: inline-flex; }
   .ck-file-camera-input { display: block; }
   .ck-file-choose { display: inline; }
@@ -518,13 +520,16 @@ div.ck-page-intro > :last-child { margin-bottom: 0; }
   .ck-nav { width: 100%; }
   .ck-nav ul { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); width: 100%; gap: 0; overflow-x: auto; scrollbar-width: none; }
   .ck-nav li { display: block; }
-  .ck-nav-link { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: var(--space-1) var(--space-1); font-size: var(--text-xs); white-space: normal; text-align: center; line-height: 1.15; hyphens: auto; }
+  .ck-nav-link { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; min-width: 0; padding: var(--space-1) var(--space-1); font-size: var(--text-xs); white-space: normal; text-align: center; line-height: 1.15; hyphens: manual; }
   /* A count sits at the top right of its icon, never over it, whatever
      the tab's width (five tabs at 390 px) (0.2.2). */
   .ck-nav-link { position: relative; }
   .ck-nav-link .ck-count { position: absolute; top: 3px; left: calc(50% + 6px); transform: none; }
   .ck-nav-link:not(:has(.ck-nav-icon)) .ck-count { position: static; }
-  .ck-nav-label { max-width: 100%; overflow-wrap: anywhere; }
+  /* A label wraps at its spaces only, never inside a word ("Entrepris/es"
+     in a wide brand face): a word wider than its tab ends in "…" — the
+     link's name stays whole for screen readers (0.2.3). */
+  .ck-nav-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; word-break: normal; }
   /* The name is read, not shown: hidden in place, never past the edge (0.2.2). */
   .ck-member-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .ck-member-text > * { display: block; max-width: 1px; overflow: hidden; }

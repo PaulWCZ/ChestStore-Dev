@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { format } from "../lib/i18n/format.ts";
-import { checkBic, checkIban, groupIban } from "../lib/iban.ts";
+import { checkBic, checkIban, groupIban, needsAddress } from "../lib/iban.ts";
 import { limits } from "../lib/model.ts";
 import { removeBank, saveBank } from "../app/chest/actions.ts";
 import { Check } from "./icons.tsx";
 
-export type BankCurrent = { masked: string; bic: string | null; holder: string; since: string } | null;
+export type BankAddress = { street: string; postcode: string; town: string; country: string };
+export type BankCurrent = { masked: string; country: string; bic: string | null; holder: string; since: string; address: BankAddress | null; needsAddress: boolean } | null;
 type Words = Catalogue["settings"]["bank"];
 
 // Bank details, for oneself ("me"), a person (an accountant, from "To pay
@@ -21,8 +22,9 @@ type Words = Catalogue["settings"]["bank"];
 // kit's Confirm — inside a Dialog too (kit 0.2.2: each dialog answers only
 // its own events); once erased, `onDone` (a dialog closes) or the empty
 // form.
-export function BankForm({ owner, current, t, errors, save, cancel, holder = true, idPrefix = "bank", onDirty, onDone }: {
+export function BankForm({ owner, current, t, errors, save, cancel, countries, holder = true, idPrefix = "bank", onDirty, onDone }: {
   owner: string;
+  countries: { value: string; label: string }[];
   cancel: string;
   current: BankCurrent;
   t: Words;
@@ -41,6 +43,10 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
   const [iban, setIban] = useState("");
   const [bic, setBic] = useState(current?.bic ?? "");
   const [name, setName] = useState(current?.holder ?? "");
+  const [street, setStreet] = useState(current?.address?.street ?? "");
+  const [postcode, setPostcode] = useState(current?.address?.postcode ?? "");
+  const [town, setTown] = useState(current?.address?.town ?? "");
+  const [country, setCountry] = useState(current?.address?.country ?? "");
   const [error, setError] = useState<string | null>(null);
   const dirty = editing && iban.trim() !== "";
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
@@ -50,14 +56,24 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
   const check = typed.length >= 15 ? checkIban(iban) : null;
   const ibanError = check && !check.ok ? (check.reason === "checksum" ? errors.iban_checksum : errors.iban_invalid) : null;
   const bicError = bic.trim() !== "" && checkBic(bic) === null ? errors.bic_invalid : null;
+  // The address: needed for an account outside the EEA, offered for the
+  // company's; its country is the account's until someone picks another.
+  // With an account saved, the IBAN may stay as it is (left empty): only
+  // the rest changes.
+  const keepIban = current !== null && typed === "";
+  const far = check?.ok ? needsAddress(check.country) : keepIban ? current.needsAddress : false;
+  const showAddress = owner === "company" || far || (current?.address ?? null) !== null;
+  const addressCountry = country || (check?.ok ? check.country : current?.country ?? "");
+  const addressError = far && town.trim() === "" ? errors.address_needed : null;
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!check?.ok) return setError(ibanError ?? errors.iban_invalid);
+    if (!keepIban && !check?.ok) return setError(ibanError ?? errors.iban_invalid);
     if (bicError) return setError(bicError);
+    if (addressError) return setError(addressError);
     setError(null);
     start(async () => {
-      const result = await saveBank(owner, { iban, bic, holder: name });
+      const result = await saveBank(owner, { iban, bic, holder: name, street, postcode, town, addressCountry: town.trim() === "" ? "" : addressCountry });
       if (!result.ok) return setError(format(errors[result.error], result.values ?? {}));
       setIban("");
       setEditing(false);
@@ -73,6 +89,8 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
         <div>
           <strong className="mono">{format(t.current, { masked: current.masked })}</strong>
           <div className="hint">{[current.holder, current.bic, format(t.since, { when: current.since })].filter(Boolean).join(" · ")}</div>
+          {current.address && <div className="hint">{[current.address.street, `${current.address.postcode} ${current.address.town}`.trim(), countries.find(c => c.value === current.address!.country)?.label ?? current.address.country].filter(Boolean).join(", ")}</div>}
+          {current.needsAddress && !current.address && <div className="error">{t.addressMissing}</div>}
         </div>
         <div className="actions-bar">
           <button type="button" className="button quiet small" onClick={() => setEditing(true)}>{t.replace}</button>
@@ -93,7 +111,7 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
             aria-invalid={ibanError !== null} aria-describedby={`${idPrefix}-iban-hint`} />
           {check?.ok && <span className="ok" aria-hidden="true"><Check /></span>}
         </div>
-        <span id={`${idPrefix}-iban-hint`} className={ibanError ? "error" : "hint"}>{ibanError ?? t.ibanHint}</span>
+        <span id={`${idPrefix}-iban-hint`} className={ibanError ? "error" : "hint"}>{ibanError ?? (current ? format(t.ibanKeep, { masked: current.masked }) : t.ibanHint)}</span>
       </div>
       <div className="two stack">
         <div className="field-row">
@@ -107,6 +125,33 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
           </div>
         )}
       </div>
+      {showAddress && (
+        <fieldset className="address">
+          <legend className="field-label">{owner === "company" ? t.companyAddress : t.address}</legend>
+          <p className="hint" id={`${idPrefix}-address-hint`}>{far ? t.addressWhy : owner === "company" ? t.companyAddressWhy : t.addressOptional}</p>
+          <div className="field-row">
+            <label htmlFor={`${idPrefix}-street`}>{t.street}</label>
+            <input id={`${idPrefix}-street`} className="field" value={street} onChange={e => setStreet(e.target.value)} maxLength={limits.street} autoComplete="off" />
+          </div>
+          <div className="two stack">
+            <div className="field-row">
+              <label htmlFor={`${idPrefix}-postcode`}>{t.postcode}</label>
+              <input id={`${idPrefix}-postcode`} className="field" value={postcode} onChange={e => setPostcode(e.target.value)} maxLength={limits.postcode} autoComplete="off" />
+            </div>
+            <div className="field-row">
+              <label htmlFor={`${idPrefix}-town`}>{far ? t.townNeeded : t.town}</label>
+              <input id={`${idPrefix}-town`} className="field" value={town} onChange={e => setTown(e.target.value)} maxLength={limits.town} autoComplete="off" aria-invalid={error !== null && addressError !== null} aria-describedby={`${idPrefix}-address-hint`} />
+            </div>
+          </div>
+          <div className="field-row">
+            <label htmlFor={`${idPrefix}-country`}>{t.country}</label>
+            <select id={`${idPrefix}-country`} className="field" value={addressCountry} onChange={e => setCountry(e.target.value)}>
+              <option value="">—</option>
+              {countries.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+        </fieldset>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions-bar">
         <button type="submit" className="button" disabled={pending}>{save}</button>

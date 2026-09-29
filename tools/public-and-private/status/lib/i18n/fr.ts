@@ -80,7 +80,7 @@ export const fr: Catalogue = {
     howCounted: "Calcul de la disponibilité (la règle d’Atlassian Statuspage) : une panne majeure compte entièrement, une panne partielle pour 30 % ; les périodes plus lentes et les maintenances prévues sont montrées mais ne comptent pas comme des pannes.",
     notMeasured: "Rien n’est mesuré automatiquement : cette page montre ce que notre équipe publie.",
     measured: "Mesuré par des contrôles automatiques : {percent} depuis le {date}",
-    measuring: "Contrôles automatiques depuis le {date} : la disponibilité mesurée s’affiche après une journée complète de contrôles",
+    measuring: "Contrôles automatiques depuis le {date} : la disponibilité mesurée s’affiche après une journée complète de contrôles",
     measuredNote: "La disponibilité « déclarée » vient des incidents publiés par notre équipe ; la disponibilité « mesurée » vient de contrôles automatiques de l’adresse du service — la part des contrôles qui ont répondu à temps.",
     tableShow: "Afficher les jours avec incident dans un tableau",
     tableCaption: "{component} : jours avec incident sur les 90 derniers jours",
@@ -345,7 +345,7 @@ export const fr: Catalogue = {
   },
   components: {
     title: "Services",
-    intro: "Ce qu’utilisent vos clients, dans l’ordre où ils le voient. Un groupe rassemble plusieurs services sous un même nom. L’état d’un service change avec un incident : publiez-en un pour le montrer perturbé ou en panne.",
+    intro: "Ce qu’utilisent vos clients, dans l’ordre où ils le voient. Un groupe rassemble plusieurs services sous un même nom. L’état d’un service change avec un incident : publiez-en un pour le montrer perturbé ou en panne.",
     add: "Ajouter un service",
     addGroup: "Ajouter un groupe",
     name: "Nom",

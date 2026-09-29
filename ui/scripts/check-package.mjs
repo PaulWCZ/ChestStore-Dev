@@ -18,15 +18,15 @@ const name = manifest.name;
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json" && !key.endsWith(".css"));
 const expected = {
   color: ["colourWord", "contrast", "fit", "hex", "hueDistance", "inGamut", "luminance", "mix", "oklch", "oklchHex", "oklchToRgb", "parseColor", "rgbToOklch", "toHex"],
-  contract: ["allTokens", "categories", "categoryFamilies", "checkPalette", "checkTheme", "colorTokens", "controlHeight", "effectTokens", "pairs", "paletteLimits", "ratios", "staticTokens", "themeIdPattern", "validateTheme"],
+  contract: ["allTokens", "categories", "categoryFamilies", "checkPalette", "checkTheme", "colorTokens", "controlHeight", "effectTokens", "optionalColorTokens", "pairs", "paletteLimits", "ratios", "schemeWithDefaults", "staticTokens", "themeIdPattern", "validateTheme"],
   fonts: ["closestFont", "familyPattern", "font", "fontBasePattern", "fontFaces", "fontFiles", "fontUrlPattern", "registry", "stackPattern", "systemFont", "systemStacks", "unicodeRangePattern", "uploadedFont"],
   themes: ["catalogue", "catalogueFonts", "identityOf", "themeOf", "themes"],
   derive: ["BrandError", "deriveTheme", "logoUrlPattern"],
   import: ["importBrand", "maxImportSize"],
   runtime: ["lookColors", "lookCss", "lookNotes", "nonceOf", "resolveTheme", "themeStyle"],
   react: ["ThemeStyle"],
-  components: ["AppShell", "AutoRefresh", "Avatar", "AvatarStack", "BrandMark", "Calendar", "Confirm", "DataTable", "DateField", "DateRangeField", "DayStrip", "Dialog", "EmptyState", "FilePicker", "Filters", "LanguageSwitch", "MemberChip", "Menu", "MonthField", "Nav", "NavLink", "NoAccess", "PageHeader", "PeoplePicker", "SearchBox", "Segmented", "StatusBadge", "Switch", "Tabs", "TimeSelect", "Toasts", "filesReady", "useAutoRefresh", "useDismissToast", "useFloat", "useToast"],
-  "components/logic": ["acceptText", "accepts", "activeFilters", "addDays", "addMonths", "addYearMonths", "ariaSort", "calendarKey", "checkFiles", "clampDate", "clearHref", "compareText", "compareValues", "cx", "dateWords", "daysBetween", "daysInMonth", "durations", "en", "endOfDay", "expired", "fileSize", "fill", "filterHref", "fold", "formatDate", "fr", "initials", "isCurrent", "isEditable", "isIsoDate", "isYearMonth", "isoOf", "kitWords", "latestUndo", "listKey", "localSearch", "matches", "menuKey", "monthGrid", "monthsFrom", "moveEnd", "moveRangeEnd", "moveRangeStart", "moveStart", "nextSort", "paramEntries", "paramOf", "paramValues", "parseDate", "parseTime", "partsOf", "plural", "putWithProgress", "rangeDays", "refusalText", "relativeDay", "rememberRecent", "searchChoices", "settleUndo", "sortRows", "startOfWeek", "storeLanguages", "tabKey", "timeOptions", "timeText", "toastReducer", "weekday", "weekdayHeads", "wordsFor"],
+  components: ["AppShell", "AutoRefresh", "Avatar", "AvatarStack", "BrandMark", "Calendar", "Checkbox", "Confirm", "DataTable", "DateField", "DateRangeField", "DayStrip", "Dialog", "EmptyState", "FilePicker", "Filters", "LanguageSwitch", "MemberChip", "Menu", "MonthField", "Nav", "NavLink", "NoAccess", "PageHeader", "PeoplePicker", "SearchBox", "Segmented", "StatusBadge", "Switch", "Tabs", "TimeSelect", "Toasts", "filesReady", "storedFile", "useAutoRefresh", "useDismissToast", "useFloat", "useToast"],
+  "components/logic": ["acceptText", "accepts", "activeFilters", "addDays", "addMonths", "addYearMonths", "ariaSort", "calendarKey", "checkFiles", "clampDate", "clearHref", "clearValues", "compareText", "compareValues", "cx", "dateWords", "daysBetween", "daysInMonth", "durations", "en", "endOfDay", "expired", "fileSize", "fill", "filterHref", "filterValues", "fold", "formatDate", "fr", "initials", "isCurrent", "isEditable", "isIsoDate", "isYearMonth", "isoOf", "kitWords", "latestUndo", "listKey", "localSearch", "matches", "menuKey", "monthGrid", "monthsFrom", "moveEnd", "moveRangeEnd", "moveRangeStart", "moveStart", "nextSort", "paramEntries", "paramOf", "paramValues", "parseDate", "parseTime", "partsOf", "plural", "putWithProgress", "rangeDays", "refusalText", "relativeDay", "rememberRecent", "searchChoices", "settleUndo", "sortRows", "startOfWeek", "storeLanguages", "storedFile", "tabKey", "timeOptions", "timeText", "toastReducer", "weekday", "weekdayHeads", "wordsFor"],
 };
 // Subpaths the root must not re-export (React, or the components' own helpers).
 const notInRoot = new Set(["react", "components", "components/logic"]);
@@ -48,7 +48,8 @@ try {
   for (const file of ["index", "toast", "dialog", "people-picker", "date-field", "month-field", "file-picker", "data-table", "menu", "filters", "bits", "shell"]) assert.ok(readFileSync(join(root, "dist", "components", file + ".js"), "utf8").startsWith('"use client";'), `dist/components/${file}.js starts with "use client"`);
   for (const file of ["logic", "words", "text", "dates", "time", "people", "keys", "toast-state", "files", "lists"]) assert.ok(!/^\s*["']use client["']/u.test(readFileSync(join(root, "dist", "components", file + ".js"), "utf8")), `dist/components/${file}.js is server-safe`);
   assert.ok(!shipped.some(p => p.endsWith(".woff2")), "no font file in the package");
-  assert.ok(packed.size < 300_000, `the package stays small (${packed.size} bytes)`);
+  // 0.2.2 packed 292 KB, 0.2.3 308 KB (sources and maps of every component ship with it).
+  assert.ok(packed.size < 350_000, `the package stays small (${packed.size} bytes)`);
   for (const target of Object.values(manifest.exports).filter(e => typeof e !== "string" || !e.endsWith(".css")).flatMap(e => (typeof e === "string" ? [e] : Object.values(e)))) assert.ok(shipped.includes(target.slice(2)), `export target missing: ${target}`);
 
   const cssTarget = manifest.exports["./components.css"];

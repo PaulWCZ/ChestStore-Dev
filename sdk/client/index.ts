@@ -18,3 +18,4 @@ export * as chest from "./src/chest.js";
 export * as visitors from "./src/visitors.js";
 export * as checks from "./src/checks.js";
 export * as calendar from "./src/calendar.js";
+export * as webhooks from "./src/webhooks.js";

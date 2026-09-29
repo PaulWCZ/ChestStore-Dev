@@ -1,12 +1,14 @@
 import { NoAccess } from "@argentic/chest-ui/components";
 import { can } from "../../../lib/access.ts";
-import { bankViews } from "../../../lib/bank.ts";
+import { bankViews, type BankView } from "../../../lib/bank.ts";
+import { addressCountries } from "../../../lib/iban.ts";
+import { countryOptions } from "../../../lib/words.ts";
 import { db } from "../../../lib/db.ts";
 import { paidRecently, toPay, totals, warnings, type Expense } from "../../../lib/expenses.ts";
-import { format, formatDate, plural, relative } from "../../../lib/i18n/index.ts";
+import { format, formatDate, languageNames, plural, relative } from "../../../lib/i18n/index.ts";
 import { today } from "../../../lib/model.ts";
 import { formatMoney } from "../../../lib/money.ts";
-import { readiness, runs } from "../../../lib/payments.ts";
+import { readiness, remittance, runs } from "../../../lib/payments.ts";
 import { nameOf, people } from "../../../lib/people.ts";
 import { rowView } from "../../../lib/rows.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -26,7 +28,7 @@ export default async function Pay() {
   if (!can(member, "pay")) return <div className="page"><NoAccess title={t.noAccess.title} body={t.errors.forbidden} /></div>;
   const sql = db();
   const [list, recent, cats, company, ready, files] = await Promise.all([toPay(sql, member), paidRecently(sql, member), categories(sql, { archived: true }), settings(sql), readiness(sql, member), runs(sql, member)]);
-  const [who, banks, warned] = await Promise.all([people([...list, ...recent].map(e => e.owner)), bankViews(sql, member, [...new Set(list.map(e => e.owner))]), warnings(sql, list, { anyone: true })]);
+  const [who, banks, warned, companyBank] = await Promise.all([people([...list, ...recent].map(e => e.owner)), bankViews(sql, member, [...new Set(list.map(e => e.owner))]), warnings(sql, list, { anyone: true }), bankViews(sql, member, ["company"]).then(m => m.get("company") ?? null)]);
   const flat = new Map((await allowances(sql, { archived: true })).map(a => [a.id, a]));
   const ctx = { t, locale, allowances: flat, categories: new Map(cats.map(c => [c.id, c])), currency: company.currency, warnings: new Map([...warned].map(([id, w]) => [id, w.filter(x => x.code === "no_rate")])) };
   const money = (l: Expense[]) => totals(l).map(x => formatMoney(x.amount, x.currency, locale)).join(" + ");
@@ -36,6 +38,10 @@ export default async function Pay() {
   // In the file: people with an account of the SEPA zone, their expenses
   // with an amount in euros.
   const inFile = (l: Expense[]) => l.filter(e => e.base !== null && e.baseCurrency === "EUR");
+  // An account outside the EEA goes in the file with its postal address
+  // and the company's; without them, it waits (and says why).
+  const addressProblem = (b: BankView | undefined): string | null =>
+    !b || !b.sepa || !b.needsAddress ? null : !b.address ? t.pay.addressMissing : !companyBank?.address ? t.pay.companyAddressMissing : null;
   const groups: PayGroup[] = [...byOwner].map(([owner, l]) => {
     const bank = banks.get(owner);
     return {
@@ -45,10 +51,10 @@ export default async function Pay() {
       total: money(l),
       summary: plural(t.approve.summary, l.length, locale, { total: money(l) }),
       rows: l.map(e => rowView(e, ctx)),
-      bank: bank ? { masked: bank.masked, bic: bank.bic, holder: bank.holder, since: relative(bank.updatedAt, locale), sepa: bank.sepa, changed: now - Date.parse(bank.updatedAt) < recentChange ? format(t.pay.changed, { when: relative(bank.updatedAt, locale) }) : null } : null,
+      bank: bank ? { masked: bank.masked, bic: bank.bic, holder: bank.holder, since: relative(bank.updatedAt, locale), sepa: bank.sepa, problem: addressProblem(bank), country: bank.country, address: bank.address, needsAddress: bank.needsAddress, changed: now - Date.parse(bank.updatedAt) < recentChange ? format(t.pay.changed, { when: relative(bank.updatedAt, locale) }) : null } : null,
     };
   });
-  const payable = ready === "ready" ? [...byOwner].filter(([owner]) => banks.get(owner)?.sepa).map(([, l]) => inFile(l)).filter(l => l.length > 0) : [];
+  const payable = ready === "ready" ? [...byOwner].filter(([owner]) => banks.get(owner)?.sepa && addressProblem(banks.get(owner)) === null).map(([, l]) => inFile(l)).filter(l => l.length > 0) : [];
   const fileTotal = payable.reduce((sum, l) => sum + l.reduce((s, e) => s + (e.base ?? 0), 0), 0);
   const grand = money(list);
   return (
@@ -62,7 +68,8 @@ export default async function Pay() {
       <PayView
         groups={groups}
         ready={ready}
-        preview={payable.length > 0 ? { count: payable.length, label: plural(t.pay.make, payable.length, locale, { total: formatMoney(fileTotal, "EUR", locale) }) } : null}
+        preview={payable.length > 0 ? { count: payable.length, label: plural(t.pay.make, payable.length, locale, { total: formatMoney(fileTotal, "EUR", locale) }), statement: format(t.pay.statementText, { text: remittance(company.bankLocale, "E12"), language: languageNames[company.bankLocale] ?? company.bankLocale }) } : null}
+        countries={countryOptions(addressCountries, locale)}
         files={files.map(f => ({ id: f.id, cancelled: f.cancelled, title: format(t.pay.fileFor, { date: formatDate(f.executionDate + "T12:00:00Z", locale, { day: "numeric", month: "long" }) }), sub: `${plural(t.pay.fileCount, f.count, locale)} · ${formatMoney(f.total, f.currency, locale)}` }))}
         recent={recent.map(e => ({ ...rowView(e, { ...ctx, who: nameOf(who.get(e.owner), locale) }), sub: [nameOf(who.get(e.owner), locale), e.paidOn ? formatDate(e.paidOn + "T12:00:00Z", locale, { day: "numeric", month: "short" }) : ""].filter(Boolean).join(" · ") }))}
         today={today()}

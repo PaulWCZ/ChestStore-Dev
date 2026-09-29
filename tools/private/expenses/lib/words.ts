@@ -40,3 +40,10 @@ export function allowanceDetail(units: number, unit: string, unitAmount: string,
   const u = unit as keyof Catalogue["allowance"]["units"];
   return plural(t.allowance.detail, units, locale, { unit: t.allowance.units[u] ?? unit, units: t.allowance.plural[u] ?? unit, amount: unitAmount });
 }
+
+// Country names in the reader's language (Intl), sorted for a select:
+// computed on the server and handed to the view as plain options.
+export function countryOptions(codes: readonly string[], locale: string): { value: string; label: string }[] {
+  const names = new Intl.DisplayNames([locale], { type: "region" });
+  return codes.map(code => ({ value: code, label: names.of(code) ?? code })).sort((a, b) => a.label.localeCompare(b.label, locale));
+}

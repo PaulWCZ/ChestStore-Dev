@@ -105,6 +105,21 @@ test("HR, or the person's approver, records leave for them: approved at once, th
   await assert.rejects(requests.createRequest(sql, asMember(camille), { typeId: paid, ...week(monday), memberId: hugo.id }), refused("overlap_someone"));
 });
 
+test("a family event for someone part-time counts only the days they work, not the paid-leave rule (Mon–Wed, Mon 2 – Thu 5: 3 days, not 5)", async () => {
+  const { sql } = database;
+  const monday = quietMonday(120);
+  await setWorkDays(sql, asMember(camille), lea.id, [1, 2, 3]);
+  try {
+    const q = await requests.quote(sql, asMember(lea), { typeId: family, start: monday, startHalf: "am", end: addDays(monday, 3), endHalf: "pm", event: "wedding" });
+    assert.equal(q.days, 3);
+    // Paid leave over the same days keeps the legal rule: to the day before she is back.
+    const p = await requests.quote(sql, asMember(lea), { typeId: paid, start: monday, startHalf: "am", end: addDays(monday, 2), endHalf: "pm" });
+    assert.equal(p.days, 5);
+  } finally {
+    await setWorkDays(sql, asMember(camille), lea.id, null);
+  }
+});
+
 test("a family event says which one; a kind that may not go below zero refuses more than is left", async () => {
   const { sql } = database;
   const monday = quietMonday(90);

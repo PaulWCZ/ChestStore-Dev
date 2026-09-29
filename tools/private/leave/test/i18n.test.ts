@@ -43,6 +43,11 @@ test("plurals, half days and dates follow the language", () => {
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");
   assert.equal(formatDay("2026-10-05", "en"), "Mon 5 Oct");
   assert.equal(formatDay("2026-10-05", "fr"), "lun. 5 oct.");
+  // French writes the first of a month "1er".
+  assert.equal(formatDay("2026-06-01", "fr", { day: "numeric", month: "long", year: "numeric" }), "1er juin 2026");
+  assert.equal(formatDay("2026-10-01", "fr"), "jeu. 1er oct.");
+  assert.equal(formatDay("2026-06-01", "en", { day: "numeric", month: "long" }), "1 June");
+  assert.equal(formatDay("2026-06-01", "fr", { month: "long" }), "juin");
   const span = { start: "2026-10-05", startHalf: "pm" as const, end: "2026-10-09", endHalf: "am" as const };
   assert.equal(spanText(span, "en", en.span), "Mon 5 Oct, from noon – Fri 9 Oct, until noon");
   assert.equal(spanText({ ...span, end: "2026-10-05", endHalf: "pm" }, "fr", catalogue("fr").span), "lun. 5 oct. après-midi");

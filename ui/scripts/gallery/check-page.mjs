@@ -73,6 +73,32 @@ if (sw > 390) problems.push("sideways scroll on a phone");
 const past = await phone.evaluate(() => [...document.querySelectorAll(".ck-bar, .ck-bar *")].filter(e => e.getClientRects().length > 0).map(e => [e, e.getBoundingClientRect()]).filter(([, r]) => r.right > window.innerWidth + 0.5 || r.left < -0.5).map(([e, r]) => `${e.tagName.toLowerCase()}.${e.className} ${Math.round(r.left)}–${Math.round(r.right)}`));
 console.log("phone header past the edge:", past);
 if (past.length) problems.push("the header reaches past a phone's edge: " + past.join(", "));
+// A section's name never breaks inside a word on a phone (0.2.3: "Entrepris/es"
+// in a wide brand face): it wraps at its spaces, a word too wide ends in
+// "…"; played in every look, in both languages, at 390 and 320 px, and in
+// a wide face (DejaVu Sans, wider than any registered body face).
+for (const width of [390, 320]) for (const wide of [false, true]) for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) for (const lang of ["en", "fr"]) {
+  await phone.setViewportSize({ width, height: 900 });
+  await phone.click(`[data-theme="${theme}"]`); await phone.click(`[data-lang="${lang}"]`);
+  await phone.evaluate(w => { for (const s of document.querySelectorAll("#stage .bench")) s.style.setProperty("--font-body", w ? "'DejaVu Sans', Verdana, sans-serif" : ""); }, wide);
+  const broken = await phone.evaluate(() => [...document.querySelectorAll("#stage .ck-nav-label")].filter(l => l.offsetParent !== null).flatMap(label => {
+    const text = label.firstChild;
+    if (!text || text.nodeType !== Node.TEXT_NODE) return [];
+    const out = [];
+    let at = 0;
+    for (const word of text.data.split(" ")) {
+      const range = document.createRange(); range.setStart(text, at); range.setEnd(text, at + word.length);
+      const tops = new Set([...range.getClientRects()].filter(r => r.width > 0).map(r => Math.round(r.top)));
+      if (tops.size > 1) out.push(`"${word}" of "${text.data}"`);
+      at += word.length + 1;
+    }
+    return out;
+  }));
+  if (broken.length) problems.push(`a section's name breaks inside a word (${theme} ${lang} ${width}px${wide ? ", wide face" : ""}): ${broken.join(", ")}`);
+}
+await phone.evaluate(() => { for (const s of document.querySelectorAll("#stage .bench")) s.style.removeProperty("--font-body"); });
+await phone.setViewportSize({ width: 390, height: 900 });
+await phone.click('[data-theme="library"]'); await phone.click('[data-lang="fr"]');
 // Five sections with counts on a phone: a count never covers its icon (Expenses).
 const covered = await phone.evaluate(() => [...document.querySelectorAll(".ck-nav-link")].filter(a => a.querySelector(".ck-count") && a.querySelector(".ck-nav-icon") && a.offsetParent !== null).filter(a => {
   const c = a.querySelector(".ck-count").getBoundingClientRect(), i = a.querySelector(".ck-nav-icon svg").getBoundingClientRect();

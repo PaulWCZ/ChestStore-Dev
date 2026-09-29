@@ -111,7 +111,7 @@ export async function setVehicle(input: { kind: string; power: string; electric:
   });
 }
 
-export async function updateCompany(input: { currency?: string; reminder?: boolean; setupDone?: boolean; journal?: Partial<settings.Journal>; payer?: string }): Promise<Result> {
+export async function updateCompany(input: { currency?: string; reminder?: boolean; setupDone?: boolean; journal?: Partial<settings.Journal>; payer?: string; bankLocale?: string }): Promise<Result> {
   return act(async actor => { await settings.updateSettings(db(), actor, input); return null; });
 }
 
@@ -146,7 +146,7 @@ export async function saveScale(year: number, data: unknown, source: string): Pr
 
 // Bank details: the actor's own ("me"), a person's (accountants), the
 // company's ("company"). Answers what the page shows: the masked account.
-export async function saveBank(owner: string, input: { iban: string; bic?: string; holder?: string }): Promise<Result<{ masked: string }>> {
+export async function saveBank(owner: string, input: { iban: string; bic?: string; holder?: string; street?: string; postcode?: string; town?: string; addressCountry?: string }): Promise<Result<{ masked: string }>> {
   return act(async actor => {
     const target = owner === "me" ? actor.id : owner;
     const saved = await bank.setBankDetails(db(), actor, target, input);

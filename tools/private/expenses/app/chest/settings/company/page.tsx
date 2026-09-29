@@ -9,10 +9,12 @@ import { vehicleKinds } from "../../../../lib/scale.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { allowanceUnits, allowances, approverMap, categories, memberAccounts, rates, scaleFor, scales, settings, vehicles } from "../../../../lib/settings.ts";
 import { rateText } from "../../../../lib/money.ts";
-import { bankDetails } from "../../../../lib/bank.ts";
-import { relative } from "../../../../lib/i18n/index.ts";
+import { bankCurrent, bankDetails } from "../../../../lib/bank.ts";
+import { addressCountries } from "../../../../lib/iban.ts";
+import { languageNames, locales } from "../../../../lib/i18n/index.ts";
+import { remittance } from "../../../../lib/payments.ts";
 import { sealing } from "../../../../lib/seal.ts";
-import { allowanceName, categoryName, powerName, vehicleName } from "../../../../lib/words.ts";
+import { allowanceName, categoryName, countryOptions, powerName, vehicleName } from "../../../../lib/words.ts";
 import { SettingsNav } from "../settings-nav.tsx";
 import { CompanyView } from "../settings-view.tsx";
 
@@ -43,7 +45,10 @@ export default async function CompanySettings() {
         company={{
           team: everyone.map(h => ({ id: h.id, name: h.name })),
           payer: company.payer,
-          bank: bank && { masked: bank.masked, bic: bank.bic, holder: "", since: relative(bank.updatedAt, locale) },
+          bank: bankCurrent(bank, locale),
+          countries: countryOptions(addressCountries, locale),
+          bankLocale: company.bankLocale,
+          bankTexts: locales.map(l => ({ value: l, label: languageNames[l] ?? l, sample: remittance(l, "E12 E13") })),
           sealed: sealing(),
           journal: company.journal,
           vehicles: cars.map(c => ({ member: c.member, name: names.get(c.member) ?? t.people.unknown, label: `${vehicleName(c.kind, t)} · ${powerName(c.kind, c.power, t)}${c.electric ? " · " + t.trip.electric : ""}`, proof: c.proof ? `/chest/vehicles/${c.member}/proof` : null, checked: c.checked }))

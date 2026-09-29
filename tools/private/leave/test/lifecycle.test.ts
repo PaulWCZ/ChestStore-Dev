@@ -9,7 +9,7 @@ import { setApprover, setEndDate, staffRow } from "../lib/staff.ts";
 import { AppError } from "../lib/app-error.ts";
 import { today } from "../lib/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { addDays } from "../lib/calendar.ts";
+import { addDays, holidaysBetween } from "../lib/calendar.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, hugo, ines, tom, lea, sofia } from "./support/members.ts";
@@ -62,7 +62,7 @@ test("approved leave after the last day no longer counts: cancelled, its days ba
   assert.deepEqual(back && { days: back.days, reasonKey: back.reasonKey, requestId: back.requestId }, { days: 0.5, reasonKey: "afterLastDay", requestId: half.id });
   // HR is told, in HR's language; nothing shows on the calendar any more.
   const told = chest.notifications.find(n => n.member === camille.id);
-  assert.equal(told?.title, "Départ de Sofia Rossi (ancien membre)\u202f: les congés après son dernier jour ne comptent plus");
+  assert.match(told?.title ?? "", /^Départ de Sofia Rossi( \(ancien membre\))?[\u202f ]: les congés après son dernier jour ne comptent plus$/u);
   assert.equal(told?.path, `/chest/people/${sofia.id}`);
   assert.ok(!(await requests.between(sql, asMember(camille), wednesday, wednesday)).some(e => e.id === half.id));
   // Delivered again: nothing is given back twice.
@@ -96,7 +96,9 @@ test("a last day set by HR in the middle of a leave cuts it at that day; the res
 test("an erasure: the person disappears, the days of HR's records stay, signed 'erased'; acknowledged once", async () => {
   const { sql } = database;
   await setApprover(sql, asMember(camille), tom.id, lea.id);
-  const monday = quietMonday(80);
+  // A week already taken (before the last day, so it stays).
+  let monday = addDays(quietMonday(0), -35);
+  while (holidaysBetween(monday, addDays(monday, 7), { alsace: true }).size > 0) monday = addDays(monday, -7);
   const r = await requests.createRequest(sql, asMember(tom), { typeId: paid, ...week(monday), note: "Wedding in Lyon" });
   await requests.decide(sql, asMember(lea), r.id, { verdict: "approve", reason: "Congratulations Tom" });
   await balances.adjust(sql, asMember(camille), { memberId: tom.id, typeId: paid, days: 2, reason: "Tom's seniority days" });

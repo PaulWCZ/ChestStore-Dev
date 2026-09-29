@@ -41,6 +41,9 @@ test("a fresh tool: jours ouvrés, 1 June, seven kinds of leave, paid leave earn
   // counted on worked days, and is not an absence.
   const family = all[5]!;
   assert.ok(family.approval && !family.halfDays && !family.balance && family.away);
+  // … and count only the days the person works (art. L3142-4 covers the
+  // days they would have worked), not the paid-leave rule.
+  assert.equal(family.counting, "worked");
   const remote = all[6]!;
   assert.ok(!remote.approval && !remote.away && remote.counting === "worked");
 });

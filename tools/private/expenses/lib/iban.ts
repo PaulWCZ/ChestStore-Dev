@@ -84,3 +84,7 @@ export function countryCode(value: unknown): string | null {
   const code = value.trim().toUpperCase();
   return /^[A-Z]{2}$/u.test(code) ? code : null;
 }
+
+// The countries a postal address may be in, as the bank details form
+// offers them: the SEPA zone's, then a few others people often live in.
+export const addressCountries: readonly string[] = [...Object.keys(sepaLengths), "US", "CA", "MA", "TN", "DZ", "SN", "CI", "JP", "AU"];

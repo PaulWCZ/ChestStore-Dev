@@ -77,7 +77,7 @@ anything touching numbering), `npm run build`, the studio's
 - Identity only from `member(request)`; store `mbr_…` ids; rights in
   `lib/access.ts` with a test per role.
 - Words only in `lib/i18n/*` (the tests look for words in `.tsx` files);
-  `node scripts/lint-words.mjs tools/private/quotes` stays at 0 (the
+  `node scripts/lint-words.mjs tools/public-and-private/quotes` stays at 0 (the
   store's glossary: Undo « Annuler l’action », Delete « Supprimer »,
   narrow no-break spaces in French).
 - The look: CSS names only contract tokens (`@argentic/chest-ui`,

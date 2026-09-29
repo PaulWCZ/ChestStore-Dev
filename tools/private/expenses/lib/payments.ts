@@ -2,11 +2,11 @@ import { randomBytes } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
-import { openIban, sealedAccounts } from "./bank.ts";
+import { openIban, sealedAccounts, type Address } from "./bank.ts";
 import type { Query, Sql } from "./db.ts";
 import { expensesByIds, type Decision } from "./expenses.ts";
 import { catalogue, format, type Locale } from "./i18n/index.ts";
-import { sepaCountry } from "./iban.ts";
+import { needsAddress, sepaCountry } from "./iban.ts";
 import { day, today } from "./model.ts";
 import { nameOf, people } from "./people.ts";
 import { pain001 } from "./sepa.ts";
@@ -19,8 +19,15 @@ import { settings } from "./settings.ts";
 // marks them paid on that day (Undo cancels it) and keeps what the file
 // says, so it can be downloaded again, identical.
 
-type FileTransfer = { member: string; iban: string; bic: string | null; holder: string; amount: number; ids: string[] };
-type FileBody = { payer: { iban: string; bic: string | null; name: string }; transfers: FileTransfer[] };
+type FileTransfer = { member: string; iban: string; bic: string | null; holder: string; amount: number; ids: string[]; address?: Address | null };
+type FileBody = { payer: { iban: string; bic: string | null; name: string; address?: Address | null }; transfers: FileTransfer[] };
+
+// Why a person is not in a transfer file: no account in the SEPA zone; an
+// account outside the EEA without its postal address; or the company's
+// own address missing (it goes with those transfers). Paid by hand, or
+// once the details are there.
+export type SkipReason = "no_bank" | "address" | "company_address";
+export type Skipped = { member: string; reason: SkipReason };
 
 export type Run = { id: string; messageId: string; executionDate: string; count: number; total: number; currency: string; createdAt: string; createdBy: string; cancelled: boolean };
 type RunRow = { id: string; message_id: string; execution_date: string; count: number; total_cents: string; currency: string; created_at: Date; created_by: string; cancelled_at: Date | null; file: FileBody };
@@ -45,11 +52,13 @@ function executionDay(value: unknown, now = today()): string {
   return d;
 }
 
-export type Created = { run: Run; decisions: Decision[]; skipped: string[] };
+export type Created = { run: Run; decisions: Decision[]; skipped: Skipped[] };
 
 // createRun makes the batch for the people chosen (all when none is named)
 // and marks their expenses paid on the execution day. People without bank
-// details in the SEPA zone are skipped (and named: paid by hand, or later).
+// details in the SEPA zone, or without the postal address a transfer
+// outside the EEA carries, are skipped (and named, with the reason: paid by
+// hand, or later).
 export async function createRun(sql: Sql, actor: Member | null, input: { members?: unknown; executionDate?: unknown }): Promise<Created> {
   if (!can(actor, "pay")) throw new AppError("forbidden");
   const ready = await readiness(sql, actor);
@@ -75,18 +84,31 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
       byMember.set(r.member_id, line);
     }
     const transfers: FileTransfer[] = [];
-    const skipped: string[] = [];
+    const skipped: Skipped[] = [];
     for (const [member, line] of byMember) {
       const account = accounts.get(member);
       if (!account || !sepaCountry(account.country)) {
-        skipped.push(member);
+        skipped.push({ member, reason: "no_bank" });
         continue;
       }
-      transfers.push({ member, iban: account.iban, bic: account.bic, holder: account.holder, amount: line.amount, ids: line.ids });
+      const far = needsAddress(account.country);
+      if (far && !account.address) {
+        skipped.push({ member, reason: "address" });
+        continue;
+      }
+      if (far && !payer.address) {
+        skipped.push({ member, reason: "company_address" });
+        continue;
+      }
+      transfers.push({ member, iban: account.iban, bic: account.bic, holder: account.holder, amount: line.amount, ids: line.ids, address: far ? account.address : null });
     }
-    if (transfers.length === 0) throw new AppError(byMember.size === 0 ? "nothing_to_pay" : "no_bank_details");
+    if (transfers.length === 0) {
+      if (byMember.size === 0) throw new AppError("nothing_to_pay");
+      throw new AppError(skipped.every(s => s.reason === "no_bank") ? "no_bank_details" : "address_needed");
+    }
     const total = transfers.reduce((sum, t) => sum + t.amount, 0);
-    const file: FileBody = { payer: { iban: payer.iban, bic: payer.bic, name: company.payer }, transfers };
+    // The payer's address goes in the file when a transfer leaves the EEA.
+    const file: FileBody = { payer: { iban: payer.iban, bic: payer.bic, name: company.payer, address: transfers.some(t => t.address) ? payer.address : null }, transfers };
     // The message id names the batch for good (a bank refuses a second file
     // with the same one): the day and a random part, unique here.
     const messageId = `EXP-${execution.replaceAll("-", "")}-${randomBytes(4).toString("hex").toUpperCase()}`;
@@ -133,7 +155,8 @@ export async function runs(sql: Query, actor: Member | null): Promise<Run[]> {
 // runFile writes the batch's file again, exactly as it was made (the same
 // message id: a bank refuses a file it already received). The names are
 // the account holder's when given, else the person's in the Chest; the
-// remittance text says which expenses, in the payee's language.
+// remittance text says which expenses, in the company's language (the one
+// its bank statements speak: Settings → Company).
 export async function runFile(sql: Query, actor: Member | null, runValue: unknown): Promise<{ xml: string; fileName: string }> {
   if (!can(actor, "pay")) throw new AppError("forbidden");
   const runId = typeof runValue === "string" && /^[1-9][0-9]{0,17}$/u.test(runValue) ? runValue : null;
@@ -145,21 +168,28 @@ export async function runFile(sql: Query, actor: Member | null, runValue: unknow
   const file = row.file;
   if (file.transfers.some(t => t.member === "erased" || t.iban === "")) throw new AppError("file_gone");
   const who = await people(file.transfers.map(t => t.member));
+  const { bankLocale } = await settings(sql);
   const transfers = file.transfers.map((t, i) => {
     const person = who.get(t.member);
-    const locale: Locale = person?.locale === "fr" ? "fr" : "en";
     const refs = t.ids.map(id => "E" + id).join(" ");
     return {
       endToEnd: `${row.message_id}-${i + 1}`,
       amount: t.amount,
-      name: t.holder || nameOf(person, locale),
+      name: t.holder || nameOf(person, bankLocale),
       iban: openIban(t.iban, t.member),
       bic: t.bic,
-      text: format(catalogue(locale).pay.remittance, { refs }),
+      address: t.address ?? null,
+      text: remittance(bankLocale, refs),
     };
   });
-  const xml = pain001({ messageId: row.message_id, createdAt: row.created_at, payer: { name: file.payer.name, iban: openIban(file.payer.iban, "company"), bic: file.payer.bic }, executionDate: row.execution_date, transfers });
+  const xml = pain001({ messageId: row.message_id, createdAt: row.created_at, payer: { name: file.payer.name, iban: openIban(file.payer.iban, "company"), bic: file.payer.bic, address: file.payer.address ?? null }, executionDate: row.execution_date, transfers });
   return { xml, fileName: `${row.message_id}.xml` };
+}
+
+// The text on the payee's bank statement ("Notes de frais E6 E7"), in the
+// language chosen for the bank (140 characters at most in the file).
+export function remittance(locale: Locale, refs: string): string {
+  return format(catalogue(locale).pay.remittance, { refs });
 }
 
 // An erased person's account leaves the batches too: those files can no
@@ -167,7 +197,7 @@ export async function runFile(sql: Query, actor: Member | null, runValue: unknow
 export async function forgetInRuns(sql: Query, member: string): Promise<void> {
   const rows = await sql<{ id: string; file: FileBody }[]>`select id, file from payment_runs where file -> 'transfers' @> ${sql.json([{ member }] as never)}`;
   for (const r of rows) {
-    const file = { ...r.file, transfers: r.file.transfers.map(t => (t.member === member ? { ...t, member: "erased", iban: "", holder: "" } : t)) };
+    const file = { ...r.file, transfers: r.file.transfers.map(t => (t.member === member ? { ...t, member: "erased", iban: "", holder: "", address: null } : t)) };
     await sql`update payment_runs set file = ${sql.json(file as never)} where id = ${r.id}`;
   }
 }

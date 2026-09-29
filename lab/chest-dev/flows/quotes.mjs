@@ -247,7 +247,7 @@ await step("Hugo brings his clients from Axonaut: columns matched, first rows sh
   await page.goto(origin + "/chest/clients");
   await page.getByRole("link", { name: "Import a file" }).click();
   await page.waitForURL(/\/chest\/import\?kind=clients$/u);
-  await page.locator('input[type=file]').setInputFiles(new URL("../../../tools/private/quotes/test/fixtures/axonaut-clients.csv", import.meta.url).pathname);
+  await page.locator('input[type=file]').setInputFiles(new URL("../../../tools/public-and-private/quotes/test/fixtures/axonaut-clients.csv", import.meta.url).pathname);
   await page.waitForSelector(".mapping table");
   expect(await page.getByLabel("Where column SIRET goes").inputValue() === "siret", "SIRET recognised");
   expect((await page.locator(".preview table").innerText()).includes("Boulangerie Dupain SAS"), "preview");

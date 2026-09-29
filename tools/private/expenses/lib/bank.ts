@@ -5,6 +5,8 @@ import type { Query, Sql } from "./db.ts";
 import { checkBic, checkIban, countryCode, maskIban, needsAddress, sepaCountry } from "./iban.ts";
 import { clean, limits, memberId } from "./model.ts";
 import { seal, unseal } from "./seal.ts";
+import { relative, type Locale } from "./i18n/index.ts";
+import type { BankCurrent } from "../components/bank-form.tsx";
 
 // Bank details: each person's account, where their reimbursements go, and
 // the company's ("company"), where the transfer file takes them from.
@@ -64,7 +66,11 @@ export type BankInput = { iban?: unknown; bic?: unknown; holder?: unknown; stree
 export async function setBankDetails(sql: Sql, actor: Member | null, ownerValue: unknown, input: BankInput): Promise<BankView> {
   const owner = ownerOf(ownerValue);
   if (!mayReach(actor, owner)) throw new AppError("forbidden");
-  const checked = checkIban(input.iban);
+  // An empty IBAN keeps the one saved (the address, BIC or name change).
+  const keep = input.iban === undefined || input.iban === null || (typeof input.iban === "string" && input.iban.trim() === "");
+  const [saved] = keep ? await sql<Row[]>`select ${rowColumns(sql)} from bank_accounts where owner = ${owner}` : [];
+  if (keep && !saved) throw new AppError("iban_invalid");
+  const checked = saved ? { ok: true as const, iban: "", country: saved.country } : checkIban(input.iban);
   if (!checked.ok) throw new AppError(checked.reason === "checksum" ? "iban_checksum" : "iban_invalid");
   let bic: string | null = null;
   if (input.bic !== undefined && input.bic !== null && input.bic !== "") {
@@ -82,7 +88,7 @@ export async function setBankDetails(sql: Sql, actor: Member | null, ownerValue:
   if (needsAddress(checked.country) && (town === "" || addressCountry === null)) throw new AppError("address_needed");
   const [row] = await sql<Row[]>`
     insert into bank_accounts (owner, iban, last4, country, bic, holder, street, postcode, town, address_country, updated_by)
-    values (${owner}, ${seal(checked.iban, context(owner))}, ${checked.iban.slice(-4)}, ${checked.country}, ${bic}, ${holder}, ${street}, ${postcode}, ${town}, ${addressCountry}, ${actor!.id})
+    values (${owner}, ${saved ? saved.iban : seal(checked.iban, context(owner))}, ${saved ? saved.last4 : checked.iban.slice(-4)}, ${checked.country}, ${bic}, ${holder}, ${street}, ${postcode}, ${town}, ${addressCountry}, ${actor!.id})
     on conflict (owner) do update set iban = excluded.iban, last4 = excluded.last4, country = excluded.country, bic = excluded.bic, holder = excluded.holder,
       street = excluded.street, postcode = excluded.postcode, town = excluded.town, address_country = excluded.address_country,
       updated_by = excluded.updated_by, updated_at = now()
@@ -106,4 +112,9 @@ export async function sealedAccounts(sql: Query, owners: string[]): Promise<Map<
 
 export function openIban(sealed: string, owner: string): string {
   return unseal(sealed, context(owner));
+}
+
+// What the bank details form shows of a saved account (masked).
+export function bankCurrent(b: BankView | null, locale: Locale): BankCurrent {
+  return b && { masked: b.masked, country: b.country, bic: b.bic, holder: b.holder, since: relative(b.updatedAt, locale), address: b.address, needsAddress: b.needsAddress };
 }

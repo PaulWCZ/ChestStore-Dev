@@ -39,7 +39,7 @@ export const demoWords = {
     addRoom: "Add a room", emptyNote: "Only an admin adds rooms.", booking: "Bookings", upcoming: "Upcoming", past: "Past", cancelled: "Cancelled",
     view: "View", layout: "Layout (locked)", board: "Board", list: "List", morning: "Morning", afternoon: "Afternoon", allDay: "All day", when: "When",
     shell: "App shell and navigation", shellIntro: "Labelled tabs, never icons alone: in the header on a wide screen, in a row of their own on a phone. The page’s main action sits at the top.",
-    home: "Home", myTasks: "My tasks", boards: "Boards", settings: "Settings", manager: "Manager", newTask: "New task", tasksIntro: "What waits for you today.", language: "Language",
+    home: "Home", myTasks: "My tasks", boards: "Boards", companies: "Companies", settings: "Settings", manager: "Manager", newTask: "New task", tasksIntro: "What waits for you today.", language: "Language",
     noAccess: "When the role gives nothing",
     removeTemplate: "Delete the template", removeTemplateTitle: "Delete the “Sprint” template?", removeTemplateBody: "Boards made from it keep their columns.", templateRemoved: "Template deleted.",
     daysOff: "Days off", daysOffIntro: "Choose several days.", category: "Category", categories: ["Hardware", "Software", "Travel", "Training", "Office", "Other"],
@@ -76,7 +76,7 @@ export const demoWords = {
     addRoom: "Ajouter une salle", emptyNote: "Seul un administrateur ajoute des salles.", booking: "Réservations", upcoming: "À venir", past: "Passées", cancelled: "Annulées",
     view: "Affichage", layout: "Mise en page (verrouillée)", board: "Tableau", list: "Liste", morning: "Matin", afternoon: "Après-midi", allDay: "Journée", when: "Quand",
     shell: "Cadre et navigation", shellIntro: "Des onglets avec leurs mots, jamais des icônes seules : dans l’en-tête sur grand écran, sur une ligne à eux sur téléphone. L’action principale de la page est en haut.",
-    home: "Accueil", myTasks: "Mes tâches", boards: "Tableaux", settings: "Réglages", manager: "Responsable", newTask: "Nouvelle tâche", tasksIntro: "Ce qui vous attend aujourd’hui.", language: "Langue",
+    home: "Accueil", myTasks: "Mes tâches", boards: "Tableaux", companies: "Entreprises", settings: "Réglages", manager: "Responsable", newTask: "Nouvelle tâche", tasksIntro: "Ce qui vous attend aujourd’hui.", language: "Langue",
     noAccess: "Quand le rôle ne donne rien",
     removeTemplate: "Supprimer le modèle", removeTemplateTitle: "Supprimer le modèle « Sprint » ?", removeTemplateBody: "Les tableaux créés avec lui gardent leurs colonnes.", templateRemoved: "Modèle supprimé.",
     daysOff: "Jours de congé", daysOffIntro: "Choisissez plusieurs jours.", category: "Catégorie", categories: ["Matériel", "Logiciel", "Déplacement", "Formation", "Bureau", "Autre"],
@@ -435,6 +435,8 @@ function ShellDemo({ d, w, lang }) {
             { href: "/chest", label: d.home, icon: icon(<path d="M4 11l8-7 8 7v9H4z" />) },
             { href: "/chest/mine", label: d.myTasks, count: 4, icon: icon(<path d="M5 12l4 4 10-10" />) },
             { href: "/chest/boards", label: d.boards, icon: icon(<><rect x="4" y="4" width="7" height="16" rx="1" /><rect x="13" y="4" width="7" height="10" rx="1" /></>) },
+            // A long single word (0.2.3): never broken inside on a phone.
+            { href: "/chest/companies", label: d.companies, count: 12, icon: icon(<><rect x="4" y="8" width="16" height="12" rx="1" /><path d="M9 8V4h6v4" /></>) },
             { href: "/chest/settings", label: d.settings, icon: icon(<><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /></>) },
           ]}>
           <PageHeader title={d.myTasks} intro={d.tasksIntro} action={<button type="button" className="ck-button">{d.newTask}</button>} />

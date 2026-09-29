@@ -3,7 +3,7 @@
 import { Avatar, DateField, Dialog, EmptyState, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { BankForm } from "../../../components/bank-form.tsx";
+import { BankForm, type BankAddress } from "../../../components/bank-form.tsx";
 import { DateBox, RowStamp, Stamp, Thumb, Warning, Warnings } from "../../../components/bits.tsx";
 import { Check, Download, FileIcon, Wallet } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -12,7 +12,7 @@ import { formatMoney } from "../../../lib/money.ts";
 import type { RowView } from "../../../lib/rows.ts";
 import { cancelTransferFile, makeTransferFile, markPaid, unmarkPaid } from "../actions.ts";
 
-type Bank = { masked: string; bic: string | null; holder: string; since: string; sepa: boolean; changed: string | null };
+type Bank = { masked: string; country: string; bic: string | null; holder: string; since: string; sepa: boolean; changed: string | null; problem: string | null; address: BankAddress | null; needsAddress: boolean };
 export type PayGroup = { owner: string; name: string; photo: string | null; total: string; summary: string; rows: RowView[]; bank: Bank | null };
 type FileLine = { id: string; title: string; sub: string; cancelled: boolean };
 type Words = { pay: Catalogue["pay"]; errors: Catalogue["errors"]; bank: Catalogue["settings"]["bank"]; cancel: string; dialog: Catalogue["dialog"]; date: Catalogue["date"] };
@@ -27,10 +27,11 @@ function download(id: string) {
   a.remove();
 }
 
-export function PayView({ groups, ready, preview, files, recent, today, locale, t }: {
+export function PayView({ groups, ready, preview, files, recent, today, locale, countries, t }: {
   groups: PayGroup[];
   ready: "ready" | "sepa_currency" | "no_company_bank";
-  preview: { count: number; label: string } | null;
+  preview: { count: number; label: string; statement: string } | null;
+  countries: { value: string; label: string }[];
   files: FileLine[];
   recent: RowView[];
   today: string;
@@ -111,6 +112,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
           {ready === "ready" && preview && (
             <>
               <p className="hint">{t.pay.byFileBody}</p>
+              <p className="hint">{preview.statement} <a href="/chest/settings/company#bank">{t.pay.statementChange}</a></p>
               <form className="pay-form" onSubmit={e => { e.preventDefault(); makeFile(); }}>
                 <DateField id="execution" label={t.pay.execution} value={execution || null} onChange={d => setExecution(d ?? "")} today={today} min={today} labels={t.date} />
                 <button type="submit" className="button" disabled={pending}><Download />{preview.label}</button>
@@ -141,6 +143,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
               ? <span className="mono">{format(t.bank.current, { masked: g.bank.masked })}{!g.bank.sepa && <Warning text={t.pay.notSepa} />}</span>
               : <span className="hint">{t.pay.noBank}</span>}
             {g.bank?.changed && <Warning text={g.bank.changed} />}
+            {g.bank?.problem && <Warning text={g.bank.problem} />}
             <button type="button" className="link-button" onClick={() => setEditing(g)}>{g.bank ? t.pay.editBank : t.pay.addBank}<span className="visually-hidden"> · {g.name}</span></button>
           </div>
           <hr className="rule" />
@@ -164,7 +167,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
       {/* Someone's bank details: the kit's dialog, which asks before losing
           an IBAN being typed. */}
       <Dialog open={editing !== null} title={editing ? format(t.pay.bankFor, { name: editing.name }) : ""} onClose={() => { setEditing(null); setTyping(false); }} dirty={typing} labels={t.dialog}>
-        {editing && <BankForm owner={editing.owner} current={editing.bank && { masked: editing.bank.masked, bic: editing.bank.bic, holder: editing.bank.holder, since: editing.bank.since }} t={t.bank} errors={t.errors} save={t.pay.saveBank} cancel={t.cancel} idPrefix="person-bank" onDirty={setTyping} onDone={() => { setEditing(null); setTyping(false); }} />}
+        {editing && <BankForm owner={editing.owner} current={editing.bank && { masked: editing.bank.masked, country: editing.bank.country, bic: editing.bank.bic, holder: editing.bank.holder, since: editing.bank.since, address: editing.bank.address, needsAddress: editing.bank.needsAddress }} countries={countries} t={t.bank} errors={t.errors} save={t.pay.saveBank} cancel={t.cancel} idPrefix="person-bank" onDirty={setTyping} onDone={() => { setEditing(null); setTyping(false); }} />}
       </Dialog>
       {files.length > 0 && (
         <section className="section" aria-label={t.pay.files}>

@@ -31,9 +31,10 @@ const expected = {
   chest: ["company", "currency", "forgetTheme", "locale", "publicUrl", "readThemeChoice", "teamUrl", "theme", "themeIdPattern", "timeZone", "today"],
   visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
   checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
+  webhooks: ["add", "checkInput", "checkManifest", "checkMessage", "checkUrl", "deliveryIdPattern", "enable", "escapeSlack", "eventIdPattern", "format", "handle", "isPublicAddress", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "secretPattern", "send", "shownUrl", "sign", "targetIdPattern", "verify", "verifySignature", "webhookEventPattern"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
-const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors", "checks", "calendar"];
+const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors", "checks", "calendar", "webhooks"];
 const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing").flatMap(([, names]) => names), ...namespaces].sort();
 
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json");

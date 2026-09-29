@@ -28,6 +28,9 @@ type Company = {
   units: Option[];
   rates: { currency: string; rate: string }[];
   bank: BankCurrent;
+  countries: Option[];
+  bankLocale: string;
+  bankTexts: { value: string; label: string; sample: string }[];
   sealed: boolean;
   currency: string;
   currencies: string[];
@@ -69,7 +72,7 @@ export type VehicleData = {
 };
 
 // Settings → Me: what each person sets for themselves.
-export function MyView({ vehicle, bank, t, errors, cancel }: { vehicle: VehicleData; bank: BankCurrent; t: Words; errors: Errors; cancel: string }) {
+export function MyView({ vehicle, bank, countries, t, errors, cancel }: { vehicle: VehicleData; bank: BankCurrent; countries: Option[]; t: Words; errors: Errors; cancel: string }) {
   return (
     <div className="settings">
       <VehicleForm vehicle={vehicle} t={t} errors={errors} />
@@ -77,7 +80,7 @@ export function MyView({ vehicle, bank, t, errors, cancel }: { vehicle: VehicleD
         <h2 id="bank-title" className="section-title"><Wallet />{t.bank.title}</h2>
         <p className="hint">{t.bank.intro}</p>
         <hr className="rule" />
-        <BankForm owner="me" current={bank} t={t.bank} errors={errors} save={t.bank.save} cancel={cancel} />
+        <BankForm owner="me" current={bank} countries={countries} t={t.bank} errors={errors} save={t.bank.save} cancel={cancel} />
       </section>
     </div>
   );
@@ -252,6 +255,8 @@ function CompanyForm({ company, t, errors }: { company: Company; t: Words; error
 function CompanyBank({ company, t, errors, cancel }: { company: Company; t: Words; errors: Errors; cancel: string }) {
   const { run, pending } = useRun(errors);
   const [payer, setPayer] = useState(company.payer);
+  const [bankLocale, setBankLocale] = useState(company.bankLocale);
+  const sample = company.bankTexts.find(b => b.value === bankLocale)?.sample ?? "";
   return (
     <section id="bank" className="paper" aria-labelledby="company-bank-title">
       <h2 id="company-bank-title">{t.bank.companyTitle}</h2>
@@ -265,7 +270,23 @@ function CompanyBank({ company, t, errors, cancel }: { company: Company; t: Word
           </div>
           <button type="submit" className="button quiet" disabled={pending || payer.trim() === company.payer}>{t.categories.save}</button>
         </form>
-        <BankForm owner="company" current={company.bank} t={t.bank} errors={errors} save={t.bank.companySave} cancel={cancel} holder={false} idPrefix="company-bank" />
+        <div className="field-row">
+          <label htmlFor="bank-locale">{t.bank.language}</label>
+          <select id="bank-locale" className="field" value={bankLocale} disabled={pending} aria-describedby="bank-locale-hint" onChange={e => {
+            const next = e.target.value;
+            const before = bankLocale;
+            setBankLocale(next);
+            run(async () => {
+              const result = await updateCompany({ bankLocale: next });
+              if (!result.ok) setBankLocale(before);
+              return result;
+            }, () => t.company.saved);
+          }}>
+            {company.bankTexts.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+          </select>
+          <span id="bank-locale-hint" className="hint">{format(t.bank.languageHint, { sample })}</span>
+        </div>
+        <BankForm owner="company" current={company.bank} countries={company.countries} t={t.bank} errors={errors} save={t.bank.companySave} cancel={cancel} holder={false} idPrefix="company-bank" />
         {!company.sealed && <p className="hint">{t.bank.notSealed}</p>}
       </div>
     </section>
