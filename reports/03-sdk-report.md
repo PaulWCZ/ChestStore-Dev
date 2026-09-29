@@ -11,7 +11,7 @@ tested, faked in `testing`, documented in `sdk/README.md` (sections marked
 Seventeen tools were built for the opening store, each to production
 quality, each in its own folder, by builders who used the SDK as a
 third-party developer would. What they needed and did not find is below,
-proven by code: every proposal is built in `sdk/` (0.3.0-studio.14 —
+proven by code: every proposal is built in `sdk/` (0.3.0-studio.15 —
 typed, tested, faked in `testing`, documented in `sdk/README.md` under
 **Proposal (studio)**) and used by at least one tool.
 
@@ -1011,6 +1011,240 @@ Harness items raised by the same builders are fixed in the studio:
   to hide a link they cannot follow) — `members` answers it only for the
   tool itself; the tool's title ("Open in Forms" in the member's
   language), which the portal knows and the map could carry.
+
+### 4.19 Idempotency keys are never cut — `mail`, `events.publish`, `webhooks.send` (a bug, fixed)
+
+- **The bug.** A retry key was capped at 64 characters of
+  `A-Z a-z 0-9 . _ : -`, so the tools that send one email per person built
+  `` `${key}:${member}` `` and cut it: `.slice(0, 64)` in Expenses, Goals,
+  Leave, Timesheets (`lib/mail.ts`), News and Wiki (`lib/mailer.ts`,
+  `lib/mail.ts`), Tasks (`lib/mail.ts`) and Polls (`lib/tell.ts`); Support
+  cuts its webhook keys the same way (`lib/notices.ts`). A member id with
+  its colon is 31 characters: past 33 characters of the tool's own key the
+  cut eats into the recipient, and from 59 the whole id is gone — two
+  recipients of one send share a key, and the Chest (and the fake) answered
+  the second with the first message: **one email dropped, silently**.
+  Reproduced first as a failing test (`sdk/client/test/mail.test.ts`,
+  "idempotency: …", a 61-character key: the fake's outbox held Camille's
+  email and not Léa's). Rooms showed the other face of the cap: its key
+  `` `room:${calendarKey}:${sequence}:${guest}` `` is not cut, so past 64 the
+  SDK threw `invalid_message` and its loop `break`s — every later guest
+  unmailed (`tools/private/rooms/lib/mail.ts`).
+- **What we verified in the tools** (grep of `tools/*/*/lib`, 2026-09-29):
+  no key built today reaches 59 characters before its member id (the
+  longest own keys are ≈40: `waiting:<mbr_…>`, `read:<page>:<version>:<unix>`),
+  so the collision needs longer ids or a longer prefix than today's — a
+  latent bug, not one seen in production. Every key a tool builds today
+  fits the old pattern once cut, so it goes to the Chest **unchanged**.
+- **Fix, chosen**: hash, don't refuse, for keys that only make a retry
+  harmless. `idempotencyKey(key)` (`sdk/client/src/api.ts`, exported by
+  `mail`) takes any key of 1 to 512 characters without control
+  characters; one that already fits (and does not start with `sha256:`)
+  goes as is, any other as `sha256:` + the SHA-256 of the whole key in
+  base64url (50 characters) — two different keys stay two keys, a retry of
+  the same key is recognised, and nothing a tool writes can pose as the
+  digest of another key. Refusing an over-long key loudly was the
+  alternative; we rejected it because the tool would then have to shorten
+  the key itself — the very step that caused the bug — and because an
+  address or accented text in a key (a guest's address in Rooms) is
+  harmless once hashed. And the Chest now **refuses a key reused within 24
+  hours for something else** (`ChestError` `key_conflict`, 409, nothing
+  sent): for `mail`, other recipients (the text may differ: a retry
+  re-renders); for `events.publish`, another type or other data (data is
+  the receivers' contract); for `webhooks.send`, another event on the same
+  target (text and data are display, re-rendered). So a tool that still
+  cuts its keys hears of the collision instead of losing an email: the
+  day each tool is re-vendored, its `.slice(0, 64)` goes.
+- **Keys that name a thing are not retry keys**: `calendar` keys (put
+  replaces, `remove` and `list` name them back) and `notifications` keys
+  (`withdraw`) stay 1–64 and are **refused, never cut or hashed**, beyond
+  — a hash would make `list()` answer names the tool never wrote.
+  Reviewed and tested: `sdk/client/test/keys.test.ts`.
+- **Working copy**: `api.ts` (`idempotencyKey`, `maxKeyLength`), `mail.ts`,
+  `events.ts`, `webhooks.ts` (`checkMessage` takes long keys; `keyPattern`
+  is the wire's), `testing.ts` (the fake checks the wire key and answers
+  `key_conflict`); tests: `mail.test.ts` (the reproduction), `keys.test.ts`
+  (4: the digest, events, webhooks, calendar and notifications refusals),
+  `events.test.ts` (a publish test now asserts the conflict). SDK
+  0.3.0-studio.15.
+- **Elsewhere**: Stripe's idempotency keys answer an error when a key is
+  reused with other parameters, and take keys up to 255 characters (from
+  memory, not re-read on 2026-09-29).
+
+### 4.20 A fake Chest that tests what tools do — `fakeChest({tool, network})`, `clearCaches()` (built)
+
+- **Needed by**: every tool whose tests need their own name — ten test
+  files of CRM, Leave, People, Timesheets, Booking and Forms set
+  `process.env.CHEST_TOOL` by hand before `fakeChest` (grep of
+  `tools/*/*/test`, 2026-09-29), since `events.publish` checks
+  `"<tool>.<name>"`; every test that moves a
+  member out by hand (`chest.members.splice`, `chest.former.push`) and then
+  reads a `lookup` still cached for a minute; and the three tools that
+  reach the outside — **Equipment** (Microsoft Graph and login for Intune,
+  `lib/intune.ts`), **Booking** (Google, Outlook and iCloud calendars,
+  `lib/calendars.ts`), **Quotes** (the French company registry,
+  `lib/registry.ts`) — which each inject their own `Fetcher` so a test can
+  replace `fetch`: production code shaped by the lack of a fake.
+- **Working copy** (`sdk/client/src/testing.ts`):
+  - `fakeChest({ tool: "leave" })` sets `CHEST_TOOL` while the fake runs
+    (checked against the manifest's name grammar; restored on `close`).
+  - `chest.clearCaches()` forgets `members.lookup`'s minute and the theme.
+    Invalidating on every hand edit of `chest.members` was the other
+    option; arrays a test mutates cannot tell, and a real Chest tells a
+    tool by an event — which `emit` already delivers (and `events.handle`
+    empties the cache on). An explicit call is honest about that.
+  - `fakeChest({ network: { "graph.microsoft.com": request => Response.json(…), "*.icloud.com": … } })`
+    and `chest.egress` (each request: method, URL, status or `refused`).
+    **Design**: in a Chest the launcher sets `HTTP(S)_PROXY`,
+    `NO_PROXY=localhost,127.0.0.1,::1` and `NODE_USE_ENV_PROXY=1`
+    (`reference/contract/application-contract.md`, "Declared network
+    egress"), and Node ≥ 24.5 routes `fetch` through the Chest's proxy. A
+    test cannot do the same: Node reads `NODE_USE_ENV_PROXY` once, at
+    start, a proxy for `https:` would need a CA the test trusts, and the
+    studio runs Node 22. So the fake **replaces `globalThis.fetch`** while
+    it runs, with the proxy's outcome: a declared host (or `*.` name) to
+    its handler, redirects followed through declared hosts, `AbortSignal`
+    honoured; an undeclared name, an IP literal or a port other than
+    80/443 refused as the proxy refuses (`https:` → `fetch` rejects with a
+    `TypeError`, as when a proxy refuses the tunnel; `http:` → 403
+    `Chest-Egress: refused; reason=…`); `localhost`/`127.0.0.1`/`::1` —
+    the fake's own API, a test's server — straight through. The tool's
+    code does not change; its injected `Fetcher` can go. Checked before
+    anything starts (a wrong host name leaves nothing running); `fetch`
+    given back on `close`. **Limits, said**: `node:http(s).request` and
+    clients with their own agent are not routed (the Chest's proxy does
+    route `node:http(s)`); the proxy's `address`, `limit` and `dns`
+    refusals are not played.
+  - The `network` contract, `NODE_USE_ENV_PROXY=1` included (Node 24.5+,
+    `fetch` and `node:http(s)` only, read at start), is now written in
+    `sdk/README.md` ("`network` — the hosts a tool declares").
+- **Tests**: `sdk/client/test/network.test.ts` (4: Equipment's two Intune
+  calls through plain `fetch`, a wildcard; every refusal and the direct
+  hosts; redirects, an abort, a bad host name; `tool` and `clearCaches`).
+
+### 4.21 Which member is this address — `members.matchEmails` (built)
+
+- **Needed by**: **Equipment**. It holds `members`, not `members.email`,
+  so it reads only Intune's `userDisplayName` and matches that *name* to
+  the Chest's members (`readDevice` and `personByName`,
+  `tools/private/equipment/lib/intune.ts`, `lib/importer.ts`) — wrong for
+  two Léa Dubois, for "Lea Dubois" without the accent, for a name changed
+  after a marriage. Intune's managedDevice also carries the user's
+  `userPrincipalName` and `emailAddress` (Graph's resource page that
+  `lib/intune.ts` cites; not re-read on 2026-09-29): with `matchEmails`
+  the tool reads those and matches exactly. Asking `members.email` for it would give the
+  tool every member's address, a permission the owner should not have to
+  grant for this. The spreadsheet importer (Snipe-IT's "checked out to"
+  email column) has the same need, and so would any tool importing from a
+  SaaS it replaces (Clients' contacts that are colleagues, Hiring's
+  interviewers from a calendar export).
+- **Working copy**: `members.matchEmails(emails) → Record<address as given,
+  mbr_id>`, `matchLimits`; `fakeChest` route `POST /members/match`; test in
+  `sdk/client/test/testing.test.ts` ("members.matchEmails: …").
+- **Contract**: only members who have the tool are matched; nobody, a
+  former member and a member without the tool are all left out alike, so
+  the answer never says whether an address exists in the Chest outside a
+  match — and it never contains an address the tool did not send. Whole
+  address, case-insensitive, trimmed; the sign-in address only. 200
+  addresses a call (the SDK batches), inside the 600 calls a minute of
+  `members`, and **5,000 distinct addresses a day per tool**
+  (`QuotaExceeded`), so a tool cannot walk a list of guesses; the Chest
+  journals the calls (counts, not addresses).
+- **Why no new capability**: what the tool learns is an id of a member it
+  can already list, for an address it already holds. The residual risk is
+  confirmation — a tool can test a guessed address (`first.last@company`)
+  and learn it is Camille's; the daily bound caps it, and a tool that
+  wants every address has to ask `members.email` openly. We judged that
+  acceptable under `members`; a Chest that disagrees can put it behind
+  its own sentence ("Recognises members by an email address it already
+  has") at no cost to the API.
+- **Still missing**: aliases and secondary addresses (Intune's UPN is
+  often not the address people sign in to the Chest with); a match by
+  identity provider id (Entra's object id) once the Chest signs members in
+  with Microsoft or Google.
+
+### 4.22 Many calendar events at once — `calendar.putMany` (built)
+
+- **Needed by**: **Tasks**. Its calendar sync (`tools/private/tasks/lib/due-calendar.ts`)
+  selects up to 5,000 cards and checklist steps with a due date and calls
+  `calendar.put` once for each: a first sync of a busy board is thousands
+  of calls against the 600 writes a minute, stopped by `RateLimited` and
+  resumed at the next run. Rooms (`lib/calendar.ts`, recurring bookings)
+  and CRM (`lib/step-calendar.ts`, steps with a date) put in the same
+  loop.
+- **Working copy**: `calendar.putMany(events) → Put[]`, `limits.perBatch`
+  (100); the fake's `PUT /calendar/events`; tests in
+  `sdk/client/test/calendar.test.ts` (2: 250 events in three calls, order
+  and replacement, a wrong event or a key twice sends nothing; 5,000
+  events in 50 calls, a batch over the bound changes nothing, not granted).
+- **Contract**: every event checked by the SDK before anything is sent;
+  distinct keys; the Chest applies a batch whole or not at all and counts
+  it as one write of the minute; beyond 100 the SDK sends batches in turn,
+  so an error after the first leaves the earlier ones applied — putting
+  again is idempotent by key. **Why 100**: a batch is at most ≈ 1.3 MB of
+  JSON (1,000 members and 1,000 characters of description an event, rarely
+  near), one transaction the Chest can hold briefly; 5,000 events is 50
+  calls, well inside a minute.
+- **Still missing**: `removeMany` (a board archived removes its events one
+  call each — rarer, and bounded by what the board had).
+
+### 4.23 When a former member left — `FormerMember.leftAt` (built)
+
+- **Needed by**: **Expenses**. A claim of someone who left still waits in
+  *To approve* and must be paid "on their final pay slip, not by the
+  transfer file" (`tools/private/expenses/README.md`, `lib/payments.ts`
+  keeps former members out of the transfer file). The accountant needs the
+  date to know which pay slip — the tool knows only `status: "former"`.
+  People publishes a planned last day (`people.leaving` `{member,
+  lastDay}`, `tools/private/people/lib/share.ts`), but only where People is
+  installed and before the person goes; the Chest knows the actual date
+  in every company. Equipment and Timesheets, which also show "(former
+  member)", would say "left on 30 September" too.
+- **Working copy**: `FormerMember` gains `leftAt: string | null` (ISO
+  instant; `null` from a Chest before it), read from `left_at` in
+  `members.lookup`; the fake's `former: [{…, leftAt}]`; tests in
+  `network.test.ts` (with `clearCaches`) and the updated lookup tests.
+- **Decisions**: a field of `lookup`'s answer, not a call of its own —
+  tools already resolve former members there, 200 at a time. Kept after an
+  erasure: a date alone names nobody, and the accounts need it after the
+  name is gone. Additive: tools that do not read it are unchanged (their
+  tests that compare whole `former` objects gain `leftAt: null`).
+
+### 4.24 One email preference per person — `member.mailPreference`, `mail.send({transactional})` (built)
+
+- **Needed by**: three tools that each built the same switch — Tasks
+  (`reminders.email_off`, `lib/mail.ts`), Goals (`preferences.email_off`,
+  `lib/mail.ts`) and Leave (`staff.email_off`, `lib/mail.ts`) — and every
+  other tool that emails members (Expenses, Timesheets, News, Wiki, Polls,
+  Rooms) has none: a person who wants less email turns it off three times,
+  cannot in six, and each new tool starts mailing them again. The bell's email
+  digest of §4.14 needs the same setting on the Chest's side.
+- **Working copy**: `Member.mailPreference?: "all" | "digest" | "none"`
+  (`member()` from the optional `mail_pref` claim, `members.*` from the
+  field), `mailPreferenceOf`; `mail.send` gains `transactional` and answers
+  `{…, status: "queued" | "held", skipped, digest}`; `status()` may say
+  `held`; the fake applies it and keeps `chest.held`. Tests:
+  `mail.test.ts` ("email preference: …"), `member.test.ts`.
+- **The minimal shape, and why**: three values, not per-tool or per-kind
+  settings — the person decides "how much email from the Chest", once;
+  `digest` is the one that lets people keep reading without being flooded,
+  and it is the Chest's to build (one email a day gathering the held
+  messages, in the person's language). **Read-only for tools**: the Chest
+  applies it inside `mail.send`, so no tool can forget it and none can
+  override it except by `transactional: true` — for what the person must
+  get whatever they chose (a password, a booking's confirmation, a payslip,
+  the answer to their own request). The Chest journals the flag and shows
+  the owner each tool's share of transactional mail: a tool that marks
+  everything transactional is visible. It applies to members only (given
+  as `{member}` or by their address); outside addresses keep the
+  suppression list. Holding a message back is not an error (`skipped`,
+  `digest`, `status: "held"`): existing tools, which treat errors as "mail
+  off", keep working. Optional in the types, so no tool's `Member`
+  literals break; absent means `"all"`.
+- **Still missing**: an unsubscribe link in each non-transactional email
+  that sets the preference (RFC 8058 one-click `List-Unsubscribe`, which
+  Gmail and Yahoo ask of bulk senders — from memory, not re-read on
+  2026-09-29); per-tool exceptions ("none, except Leave").
 
 ## 5. Public-facing tools
 
