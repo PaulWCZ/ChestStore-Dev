@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { PageHeader } from "@argentic/chest-ui/components";
 import { checkError } from "../../../lib/check-words.ts";
 import { checkLimits, everyChoices, listWatches, statuses } from "../../../lib/checks.ts";
 import { allComponents } from "../../../lib/components.ts";
@@ -49,9 +50,8 @@ export default async function ChecksPage() {
     });
   const watched = watches.length;
   return (
-    <main className="narrow stack-l">
-      <div className="page-head"><h1>{t.checks.title}</h1></div>
-      <p className="lead">{t.checks.intro}</p>
+    <div className="narrow stack-l">
+      <PageHeader size="m" title={t.checks.title} intro={t.checks.intro} />
       {state === "unavailable" ? <p className="note warn" role="status">{t.checks.unavailable}</p> : state === "running" && <p className="note">{plural(t.checks.running, watched, locale)}</p>}
       <ChecksForm
         rows={rows}
@@ -73,6 +73,6 @@ export default async function ChecksPage() {
         every={heartbeatEvery.map(m => ({ value: m, label: everyLabel(m) }))}
         t={{ heartbeats: t.heartbeats, errors: t.errors }}
       />
-    </main>
+    </div>
   );
 }

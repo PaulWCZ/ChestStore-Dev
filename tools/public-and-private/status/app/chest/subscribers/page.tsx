@@ -1,4 +1,6 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
+import { Back } from "../../../components/icons.tsx";
 import { allComponents } from "../../../lib/components.ts";
 import { db } from "../../../lib/db.ts";
 import { day, format, plural } from "../../../lib/i18n/index.ts";
@@ -28,15 +30,12 @@ export default async function SubscribersPage() {
     since: format(t.subscribers.since, { date: day(wall(s.confirmedAt ?? s.createdAt, zone).date, locale, { day: "numeric", month: "long", year: "numeric" }) }),
   }));
   return (
-    <main className="narrow stack-l">
-      <div className="page-head">
-        <h1>{t.subscribers.title}</h1>
-        <span className="count">{plural(t.subscribers.count, confirmed.length, locale)}</span>
-      </div>
-      <p className="lead">{t.subscribers.intro}</p>
+    <div className="narrow stack-l">
+      <p className="crumb"><a href="/chest/settings"><Back />{t.subscribers.back}</a></p>
+      <PageHeader size="m" title={t.subscribers.title} intro={t.subscribers.intro} secondary={<span className="count">{plural(t.subscribers.count, confirmed.length, locale)}</span>} />
       <p className={`note${state === "none" ? " warn" : ""}`}>{state === "ok" ? t.subscribers.mailOk : state === "none" ? t.subscribers.mailNone : t.subscribers.mailUnknown}</p>
       {waiting > 0 && <p className="hint">{plural(t.subscribers.queue, waiting, locale)}</p>}
-      {rows.length === 0 ? <div className="empty"><p>{t.subscribers.empty}</p></div> : <SubscriberList rows={rows} t={{ subscribers: { follows: t.subscribers.follows, pending: t.subscribers.pending, removed: t.subscribers.removed, remove: t.subscribers.remove }, errors: t.errors }} />}
-    </main>
+      {rows.length === 0 ? <EmptyState title={t.subscribers.emptyTitle} body={t.subscribers.empty} /> : <SubscriberList rows={rows} t={{ subscribers: { follows: t.subscribers.follows, pending: t.subscribers.pending, removed: t.subscribers.removed, remove: t.subscribers.remove, erase: t.subscribers.erase, eraseTitle: t.subscribers.eraseTitle, eraseBody: t.subscribers.eraseBody, cancel: t.subscribers.cancel }, errors: t.errors }} />}
+    </div>
   );
 }

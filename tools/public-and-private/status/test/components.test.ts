@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { AppError } from "../lib/app-error.ts";
-import { addComponent, allComponents, moveComponent, removeComponent, shownComponents, tree, updateComponent } from "../lib/components.ts";
+import { addComponent, allComponents, moveComponent, putBack, removeComponent, shownComponents, tree, updateComponent } from "../lib/components.ts";
 import { openIncident } from "../lib/incidents.ts";
 import { statusView } from "../lib/status-view.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -74,6 +74,27 @@ test("deleting: a component with a history is hidden instead, a group must be em
   assert.deepEqual((await allComponents(sql)).map(x => x.name), ["Website"]);
   const [s] = await sql<{ components: string[] }[]>`select components from subscribers`;
   assert.deepEqual(s!.components.map(String), [a.id], "a subscriber no longer follows what is gone");
+});
+
+test("a deletion is undone: the component comes back in its place, with its marks", async () => {
+  const { sql } = database;
+  const g = await addComponent(sql, editor, { name: "Shop", kind: "group" });
+  await addComponent(sql, editor, { name: "Catalogue", parentId: g.id });
+  const b = await addComponent(sql, editor, { name: "Checkout", parentId: g.id, description: "Paying", teamOnly: true });
+  await addComponent(sql, editor, { name: "Payments", parentId: g.id });
+  await updateComponent(sql, editor, b.id, { hidden: true });
+  const gone = await removeComponent(sql, editor, b.id);
+  assert.deepEqual(tree(await allComponents(sql))[0]!.children.map(c => c.name), ["Catalogue", "Payments"]);
+  const back = await putBack(sql, editor, { kind: gone.kind, name: gone.name, description: gone.description, parentId: gone.parentId, position: gone.position, hidden: gone.hidden, teamOnly: gone.teamOnly });
+  assert.deepEqual(tree(await allComponents(sql))[0]!.children.map(c => c.name), ["Catalogue", "Checkout", "Payments"], "in its place");
+  assert.deepEqual([back.description, back.hidden, back.teamOnly, back.parentId], ["Paying", true, true, g.id]);
+  // A group deleted and put back; a putBack is checked like an addition.
+  const gone2 = await removeComponent(sql, editor, (await addComponent(sql, editor, { name: "Empty", kind: "group" })).id);
+  assert.equal((await putBack(sql, editor, { kind: gone2.kind, name: gone2.name, position: gone2.position })).kind, "group");
+  await refuses("forbidden", () => putBack(sql, asMember(nora), { name: "x" }));
+  await refuses("empty", () => putBack(sql, editor, { name: " " }));
+  const payments = (await allComponents(sql)).find(c => c.name === "Payments")!.id;
+  await refuses("invalid", () => putBack(sql, editor, { name: "x", parentId: payments }));
 });
 
 test("components are the editors': refused to anyone else, bounded", async () => {

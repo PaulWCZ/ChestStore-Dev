@@ -6,7 +6,22 @@
 a control room, not an alarm: when something breaks, the page is where
 customers go to feel reassured, so it must look steady and speak plainly.
 
-## Tokens (`app/tokens.css`, light and dark)
+## Looks
+
+The identity is a theme of the UI kit: **"Control room"** (`lib/theme.ts`,
+`defineTheme`), the very same source as the catalogue's `control-room`
+(the tests hold the two equal and to the kit's contract, WCAG AA, light
+and dark). A company may give Status any other theme of the catalogue or
+its own brand, in its Chest: the stylesheets name only the contract's
+tokens (`ui/tokens/CONTRACT.md`) and the tool's own, defined from them
+(`app/tokens.css`), so every page follows. Two things stay the identity's
+own: **the five state colours**, in every look (they are meaning —
+`lib/states.ts`, measured against every theme and hundreds of derived
+brands), and, in its own look only, **the dark control-panel header**
+(`[data-look="own"]` in `app/globals.css`: the inverse pair on a light
+page). Any other look keeps the kit's header, like every tool wearing it.
+
+## Tokens (`lib/theme.ts` for the look, `lib/states.ts` for the states)
 
 A cool grey paper, near-black ink, white panels with hairlines. Colour is
 kept for states only, and a state never rests on colour: each has its own
@@ -22,7 +37,7 @@ tint for banners.
 | `--surface` | `#ffffff` | `#141a21` | panels |
 | `--ink` | `#0f1419` | `#e7ecf1` | text, primary buttons |
 | `--ink-2` | `#4a5561` | `#9aa7b4` | secondary text |
-| `--link` | `#0b5cad` | `#7cb4ff` | links |
+| `--accent-text` | `#0b5cad` | `#7cb4ff` | links |
 | `--s-operational` | `#0a7f58` | `#3fbf8a` | Operational |
 | `--s-maintenance` | `#1f66c7` | `#5b9cf0` | Under maintenance |
 | `--s-degraded` | `#a87700` | `#e0b33a` | Degraded performance |
@@ -30,7 +45,8 @@ tint for banners.
 | `--s-major` | `#c42d17` | `#f2665a` | Major outage |
 
 Contrast (scripts/contrast.mjs): ink on paper 16.3:1; `--ink-2` on paper
-6.7:1, on white 7.6:1; `--ink-3` on paper 4.8:1; links on white 6.7:1.
+6.7:1, on white 7.6:1; links on white 6.7:1. Field borders are the
+kit's `--line-strong`, 3:1 (the former `#b4bec9` was 1.9:1).
 State colours as graphics on white, all ≥ 3:1 (operational 5.0, maintenance
 5.6, degraded 4.0, partial 4.2, major 5.6); their text twins on their tints
 ≥ 5.2:1 (degraded ink `#7d5800` on `#fbf3dc` 5.8:1, partial ink `#a54808`
@@ -58,28 +74,32 @@ panels, one for toasts and dialogs. **Motion**: 120/220 ms, none with
 - **State label**: icon + word in the state's ink colour.
 - **Buttons**: ink (primary), white with a line (quiet), link; green for
   *Resolve*; 44 px targets (36 px for icon buttons in dense lists).
-- **Team header**: an ink bar with tabs underlined in green — a control
-  panel over the calm page.
-- **Toasts** with *Undo*, one **dialog** (resolving, finishing a
-  maintenance), inputs with a blue focus ring.
+- **Team frame**: the kit's AppShell — five labelled sections (Now,
+  History, Services, Checks, Settings; incidents belong to Now,
+  subscribers to Settings), on a phone a row of their own; in the
+  identity's look an ink bar, a control panel over the calm page.
+- The kit's **toasts** (an *Undo* that says whether it worked),
+  **dialogs** that keep typed text (resolving, reopening, finishing a
+  maintenance), **Confirm** for what cannot be undone (deleting a
+  heartbeat, erasing a subscriber), **DateField** and a 24-hour
+  **TimeSelect**, **Menu**, **EmptyState**, **FilePicker**,
+  **LanguageSwitch** (drawn as the identity's bordered pair).
 
 ## The company's brand, the badge, the banner
 
-- **Brand** (chest.theme(), brand mode): the logo replaces the monogram,
-  and the brand's main colour (derived by the UI kit, then checked at
-  4.5:1 against this page's own grounds, light and dark) takes the
-  primary button, links and a 3 px rule under the header. The state
-  colours never change. A brand that cannot pass keeps the tool's look
-  (the logo still shows).
-- **Badge** (`/badge.svg`): two flat parts, ink label and the state's
-  dark twin (white text 5.0–7.6:1), 20 px high, words fitted with
-  `textLength`.
+- **Brand** (chest.theme(), brand mode): the whole tool wears the brand
+  theme the UI kit derives (AA guaranteed); the logo replaces the
+  monogram and the mark, a 3 px rule of the brand's colour under the
+  public header. The state colours never change.
+- **Badge** (`/badge.svg`): two flat parts, ink label (the brand's colour
+  when white reads on it at 4.5:1) and the state's dark twin (white text
+  5.0–7.6:1), 20 px high, words fitted with `textLength`.
 - **Banner** (`/embed`): one line, the state's colour as a 6 px left edge
   and a filled circle icon, the state in bold, what is happening beneath;
   system font (a frame on another site loads no font).
-- **Menus**: rarer row actions in a "···" menu with words and icons
-  (move, hide, team only, delete in red) — never a row of look-alike
-  icons.
+- **Menus**: rarer row actions in the kit's menu with words and icons
+  (move, hide, team only, delete in red, with Undo) — never a row of
+  look-alike icons.
 
 ## Icon
 

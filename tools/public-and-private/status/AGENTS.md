@@ -26,7 +26,10 @@ what must not break.
 | `lib/texts.ts`, `lib/languages.ts`, `components/second-field.tsx` | Texts in two languages: which version a reader gets (pure), the Chest's language and the other one, the form fields |
 | `lib/api.ts`, `app/api/v2/**` | The public API in Statuspage's shape (indicator rule, CORS) |
 | `lib/badge.ts`, `app/badge.svg/`, `app/embed/route.ts`, `lib/public-summary.ts` | The badge (plain SVG) and the framed banner (its own CSP, `frame-ancestors` from the settings) |
-| `lib/brand.ts`, `lib/page-settings.ts`, `app/chest/settings/` | The company's brand on public pages (chest.theme() + the UI kit), website/support/embedding sites, the Settings page |
+| `lib/theme.ts`, `app/layout.tsx`, `app/tokens.css` | The look: the "Control room" identity (`defineTheme`, equal to the catalogue's), `currentLook()` (the Chest's choice, else the identity), one `<ThemeStyle>` with the page's nonce for every page, team and public; tool tokens defined from contract tokens only |
+| `lib/states.ts` | The five state colours, fixed in every look (`stateCss`, a second nonce'd `<style>`), measured by `test/states.test.ts` against every theme and derived brands |
+| `components/shell.tsx`, `app/chest/layout.tsx` | The kit's AppShell (five sections, BrandMark, member chip, the public page link), Toasts |
+| `lib/page-settings.ts`, `app/chest/settings/` | Website/support/embedding sites, the Settings page (and the way to the subscribers) |
 | `lib/templates.ts` | Incident templates |
 | `lib/importer.ts`, `app/chest/import/route.ts`, `test/fixtures/statuspage-*.json` | Import from Statuspage's JSON |
 | `lib/export.ts`, `app/chest/export/**` | Download everything (JSON) and subscribers (CSV) |
@@ -41,6 +44,12 @@ what must not break.
 ```sh
 npm ci && npm test && npm run build   # all three must pass
 ```
+
+## UI kit (`@argentic/chest-ui` 0.2.1-studio.1, `vendor/`)
+
+Used: `ThemeStyle`/`resolveTheme` (look), `AppShell` + `Nav` (sections), `BrandMark`, `Toasts`/`useToast` (every success, error and Undo — through `components/use-run.ts`, whose `undo()` makes a truthful Undo), `Dialog` (resolve, reopen, finish or cancel a maintenance: `dirty` asks before losing typed text), `Confirm` (delete a heartbeat, erase a subscriber — never `window.confirm`), `DateField` and `TimeSelect` (never the browser's date or time field), `Menu` (a service's rarer actions), `EmptyState`, `PageHeader`, `FilePicker` (Statuspage import), `LanguageSwitch`, `useAutoRefresh`. The kit's words are the catalogues' `toast`, `dialog`, `date`, `files` sections.
+
+Kept on purpose: `components/state.tsx` + `icons.tsx` (five states with five shapes and fixed colours; the kit's `StatusBadge` has three tones that follow the theme — none in the Chest theme — and states here must not change with the look); the step chooser (radio cards with a line of help each, which `Segmented` cannot show); the impact picker (a service and its impact per row); `TeamStatus` instead of `NoAccess` (every member may see what works); the public history bar, cards and table.
 
 ## Rules
 
@@ -78,3 +87,5 @@ npm ci && npm test && npm run build   # all three must pass
 - Identity from `member()` only; rights in `lib/access.ts`; words in every
   catalogue (`lib/i18n/en.ts` first, `fr.ts` complete); client components
   never import the SDK or `lib/db.ts`; never hard-code a time zone.
+- **Looks**: CSS names contract tokens only (`test/theme.test.ts` refuses a colour, `in srgb` or `in oklch`); a new colour is a tool token defined from them in `app/tokens.css`. State colours come from `lib/states.ts` only, never from the theme (`--ok`, `--danger`…): they must mean the same in every look. The identity's own touches go under `[data-look="own"]`.
+- **Words**: `node scripts/lint-words.mjs` stays at 0 (narrow no-break space before `: ; ? !` in French; Remove/Delete/Erase = Retirer/Supprimer/Effacer; Undo = « Annuler l’action », the kit's). `lib/notify.ts`'s `cut` keeps those spaces.

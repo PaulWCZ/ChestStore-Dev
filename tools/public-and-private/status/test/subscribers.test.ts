@@ -131,9 +131,9 @@ test("emails: a confirmation in the visitor's language, then each update with it
   const { incidentId } = await incidents.openIncident(sql, editor, { title: "Paiement en panne", status: "investigating", body: "Nous cherchons.", states: { [checkout]: "major" } });
   assert.deepEqual(await flush(sql), { sent: 1, stopped: null });
   const mail = chest.outbox.at(-1)!;
-  assert.equal(mail.subject, "[Atelier Martin] Analyse en cours : Paiement en panne");
+  assert.equal(mail.subject, "[Atelier Martin] Analyse en cours : Paiement en panne");
   assert.ok(mail.text.includes("Nous cherchons."));
-  assert.ok(mail.text.includes("Concerne : Checkout"));
+  assert.ok(mail.text.includes("Concerne : Checkout"));
   assert.ok(mail.text.includes(`https://status.atelier-martin.test/incidents/${incidentId}`));
   assert.ok(mail.text.includes(`https://status.atelier-martin.test/s/${r.subscriber.token}`));
   assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "sent once");

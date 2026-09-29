@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import { allComponents, tree } from "../../../lib/components.ts";
 import { db } from "../../../lib/db.ts";
 import { forTimeline, recent } from "../../../lib/incidents.ts";
@@ -17,12 +18,9 @@ export default async function ComponentsPage() {
   const row = (c: (typeof list)[number]): Row => ({ id: c.id, kind: c.kind, name: c.name, description: c.description, hidden: c.hidden, teamOnly: c.teamOnly, parentId: c.parentId, state: states.get(c.id) ?? "operational" });
   const entries = tree(list).map(e => ({ ...row(e), children: e.children.map(row) }));
   return (
-    <main className="narrow stack-l">
-      <div className="page-head">
-        <h1>{t.components.title}</h1>
-      </div>
-      <p className="lead">{t.components.intro}</p>
+    <div className="narrow stack-l">
+      <PageHeader size="m" title={t.components.title} intro={t.components.intro} />
       <ComponentsView entries={entries} t={{ components: t.components, states: t.states, errors: t.errors }} />
-    </main>
+    </div>
   );
 }

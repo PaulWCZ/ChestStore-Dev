@@ -129,10 +129,11 @@ export async function moveComponent(sql: Sql, actor: Member | null, componentId:
 
 // removeComponent deletes a component nobody reported on yet; one with a
 // history is hidden instead (its past stays true), a group must be empty.
-export async function removeComponent(sql: Sql, actor: Member | null, componentId: unknown): Promise<void> {
+// It gives back what it deleted, for the editor's Undo (putBack).
+export async function removeComponent(sql: Sql, actor: Member | null, componentId: unknown): Promise<Component> {
   check(actor);
   const key = id(componentId);
-  await sql.begin(async tx => {
+  return sql.begin(async tx => {
     const c = await one(tx, key);
     if (c.kind === "group") {
       const [child] = await tx`select 1 from components where parent_id = ${key} limit 1`;
@@ -143,5 +144,31 @@ export async function removeComponent(sql: Sql, actor: Member | null, componentI
     }
     await tx`update subscribers set components = array_remove(components, ${key}::bigint) where ${key}::bigint = any(components)`;
     await tx`delete from components where id = ${key}`;
+    return c;
+  });
+}
+
+// putBack undoes a deletion: the component or group again, with its name,
+// description, group, place in the list, hidden and team-only marks (a new
+// id: nothing referred to the old one but subscribers' choices, which do
+// not come back — they follow everything or their other choices). Checked
+// like addComponent: an editor could add it by hand.
+export type Snapshot = { kind?: unknown; name: unknown; description?: unknown; parentId?: unknown; position?: unknown; hidden?: unknown; teamOnly?: unknown };
+export async function putBack(sql: Sql, actor: Member | null, snapshot: Snapshot): Promise<Component> {
+  check(actor);
+  const kind = snapshot.kind === "group" ? "group" : "component";
+  const name = clean(snapshot.name, limits.componentName);
+  const description = clean(snapshot.description ?? "", limits.componentDescription, { optional: true });
+  const position = typeof snapshot.position === "number" && Number.isInteger(snapshot.position) && snapshot.position >= 0 && snapshot.position < 100000 ? snapshot.position : null;
+  return sql.begin(async tx => {
+    const parentId = kind === "group" ? null : await groupOf(tx, snapshot.parentId);
+    const [{ count }] = (await tx<{ count: number }[]>`select count(*)::int as count from components`) as unknown as [{ count: number }];
+    if (count >= limits.components) throw new AppError("too_many", { max: limits.components });
+    const [{ next }] = (await tx<{ next: number }[]>`select coalesce(max(position), -1)::int + 1 as next from components where parent_id is not distinct from ${parentId}`) as unknown as [{ next: number }];
+    const [row] = await tx<Row[]>`
+      insert into components (kind, parent_id, name, description, position, hidden, team_only)
+      values (${kind}, ${parentId}, ${name}, ${description}, ${position ?? next}, ${snapshot.hidden === true}, ${kind === "component" && snapshot.teamOnly === true})
+      returning ${tx.unsafe(fields)}`;
+    return shape(row!);
   });
 }

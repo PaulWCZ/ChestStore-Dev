@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, zoneName } from "../../../../lib/i18n/index.ts";
@@ -17,23 +18,21 @@ export default async function NewMaintenance() {
   const groups = pickerGroups(await allComponents(db()));
   const tomorrow = addDays(chest.today(), 1);
   return (
-    <main className="narrow stack-l">
-      <h1>{t.maintenance.newTitle}</h1>
+    <div className="narrow stack-l">
+      <PageHeader size="m" title={t.maintenance.newTitle} />
       {groups.length === 0 ? (
-        <div className="empty">
-          <p>{t.compose.noComponents}</p>
-          <a className="button" href="/chest/components">{t.overview.setupAction}</a>
-        </div>
+        <EmptyState title={t.overview.setup} body={t.compose.noComponents} action={<a className="button" href="/chest/components">{t.overview.setupAction}</a>} />
       ) : (
         <MaintenanceForm
           groups={groups}
           start={{ day: tomorrow, minutes: 22 * 60 }}
           end={{ day: tomorrow, minutes: 23 * 60 }}
+          today={chest.today()}
           zoneNote={format(t.maintenance.zone, { zone: zoneName(zone) })}
           languages={{ second: otherLanguage(), secondName: (t.languages as Record<string, string>)[otherLanguage()] ?? otherLanguage() }}
-          t={{ maintenance: t.maintenance, compose: t.compose, errors: t.errors }}
+          t={{ maintenance: t.maintenance, compose: t.compose, errors: t.errors, date: t.date }}
         />
       )}
-    </main>
+    </div>
   );
 }

@@ -1,117 +1,20 @@
-/* Status — "control room": a calm, cool grey paper, near-black ink, and
-   five state colours that never go alone (each has an icon and a word).
-   The state colours follow the Okabe–Ito palette, darkened for 3:1 as
-   graphics and given a darker "ink" twin for 4.5:1 as text. Contrast
-   ratios are in DESIGN.md (checked with scripts/contrast.mjs). */
+/* The tool's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the "Control room" identity in lib/theme.ts, or the
+   theme the company chose — in a <style> of app/layout.tsx. The five state
+   colours (--s-operational, --s-operational-ink, --s-operational-tint, …
+   --s-major-*, and --s-on, the text on a solid state) are meaning, not
+   decoration: fixed in every look, measured against every theme, and set
+   by lib/states.ts in a second <style>. Here only what is this tool's
+   alone, always defined from those tokens, never from a colour. */
 :root {
-  color-scheme: light;
-  --bg: #eef1f4;
-  --surface: #ffffff;
-  --surface-2: #e3e8ed;
-  --surface-3: #d5dce3;
-  --ink: #0f1419;
-  --ink-2: #4a5561;
-  --ink-3: #5f6b78;
-  --line: #d3dae1;
-  --line-strong: #b4bec9;
-  --accent: #0f1419;
-  --accent-ink: #ffffff;
-  --accent-soft: #d8e4f3;
-  --link: #0b5cad;
-  --focus: #1f66c7;
-  --danger: #b3261e;
-
-  /* States: graphics (ticks, bars, icons), text, and a tint for banners. */
-  --s-operational: #0a7f58;
-  --s-operational-ink: #0a6b4a;
-  --s-operational-tint: #e3f4ec;
-  --s-maintenance: #1f66c7;
-  --s-maintenance-ink: #1a55a6;
-  --s-maintenance-tint: #e2ecfa;
-  --s-degraded: #a87700;
-  --s-degraded-ink: #7d5800;
-  --s-degraded-tint: #fbf3dc;
-  --s-partial: #c95a0a;
-  --s-partial-ink: #a54808;
-  --s-partial-tint: #fdeee3;
-  --s-major: #c42d17;
-  --s-major-ink: #a8260f;
-  --s-major-tint: #fde8e4;
-  --s-none: #c5ced8;
-
-  --font-body: "Red Hat Text Variable", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Red Hat Text Variable", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Red Hat Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
-
-  --text-xs: 0.75rem;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.625rem;
-  --text-2xl: 2.125rem;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-  --space-8: 72px;
-
-  --radius-s: 4px;
-  --radius-m: 6px;
-  --radius-l: 10px;
-
-  --shadow-1: 0 1px 0 rgba(15, 20, 25, 0.04), 0 1px 3px rgba(15, 20, 25, 0.06);
-  --shadow-2: 0 8px 24px rgba(15, 20, 25, 0.16);
-
-  --fast: 120ms;
-  --slow: 220ms;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg: #0c1015;
-    --surface: #141a21;
-    --surface-2: #1c232c;
-    --surface-3: #26303b;
-    --ink: #e7ecf1;
-    --ink-2: #9aa7b4;
-    --ink-3: #7f8c99;
-    --line: #26303b;
-    --line-strong: #3a4552;
-    --accent: #e7ecf1;
-    --accent-ink: #0f1419;
-    --accent-soft: #1f3552;
-    --link: #7cb4ff;
-    --focus: #7cb4ff;
-    --danger: #f2665a;
-
-    --s-operational: #3fbf8a;
-    --s-operational-ink: #5fd3a2;
-    --s-operational-tint: #10261d;
-    --s-maintenance: #5b9cf0;
-    --s-maintenance-ink: #8bbaf6;
-    --s-maintenance-tint: #111f33;
-    --s-degraded: #e0b33a;
-    --s-degraded-ink: #eac767;
-    --s-degraded-tint: #2a2210;
-    --s-partial: #f08a3c;
-    --s-partial-ink: #f6a769;
-    --s-partial-tint: #2d1b0f;
-    --s-major: #f2665a;
-    --s-major-ink: #f78b81;
-    --s-major-tint: #2e1412;
-    --s-none: #2f3a46;
-
-    --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.3);
-    --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root { --fast: 0ms; --slow: 0ms; }
+  /* A day with no data in the 90 days: decoration (the day's word is in
+     its tooltip and in the table). */
+  --s-none: color-mix(in oklab, var(--line) 50%, var(--line-strong));
+  /* An operational day: a little lighter than the state's colour, so the
+     days that went wrong stand out (the word is in the tooltip). */
+  --tick-ok: color-mix(in oklab, var(--s-operational) 78%, var(--surface));
+  --page-width: 760px;
+  --wide-width: 1000px;
+  --public-width: 880px;
 }

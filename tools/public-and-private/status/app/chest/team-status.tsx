@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { IncidentCard } from "../../components/incident-card.tsx";
 import { StateLabel } from "../../components/state.tsx";
 import { db } from "../../lib/db.ts";
@@ -17,13 +18,10 @@ export async function TeamStatus({ locale, t }: { locale: Locale; t: Catalogue }
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   const current = [...view.open, ...view.maintenanceNow, ...view.maintenanceAhead];
   return (
-    <main className="narrow stack-l">
-      <div className="stack">
-        <h1>{t.team.title}</h1>
-        <p className="muted">{t.team.intro}</p>
-      </div>
+    <div className="narrow stack-l">
+      <PageHeader size="m" title={t.team.title} intro={t.team.intro} />
       {view.entries.length === 0 ? (
-        <div className="empty"><h2>{t.public.setupTitle}</h2><p>{t.public.setupBody}</p></div>
+        <EmptyState title={t.public.setupTitle} body={t.public.setupBody} />
       ) : (
         <>
           <div className={`banner small s-${view.overall}`}>
@@ -48,6 +46,6 @@ export async function TeamStatus({ locale, t }: { locale: Locale; t: Catalogue }
           </section>
         </>
       )}
-    </main>
+    </div>
   );
 }

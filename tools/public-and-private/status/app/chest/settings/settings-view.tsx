@@ -1,16 +1,17 @@
 "use client";
 
+import { FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import type { FileWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trash } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
+import { Arrow, Trash } from "../../../components/icons.tsx";
 import { useRun } from "../../../components/use-run.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import type { Result } from "../../../lib/errors.ts";
 import { format } from "../../../lib/i18n/format.ts";
-import { removeTemplate, savePage } from "../actions.ts";
+import { removeTemplate, savePage, saveTemplate } from "../actions.ts";
 
-type Words = { settings: Record<string, string>; errors: Record<ErrorCode, string>; widget: string };
+type Words = { settings: Record<string, string>; errors: Record<ErrorCode, string>; widget: string; files: FileWords; subscribers: string };
 type ImportResult = { incidents: number; maintenances: number; components: number; already: number; open: number; skipped: number };
 
 // A piece of code to paste elsewhere, with a Copy button.
@@ -27,11 +28,12 @@ function Snippet({ id, label, code, t }: { id: string; label: string; code: stri
   );
 }
 
-export function SettingsView({ origin, settings, branded, templates, t }: { origin: string; settings: { website: string; support: string; embedSites: string }; branded: boolean; templates: { id: string; name: string; title: string }[]; t: Words }) {
+export function SettingsView({ origin, settings, look, subscribers, templates, t }: { origin: string; settings: { website: string; support: string; embedSites: string }; look: "own" | "catalogue" | "brand"; subscribers: string; templates: { id: string; name: string; title: string }[]; t: Words }) {
   const w = t.settings;
   const toast = useToast();
   const router = useRouter();
-  const { run, pending } = useRun(t.errors);
+  const { run, pending, undo } = useRun(t.errors);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [website, setWebsite] = useState(settings.website);
   const [support, setSupport] = useState(settings.support);
   const [sites, setSites] = useState(settings.embedSites);
@@ -42,29 +44,28 @@ export function SettingsView({ origin, settings, branded, templates, t }: { orig
   };
   const upload = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = event.currentTarget;
-    const files = (form.elements.namedItem("file") as HTMLInputElement).files;
-    if (!files || files.length === 0) {
-      toast(t.errors.required);
+    const chosen = files.flatMap(f => (f.file ? [f.file] : []));
+    if (chosen.length === 0) {
+      toast({ text: t.errors.required, tone: "error" });
       return;
     }
     setImporting(true);
     try {
       // Several files are read as one list of Statuspage's answers.
-      const texts = await Promise.all([...files].map(f => f.text()));
+      const texts = await Promise.all(chosen.map(f => f.text()));
       const body = new FormData();
       body.set("text", texts.length === 1 ? texts[0]! : `[${texts.join(",")}]`);
       const answer = await fetch("/chest/import", { method: "POST", body });
       const result = (await answer.json()) as Result<ImportResult>;
-      if (!result.ok) toast(format(t.errors[result.error] ?? t.errors.unknown, result.values ?? {}));
+      if (!result.ok) toast({ text: format(t.errors[result.error] ?? t.errors.unknown, result.values ?? {}), tone: "error" });
       else {
         const r = result.value;
         toast(format(w.imported!, { incidents: r.incidents, maintenances: r.maintenances, components: r.components }) + (r.open + r.already + r.skipped > 0 ? " " + format(w.importSkipped!, { open: r.open, already: r.already, skipped: r.skipped }) : ""));
-        form.reset();
+        setFiles([]);
         router.refresh();
       }
     } catch {
-      toast(t.errors.unavailable);
+      toast({ text: t.errors.unavailable, tone: "error" });
     } finally {
       setImporting(false);
     }
@@ -88,7 +89,7 @@ export function SettingsView({ origin, settings, branded, templates, t }: { orig
             <input id="support" className="field" maxLength={300} placeholder={w.supportPlaceholder} value={support} onChange={e => setSupport(e.target.value)} aria-describedby="support-hint" />
             <p id="support-hint" className="hint">{w.supportHint}</p>
           </div>
-          <p className="note">{branded ? w.brandOn : w.brandOff}</p>
+          <p className="note">{look === "brand" ? w.brandOn : look === "catalogue" ? w.themeOn : w.brandOff}</p>
           <p className="note">{w.domain}</p>
           <div><button type="submit" className="button" disabled={pending}>{w.save}</button></div>
         </form>
@@ -124,21 +125,25 @@ export function SettingsView({ origin, settings, branded, templates, t }: { orig
             {templates.map(x => (
               <li key={x.id} className="plain-row">
                 <span><strong>{x.name}</strong>{x.name !== x.title && <span className="muted"> · {x.title}</span>}</span>
-                <button type="button" className="icon-button" disabled={pending} aria-label={format(w.templateRemove!, { name: x.name })} onClick={() => void run(() => removeTemplate(x.id), w.templateRemoved)}><Trash /></button>
+                <button type="button" className="icon-button" disabled={pending} aria-label={format(w.templateRemove!, { name: x.name })} onClick={() => void run(() => removeTemplate(x.id), gone => toast({ id: `template-${x.id}`, text: w.templateRemoved!, undo: undo(() => saveTemplate(gone)) }))}><Trash /></button>
               </li>
             ))}
           </ul>
         )}
       </section>
 
+      <section className="card pad stack" aria-labelledby="subscribers-title">
+        <h2 id="subscribers-title">{t.subscribers}</h2>
+        <p className="hint">{w.subscribersHint}</p>
+        <p><strong>{subscribers}</strong></p>
+        <p className="more"><a href="/chest/subscribers">{w.subscribersLink}<Arrow /></a></p>
+      </section>
+
       <section className="card pad stack" aria-labelledby="import-title">
         <h2 id="import-title">{w.importTitle}</h2>
         <p className="hint">{w.importHint}</p>
         <form className="stack" onSubmit={upload}>
-          <div>
-            <label className="label" htmlFor="import-file">{w.importFile}</label>
-            <input id="import-file" name="file" type="file" className="field" accept="application/json,.json" multiple />
-          </div>
+          <FilePicker label={w.importFile!} files={files} onChange={setFiles} accept={[".json", "application/json"]} maxFiles={5} maxSize={10 << 20} labels={t.files} />
           <div><button type="submit" className="button quiet" disabled={importing}>{importing ? w.importing : w.importButton}</button></div>
         </form>
       </section>

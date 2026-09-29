@@ -203,14 +203,19 @@ export async function moveComponent(componentId: string, direction: "up" | "down
   return act(async actor => { await components.moveComponent(db(), actor, componentId, direction); return null; });
 }
 
-export async function removeComponent(componentId: string): Promise<Result> {
+export async function removeComponent(componentId: string): Promise<Result<components.Snapshot>> {
   return act(async actor => {
     const sql = db();
     const watched = (await checks.listWatches(sql)).some(w => w.componentId === componentId);
-    await components.removeComponent(sql, actor, componentId);
+    const gone = await components.removeComponent(sql, actor, componentId);
     if (watched) await setChecksState(sql, await checks.syncChest(sql));
-    return null;
+    return { kind: gone.kind, name: gone.name, description: gone.description, parentId: gone.parentId, position: gone.position, hidden: gone.hidden, teamOnly: gone.teamOnly };
   });
+}
+
+// The Undo of a deletion (the kit's toast): the component back in its place.
+export async function putBackComponent(snapshot: components.Snapshot): Promise<Result> {
+  return act(async actor => { await components.putBack(db(), actor, snapshot); return null; });
 }
 
 // ---- Checks (Proposal (studio)) --------------------------------------------
@@ -239,8 +244,8 @@ export async function saveTemplate(input: templates.TemplateInput & { title: str
   return act(async actor => ({ name: (await templates.saveTemplate(db(), actor, input)).name }));
 }
 
-export async function removeTemplate(templateId: string): Promise<Result> {
-  return act(async actor => { await templates.removeTemplate(db(), actor, templateId); return null; });
+export async function removeTemplate(templateId: string): Promise<Result<templates.Template>> {
+  return act(async actor => templates.removeTemplate(db(), actor, templateId));
 }
 
 // ---- The public page's settings --------------------------------------------

@@ -4,7 +4,7 @@
 |---|---|---|---|
 | Red Hat Text (font) | [RedHatOfficial/RedHatFont](https://github.com/RedHatOfficial/RedHatFont), via `@fontsource-variable/red-hat-text` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-red-hat-text.txt` |
 | Red Hat Mono (font) | [RedHatOfficial/RedHatFont](https://github.com/RedHatOfficial/RedHatFont), via `@fontsource-variable/red-hat-mono` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-red-hat-mono.txt` |
-| Colour-blind safe palette (idea) | Okabe & Ito, *Color Universal Design* (2002/2008) | a published palette, no code | `app/tokens.css` (tones darkened for contrast) |
+| Colour-blind safe palette (idea) | Okabe & Ito, *Color Universal Design* (2002/2008) | a published palette, no code | `lib/states.ts` (tones darkened for contrast) |
 
 Code from the studio's own tools (same licence, MIT, © 2026 Argentic):
 `lib/ics.ts`, `lib/zone.ts`, `lib/public-origin.ts`, `lib/i18n/format.ts`
@@ -44,5 +44,5 @@ code that reads them):
   Better Stack's heartbeats; no code.
 
 Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`,
-`@argentic/chest-ui` — the studio's UI kit, vendored, used for the brand
-colours) are installed from npm or `vendor/` under their own licences.
+`@argentic/chest-ui` — the studio's UI kit, vendored: the look and the
+shared components) are installed from npm or `vendor/` under their own licences.

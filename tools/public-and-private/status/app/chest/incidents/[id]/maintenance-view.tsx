@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Dialog } from "@argentic/chest-ui/components";
+import type { DateWords } from "@argentic/chest-ui/components/logic";
+import { useState } from "react";
 import type { PickerGroup } from "../../../../components/component-picker.tsx";
 import { SecondField, SecondToggle } from "../../../../components/second-field.tsx";
 import { useRun } from "../../../../components/use-run.ts";
@@ -15,11 +17,11 @@ import { TimelineView, type UpdateView } from "./timeline-view.tsx";
 // and the window to change while it has not ended.
 export function MaintenanceView({ incident, form, updates, publicLink, languages, t }: {
   incident: { id: string; title: string; titleSecond: string | null; phase: string; window: string; affected: string[]; autoPosts: boolean; removed: string | null; hasSecond: boolean };
-  form: { start: { day: string; minutes: number }; end: { day: string; minutes: number }; components: string[]; groups: PickerGroup[]; zoneNote: string };
+  form: { start: { day: string; minutes: number }; end: { day: string; minutes: number }; components: string[]; groups: PickerGroup[]; zoneNote: string; today: string };
   updates: UpdateView[];
   publicLink: string;
   languages: Languages;
-  t: Words;
+  t: Words & { date: DateWords };
 }) {
   const w = t.maintenance;
   const [withSecond, setWithSecond] = useState(incident.hasSecond);
@@ -32,16 +34,14 @@ export function MaintenanceView({ incident, form, updates, publicLink, languages
   const [body, setBody] = useState("");
   const [ending, setEnding] = useState<{ status: "completed" | "cancelled"; text: string } | null>(null);
   const [value, setValue] = useState<WindowValue>({ title: incident.title, start: form.start, end: form.end, components: form.components, autoPosts: incident.autoPosts });
-  const dialog = useRef<HTMLDialogElement>(null);
   const phaseWord: Record<string, string> = { scheduled: w.phaseScheduled!, in_progress: w.phaseInProgress!, completed: w.phaseCompleted!, cancelled: w.phaseCancelled! };
 
   const ask = (status: "completed" | "cancelled") => {
     setEnding({ status, text: status === "completed" ? w.finishText! : w.cancelText! });
-    dialog.current?.showModal();
   };
 
   return (
-    <main className="narrow stack-l">
+    <div className="narrow stack-l">
       <Head id={incident.id} title={incident.title} titleSecond={incident.titleSecond} hasSecond={incident.hasSecond} languages={languages} chip={phaseWord[incident.phase] ?? ""} chipClass={`step-${incident.phase}`} publicLink={publicLink} removed={incident.removed} t={t} />
       <p className="window-line"><strong>{incident.window}</strong>{incident.affected.length > 0 && <> · {incident.affected.join(", ")}</>}</p>
       {incident.autoPosts && <p className="hint">{w.autoOn}</p>}
@@ -76,7 +76,7 @@ export function MaintenanceView({ incident, form, updates, publicLink, languages
         <details className="card pad">
           <summary className="summary-button">{w.change}</summary>
           <form className="stack form" onSubmit={e => { e.preventDefault(); void run(() => changeMaintenance(incident.id, value), w.changed); }}>
-            <MaintenanceFields value={value} onChange={setValue} groups={form.groups} zoneNote={form.zoneNote} t={t} />
+            <MaintenanceFields value={value} onChange={setValue} groups={form.groups} zoneNote={form.zoneNote} today={form.today} t={t} />
             <div><button type="submit" className="button" disabled={pending}>{w.saveChange}</button></div>
           </form>
         </details>
@@ -89,22 +89,27 @@ export function MaintenanceView({ incident, form, updates, publicLink, languages
 
       {!incident.removed && <RemoveIncident id={incident.id} t={t} />}
 
-      <dialog ref={dialog} className="dialog" aria-labelledby="end-title">
+      <Dialog
+        open={ending !== null}
+        title={ending?.status === "completed" ? w.finish : w.cancelIt}
+        onClose={() => { setEnding(null); setEndSecond(""); }}
+        dirty={ending !== null && (ending.text !== (ending.status === "completed" ? w.finishText : w.cancelText) || endSecond !== "")}
+        labels={t.dialog}
+        footer={<>
+          <button type="button" className="button link" onClick={() => { setEnding(null); setEndSecond(""); }}>{t.incident.cancelEdit}</button>
+          <button type="submit" form="end-form" className={ending?.status === "completed" ? "button resolve" : "button"} disabled={pending}>{ending?.status === "completed" ? w.finish : w.cancelIt}</button>
+        </>}
+      >
         {ending && (
-          <form className="stack" onSubmit={async e => { e.preventDefault(); const r = await run(() => postMaintenanceUpdate(incident.id, { status: ending.status, body: ending.text, ...(withSecond && endSecond.trim() ? { bodySecond: endSecond } : {}) }), ending.status === "completed" ? w.finished : w.cancelled); if (r.ok) dialog.current?.close(); }}>
-            <h2 id="end-title">{ending.status === "completed" ? w.finish : w.cancelIt}</h2>
+          <form id="end-form" className="stack" onSubmit={async e => { e.preventDefault(); const r = await run(() => postMaintenanceUpdate(incident.id, { status: ending.status, body: ending.text, ...(withSecond && endSecond.trim() ? { bodySecond: endSecond } : {}) }), ending.status === "completed" ? w.finished : w.cancelled); if (r.ok) { setEnding(null); setEndSecond(""); } }}>
             <div>
               <label className="label" htmlFor="end-text">{t.incident.resolveText}</label>
               <textarea id="end-text" className="field" rows={3} maxLength={5000} required value={ending.text} onChange={e => setEnding({ ...ending, text: e.target.value })} />
             </div>
             {withSecond && <SecondField id="end-second" label={bodyIn} value={endSecond} onChange={setEndSecond} lang={languages.second} />}
-            <div className="actions end">
-              <button type="button" className="button link" onClick={() => dialog.current?.close()}>{t.incident.cancelEdit}</button>
-              <button type="submit" className="button" disabled={pending}>{ending.status === "completed" ? w.finish : w.cancelIt}</button>
-            </div>
           </form>
         )}
-      </dialog>
-    </main>
+      </Dialog>
+    </div>
   );
 }

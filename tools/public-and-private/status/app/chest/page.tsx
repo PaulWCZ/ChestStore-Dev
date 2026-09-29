@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { PageHeader } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Info, Plus } from "../../components/icons.tsx";
@@ -14,7 +15,7 @@ import { publicOrigin } from "../../lib/public-origin.ts";
 import { viewer } from "../../lib/session.ts";
 import { impactOf, statusView, touchedNames } from "../../lib/status-view.ts";
 import { refreshBadge } from "../../lib/tell.ts";
-import { ExampleButton } from "./components/example-button.tsx";
+import { SetupEmpty } from "./components/example-button.tsx";
 
 // Now: what is open, what is planned, and the page as customers see it,
 // with the one thing an editor comes for — "Post an incident" — first.
@@ -40,27 +41,17 @@ export default async function Overview() {
   const noComponents = view.entries.length === 0;
   const upcoming = [...view.maintenanceNow, ...view.maintenanceAhead];
   return (
-    <main className="wide stack-l">
+    <div className="wide stack-l">
       <AutoRefresh seconds={30} />
-      <div className="page-head">
-        <h1>{t.overview.title}</h1>
-        {!noComponents && (
-          <div className="actions">
-            <a className="button quiet" href="/chest/maintenance/new">{t.overview.plan}</a>
-            <a className="button" href="/chest/incidents/new"><Plus />{t.overview.post}</a>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        size="m"
+        title={t.overview.title}
+        secondary={noComponents ? null : <a className="button quiet" href="/chest/maintenance/new">{t.overview.plan}</a>}
+        action={noComponents ? null : <a className="button" href="/chest/incidents/new"><Plus />{t.overview.post}</a>}
+      />
 
       {noComponents ? (
-        <div className="empty">
-          <h2>{t.overview.setup}</h2>
-          <p>{t.overview.setupBody}</p>
-          <div className="actions">
-            <ExampleButton names={t.components.exampleNames.split("|")} label={t.components.example} errors={t.errors} />
-            <a className="button quiet" href="/chest/components">{t.overview.setupAction}</a>
-          </div>
-        </div>
+        <SetupEmpty title={t.overview.setup} body={t.overview.setupBody} names={t.components.exampleNames.split("|")} example={t.components.example} setup={t.overview.setupAction} errors={t.errors} />
       ) : (
         <>
           {down.length + silent.length > 0 && (
@@ -172,6 +163,6 @@ export default async function Overview() {
           <p className="note"><Info /><span>{t.overview.noChecks}</span></p>
         </>
       )}
-    </main>
+    </div>
   );
 }

@@ -129,7 +129,8 @@ await step("an editor posts an incident in one screen; customers, the team and t
   incidentUrl = page.url();
   expect((await page.locator("h1").innerText()).includes("Checkout errors"), "incident page");
   const dev = await devText();
-  expect(dev.includes("Incident : Checkout errors"), "Camille's bell, in French");
+  // French puts a narrow no-break space before ":" (the harness's bell may show a plain one).
+  expect(/Incident[\u202f\u00a0 ]: Checkout errors/u.test(dev), "Camille's bell, in French");
   expect(dev.includes("Incident: Checkout errors"), "Tom's bell, in English");
   expect(dev.includes("[Atelier Martin] Investigating: Checkout errors"), "the subscriber's email");
   await context.clearCookies();
@@ -146,12 +147,12 @@ await step("the editor posts an update, then resolves (confirmed in a dialog)", 
   await page.locator("#update").getByLabel("Identified").check();
   await page.locator("#update").getByLabel("What is new?").fill("A bad release. Rolling back.");
   await page.getByRole("button", { name: "Post the update" }).click();
-  await page.waitForSelector(".toast >> text=Update posted.");
+  await page.waitForSelector(".ck-toast >> text=Update posted.");
   await page.waitForSelector(".team-timeline >> text=A bad release. Rolling back.");
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
   expect((await page.locator("dialog[open]").innerText()).includes("Checkout will show “Operational” again"), "dialog says what changes");
   await page.getByRole("button", { name: "Resolve the incident" }).click();
-  await page.waitForSelector(".toast >> text=Resolved.");
+  await page.waitForSelector(".ck-toast >> text=Resolved.");
   await page.waitForSelector(".chip.step-resolved");
   expect(await page.locator("#update-body").count() === 0, "no update form once resolved: nothing reopens it by a slip");
 });
@@ -159,7 +160,7 @@ await step("the editor posts an update, then resolves (confirmed in a dialog)", 
 await step("a resolved incident gets its post-mortem, shown on its public page; reopening asks first", async () => {
   await page.getByRole("textbox", { name: "What happened and what we changed" }).fill("A bad release reached checkout. We now release in two steps.");
   await page.getByRole("button", { name: "Publish" }).click();
-  await page.waitForSelector(".toast >> text=Published on the incident’s page.");
+  await page.waitForSelector(".ck-toast >> text=Published on the incident’s page.");
   await page.getByRole("button", { name: "Reopen", exact: true }).click();
   expect((await page.locator("dialog[open]").innerText()).includes("subscribers are emailed"), "the dialog says what reopening does");
   await page.locator("dialog[open]").getByRole("button", { name: "Cancel" }).click();
@@ -178,11 +179,13 @@ await step("a mistake is corrected and logged; a removed update comes back with 
   await page.locator(".team-timeline .step").last().getByRole("button", { name: "Edit" }).click();
   await page.locator(".team-timeline textarea").first().fill("Some orders failed at the last step.");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.waitForSelector(".toast >> text=Update corrected.");
+  await page.waitForSelector(".ck-toast >> text=Update corrected.");
   await page.waitForSelector(".team-timeline >> text=Corrected by You");
   await page.locator(".team-timeline .step").nth(1).getByRole("button", { name: "Remove" }).click();
-  await page.getByRole("button", { name: "Undo" }).click();
-  await page.waitForSelector(".toast >> text=The update is back on the page.");
+  await page.waitForSelector(".team-timeline .step.removed");
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".ck-toast >> text=Undone.");
+  await page.waitForFunction(() => document.querySelectorAll(".team-timeline .step.removed").length === 0);
 });
 
 await step("a form left empty says so in the tool's words; a template fills the incident; wording can be kept as a template", async () => {
@@ -196,7 +199,7 @@ await step("a form left empty says so in the tool's words; a template fills the 
   expect((await page.getByLabel("Title in French").inputValue()) === "Paiements lents", "its French version too");
   await page.getByLabel("What is wrong?").fill("Search is down");
   await page.getByRole("button", { name: "Save as a template" }).click();
-  await page.waitForSelector(".toast >> text=Saved as the template “Search is down”. It will be offered here next time.");
+  await page.waitForSelector(".ck-toast >> text=Saved as the template “Search is down”. It will be offered here next time.");
 });
 
 await step("an editor plans a maintenance; the page shows it as planned", async () => {
@@ -220,8 +223,8 @@ await step("an editor adds a service, hides it, and the public page follows", as
   await page.locator("#add-component-name").fill("Gift cards");
   await page.getByRole("button", { name: "Add a service" }).click();
   await page.waitForSelector(".component-line >> text=Gift cards");
-  await page.locator('summary[aria-label="More actions for Gift cards"]').click();
-  await page.getByRole("button", { name: "Hide from the page — Gift cards" }).click();
+  await page.getByRole("button", { name: "More actions for Gift cards" }).click();
+  await page.getByRole("menuitem", { name: "Hide from the page" }).click();
   await page.waitForSelector(".component-line.is-hidden >> text=Gift cards");
   await context.clearCookies();
   await english();
@@ -238,7 +241,7 @@ await step("an editor has the Chest check a service; three failures ring the bel
   await field.fill("https://shop.atelier-martin.test/checkout");
   await page.getByLabel("Every").first().selectOption("1");
   await page.getByRole("button", { name: "Save the checks" }).click();
-  await page.waitForSelector(".toast >> text=Saved. Your Chest checks these addresses.");
+  await page.waitForSelector(".ck-toast >> text=Saved. Your Chest checks these addresses.");
   expect((await devText()).includes("https://shop.atelier-martin.test/checkout"), "the Chest has the check");
   for (let i = 0; i < 3; i++) await page.request.post(origin + "/_dev/check", { form: { name: `c-${componentId}`, ok: "0" } });
   const dev = await devText();
@@ -279,15 +282,58 @@ await step("an editor creates a heartbeat for a nightly job; the job's call is r
   expect((await page.locator("#heartbeat-" + (await page.locator("#heartbeat-service option", { hasText: "Back office" }).getAttribute("value"))).innerText()).includes("Last call"), "last call shown");
 });
 
+await step("deleting a service offers Undo; deleting a heartbeat, which cannot be undone, asks first in the page", async () => {
+  await page.goto(origin + "/chest/components");
+  await page.locator("#add-component-name").fill("Temporary service");
+  await page.getByRole("button", { name: "Add a service" }).click();
+  await page.waitForSelector(".component-line >> text=Temporary service");
+  await page.getByRole("button", { name: "More actions for Temporary service" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.waitForFunction(() => !document.querySelector("main")?.textContent?.includes("Temporary service"));
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".ck-toast >> text=Undone.");
+  await page.waitForSelector(".component-line >> text=Temporary service");
+  await page.goto(origin + "/chest/checks");
+  let asked = false;
+  page.once("dialog", d => { asked = true; void d.dismiss(); });
+  await page.getByRole("button", { name: "Delete the heartbeat of Back office" }).click();
+  const confirm = page.getByRole("alertdialog");
+  expect((await confirm.innerText()).includes("Its address stops working at once"), "the Confirm says what happens");
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  expect(await page.locator("[id^=heartbeat-]").filter({ hasText: "Back office" }).count() > 0, "still there after Cancel");
+  await page.getByRole("button", { name: "Delete the heartbeat of Back office" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
+  await page.waitForSelector(".ck-toast >> text=Heartbeat deleted: its address no longer works.");
+  expect(!asked, "never the browser's confirm");
+});
+
+await step("an incident of the past: its days typed in the editor's words, its times on a 24-hour list", async () => {
+  await page.goto(origin + "/chest/incidents/new");
+  await page.getByLabel("What is wrong?").fill("Search was down");
+  await page.getByLabel("Catalogue").check();
+  await page.getByLabel("It already happened: add it to the history").check();
+  await page.getByLabel("Started on").fill("yesterday");
+  await page.getByLabel("Started on").blur();
+  await page.locator("#start-time").selectOption({ label: "14:05" });
+  await page.getByLabel("Resolved on").fill("yesterday");
+  await page.getByLabel("Resolved on").blur();
+  await page.locator("#end-time").selectOption({ label: "15:30" });
+  expect((await page.getByLabel("at", { exact: true }).count()) === 2, "each time has its label");
+  await page.getByLabel("What do you tell your customers?").fill("Search did not answer for an hour and a half.");
+  await page.getByRole("button", { name: "Add to the history" }).click();
+  await page.waitForURL(/\/chest\/incidents\/\d+$/u);
+  expect((await page.locator(".chip").first().innerText()).toLowerCase().includes("resolved"), "resolved, in the history");
+});
+
 await step("settings: the company's links; import from Statuspage; download everything", async () => {
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("Your website").fill("https://www.atelier-martin.fr");
   await page.locator("#links-title").locator("..").getByRole("button", { name: "Save" }).click();
-  await page.waitForSelector(".toast >> text=Saved.");
+  await page.waitForSelector(".ck-toast >> text=Saved.");
   const fixtures = join(import.meta.dirname, "..", "..", "..", "tools", "public-and-private", "status", "test", "fixtures");
-  await page.setInputFiles("#import-file", [join(fixtures, "statuspage-components.json"), join(fixtures, "statuspage-incidents.json"), join(fixtures, "statuspage-maintenances.json")]);
+  await page.setInputFiles("section[aria-labelledby=import-title] input[type=file]", [join(fixtures, "statuspage-components.json"), join(fixtures, "statuspage-incidents.json"), join(fixtures, "statuspage-maintenances.json")]);
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await page.waitForSelector(".toast >> text=/Imported: 2 incidents, 1 maintenances/");
+  await page.waitForSelector(".ck-toast >> text=/Imported: 2 incidents, 1 maintenances/");
   const all = await page.request.get(origin + "/chest/export");
   const data = await all.json();
   expect(data.format === "chest-status-export" && data.incidents.some(i => i.sourceId === "statuspage:yq8hg1dmw0v3"), "the export holds the imported history");

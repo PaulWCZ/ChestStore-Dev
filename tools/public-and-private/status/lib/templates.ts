@@ -62,8 +62,11 @@ export async function saveTemplate(sql: Sql, actor: Member | null, input: Templa
   });
 }
 
-export async function removeTemplate(sql: Sql, actor: Member | null, templateId: unknown): Promise<void> {
+// removeTemplate deletes a template and gives it back as it was, so the
+// editor's Undo saves it again (saveTemplate: same name, same words).
+export async function removeTemplate(sql: Sql, actor: Member | null, templateId: unknown): Promise<Template> {
   editor(actor);
-  const rows = await sql`delete from templates where id = ${id(templateId)} returning id`;
-  if (rows.length === 0) throw new AppError("not_found");
+  const [row] = await sql<Row[]>`delete from templates where id = ${id(templateId)} returning id, name, title, body, title_second, body_second, states`;
+  if (!row) throw new AppError("not_found");
+  return { id: String(row.id), name: row.name, title: row.title, body: row.body, titleSecond: row.title_second, bodySecond: row.body_second, states: Object.fromEntries(Object.entries(row.states ?? {}).filter(([, s]) => isImpact(s))) as Record<string, Impact> };
 }

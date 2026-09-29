@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { phaseOf, stepOf } from "../../../components/incident-card.tsx";
 import { db } from "../../../lib/db.ts";
 import { stamp } from "../../../lib/i18n/index.ts";
@@ -17,10 +18,9 @@ export default async function TeamHistory({ searchParams }: { searchParams: Prom
   const zone = chest.timeZone();
   const now = new Date();
   return (
-    <main className="narrow stack-l">
-      <div className="page-head"><h1>{t.historyPrivate.title}</h1></div>
-      <p className="lead">{t.historyPrivate.intro}</p>
-      {list.length === 0 ? <div className="empty"><p>{t.historyPrivate.empty}</p></div> : (
+    <div className="narrow stack-l">
+      <PageHeader size="m" title={t.historyPrivate.title} intro={t.historyPrivate.intro} />
+      {list.length === 0 ? <EmptyState title={t.historyPrivate.emptyTitle} body={t.historyPrivate.empty} action={<a className="button" href="/chest/incidents/new">{t.overview.post}</a>} /> : (
         <ul className="rows card">
           {list.map(i => {
             const step = i.kind === "maintenance" ? phaseOf(i, now) : stepOf(i, now);
@@ -39,6 +39,6 @@ export default async function TeamHistory({ searchParams }: { searchParams: Prom
         </ul>
       )}
       {list.length === 50 && <p><a className="button quiet" href={`/chest/history?before=${list.at(-1)!.id}`}>{t.historyPrivate.more}</a></p>}
-    </main>
+    </div>
   );
 }

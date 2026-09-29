@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import type { Metadata } from "next";
 import { Fill } from "../components/fill.tsx";
 import { HistoryBar } from "../components/history-bar.tsx";
@@ -35,10 +36,7 @@ export default async function StatusPage() {
   if (view.entries.length === 0) {
     return (
       <PublicShell company={company} locale={locale} zone={zone} t={t} path="/" offerMail={false}>
-        <section className="empty setup" aria-labelledby="setup">
-          <h1 id="setup">{t.public.setupTitle}</h1>
-          <p>{t.public.setupBody}</p>
-        </section>
+        <EmptyState headingLevel={1} title={t.public.setupTitle} body={t.public.setupBody} />
       </PublicShell>
     );
   }

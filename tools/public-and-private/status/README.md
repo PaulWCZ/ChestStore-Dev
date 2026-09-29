@@ -48,13 +48,21 @@ minute, in plain words.
   happened and what we changed" section, shown under its timeline on the
   public page (and linked from the history). Corrections are logged like
   any update; nobody is emailed.
-- **The company's look** (Proposal `chest.theme()`, brand mode): when the
-  Chest holds the company's brand, the public pages show its logo (with
-  its dark version) and its main colour on the header, the main button
-  and links — derived by the UI kit and checked for contrast against this
-  page's grounds; the five state colours never change. *Settings* adds
-  the company's website ("Back to atelier-martin.fr") and where customers
-  reach support.
+- **Looks** (Proposal `chest.theme()`, the UI kit `@argentic/chest-ui`):
+  the tool wears any look the company chooses in its Chest — its own
+  identity ("Control room"), any theme of the catalogue ("Chest", "High
+  contrast", the other tools' identities), or the company's brand
+  (colours, fonts, corners, logo) — for all its tools or for Status
+  alone, with the same features. The team's pages and the public pages
+  wear the same look, resolved once per request on the server (one
+  `<style>` with the page's nonce, no script); in brand mode the company's
+  logo stands where the mark or the monogram is. **The five state colours
+  never change**: they are meaning (Okabe–Ito, each with its shape and
+  its word), fixed in every look and measured against every theme's
+  grounds (`lib/states.ts`, `test/states.test.ts`). The badge's label and
+  the banner's focus ring take the brand's colour when it reads safely.
+  *Settings* adds the company's website ("Back to atelier-martin.fr") and
+  where customers reach support.
 - **On other sites** (*Settings*): a **badge** (`/badge.svg`, a plain SVG:
   no script, no link, `?lang=`), a **banner** for the company's own site
   or app (`/embed`, one line in a frame, no script; only the sites the
@@ -270,7 +278,7 @@ language and choices only. The public page never shows who posted.
 | `notifications.broadcast` | The bell of every editor in one call | The tool pages through its members and notifies each language's group |
 | `visitors` | The form's signed time and the Chest's visitor counts | The tool's own counters (`form_counts`) |
 | `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
-| `chest` | Company name, time zone, language, public address; `theme()` for the brand's logo and colour | — (the SDK's defaults; the tool's own look) |
+| `chest` | Company name, time zone, language, public address; `theme()` for the look the company chose (a catalogue theme or its brand) | — (the SDK's defaults; the tool's own look) |
 
 What it would need next (in the final report of the studio):
 
@@ -340,9 +348,11 @@ evening, three subscribers.
   rota or escalation (out of scope: Better Stack's monitoring side).
 - Two languages only (English and French): a third needs its catalogue
   and a choice of the second language per incident.
-- The brand gives the logo and main colour; the company's own fonts are
-  not applied on the public page. A catalogue theme chosen for all tools
-  does not change the public page (it is the company's page).
+- A theme chosen for all tools dresses the public page too (one look for
+  the whole tool); a company that wants its public page in Status's own
+  look, or in its brand, chooses that for Status alone in its Chest.
+- Undoing a deleted service puts it back in its place, but not its
+  automatic check nor the subscribers who followed only it.
 - No audience-specific pages (one per big client) and no password on the
   public page; the team's own page is the members' view in the Chest.
 - Imports from Statuspage only (not Instatus or Better Stack); subscribers

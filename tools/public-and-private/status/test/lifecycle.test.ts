@@ -74,7 +74,7 @@ test("the team hears of an incident in their language, only people with the role
   await incidentOpened({ id: "41", title: "Payments fail" }, "major", ["Payments"]);
   const items = chest.notifications.filter(n => n.key === "incident:41");
   assert.deepEqual(items.map(n => n.member).sort(), [camille.id, lea.id, tom.id].sort());
-  assert.equal(items.find(n => n.member === camille.id)!.title, "Incident : Payments fail");
+  assert.equal(items.find(n => n.member === camille.id)!.title, "Incident : Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.title, "Incident: Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.body, "Major outage — Payments");
   assert.equal(items[0]!.path, "/chest/incidents/41");

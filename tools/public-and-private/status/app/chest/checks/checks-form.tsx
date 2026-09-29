@@ -1,7 +1,7 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState } from "react";
-import { useToast } from "../../../components/toast.tsx";
 import { useRun } from "../../../components/use-run.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";

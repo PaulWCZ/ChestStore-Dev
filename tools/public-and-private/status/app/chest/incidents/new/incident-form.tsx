@@ -1,15 +1,16 @@
 "use client";
 
+import { DateField, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ImpactPicker, type PickerGroup } from "../../../../components/component-picker.tsx";
 import { SecondField, SecondToggle } from "../../../../components/second-field.tsx";
-import { TimeSelect } from "../../../../components/time-select.tsx";
 import { useRun } from "../../../../components/use-run.ts";
-import { useToast } from "../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Impact } from "../../../../lib/model.ts";
+import { addDays } from "../../../../lib/zone.ts";
 import { backfillIncident, postIncident, saveTemplate } from "../../actions.ts";
 
 // A template as the form reads it (lib/templates.ts).
@@ -21,6 +22,7 @@ type Words = {
   steps: Record<string, string>;
   stepHelp: Record<string, string>;
   errors: Record<ErrorCode, string>;
+  date: DateWords;
 };
 
 const draftKey = "status:incident-draft";
@@ -39,9 +41,9 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
   const [states, setStates] = useState<Record<string, Impact>>(start?.states ?? {});
   const [status, setStatus] = useState("investigating");
   const [past, setPast] = useState(false);
-  const [startDay, setStartDay] = useState(today);
+  const [startDay, setStartDay] = useState<string | null>(today);
   const [startMin, setStartMin] = useState(Math.max(0, nowMinutes - 120));
-  const [endDay, setEndDay] = useState(today);
+  const [endDay, setEndDay] = useState<string | null>(today);
   const [endMin, setEndMin] = useState(nowMinutes);
   const [resolution, setResolution] = useState(w.resolutionDefault ?? "");
   const [withSecond, setWithSecond] = useState(false);
@@ -50,6 +52,8 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
   const [resolutionSecond, setResolutionSecond] = useState("");
   const [template, setTemplate] = useState("");
   const [missing, setMissing] = useState<string | null>(null);
+  // An incident of the past: today and yesterday one tap away.
+  const recent = [{ label: t.date.today, value: today }, { label: t.date.yesterday, value: addDays(today, -1) }];
   const known = new Set(groups.flatMap(g => g.items.map(i => i.id)));
 
   const applyTemplate = (templateId: string) => {
@@ -100,7 +104,7 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
       toast(past ? w.added! : w.posted!);
       router.push(`/chest/incidents/${value.id}`);
     };
-    if (past) await run(() => backfillIncident({ title, body, resolution, states, started: { day: startDay, minutes: startMin }, resolved: { day: endDay, minutes: endMin }, second }), done);
+    if (past) await run(() => backfillIncident({ title, body, resolution, states, started: { day: startDay ?? "", minutes: startMin }, resolved: { day: endDay ?? "", minutes: endMin }, second }), done);
     else await run(() => postIncident({ title, status, body, states, second }), done);
   };
   const keep = async () => {
@@ -140,16 +144,18 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
       {past ? (
         <fieldset className="when-fields">
           <div className="when-row">
-            <label className="label" htmlFor="start-day">{w.startedDay}</label>
-            <input id="start-day" type="date" className="field" required value={startDay} max={today} onChange={e => setStartDay(e.target.value)} />
-            <span className="label">{w.startedTime}</span>
-            <TimeSelect id="start-time" value={startMin} onChange={setStartMin} hourLabel={`${w.startedDay} — ${w.hour}`} minuteLabel={`${w.startedDay} — ${w.minute}`} />
+            <DateField id="start-day" label={w.startedDay!} value={startDay} onChange={setStartDay} today={today} max={today} chips={recent} required labels={t.date} />
+            <div className="time-field">
+              <label className="label" htmlFor="start-time">{w.startedTime}</label>
+              <TimeSelect id="start-time" step={5} value={startMin} onChange={setStartMin} />
+            </div>
           </div>
           <div className="when-row">
-            <label className="label" htmlFor="end-day">{w.resolvedDay}</label>
-            <input id="end-day" type="date" className="field" required value={endDay} max={today} onChange={e => setEndDay(e.target.value)} />
-            <span className="label">{w.resolvedTime}</span>
-            <TimeSelect id="end-time" value={endMin} onChange={setEndMin} hourLabel={`${w.resolvedDay} — ${w.hour}`} minuteLabel={`${w.resolvedDay} — ${w.minute}`} />
+            <DateField id="end-day" label={w.resolvedDay!} value={endDay} onChange={setEndDay} today={today} min={startDay} max={today} chips={recent} required labels={t.date} />
+            <div className="time-field">
+              <label className="label" htmlFor="end-time">{w.resolvedTime}</label>
+              <TimeSelect id="end-time" step={5} value={endMin} onChange={setEndMin} />
+            </div>
           </div>
           <p className="hint">{zoneNote}</p>
         </fieldset>

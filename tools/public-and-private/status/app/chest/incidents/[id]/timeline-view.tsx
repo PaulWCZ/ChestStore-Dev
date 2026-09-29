@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { Pencil, Trash } from "../../../../components/icons.tsx";
 import { SecondField } from "../../../../components/second-field.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { useRun } from "../../../../components/use-run.ts";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format } from "../../../../lib/i18n/format.ts";
@@ -31,11 +31,11 @@ type Languages = { second: string; secondName: string };
 function Entry({ u, languages, t }: { u: UpdateView; languages: Languages; t: Words }) {
   const w = t.incident;
   const toast = useToast();
-  const { run, pending } = useRun(t.errors);
+  const { run, pending, undo } = useRun(t.errors);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(u.body);
   const [second, setSecond] = useState(u.bodySecond ?? "");
-  const remove = () => run(() => removeUpdate(u.id), () => toast(w.removedUpdate!, { label: w.undo!, run: () => void run(() => restoreUpdate(u.id), w.updateBack) }));
+  const remove = () => run(() => removeUpdate(u.id), () => toast({ id: `remove-${u.id}`, text: w.removedUpdate!, undo: undo(() => restoreUpdate(u.id)) }));
   return (
     <li className={`step step-${u.status}${u.removed ? " removed" : ""}`}>
       <div className="step-head">

@@ -1,11 +1,12 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
+import type { DialogWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ImpactPicker, type PickerGroup } from "../../../../components/component-picker.tsx";
 import { Back, External, Pencil } from "../../../../components/icons.tsx";
 import { SecondField, SecondToggle } from "../../../../components/second-field.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { useRun } from "../../../../components/use-run.ts";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format } from "../../../../lib/i18n/format.ts";
@@ -24,6 +25,7 @@ export type Words = {
   errors: Record<ErrorCode, string>;
   maintenance: Record<string, string>;
   people: Record<string, string>;
+  dialog: DialogWords;
 };
 
 // The second language of the incident's texts: its code and its name in
@@ -81,14 +83,15 @@ export function Head({ id, title, titleSecond, hasSecond, languages, chip, chipC
   );
 }
 
-// Removing the whole incident: no question asked, an Undo instead.
+// Removing the whole incident from the page: no question asked, an Undo
+// instead (the kit's toast: it says whether the Undo worked).
 export function RemoveIncident({ id, t }: { id: string; t: Words }) {
   const w = t.incident;
   const toast = useToast();
-  const { run, pending } = useRun(t.errors);
+  const { run, pending, undo } = useRun(t.errors);
   return (
     <p className="danger-zone">
-      <button type="button" className="button link danger" disabled={pending} onClick={() => run(() => removeIncident(id), () => toast(w.removedIncident!, { label: w.undo!, run: () => void run(() => restoreIncident(id), w.restored) }))}>{w.removeIncident}</button>
+      <button type="button" className="button link danger" disabled={pending} onClick={() => run(() => removeIncident(id), () => toast({ id: `remove-${id}`, text: w.removedIncident!, undo: undo(() => restoreIncident(id)) }))}>{w.removeIncident}</button>
     </p>
   );
 }
@@ -166,8 +169,8 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
   const [closing, setClosing] = useState(t.compose.resolutionDefault ?? "");
   const [closingSecond, setClosingSecond] = useState("");
   const [missing, setMissing] = useState<string | null>(null);
-  const dialog = useRef<HTMLDialogElement>(null);
-  const reopenDialog = useRef<HTMLDialogElement>(null);
+  const [asking, setAsking] = useState<"resolve" | "reopen" | null>(null);
+  const closingDefault = t.compose.resolutionDefault ?? "";
   const affectedNow = Object.keys(current).map(id => groups.flatMap(g => g.items).find(c => c.id === id)?.name ?? "").filter(Boolean);
   const secondWords = { alsoIn: format(t.compose.alsoIn!, { language: languages.secondName }), bodyIn: format(t.compose.bodyIn!, { language: languages.secondName }) };
 
@@ -187,7 +190,7 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
       setBody("");
       setSecond("");
       setChanging(false);
-      if (reopen) reopenDialog.current?.close();
+      if (reopen) setAsking(null);
     }
   };
   const resolve = async (event: React.FormEvent) => {
@@ -196,7 +199,7 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
     setMissing(null);
     const r = await run(() => postUpdate(incident.id, { status: "resolved", body: closing, ...(withSecond && closingSecond.trim() ? { bodySecond: closingSecond } : {}) }), w.resolved);
     if (r.ok) {
-      dialog.current?.close();
+      setAsking(null);
       router.refresh();
     }
   };
@@ -219,7 +222,7 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
   );
 
   return (
-    <main className="narrow stack-l">
+    <div className="narrow stack-l">
       <Head id={incident.id} title={incident.title} titleSecond={incident.titleSecond} hasSecond={incident.hasSecond} languages={languages} chip={t.steps[incident.status] ?? ""} chipClass={`step-${incident.status}`} publicLink={publicLink} removed={incident.removed} t={t} />
       {incident.affected.length > 0 && <p className="muted">{w.affects} · {incident.affected.join(", ")}{incident.backfilled ? ` · ${w.backfilled}` : ""}</p>}
 
@@ -227,7 +230,7 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
         <section id="update" className="card pad stack" aria-labelledby="update-title">
           <div className="section-head">
             <h2 id="update-title">{w.update}</h2>
-            <button type="button" className="button resolve" onClick={() => dialog.current?.showModal()}>{w.resolve}</button>
+            <button type="button" className="button resolve" onClick={() => setAsking("resolve")}>{w.resolve}</button>
           </div>
           <form className="stack" noValidate onSubmit={e => post(e)}>
             {fields("update")}
@@ -240,7 +243,7 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
         <>
           <div className="resolved-line">
             <p>{w.resolvedNote}</p>
-            <button type="button" className="button quiet" onClick={() => reopenDialog.current?.showModal()}>{w.reopen}</button>
+            <button type="button" className="button quiet" onClick={() => setAsking("reopen")}>{w.reopen}</button>
           </div>
           <PostmortemForm id={incident.id} current={incident.postmortem} hasSecond={incident.hasSecond} languages={languages} t={t} />
         </>
@@ -253,9 +256,18 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
 
       {!incident.removed && <RemoveIncident id={incident.id} t={t} />}
 
-      <dialog ref={dialog} className="dialog" aria-labelledby="resolve-title">
-        <form className="stack" noValidate onSubmit={resolve}>
-          <h2 id="resolve-title">{w.resolveTitle}</h2>
+      <Dialog
+        open={asking === "resolve"}
+        title={w.resolveTitle}
+        onClose={() => { setAsking(null); setClosing(closingDefault); setClosingSecond(""); setMissing(null); }}
+        dirty={closing !== closingDefault || closingSecond !== ""}
+        labels={t.dialog}
+        footer={<>
+          <button type="button" className="button link" onClick={() => { setAsking(null); setClosing(closingDefault); setClosingSecond(""); }}>{w.cancelEdit}</button>
+          <button type="submit" form="resolve-form" className="button resolve" disabled={pending}>{w.resolveConfirm}</button>
+        </>}
+      >
+        <form id="resolve-form" className="stack" noValidate onSubmit={resolve}>
           <p>{affectedNow.length ? format(w.resolveBody!, { list: affectedNow.join(", ") }) : w.resolveNone}</p>
           <div>
             <label className="label" htmlFor="closing">{w.resolveText}</label>
@@ -263,24 +275,25 @@ export function IncidentView({ incident, current, groups, updates, publicLink, l
             <Missing id="closing-missing" show={missing === "closing"} t={t} />
           </div>
           {withSecond && <SecondField id="closing-second" label={secondWords.bodyIn} value={closingSecond} onChange={setClosingSecond} lang={languages.second} />}
-          <div className="actions end">
-            <button type="button" className="button link" onClick={() => dialog.current?.close()}>{w.cancelEdit}</button>
-            <button type="submit" className="button resolve" disabled={pending}>{w.resolveConfirm}</button>
-          </div>
         </form>
-      </dialog>
+      </Dialog>
 
-      <dialog ref={reopenDialog} className="dialog" aria-labelledby="reopen-title">
-        <form className="stack" noValidate onSubmit={e => post(e, true)}>
-          <h2 id="reopen-title">{w.reopenTitle}</h2>
-          <p>{w.reopenBody}</p>
+      <Dialog
+        open={asking === "reopen"}
+        title={w.reopenTitle}
+        description={w.reopenBody}
+        onClose={() => { setAsking(null); setBody(""); setSecond(""); setMissing(null); }}
+        dirty={body.trim() !== "" || second.trim() !== ""}
+        labels={t.dialog}
+        footer={<>
+          <button type="button" className="button link" onClick={() => { setAsking(null); setBody(""); setSecond(""); }}>{w.cancelEdit}</button>
+          <button type="submit" form="reopen-form" className="button" disabled={pending}>{w.reopenConfirm}</button>
+        </>}
+      >
+        <form id="reopen-form" className="stack" noValidate onSubmit={e => post(e, true)}>
           {fields("reopen")}
-          <div className="actions end">
-            <button type="button" className="button link" onClick={() => reopenDialog.current?.close()}>{w.cancelEdit}</button>
-            <button type="submit" className="button" disabled={pending}>{w.reopenConfirm}</button>
-          </div>
         </form>
-      </dialog>
-    </main>
+      </Dialog>
+    </div>
   );
 }

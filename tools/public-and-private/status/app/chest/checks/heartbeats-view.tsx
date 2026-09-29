@@ -1,8 +1,8 @@
 "use client";
 
+import { Confirm, useToast } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { Trash } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { useRun } from "../../../components/use-run.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format } from "../../../lib/i18n/format.ts";
@@ -10,7 +10,8 @@ import { createHeartbeat, removeHeartbeat } from "../actions.ts";
 
 // Heartbeats: choose a service and how often its job runs, get a secret
 // address (shown once), paste it at the end of the job. The list says when
-// each one last called, or since when it is silent.
+// each one last called, or since when it is silent. Deleting one cannot be
+// undone (its secret address dies with it): the kit's Confirm asks first.
 export type HeartbeatRow = { componentId: string; name: string; every: number; everyLabel: string; standing: string; silent: boolean };
 type Words = { heartbeats: Record<string, string>; errors: Record<ErrorCode, string> };
 
@@ -21,6 +22,7 @@ export function HeartbeatsView({ rows, services, every, t }: { rows: HeartbeatRo
   const [service, setService] = useState(services[0]?.id ?? "");
   const [minutes, setMinutes] = useState(1440);
   const [made, setMade] = useState<{ name: string; url: string } | null>(null);
+  const [deleting, setDeleting] = useState<HeartbeatRow | null>(null);
   const make = async (componentId: string, value: number) => {
     const name = services.find(s => s.id === componentId)?.name ?? "";
     await run(() => createHeartbeat(componentId, value), result => { setMade({ name, url: result.url }); toast(w.created!); });
@@ -48,7 +50,7 @@ export function HeartbeatsView({ rows, services, every, t }: { rows: HeartbeatRo
               </span>
               <span className="line-actions">
                 <button type="button" className="button quiet small" disabled={pending} onClick={() => void make(r.componentId, r.every)}>{w.renew}</button>
-                <button type="button" className="icon-button" disabled={pending} aria-label={format(w.remove!, { component: r.name })} onClick={() => void run(() => removeHeartbeat(r.componentId), w.removed)}><Trash /></button>
+                <button type="button" className="icon-button" disabled={pending} aria-label={format(w.remove!, { component: r.name })} onClick={() => setDeleting(r)}><Trash /></button>
               </span>
             </li>
           ))}
@@ -72,6 +74,16 @@ export function HeartbeatsView({ rows, services, every, t }: { rows: HeartbeatRo
         </form>
       )}
       <p className="hint">{w.delay}</p>
+      <Confirm
+        open={deleting !== null}
+        title={format(w.deleteTitle!, { component: deleting?.name ?? "" })}
+        body={w.deleteBody!}
+        confirmLabel={w.delete!}
+        cancelLabel={w.cancel!}
+        busy={pending}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => { const r = deleting; if (r) void run(() => removeHeartbeat(r.componentId), w.removed).then(() => setDeleting(null)); }}
+      />
     </section>
   );
 }

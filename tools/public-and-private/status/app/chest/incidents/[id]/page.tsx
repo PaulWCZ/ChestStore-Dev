@@ -58,7 +58,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
   }));
   const publicLink = `${publicOrigin(await headers()) ?? ""}/incidents/${incident.id}?fresh=${Math.floor(now.getTime() / 1000)}`;
   const removed = incident.removedAt ? format(t.incident.removedBanner, { name: nameFor(incident.removedBy), time: when(incident.removedAt) }) : null;
-  const words = { incident: t.incident, compose: t.compose, steps: t.steps, stepHelp: t.stepHelp, states: t.states, errors: t.errors, maintenance: t.maintenance, people: t.people };
+  const words = { incident: t.incident, compose: t.compose, steps: t.steps, stepHelp: t.stepHelp, states: t.states, errors: t.errors, maintenance: t.maintenance, people: t.people, dialog: t.dialog, date: t.date };
   const languages = { second, secondName };
   const groups = pickerGroups(components);
   const affected = touched(incident).map(c => names.get(c) ?? "").filter(Boolean);
@@ -70,7 +70,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
       <MaintenanceView
         incident={{ id: incident.id, title: incident.title, titleSecond: incident.titleSecond, phase, window: format(t.time.range, { from: when(incident.startedAt), to: incident.endsAt ? when(incident.endsAt) : "" }), affected, autoPosts: incident.autoPosts, removed, hasSecond: incident.secondLanguage !== null }}
         languages={languages}
-        form={{ start: { day: start.date, minutes: start.minutes }, end: { day: end.date, minutes: end.minutes }, components: incident.components, groups, zoneNote: format(t.maintenance.zone, { zone: zoneName(zone) }) }}
+        form={{ start: { day: start.date, minutes: start.minutes }, end: { day: end.date, minutes: end.minutes }, components: incident.components, groups, zoneNote: format(t.maintenance.zone, { zone: zoneName(zone) }), today: chest.today() }}
         updates={updates}
         publicLink={publicLink}
         t={words}

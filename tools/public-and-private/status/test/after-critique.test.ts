@@ -148,8 +148,12 @@ test("templates: saved from what was typed, named after the title, replaced by n
   await refuses("forbidden", () => listTemplates(sql, asMember(nora)));
   await refuses("empty", () => saveTemplate(sql, editor, { title: " ", body: "y" }));
   await refuses("invalid", () => saveTemplate(sql, editor, { title: "x", body: "y", states: { [website]: "broken" } }));
-  await removeTemplate(sql, editor, b.id);
+  const deleted = await removeTemplate(sql, editor, b.id);
   await refuses("not_found", () => removeTemplate(sql, editor, b.id));
+  // The editor's Undo saves it again, as it was.
+  await saveTemplate(sql, editor, deleted);
+  const again = (await listTemplates(sql, editor)).find(x => x.name === "Site down")!;
+  assert.deepEqual([again.title, again.body, again.states], ["Site down", "The site does not answer.", { [website]: "major" }]);
 });
 
 test("a service for the team only: on the team's page, never on the public page, its feeds, its history or its subscribers' mail", async () => {
