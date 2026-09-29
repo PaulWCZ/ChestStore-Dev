@@ -70,6 +70,8 @@ the list of tokens; this page is the short path and the mistakes to avoid.
   the tool's own `"use client"` component, not from a server component.
 - Reversible act → toast with `undo`; the act already left (email, bell) →
   `sent: true`; irreversible → `Confirm`. Never `window.confirm`.
+- A phone bar of the page's main actions at the bottom of the screen:
+  mark it `data-ck-bottom-bar` — toasts then sit above it (0.2.6).
 - Navigation: `AppShell` + `Nav` (labelled tabs); the page's main action in
   `PageHeader`. Pass Next's `Link` as it is (`link={Link}`, 0.2.1: no
   wrapper, no cast); a section current on other paths takes `also`.
@@ -133,6 +135,11 @@ the list of tokens; this page is the short path and the mistakes to avoid.
 | `Functions cannot be passed directly to Client Components … link: function` | `next/link` passed from a server component: import `Link` from a `"use client"` re-export instead (above). |
 | A Save sends the old date after a day before `min` was typed | Kit 0.2.3: re-vendor 0.2.4 — a form's submit then stops on the field. A Save that is a button's `onClick` (not a form's submit) listens to `onProblem` and waits while it is not `null`. |
 | A click on Save right after correcting a refused date does nothing | Kit 0.2.4: re-vendor 0.2.5 — the sentence under the field goes while the good date is typed, so the blur of the press moves nothing. A tool's own `error` shown from `onProblem` still moves on blur for a date without its year ("29/10"); prefer the kit's sentence. |
+| A toast never goes by itself (a test must close it) | Kit 0.2.5: it waited under a still pointer and while a click or tap left the focus in it. Re-vendor 0.2.6. |
+| A toast covers the phone's bottom bar | Mark the bar `data-ck-bottom-bar` (0.2.6). |
+| Rooms' strip of days takes one Tab stop per day | Kit 0.2.5: re-vendor 0.2.6 (one Tab stop, arrows). A `link` wrapper must pass its props on (`tabIndex`). |
+| The last accepted day in words shows under a refused date | Kit 0.2.5: re-vendor 0.2.6; a tool's rule hiding `.ck-date-read` (Leave) can go. |
+| "Ma semaine" wraps on a phone in a brand's face | Kit 0.2.5's equal tabs: re-vendor 0.2.6 (tabs sized by their names). |
 | A section's name ends in "…" on a phone ("À rembour…") | Kit 0.2.3: re-vendor 0.2.4 (whole names first). A tool's own rule for the nav's labels, a stacked table's labels or the drop hint on touch screens can go. |
 | A date typed right after another field moved it shows both texts | Kit 0.2.2's DateField: re-vendor 0.2.3 (the text follows the value in the render); a `key` that redraws the field is no longer needed. |
 | The current tab's rule or a Start button vanishes on a dark band in a dark look | It uses `--highlight` (a dark ground in dark looks): use `--inverse-signal` / `--inverse-signal-ink` (0.2.3). |

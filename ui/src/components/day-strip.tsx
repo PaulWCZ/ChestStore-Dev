@@ -13,7 +13,7 @@
 // options (`aria-selected`); links stay links in a navigation, the chosen
 // one `aria-current="date"`. Until the script runs every link is its own
 // Tab stop, as a plain list of links is.
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from "react";
 import { formatDate, partsOf, weekday, type IsoDate } from "./dates.js";
 import { stripKey } from "./keys.js";
 import { en, type DateWords } from "./words.js";
@@ -67,10 +67,36 @@ export function DayStrip({ days, current, today, href, onPick, note, label, labe
     e.preventDefault();
     all[next]!.focus();
   };
+  // The tile that has the focus. A link component written inline
+  // (`link={props => <Link {...props} />}`) is a new component each
+  // render, so React redraws the tiles and the focus falls to the page
+  // when the day chosen re-renders the tool: it is put back on the Tab
+  // stop (0.2.6), the keyboard stays in the strip.
+  const had = useRef<HTMLElement | null>(null);
   const onFocus = (e: { target: EventTarget }) => {
     const at = tiles().findIndex(t => t === e.target);
-    if (at >= 0 && list[at]) setFocused(list[at]!);
+    if (at < 0) return;
+    had.current = e.target as HTMLElement;
+    if (list[at]) setFocused(list[at]!);
   };
+  const onBlur = (e: { target: EventTarget; relatedTarget: EventTarget | null }) => {
+    const left = e.target as HTMLElement;
+    if (e.relatedTarget) {
+      if (!row.current?.contains(e.relatedTarget as Node)) had.current = null;
+      return;
+    }
+    // Nothing took the focus: the person clicked the page (the tile is
+    // still there), or the tile was redrawn (it is gone).
+    setTimeout(() => { if (had.current === left && left.isConnected) had.current = null; }, 0);
+  };
+  useLayoutEffect(() => {
+    const lost = had.current;
+    if (!lost || lost.isConnected) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) { had.current = null; return; }
+    const at = stop ? list.indexOf(stop) : -1;
+    tiles()[at]?.focus();
+  });
 
   // Rendered as an element, never called: a forwardRef component (Next.js's
   // Link) is an object, not a function.
@@ -105,11 +131,11 @@ export function DayStrip({ days, current, today, href, onPick, note, label, labe
     <div className="ck-daystrip">
       {href ? (
         <nav aria-label={name}>
-          <ul ref={row} onKeyDown={onKeyDown} onFocus={onFocus}>{items}</ul>
+          <ul ref={row} onKeyDown={onKeyDown} onFocus={onFocus} onBlur={onBlur}>{items}</ul>
         </nav>
       ) : (
         <div className="ck-daystrip-row">
-          <ul ref={row} role="listbox" aria-label={name} aria-orientation="horizontal" onKeyDown={onKeyDown} onFocus={onFocus}>{items}</ul>
+          <ul ref={row} role="listbox" aria-label={name} aria-orientation="horizontal" onKeyDown={onKeyDown} onFocus={onFocus} onBlur={onBlur}>{items}</ul>
         </div>
       )}
       {children ? <div className="ck-daystrip-more">{children}</div> : null}

@@ -1,7 +1,8 @@
 // Opens gallery/components.html in Chromium (playwright-core and axe-core from
 // lab/chest-dev): no hydration mismatch, no console error, no request leaving
 // the page, axe (WCAG 2.1 A/AA) clean in every look, mode and language, no
-// sideways scroll at 390 px; screenshots in the system's temp folder.
+// sideways scroll at 390 px; five French sections on one line each in
+// every look and brand (0.2.6); screenshots in the system's temp folder.
 //   npm run gallery && node scripts/gallery/check-page.mjs
 import { createRequire } from "node:module";
 const require = createRequire(new URL("../../../lab/chest-dev/package.json", import.meta.url));
@@ -12,6 +13,8 @@ console.log("screenshots in", out);
 const browser = await chromium.launch((await import("node:fs")).existsSync("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? { executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" } : {});
 const url = new URL("../../gallery/components.html", import.meta.url).href;
 const problems = [];
+// Every look of the page (0.2.6: the harness's second brand, Café du Port, sharp and compact).
+const looks = ["chest", "workshop", "library", "instrument", "brand", "port"];
 async function open(width, opts = {}) {
   const page = await browser.newPage({ viewport: { width, height: 900 }, ...opts });
   page.on("console", m => { if (m.type() === "error" || m.type() === "warning") problems.push(`console ${m.type()}: ${m.text()}`); });
@@ -26,7 +29,7 @@ const hydration = await page.evaluate(() => window.__hydration);
 console.log("hydration:", hydration);
 if (hydration.length) problems.push(...hydration);
 await page.addScriptTag({ path: axePath });
-for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) for (const mode of ["l", "d"]) for (const lang of ["en", "fr"]) {
+for (const theme of looks) for (const mode of ["l", "d"]) for (const lang of ["en", "fr"]) {
   await page.click(`[data-theme="${theme}"]`); if (theme !== "chest") await page.click(`[data-mode="${mode}"]`); await page.click(`[data-lang="${lang}"]`);
   const r = await page.evaluate(async () => { const res = await axe.run(document.getElementById("stage"), { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } }); return res.violations.map(v => `${v.id} (${v.nodes.length}): ${v.nodes.slice(0, 3).map(n => n.target.join(" ") + " — " + (n.failureSummary || "").split("\n").slice(1, 2).join("")).join(" | ")}`); });
   if (r.length) { console.log(theme, mode, lang, r); problems.push(`axe ${theme} ${mode} ${lang}`); }
@@ -77,7 +80,7 @@ if (past.length) problems.push("the header reaches past a phone's edge: " + past
 // in a wide brand face): it wraps at its spaces, a word too wide ends in
 // "…"; played in every look, in both languages, at 390 and 320 px, and in
 // a wide face (DejaVu Sans, wider than any registered body face).
-for (const width of [390, 320]) for (const wide of [false, true]) for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) for (const lang of ["en", "fr"]) {
+for (const width of [390, 320]) for (const wide of [false, true]) for (const theme of looks) for (const lang of ["en", "fr"]) {
   await phone.setViewportSize({ width, height: 900 });
   await phone.click(`[data-theme="${theme}"]`); await phone.click(`[data-lang="${lang}"]`);
   await phone.evaluate(w => { for (const s of document.querySelectorAll("#stage .bench")) s.style.setProperty("--font-body", w ? "'DejaVu Sans', Verdana, sans-serif" : ""); }, wide);
@@ -109,7 +112,7 @@ if (covered.length) problems.push("a nav count covers its icon: " + covered.join
 // Expenses' five French sections at 390 px (0.2.4: "À rembour…"): every
 // name whole — two lines at a space, a slightly smaller face, a wider tab
 // for a long word — in every look; no "…".
-for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) {
+for (const theme of looks) {
   await phone.click(`[data-theme="${theme}"]`);
   const cut = await phone.evaluate(() => {
     const nav = [...document.querySelectorAll("#stage .ck-nav")].find(n => n.offsetParent !== null);
@@ -121,6 +124,29 @@ for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) {
     return out;
   });
   if (cut.length) problems.push(`a section's name is cut on a phone (${theme}): ${cut.join(", ")}`);
+}
+// Five French sections on one line each at 390 px, in every look and
+// both harness brands (0.2.6: "Ma semaine" wrapped onto two lines in
+// Timesheets' brand look): each tab takes its name's width, the rest is
+// shared. Timesheets' sections, the current one in its stronger weight.
+for (const theme of looks) {
+  await phone.click(`[data-theme="${theme}"]`);
+  const twoLines = await phone.evaluate(() => {
+    const nav = [...document.querySelectorAll("#stage .ck-nav")].find(n => n.offsetParent !== null);
+    const labels = [...nav.querySelectorAll(".ck-nav-label")];
+    const before = labels.map(l => l.textContent);
+    // "Ma semaine" on the current tab (its stronger weight is the widest case).
+    const at = labels.findIndex(l => l.closest("[aria-current=page]"));
+    const rest = ["Rapports", "Équipe", "Projets", "Réglages"];
+    labels.forEach((l, i) => { l.textContent = i === at ? "Ma semaine" : rest.shift() ?? ""; });
+    const out = labels.filter(l => {
+      const range = document.createRange(); range.selectNodeContents(l);
+      return new Set([...range.getClientRects()].filter(r => r.width > 0).map(r => Math.round(r.top))).size > 1 || l.scrollWidth > l.clientWidth + 0.5;
+    }).map(l => l.textContent);
+    labels.forEach((l, i) => { l.textContent = before[i]; });
+    return at < 0 ? ["no current section"] : out;
+  });
+  if (twoLines.length) problems.push(`five French sections do not fit on one line each at 390 px (${theme}): ${twoLines.join(", ")}`);
 }
 await phone.click('[data-theme="library"]');
 // A stacked table's long label (a form's question) wraps beside its value

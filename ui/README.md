@@ -374,6 +374,20 @@ when its Undo can no longer be used): `toast({ id, text: t.deleted, undo:
 () => { cancel(id); return true; }, onExpire: () => void erase(id) })`. A
 page closed before never calls it: such an act must be safe to lose.
 
+**0.2.6.** A toast goes by itself. It waits while a **mouse moves on
+it** (a toast that appears under a still pointer — the bar's button just
+clicked — is not being read, and waited for ever: Quotes' flow had to
+close one) and while the **keyboard** is in it (`:focus-visible`); a
+click or a tap on its buttons leaves the focus where the browser put it
+and never holds it (Chromium focuses a clicked button: "Undone." stayed
+until the person clicked elsewhere), and an Undo that ends lets go of
+the pointer that pressed it. A pointer that moves anywhere else lets it
+go too. On a phone, toasts sit **above the tool's bottom bar**: mark
+the bar `data-ck-bottom-bar` (`<div className="phone-action"
+data-ck-bottom-bar>`) and `<Toasts>` lifts them by its height while it
+touches the screen's bottom; or set `--ck-bottom-bar` (a length) on an
+ancestor yourself.
+
 ### Dialog and Confirm
 
 ```tsx
@@ -446,6 +460,19 @@ phone. `TimeSelect`: a 24-hour list every `step` minutes, `end` offers
 24:00; `moveStart` keeps the duration when the start moves (the Rooms
 bug), `moveEnd` never lets the end pass the start.
 
+**DayStrip, 0.2.6: one Tab stop.** The strip is reached once — on the
+chosen day, else today, else the first — and the arrows move along it
+(Left/Right a day, stopping at the ends; Home/End); Enter or Space
+chooses (Rooms had 27 Tab stops before its first desk). With `onPick`
+it is a listbox of options (`aria-selected`); with `href` the days stay
+links in a navigation (`aria-current="date"`), Space follows one too,
+and until the script runs every link is a Tab stop, as a plain list of
+links is. A `link` wrapper passes its props on (`props => <Link
+{...props} scroll={false} />`: it receives `tabIndex`, typed
+`DayStripLinkProps`); when an inline wrapper redraws the tiles after a
+day is chosen, the focus is put back on the new Tab stop. The key rule
+is `stripKey` in `/components/logic`.
+
 `MonthField` (0.2.1): a month (`"2026-09"`), the month in words in a list
 with the previous and next month one tap away (`min`/`max`, default a
 year back and two ahead; words from `DateWords`). `TimeSelect` takes
@@ -513,6 +540,13 @@ grow into another day ("29/10", and never "1/1/2" as year 2 nor
 "1/1/20" as 2020) only hides the sentence and is read on blur, the
 field staying invalid until then. Without a problem, nothing is sent
 before blur, as before. `DateRangeField`'s two ends do the same.
+
+**0.2.6.** While a refused text stands, the day in words is not
+written under it (0.2.5 still showed the last accepted day under a text
+that says another; Leave hid it with a rule of its own, which can go):
+the sentence takes that line — same measure, so saying it on blur moves
+nothing below — and while a text that reads well is not whole yet
+("29/10") the line stays, empty.
 
 ```tsx
 <DateRangeField label={t.leave} value={range} onChange={setRange} today={today} min={today}
@@ -773,8 +807,9 @@ label: t.bookings, also: ["/chest/new", "/chest/b"] }`), and `match:
 but `"/chest"` is exact unless `match: "prefix"`).
 
 Every component is in `gallery/components.html` (`npm run gallery`), in
-the Chest look, Workshop, Library, Instrument (0.2.3) and a brand, light
-and dark, English and French, working.
+the Chest look, Workshop, Library, Instrument (0.2.3) and the harness's
+two brands (Atelier Martin, and Café du Port since 0.2.6), light and
+dark, English and French, working.
 
 **0.2.2.** `AppShell`: `width="full"` takes the header to the edges too;
 `toolsOn` ("all", "wide" — hidden under 760 px —, "phone"), and the
@@ -800,7 +835,49 @@ ends a single word wider than 40% of the row ("À rembourser" at 390 px
 was "À rembour…", Expenses). A section's count sits beside its icon,
 never over its edge.
 
+**0.2.6.** Each phone tab takes its name's width on one line and the
+rest of the row is shared equally, so five French names fit on one
+line at 390 px in every look and brand ("Ma semaine" wrapped in
+Timesheets' brand look: equal slices were narrower than it); names wrap
+at their spaces only when the row cannot hold them all on one line. In
+the header, a `Menu` with a shown label ("More") is a word beside the
+sections — no edge, no ground until pointed at or open — rather than a
+boxed button (it read as a heavy box in the Chest look); still 44 px.
+
 ## Changelog
+
+### 0.2.6-studio.1 (2026-09-29)
+
+What the store's third critique found (tools worked around each one).
+**Backward compatible**: no prop removed, no type narrowed, no token
+renamed; a tool on 0.2.5 re-vendors with no code change.
+
+- **DateField (Leave)**: no day in words under a refused text; the
+  sentence takes its line (same measure: saying it moves nothing
+  below). Leave's `.date-field:has(.ck-date-input:invalid) .ck-date-read`
+  rule can go. check-flows fails on 0.2.5 (the line stayed, and the
+  Save below moved 25 px when the sentence came).
+- **DayStrip (Rooms)**: one Tab stop, arrows, Home/End, Enter or Space;
+  buttons are a listbox of options (`aria-selected` in place of
+  `aria-pressed`), links stay links (roving once hydrated; all Tab stops
+  without script). `stripKey` (new, `/components/logic`),
+  `DayStripLinkProps` (new type). check-flows plays both modes, and
+  fails on 0.2.5.
+- **Toasts (Quotes)**: gone by themselves — a hover is a mouse that
+  moved on the toast, the focus that holds one is the keyboard's; an
+  Undo that ends lets the pointer go. On a phone they sit above a bar
+  marked `data-ck-bottom-bar` (or `--ck-bottom-bar`). check-flows: a
+  toast under a still pointer, a click and a tap on Undo each expire;
+  a toast is above a 72 px bar — all four failed on 0.2.5.
+- **Chest look (Quotes' desk)**: headings a step up — `--text-l` 20 px
+  (17 before: a phone's page title of size "m" read as body text),
+  `--text-xl` 28, `--text-2xl` 40; every pair still measured. In the
+  header a shown-label `Menu` is a word, not a box (every look).
+- **Phone navigation (Timesheets, brand look)**: tabs sized by their
+  names, the rest shared: five French names on one line at 390 px in
+  every look and both harness brands (check-page, with "Ma semaine" on
+  the current tab; four looks wrapped it on 0.2.5). The components
+  gallery shows the harness's two brands (Atelier Martin, Café du Port).
 
 ### 0.2.5-studio.1 (2026-09-29)
 
@@ -1021,8 +1098,8 @@ npm ci
 npm test                # build dist/, compile the tests into build/, run them (node --test)
 npm run check:package   # npm pack, install into a temp project, import every subpath from Node and esbuild, type-check a TS consumer
 npm run gallery         # ui/gallery/index.html and ui/gallery/components.html
-node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header, section names never broken inside a word nor cut (0.2.4), counts beside their icons, a stacked table's long labels, the camera on a phone only, the band's signal
-node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates, the Leave race, a day before min and a corrected date saved in one click, table, filters in the page, menu, tabs)
+node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header, section names never broken inside a word nor cut (0.2.4), five French names on one line in every look and brand (0.2.6), counts beside their icons, a stacked table's long labels, the camera on a phone only, the band's signal
+node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast — gone by itself after a still pointer, a click or a tap, above a phone's bottom bar —, dialog, picker, dates, the Leave race, a day before min and a corrected date saved in one click, no day in words under a refused text, the day strip's one Tab stop, table, filters in the page, menu, tabs)
 npm run fonts           # fetch the catalogue's fonts again (network)
 ```
 

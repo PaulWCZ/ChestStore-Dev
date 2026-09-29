@@ -862,3 +862,86 @@ re-vendors with no code change). The whole list is the changelog in
   `onProblem` (in place of the kit's sentence) still loses the kit's
   help for a date typed without its year: its line goes on blur. The
   tools are not re-vendored in this step.
+
+## 21. 0.2.6-studio.1: what the third critique found (2026-09-29)
+
+Five findings of critique round 3 that tools had worked around. All in
+0.2.6, **backward compatible** (a tool on 0.2.5 re-vendors with no code
+change). Each browser check below was run on 0.2.5's `src/` and
+`css/` first (same demo and scripts) and failed there; the node tests
+of `test/kit-026.test.tsx` fail 10 of 11 on 0.2.5's sources (the
+eleventh is the version).
+
+- **A refused date kept the last accepted day in words under it
+  (Leave).** The line now goes while a problem stands and the sentence
+  takes its place, with the same measure, so saying it on blur moves
+  nothing below the field; while a text that reads well is not whole
+  yet ("29/10") the line stays, empty. On 0.2.5 check-flows found the
+  line there under "01/01/2020", and the Save below moved from 129 to
+  154 px when the sentence came. Leave's local
+  `:has(.ck-date-input:invalid)` rule can go.
+- **27 Tab stops before Rooms' first desk.** `DayStrip` has one Tab
+  stop (the chosen day, else today, else the first); Left/Right move a
+  day and stop at the ends (days do not wrap), Home/End, Enter or Space
+  chooses. Buttons are a listbox of options (`aria-selected`); links
+  stay links in a navigation (Space follows one), all Tab stops until
+  the script runs. An inline `link` wrapper (Rooms') redraws the tiles
+  on every render; the focus is put back on the new Tab stop. The
+  gallery now has a strip of links; check-flows plays both modes (on
+  0.2.5: no listbox, no Tab stop order, the links' keys did nothing).
+- **Toasts that never went (Quotes' flow closed one) and covered the
+  phone's action bar.** Investigated in Chromium on 0.2.5: three ways
+  to wait for ever. (1) A toast shown under a still pointer — the
+  button of a bottom bar just clicked: Chromium sends `mouseenter` when
+  the page changes under a pointer, and the pointer never left. (2) A
+  click on Undo: Chromium focuses a clicked button, the kit then moved
+  the focus to the close button, and a toast with the focus inside
+  waits. (3) A tap on Undo on a phone (touch emulation): the tap's
+  emulated mouse events and the focus it leaves. Also, after an Undo the toast shrinks and the pointer
+  was sometimes never told it left. Now the hover is a mouse that
+  *moves* on the toast (`pointermove`, `pointerType: "mouse"`), a
+  pointer moving anywhere else lets it go, the focus that holds it is
+  the keyboard's (`:focus-visible`; the close button gets it only after
+  a keyboard's Undo), and an ended Undo drops the hover. A mouse that
+  rests on it still holds it (WCAG 2.2.1), and so does the keyboard, as
+  long as it is in it — no upper bound was added: both are a person
+  reading. On phones a bar marked `data-ck-bottom-bar` touching the
+  bottom lifts the toasts by its height (`bottomBarLift`, measured when
+  toasts show, on resize and scroll), or a tool sets `--ck-bottom-bar`.
+  check-flows: the three cases each expire in time, a moved-on toast
+  waits past 10 s, and a toast sits above a 72 px bar whose button stays
+  reachable; on 0.2.5 all failed (the toast's bottom at 776 px over a
+  bar from 728 px).
+- **The Chest look flattened Quotes' desk.** Its page title (size "m",
+  `--text-l` on a phone) was 17 px over a 15 px body; the Chest theme's
+  scale is now 20 / 28 / 40 px for `l` / `xl` / `2xl` (from 17 / 26 /
+  36), every pair still measured (`checkTheme`), axe clean. "More" in
+  the header was a square grey-edged box: a shown-label `Menu` in the
+  header is now a word (`--ink-2`, no edge, `--surface-2` when pointed
+  or open) in every look — the header's sections are not boxed either.
+  Same markup, 44 px.
+- **"Ma semaine" wrapped (Timesheets, brand:port, phone).** Measured in
+  the gallery's phone frame (338 px): equal slices of 67 px were
+  narrower than "Ma semaine" in Inter, Manrope and Work Sans. Letter
+  spacing was not the cause (normal in both brands); 2 px of padding
+  was. Tabs are now sized by their names on one line with the rest
+  shared equally (flex, `1 1 auto`), still wrapping at spaces when the
+  row cannot hold every name on one line. check-page puts Timesheets'
+  five French names (with "Ma semaine" current) in the six looks,
+  including both harness brands now in the gallery, and fails on a
+  second line: on 0.2.5 in Workshop, Instrument, Atelier Martin and
+  Café du Port. Expenses' longer names now fit on one line in three
+  looks of six (they wrap at a space in the three others, as allowed); the 320 px and
+  wide-face checks of 0.2.4 still pass.
+- **Checks:** 164 node tests (153 before, 11 in `test/kit-026.test.tsx`;
+  kit-025's exact version check became "0.2.5 or later"; two older
+  assertions follow the new markup — DayStrip's buttons are options, the
+  phone tabs are flex), check-page and check-flows pass,
+  `check:package` passes (`stripKey` added to the list). dist and
+  gallery rebuilt.
+- **Assumed, not checked.** The Quotes report's own words on the toast
+  that "did not go away" were not found in the repository; the cause was
+  reproduced in Chromium from its flow (a toast over the bar just
+  clicked). The fix is not played on a real touch phone (only Chromium's
+  touch emulation). The tools are not re-vendored in this step; Quotes'
+  bar needs `data-ck-bottom-bar` to be lifted over.
