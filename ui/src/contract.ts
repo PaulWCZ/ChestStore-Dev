@@ -68,6 +68,9 @@ export const staticTokens = [
   "space-1", "space-2", "space-3", "space-4", "space-5", "space-6", "space-7", "space-8",
   "radius-s", "radius-m", "radius-l", "radius-pill", "radius-chip", "border-width", "control-h", "field-pad-x",
   "ease", "fast", "slow",
+  // 1 or 0: whether the tool's decoration (graph paper, stripes, a sunset)
+  // is drawn — 0 in a company's brand, the Chest's sheet, High contrast (0.2.3)
+  "decor",
 ] as const;
 export type StaticToken = (typeof staticTokens)[number];
 
@@ -111,6 +114,10 @@ export type Theme = {
   // space-3). Tools' own fields use var(--field-pad-x) to line up.
   fieldPad?: number;
   motion: { ease: string; fast: number; slow: number };
+  // false: the tool's decoration is not drawn (--decor: 0) — a company's
+  // brand (its pages are the company's, not the tool's), the Chest's sheet,
+  // High contrast. Absent: true (0.2.3).
+  decor?: boolean;
   light: Scheme;
   dark: Scheme;
 };
@@ -242,6 +249,7 @@ export function validateTheme(theme: Theme): string[] {
   if (!d || !Number.isInteger(d.weight) || d.weight < 400 || d.weight > 900 || !/^-?0(\.\d{1,3})?em$/u.test(d.tracking)) problems.push("display: a weight 400 to 900 and a tracking in em (-0.05em to 0.05em)");
   if (!Number.isInteger(t.strong) || t.strong! < 400 || t.strong! > 900) problems.push("strong: a weight 400 to 900");
   if (typeof t.synthesis !== "boolean") problems.push("synthesis: true or false");
+  if (t.decor !== undefined && typeof t.decor !== "boolean") problems.push("decor: true or false");
   if (t.modes !== "both" && t.modes !== "light") problems.push('modes: "both" or "light"');
   const ty = t.type;
   if (!ty || !["xs", "s", "m", "l", "xl", "xxl"].every(k => { const v = (ty as Record<string, number>)[k]; return typeof v === "number" && v >= 0.6 && v <= 6; }) || !(ty.leading >= 1.2 && ty.leading <= 2) || ty.m < 0.9375 || ty.xs < 0.6875) problems.push("type: rem sizes (body at least 0.9375rem, the smallest at least 0.6875rem) and a leading of 1.2 to 2");

@@ -351,6 +351,8 @@ const sources: ThemeSource[] = [
     strong: 400,
     synthesis: false,
     modes: "light",
+    // The portal's plain sheet: no pattern, no sunset (--decor: 0, 0.2.3).
+    decor: false,
     type: { xs: 0.6875, s: 0.8125, m: 0.9375, l: 1.0625, xl: 1.625, xxl: 2.25, leading: 1.45 },
     radius: { s: 0, m: 0, l: 0 },
     motion: { ease: "cubic-bezier(0.4, 0, 0.2, 1)", fast: 150, slow: 150 },
@@ -391,7 +393,14 @@ const sources: ThemeSource[] = [
     radius: { s: 4, m: 6, l: 8 }, border: 2,
     light: { bg: "#ffffff", surface: "#ffffff", "surface-2": "#f0f0f0", ink: "#000000", "ink-2": "#1f1f1f", line: "#595959", "line-strong": "#000000", accent: "#0033cc", "accent-ink": "#ffffff", "accent-soft": "#e3e9ff", "accent-text": "#0033cc", ok: "#005c26", "ok-soft": "#e3f5ea", "ok-ink": "#003d19", wait: "#5c3d00", "wait-soft": "#fff2cc", "wait-ink": "#3d2900", danger: "#a30000", "danger-soft": "#ffe5e5", "danger-ink": "#7a0000", focus: "#b3005e", highlight: "#ffee00", "shadow-1": "none", "shadow-2": "0px 0px 0px 2px #000000" },
     dark: { bg: "#000000", surface: "#000000", "surface-2": "#1a1a1a", ink: "#ffffff", "ink-2": "#ebebeb", line: "#a6a6a6", "line-strong": "#ffffff", accent: "#ffd400", "accent-ink": "#000000", "accent-soft": "#2e2800", "accent-text": "#ffd400", ok: "#4ee08a", "ok-soft": "#002611", "ok-ink": "#8af0b4", wait: "#ffc233", "wait-soft": "#2e2200", "wait-ink": "#ffd97a", danger: "#ff7a7a", "danger-soft": "#330000", "danger-ink": "#ffb3b3", focus: "#00e5ff", highlight: "#5c5200", "shadow-1": "none", "shadow-2": "0px 0px 0px 2px #ffffff" },
-    palette: { chroma: 1.3 },
+    // Every text pair at 7:1 (WCAG AAA, 1.4.6) (0.2.3): the category labels
+    // the palette derives at 4.5:1 are taken further, in their family.
+    palette: {
+      chroma: 1.3,
+      light: { 2: { ink: "#005c27" } },
+      dark: { 1: { ink: "#91c1ff" }, 2: { ink: "#4eda79" }, 3: { ink: "#ffa86a" }, 4: { ink: "#d2abff" }, 5: { ink: "#ff9fc5" }, 6: { ink: "#30d3d3" }, 7: { ink: "#e6b72f" }, 8: { ink: "#a9c1db" } },
+    },
+    decor: false,
   },
 ];
 

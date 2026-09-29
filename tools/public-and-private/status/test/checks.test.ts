@@ -135,18 +135,26 @@ test("measured uptime is the share of checks answered in time; the public page s
     n++;
     await record(sql, { id, name: checkName(website), at: new Date(now - daysAgo * 86400000).toISOString(), ok, status: ok ? 200 : 503, ms: 90, error: ok ? null : "status" });
   };
-  for (let i = 0; i < 19; i++) await put(1 + i / 100, true);
+  // Four checks in the first hour, one failed: no figure yet ("25 %"
+  // would be false) — only the date the checks began.
+  for (let i = 0; i < 3; i++) await put(1.5 - i / 1000, true);
   await put(1.5, false);
+  const early = (await measured(sql, new Date(now - 90 * 86400000), new Date(now - 1.49 * 86400000))).get(website)!;
+  assert.equal(early.count, 4);
+  assert.equal(early.percent, null);
+  // A day later, but still fewer than 24 checks: still no figure.
+  assert.equal((await measured(sql, new Date(now - 90 * 86400000), new Date(now))).get(website)!.percent, null);
+  for (let i = 0; i < 36; i++) await put(1 + i / 100, true);
   await put(120, false);
   const m = (await measured(sql, new Date(now - 90 * 86400000))).get(website)!;
-  assert.equal(m.count, 20);
-  assert.equal(m.percent, 95);
+  assert.equal(m.count, 40);
+  assert.equal(m.percent, 97.5);
   const view = await statusView(sql, "Europe/Paris", new Date(now));
-  assert.equal(view.entries.find(e => e.id === website)!.self!.measured!.percent, 95);
+  assert.equal(view.entries.find(e => e.id === website)!.self!.measured!.percent, 97.5);
   assert.equal(view.entries.find(e => e.id === shop)!.self!.measured, null);
   assert.equal(await purge(sql, new Date(now)), 1);
   await put(100, true);
   await pass(sql, new Date(now));
   const [{ count }] = (await sql`select count(*)::int as count from check_results`) as unknown as [{ count: number }];
-  assert.equal(count, 20, "the updates schedule purges too");
+  assert.equal(count, 40, "the updates schedule purges too");
 });

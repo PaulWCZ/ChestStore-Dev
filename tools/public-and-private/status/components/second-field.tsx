@@ -34,3 +34,24 @@ export function SecondToggle({ checked, onChange, label }: { checked: boolean; o
     </label>
   );
 }
+
+// The language a text is written in: the editor's own by default (a French
+// editor on an English Chest writes French). Changing it moves the second
+// version to the other language.
+export type Languages = { main: string; options: { code: string; name: string }[] };
+
+export function LanguagePick({ id, label, value, onChange, options }: { id: string; label: string; value: string; onChange: (value: string) => void; options: Languages["options"] }) {
+  return (
+    <div className="language-pick">
+      <label className="label" htmlFor={id}>{label}</label>
+      <select id={id} className="field" value={value} onChange={e => onChange(e.target.value)}>
+        {options.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// The other language, for the second version.
+export function secondOf(main: string, options: Languages["options"]): { code: string; name: string } {
+  return options.find(o => o.code !== main) ?? options[0] ?? { code: main, name: main };
+}

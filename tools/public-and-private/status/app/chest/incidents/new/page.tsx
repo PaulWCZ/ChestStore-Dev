@@ -2,8 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
-import { format, zoneName } from "../../../../lib/i18n/index.ts";
-import { otherLanguage } from "../../../../lib/languages.ts";
+import { format, locales, zoneName } from "../../../../lib/i18n/index.ts";
 import { pickerGroups } from "../../../../lib/picker.ts";
 import { listTemplates } from "../../../../lib/templates.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -35,7 +34,7 @@ export default async function NewIncident({ searchParams }: { searchParams: Prom
           groups={groups}
           start={start}
           templates={await listTemplates(db(), member)}
-          languages={{ second: otherLanguage(), secondName: (t.languages as Record<string, string>)[otherLanguage()] ?? otherLanguage() }}
+          languages={{ main: v.locale, options: locales.map(code => ({ code, name: t.languages[code] })) }}
           today={now.date}
           nowMinutes={rounded}
           zoneNote={format(t.maintenance.zone, { zone: zoneName(zone) })}

@@ -57,7 +57,7 @@ const zone = () => chest.timeZone();
 
 type SecondInput = { title?: string; body?: string; resolution?: string } | null;
 
-export async function postIncident(input: { title: string; status: string; body: string; states: Record<string, string>; second?: SecondInput }): Promise<Result<{ id: string }>> {
+export async function postIncident(input: { title: string; status: string; body: string; states: Record<string, string>; second?: SecondInput; language?: string }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const sql = db();
     const { incidentId } = await incidents.openIncident(sql, actor, input);
@@ -69,11 +69,11 @@ export async function postIncident(input: { title: string; status: string; body:
   });
 }
 
-export async function backfillIncident(input: { title: string; body: string; resolution: string; states: Record<string, string>; started: WhenInput; resolved: WhenInput; second?: SecondInput }): Promise<Result<{ id: string }>> {
+export async function backfillIncident(input: { title: string; body: string; resolution: string; states: Record<string, string>; started: WhenInput; resolved: WhenInput; second?: SecondInput; language?: string }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const startedAt = moment(input.started?.day, input.started?.minutes, zone());
     const resolvedAt = moment(input.resolved?.day, input.resolved?.minutes, zone());
-    const { incidentId } = await incidents.backfill(db(), actor, { title: input.title, body: input.body, resolution: input.resolution, states: input.states, startedAt, resolvedAt, second: input.second ?? null });
+    const { incidentId } = await incidents.backfill(db(), actor, { title: input.title, body: input.body, resolution: input.resolution, states: input.states, startedAt, resolvedAt, second: input.second ?? null, language: input.language });
     return { id: incidentId };
   });
 }
@@ -150,13 +150,13 @@ export async function restoreIncident(incidentId: string): Promise<Result> {
 
 // ---- Maintenance -----------------------------------------------------------
 
-type MaintenanceForm = { title: string; body?: string; start: WhenInput; end: WhenInput; components: string[]; autoPosts: boolean; second?: SecondInput };
+type MaintenanceForm = { title: string; body?: string; start: WhenInput; end: WhenInput; components: string[]; autoPosts: boolean; second?: SecondInput; language?: string };
 
 export async function planMaintenance(input: MaintenanceForm): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const start = moment(input.start?.day, input.start?.minutes, zone());
     const end = moment(input.end?.day, input.end?.minutes, zone());
-    const { incidentId } = await incidents.planMaintenance(db(), actor, { title: input.title, body: input.body, start, end, components: input.components, autoPosts: input.autoPosts, second: input.second ?? null });
+    const { incidentId } = await incidents.planMaintenance(db(), actor, { title: input.title, body: input.body, start, end, components: input.components, autoPosts: input.autoPosts, second: input.second ?? null, language: input.language });
     await sendSoon();
     return { id: incidentId };
   });

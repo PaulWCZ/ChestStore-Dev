@@ -13,7 +13,10 @@ the list of tokens; this page is the short path and the mistakes to avoid.
    registered ids (`font("inter")`…), files in `public/fonts/` with the
    same names (`scripts/add-font.mjs` copies them; its `app/fonts/*.css` is
    then not needed — the kit writes the `@font-face`).
-3. `currentLook = cache(async () => resolveTheme(await chest.theme(), identity))`.
+3. `currentLook = cache(async () => resolveTheme(await chest.theme(), identity))`;
+   the pages of a public host use `resolveTheme(…, identity, { surface:
+   "public" })` (0.2.3: the brand, or the tool's own look — never a
+   catalogue theme chosen for the team).
 4. `<head><ThemeStyle look={look} nonce={nonce} /></head>` in the root
    layout; `themeColor: lookColors(look)` in `generateViewport`.
 5. CSS: contract tokens only. Tool tokens are aliases of contract tokens.
@@ -81,13 +84,25 @@ the list of tokens; this page is the short path and the mistakes to avoid.
   used) goes in `onExpire` (0.2.2).
 - A region of its own colour (a header bar, a panel) is `--inverse` with
   `--inverse-ink` / `--inverse-ink-2` / `--inverse-line` (0.2.2), never
-  `--ink` as a ground; long text (an article, a page) is
+  `--ink` as a ground; the tool's signal there (a current tab's rule, a
+  Start button) is `--inverse-signal` with `--inverse-signal-ink` on its
+  fill (0.2.3), never `--highlight` (a dark ground in dark looks); long text (an article, a page) is
   `font-family: var(--font-read)`; a tool's own field lines up with the
   kit's with `padding: 0 var(--field-pad-x)`; a chip or badge of the
   tool's own takes `border-radius: var(--radius-chip)`.
 - Controlled `Segmented`: change the value you pass at once (state or
   `useOptimistic`) when `onChange` starts something slow; a view kept in
   the address is its link variant (options with `href`).
+- On/off (0.2.3): takes effect at once → `Switch`; waits for the form's
+  Save → `Checkbox` (never a switch that looks done before Save).
+- Decoration (graph paper, stripes, a sunset) reads `--decor` (0.2.3):
+  `opacity: var(--decor)` on its layer, or a mix at `calc(var(--decor) *
+  40%)` — it steps aside in a brand, the Chest's sheet, High contrast.
+- Filters kept in the page (a dialog, a panel): `value` + `onChange`
+  (0.2.3). On a coloured band set `--ck-filters-ink` / `--ck-filters-link`
+  on the band to its measured pair (`--cat-N-ink` on `--cat-N-soft`).
+- A file stored before (an expense's receipt): `storedFile({ ref, name,
+  size })` in the FilePicker's list (0.2.3).
 - Every control stays 44 px: `ck-button-small` is smaller words, not a
   smaller target (0.2.2). A row that opens a page: `DataTable rowHref`,
   not an `onClick` on a `<tr>`.
@@ -114,4 +129,7 @@ the list of tokens; this page is the short path and the mistakes to avoid.
 | A region's colours vanish (transparent, or the page's) | Its CSS redefines `--accent` (or another token) from a tool token that is itself `var(--accent)`: a cycle, which the browser drops. Take the region's colour from a contract token that never names it (tokens/CONTRACT.md, "A tool's own tokens", rule 5). |
 | Two subset files of a font of the tool's own hide each other | Give each file its `range` (unicode-range) in the `FontSpec` (0.2.2), or use a registered font id. |
 | `Functions cannot be passed directly to Client Components … link: function` | `next/link` passed from a server component: import `Link` from a `"use client"` re-export instead (above). |
+| A date typed right after another field moved it shows both texts | Kit 0.2.2's DateField: re-vendor 0.2.3 (the text follows the value in the render); a `key` that redraws the field is no longer needed. |
+| The current tab's rule or a Start button vanishes on a dark band in a dark look | It uses `--highlight` (a dark ground in dark looks): use `--inverse-signal` / `--inverse-signal-ink` (0.2.3). |
+| A public page wears a catalogue theme (or the Chest's sheet) | Its look is resolved without `{ surface: "public" }` (0.2.3). |
 | `lint-words` flags another product's menu (« Paramètres » of Google) | Quote it in guillemets and list it in `export const quotedUi = […]` beside the catalogue (lab/GLOSSARY.md, "Quoting another product"). |

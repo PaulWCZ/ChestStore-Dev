@@ -29,8 +29,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const month = typeof params.month === "string" && monthPattern.test(params.month) && params.month >= "2000-01" && params.month <= "2100-12" ? params.month : now.slice(0, 7);
   const first = month + "-01";
   const last = monthEnd(first);
+  // The phone's list runs to the end of the month's last week: an absence
+  // that starts or goes on after the month's end is still in "this week".
+  const listEnd = addDays(last, (7 - weekday(last)) % 7);
   const [entries, s, all, dir, teams, mine] = await Promise.all([
-    between(sql, member, first, last),
+    between(sql, member, first, listEnd),
     settings(sql),
     types(sql, { archived: true }),
     everyoneOrNone(),
@@ -40,11 +43,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const show = params.show ?? "all";
   const typeOf = new Map(all.map(ty => [ty.id, ty]));
   const off = daysOff(s, first, last);
+  const offList = daysOff(s, first, listEnd);
   const days = monthDays(month);
 
   // The rows: everyone who has the tool (or, without the Chest, everyone
   // with leave this month), me first, then by name; filtered.
-  const ids = new Set([...dir.people.map(p => p.id), ...entries.map(e => e.memberId)]);
+  const ids = new Set([...dir.people.map(p => p.id), ...entries.filter(e => e.start <= last).map(e => e.memberId)]);
   const who = await people(ids);
   let rows = [...ids];
   const group = teams.find(g => g.id === show);
@@ -57,12 +61,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const weeks = await staffOf(sql, rows);
   const worksOn = (id: string, d: Day) => (weeks.get(id)?.workDays ?? fullWeek).includes(weekday(d));
   const byPerson = new Map<string, Entry[]>();
-  for (const e of shownEntries) byPerson.set(e.memberId, [...(byPerson.get(e.memberId) ?? []), e]);
+  for (const e of shownEntries.filter(x => x.start <= last)) byPerson.set(e.memberId, [...(byPerson.get(e.memberId) ?? []), e]);
 
   const monthName = formatDay(first, locale, { month: "long", year: "numeric" });
   const link = (m: string, sh = show) => `/chest/calendar?month=${m}${sh !== "all" ? `&show=${encodeURIComponent(sh)}` : ""}`;
   const what = (e: Entry) => (e.typeId ? typeName(typeOf.get(e.typeId), t.types) : t.calendar.away) + (e.status === "pending" ? ` (${t.calendar.pending.toLowerCase()})` : "");
-  const remote = shownEntries.some(e => !e.away);
+  const remote = shownEntries.some(e => !e.away && e.start <= last);
   const colorOf = (e: Entry) => (e.typeId ? typeOf.get(e.typeId)?.color ?? "sky" : "away");
   const halfWord = (c: "full" | "am" | "pm") => (c === "full" ? t.calendar.allDay : c === "am" ? t.calendar.morning : t.calendar.afternoon);
 
@@ -80,11 +84,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   };
 
   // The phone's list: one card per absence, by week, from today in the
-  // current month; the public holidays in their week.
+  // current month to the end of its last week (past the month's end); the
+  // public holidays in their week.
   const from = month === now.slice(0, 7) ? now : first;
   const mondayOf = (d: Day) => addDays(d, -((weekday(d) + 6) % 7));
-  const cards = shownEntries.filter(e => e.end >= from).map(e => ({ e, part: clip(e, from, last)! })).filter(c => c.part);
-  const holidaysAhead = [...off].filter(([d]) => d >= from && weekday(d) !== 0 && weekday(d) !== 6);
+  const cards = shownEntries.filter(e => e.end >= from && e.start <= listEnd).map(e => ({ e, part: clip(e, from, listEnd)! })).filter(c => c.part);
+  const holidaysAhead = [...offList].filter(([d]) => d >= from && weekday(d) !== 0 && weekday(d) !== 6);
   const listWeeks = [...new Set([...cards.map(c => mondayOf(c.part.start < from ? from : c.part.start)), ...holidaysAhead.map(([d]) => mondayOf(d))])].sort();
 
   return (

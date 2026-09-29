@@ -5,12 +5,14 @@ import { POST } from "../app/chest-events/route.ts";
 import * as balances from "../lib/balances.ts";
 import * as requests from "../lib/requests.ts";
 import { types } from "../lib/rules.ts";
-import { setApprover, staffRow } from "../lib/staff.ts";
+import { setApprover, setEndDate, staffRow } from "../lib/staff.ts";
+import { AppError } from "../lib/app-error.ts";
+import { today } from "../lib/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { addDays } from "../lib/calendar.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, tom, lea } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, tom, lea, sofia } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -25,12 +27,13 @@ after(async () => {
   await database.close();
 });
 
-test("someone who leaves: their waiting requests are cancelled, their approved leave stays, their people go back to HR", async () => {
+test("someone who leaves: their waiting requests are cancelled, their approved leave before the last day stays, their people go back to HR", async () => {
   const { sql } = database;
   await setApprover(sql, asMember(camille), hugo.id, ines.id);
   const monday = quietMonday(20);
-  const approved = await requests.createRequest(sql, asMember(ines), { typeId: paid, ...week(monday) });
-  await requests.decide(sql, asMember(camille), approved.id, { verdict: "approve" });
+  // Taken a month ago: before the last day, it stays.
+  const past = addDays(quietMonday(0), -28);
+  const approved = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: ines.id, ...week(past) });
   const waiting = await requests.createRequest(sql, asMember(ines), { typeId: paid, ...week(addDays(monday, 21)) });
   assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, POST), 204);
   assert.equal((await requests.request(sql, asMember(camille), waiting.id)).status, "cancelled");
@@ -39,6 +42,55 @@ test("someone who leaves: their waiting requests are cancelled, their approved l
   assert.equal((await staffRow(sql, hugo.id)).approverId, null);
   // Delivered again: nothing changes.
   assert.equal(await chest.emit({ type: "access.revoked", data: { id: ines.id } }, POST), 204);
+});
+
+test("approved leave after the last day no longer counts: cancelled, its days back, HR told (the final balance 14.75 → 15.25)", async () => {
+  const { sql } = database;
+  await balances.setOpening(sql, asMember(camille), { memberId: sofia.id, typeId: paid, days: "15,25", onDate: today() });
+  const wednesday = addDays(quietMonday(8), 2);
+  const half = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: sofia.id, start: wednesday, startHalf: "pm", end: wednesday, endHalf: "pm" });
+  assert.equal(half.status, "approved");
+  const left = async () => (await balances.balancesOf(sql, [sofia.id])).get(sofia.id)!.find(b => b.typeId === paid)!.left;
+  assert.equal(await left(), 14.75);
+  chest.notifications.length = 0;
+  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
+  assert.equal((await staffRow(sql, sofia.id)).endDate, today());
+  assert.equal((await requests.request(sql, asMember(camille), half.id)).status, "cancelled");
+  assert.deepEqual((await requests.history(sql, asMember(camille), half.id)).map(s => [s.kind, s.actor]), [["recorded", camille.id], ["after_last_day", "chest"]]);
+  assert.equal(await left(), 15.25);
+  const back = (await balances.ledger(sql, asMember(camille), sofia.id)).find(l => l.kind === "returned");
+  assert.deepEqual(back && { days: back.days, reasonKey: back.reasonKey, requestId: back.requestId }, { days: 0.5, reasonKey: "afterLastDay", requestId: half.id });
+  // HR is told, in HR's language; nothing shows on the calendar any more.
+  const told = chest.notifications.find(n => n.member === camille.id);
+  assert.equal(told?.title, "Départ de Sofia Rossi (ancien membre)\u202f: les congés après son dernier jour ne comptent plus");
+  assert.equal(told?.path, `/chest/people/${sofia.id}`);
+  assert.ok(!(await requests.between(sql, asMember(camille), wednesday, wednesday)).some(e => e.id === half.id));
+  // Delivered again: nothing is given back twice.
+  assert.equal(await chest.emit({ type: "access.revoked", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await left(), 15.25);
+});
+
+test("a last day set by HR in the middle of a leave cuts it at that day; the rest comes back; clearing it later changes nothing", async () => {
+  const { sql } = database;
+  await balances.setOpening(sql, asMember(camille), { memberId: tom.id, typeId: paid, days: "20", onDate: today() });
+  const monday = quietMonday(40);
+  const r = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: tom.id, ...week(monday) });
+  const later = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: tom.id, ...week(addDays(monday, 14)) });
+  const left = async () => (await balances.balancesOf(sql, [tom.id])).get(tom.id)!.find(b => b.typeId === paid)!.left;
+  assert.equal(await left(), 10);
+  // Hugo may not set anyone's last day.
+  await assert.rejects(setEndDate(sql, asMember(hugo), tom.id, addDays(monday, 2)), (e: unknown) => e instanceof AppError && e.code === "forbidden");
+  const done = await setEndDate(sql, asMember(camille), tom.id, addDays(monday, 2));
+  assert.deepEqual({ cancelled: done.cancelled, cut: done.cut, days: done.days }, { cancelled: [later.id], cut: [r.id], days: 7 });
+  const cut = await requests.request(sql, asMember(camille), r.id);
+  assert.deepEqual([cut.status, cut.end, cut.endHalf, cut.days], ["approved", addDays(monday, 2), "pm", 3]);
+  assert.equal(await left(), 17);
+  assert.deepEqual((await requests.history(sql, asMember(camille), r.id)).map(s => s.kind), ["recorded", "cut"]);
+  // Set again to the same day: nothing more comes back.
+  assert.equal((await setEndDate(sql, asMember(camille), tom.id, addDays(monday, 2))).days, 0);
+  assert.equal(await left(), 17);
+  await setEndDate(sql, asMember(camille), tom.id, null);
+  assert.equal(await left(), 17);
 });
 
 test("an erasure: the person disappears, the days of HR's records stay, signed 'erased'; acknowledged once", async () => {

@@ -45,6 +45,7 @@ export default async function Overview() {
       <AutoRefresh seconds={30} />
       <PageHeader
         size="m"
+        className="overview-head"
         title={t.overview.title}
         secondary={noComponents ? null : <a className="button quiet" href="/chest/maintenance/new">{t.overview.plan}</a>}
         action={noComponents ? null : <a className="button" href="/chest/incidents/new"><Plus />{t.overview.post}</a>}

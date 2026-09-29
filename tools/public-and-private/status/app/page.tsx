@@ -29,8 +29,14 @@ export default async function StatusPage() {
   const current = [...view.open, ...view.maintenanceNow];
   // Where the Chest checks a service, the uptime it measured, beside the
   // declared one — each labelled for what it is.
-  const measuredText = (m: { percent: number; since: Date } | null) => (m ? format(t.public.measured, { percent: percent(m.percent, locale), date: day(wall(m.since, zone).date, locale, { day: "numeric", month: "long" }) }) : null);
-  const anyMeasured = view.entries.some(e => (e.self ? [e.self] : e.children).some(c => c.measured));
+  // A figure only once a full day of checks is in (lib/checks.ts
+  // measuredSample); before that, the date the checks began.
+  const measuredText = (m: { percent: number | null; since: Date } | null) => {
+    if (!m) return null;
+    const date = day(wall(m.since, zone).date, locale, { day: "numeric", month: "long" });
+    return m.percent === null ? format(t.public.measuring, { date }) : format(t.public.measured, { percent: percent(m.percent, locale), date });
+  };
+  const anyMeasured = view.entries.some(e => (e.self ? [e.self] : e.children).some(c => c.measured?.percent != null));
   // Before any service is listed, the page says only that it is being set
   // up: never "All systems operational" about nothing.
   if (view.entries.length === 0) {

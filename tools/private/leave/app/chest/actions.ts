@@ -100,8 +100,12 @@ export async function setStartDate(memberId: string, day: string | null): Promis
   return act(async actor => { await staff.setStartDate(db(), actor, memberId, day); return null; });
 }
 
-export async function setEndDate(memberId: string, day: string | null): Promise<Result<null>> {
-  return act(async actor => { await staff.setEndDate(db(), actor, memberId, day); return null; });
+export async function setEndDate(memberId: string, day: string | null): Promise<Result<{ settled: number; days: number }>> {
+  return act(async actor => {
+    const done = await staff.setEndDate(db(), actor, memberId, day);
+    for (const id of done.cancelled) await tell.withdrawn(db(), { id });
+    return { settled: done.cancelled.length + done.cut.length, days: done.days };
+  });
 }
 
 export async function setWorkDays(memberId: string, days: number[] | null): Promise<Result<null>> {

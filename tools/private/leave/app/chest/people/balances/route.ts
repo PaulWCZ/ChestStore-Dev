@@ -38,7 +38,9 @@ export async function GET(request: Request): Promise<Response> {
     const n = (x: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 2, useGrouping: false }).format(x);
     const header: string[] = [t.export.number, t.export.person, t.export.start, t.export.end];
     for (const ty of counted) {
-      const name = typeName(ty, t.types);
+      // The payroll code beside the name ("Paid leave (CP) left"): payroll
+      // software maps the columns by it.
+      const name = ty.payrollCode ? format(t.export.coded, { kind: typeName(ty, t.types), code: ty.payrollCode }) : typeName(ty, t.types);
       if (ty.period === "acquired") for (const h of [t.export.lastEarned, t.export.lastTaken, t.export.lastLeft, t.export.curEarned, t.export.curTaken, t.export.curLeft, t.export.carried]) header.push(format(h, { kind: name }));
       header.push(format(t.export.booked, { kind: name }), format(t.export.left, { kind: name }), format(t.export.waiting, { kind: name }));
     }

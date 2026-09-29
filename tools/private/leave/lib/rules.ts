@@ -29,6 +29,7 @@ export type LeaveType = {
   unused: "carry" | "lose"; // days left when their year is over
   overdraw: boolean; // a request may ask for more than what is left
   away: boolean; // an absence (false: remote work, training)
+  payrollCode: string | null; // the code payroll software imports it by (CP, RTT, MAL…)
 };
 export type TypeCounting = "company" | "worked" | "calendar";
 export const typeCountings: readonly TypeCounting[] = ["company", "worked", "calendar"];
@@ -56,14 +57,14 @@ export async function settings(sql: Query): Promise<Settings> {
 
 type TypeRow = {
   id: string; key: BuiltIn | null; name: string | null; color: string; balance: boolean; per_year: string; half_days: boolean; counting: TypeCounting; approval: boolean; notes: boolean; archived_at: Date | null;
-  period: Period; period_month: number | null; unused: "carry" | "lose"; overdraw: boolean; away: boolean;
+  period: Period; period_month: number | null; unused: "carry" | "lose"; overdraw: boolean; away: boolean; payroll_code: string | null;
 };
 const toType = (r: TypeRow): LeaveType => ({
   id: String(r.id), key: r.key, name: r.name, color: isColor(r.color) ? r.color : "sky", balance: r.balance, perYear: numeric(r.per_year), halfDays: r.half_days,
   counting: r.counting, approval: r.approval, notes: r.notes, archived: r.archived_at !== null,
-  period: r.period, periodMonth: r.period_month, unused: r.unused, overdraw: r.overdraw, away: r.away,
+  period: r.period, periodMonth: r.period_month, unused: r.unused, overdraw: r.overdraw, away: r.away, payrollCode: r.payroll_code,
 });
-const typeColumns = (sql: Query) => sql`id, key, name, color, balance, per_year, half_days, counting, approval, notes, archived_at, period, period_month, unused, overdraw, away`;
+const typeColumns = (sql: Query) => sql`id, key, name, color, balance, per_year, half_days, counting, approval, notes, archived_at, period, period_month, unused, overdraw, away, payroll_code`;
 
 // types lists the leave types in their order; archived ones only when asked
 // (a past request keeps its type).
@@ -124,8 +125,20 @@ export async function updateSettings(sql: Sql, actor: Member | null, input: { co
 
 export type TypeInput = {
   name?: unknown; color?: unknown; balance?: unknown; perYear?: unknown; halfDays?: unknown; counting?: unknown; approval?: unknown; notes?: unknown;
-  period?: unknown; periodMonth?: unknown; unused?: unknown; overdraw?: unknown; away?: unknown;
+  period?: unknown; periodMonth?: unknown; unused?: unknown; overdraw?: unknown; away?: unknown; payrollCode?: unknown;
 };
+
+// A payroll code: letters, digits, "_", "." or "-", 12 at most; empty: none.
+export const payrollCodePattern = /^[A-Za-z0-9_.-]{1,12}$/u;
+function payrollCode(value: unknown, fallback: string | null): string | null {
+  if (value === undefined) return fallback;
+  if (value === null) return null;
+  if (typeof value !== "string") throw new AppError("invalid");
+  const code = value.trim().toUpperCase();
+  if (code === "") return null;
+  if (!payrollCodePattern.test(code)) throw new AppError("bad_code");
+  return code;
+}
 
 const flag = (value: unknown, fallback: boolean): boolean => {
   if (value === undefined) return fallback;
@@ -163,18 +176,19 @@ export async function saveType(sql: Sql, actor: Member | null, typeId: unknown, 
   const unused = oneOf(input.unused, ["carry", "lose"] as const, current?.unused ?? "carry");
   const overdraw = flag(input.overdraw, current?.overdraw ?? true);
   const away = flag(input.away, current?.away ?? true);
+  const code = payrollCode(input.payrollCode, current?.payrollCode ?? null);
   if (current) {
     await sql`
       update leave_types set name = ${name || null}, color = ${color}, balance = ${balance}, per_year = ${perYear}, half_days = ${halfDays}, counting = ${counting},
-        approval = ${approval}, notes = ${notes}, period = ${period}, period_month = ${periodMonth}, unused = ${unused}, overdraw = ${overdraw}, away = ${away}
+        approval = ${approval}, notes = ${notes}, period = ${period}, period_month = ${periodMonth}, unused = ${unused}, overdraw = ${overdraw}, away = ${away}, payroll_code = ${code}
       where id = ${current.id}`;
     return leaveType(sql, current.id);
   }
   const [{ n } = { n: 0 }] = await sql<{ n: number }[]>`select count(*)::int as n from leave_types where archived_at is null`;
   if (n >= limits.types) throw new AppError("too_many", { max: limits.types });
   const [row] = await sql<{ id: string }[]>`
-    insert into leave_types (name, color, balance, per_year, half_days, counting, approval, notes, period, period_month, unused, overdraw, away, position)
-    values (${name}, ${color}, ${balance}, ${perYear}, ${halfDays}, ${counting}, ${approval}, ${notes}, ${period}, ${periodMonth}, ${unused}, ${overdraw}, ${away},
+    insert into leave_types (name, color, balance, per_year, half_days, counting, approval, notes, period, period_month, unused, overdraw, away, payroll_code, position)
+    values (${name}, ${color}, ${balance}, ${perYear}, ${halfDays}, ${counting}, ${approval}, ${notes}, ${period}, ${periodMonth}, ${unused}, ${overdraw}, ${away}, ${code},
       (select coalesce(max(position), 0) + 1 from leave_types))
     returning id`;
   return leaveType(sql, row!.id);

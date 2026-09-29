@@ -14,7 +14,7 @@ type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"] };
 type Rules = { counting: "ouvres" | "ouvrables"; alsace: boolean; workedHolidays: string[]; periodStartMonth: number };
 export type TypeRow = {
   id: string; key: string | null; name: string; builtIn: string; color: string; balance: boolean; perYear: number; halfDays: boolean; counting: "company" | "worked" | "calendar";
-  approval: boolean; notes: boolean; archived: boolean; period: "running" | "acquired" | "yearly"; periodMonth: number | null; unused: "carry" | "lose"; overdraw: boolean; away: boolean;
+  approval: boolean; notes: boolean; archived: boolean; period: "running" | "acquired" | "yearly"; periodMonth: number | null; unused: "carry" | "lose"; overdraw: boolean; away: boolean; payrollCode: string;
 };
 
 export function SettingsView(props: { settings: Rules; holidays: { key: string; name: string; day: string; alsace: boolean }[]; months: { value: number; name: string }[]; types: TypeRow[]; colors: { key: string; name: string }[]; t: Words }) {
@@ -82,7 +82,7 @@ export function SettingsView(props: { settings: Rules; holidays: { key: string; 
           {props.types.map(ty => <TypeEditor key={ty.id} row={ty} colors={props.colors} months={props.months} companyMonth={companyMonth} t={t} />)}
           {adding && (
             <TypeEditor
-              row={{ id: "", key: null, name: "", builtIn: "", color: "lilac", balance: false, perYear: 0, halfDays: true, counting: "company", approval: true, notes: true, archived: false, period: "running", periodMonth: null, unused: "carry", overdraw: true, away: true }}
+              row={{ id: "", key: null, name: "", builtIn: "", color: "lilac", balance: false, perYear: 0, halfDays: true, counting: "company", approval: true, notes: true, archived: false, period: "running", periodMonth: null, unused: "carry", overdraw: true, away: true, payrollCode: "" }}
               colors={props.colors} months={props.months} companyMonth={companyMonth} t={t} onDone={() => setAdding(false)}
             />
           )}
@@ -128,7 +128,7 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
   });
   const input = (x: TypeRow) => ({
     name: x.name, color: x.color, balance: x.balance, perYear: x.balance ? String(x.perYear) : "0", halfDays: x.halfDays, counting: x.counting, approval: x.approval, notes: x.notes,
-    period: x.balance ? x.period : "running", periodMonth: x.periodMonth, unused: x.unused, overdraw: x.overdraw, away: x.away,
+    period: x.balance ? x.period : "running", periodMonth: x.periodMonth, unused: x.unused, overdraw: x.overdraw, away: x.away, payrollCode: x.payrollCode,
   });
   // change: the new value at once; saved now for an existing kind.
   const change = (patch: Partial<TypeRow>, now = true) => {
@@ -138,7 +138,7 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
     if (!fresh && now) run(() => saveType(row.id, input(next)), () => setV(before));
   };
   const leave = () => {
-    if (!fresh && (v.name !== row.name || v.perYear !== row.perYear)) run(() => saveType(row.id, input(v)));
+    if (!fresh && (v.name !== row.name || v.perYear !== row.perYear || v.payrollCode !== row.payrollCode)) run(() => saveType(row.id, input(v)));
   };
   // A saved kind changes at once: a switch. A new one waits for its Add
   // button: a checkbox (the kit's rule for Switch).
@@ -192,6 +192,15 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
           {flag("away", t.settings.away)}
           {v.balance && flag("overdraw", t.settings.overdraw)}
         </div>
+        {v.away && (
+          <div className="form-row code-row">
+            <div className="field-group">
+              <label className="field-label" htmlFor={`code-${idp}`}>{t.settings.payrollCode}</label>
+              <input id={`code-${idp}`} className="field compact code-field" maxLength={12} autoCapitalize="characters" spellCheck={false} aria-describedby={`code-hint-${idp}`} value={v.payrollCode} onChange={e => change({ payrollCode: e.target.value.toUpperCase() }, false)} onBlur={leave} />
+            </div>
+            <p id={`code-hint-${idp}`} className="muted small">{t.settings.payrollCodeHint}</p>
+          </div>
+        )}
         {v.balance && (
           <div className="form-row year-row">
             <div className="field-group">

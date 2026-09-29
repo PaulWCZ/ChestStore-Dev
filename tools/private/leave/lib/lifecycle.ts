@@ -2,7 +2,8 @@ import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { today } from "./model.ts";
 import { withdraw } from "./notify.ts";
-import { refreshBadges } from "./tell.ts";
+import { settleAfterLastDay } from "./last-day.ts";
+import { afterLastDay, refreshBadges } from "./tell.ts";
 
 // What Leave does when a member loses access, leaves or is erased (the
 // Chest posts these to /chest-events, at least once; each handler may run
@@ -11,23 +12,29 @@ import { refreshBadges } from "./tell.ts";
 // - Losing access or leaving: their requests still waiting are cancelled
 //   (the history says why), the people they approved go back to HR, and
 //   their last day is set (today, unless HR already set one): nothing is
-//   earned after it. Approved leave and balances stay: they are HR's
-//   records, and the balance on the last day is what payroll pays.
+//   earned after it. Approved leave up to that day and balances stay: they
+//   are HR's records, and the balance on the last day is what payroll
+//   pays; approved leave after it is cancelled or cut at it, its days come
+//   back, and HR is told (lib/last-day.ts).
 // - Erasure: the same, then their id, notes and reasons disappear from the
 //   requests, their history and the balance lines, which keep their dates,
 //   kinds and days, signed 'erased' — the absences and balances HR may have
 //   to keep for payroll (see README). Then the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
-  const cancelled = await sql.begin(async tx => {
+  const { cancelled, settled } = await sql.begin(async tx => {
     const rows = await tx<{ id: string }[]>`update requests set status = 'cancelled' where member_id = ${memberId} and status = 'pending' returning id`;
     for (const r of rows) await tx`insert into request_events (request_id, actor, kind) values (${r.id}, 'chest', 'left')`;
     await tx`update staff set approver_id = null, updated_at = now() where approver_id = ${memberId}`;
-    await tx`
+    const [row] = await tx<{ end_date: string }[]>`
       insert into staff (member_id, end_date) values (${memberId}, ${today()})
-      on conflict (member_id) do update set end_date = coalesce(staff.end_date, excluded.end_date), updated_at = now()`;
-    return rows.map(r => String(r.id));
+      on conflict (member_id) do update set end_date = coalesce(staff.end_date, excluded.end_date), updated_at = now()
+      returning to_char(end_date, 'YYYY-MM-DD') as end_date`;
+    // Approved leave after the last day no longer counts (lib/last-day.ts).
+    const settled = await settleAfterLastDay(tx, memberId, row!.end_date, "chest");
+    return { cancelled: rows.map(r => String(r.id)), settled };
   });
-  for (const id of cancelled) await withdraw(`req:${id}`);
+  for (const id of [...cancelled, ...settled.cancelled]) await withdraw(`req:${id}`);
+  if (settled.cancelled.length + settled.cut.length > 0) await afterLastDay(memberId, settled);
   await refreshBadges(sql);
 }
 

@@ -5,6 +5,7 @@ import type { Day } from "./calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { roleNow } from "./directory.ts";
 import { isWeek } from "./calendar.ts";
+import { settleAfterLastDay, type Settled } from "./last-day.ts";
 import { clean, limits, memberId, optionalDay } from "./model.ts";
 
 // Each person as HR set them: who answers their requests (null: HR), their
@@ -70,13 +71,18 @@ export async function setStartDate(sql: Sql, actor: Member | null, person: unkno
 
 // setEndDate: HR sets (or clears) a person's last day: nothing is earned
 // after it; their balance on that day is what payroll pays when they leave.
-export async function setEndDate(sql: Sql, actor: Member | null, person: unknown, value: unknown): Promise<void> {
+// Leave recorded after it is cancelled, or cut at it, and its days come
+// back (lib/last-day.ts): what was settled is returned for the page to say.
+export async function setEndDate(sql: Sql, actor: Member | null, person: unknown, value: unknown): Promise<Settled> {
   if (!can(actor, "people.all")) throw new AppError("forbidden");
   const who = memberId(person);
   const end = optionalDay(value);
-  await sql`
-    insert into staff (member_id, end_date) values (${who}, ${end})
-    on conflict (member_id) do update set end_date = excluded.end_date, updated_at = now()`;
+  return sql.begin(async tx => {
+    await tx`
+      insert into staff (member_id, end_date) values (${who}, ${end})
+      on conflict (member_id) do update set end_date = excluded.end_date, updated_at = now()`;
+    return end ? settleAfterLastDay(tx, who, end, actor!.id) : { cancelled: [], cut: [], days: 0 };
+  });
 }
 
 // setWorkDays: HR sets the days of the week someone works (null: Monday to

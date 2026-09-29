@@ -211,6 +211,8 @@ function derive(brand: Brand): Derived {
     radius: radii[corners],
     border: 1,
     motion: { ease: "cubic-bezier(0.2, 0.7, 0.2, 1)", fast: 120, slow: 240 },
+    // A company's pages are its own: the tool's decoration steps aside (0.2.3).
+    decor: false,
     light: completeScheme(light as SchemeSource, "light", palette),
     dark: completeScheme(dark as SchemeSource, "dark", palette),
   };

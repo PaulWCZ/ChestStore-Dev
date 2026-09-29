@@ -37,6 +37,8 @@ export type ThemeSource = {
   display?: Partial<Theme["display"]>;
   strong?: number;
   synthesis?: boolean;
+  // false: no decoration (--decor: 0) (0.2.3).
+  decor?: boolean;
   modes?: Theme["modes"];
   type?: Partial<Theme["type"]>;
   space?: Theme["space"];
@@ -203,6 +205,7 @@ export function defineTheme(source: ThemeSource): Theme {
     border: source.border ?? 1,
     ...(source.fieldPad !== undefined ? { fieldPad: source.fieldPad } : {}),
     motion: { ...defaultMotion, ...source.motion },
+    ...(source.decor === false ? { decor: false } : {}),
     light,
     dark: source.dark ? completeScheme({ ...added?.dark, ...source.dark }, "dark", source.palette) : light,
   };

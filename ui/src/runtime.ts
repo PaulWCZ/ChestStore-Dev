@@ -33,6 +33,14 @@ export type Look = { theme: Theme; source: "own" | "catalogue" | "brand"; fontBa
 export type ResolveOptions = {
   // Where the tool serves its own identity's fonts ("/fonts" by default).
   ownFonts?: string;
+  // Which pages (0.2.3): "team" (default) — the pages of the company's
+  // team, which wear what the company chose; "public" — the tool's public
+  // host (careers, a status page, a booking page, a contact or public
+  // form), which follows the company's brand in brand mode and otherwise
+  // wears the tool's own identity: a catalogue theme is an internal
+  // choice (for all tools or for one), never the public's, and the Chest's
+  // sheet never dresses a public page (brief/05).
+  surface?: "team" | "public";
 };
 
 const chestFonts = "/_chest/theme/fonts";
@@ -51,6 +59,7 @@ export function resolveTheme(choice: ThemeChoice | null | undefined, own: Theme,
   const ownFonts = options.ownFonts ?? "/fonts";
   const mine: Look = { theme: own, source: "own", fontBase: ownFonts, logo: null, notes: [], problem: null };
   if (!choice || choice.mode === "own") return mine;
+  if (options.surface === "public" && choice.mode === "catalogue") return mine;
   const base = choice.fonts && fontBasePattern.test(choice.fonts) && !choice.fonts.includes("..") ? choice.fonts : chestFonts;
   if (choice.mode === "catalogue") {
     const found = themeOf(choice.theme);

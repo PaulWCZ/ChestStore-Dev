@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Sql } from "./db.ts";
-import { mainLanguage } from "./languages.ts";
+import { chestLanguage } from "./languages.ts";
 import { clean, isImpact, limits, type Impact } from "./model.ts";
 
 // Import from Atlassian Statuspage: the history is a status page's
@@ -157,7 +157,7 @@ export async function importStatuspage(sql: Sql, actor: Member | null, input: st
       }
       const [row] = await tx<{ id: string }[]>`
         insert into incidents (kind, title, language, status, started_at, resolved_at, backfilled, created_by, source_id)
-        values ('incident', ${title(i)}, ${mainLanguage()}, 'resolved', ${started}, ${resolved}, true, ${who.id}, ${sourceId}) returning id`;
+        values ('incident', ${title(i)}, ${chestLanguage()}, 'resolved', ${started}, ${resolved}, true, ${who.id}, ${sourceId}) returning id`;
       const incidentId = String(row!.id);
       const steps = ups.length ? ups : [{ u: { status: "investigating", body: "" } as Json, at: started }, { u: { status: "resolved", body: "" } as Json, at: resolved }];
       if (text(steps.at(-1)!.u["status"]) !== "resolved") steps.push({ u: { status: "resolved", body: "" }, at: resolved });
@@ -196,7 +196,7 @@ export async function importStatuspage(sql: Sql, actor: Member | null, input: st
       if (components.length === 0) { result.skipped++; continue; }
       const [row] = await tx<{ id: string }[]>`
         insert into incidents (kind, title, language, status, started_at, ends_at, resolved_at, start_posted, end_posted, backfilled, created_by, source_id)
-        values ('maintenance', ${title(m)}, ${mainLanguage()}, 'completed', ${from}, ${to}, ${to}, true, true, true, ${who.id}, ${sourceId}) returning id`;
+        values ('maintenance', ${title(m)}, ${chestLanguage()}, 'completed', ${from}, ${to}, ${to}, true, true, true, ${who.id}, ${sourceId}) returning id`;
       const incidentId = String(row!.id);
       for (const c of new Set(components)) await tx`insert into maintenance_components (incident_id, component_id) values (${incidentId}, ${c})`;
       const map: Record<string, string> = { scheduled: "scheduled", in_progress: "in_progress", verifying: "update", completed: "completed" };

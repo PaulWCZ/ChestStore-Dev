@@ -9,10 +9,11 @@ import { test } from "node:test";
 import { type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { contrast } from "../src/color.js";
-import { checkTheme, colorTokens, optionalColorTokens, pairs, validateTheme } from "../src/contract.js";
+import { checkPalette, checkTheme, colorTokens, optionalColorTokens, pairs, ratios, staticTokens, validateTheme } from "../src/contract.js";
 import { defineTheme } from "../src/compose.js";
 import { chipRadius, themeCss } from "../src/css.js";
-import { deriveTheme } from "../src/derive.js";
+import { deriveTheme, type Brand } from "../src/derive.js";
+import { resolveTheme, themeStyle, type ThemeChoice } from "../src/runtime.js";
 import { inverseSignal } from "../src/signal.js";
 import { catalogue, identityOf, themeOf } from "../src/themes.js";
 import { Checkbox, DataTable, DateRangeField, FilePicker, Filters, storedFile, type Column } from "../src/components/index.js";
@@ -35,7 +36,8 @@ test("DateField copies an outside change of its value into its text during the r
   const source = readFileSync(join(ui, "src", "components", "date-field.tsx"), "utf8");
   const field = source.slice(source.indexOf("export function DateField"), source.indexOf("export type CalendarProps"));
   assert.doesNotMatch(field, /useEffect\([^)]*setText/su, "no effect sets the text");
-  assert.match(field, /if \(seen\.value !== value \|\| seen\.shown !== shown\) \{\s*setSeen\(\{ value, shown \}\);\s*setText\(shown\);/u, "the previous value kept in state, the text set during the render");
+  assert.match(field, /if \(seen\.value !== value \|\| seen\.shown !== shown\) \{\s*setSeen\(\{ value, shown \}\);\s*if \(!typing\) \{[^}]*setText\(shown\);/su, "the previous value kept in state, the text set during the render (unless the person is typing)");
+  assert.match(field, /el\.select\(\)/u, "a whole date selected stays selected when it changes (Tab, then typing, replaces it)");
 });
 
 // ---------- 2. FilePicker: the camera's input hidden with its label (Expenses) ----------
@@ -208,4 +210,73 @@ test("Checkbox: the on/off of a form saved on submit (Forms, Timesheets) — nat
   for (const attr of ['name="billable"', 'value="on"', 'checked=""', 'aria-describedby="']) assert.ok(c.includes(attr), attr);
   assert.doesNotMatch(c, /role="switch"/u);
   assert.match(css, /\.ck-check-label \{[^}]*min-height: var\(--control-h\)/u);
+});
+
+// ---------- 5. Public pages, decoration, High contrast, hard brands (lead, critique round 2) ----------
+
+test("public pages follow the company's brand in brand mode, and the tool's own look otherwise — never a catalogue theme, never the Chest's sheet", () => {
+  const own = identityOf("hiring")!;
+  const chestSheet: ThemeChoice = { mode: "catalogue", theme: "chest" };
+  const workshop: ThemeChoice = { mode: "catalogue", theme: "workshop", scope: "all" };
+  const brand: ThemeChoice = { mode: "brand", brand: { name: "Atelier Martin", primary: "#0e7c66", secondary: "#f2b134" } };
+  // The team's pages wear what the company chose (as before).
+  assert.equal(resolveTheme(workshop, own).theme.id, "workshop");
+  assert.equal(resolveTheme(chestSheet, own, { surface: "team" }).theme.id, "chest");
+  // The public host: the tool's own identity, unless a brand.
+  for (const choice of [chestSheet, workshop, { mode: "own" } as ThemeChoice, null]) {
+    const look = resolveTheme(choice, own, { surface: "public" });
+    assert.equal(look.source, "own");
+    assert.equal(look.theme.id, own.id);
+    assert.equal(look.problem, null, "a choice made for the team is not a problem");
+    assert.equal(look.fontBase, "/fonts");
+  }
+  const branded = resolveTheme(brand, own, { surface: "public" });
+  assert.equal(branded.source, "brand");
+  assert.equal(branded.theme.id, "brand");
+  assert.ok(themeStyle(branded).includes("--decor:0"));
+});
+
+test("--decor: 1 in a tool's identity and the catalogue's colourful themes, 0 in a brand, the Chest's sheet and High contrast", () => {
+  assert.ok(staticTokens.includes("decor"));
+  assert.match(themeCss(identityOf("goals")!), /--decor:1/u);
+  assert.match(themeCss(themeOf("chest")!), /--decor:0/u);
+  assert.match(themeCss(themeOf("high-contrast")!), /--decor:0/u);
+  assert.equal(deriveTheme({ primary: "#2b59c3" }).theme.decor, false);
+  const mine = { ...identityOf("tasks")! };
+  delete mine.decor;
+  assert.match(themeCss(mine), /--decor:1/u, "a theme that does not say: decoration drawn");
+  assert.ok(validateTheme({ ...mine, decor: "no" as unknown as boolean }).length > 0);
+});
+
+test("High contrast reaches AAA: every text pair at 7:1, light and dark", () => {
+  const hc = themeOf("high-contrast")!;
+  for (const mode of ["light", "dark"] as const) {
+    const low = ratios(hc[mode]).filter(r => r.min === 4.5 && r.ratio < 7);
+    assert.deepEqual(low, [], `${mode}: text pairs under 7:1`);
+  }
+  assert.deepEqual(checkPalette(hc), []);
+});
+
+test("hard brands (near-white, neon, near-black, brown, two alike, yellow, grey, a red like danger) all give a theme that passes, with notes that say what was done", () => {
+  const hard: Brand[] = [
+    { name: "Blanc", primary: "#fbfbf8" },
+    { name: "Neon", primary: "#39ff14", secondary: "#ff10f0" },
+    { name: "Nuit", primary: "#0b0b0f", secondary: "#141420", neutral: "#0d0d0d" },
+    { name: "Brun", primary: "#6b3e26", secondary: "#a0522d", corners: "sharp" },
+    { name: "Twins", primary: "#2b59c3", secondary: "#2d5cc8" },
+    { name: "Citron", primary: "#ffff00", secondary: "#ffff00", neutral: "#ffff00", density: "compact" },
+    { name: "Gris", primary: "#808080", secondary: "#7f7f7f" },
+    { name: "Rouge", primary: "#d7263d", secondary: "#1faa59" },
+    { name: "Pastel", primary: "#f7cac9", secondary: "#92a8d1", corners: "round" },
+    { name: "Café du Port", primary: "#ffd23f", secondary: "#1b2a4a", neutral: "#6b6f76", corners: "sharp", density: "compact" },
+  ];
+  for (const brand of hard) {
+    const { theme, notes } = deriveTheme(brand);
+    assert.deepEqual(validateTheme(theme), [], brand.name);
+    assert.deepEqual(checkTheme(theme), [], brand.name);
+    assert.deepEqual(checkPalette(theme), [], brand.name);
+    for (const n of notes) assert.ok(n.en && n.fr && !/\{\w+\}/u.test(n.en + n.fr), `${brand.name}: ${n.code}`);
+  }
+  assert.ok(deriveTheme(hard[0]!).notes.length > 0, "a near-white is adjusted, and says so");
+  assert.ok(deriveTheme(hard[7]!).notes.some(n => n.code === "accent_like_danger"), "a red like the danger colour is pointed out");
 });

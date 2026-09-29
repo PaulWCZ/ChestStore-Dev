@@ -1,4 +1,4 @@
-import { measured } from "./checks.ts";
+import { measured, type Measured } from "./checks.ts";
 import { allComponents, shownComponents, tree, type Component } from "./components.ts";
 import type { Query } from "./db.ts";
 import { forTimeline, recent, touched, type Incident } from "./incidents.ts";
@@ -10,7 +10,7 @@ import { currentStates, history, lastDays, maintenancePhase, spans, uptime, type
 // under way and ahead, the last week's incidents. The public page and the
 // editors' overview read the same thing, so editors see what customers see.
 
-export type ComponentView = { id: string; name: string; description: string; teamOnly: boolean; state: State; days: Day[]; uptime: number | null; measured: { percent: number; since: Date } | null };
+export type ComponentView = { id: string; name: string; description: string; teamOnly: boolean; state: State; days: Day[]; uptime: number | null; measured: Measured | null };
 export type EntryView = { id: string; kind: "component" | "group"; name: string; description: string; state: State; children: ComponentView[]; self: ComponentView | null };
 export type StatusView = {
   entries: EntryView[];
@@ -29,7 +29,7 @@ export type StatusView = {
 export async function statusView(sql: Query, zone: string, now = new Date(), options: { team?: boolean } = {}): Promise<StatusView> {
   const at = now.getTime();
   const team = options.team === true;
-  const [components, incidents, checked] = await Promise.all([allComponents(sql), recent(sql, now, undefined, { team }), measured(sql, new Date(lastDays(at, zone, 90)[0]!.from))]);
+  const [components, incidents, checked] = await Promise.all([allComponents(sql), recent(sql, now, undefined, { team }), measured(sql, new Date(lastDays(at, zone, 90)[0]!.from), now)]);
   const timeline = forTimeline(incidents);
   const all = spans(timeline, at);
   const current = currentStates(timeline, at);

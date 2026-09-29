@@ -184,11 +184,24 @@ decoration that carries no text and no meaning (below).
 | `--control-h` | 44 px: the smallest target — **no theme changes it** |
 | `--field-pad-x` | the space between a field's edge and its text (0.2.2; `--space-3` unless the theme says, `fieldPad`): a tool's own fields and the kit's line up |
 | `--ease` `--fast` `--slow` | motion; both durations are 0 ms when the person asks for reduced motion |
+| `--decor` | `1` or `0` (0.2.3): whether the tool's own decoration is drawn — graph paper, stripes, a sunset, contour lines. `0` in a company's brand (its pages are the company's, not the tool's), in the Chest's sheet and in High contrast; `1` elsewhere (a theme says `decor: false`). A tool puts its decoration on a layer that reads it: `opacity: var(--decor)` on a pattern's pseudo-element, or `color-mix(in oklab, var(--line) calc(var(--decor) * 40%), transparent)` for a pattern's colour. Never text or meaning: nothing is lost at 0 |
 
 The stylesheet (`themeCss`) also sets `color-scheme`, `font-synthesis:
 none` for a theme that asks it, and, when the person's system asks for
 more contrast (`prefers-contrast: more`), makes `--ink-2` as dark as
 `--ink` and every `--line` a `--line-strong`.
+
+## Public pages (0.2.3)
+
+A tool's public host — careers, a status page, a booking page, a contact
+or public form — is seen by the company's customers and candidates, not
+its team. It wears **the company's brand** when the Chest's choice is a
+brand, and **the tool's own identity** otherwise: a catalogue theme is a
+choice the company made for its team's pages (for all tools, or for one),
+and the Chest's sheet never dresses a public page (brief/05). The tool
+asks for it — `resolveTheme(await chest.theme(), identity, { surface:
+"public" })` — and does nothing else; the team's pages keep `surface:
+"team"` (the default).
 
 ## Light-only themes
 

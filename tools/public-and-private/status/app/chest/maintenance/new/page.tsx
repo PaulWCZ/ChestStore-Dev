@@ -2,8 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
-import { format, zoneName } from "../../../../lib/i18n/index.ts";
-import { otherLanguage } from "../../../../lib/languages.ts";
+import { format, locales, zoneName } from "../../../../lib/i18n/index.ts";
 import { pickerGroups } from "../../../../lib/picker.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { addDays } from "../../../../lib/zone.ts";
@@ -29,7 +28,7 @@ export default async function NewMaintenance() {
           end={{ day: tomorrow, minutes: 23 * 60 }}
           today={chest.today()}
           zoneNote={format(t.maintenance.zone, { zone: zoneName(zone) })}
-          languages={{ second: otherLanguage(), secondName: (t.languages as Record<string, string>)[otherLanguage()] ?? otherLanguage() }}
+          languages={{ main: v.locale, options: locales.map(code => ({ code, name: t.languages[code] })) }}
           t={{ maintenance: t.maintenance, compose: t.compose, errors: t.errors, date: t.date }}
         />
       )}

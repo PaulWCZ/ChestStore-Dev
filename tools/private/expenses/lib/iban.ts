@@ -66,3 +66,21 @@ export function maskIban(country: string, last4: string): string {
 export function sepaCountry(country: string): boolean {
   return Object.hasOwn(sepaLengths, country);
 }
+
+// The SEPA countries outside the European Economic Area. A transfer to an
+// account there carries the payee's postal address (and the payer's): the
+// EPC's rules since its 2023 rulebooks, after Regulation (EU) 2023/1113
+// (sources in THIRD_PARTY.md). Gibraltar left the EEA with the United
+// Kingdom; Jersey, Guernsey and the Isle of Man use GB account numbers.
+const outsideEea = new Set(["AD", "CH", "GB", "GI", "MC", "SM", "VA"]);
+
+export function needsAddress(country: string): boolean {
+  return sepaCountry(country) && outsideEea.has(country);
+}
+
+// A country code of ISO 3166 as a person types it ("gb", " FR ").
+export function countryCode(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const code = value.trim().toUpperCase();
+  return /^[A-Z]{2}$/u.test(code) ? code : null;
+}

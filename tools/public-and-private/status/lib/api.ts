@@ -3,7 +3,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { db, type Query } from "./db.ts";
 import { catalogue } from "./i18n/index.ts";
 import { latestIncidents, upcomingMaintenance, type Incident, type Update } from "./incidents.ts";
-import { mainLanguage } from "./languages.ts";
+import { chestLanguage } from "./languages.ts";
 import { severity, worst, type Impact, type State } from "./model.ts";
 import { publicOrigin } from "./public-origin.ts";
 import { rememberPublicOrigin } from "./settings.ts";
@@ -54,7 +54,7 @@ function pageIdOf(origin: string): string {
 }
 
 function pageOf(c: Context) {
-  const t = catalogue(mainLanguage());
+  const t = catalogue(chestLanguage());
   const company = chest.company();
   const latest = [c.view.updatedAt?.getTime() ?? 0, ...[...c.created.values()].map(d => d.getTime())].reduce((a, b) => Math.max(a, b), 0);
   return { id: c.pageId, name: company ? company : t.meta.publicPlain, url: c.origin, time_zone: chest.timeZone(), updated_at: iso(latest || c.now) };
@@ -188,7 +188,7 @@ async function context(sql: Query, now: Date, origin: string): Promise<Context> 
 }
 
 function statusOf(c: Context) {
-  const t = catalogue(mainLanguage());
+  const t = catalogue(chestLanguage());
   const states = c.view.entries.flatMap(e => (e.self ? [e.self.state] : e.children.map(k => k.state)));
   // Before any service is listed the page is being set up: nothing is
   // wrong, and the description says so rather than "operational".

@@ -373,3 +373,17 @@ details[open] > .summary-button { margin-bottom: var(--space-4); }
 
 .line-actions { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 .end-field { align-self: end; }
+
+/* "Written in" and "Also write it in …": one row, wrapping on a phone. */
+.languages-row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-4); }
+.language-pick { display: grid; gap: var(--space-1); }
+.language-pick .field { width: auto; min-width: 10rem; }
+.languages-row .second-toggle { min-height: 44px; }
+
+/* On a phone the page's one main action comes first: "Post an incident"
+   above "Plan maintenance" (the kit lays the secondary first, for the
+   desktop's primary-on-the-right). */
+@media (max-width: 760px) {
+  .overview-head .ck-page-actions { flex-direction: column; }
+  .overview-head .ck-page-actions > .button:not(.quiet) { order: -1; }
+}

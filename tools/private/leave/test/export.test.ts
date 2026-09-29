@@ -3,7 +3,8 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
 import { GET } from "../app/chest/people/export/route.ts";
 import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
+import { saveType, types } from "../lib/rules.ts";
+import { AppError } from "../lib/app-error.ts";
 import { setApprover, setEmployeeNumber } from "../lib/staff.ts";
 import { GET as balancesCsv } from "../app/chest/people/balances/route.ts";
 import * as balances from "../lib/balances.ts";
@@ -39,16 +40,16 @@ const get = (who: typeof camille | null, query: string) => {
   return GET(who ? withMember(request, who) : request);
 };
 
-test("the payroll CSV: HR gets it in their language (French: ';' and decimal commas); others are refused", async () => {
+test("the payroll CSV: HR gets it in their language (French: ';' and decimal commas), with each kind's payroll code; others are refused", async () => {
   const fr = await get(camille, "?month=" + month);
   assert.equal(fr.status, 200);
   assert.match(fr.headers.get("content-disposition") ?? "", new RegExp(`conges-${month}\\.csv`, "u"));
   const text = await fr.text();
   const [header, line] = text.replace(/^﻿/u, "").split("\r\n");
-  assert.equal(header, "Matricule;Personne;Type;Premier jour;Depuis;Dernier jour;Jusqu’à;Jours ce mois-ci;Jours au total");
-  assert.match(line ?? "", /^0042;Hugo Bernard;Congés payés;\d{4}-\d{2}-\d{2};matin;\d{4}-\d{2}-\d{2};soir;5;5$/u);
+  assert.equal(header, "Matricule;Personne;Type;Code paie;Premier jour;Depuis;Dernier jour;Jusqu’à;Jours ce mois-ci;Jours au total");
+  assert.match(line ?? "", /^0042;Hugo Bernard;Congés payés;CP;\d{4}-\d{2}-\d{2};matin;\d{4}-\d{2}-\d{2};soir;5;5$/u);
   const en = await get({ ...camille, locale: "en" }, "?month=" + month);
-  assert.match((await en.text()).split("\r\n")[0] ?? "", /Employee number,Person,Kind,First day/u);
+  assert.match((await en.text()).split("\r\n")[0] ?? "", /Employee number,Person,Kind,Payroll code,First day/u);
   assert.equal((await get(ines, "?month=" + month)).status, 403);
   assert.equal((await get(camille, "?month=nope")).status, 400);
   assert.equal((await get(null, "?month=" + month)).status, 401);
@@ -77,7 +78,7 @@ test("the balances CSV: paid leave N-1 and N as the pay slip shows them, leave t
   const fr = await call(camille);
   assert.equal(fr.status, 200);
   const lines = (await fr.text()).replace(/^\uFEFF/u, "").split("\r\n");
-  assert.match(lines[0]!, /^Matricule;Personne;Date d’entrée;Dernier jour;Congés payés N-1 acquis;Congés payés N-1 pris;Congés payés N-1 solde;Congés payés N acquis;Congés payés N pris par anticipation;Congés payés N solde;Congés payés reportés;Congés payés validés à venir;Congés payés restants;Congés payés en attente de réponse;RTT validés à venir;RTT restants/u);
+  assert.match(lines[0]!, /^Matricule;Personne;Date d’entrée;Dernier jour;Congés payés \(CP\) N-1 acquis;Congés payés \(CP\) N-1 pris;Congés payés \(CP\) N-1 solde;Congés payés \(CP\) N acquis;Congés payés \(CP\) N pris par anticipation;Congés payés \(CP\) N solde;Congés payés \(CP\) reportés;Congés payés \(CP\) validés à venir;Congés payés \(CP\) restants;Congés payés \(CP\) en attente de réponse;RTT \(RTT\) validés à venir;RTT \(RTT\) restants/u);
   const inesLine = lines.find(l => l.includes("Inès Moreau"))!;
   assert.match(inesLine, /^;Inès Moreau;;;10;0;10;3,5;0;3,5;0;0;13,5;0;/u);
   assert.equal(lines.find(l => l.includes("Hugo Bernard"))!.split(";")[0], "0042");
@@ -89,4 +90,21 @@ test("the balances CSV: paid leave N-1 and N as the pay slip shows them, leave t
   assert.equal((await call(ines)).status, 403);
   assert.equal((await call(camille, "?on=2999-01-01")).status, 400);
   assert.equal((await call(null)).status, 401);
+});
+
+test("a payroll code HR changes (or removes) is the one both files carry", async () => {
+  const { sql } = database;
+  const all = await types(sql);
+  const paid = all.find(t => t.key === "paid")!;
+  // The defaults: the usual French codes.
+  assert.deepEqual(Object.fromEntries(all.map(t => [t.key, t.payrollCode])), { paid: "CP", rtt: "RTT", unpaid: "CSS", sick: "MAL", other: null, family: "EVF", remote: null });
+  await saveType(sql, asMember(camille), paid.id, { payrollCode: " cp01 " });
+  const header = (await (await get({ ...camille, locale: "en" }, "?month=" + month)).text()).split("\r\n");
+  assert.match(header[1] ?? "", /^0042,Hugo Bernard,Paid leave,CP01,/u);
+  await assert.rejects(saveType(sql, asMember(camille), paid.id, { payrollCode: "congés payés" }), (e: unknown) => e instanceof AppError && e.code === "bad_code");
+  await assert.rejects(saveType(sql, asMember(ines), paid.id, { payrollCode: "X" }), (e: unknown) => e instanceof AppError && e.code === "forbidden");
+  await saveType(sql, asMember(camille), paid.id, { payrollCode: "" });
+  const line = (await (await get({ ...camille, locale: "en" }, "?month=" + month)).text()).split("\r\n")[1] ?? "";
+  assert.match(line, /^0042,Hugo Bernard,Paid leave,,/u);
+  await saveType(sql, asMember(camille), paid.id, { payrollCode: "CP" });
 });

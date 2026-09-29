@@ -6,7 +6,7 @@ import { catalogue, format, isLocale, stamp, type Catalogue } from "./i18n/index
 import type { Step } from "./model.ts";
 import { company, publicOrigin, setMailState } from "./settings.ts";
 import type { Subscriber } from "./subscribers.ts";
-import { mainLanguage } from "./languages.ts";
+import { chestLanguage } from "./languages.ts";
 import { pick } from "./texts.ts";
 
 // Email to subscribers through the Chest's mail (Proposal (studio): the
@@ -63,7 +63,7 @@ export function updateEmail(q: Pick<Queued, "language" | "token" | "update_id" |
   const all = wordsFor(q.language);
   const t = all.mail;
   const name = company() || t.team;
-  const languages = { language: q.incident_language ?? mainLanguage(), secondLanguage: q.second_language ?? null };
+  const languages = { language: q.incident_language ?? chestLanguage(), secondLanguage: q.second_language ?? null };
   const title = pick(q.title, q.title_second, languages, q.language).text;
   const body = pick(q.body, q.body_second, languages, q.language).text;
   const values = { company: name, title, step: all.steps[q.status] };

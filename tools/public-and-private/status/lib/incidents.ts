@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { mainLanguage, otherLanguage } from "./languages.ts";
+import { chestLanguage, otherLanguage, writtenIn } from "./languages.ts";
 import { affected, clean, componentIds, id, incidentSteps, isIncidentStep, limits, optionalText, type Impact, type IncidentStep, type Step } from "./model.ts";
 import { maintenancePhase, type TimelineIncident } from "./timeline.ts";
 import { instantOf, wall } from "./zone.ts";
@@ -75,7 +75,7 @@ async function load(sql: Query, rows: IncidentRow[], options: { removed?: boolea
   }
   const logOf = new Map<string, LogEntry[]>();
   for (const l of log) logOf.set(String(l.update_id), [...(logOf.get(String(l.update_id)) ?? []), { action: l.action, previousBody: l.previous_body, actor: l.actor, at: new Date(l.at), second: l.second }]);
-  const main = mainLanguage();
+  const main = chestLanguage();
   return rows.map(r => {
     const key = String(r.id);
     return {
@@ -287,9 +287,18 @@ async function lockIncident(sql: Query, value: unknown): Promise<IncidentRow> {
   return row;
 }
 
-// Emails wait in a queue, one per subscriber who follows one of these
-// components (or everything); only for what happens now, never a backfill,
-// and never about services for the team only.
+// announce tells the page's subscribers about a new update: every way a
+// customer can follow the page starts here, once per update, inside the
+// update's transaction. Today one way: emails wait in a queue, one per
+// subscriber who follows one of these components (or everything); only for
+// what happens now, never a backfill, and never about services for the team
+// only. The seam for webhook, Slack and Teams subscriptions (the Chest's
+// `webhooks` proposal, README "Needs from the SDK"): they queue here too,
+// with the same rules, and are delivered by the same pass as the emails.
+async function announce(sql: Query, updateId: string, componentIds: string[]): Promise<void> {
+  await queueMail(sql, updateId, componentIds);
+}
+
 async function queueMail(sql: Query, updateId: string, componentIds: string[]): Promise<void> {
   await sql`
     insert into mail_queue (subscriber_id, update_id)
@@ -308,14 +317,17 @@ const secondTitle = (value: Second) => optionalText(value?.title, limits.title);
 const secondBody = (value: Second) => optionalText(value?.body, limits.body, { multiline: true });
 
 // Once an incident has a second version, it keeps its language; the first
-// second text sets it to the tool's other language.
+// second text sets it to the other language than the one it is written in.
 async function useSecond(sql: Query, incidentId: string, given: boolean): Promise<void> {
   if (!given) return;
-  await sql`update incidents set second_language = coalesce(second_language, ${otherLanguage()}) where id = ${incidentId}`;
+  const [row] = await sql<{ language: string | null }[]>`select language from incidents where id = ${incidentId}`;
+  await sql`update incidents set second_language = coalesce(second_language, ${otherLanguage(row?.language ?? chestLanguage())}) where id = ${incidentId}`;
 }
 
-export type OpenInput = { title: unknown; status: unknown; body: unknown; states: unknown; second?: Second };
-export type BackfillInput = { title: unknown; body: unknown; states: unknown; startedAt: Date; resolvedAt: Date; resolution: unknown; second?: (Second & { resolution?: unknown }) | null; sourceId?: string };
+// language: the "Written in" choice (a tool language); the editor's own
+// when not given.
+export type OpenInput = { title: unknown; status: unknown; body: unknown; states: unknown; second?: Second; language?: unknown };
+export type BackfillInput = { title: unknown; body: unknown; states: unknown; startedAt: Date; resolvedAt: Date; resolution: unknown; second?: (Second & { resolution?: unknown }) | null; sourceId?: string; language?: unknown };
 
 // openIncident posts a new incident and its first update, now.
 export async function openIncident(sql: Sql, actor: Member | null, input: OpenInput, now = new Date()): Promise<{ incidentId: string; updateId: string }> {
@@ -326,7 +338,7 @@ export async function openIncident(sql: Sql, actor: Member | null, input: OpenIn
   if (status !== "investigating" && status !== "identified" && status !== "monitoring") throw new AppError("invalid");
   const states = affected(input.states);
   const titleSecond = secondTitle(input.second), bodySecond = secondBody(input.second);
-  const main = mainLanguage();
+  const main = writtenIn(input.language, who);
   return sql.begin(async tx => {
     await checkComponents(tx, [...states.keys()]);
     const [row] = await tx<{ id: string }[]>`
@@ -334,7 +346,7 @@ export async function openIncident(sql: Sql, actor: Member | null, input: OpenIn
       values ('incident', ${title}, ${titleSecond}, ${main}, ${titleSecond || bodySecond ? otherLanguage(main) : null}, ${status}, ${now}, ${who.id}) returning id`;
     const incidentId = String(row!.id);
     const updateId = await insertUpdate(tx, incidentId, { status, body, bodySecond, postedAt: now, author: who.id, states });
-    await queueMail(tx, updateId, [...states.keys()]);
+    await announce(tx, updateId, [...states.keys()]);
     return { incidentId, updateId };
   });
 }
@@ -352,7 +364,7 @@ export async function backfill(sql: Sql, actor: Member | null, input: BackfillIn
   const start = input.startedAt.getTime(), end = input.resolvedAt.getTime();
   if (!(start < now.getTime()) || start < now.getTime() - limits.backfillDays * 86400000) throw new AppError("invalid_time");
   if (!(end > start) || end > now.getTime() + 60000) throw new AppError("invalid_time");
-  const main = mainLanguage();
+  const main = writtenIn(input.language, who);
   return sql.begin(async tx => {
     await checkComponents(tx, [...states.keys()]);
     const [row] = await tx<{ id: string }[]>`
@@ -396,7 +408,7 @@ export async function addUpdate(sql: Sql, actor: Member | null, incidentId: unkn
     const updateId = await insertUpdate(tx, String(incident.id), { status, body, bodySecond, postedAt, author: who.id, ...(states ? { states } : {}) });
     await refresh(tx, String(incident.id));
     const everything = await tx<{ component_id: string }[]>`select distinct s.component_id from update_states s join updates u on u.id = s.update_id where u.incident_id = ${incident.id} and u.removed_at is null`;
-    if (!incident.backfilled || incident.status !== "resolved") await queueMail(tx, updateId, everything.map(r => String(r.component_id)));
+    if (!incident.backfilled || incident.status !== "resolved") await announce(tx, updateId, everything.map(r => String(r.component_id)));
     return { updateId, resolved: status === "resolved", reopened: incident.status === "resolved" && status !== "resolved" };
   });
 }
@@ -522,7 +534,7 @@ export async function restoreIncident(sql: Sql, actor: Member | null, incidentId
 
 // ---- Maintenance -----------------------------------------------------------
 
-export type MaintenanceInput = { title: unknown; body: unknown; start: Date; end: Date; components: unknown; autoPosts: unknown; second?: Second };
+export type MaintenanceInput = { title: unknown; body: unknown; start: Date; end: Date; components: unknown; autoPosts: unknown; second?: Second; language?: unknown };
 
 function checkWindow(start: Date, end: Date, now: Date, isNew: boolean): void {
   const s = start.getTime(), e = end.getTime();
@@ -541,7 +553,7 @@ export async function planMaintenance(sql: Sql, actor: Member | null, input: Mai
   const components = componentIds(input.components);
   checkWindow(input.start, input.end, now, true);
   const titleSecond = secondTitle(input.second), bodySecond = secondBody(input.second);
-  const main = mainLanguage();
+  const main = writtenIn(input.language, who);
   return sql.begin(async tx => {
     await checkComponents(tx, components);
     const [row] = await tx<{ id: string }[]>`
@@ -550,7 +562,7 @@ export async function planMaintenance(sql: Sql, actor: Member | null, input: Mai
     const incidentId = String(row!.id);
     for (const c of components) await tx`insert into maintenance_components (incident_id, component_id) values (${incidentId}, ${c})`;
     const updateId = await insertUpdate(tx, incidentId, { status: "scheduled", body, bodySecond, postedAt: now, author: who.id });
-    await queueMail(tx, updateId, components);
+    await announce(tx, updateId, components);
     return { incidentId, updateId };
   });
 }
@@ -595,7 +607,7 @@ export async function maintenanceUpdate(sql: Sql, actor: Member | null, incident
     if (status === "completed") await tx`update incidents set status = 'completed', resolved_at = ${now}, end_posted = true, start_posted = true where id = ${m.id}`;
     if (status === "cancelled") await tx`update incidents set status = 'cancelled', resolved_at = ${now}, end_posted = true where id = ${m.id}`;
     const components = await tx<{ component_id: string }[]>`select component_id from maintenance_components where incident_id = ${m.id}`;
-    await queueMail(tx, updateId, components.map(c => String(c.component_id)));
+    await announce(tx, updateId, components.map(c => String(c.component_id)));
     return { updateId };
   });
 }
@@ -618,16 +630,16 @@ export async function autoPost(sql: Sql, wordsIn: (language: string) => AutoWord
     for (const m of due) {
       const components = (await tx<{ component_id: string }[]>`select component_id from maintenance_components where incident_id = ${m.id}`).map(c => String(c.component_id));
       const recentEnough = (at: Date) => now.getTime() - new Date(at).getTime() < 86400000;
-      const words = wordsIn(m.language ?? mainLanguage());
+      const words = wordsIn(m.language ?? chestLanguage());
       const second = m.second_language ? wordsIn(m.second_language) : null;
       if (!m.start_posted) {
         const u = await insertUpdate(tx, String(m.id), { status: "in_progress", body: words.started, bodySecond: second?.started ?? null, postedAt: new Date(m.started_at), author: "auto" });
-        if (recentEnough(m.started_at) && new Date(m.ends_at).getTime() > now.getTime()) await queueMail(tx, u, components);
+        if (recentEnough(m.started_at) && new Date(m.ends_at).getTime() > now.getTime()) await announce(tx, u, components);
         posted.push(u);
       }
       if (!m.end_posted && new Date(m.ends_at).getTime() <= now.getTime()) {
         const u = await insertUpdate(tx, String(m.id), { status: "completed", body: words.completed, bodySecond: second?.completed ?? null, postedAt: new Date(m.ends_at), author: "auto" });
-        if (recentEnough(m.ends_at)) await queueMail(tx, u, components);
+        if (recentEnough(m.ends_at)) await announce(tx, u, components);
         posted.push(u);
       }
       await tx`update incidents set start_posted = true, end_posted = end_posted or ends_at <= ${now} where id = ${m.id}`;

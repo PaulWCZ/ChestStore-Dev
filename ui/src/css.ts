@@ -34,6 +34,7 @@ export function staticDeclarations(theme: Theme): string {
     ["control-h", "44px"],
     ["field-pad-x", `${theme.fieldPad ?? theme.space[2]}px`],
     ["ease", theme.motion.ease], ["fast", `${theme.motion.fast}ms`], ["slow", `${theme.motion.slow}ms`],
+    ["decor", theme.decor === false ? "0" : "1"],
   ];
   return decl.map(([k, v]) => `--${k}:${v}`).join(";");
 }

@@ -56,7 +56,8 @@ test("texts in two languages: each visitor and subscriber reads theirs; the firs
   const { sql } = database;
   await subscriber("anne@example.fr", "fr");
   await subscriber("bob@example.com", "en");
-  const { incidentId } = await incidents.openIncident(sql, editor, { title: "Checkout errors", status: "investigating", body: "Some orders fail.", states: { [checkout]: "major" }, second: { title: "Erreurs au paiement", body: "Certaines commandes échouent." } });
+  // Camille (French) chooses to write in English, French second.
+  const { incidentId } = await incidents.openIncident(sql, editor, { title: "Checkout errors", status: "investigating", body: "Some orders fail.", states: { [checkout]: "major" }, second: { title: "Erreurs au paiement", body: "Certaines commandes échouent." }, language: "en" });
   const i = await incidents.incidentFor(sql, editor, incidentId);
   assert.equal(i.language, "en");
   assert.equal(i.secondLanguage, "fr");
@@ -86,11 +87,43 @@ test("texts in two languages: each visitor and subscriber reads theirs; the firs
   await refuses("too_long", () => incidents.openIncident(sql, editor, { title: "x", status: "investigating", body: "x", states: { [website]: "major" }, second: { body: "é".repeat(5001) } }));
 });
 
+test("an incident is in its writer's language, not the Chest's: a French editor on an English Chest writes French, English second", async () => {
+  const { sql } = database;
+  // This Chest speaks English; Camille's own language is French, and she
+  // leaves "Written in" as it is.
+  const { incidentId } = await incidents.openIncident(sql, editor, { title: "Erreurs au paiement", status: "investigating", body: "Certaines commandes échouent.", states: { [checkout]: "major" } });
+  const i = await incidents.incidentFor(sql, editor, incidentId);
+  assert.equal(i.language, "fr");
+  assert.equal(i.secondLanguage, null);
+  // An English visitor reads the French text, marked French for screen readers.
+  assert.deepEqual(pick(i.title, i.titleSecond, i, "en"), { text: "Erreurs au paiement", lang: "fr" });
+  // Her first English version makes English the second language (not French again).
+  await incidents.addUpdate(sql, editor, incidentId, { status: "identified", body: "Trouvé.", bodySecond: "Found it." });
+  const j = await incidents.incidentFor(sql, editor, incidentId);
+  assert.equal(j.secondLanguage, "en");
+  assert.deepEqual(pick(j.updates[0]!.body, j.updates[0]!.bodySecond, j, "en"), { text: "Found it.", lang: "en" });
+  assert.deepEqual(pick(j.updates[0]!.body, j.updates[0]!.bodySecond, j, "fr"), { text: "Trouvé.", lang: "fr" });
+  // Tom (English) writes English by default; he may choose French.
+  const tom = asMember(everyone.find(p => p.firstName === "Tom")!);
+  const a = await incidents.openIncident(sql, tom, { title: "Slow", status: "investigating", body: "Slow pages.", states: { [website]: "degraded" } });
+  assert.equal((await incidents.incidentFor(sql, tom, a.incidentId)).language, "en");
+  const b = await incidents.openIncident(sql, tom, { title: "Lent", status: "investigating", body: "Pages lentes.", states: { [website]: "degraded" }, second: { title: "Slow" }, language: "fr" });
+  const bi = await incidents.incidentFor(sql, tom, b.incidentId);
+  assert.deepEqual([bi.language, bi.secondLanguage], ["fr", "en"]);
+  // A maintenance and a past incident follow the same rule; an unknown language is refused.
+  const start = new Date(Date.now() + 3600000);
+  const m = await incidents.planMaintenance(sql, editor, { title: "Mise à jour", body: "Prévue.", start, end: new Date(start.getTime() + 3600000), components: [website], autoPosts: false });
+  assert.equal((await incidents.incidentFor(sql, editor, m.incidentId)).language, "fr");
+  const past = await incidents.backfill(sql, editor, { title: "Panne", body: "Panne.", resolution: "Réglé.", states: { [website]: "major" }, startedAt: new Date(Date.now() - 7200000), resolvedAt: new Date(Date.now() - 3600000) });
+  assert.equal((await incidents.incidentFor(sql, editor, past.incidentId)).language, "fr");
+  await refuses("invalid", () => incidents.openIncident(sql, editor, { title: "x", status: "investigating", body: "x", states: { [website]: "major" }, language: "de" }));
+});
+
 test("a maintenance's automatic posts are written in both its languages", async () => {
   const { sql } = database;
   const now = new Date();
   const start = new Date(now.getTime() + 3600000), end = new Date(start.getTime() + 3600000);
-  const { incidentId } = await incidents.planMaintenance(sql, editor, { title: "Upgrade", body: "Planned.", start, end, components: [website], autoPosts: true, second: { title: "Mise à jour", body: "Prévue." } }, now);
+  const { incidentId } = await incidents.planMaintenance(sql, editor, { title: "Upgrade", body: "Planned.", start, end, components: [website], autoPosts: true, second: { title: "Mise à jour", body: "Prévue." }, language: "en" }, now);
   const words = (language: string) => (language === "fr" ? { started: "Commencée.", completed: "Terminée." } : { started: "Started.", completed: "Completed." });
   await incidents.autoPost(sql, words, new Date(end.getTime() + 60000));
   const m = await incidents.incidentFor(sql, editor, incidentId);

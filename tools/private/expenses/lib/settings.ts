@@ -1,4 +1,6 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
+import { defaultLocale, isLocale, type Locale } from "./i18n/index.ts";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -14,10 +16,13 @@ import { checkScale, isVehicleKind, powers, type Scale, type VehicleKind } from 
 // accountant went through the first checks (the banner goes); journal:
 // the accounts of the accounting journal (lib/journal.ts), editable by the
 // accountant, French chart defaults; payer: the company's name as the bank
-// transfer file writes it.
+// transfer file writes it; bankLocale: the language of the text the bank
+// shows people on their statement ("Notes de frais E6"), the company's —
+// the Chest's language until the accountant picks one.
 export type Journal = { code: string; employees: string; vat: string; card: string };
-export type Settings = { currency: string; reminder: boolean; setupDone: boolean; journal: Journal; payer: string };
-const defaults: Settings = { currency: defaultCurrency, reminder: true, setupDone: false, journal: { code: "NDF", employees: "421000", vat: "445660", card: "467000" }, payer: "" };
+export type Settings = { currency: string; reminder: boolean; setupDone: boolean; journal: Journal; payer: string; bankLocale: Locale };
+const defaults = (): Settings => ({ currency: defaultCurrency, reminder: true, setupDone: false, journal: { code: "NDF", employees: "421000", vat: "445660", card: "467000" }, payer: "", bankLocale: chestLocale() });
+const chestLocale = (): Locale => { const l = chest.locale(); return isLocale(l) ? l : defaultLocale; };
 
 const accountPattern = /^[0-9A-Za-z]{1,20}$/u;
 function isJournal(value: unknown): value is Journal {
@@ -28,18 +33,19 @@ function isJournal(value: unknown): value is Journal {
 
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
-  const out: Settings = { ...defaults, journal: { ...defaults.journal } };
+  const out = defaults();
   for (const r of rows) {
     if (r.key === "currency" && isCurrency(r.value)) out.currency = r.value;
     if (r.key === "reminder" && typeof r.value === "boolean") out.reminder = r.value;
     if (r.key === "setupDone" && typeof r.value === "boolean") out.setupDone = r.value;
     if (r.key === "journal" && isJournal(r.value)) out.journal = r.value;
     if (r.key === "payer" && typeof r.value === "string") out.payer = r.value;
+    if (r.key === "bankLocale" && isLocale(r.value)) out.bankLocale = r.value;
   }
   return out;
 }
 
-export type SettingsInput = { currency?: unknown; reminder?: unknown; setupDone?: unknown; journal?: unknown; payer?: unknown };
+export type SettingsInput = { currency?: unknown; reminder?: unknown; setupDone?: unknown; journal?: unknown; payer?: unknown; bankLocale?: unknown };
 
 export async function updateSettings(sql: Sql, actor: Member | null, input: SettingsInput): Promise<Settings> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
@@ -62,6 +68,10 @@ export async function updateSettings(sql: Sql, actor: Member | null, input: Sett
     values.push(["journal", journal]);
   }
   if (input.payer !== undefined) values.push(["payer", clean(input.payer, limits.payer, { optional: true })]);
+  if (input.bankLocale !== undefined) {
+    if (!isLocale(input.bankLocale)) throw new AppError("invalid");
+    values.push(["bankLocale", input.bankLocale]);
+  }
   for (const [key, value] of values) {
     await sql`insert into settings (key, value) values (${key}, ${sql.json(value as never)}) on conflict (key) do update set value = excluded.value`;
   }

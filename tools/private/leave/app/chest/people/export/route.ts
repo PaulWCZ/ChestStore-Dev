@@ -9,7 +9,9 @@ import { types } from "../../../../lib/rules.ts";
 import { typeName } from "../../../../lib/type-name.ts";
 
 // The payroll export of a month, as a CSV for a spreadsheet or the payroll
-// provider: HR only, in the reader's language, names resolved now.
+// provider: HR only, in the reader's language, names resolved now; each
+// absence with its kind's payroll code (CP, RTT, MAL…), which payroll
+// software imports by.
 export async function GET(request: Request): Promise<Response> {
   const actor = member(request);
   if (!actor) return new Response(null, { status: 401 });
@@ -25,8 +27,8 @@ export async function GET(request: Request): Promise<Response> {
       .map(r => ({ ...r, name: r.memberId === "erased" ? t.people.erased : nameOf(who.get(r.memberId), locale) }))
       .sort((a, b) => a.name.localeCompare(b.name, locale) || a.start.localeCompare(b.start));
     const csv = toCsv([
-      [t.export.number, t.export.person, t.export.type, t.export.firstDay, t.export.firstHalf, t.export.lastDay, t.export.lastHalf, t.export.daysInMonth, t.export.days],
-      ...lines.map(r => [r.employeeNumber ?? "", r.name, typeName(typeOf.get(r.typeId), t.types), r.start, r.startHalf === "am" ? t.export.morning : t.export.noon, r.end, r.endHalf === "am" ? t.export.noon : t.export.evening, numberOf(r.daysInMonth), numberOf(r.days)]),
+      [t.export.number, t.export.person, t.export.type, t.export.code, t.export.firstDay, t.export.firstHalf, t.export.lastDay, t.export.lastHalf, t.export.daysInMonth, t.export.days],
+      ...lines.map(r => [r.employeeNumber ?? "", r.name, typeName(typeOf.get(r.typeId), t.types), typeOf.get(r.typeId)?.payrollCode ?? "", r.start, r.startHalf === "am" ? t.export.morning : t.export.noon, r.end, r.endHalf === "am" ? t.export.noon : t.export.evening, numberOf(r.daysInMonth), numberOf(r.days)]),
     ], t.export.separator === ";" ? ";" : ",");
     return new Response(csv, {
       headers: {

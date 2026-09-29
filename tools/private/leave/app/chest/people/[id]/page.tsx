@@ -76,7 +76,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             <ApproverPicker memberId={id} value={st.approverId} options={dir.people.filter(p => canBeApprover(p.role) && p.id !== id).map(p => ({ id: p.id, name: p.name, photo: p.photo ?? null }))} label={t.team.approver} locale={locale} t={{ team: t.team, errors: t.errors, peoplePicker: t.peoplePicker }} />
           </div>
           <DayField kind="start" memberId={id} value={st.startDate} label={t.team.startDate} today={today()} t={words} />
-          <DayField kind="end" memberId={id} value={st.endDate} label={t.team.lastDay} today={today()} t={words} />
+          <DayField kind="end" memberId={id} value={st.endDate} label={t.team.lastDay} today={today()} locale={locale} t={words} />
           <NumberField memberId={id} value={st.employeeNumber ?? ""} t={words} />
           <WorkWeek memberId={id} value={st.workDays ?? [...fullWeek]} days={days} t={words} />
         </div>
@@ -130,7 +130,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                   <tr key={h.key}>
                     <td>{long(l.onDate)}</td>
                     <td>{chip} {t.team.kinds[l.kind]}{l.bucket === "earning" ? ` · ${t.team.bucketEarning}` : l.bucket === "acquired" ? ` · ${t.team.bucketAcquired}` : ""}</td>
-                    <td>{l.requestId ? <Link href={`/chest/requests/${l.requestId}`}>{l.kind === "adjustment" ? t.team.alreadyCounted : t.request.title}</Link> : l.reason}<span className="muted small"> · {format(t.team.by, { name: by(l.createdBy) })}</span></td>
+                    <td>{l.requestId ? <Link href={`/chest/requests/${l.requestId}`}>{l.reasonKey ? t.team.reasonKeys[l.reasonKey] : l.kind === "adjustment" ? t.team.alreadyCounted : t.request.title}</Link> : l.reasonKey ? t.team.reasonKeys[l.reasonKey] : l.reason}<span className="muted small"> · {format(t.team.by, { name: by(l.createdBy) })}</span></td>
                     <td className={l.days < 0 ? "num minus" : "num plus"}>{l.days > 0 ? "+" : ""}{formatDays(l.days, locale)}</td>
                   </tr>
                 );

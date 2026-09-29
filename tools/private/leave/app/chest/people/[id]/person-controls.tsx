@@ -5,21 +5,26 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
-import { format } from "../../../../lib/i18n/format.ts";
+import { format, plural } from "../../../../lib/i18n/format.ts";
 import type { Result } from "../../../../lib/errors.ts";
 import { adjustBalance, setBalance, setEmployeeNumber, setEndDate, setStartDate, setWorkDays } from "../../actions.ts";
 
 type Words = { team: Catalogue["team"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 
 // Saves one of a person's fields as soon as it changes, with a toast.
-function useSave(t: Words) {
+function useSave(t: Words, locale: string = "en") {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
-  const save = (step: () => Promise<Result<null>>, undo?: () => void) => start(async () => {
+  // A last day may cancel or shorten leave after it: the toast says so.
+  const said = (value: unknown): string => {
+    const s = value as { settled?: number; days?: number } | null;
+    return s && s.settled ? plural(t.team.endSettled, s.settled, locale, { days: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(s.days ?? 0) }) : t.team.saved;
+  };
+  const save = (step: () => Promise<Result<unknown>>, undo?: () => void) => start(async () => {
     const result = await step();
     if (!result.ok) undo?.();
-    toast(result.ok ? { id: "saved", text: t.team.saved } : { text: format(t.errors[result.error as ErrorCode], result.values), tone: "error" });
+    toast(result.ok ? { id: "saved", text: said(result.value) } : { text: format(t.errors[result.error as ErrorCode], result.values), tone: "error" });
     router.refresh();
   });
   return { pending, save };
@@ -27,8 +32,8 @@ function useSave(t: Words) {
 
 // The start date (since when leave is earned) or the last day (nothing is
 // earned after it): saved when it changes; emptied, it is cleared.
-export function DayField({ kind, memberId, value, label, today, t }: { kind: "start" | "end"; memberId: string; value: string | null; label: string; today: string; t: Words }) {
-  const { pending, save } = useSave(t);
+export function DayField({ kind, memberId, value, label, today, locale, t }: { kind: "start" | "end"; memberId: string; value: string | null; label: string; today: string; locale?: string; t: Words }) {
+  const { pending, save } = useSave(t, locale);
   const [current, setCurrent] = useState(value);
   return (
     <div className="field-group day-field">

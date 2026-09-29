@@ -337,6 +337,9 @@ tr.problem td .error { color: var(--danger-ink); }
 .mapping label { font-weight: var(--weight-strong); font-size: var(--text-s); min-width: 12ch; }
 .mapping .field { width: auto; min-height: var(--control-h); color: var(--ink); }
 .year-row .field { min-height: var(--control-h); }
+.code-row { align-items: center; }
+.code-row .code-field { width: 10ch; font-family: var(--font-mono); text-transform: uppercase; }
+.code-row p { flex: 1 1 20rem; margin: 0; }
 
 /* ---------- Settings ---------- */
 .settings { display: grid; gap: var(--space-4); }

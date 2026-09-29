@@ -39,13 +39,13 @@ components).
 |---|---|
 | `@argentic/chest-ui/runtime` | `resolveTheme`, `themeStyle`, `lookCss`, `lookColors`, `lookNotes`, `nonceOf`, types `Look`, `ThemeChoice`: the page's look, on the server |
 | `@argentic/chest-ui/react` | `ThemeStyle`: the same `<style>`, as a React element (a server component in Next.js) |
-| `@argentic/chest-ui/components` | the store's shared React components (client components): `Toasts`/`useToast`, `Dialog`, `Confirm`, `PeoplePicker`, `DateField`, `DateRangeField`, `Calendar`, `MonthField`, `DayStrip`, `TimeSelect`, `FilePicker`, `DataTable`, `Menu`, `Filters`, `SearchBox`, `EmptyState`, `Avatar`, `AvatarStack`, `StatusBadge`, `Tabs`, `Segmented`, `Switch`, `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess`, `LanguageSwitch`, `BrandMark`, `AutoRefresh`/`useAutoRefresh`, and the hook `useFloat` (see "Components") |
+| `@argentic/chest-ui/components` | the store's shared React components (client components): `Toasts`/`useToast`, `Dialog`, `Confirm`, `PeoplePicker`, `DateField`, `DateRangeField`, `Calendar`, `MonthField`, `DayStrip`, `TimeSelect`, `FilePicker`, `DataTable`, `Menu`, `Filters`, `SearchBox`, `EmptyState`, `Avatar`, `AvatarStack`, `StatusBadge`, `Tabs`, `Segmented`, `Switch`, `Checkbox`, `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess`, `LanguageSwitch`, `BrandMark`, `AutoRefresh`/`useAutoRefresh`, the hook `useFloat` and `storedFile` (see "Components") |
 | `@argentic/chest-ui/components/logic` | their rules as pure, server-safe functions, and their default words `en`, `fr`, `kitWords`, `wordsFor(locale)`, `storeLanguages` |
 | `@argentic/chest-ui/components.css` | the components' stylesheet (contract tokens only) |
 | `@argentic/chest-ui/themes` | `catalogue`, `themes`, `themeOf(id)`, `identityOf(tool)`, `catalogueFonts` |
 | `@argentic/chest-ui/derive` | `deriveTheme`, `BrandError`, `logoUrlPattern`, types `Brand`, `BrandFont`, `BrandLogo`, `Derived`, `Corners`, `Density` |
 | `@argentic/chest-ui/import` | `importBrand`, `maxImportSize`, types `Imported`, `ImportFormat` |
-| `@argentic/chest-ui/contract` | `colorTokens`, `effectTokens`, `staticTokens`, `allTokens`, `pairs`, `checkTheme`, `checkPalette`, `categoryFamilies`, `paletteLimits`, `ratios`, `validateTheme`, `categories`, `controlHeight`, `themeIdPattern`, types `Theme`, `Scheme`, `Pair`, `Failure`, `Words` |
+| `@argentic/chest-ui/contract` | `colorTokens`, `optionalColorTokens`, `schemeWithDefaults`, `effectTokens`, `staticTokens`, `allTokens`, `pairs`, `checkTheme`, `checkPalette`, `categoryFamilies`, `paletteLimits`, `ratios`, `validateTheme`, `categories`, `controlHeight`, `themeIdPattern`, types `Theme`, `Scheme`, `Pair`, `Failure`, `Words` |
 | `@argentic/chest-ui/fonts` | `registry`, `font(id)`, `systemFont`, `uploadedFont`, `fontFaces`, `fontFiles`, `closestFont`, patterns, types `FontSpec`, `FontEntry`, `FontSource` |
 | `@argentic/chest-ui/color` | `parseColor`, `hex`, `oklch`, `oklchHex`, `contrast`, `luminance`, `fit`, `mix`, `hueDistance`, `colourWord`… |
 | `@argentic/chest-ui` | all of the above but React, and `defineTheme` (a tool's own identity), `completeScheme`, `category`, `note`, `themeCss`, `staticDeclarations`, `schemeDeclarations`, `themeColors`, `chipRadius` |
@@ -86,6 +86,19 @@ export const currentLook = cache(async () => resolveTheme(await chest.theme(), i
 themes, it answers "own"); `resolveTheme` never throws either — a theme id
 it does not know, or a brand it cannot read, is the identity, with the
 reason in `look.problem` for the logs.
+
+**A public page (0.2.3)** — the tool's public host: careers, a status
+page, a booking page, a contact or public form — passes the surface:
+
+```ts
+export const publicLook = cache(async () => resolveTheme(await chest.theme(), identity, { surface: "public" }));
+```
+
+It wears the company's **brand** in brand mode and the tool's **own
+identity** otherwise: a catalogue theme is a choice made for the team's
+pages (for all tools, or for this one), and the Chest's sheet never
+dresses a public page (brief/05). The team's pages keep the default
+(`surface: "team"`).
 
 **3. One `<style>` in the head, with the page's nonce.**
 
@@ -142,7 +155,18 @@ except Library (Newsreader) and Letterpress (Libre Caslon Text), faces
 drawn for reading. Each theme also has a band of its own colour,
 `--inverse` (a header bar, a panel), dark in both modes: Tool crib's
 steel, Instrument's ink-green panel, Trail map's forest margin; the ink
-elsewhere (tokens/CONTRACT.md).
+elsewhere (tokens/CONTRACT.md). On that band a tool's signal —
+Timesheets' lime Start and current tab, Goals' marker — is
+`--inverse-signal`, with `--inverse-signal-ink` for words on its fill
+(0.2.3): measured on the band in every theme and mode (the marker pen,
+`--highlight`, is a *dark* ground in dark looks and vanished there).
+Instrument pins its lime in both modes. `--decor` (0.2.3) is `1`, or `0`
+where the tool's decoration steps aside (graph paper, stripes, a sunset):
+a company's brand, the Chest's sheet, High contrast. High contrast holds
+every text pair at 7:1 (WCAG AAA, 0.2.3). Sales desk's badges and chips
+are square (`radius.chip` 3, 0.2.3: CRM's look, now in the catalogue's
+identity, so CRM's own copy stays equal to it and another theme gives
+CRM its own corners).
 
 All 20 pass every pair of the contract in both modes, and all but Chest
 keep each categorical slot in its colour family (`checkPalette`) (the
@@ -185,8 +209,11 @@ categorical palette with the main one; states keep their usual hues (a
 note warns when the brand's colour is close to the red of errors or the
 green of success). Every pair is then measured; a failure is the kit's
 bug, never the company's (`deriveTheme` throws a plain `Error`). The
-tests derive 1,500 seeded random brands and extreme ones (black, white,
-pure yellow, grey) with zero failure. `BrandError` (`code`:
+tests derive 1,500 seeded random brands, extreme ones (black, white,
+pure yellow, grey) and ten hard ones (a near-white, neons, near-blacks, a
+brown, two alike, a red like the errors', a pastel, Café du Port's
+yellow) with zero failure (0.2.3). A brand's theme says `decor: false`
+(`--decor: 0`): its pages are the company's, not the tool's. `BrandError` (`code`:
 `invalid_primary`, `invalid_secondary`, `invalid_neutral`, `invalid_font`,
 `invalid_logo`, `invalid_name`, `invalid_option`) is a brand the kit cannot
 read. Results are cached (16 brands) — a page derives once.
@@ -440,6 +467,16 @@ the date in words read but not shown (a table cell); `onEnter(iso)`
 and the calendar stays; `aria-multiselectable`), `inline` (part of the
 page), `labelledBy`; `onClose` is optional.
 
+**0.2.3.** A value changed from outside (the other end of a range moved
+it, a reset, a server's answer) is the field's text in the same render —
+0.2.2 copied it in an effect, later, and a person who had just tabbed
+into the field and typed got both texts ("25/01/20272027-01-28",
+Leave). While the person is typing, their text stays until it is read
+(blur, Enter); a whole date selected when it changes stays selected, so
+typing replaces it. A tool no longer needs to redraw the field (Leave's
+`key={endField}` can go). Words passed as a new object each render no
+longer reset what is being typed.
+
 ```tsx
 <DateRangeField label={t.leave} value={range} onChange={setRange} today={today} min={today}
   names={{ from: "from", to: "to" }} labels={kitWords[locale].date} lang={locale} />
@@ -451,6 +488,14 @@ under one name ("From" / « Du », "To" / « Au »), how many days under them
 (`moveRangeStart`), the last is never before the first (`moveRangeEnd`,
 `rangeDays` — in `/components/logic`). Its words are optional
 (`rangeFrom`, `rangeTo`, `rangeDays` in `DateWords`).
+
+**0.2.3.** `keepLength={false}`: moving the first day leaves the last
+(unless passed) — a filter's "from … to …" (`moveRangeStart(range, from,
+{ keepLength })`); `ids` (`{ from, to }`, the two text fields'); `below`
+(`{ from, to }`: something of the tool's own under each end — Leave's
+half days); `chips` (the first day's: `true` for Today and Tomorrow, or a
+list); `length` (the tool's own count in place of "3 days": "2.5 days
+off"). Without them, 0.2.2's markup.
 
 ### FilePicker
 
@@ -492,6 +537,20 @@ words between the button and the field's name come from the words
 `chooseFile`, `kinds`, `separator`) are optional: a 0.2.1 catalogue gets
 the kit's English for them.
 
+**0.2.3.** The camera's input is hidden with its label off a touch
+screen (`display: none`: no tab stop, nothing read — 0.2.2 left the
+input, unlabelled, in the tab order: axe "label"); "Take a photo" is a
+phone's only. `previewSize` (`"s"` 40 px, `"m"` 64 px, `"l"` 96 px: a
+receipt one recognises). `storedFile({ ref, name, size?, type? })` (in
+`/components` and `/components/logic`): a file stored before the page
+opened — a form that edits an expense shows its receipt, "Saved"
+(`labels.stored`, optional), removable, sent back as its `ref`, never
+uploaded again:
+
+```tsx
+const [files, setFiles] = useState(() => expense.receipts.map(r => storedFile({ ref: r.name, name: r.filename, size: r.size })));
+```
+
 ### DataTable and Menu
 
 ```tsx
@@ -531,6 +590,10 @@ named alike — no longer share a key), `note` (a second line), `download`
 items), `size` ("s", the default, or "m") for a shown label — both 44 px —
 and `className`.
 
+**0.2.3.** `phone="stack"`: the row's header heads its card
+("F-2026-014"), it is no longer a labelled line of it ("Number
+F-2026-014").
+
 ### Filters and SearchBox
 
 ```tsx
@@ -559,6 +622,31 @@ sent; a "Show" button where no script runs). `phone="scroll"`: on a
 phone each group keeps one line that scrolls sideways. `className`.
 `SearchBox`: `minLength`, `required`, a list of values in `keep`
 (`{ tag: ["a", "b"] }`), `className`.
+
+**0.2.3.** A select's options may name their section (`group: "Hardware"`):
+each section is an `<optgroup>`, in the order they first appear, options
+without one first. `allLabel` on a group: the words of its "All" chip or
+its select's empty choice ("Anyone", "Every category"). "Clear filters"
+no longer shows when one select is the only filter on (its own "All"
+does the same). **In-page mode**: `value` and `onChange(next)` in place
+of `path`/`params` — the filters are the page's state (a list in a
+dialog, a panel): chips are buttons (`aria-pressed`), a select and
+"Clear filters" call `onChange` with the next values, by the address's
+rules (`filterValues`, `clearValues` in `/components/logic`).
+
+```tsx
+const [value, setValue] = useState<Record<string, string>>({});
+<Filters value={value} onChange={setValue} labels={kitWords[locale].filters} groups={[…]} />
+```
+
+**On a band of its own colour** (Tasks' board colour), set on the band
+the two colours the filters write there, to the band's measured pair:
+`--ck-filters-ink` (the groups' names; default `--ink-2`) and
+`--ck-filters-link` ("Clear filters"; default `--accent-text`) — on
+`--cat-N-soft` both `var(--cat-N-ink)`; on `--accent-soft`, `--ink` and
+`--accent-text`; on `--inverse`, `--inverse-ink-2` and `--inverse-ink`.
+The chips keep their own ground. The gallery measures it (axe) on the
+orange slot's band in every look.
 
 ### EmptyState, Avatar, AvatarStack, StatusBadge, Tabs, Segmented
 
@@ -594,6 +682,13 @@ current one `aria-current="page"` (CRM's Board / List). `className` on
 that takes effect at once (a checkbox with the switch role; Space
 toggles; a form sends `value` when on) — not for a choice that waits for
 a Save.
+
+**0.2.3 — the rule for on/off.** An act that takes effect at once is a
+`Switch`; a choice that waits for the form's Save is a checkbox, which
+never looks like it already did something: `Checkbox({ label, checked |
+defaultChecked, onChange?, name, value, hint, required })` — the native
+box at 20 px in the accent, its words the 44 px target, controlled or
+left to the form (no script needed).
 
 ### AppShell, Nav, PageHeader — the one navigation rule
 
@@ -631,8 +726,8 @@ label: t.bookings, also: ["/chest/new", "/chest/b"] }`), and `match:
 but `"/chest"` is exact unless `match: "prefix"`).
 
 Every component is in `gallery/components.html` (`npm run gallery`), in
-the Chest look, Workshop, Library and a brand, light and dark, English
-and French, working.
+the Chest look, Workshop, Library, Instrument (0.2.3) and a brand, light
+and dark, English and French, working.
 
 **0.2.2.** `AppShell`: `width="full"` takes the header to the edges too;
 `toolsOn` ("all", "wide" — hidden under 760 px —, "phone"), and the
@@ -646,7 +741,63 @@ top right of its icon, never over it, with five sections (Expenses).
 `useFloat(anchor, popover, open, options)` is exported: a tool's own
 popover in a dialog or a table's frame is placed over it as the kit's are.
 
+**0.2.3.** On a wide screen the member chip keeps its name and role on
+one line each (`white-space: nowrap`, the chip does not shrink): a full
+header gives way elsewhere (Hiring).
+
 ## Changelog
+
+### 0.2.3-studio.1 (2026-09-29)
+
+What the eighteen tools reported when they re-vendored 0.2.2, and the
+lead's decisions after the store's second critique. **Backward
+compatible**: every tool on 0.2.2 re-vendors with no code change — all
+eighteen were copied, pointed at this kit, type-checked (`next typegen`
++ `tsc`) and tested (reports/04, §18). New props and words are optional;
+a theme made by hand for 0.2.2 stays valid (the two new colour tokens
+and `--decor` get defaults).
+
+- **Bug — DateField (Leave)**: an outside change of the value reached
+  the text in an effect, after the commit, and a person who had tabbed
+  into the field and typed got both texts ("06/01/202708/01/2027"). The
+  text now follows the value during the render (the previous value kept
+  in state); a person's typing is kept until read; a whole date selected
+  stays selected when it changes. check-flows plays the race (a value
+  changed after an await, then the same field typed; a range's first day
+  moved, then its last day typed at once) — it fails on 0.2.2.
+- **Bug — FilePicker camera (Expenses)**: the camera's input stayed in
+  the tab order and the accessibility tree, unlabelled, on a desk (axe
+  "label", critical). It is hidden with its label off a touch screen;
+  the gallery now shows a picker with `camera`, and check-page runs axe
+  on it on a desk and checks the button on a phone.
+- **Contract**: `--inverse-signal`, `--inverse-signal-ink` — a tool's
+  signal on its band, measured there in every theme and mode (the marker
+  pen is a dark ground in dark looks: 1.3:1 to 2.6:1 on the band);
+  Instrument's lime pinned on its panel; `optionalColorTokens` and
+  `schemeWithDefaults` for themes made before. `--decor` (`1`/`0`,
+  `Theme.decor`): the tool's decoration steps aside in a brand, the
+  Chest's sheet and High contrast. **High contrast** reaches AAA (every
+  text pair 7:1). Sales desk's chips are square (`radius.chip` 3, in the
+  catalogue's identity: `identityAdditions` carry a `chip`).
+- **Runtime**: `resolveTheme(choice, own, { surface: "public" })` — a
+  public page wears the brand in brand mode, the tool's own identity
+  otherwise; never a catalogue theme, never the Chest's sheet.
+- **Components**: `Filters` — select sections (`group` on an option →
+  `<optgroup>`), `allLabel`, no "Clear filters" when one select is the
+  only filter on, the in-page mode (`value`/`onChange`; `filterValues`,
+  `clearValues`), colours on a coloured band (`--ck-filters-ink`,
+  `--ck-filters-link`, measured by axe on a band in the gallery);
+  `DateRangeField` — `keepLength`, `ids`, `below`, `chips`, `length`;
+  `DataTable` stack layout no longer labels the row header; the member
+  chip keeps one line on wide screens; `FilePicker` — `previewSize`,
+  `storedFile()` and the word `stored`; **`Checkbox`** (new) and the
+  rule: at once → `Switch`, on Save → checkbox.
+- **Brands**: ten hard brands in the tests; a second sample brand for the
+  harness (Café du Port: `brand:port` in `lab/chest-dev`).
+- **Gallery**: Instrument joins the looks; demos of the race, a leave,
+  a period, a camera picker with a stored photo, in-page filters on a
+  band, a band with its signal, a checkbox; check-page measures the
+  signal's rule on the band.
 
 ### 0.2.2-studio.1 (2026-09-29)
 

@@ -146,7 +146,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
               return (
                 <li key={e.id}>
                   <Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size="s" />
-                  <span><strong>{nameOf(p, locale)}</strong> <span className="muted">{e.start === e.end ? spanText(e, locale, t.span) : format(t.home.until, { day: formatDay(e.end, locale) })}</span></span>
+                  <span><strong>{nameOf(p, locale)}</strong> <span className="muted">{e.start === e.end || e.start > now ? spanText(e, locale, t.span) : format(t.home.until, { day: formatDay(e.end, locale) })}</span></span>
                 </li>
               );
             })}

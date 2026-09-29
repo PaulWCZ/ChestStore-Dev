@@ -37,6 +37,12 @@ export const identity = defineTheme({
 // tools, or for this one), else the identity above. Never throws: the
 // Chest unreachable, or a choice the kit cannot honour, is the identity.
 // Asked once per request, however many components need it.
+//
+// To do with kit 0.2.3: the public pages (the status page, /embed, the
+// badge) will call resolveTheme(await chest.theme(), identity, { surface:
+// "public" }) — the brand, else this identity, never a catalogue theme the
+// company chose for all its team tools (critique round 2, N5). The team's
+// pages keep the call as it is. Until then both resolve alike.
 export const currentLook = cache(async (): Promise<Look> => {
   const look = resolveTheme(await chest.theme(), identity);
   if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);

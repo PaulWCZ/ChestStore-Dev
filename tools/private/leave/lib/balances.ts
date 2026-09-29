@@ -26,7 +26,11 @@ export { afterRequest, daysLeft, leftIfApproved } from "./left.ts";
 
 export type LineKind = "opening" | "adjustment" | "taken" | "returned";
 export type Bucket = "acquired" | "earning";
-export type Line = { id: string; typeId: string; kind: LineKind; days: number; onDate: Day; reason: string; requestId: string | null; bucket: Bucket | null; createdBy: string; createdAt: string };
+// reasonKey: a line the tool wrote itself (an opening from a spreadsheet,
+// the year's RTT, days given back after a last day), shown in the reader's
+// language; reason: HR's own words.
+export type ReasonKey = "opening" | "rttYear" | "afterLastDay";
+export type Line = { id: string; typeId: string; kind: LineKind; days: number; onDate: Day; reason: string; reasonKey: ReasonKey | null; requestId: string | null; bucket: Bucket | null; createdBy: string; createdAt: string };
 
 // A year of a kind of leave, as the pay slip shows it: what was credited
 // (earned, set, given), what was used (taken), what is left.
@@ -58,9 +62,9 @@ export type Balance = {
 export type Period = "running" | "acquired" | "yearly";
 export type Kind = { id: string; perYear: number; period?: Period; periodMonth?: number | null; unused?: "carry" | "lose" };
 
-type LineRow = { id: string; member_id: string; type_id: string; kind: LineKind; days: string; on_date: string; reason: string | null; request_id: string | null; bucket: Bucket | null; created_by: string; created_at: Date };
+type LineRow = { id: string; member_id: string; type_id: string; kind: LineKind; days: string; on_date: string; reason: string | null; reason_key: ReasonKey | null; request_id: string | null; bucket: Bucket | null; created_by: string; created_at: Date };
 const toLine = (r: LineRow): Line => ({
-  id: String(r.id), typeId: String(r.type_id), kind: r.kind, days: numeric(r.days), onDate: r.on_date, reason: r.reason ?? "",
+  id: String(r.id), typeId: String(r.type_id), kind: r.kind, days: numeric(r.days), onDate: r.on_date, reason: r.reason ?? "", reasonKey: r.reason_key,
   requestId: r.request_id === null ? null : String(r.request_id), bucket: r.bucket, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
 });
 
@@ -218,7 +222,7 @@ export async function balancesOf(sql: Query, ids: string[], on = today(), option
   if (counted.length === 0) return found;
   const past = on < today();
   const lines = await sql<LineRow[]>`
-    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, request_id, bucket, created_by, created_at
+    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, reason_key, request_id, bucket, created_by, created_at
     from ledger where member_id in ${sql(ids)} ${past ? sql`and created_at < ${addDays(on, 1)}::date` : sql``} order by id`;
   const pending = past ? [] : await sql<{ member_id: string; type_id: string; days: string }[]>`
     select member_id, type_id, sum(days) as days from requests where member_id in ${sql(ids)} and status = 'pending' group by member_id, type_id`;
@@ -246,7 +250,7 @@ export async function balances(sql: Query, actor: Member | null, person: unknown
 export async function ledger(sql: Query, actor: Member | null, person: unknown): Promise<Line[]> {
   const who = await visible(sql, actor, person);
   const rows = await sql<LineRow[]>`
-    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, request_id, bucket, created_by, created_at
+    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, reason_key, request_id, bucket, created_by, created_at
     from ledger where member_id = ${who} order by id desc limit 500`;
   return rows.map(toLine);
 }

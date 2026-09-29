@@ -69,17 +69,18 @@ begin
     (hugo, ines, '2024-01-15', '0015', null), (tom, lea, '2025-11-03', '0019', '{1,2,3,4}'), (sofia, null, '2023-06-12', '0021', null), (nora, null, '2026-02-02', '0024', null);
 
   -- Opening balances, from the spreadsheet, at the start of the leave year
-  -- (what was left to take: acquired); RTT for the year.
-  insert into ledger (member_id, type_id, kind, days, on_date, reason, created_by) values
-    (camille, paid, 'opening', 14.5, period, 'Opening balance (spreadsheet)', camille),
-    (ines, paid, 'opening', 9, period, 'Opening balance (spreadsheet)', camille),
-    (lea, paid, 'opening', 11.5, period, 'Opening balance (spreadsheet)', camille),
-    (hugo, paid, 'opening', 6, period, 'Opening balance (spreadsheet)', camille),
-    (tom, paid, 'opening', 12.5, period, 'Opening balance (spreadsheet)', camille),
-    (sofia, paid, 'opening', 7.5, period, 'Opening balance (spreadsheet)', camille),
-    (nora, paid, 'opening', 8.5, period, 'Opening balance (spreadsheet)', camille);
-  insert into ledger (member_id, type_id, kind, days, on_date, reason, created_by)
-    select m, rtt, 'adjustment', 10, make_date(extract(year from today)::int, 1, 1), 'RTT for the year', camille from unnest(array[camille, ines, lea, hugo, tom, sofia, nora]) m;
+  -- (what was left to take: acquired); RTT for the year. Their reasons are
+  -- keys, written in each reader's language.
+  insert into ledger (member_id, type_id, kind, days, on_date, reason_key, created_by) values
+    (camille, paid, 'opening', 14.5, period, 'opening', camille),
+    (ines, paid, 'opening', 9, period, 'opening', camille),
+    (lea, paid, 'opening', 11.5, period, 'opening', camille),
+    (hugo, paid, 'opening', 6, period, 'opening', camille),
+    (tom, paid, 'opening', 12.5, period, 'opening', camille),
+    (sofia, paid, 'opening', 7.5, period, 'opening', camille),
+    (nora, paid, 'opening', 8.5, period, 'opening', camille);
+  insert into ledger (member_id, type_id, kind, days, on_date, reason_key, created_by)
+    select m, rtt, 'adjustment', 10, make_date(extract(year from today)::int, 1, 1), 'rttYear', camille from unnest(array[camille, ines, lea, hugo, tom, sofia, nora]) m;
 
   -- The requests: who, kind, first day, half, last day, half, status, who
   -- answered, note, reason, asked how long ago.

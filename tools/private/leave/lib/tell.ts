@@ -1,10 +1,10 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
-import { everyone, type DirectoryPerson } from "./directory.ts";
+import { everyone, hrIds, type DirectoryPerson } from "./directory.ts";
 import { format, plural, spanText } from "./i18n/index.ts";
 import { badges, notify, withdraw } from "./notify.ts";
-import { people } from "./people.ts";
+import { nameOf, people } from "./people.ts";
 import { openRequests, type LeaveRequest } from "./requests.ts";
 import { answerers, counts } from "./routing.ts";
 import { leaveType } from "./rules.ts";
@@ -108,6 +108,24 @@ export async function cancelSettled(sql: Query, actor: Member, r: LeaveRequest):
     }), { path: path(r), key: key(r) + ":answer" });
   }
   await refreshBadges(sql);
+}
+
+// A last day set by the Chest (someone left): the leave recorded after it
+// was cancelled or cut, and its days came back. HR is told, in each HR
+// person's language, to check the final balance.
+export async function afterLastDay(memberId: string, settled: { cancelled: string[]; cut: string[]; days: number }): Promise<void> {
+  let hr: string[];
+  try {
+    hr = await hrIds();
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return;
+  }
+  const name = (await people([memberId])).get(memberId);
+  await notify(hr, (t, locale) => ({
+    title: format(t.bell.afterLastDay, { name: name ? nameOf(name, locale) : t.people.unknown }),
+    body: plural(t.bell.afterLastDayBody, settled.cancelled.length + settled.cut.length, locale, { days: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(settled.days) }),
+  }), { path: `/chest/people/${memberId}`, key: `last:${memberId}` });
 }
 
 // refreshBadges sets each approver's tile to the number of requests waiting

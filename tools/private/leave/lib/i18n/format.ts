@@ -41,9 +41,13 @@ export const dateTag = (locale: Locale): string => (locale === "en" ? "en-GB" : 
 
 // A calendar day ("2026-10-05") in the reader's language: days are dates,
 // not instants, so they are written in UTC, where they were made.
+// French writes the first of a month "1er juin", never "1 juin".
 export function formatDay(day: string, locale: Locale, options: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" }): string {
   const [y, m, d] = day.split("-").map(Number);
-  return new Intl.DateTimeFormat(dateTag(locale), { timeZone: "UTC", ...options }).format(new Date(Date.UTC(y!, m! - 1, d!)));
+  const f = new Intl.DateTimeFormat(dateTag(locale), { timeZone: "UTC", ...options });
+  const date = new Date(Date.UTC(y!, m! - 1, d!));
+  if (d !== 1 || !locale.startsWith("fr") || (options.month !== "long" && options.month !== "short") || options.day === undefined) return f.format(date);
+  return f.formatToParts(date).map(p => (p.type === "day" ? p.value + "er" : p.value)).join("");
 }
 
 // A number of days as the reader writes numbers: "2.5", "2,5", "12".

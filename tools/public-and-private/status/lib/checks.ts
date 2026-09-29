@@ -156,15 +156,26 @@ export async function statuses(sql: Query): Promise<Map<string, CheckStatus>> {
   }]));
 }
 
+// A measured figure is published only once it means something: at least
+// a full day of checks (the first result 24 hours old) and at least 24 of
+// them (one an hour at the slowest rhythm). Before that, one failed check
+// out of four would show customers "25 %": the page says "measured from
+// <date>" without a number (README, "Automatic checks").
+export const measuredSample = { hours: 24, checks: 24 } as const;
+
+export type Measured = { percent: number | null; since: Date; count: number };
+
 // measured is each watched component's share of checks answered in time
 // since `since` (and the first result counted): an uptime that was
-// measured, beside the one the team declared.
-export async function measured(sql: Query, since: Date): Promise<Map<string, { percent: number; since: Date; count: number }>> {
+// measured, beside the one the team declared — percent null while the
+// sample is too small (measuredSample).
+export async function measured(sql: Query, since: Date, now = new Date()): Promise<Map<string, Measured>> {
   const rows = await sql<{ component_id: string; total: number; good: number; first: Date }[]>`
     select r.component_id, count(*)::int as total, count(*) filter (where r.ok)::int as good, min(r.at) as first
     from check_results r join watches w on w.component_id = r.component_id
     where r.at >= ${since} group by r.component_id`;
-  return new Map(rows.filter(r => r.total > 0).map(r => [String(r.component_id), { percent: (r.good / r.total) * 100, since: new Date(r.first), count: r.total }]));
+  const enough = (first: Date, total: number) => total >= measuredSample.checks && now.getTime() - new Date(first).getTime() >= measuredSample.hours * 3600000;
+  return new Map(rows.filter(r => r.total > 0).map(r => [String(r.component_id), { percent: enough(r.first, r.total) ? (r.good / r.total) * 100 : null, since: new Date(r.first), count: r.total }]));
 }
 
 // purge forgets results older than 90 days (the "updates" schedule).

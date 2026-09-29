@@ -5,7 +5,7 @@ import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ImpactPicker, type PickerGroup } from "../../../../components/component-picker.tsx";
-import { SecondField, SecondToggle } from "../../../../components/second-field.tsx";
+import { LanguagePick, SecondField, SecondToggle, secondOf, type Languages } from "../../../../components/second-field.tsx";
 import { useRun } from "../../../../components/use-run.ts";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format } from "../../../../lib/i18n/format.ts";
@@ -31,7 +31,7 @@ const draftKey = "status:incident-draft";
 // stands, what customers read. Or, ticked, an incident of the past with
 // its start and end. A template fills it in one choice; what is typed can
 // become a template. The title and text are kept as a draft until posted.
-export function IncidentForm({ groups, start = null, templates = [], languages, today, nowMinutes, zoneNote, t }: { groups: PickerGroup[]; start?: { states: Record<string, Impact>; title: string; body: string } | null; templates?: FormTemplate[]; languages: { second: string; secondName: string }; today: string; nowMinutes: number; zoneNote: string; t: Words }) {
+export function IncidentForm({ groups, start = null, templates = [], languages, today, nowMinutes, zoneNote, t }: { groups: PickerGroup[]; start?: { states: Record<string, Impact>; title: string; body: string } | null; templates?: FormTemplate[]; languages: Languages; today: string; nowMinutes: number; zoneNote: string; t: Words }) {
   const w = t.compose;
   const router = useRouter();
   const toast = useToast();
@@ -46,6 +46,8 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
   const [endDay, setEndDay] = useState<string | null>(today);
   const [endMin, setEndMin] = useState(nowMinutes);
   const [resolution, setResolution] = useState(w.resolutionDefault ?? "");
+  const [language, setLanguage] = useState(languages.main);
+  const second = secondOf(language, languages.options);
   const [withSecond, setWithSecond] = useState(false);
   const [titleSecond, setTitleSecond] = useState("");
   const [bodySecond, setBodySecond] = useState("");
@@ -94,7 +96,7 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
       document.getElementById(empty)?.focus();
       return;
     }
-    const second = withSecond ? { title: titleSecond, body: bodySecond, ...(past ? { resolution: resolutionSecond } : {}) } : null;
+    const secondTexts = withSecond ? { title: titleSecond, body: bodySecond, ...(past ? { resolution: resolutionSecond } : {}) } : null;
     const done = (value: { id: string }) => {
       try {
         localStorage.removeItem(draftKey);
@@ -104,8 +106,8 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
       toast(past ? w.added! : w.posted!);
       router.push(`/chest/incidents/${value.id}`);
     };
-    if (past) await run(() => backfillIncident({ title, body, resolution, states, started: { day: startDay ?? "", minutes: startMin }, resolved: { day: endDay ?? "", minutes: endMin }, second }), done);
-    else await run(() => postIncident({ title, status, body, states, second }), done);
+    if (past) await run(() => backfillIncident({ title, body, resolution, states, started: { day: startDay ?? "", minutes: startMin }, resolved: { day: endDay ?? "", minutes: endMin }, second: secondTexts, language }), done);
+    else await run(() => postIncident({ title, status, body, states, second: secondTexts, language }), done);
   };
   const keep = async () => {
     if (!title.trim() || !body.trim()) {
@@ -130,7 +132,7 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
       )}
       <div>
         <label className="label" htmlFor="title">{w.title}</label>
-        <input id="title" className="field big" maxLength={160} placeholder={w.titlePlaceholder} value={title} onChange={e => setTitle(e.target.value)} autoFocus {...error("title")} />
+        <input id="title" className="field big" maxLength={160} lang={language} placeholder={w.titlePlaceholder} value={title} onChange={e => setTitle(e.target.value)} autoFocus {...error("title")} />
         {missingLine("title")}
       </div>
 
@@ -173,7 +175,7 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
 
       <div>
         <label className="label" htmlFor="body">{w.body}</label>
-        <textarea id="body" className="field" rows={5} maxLength={5000} placeholder={w.bodyPlaceholder} value={body} onChange={e => setBody(e.target.value)} aria-describedby={missing === "body" ? "body-missing body-hint" : "body-hint"} aria-invalid={missing === "body" || undefined} />
+        <textarea id="body" className="field" rows={5} maxLength={5000} lang={language} placeholder={w.bodyPlaceholder} value={body} onChange={e => setBody(e.target.value)} aria-describedby={missing === "body" ? "body-missing body-hint" : "body-hint"} aria-invalid={missing === "body" || undefined} />
         {missingLine("body")}
         <p id="body-hint" className="hint">{w.bodyHint}</p>
       </div>
@@ -181,17 +183,20 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
       {past && (
         <div>
           <label className="label" htmlFor="resolution">{w.resolution}</label>
-          <textarea id="resolution" className="field" rows={2} maxLength={5000} value={resolution} onChange={e => setResolution(e.target.value)} {...error("resolution")} />
+          <textarea id="resolution" className="field" rows={2} lang={language} maxLength={5000} value={resolution} onChange={e => setResolution(e.target.value)} {...error("resolution")} />
           {missingLine("resolution")}
         </div>
       )}
 
-      <SecondToggle checked={withSecond} onChange={setWithSecond} label={format(w.alsoIn!, { language: languages.secondName })} />
+      <div className="languages-row">
+        <LanguagePick id="language" label={w.writtenIn!} value={language} onChange={setLanguage} options={languages.options} />
+        <SecondToggle checked={withSecond} onChange={setWithSecond} label={format(w.alsoIn!, { language: second.name })} />
+      </div>
       {withSecond && (
         <div className="stack">
-          <SecondField id="title-second" label={format(w.titleIn!, { language: languages.secondName })} value={titleSecond} onChange={setTitleSecond} lang={languages.second} multiline={false} max={160} />
-          <SecondField id="body-second" label={format(w.bodyIn!, { language: languages.secondName })} value={bodySecond} onChange={setBodySecond} lang={languages.second} rows={5} />
-          {past && <SecondField id="resolution-second" label={format(w.resolutionIn!, { language: languages.secondName })} value={resolutionSecond} onChange={setResolutionSecond} lang={languages.second} rows={2} />}
+          <SecondField id="title-second" label={format(w.titleIn!, { language: second.name })} value={titleSecond} onChange={setTitleSecond} lang={second.code} multiline={false} max={160} />
+          <SecondField id="body-second" label={format(w.bodyIn!, { language: second.name })} value={bodySecond} onChange={setBodySecond} lang={second.code} rows={5} />
+          {past && <SecondField id="resolution-second" label={format(w.resolutionIn!, { language: second.name })} value={resolutionSecond} onChange={setResolutionSecond} lang={second.code} rows={2} />}
         </div>
       )}
 

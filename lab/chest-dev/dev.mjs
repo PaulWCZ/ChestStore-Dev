@@ -29,7 +29,7 @@ import { createServer, request as httpRequest } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import postgres from "postgres";
-import { sampleBrand } from "./brand/sample.mjs";
+import { sampleBrand, sampleBrands } from "./brand/sample.mjs";
 import { cast, castFor } from "./cast.mjs";
 import { devPage } from "./page.mjs";
 
@@ -74,14 +74,18 @@ const { catalogue } = await import(pathToFileURL(join(ui, "dist", "themes.js")).
 const themeFiles = {
   "brand/logo.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "atelier-martin.svg")), type: "image/svg+xml" },
   "brand/logo-dark.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "atelier-martin-dark.svg")), type: "image/svg+xml" },
+  "brand/port-logo.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "cafe-du-port.svg")), type: "image/svg+xml" },
+  "brand/port-logo-dark.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "cafe-du-port-dark.svg")), type: "image/svg+xml" },
 };
 for (const file of existsSync(join(ui, "fonts")) ? readdirSync(join(ui, "fonts")) : []) {
   themeFiles[`fonts/${file}`] = { data: readFileSync(join(ui, "fonts", file)), type: file.endsWith(".woff2") ? "font/woff2" : "text/plain; charset=utf-8" };
 }
-// A choice of the switcher: "own", "catalogue:<id>", "brand:sample".
+// A choice of the switcher: "own", "catalogue:<id>", "brand:sample",
+// "brand:port" (the second sample brand, brand/sample.mjs).
 function choiceOf(value) {
   if (value === "own") return { mode: "own" };
-  if (value === "brand:sample") return { mode: "brand", brand: sampleBrand };
+  const brandKey = /^brand:([a-z]+)$/u.exec(value ?? "")?.[1];
+  if (brandKey && Object.hasOwn(sampleBrands, brandKey)) return { mode: "brand", brand: sampleBrands[brandKey] };
   const id = /^catalogue:([a-z][a-z0-9-]{1,39})$/u.exec(value ?? "")?.[1];
   return id && catalogue.some(t => t.id === id) ? { mode: "catalogue", theme: id } : null;
 }
