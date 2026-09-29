@@ -59,7 +59,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .small-label { display: block; font-size: var(--text-s); color: var(--ink-2); margin-bottom: var(--space-1); }
 .optional { font-weight: 400; color: var(--ink-2); font-size: var(--text-s); }
 .field {
-  width: 100%; min-height: 48px; padding: var(--space-3) var(--space-4);
+  width: 100%; min-height: 48px; padding: var(--space-3) var(--field-pad-x);
   border: var(--line-bold) solid var(--line-strong); border-radius: var(--radius-m);
   background: var(--surface); transition: border-color var(--fast), box-shadow var(--fast);
 }
@@ -82,7 +82,7 @@ select.field { appearance: none; padding-right: var(--space-7); background-image
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .notice { padding: var(--space-3) var(--space-4); border-radius: var(--radius-m); background: var(--accent-soft); color: var(--ink); }
 
-.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 1px var(--space-3); border-radius: var(--radius-round); font-size: var(--text-xs); font-weight: calc(var(--weight-strong) + 100); letter-spacing: 0.02em; background: var(--surface-2); color: var(--ink); white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 1px var(--space-3); border-radius: var(--radius-chip); font-size: var(--text-xs); font-weight: calc(var(--weight-strong) + 100); letter-spacing: 0.02em; background: var(--surface-2); color: var(--ink); white-space: nowrap; }
 .chip.new { background: var(--tomato-soft); color: var(--tomato-text); }
 .chip.asked { background: var(--accent-soft); color: var(--accent-text); }
 .chip.state-open { background: var(--ok-soft); color: var(--ok-ink); }
@@ -168,7 +168,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .facts li { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); border: var(--line-bold) solid var(--ink); border-radius: var(--radius-round); font-weight: var(--weight-strong); }
 .facts li svg { color: var(--tomato); }
 .hero-actions { margin-top: var(--space-3); }
-.prose { max-width: 68ch; font-size: 1.0625rem; line-height: 1.7; }
+.prose { max-width: 68ch; font-family: var(--font-read); font-size: 1.0625rem; line-height: 1.7; }
 .prose > * + * { margin-top: var(--space-4); }
 .prose h2 { font-size: var(--text-xl); margin-top: var(--space-6); }
 .prose h2:first-child { margin-top: 0; }
@@ -198,9 +198,12 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 /* The kit's shell (AppShell) in the magazine's type: the name in the
    display face; on a phone the mark alone says it (the name is read). */
 .brand-name { font-weight: calc(var(--display-weight) + 100); letter-spacing: var(--display-tracking); }
-.ck-brand svg, .ck-brand .ck-logo img { width: 32px; height: 32px; }
-.ck-brand .ck-logo img { width: auto; max-width: 140px; object-fit: contain; }
+.ck-brand svg { width: 32px; height: 32px; }
+/* A company's logo: the kit scales it whole (--ck-logo-max wide at most). */
+.ck-brand { --ck-logo-max: 140px; }
 .ck-bar-end .ck-search { flex: 0 1 290px; }
+/* The member's name on one line: the kit's chip lets it wrap when the
+   header is full (kit gap, 0.2.2: "Camille / Martin" on two lines). */
 .ck-member-name, .ck-member-role { white-space: nowrap; }
 @media (max-width: 760px) {
   .ck-brand .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -211,11 +214,6 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .ck-page-head { margin-top: var(--space-2); }
 .ck-page-title h1 { font-weight: calc(var(--display-weight) + 100); }
 .interviewer-pick { max-width: 420px; }
-/* A full one-file picker (the import's table chosen): the kit dims the
-   whole drop zone, its words too, below AA contrast; only its button is
-   dimmed here (kit bug, reported). */
-.ck-drop.ck-disabled { opacity: 1; }
-.ck-drop.ck-disabled .ck-button { opacity: 0.55; }
 
 .narrow { max-width: 820px; }
 
@@ -229,7 +227,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .waiting-name { font-weight: calc(var(--weight-strong) + 100); }
 .job-group { margin-bottom: var(--space-6); }
 .group-title { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-s); text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-2); margin-bottom: var(--space-3); font-family: var(--font-body); font-weight: calc(var(--weight-strong) + 100); }
-.group-title .count { background: var(--surface-2); border-radius: var(--radius-round); padding: 0 var(--space-2); letter-spacing: 0; }
+.group-title .count { background: var(--surface-2); border-radius: var(--radius-chip); padding: 0 var(--space-2); letter-spacing: 0; }
 .job-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: var(--space-4); }
 .job-card { display: grid; gap: var(--space-3); height: 100%; padding: var(--space-5); background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-l); box-shadow: var(--shadow-1); color: var(--ink); text-decoration: none; transition: border-color var(--fast), transform var(--fast) var(--ease); }
 .job-card:hover { border-color: var(--accent); transform: translateY(-2px); }
@@ -270,8 +268,8 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .lane-head h2 { font-size: var(--text-m); font-family: var(--font-body); font-weight: calc(var(--weight-strong) + 100); }
 /* The last lane, hired: its name on the state's own ground (a measured
    pair on the lane's quiet fill, in every theme). */
-.lane.hired .lane-head h2 { color: var(--ok-ink); background: var(--ok-soft); padding: 0 var(--space-2); border-radius: var(--radius-round); }
-.lane-count { min-width: 28px; text-align: center; padding: 0 var(--space-2); border-radius: var(--radius-round); background: var(--surface); font-weight: calc(var(--weight-strong) + 100); font-size: var(--text-s); }
+.lane.hired .lane-head h2 { color: var(--ok-ink); background: var(--ok-soft); padding: 0 var(--space-2); border-radius: var(--radius-chip); }
+.lane-count { min-width: 28px; text-align: center; padding: 0 var(--space-2); border-radius: var(--radius-chip); background: var(--surface); font-weight: calc(var(--weight-strong) + 100); font-size: var(--text-s); }
 .lane-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); align-content: start; flex: 1; border-radius: var(--radius-m); }
 .lane-cards:empty::before { content: attr(data-empty); display: grid; place-items: center; min-height: 88px; border: var(--line-bold) dashed var(--line-strong); border-radius: var(--radius-m); color: var(--ink-2); font-size: var(--text-s); }
 .cand, .cand-link { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); box-shadow: var(--shadow-1); cursor: pointer; color: var(--ink); text-decoration: none; touch-action: manipulation; }
@@ -316,7 +314,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .stage-list li::before { content: counter(stage); font-family: var(--font-display); font-weight: calc(var(--display-weight) + 100); color: var(--tomato-text); width: 1.5em; }
 .stage-list li.hired::before { color: var(--ok); }
 .stage-name { font-weight: var(--weight-strong); }
-.stage-count { margin-left: auto; min-width: 28px; text-align: center; border-radius: var(--radius-round); background: var(--surface-2); font-size: var(--text-s); font-weight: calc(var(--weight-strong) + 100); }
+.stage-count { margin-left: auto; min-width: 28px; text-align: center; border-radius: var(--radius-chip); background: var(--surface-2); font-size: var(--text-s); font-weight: calc(var(--weight-strong) + 100); }
 .row-actions { display: flex; }
 .inline-form { display: flex; gap: var(--space-2); align-items: center; flex: 1; }
 .inline-form .field { flex: 1; min-width: 0; }
@@ -377,7 +375,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .score { font-weight: calc(var(--weight-strong) + 100); font-size: var(--text-s); }
 .score.s4, .score.s3 { color: var(--ok); }
 .score.s1, .score.s2 { color: var(--danger); }
-.reco-tag { font-size: var(--text-xs); font-weight: calc(var(--weight-strong) + 100); padding: 1px var(--space-3); border-radius: var(--radius-round); background: var(--surface-2); }
+.reco-tag { font-size: var(--text-xs); font-weight: calc(var(--weight-strong) + 100); padding: 1px var(--space-3); border-radius: var(--radius-chip); background: var(--surface-2); }
 .reco-tag.reco-strong_yes, .reco-tag.reco-yes { background: var(--ok-soft); color: var(--ok-ink); }
 .reco-tag.reco-no, .reco-tag.reco-strong_no { background: var(--danger-soft); color: var(--danger-ink); }
 .fb-label { font-weight: calc(var(--weight-strong) + 100); margin-right: var(--space-1); }
@@ -512,7 +510,8 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 /* The careers page's brand */
 .wordmark .logo { display: block; max-height: 44px; max-width: 220px; object-fit: contain; }
 /* The company's brand logo (from the Chest) as large as its own upload. */
-.wordmark .ck-logo img { height: 44px; max-width: min(220px, 42vw); object-fit: contain; }
+.wordmark { --ck-logo-max: 220px; }
+.wordmark .ck-logo img { height: 44px; }
 .public-top { flex-wrap: wrap; }
 .wordmark { min-width: 0; }
 /* The magazine's language switch: the current language in ink (the

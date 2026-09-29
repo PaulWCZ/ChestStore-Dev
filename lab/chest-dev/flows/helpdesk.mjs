@@ -116,7 +116,7 @@ await step("an agent takes it, inserts a saved reply, sends it: the customer get
   await page.getByRole("button", { name: "Take it" }).click();
   await page.waitForTimeout(800);
   await page.getByText("Saved replies").click();
-  await page.locator(".menu-pop button", { hasText: "Damaged item" }).click();
+  await page.getByRole("menuitem", { name: /Damaged item/u }).click();
   expect((await page.locator("#answer").inputValue()).includes("Hello Lucie"), "saved reply filled");
   await page.locator(".composer input[type=file]").setInputFiles(pdf("return-label.pdf"));
   await settled(".composer");

@@ -1,7 +1,7 @@
 "use client";
 
-import { Avatar, Confirm, DateField, Dialog, FilePicker, PeoplePicker, useToast, type PickedFile, type Upload } from "@argentic/chest-ui/components";
-import { localSearch, putWithProgress, searchChoices, type Choice } from "@argentic/chest-ui/components/logic";
+import { Avatar, Confirm, DateField, Dialog, FilePicker, PeoplePicker, TimeSelect, useToast, type PickedFile, type Upload } from "@argentic/chest-ui/components";
+import { localSearch, parseTime, putWithProgress, searchChoices, timeText, type Choice } from "@argentic/chest-ui/components/logic";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
@@ -49,7 +49,6 @@ type Props = {
   labels: Label[];
   fields: Field[];
   targets: Target[];
-  times: string[];
   people: People;
   audience: Person[];
   me: string;
@@ -64,7 +63,7 @@ type Run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]
 
 // A card, in full, beside the board. Each change is saved at once; the
 // page refreshes itself from the server after it.
-export function CardPanel({ card, board, columns, labels, fields, targets, times, people, audience, me, repeat, locale, t }: Props) {
+export function CardPanel({ card, board, columns, labels, fields, targets, people, audience, me, repeat, locale, t }: Props) {
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
@@ -158,10 +157,9 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
                 {card.due && (
                   <div className="when">
                     <label className="visually-hidden" htmlFor="card-time">{t.card.dueTime}</label>
-                    <select id="card-time" className="select time" value={card.dueTime ?? ""} onChange={e => run(() => updateCard(card.id, { dueTime: e.target.value || null }))}>
-                      <option value="">{t.card.anyTime}</option>
-                      {times.map(x => <option key={x} value={x}>{x}</option>)}
-                    </select>
+                    {/* The kit's 24-hour list, every quarter of an hour, "Any time" first. */}
+                    <TimeSelect id="card-time" className="time" empty={t.card.anyTime} value={card.dueTime === null ? null : parseTime(card.dueTime)}
+                      onChange={m => run(() => updateCard(card.id, { dueTime: m === null ? null : timeText(m) }))} />
                     <button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { due: null }))}>{t.card.removeDue}</button>
                   </div>
                 )}
@@ -585,7 +583,7 @@ function ChecklistBlock({ list, items: given, card, writable, choices, people, m
             </div>
             {writable && open === item.id && (
               <div className="step-details">
-                <PeoplePicker id={`step-who-${item.id}`} label={t.card.stepWho} value={item.assignee ? [choiceOf(item.assignee)] : []} search={search} suggestions={choices.slice(0, 12)} labels={t.peoplePicker} lang={locale}
+                <PeoplePicker id={`step-who-${item.id}`} label={t.card.stepWho} clearable value={item.assignee ? [choiceOf(item.assignee)] : []} search={search} suggestions={choices.slice(0, 12)} labels={t.peoplePicker} lang={locale}
                   onChange={([p]) => run(() => updateItem(item.id, { assignee: p?.id ?? null }))} />
                 <DateField id={`step-due-${item.id}`} label={t.card.stepDue} value={item.due} today={today} labels={t.date} onChange={due => run(() => updateItem(item.id, { due }))} />
                 <button type="button" className="link-button danger" onClick={() => { setItems(items.filter(i => i.id !== item.id)); setOpen(null); run(() => removeItem(item.id)); }}>{format(t.card.removeItem, { text: item.text })}</button>

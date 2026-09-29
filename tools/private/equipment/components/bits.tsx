@@ -28,11 +28,10 @@ const stamps: Record<StampKind, { tone?: "ok" | "wait" | "danger"; category?: 1 
 
 export function StatusStamp({ status, text }: { status: StampKind; text: string }) {
   const s = stamps[status];
-  return (
-    <span className={s.dashed ? `stamp st-${status} dashed` : `stamp st-${status}`}>
-      {s.category ? <StatusBadge category={s.category} label={text} size="s" /> : <StatusBadge tone={s.tone ?? "neutral"} label={text} size="s" />}
-    </span>
-  );
+  const className = `stamp st-${status}${s.dashed ? " dashed" : ""}`;
+  return s.category
+    ? <StatusBadge category={s.category} label={text} size="s" className={className} />
+    : <StatusBadge tone={s.tone ?? "neutral"} label={text} size="s" className={className} />;
 }
 
 // Who or where, with a face when it is a person.

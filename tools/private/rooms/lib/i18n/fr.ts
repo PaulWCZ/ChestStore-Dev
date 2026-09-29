@@ -369,8 +369,7 @@ export const fr: Catalogue = {
   },
   export: {
     body: "Téléchargez les réservations d’une période pour un tableur, ou l’occupation du bureau jour par jour pour planifier.",
-    from: "Du",
-    to: "Au",
+    period: "Période",
     bookings: "Réservations (CSV)",
     occupancy: "Occupation par jour (CSV)",
     columns: {
@@ -510,6 +509,9 @@ export const fr: Catalogue = {
     tooLate: "Choisissez le {date} ou avant.",
     otherDay: "Un autre jour…",
     pickDay: "Choisir un jour",
+    rangeFrom: "Du",
+    rangeTo: "Au",
+    rangeDays: { one: "{count} jour", other: "{count} jours" },
   },
   filters: {
     label: "Filtres",

@@ -64,8 +64,8 @@ customer in calm white on the left, the team in its pale tint on the
 right, notes on the marker's butter and dashed, automatic replies dashed
 and grey; the coral is kept for a wait that is too long); the answer box
 with its two tabs (the note tab turns it yellow); the saved-replies menu
-(each reply with the start of its text: the kit's menu shows labels
-only); the side card (from, assigned, priority, tags, status, other
+(the kit's menu, each reply with the start of its text as its second
+line); the side card (from, assigned, priority, tags, status, other
 requests, merge); the "someone else is on it" banner; the public card
 form and the success box with *Copy the link*. Urgent rows keep a red
 inner edge. Ticking rows raises a bar (accent outline) with the actions

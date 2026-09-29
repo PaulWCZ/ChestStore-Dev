@@ -39,7 +39,7 @@ export default async function EditTypePage({ params }: { params: Promise<{ id: s
   return (
     <>
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
-      <PageHeader title={t.types.form.titleEdit} />
+      <PageHeader size="m" title={t.types.form.titleEdit} />
       <TypeForm team={await teamChoices(v)} id={id} base={base} locale={locale} initial={initial} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }} />
     </>
   );

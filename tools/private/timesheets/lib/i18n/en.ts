@@ -339,8 +339,6 @@ export const en = {
       lastMonth: "Last month",
       custom: "Chosen days",
     },
-    from: "From",
-    to: "To",
     show: "Show",
     group: "Group by",
     groups: {
@@ -561,6 +559,10 @@ export const en = {
     tooLate: "Choose {date} or earlier.",
     otherDay: "Another day…",
     pickDay: "Choose a day",
+    // A range of days (a report's own dates): its two ends and its length.
+    rangeFrom: "From",
+    rangeTo: "To",
+    rangeDays: { one: "{count} day", other: "{count} days" },
   },
   files: {
     add: "Add files",

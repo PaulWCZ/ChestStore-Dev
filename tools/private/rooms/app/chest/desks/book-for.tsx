@@ -17,7 +17,7 @@ export function BookFor({ people, current, path, locale, t }: { people: Person[]
   const chosen = people.filter(p => p.id === current);
   return (
     <div className="book-for">
-      <PeoplePicker label={t.label} hint={t.hint} value={chosen} search={search} labels={t.picker} lang={locale}
+      <PeoplePicker label={t.label} hint={t.hint} clearable value={chosen} search={search} labels={t.picker} lang={locale}
         onChange={v => {
           const url = new URL(path, window.location.origin);
           if (v[0]) url.searchParams.set("for", v[0].id);

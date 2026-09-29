@@ -93,8 +93,8 @@ brand** (its colours, fonts, corners — and its logo in the header where
 the tool shows its stopwatch). The choice is for all tools or for this one;
 the page follows it on the next request (`lib/theme.ts`, `chest.theme()`),
 light and dark, every text readable (the kit checks every pair). The
-instrument panel (header and timer) is the page's inverse: dark in a light
-look, light in a dark one. Its components — shell and tabs, toasts with an
+instrument panel (header and timer) keeps its own dark colour in light and
+dark (the theme's `--inverse`). Its components — shell and tabs, toasts with an
 *Undo* that says whether it worked, dialogs, date fields in the reader's
 language, file picker, tables, badges — are the store's shared UI kit
 (`@argentic/chest-ui`, in `vendor/`), so they behave as in every other tool.

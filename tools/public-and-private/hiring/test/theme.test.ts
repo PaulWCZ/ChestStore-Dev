@@ -4,11 +4,11 @@ import { join, relative } from "node:path";
 import { test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest } from "@argentic/chest-sdk/testing";
-import { checkTheme, themeOf, validateTheme } from "@argentic/chest-ui";
+import { checkTheme, defineTheme, identityOf, themeOf, validateTheme } from "@argentic/chest-ui";
 import { fontFiles } from "@argentic/chest-ui/fonts";
 import { themeStyle } from "@argentic/chest-ui/runtime";
 import { accents } from "../lib/jobs.ts";
-import { accentCss, accentThemes, currentLook, identity } from "../lib/theme.ts";
+import { accentCss, accentThemes, currentLook, identity, source } from "../lib/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -17,6 +17,9 @@ test("Hiring's own identity is a valid theme, passes every pair of the contract,
   assert.deepEqual(checkTheme(identity), []);
   // The tool's own look and the theme any other tool may wear stay one.
   assert.deepEqual(identity, themeOf("magazine"));
+  assert.deepEqual(identity, identityOf("hiring"));
+  // The source the other accents are made from is still the catalogue's.
+  assert.deepEqual(defineTheme(source), identity);
 });
 
 test("each colour of the careers page is a whole theme that passes the contract, scoped to its class", () => {

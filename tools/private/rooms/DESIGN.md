@@ -64,7 +64,9 @@ toasts, dialogs and the in-page Confirm, the people picker, date fields and
 search box, avatars and stacks, empty states. Rooms' own:
 
 Day strip (links, today in orange, the chosen day inked), segmented choices
-(*Office / Remote / Off*, *whole day / morning / afternoon*), filter chips,
+(*Office / Remote / Off*, *whole day / morning / afternoon*), the kit's
+filter chips (a desk's features, several at once; one scrolling line on a
+phone), chips square or round with the theme (`--radius-chip`),
 day cards (a navy edge when at the office), avatar stacks (mine ringed in
 orange), desk tiles (free: dashed; mine: solid orange; taken: orange
 hatching with the holder's face; given: pale blue), the rooms grid (rooms as
@@ -76,8 +78,9 @@ critique: the *Find a free room* panel (three selects, equipment chips,
 free rooms as dashed chips), desk tiles that say what they offer in words
 ("Screen · Dock +1") and a pale "not open yet" state, a lock and "Sales
 only" in orange for places kept for a team, avatar stacks side by side
-(four places, the last one "+n" when more come), the usual-week form (four-way segmented rows), and
-a bar per working day for how full the office is.
+(the kit's, which no longer overlap at the small size; four places, the last one "+n" when more come), the usual-week form (four-way segmented rows), and
+a bar per working day for how full the office is. The export's period is
+the kit's range of days ("From", "To", and how many days).
 
 ## Icon
 

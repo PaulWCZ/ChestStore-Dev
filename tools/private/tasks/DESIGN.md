@@ -8,9 +8,11 @@ cards, not a spreadsheet.
 ## Tokens
 
 The identity is a **theme of the UI kit**: "Workshop" (French *Atelier*),
-defined with `defineTheme` in `lib/theme.ts` — the very source of the kit
-catalogue's `workshop` theme (`test/theme.test.ts` holds the two equal and
-checks every contrast pair of `ui/tokens/CONTRACT.md`, light and dark). The
+imported in `lib/theme.ts` from the kit's catalogue (`identityOf("tasks")`,
+the catalogue's `workshop` theme — imported, not copied, since kit 0.2.2:
+a copy had kept the black label inks the kit fixed in 0.2.1;
+`test/theme.test.ts` holds the two equal and checks every contrast pair of
+`ui/tokens/CONTRACT.md`, light and dark). The
 company may give Tasks another look (a catalogue theme, its brand); the CSS
 names **only contract tokens**, so every screen follows. `app/tokens.css`
 holds the tool's own tokens, defined from contract tokens: the column
@@ -32,7 +34,9 @@ width, and the board and label colours by name.
 **Board and label colours** are slots of the theme's categorical palette
 (`app/tokens.css`): sky 1, leaf 2, tomato 3, grape 4, berry 5, sea 6, sun 7,
 slate 8 — in Workshop the slots' soft grounds are exactly the old fills
-(grape is `#b9a3ff`, slate `#c3cad2`), always with ink on them. Nine names
+(grape is `#b9a3ff`, slate `#c3cad2`), each with a deep ink of its own
+family on it (slate keeps the plain ink; kit 0.2.1: a label in black lost
+its colour). Nine names
 for eight slots: **sand shares slate's slot** (existing sand boards and
 labels keep their name; the pickers offer eight). At night a slot's soft
 ground is a dark tint with the slot's own colour as text (measured by the
@@ -53,10 +57,17 @@ From the UI kit (`@argentic/chest-ui/components`, restyled with Workshop's
 ink edges in `app/globals.css`): the app shell (labelled sections, a row of
 their own on a phone), the card search box ("/"), toasts with an *Undo*
 that tells the truth, dialogs and the *Confirm* of "Delete for good", the
-people picker (card, step, new board, settings), date fields, the file
-picker, the column menu, avatars, empty states and the no-access page.
+people picker (card, step — emptied with its own remove button —, new
+board, settings), date fields, the due time's 24-hour list ("Any time"
+first), the file picker, the column menu, the board's view switch
+(Board / List / Calendar: the Segmented's link variant, the view kept in
+the address), the personal switches at the bottom of *My tasks*, avatars
+and avatar stacks (three faces then "+2" on a card), empty states and the
+no-access page. Chips and counters take the theme's `--radius-chip`, the
+tool's fields the theme's `--field-pad-x`.
 The tool's own: buttons (sun primary, quiet, danger, small), icon buttons,
-fields and selects, choice cards (radio), swatches, chips (label, due late
+fields and selects (the who and label filters in the board's coloured
+header), choice cards (radio), swatches, chips (label, due late
 / today / done), board tiles, task rows with a round tick, lanes and cards
 (normal, done, dragging, overlay), a side panel for a card (full screen on
 a phone) led by a leaf-green *Mark done* button, the label pop-over, a sortable and groupable table (list view), a month grid

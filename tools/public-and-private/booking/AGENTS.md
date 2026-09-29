@@ -29,7 +29,7 @@ what must not break.
 | `app/chest/…`, `app/chest/actions.ts` | The team's part (`new/`: a host books for a guest; `api/slots`: the free times a host sees; `hours/blocks.tsx`, `hours/other-calendars.tsx`) |
 | `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
 | `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity as a kit theme and the page's look; the tool's own tokens (aliases of contract tokens); styles (contract tokens only) |
-| `components/shell.tsx`, `components/links.tsx`, `components/public-shell.tsx`, `lib/i18n/kit.ts` | The kit's AppShell, Tabs, BrandMark and LanguageSwitch wired to Next.js; the kit's date words from the catalogue |
+| `components/shell.tsx`, `components/link.tsx`, `components/public-shell.tsx`, `lib/i18n/kit.ts` | The kit's AppShell, BrandMark and LanguageSwitch wired to Next.js; Next's `Link` re-exported for server pages; the kit's date words from the catalogue |
 
 ## Commands
 
@@ -43,11 +43,17 @@ npm ci && npm test && npm run build   # all three must pass
   `vendor/`): `AppShell`, `PageHeader`, `NoAccess`, `Tabs`, `EmptyState`,
   `Avatar`, `StatusBadge`, `Toasts`/`useToast`, `Confirm`, `DateField`,
   `TimeSelect` (+ `moveStart`/`moveEnd`), `FilePicker`, `BrandMark`,
-  `LanguageSwitch`. Their words come from the catalogues (`toast`, `date`,
-  `files` sections). Kept on purpose: the public month grid and time
-  buttons (`components/picker.tsx`: a calendar of free days, not a date
-  field), the time-zone select, the "Mine / Everyone" links (the choice in
-  the address), the copy button.
+  `LanguageSwitch`, `Segmented` (link variant: "Mine / Everyone", the
+  choice in the address), `Switch` (a type on or off, the email-me
+  setting: what takes effect at once; a box in a form that waits for Save
+  stays a checkbox). Their words come from the catalogues (`toast`,
+  `date`, `files` sections). A server page gives the kit Next's `Link`
+  through `components/link.tsx` (a `"use client"` re-export); a client
+  component passes `Link` as it is — no wrapper, no cast. Titles are
+  `PageHeader size="m"`, a company logo is sized with `--ck-logo-max`.
+  Kept on purpose: the public month grid and time buttons
+  (`components/picker.tsx`: a calendar of free days, not a date field),
+  the time-zone select (a form field, grouped by region), the copy button.
 - **Never a colour in CSS or TSX**: contract tokens only, the tool's
   tokens aliased to them (`test/theme.test.ts`). Text only on measured
   pairs (`--ok-ink` on `--ok-soft`, `--accent-text` on `--accent-soft`…).

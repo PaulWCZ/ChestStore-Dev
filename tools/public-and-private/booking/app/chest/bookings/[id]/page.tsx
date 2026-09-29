@@ -41,7 +41,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   return (
     <>
       <a className="back" href="/chest"><Back />{t.booking.back}</a>
-      <PageHeader title={x.guestName} intro={`${x.title} · ${plural(t.minutes, x.duration, locale)}`} secondary={x.status === "cancelled" && x.cancelledBy ? <StatusBadge tone="danger" label={t.booking.cancelledBy[x.cancelledBy]} /> : null} />
+      <PageHeader size="m" title={x.guestName} intro={`${x.title} · ${plural(t.minutes, x.duration, locale)}`} secondary={x.status === "cancelled" && x.cancelledBy ? <StatusBadge tone="danger" label={t.booking.cancelledBy[x.cancelledBy]} /> : null} />
       <section className="card">
         <dl className="facts">
           <dt><Calendar />{t.booking.when}</dt>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Confirm, FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import { Confirm, FilePicker, Switch, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { CopyButton } from "../../../components/copy-button.tsx";
@@ -42,6 +42,7 @@ export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug:
   const s = t.settings;
   const { pending, error, run } = useRun(t);
   const [feed, setFeed] = useState<string | null>(null);
+  const [emailMe, setEmailMe] = useState(host.emailMe);
   const own = (
     <>
       {feed ? (
@@ -82,7 +83,8 @@ export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug:
             <div><a className="button soft" href={chestCalendar}><Arrow />{s.chestCalendarOpen}</a></div>
           </>
         ) : <p className="hint">{s.feedHint}</p>}
-        <label className="switch"><input type="checkbox" defaultChecked={host.emailMe} disabled={pending} onChange={e => { const on = e.target.checked; run(() => savePrefs({ dailyMax: host.dailyMax, emailMe: on }), () => s.saved); }} />{s.emailMe}</label>
+        {/* Takes effect at once: the kit's Switch. */}
+        <Switch label={s.emailMe} checked={emailMe} disabled={pending} onChange={on => { setEmailMe(on); run(() => savePrefs({ dailyMax: host.dailyMax, emailMe: on }), () => s.saved); }} />
         <p className="hint">{s.calendarDelay}</p>
         {chestCalendar ? (
           <details className="more">

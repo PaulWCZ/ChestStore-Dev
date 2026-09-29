@@ -842,6 +842,10 @@ export const fr: Catalogue = {
     tooMany: "{count} fichiers au plus.",
     units: ["o", "Ko", "Mo", "Go"],
     decimal: ",",
+    takePhoto: "Prendre une photo",
+    chooseFile: "Choisir un fichier",
+    kinds: { image: "images", audio: "fichiers audio", video: "vidéos", text: "fichiers texte" },
+    separator: " : ",
   },
   table: {
     rowActions: "Actions",
@@ -853,6 +857,7 @@ export const fr: Catalogue = {
     label: "Filtres",
     clear: "Retirer les filtres",
     all: "Tout",
+    apply: "Afficher",
   },
   search: {
     label: "Chercher dans le matériel",

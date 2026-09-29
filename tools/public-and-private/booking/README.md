@@ -145,7 +145,7 @@ company's time zone, weekday hours (9:00–12:30, 14:00–17:30) and one
 
 Booking wears **any look the company chooses in its Chest**, with the same
 features: its own identity ("Appointment card": paper, plum ink, mint for
-what is free), any theme of the store's catalogue (the 17 identities,
+what is free), any theme of the store's catalogue (the 18 identities,
 "Chest", "High contrast"), or **the company's brand** (its colours, fonts,
 corners and logo) — for all its tools or for Booking alone. In brand mode
 the public pages show the company's logo instead of its name, and the

@@ -97,7 +97,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         {p.preset !== "custom" && <><input type="hidden" name="from" value={p.from} /><input type="hidden" name="to" value={p.to} /></>}
         {p.preset === "custom" && (
           <div className="range">
-            <RangeFields from={p.from} to={p.to} today={today()} t={t.reports} labels={t.date} />
+            <RangeFields from={p.from} to={p.to} today={today()} label={t.reports.period} labels={t.date} lang={locale} />
             <button type="submit" className="button quiet">{t.reports.show}</button>
           </div>
         )}

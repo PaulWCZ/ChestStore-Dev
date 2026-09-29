@@ -52,7 +52,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .count { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-2); background: var(--surface-2); border: var(--border-width) solid var(--line); border-radius: var(--radius-pill); padding: 0 0.5em; line-height: 1.5; letter-spacing: 0; }
 
 /* ---------- Shell (the kit's AppShell, in Sales desk's precision) ---------- */
-.ck-bar { background: color-mix(in oklch, var(--surface) 92%, transparent); backdrop-filter: blur(8px); }
+.ck-bar { background: color-mix(in oklab, var(--surface) 92%, transparent); backdrop-filter: blur(8px); }
 .ck-brand { font-family: var(--font-body); font-weight: var(--weight-strong); font-size: var(--text-m); letter-spacing: -0.01em; }
 .ck-brand a:hover { text-decoration: none; }
 .ck-brand picture { display: block; }
@@ -62,8 +62,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ck-bar-end .ck-search { flex: 0 1 300px; }
 .ck-bar-end .ck-search-input { min-height: 36px; background: var(--surface-2); font-size: var(--text-s); }
 .ck-bar-end .ck-search-input:focus { background: var(--surface); }
-/* The header runs the page's whole width, as the pages do. */
-.ck-bar-inner { max-width: none; padding: 0 var(--space-5); }
+/* The header runs the page's whole width (AppShell width="full"), with Sales desk's margin. */
+.ck-bar-inner { padding: 0 var(--space-5); }
 .ck-member-name { white-space: nowrap; }
 .ck-member-role { font-family: var(--font-mono); font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .ck-kbd { font-family: var(--font-mono); }
@@ -133,9 +133,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* A filled state button: the state's colour, --surface text (the pair
    the contract measures). */
 .button.won { background: var(--won); border-color: var(--won); color: var(--surface); }
-.button.won:hover { background: color-mix(in oklch, var(--won) 88%, var(--ink)); }
+.button.won:hover { background: color-mix(in oklab, var(--won) 88%, var(--ink)); }
 .button.lost { background: var(--lost); border-color: var(--lost); color: var(--surface); }
-.button.lost:hover { background: color-mix(in oklch, var(--lost) 88%, var(--ink)); }
+.button.lost:hover { background: color-mix(in oklab, var(--lost) 88%, var(--ink)); }
 .button.lost-outline { color: var(--lost); }
 .button.danger { background: var(--lost); border-color: var(--lost); color: var(--surface); }
 .button.danger-text { color: var(--lost); }
@@ -269,7 +269,7 @@ textarea.field { resize: vertical; min-height: 64px; }
 .deal-card { background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); padding: var(--space-2) var(--space-3); display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow-1); }
 .deal-card:hover { border-color: var(--line-strong); }
 .deal-card.mine { border-left: 3px solid var(--accent-line); }
-.lane.k-won .deal-card, .lane.k-lost .deal-card { background: color-mix(in oklch, var(--surface) 70%, var(--surface-2)); }
+.lane.k-won .deal-card, .lane.k-lost .deal-card { background: color-mix(in oklab, var(--surface) 70%, var(--surface-2)); }
 .deal-card.overlay { box-shadow: var(--shadow-2); transform: rotate(1.5deg); cursor: grabbing; }
 .deal-title { font-weight: var(--weight-strong); font-size: var(--text-s); line-height: 1.3; overflow-wrap: anywhere; }
 .deal-company { font-size: var(--text-xs); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -422,8 +422,8 @@ textarea.field { resize: vertical; min-height: 64px; }
   .page-head > div:first-child { flex-basis: 100%; min-width: 0; }
   .page-head > .button, .page-head > .ck-segmented, .page-head > .ck-tabs { flex: 1 1 100%; }
   .page-head .ck-segments { display: flex; }
-  .page-head .ck-segment { flex: 1 1 0; }
-  .page-head .ck-segment span { display: flex; justify-content: center; }
+  .page-head .ck-segment, .page-head .ck-segment-link { flex: 1 1 0; }
+  .page-head .ck-segment span, .page-head .ck-segment-link > span { display: flex; justify-content: center; }
   .day-side { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .row-link { grid-template-columns: minmax(0, 1fr) 32px; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3); }

@@ -9,6 +9,13 @@ const port = Number(process.argv[2] ?? 5200);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en" });
 const tmp = process.env.TMPDIR ?? "/tmp";
 const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, "/t_timesheets"), { max: 1, onnotice: () => {} });
+// The kit's Segmented (0.2.1+): the radio is hidden, its word is what one
+// taps; the radio then says it is chosen.
+const choose = async (name, exact = false) => {
+  const radio = page.getByRole("radio", { name, exact });
+  await page.locator("label.ck-segment").filter({ has: page.getByRole("radio", { name, exact }) }).click();
+  expect(await radio.isChecked(), `${name} chosen`);
+};
 const toast = async text => {
   await page.locator(".ck-toast", { hasText: text }).first().waitFor({ timeout: 5000 });
 };
@@ -165,8 +172,7 @@ await step("a manager, in French: a new project with a new client, a rate and a 
   await page.locator("#p-client").selectOption({ label: "Nouveau client…" });
   await page.locator("#p-new-client").fill("Concession Arnaud");
   await page.locator("#p-rate").fill("90,50");
-  // The kit's Segmented: native radios (the label's text sits under the radio).
-  await page.getByRole("radio", { name: "Heures", exact: true }).check();
+  await choose("Heures", true);
   await page.locator("#p-budget").fill("40");
   await page.getByRole("button", { name: "Créer le projet" }).click();
   await page.waitForURL(/\/chest\/projects$/u);
@@ -207,7 +213,7 @@ await step("rates: Hugo's goes up from today; the past keeps its amount", async 
 await step("the manager's reports: everyone, amounts, grouped by person", async () => {
   await page.goto(origin + "/chest/reports?preset=lastWeek");
   await page.getByText("Montant").first().waitFor();
-  await page.getByRole("radio", { name: "Personne", exact: true }).check();
+  await choose("Personne", true);
   await page.waitForURL(/group=person/u);
   const names = await page.locator(".breakdown tbody th .p").allInnerTexts();
   expect(names.length >= 5, "people: " + names.join("|"));
@@ -261,7 +267,7 @@ await step("import a Toggl export: check, then import", async () => {
   expect(await page.locator(".import-people li.former", { hasText: "Paul Personne" }).count() === 1, "former member kept");
   await page.getByText(/3 lignes tombent dans la période verrouillée/u).waitFor();
   expect(!(await page.getByRole("button", { name: /^Importer/u }).count()), "nothing to import before the answer");
-  await page.getByRole("radio", { name: "Oui, c’est l’historique" }).check();
+  await choose("Oui, c’est l’historique");
   await page.getByRole("button", { name: "Importer 3 saisies" }).click();
   await page.getByText("3 saisies importées.").waitFor();
 });

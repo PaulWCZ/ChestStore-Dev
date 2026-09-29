@@ -1,8 +1,8 @@
-import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
+import { EmptyState, PageHeader, Segmented, StatusBadge, Tabs } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { CopyButton } from "../../components/copy-button.tsx";
-import { LinkTabs } from "../../components/links.tsx";
+import { Link as ClientLink } from "../../components/link.tsx";
 import { Alert, CalendarOff, Download, kindIcon, Moved, Plus } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import * as b from "../../lib/booking.ts";
@@ -71,16 +71,14 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
           )}
         </section>
       )}
-      <PageHeader
+      <PageHeader size="m"
         title={t.bookings.title}
         secondary={<>
           {seesAll && hosting && (
-            // Mine or everyone's: two links (the choice is in the address,
-            // shareable, Back works), not the kit's Segmented radios.
-            <nav className="segmented" aria-label={t.bookings.whose}>
-              <a href={whoLink(false)} aria-current={!all ? "true" : undefined}>{t.bookings.mine}</a>
-              <a href={whoLink(true)} aria-current={all ? "true" : undefined}>{t.bookings.everyone}</a>
-            </nav>
+            // Mine or everyone's: the kit's Segmented, its link variant (the
+            // choice is in the address, shareable, Back works).
+            <Segmented label={t.bookings.whose} link={ClientLink} value={all ? "all" : "mine"}
+              options={[{ value: "mine", label: t.bookings.mine, href: whoLink(false) }, { value: "all", label: t.bookings.everyone, href: whoLink(true) }]} />
           )}
           <a className="button quiet small" href={`/chest/export${all ? "?who=all" : ""}`}><Download />{t.bookings.export}</a>
         </>}
@@ -96,7 +94,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
         </p>
       )}
       {!hosting && <p className="notice calm spaced">{t.bookings.cannotHost}</p>}
-      <LinkTabs label={t.bookings.show} current={scope} items={(["upcoming", "past", "cancelled"] as const).map(x => ({ id: x, label: t.bookings.scopes[x], href: tab(x) }))} />
+      <Tabs link={ClientLink} label={t.bookings.show} current={scope} items={(["upcoming", "past", "cancelled"] as const).map(x => ({ id: x, label: t.bookings.scopes[x], href: tab(x) }))} />
       {items.length === 0 ? (
         <EmptyState title={t.bookings.empty[scope]} body={scope === "upcoming" && host && !host.away && !all ? t.bookings.emptyHint : undefined} />
       ) : (

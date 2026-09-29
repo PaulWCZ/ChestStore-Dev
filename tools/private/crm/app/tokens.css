@@ -10,10 +10,10 @@
   /* A button's fill under the pointer: the accent pushed towards the ink
      (darker on a light page, lighter on a dark one), so its text reads
      even better than at rest. Decoration: no meaning of its own. */
-  --accent-hover: color-mix(in oklch, var(--accent) 86%, var(--ink));
+  --accent-hover: color-mix(in oklab, var(--accent) 86%, var(--ink));
   /* A deeper quiet ground than --surface-2 (an avatar's disc, a closed
      stage): decoration only, text on it is --ink. */
-  --surface-3: color-mix(in oklch, var(--surface-2) 70%, var(--line));
+  --surface-3: color-mix(in oklab, var(--surface-2) 70%, var(--line));
 
   /* What a deal's state means on the board and in lists (text-bearing
      aliases of measured pairs). */

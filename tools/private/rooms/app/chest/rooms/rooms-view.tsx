@@ -469,7 +469,7 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
       <div className="form-grid">
         {bookFor && isNew && (
           <div className="span-4">
-            <PeoplePicker label={t.booking.for} hint={t.booking.forHint} value={d.for ? [personOf(d.for)] : []} search={findPerson} labels={t.peoplePicker} lang={locale}
+            <PeoplePicker label={t.booking.for} hint={t.booking.forHint} clearable value={d.for ? [personOf(d.for)] : []} search={findPerson} labels={t.peoplePicker} lang={locale}
               onChange={v => { const id = v[0]?.id ?? ""; setD({ ...d, for: id, attendees: d.attendees.filter(a => a !== id) }); }} />
           </div>
         )}

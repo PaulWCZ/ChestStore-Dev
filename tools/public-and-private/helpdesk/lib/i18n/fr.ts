@@ -271,6 +271,10 @@ export const fr: Catalogue = {
     units: ["o", "Ko", "Mo", "Go"],
     decimal: ",",
     wait: "Attendez que les fichiers soient ajoutés.",
+    takePhoto: "Prendre une photo",
+    chooseFile: "Choisir un fichier",
+    kinds: { image: "images", audio: "fichiers audio", video: "vidéos", text: "fichiers texte" },
+    separator: " : ",
   },
   table: {
     rowActions: "Actions",
@@ -370,7 +374,6 @@ export const fr: Catalogue = {
     answerAs: "Écrire",
     sentClosedToast: "Réponse envoyée. Demande fermée.",
     team: "Qui répond",
-    unassign: "Retirer l’attribution",
   },
   create: {
     title: "Nouvelle demande",
@@ -474,7 +477,6 @@ export const fr: Catalogue = {
     eraseBody: "Toutes les demandes de {email}, avec leurs messages et leurs fichiers, sont effacées pour de bon. C’est irréversible.",
     cancel: "Annuler",
     team: "Qui répond",
-    ruleClear: "Retirer la personne",
     ruleNobody: "Personne",
   },
   reports: {

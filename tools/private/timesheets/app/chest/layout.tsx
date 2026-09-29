@@ -1,9 +1,8 @@
-import { NoAccess, Toasts, type NavItem } from "@argentic/chest-ui/components";
+import { BrandMark, NoAccess, Toasts, type NavItem } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Bars, Folder, Gear, Grid, People } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
-import { PanelLogo } from "../../components/panel-logo.tsx";
 import { Shell } from "../../components/shell.tsx";
 import { workValue } from "../../lib/work.ts";
 import { can, roleOf } from "../../lib/access.ts";
@@ -27,7 +26,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
   if (!v) return null;
   const { member, locale, t } = v;
   const role = roleOf(member);
-  const brand = <a href="/chest"><PanelLogo logo={look.logo}><Mark /></PanelLogo><span>{t.meta.name}</span></a>;
+  const brand = <a href="/chest"><BrandMark logo={look.logo} ground="dark"><Mark /></BrandMark><span>{t.meta.name}</span></a>;
   const labels = { skip: t.shell.skip, nav: t.shell.nav };
   if (!role) {
     return (

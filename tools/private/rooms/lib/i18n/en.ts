@@ -372,8 +372,7 @@ export const en = {
   },
   export: {
     body: "Download the bookings of a period for a spreadsheet, or the office’s occupancy day by day for planning.",
-    from: "From",
-    to: "To",
+    period: "Period",
     bookings: "Bookings (CSV)",
     occupancy: "Occupancy per day (CSV)",
     columns: {
@@ -516,6 +515,10 @@ export const en = {
     tooLate: "Choose {date} or earlier.",
     otherDay: "Another day…",
     pickDay: "Choose a day",
+    // A range of days (the export's period): its two ends and its length.
+    rangeFrom: "From",
+    rangeTo: "To",
+    rangeDays: { one: "{count} day", other: "{count} days" },
   } satisfies DateWords,
   filters: {
     label: "Filters",

@@ -18,8 +18,8 @@ stylesheets name only contract tokens, and its own tokens
 
 | Tool token | Made of | Use |
 |---|---|---|
-| `--steel`, `--steel-ink`, `--steel-2` | light: the inverse pair (`--ink` ground, `--bg` text, `--surface-2` secondary); dark: `--surface-2` with `--ink` / `--ink-2` | the header bar (was `#2e3d48`; now the look's ink, `#1b1f22` in Tool crib) |
-| `--steel-line` | a mix of the two (decoration) | hovered and current tab, the search well |
+| `--steel`, `--steel-ink`, `--steel-2` | the contract's region of its own colour: `--inverse`, `--inverse-ink`, `--inverse-ink-2` (kit 0.2.2) — dark in both modes; Tool crib's steel `#2e3d48` (dark `#222b32`), a catalogue theme's own band, a brand's deep shade | the header bar |
+| `--steel-line` | `--inverse-line` (measured with `--inverse-ink` on it) | hovered and current tab, the search well |
 | `--tag`, `--tag-ink` | `--accent`, `--accent-ink` | asset-tag tape, the safety stripe, the mark's tag (the tape is now `#c2410c` with white text; it was `#f06a1f` with ink) |
 | `--crib-icon` | `--ink` (dark: `--ink-2`) | the drawings in bins, lines and cards |
 | `--shadow-label` | the look's `--overlay`, mixed | a label's lift |

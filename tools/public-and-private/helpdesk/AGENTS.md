@@ -82,6 +82,12 @@ npm ci && npm test && npm run build   # all three must pass
   `DataTable`, `EmptyState`, `Avatar`, `AppShell`. The kit's words are
   sections of the catalogues (`toast`, `dialog`, `peoplePicker`, `dates`,
   `files`, `table`); `node scripts/lint-words.mjs` stays at 0 errors.
+  Kit 0.2.2 (re-vendored 2026-09-29): assignees are single `PeoplePicker`s
+  with `clearable` (no "Unassign" link beside them); the saved replies are
+  the kit's `Menu` with a `note` per item (the start of the reply); menu
+  items of people carry `id` (two people named alike); the inbox's
+  `Filters` use `phone="scroll"` (no CSS of our own); the header's width
+  is `AppShell width="full"`.
 - **No colour in CSS or TSX**: contract tokens only (`test/theme.test.ts`
   checks it); text only on measured pairs.
 - Identity from `member()` only; rights in `lib/access.ts`; words in every

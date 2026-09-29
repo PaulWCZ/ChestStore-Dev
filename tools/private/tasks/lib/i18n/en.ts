@@ -140,6 +140,8 @@ export const en = {
     },
   },
   board: {
+    // After the names of a card's first people ("Léa, Hugo and 2 others").
+    othersAssigned: { one: "and {count} other", other: "and {count} others" },
     back: "All boards",
     views: "View",
     boardView: "Board",

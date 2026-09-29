@@ -175,7 +175,10 @@ await step("the morning: Inès finds one reminder in French; run again, still on
   await page.goto(origin + "/chest");
   const toggle = page.getByRole("switch", { name: "Me rappeler chaque matin (lun.–ven.) ce qui est à faire ou en retard" });
   expect(await toggle.isChecked(), "on by default");
-  await toggle.uncheck();
+  // The kit's Switch: its input is hidden, its label is what one taps.
+  const flip = () => page.locator(".ck-switch").filter({ has: toggle }).locator("label").click();
+  await flip();
+  expect(!(await toggle.isChecked()), "switched off at once");
   await page.waitForTimeout(1200);
   await page.reload();
   expect(!(await toggle.isChecked()), "stays off");
@@ -183,7 +186,8 @@ await step("the morning: Inès finds one reminder in French; run again, still on
   expect(!after.includes("<b>Inès Moreau</b> · "), "her item went");
   expect(after.includes("Hugo Bernard vous a confié une tâche : Book the stand"), "the assignment went by email too");
   expect(await page.getByRole("switch", { name: /M’envoyer aussi tout cela par e-mail/u }).isChecked(), "email on by default");
-  await toggle.check();
+  await flip();
+  expect(await toggle.isChecked(), "switched on again");
   await page.waitForTimeout(800);
 });
 

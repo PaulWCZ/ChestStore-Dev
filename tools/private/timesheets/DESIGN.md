@@ -30,34 +30,39 @@ colours are its categorical palette.
 
 | Token | From | Use |
 |---|---|---|
-| `--panel`, `--panel-ink` | `--ink`, `--bg` (the inverse pair) | The instrument panel: header, timer, the report's total tile, the chosen chip and day |
-| `--panel-ink-2` | `--surface-2` | Secondary text on the panel (ink reads on it, so it reads on ink) |
-| `--panel-line`, `--panel-field-line` | `color-mix` of `--bg` into `--ink` | The panel's hairline (decoration); a field's edge on the panel |
-| `--signal`, `--signal-ink` | `--highlight`, `--ink` | The running clock, *Start*/*Stop*, today's pill, the current tab, the mark's hand |
+| `--panel`, `--panel-ink` | `--inverse`, `--inverse-ink` (kit 0.2.2) | The instrument panel: header, timer, the report's total tile, the chosen chip and day; its text and its focus ring |
+| `--panel-ink-2` | `--inverse-ink-2` | Secondary text on the panel (a measured pair) |
+| `--panel-line`, `--panel-field-line` | `--inverse-line`; `color-mix` of `--inverse-ink` into `--inverse` | The panel's hairline (decoration); a field's edge on the panel |
+| `--signal`, `--signal-ink` | `--highlight`, `--ink` | *Start*/*Stop*, today's pill, the current tab's rule, the running clock's glow, the mark's hand — never text on the panel |
 | `--today`, `--chosen` | `color-mix` of `--highlight` and `--surface`; `--surface-2` | Today's column; the row under the pointer, open forms |
 | `--billable`, `--other` | `--accent-line`, `--cat-8` | Chart bars (3:1 on the card) |
 | `--w-body`, `--w-semi`, `--w-bold` | computed from `--weight-strong` | Instrument's 500 / 650 / 750, and 400 in a theme that forbids synthetic bold (Chest) |
 | `.c-sky` … `.c-indigo` → `--c` | `--cat-1` … `--cat-8` | Project colours: sky 1, olive 2, coral 3, violet 4, rose 5, teal 6, amber 7, slate 8 (stored as "indigo", named *Slate*) |
 
-The panel is the inverse of the page: dark on a light look, light on a
-dark look (the contract's rule for a region in the other mode). In
-Instrument's light look the signal is the theme's marker pen, a pale lime
-(`#e4f9b0`); the tool's earlier signal, `#c6ff3a`, is not in the theme
-(see the kit's report).
+The panel is the theme's region of its own colour (`--inverse`, kit
+0.2.2): Instrument's deep ink-green in both modes (`#0c231b` light,
+`#050d0a` dark), a brand's deep shade, the ink (or a band darker than the
+page) in the other themes — it no longer turns light in a dark look. The
+signal is the theme's marker pen: Instrument's electric lime `#c6ff3a` in
+light (kit 0.2.1), a dark olive ground in dark. Since the marker is a dark
+ground in a dark look, text on the panel is `--inverse-ink` (the running
+clock glows lime around it); the lime stays for grounds with ink on them
+(*Start*, today) and for rules. A company logo on the panel is its
+dark-ground variant (`BrandMark ground="dark"`).
 
 **Type**: Manrope (OFL, variable 200–800) for words — a geometric grotesk,
 weights 500 to 800; **Martian Mono** (OFL, variable) for every number, with
 tabular figures, so columns of hours line up like a ruler. Labels are small
 capitals with wide tracking. Sizes 12 / 14 / 16 / 20 / 28 / 36 px.
 
-**Space** 4-8-12-16-24-32-48; **radii** 4 / 8 / 12 (pills for chips);
+**Space** 4-8-12-16-24-32-48; **radii** 4 / 8 / 12 (chips follow the theme: `--radius-chip`, pills in Instrument);
 **shadows** almost none — hairlines do the work; **motion** 120/240 ms, the
 running swatch beats every 2 s (off with `prefers-reduced-motion`).
 
 ## Components
 
 - **Timer line** — note, project picker, clock, *Start* (lime); running: the
-  clock glows lime, a lime rule under the panel, *Stop* and a quiet *Discard*.
+  clock brightens and glows lime, a lime rule under the panel, *Stop* and a quiet *Discard*.
 - **Week grid** — a table with a ruler of tick marks under the day names,
   mono cells you type in, today in a lime pill, locked days hatched, totals
   in a grey foot; rows removed with ×.

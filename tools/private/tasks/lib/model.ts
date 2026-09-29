@@ -81,10 +81,6 @@ export function time(value: unknown): string | null {
   return value;
 }
 
-// The times offered for a due time: every quarter of an hour (a select,
-// not the browser's time field, which writes AM/PM on many computers).
-export const quarterHours: string[] = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
-
 // A board's own fields: text, a number, or one choice among options.
 export const fieldKinds = ["text", "number", "choice"] as const;
 export type FieldKind = (typeof fieldKinds)[number];

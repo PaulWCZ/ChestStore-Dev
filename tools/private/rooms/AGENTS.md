@@ -70,13 +70,19 @@ TEST_DATABASE_URL=postgres://… npm test   # also plays two people booking the 
   `window.confirm`), `PeoplePicker` (guests, "book for", a desk's holder),
   `TimeSelect` + `moveStart`/`moveEnd`, `DayStrip`/`DateField` (never
   `type="date"`), `Segmented`, `Tabs`, `Filters`, `SearchBox`, `Avatar`,
-  `AvatarStack`, `EmptyState`, `PageHeader`, `NoAccess`, `BrandMark`. Kept on
-  purpose: the Office/Remote/Off radio row of a day (arrows move without
-  choosing: choosing frees a desk), the desk-feature chips (several at
-  once; the kit's `Filters` take one per group), the desk tiles and the
-  rooms' grid.
+  `AvatarStack`, `EmptyState`, `PageHeader`, `NoAccess`, `BrandMark`; since
+  kit 0.2.2 also the desk features as a `Filters` group with `multiple`
+  (`f=screen,dock`), the export's period as a `DateRangeField`, and
+  `clearable` on the single pickers that may be left empty ("book for",
+  a desk's holder). A `link` prop takes Next's `Link` as it is; a wrapper
+  stays only where it adds `scroll={false}`. Kept on purpose: the
+  Office/Remote/Off radio row of a day (arrows move without choosing:
+  choosing frees a desk), the room finder's equipment chips (toggle
+  buttons in the page, not the address), the desk tiles and the rooms'
+  grid.
 - **CSS names only contract tokens** (and Rooms' own, `app/tokens.css`,
-  defined from them); never a colour (`test/theme.test.ts`). A colour of
+  defined from them); never a colour (`test/theme.test.ts`); decorative
+  mixes in `oklab`, never `oklch`; chips take `--radius-chip`. A colour of
   the identity changes in `lib/theme.ts`.
 - **Words follow the store's glossary** (`node scripts/lint-words.mjs
   tools/private/rooms`, 0 errors): Delete (a place, gone) vs Remove (a guest

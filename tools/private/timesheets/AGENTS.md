@@ -45,13 +45,17 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
 Used: `AppShell`/`Nav` (via `components/shell.tsx`), `BrandMark`, `NoAccess`,
 `PageHeader`, `Toasts`/`useToast`, `Dialog` (the forgotten timer),
 `Confirm` (forgetting a former member's name), `DateField` (lock date, rate
-dates, a report's days), `Segmented`, `FilePicker` (import), `DataTable`
+dates), `DateRangeField` (a report's own dates), `Segmented`, `FilePicker` (import), `DataTable`
 (the team's weeks, the report's breakdown), `StatusBadge`, `Avatar`,
-`EmptyState`, `LanguageSwitch`, `useAutoRefresh`; `listKey`/`matches` from
-`/components/logic`. Kept on purpose: the week grid (an editable
+`EmptyState`, `LanguageSwitch`, `useAutoRefresh`, `useFloat` (the project
+picker's list over a box that scrolls); `listKey`/`matches` from
+`/components/logic`. `link={Link}` is Next's `Link` as it is. The panel is
+`--inverse` with its own pairs (`app/tokens.css`): put only `--panel-ink`
+/ `--panel-ink-2` text on it, never the signal. Kept on purpose: the week grid (an editable
 spreadsheet of cells, not a list of records), the day strip (totals under
-each day), the period chips of the reports (one required choice, not an
-optional filter), the project picker (above).
+each day), the period chips of the reports (radios of the report's one GET form,
+sent with its other fields — the kit's `Filters` are links, each group its
+own form), the project picker (above).
 
 ## Rules
 

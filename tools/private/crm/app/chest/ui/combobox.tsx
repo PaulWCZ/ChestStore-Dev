@@ -1,7 +1,8 @@
 "use client";
 
+import { useFloat } from "@argentic/chest-ui/components";
 import { fold, listKey } from "@argentic/chest-ui/components/logic";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Close, Plus } from "../../../components/icons.tsx";
 import type { Choice } from "./shared.ts";
 
@@ -30,7 +31,7 @@ type Props<T extends Option> = {
 // Down opens or moves, wrapping; Up from a closed list opens on the last;
 // Enter chooses; Escape closes, a second Escape puts the chosen name back;
 // Tab closes and moves on), the same list (ck-listbox, ck-option), placed
-// over a dialog's edge rather than cut by it.
+// over a dialog's edge rather than cut by it (the kit's useFloat).
 export function Combobox<T extends Option>({ id, value, onChange, search, placeholder, clearLabel, noMatch, create }: Props<T>) {
   const [text, setText] = useState(value?.name ?? "");
   const [open, setOpen] = useState(false);
@@ -46,7 +47,7 @@ export function Combobox<T extends Option>({ id, value, onChange, search, placeh
   // second one offered (accents and case aside, as the search reads them).
   const offerCreate = Boolean(create && typed && !options.some(o => fold(o.name) === fold(text.trim())));
   const count = options.length + (offerCreate ? 1 : 0);
-  useFloat(box, listRef, open);
+  useFloat(box, listRef, open, { matchWidth: true });
 
   useEffect(() => { setText(value?.name ?? ""); }, [value?.id, value?.name]);
   useEffect(() => {
@@ -139,36 +140,4 @@ export function Combobox<T extends Option>({ id, value, onChange, search, placeh
       </ul>
     </div>
   );
-}
-
-// The list must not be cut at the edge of a dialog (which scrolls): there
-// it is placed `fixed` under its field, and follows it. The kit does the
-// same for its own pickers (its float.ts, MIT, this studio), but does not
-// export it; this is its rule, shortened.
-type Ref = RefObject<HTMLElement | null>;
-function useFloat(anchor: Ref, float: Ref, open: boolean) {
-  useLayoutEffect(() => {
-    const a = anchor.current, f = float.current;
-    if (!open || !a || !f || !a.closest("dialog")) return;
-    const place = () => {
-      const r = a.getBoundingClientRect();
-      const below = window.innerHeight - r.bottom - 4, above = r.top - 4;
-      const top = below >= f.offsetHeight || below >= above ? r.bottom + 4 : Math.max(4, r.top - 4 - f.offsetHeight);
-      f.style.position = "fixed";
-      f.style.top = `${Math.round(top)}px`;
-      f.style.left = `${Math.round(r.left)}px`;
-      f.style.right = "auto";
-      f.style.margin = "0";
-      f.style.width = `${Math.round(r.width)}px`;
-      f.style.maxHeight = `min(320px, 50vh, ${Math.max(120, Math.round(Math.max(below, above)))}px)`;
-    };
-    place();
-    window.addEventListener("scroll", place, true);
-    window.addEventListener("resize", place);
-    return () => {
-      window.removeEventListener("scroll", place, true);
-      window.removeEventListener("resize", place);
-      for (const p of ["position", "top", "left", "right", "margin", "width", "maxHeight"] as const) f.style[p] = "";
-    };
-  });
 }

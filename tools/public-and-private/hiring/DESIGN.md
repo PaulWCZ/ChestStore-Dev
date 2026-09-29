@@ -9,12 +9,17 @@ the team's pages are the same paper and ink, denser and calm.
 ## Tokens: the identity is a theme (`lib/theme.ts`)
 
 Hiring's identity is *Magazine*, a theme of the UI kit's token contract
-(`@argentic/chest-ui`, `ui/tokens/CONTRACT.md`), defined with `defineTheme`
-in `lib/theme.ts` and identical to the catalogue's `magazine` theme (a test
-holds them equal). Every colour lives there; `app/tokens.css` holds only
-Hiring's own tokens, each defined from contract tokens (tomato is
-categorical slot 3; the careers headline size; pill radius that follows
-the theme's corners; heavier magazine lines). The company may give Hiring
+(`@argentic/chest-ui`, `ui/tokens/CONTRACT.md`): the catalogue's `magazine`
+theme itself, imported in `lib/theme.ts` (`identityOf("hiring")`). The
+careers page's other accents are made from its source, kept there and held
+equal to the catalogue's by a test (kit 0.2.2: the old copy still had the
+plum dark slot 3 that 0.2.1 made an orange). Every colour lives there;
+`app/tokens.css` holds only Hiring's own tokens, each defined from contract
+tokens (tomato is categorical slot 3; the careers headline size; pill
+radius that follows the theme's corners, for buttons; heavier magazine
+lines). Chips and counters take the theme's `--radius-chip`, fields the
+theme's `--field-pad-x`, and the job ad's text (`.prose`) the theme's
+reading face, `--font-read`. The company may give Hiring
 another look in its Chest (README, *Looks*): the same pages then wear it.
 
 | Contract token | Light | Dark | Hiring's use |

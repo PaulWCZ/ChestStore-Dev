@@ -69,7 +69,6 @@ textarea.field { resize: vertical; line-height: var(--leading); padding: var(--s
 .ck-brand .brand-name { white-space: nowrap; }
 /* A shared inbox is a full-width desk: the header spans it too, the name
    above the folders. */
-.ck-bar-inner { max-width: none; }
 .ck-main:has(> .desk) { padding: 0; }
 .desk { display: grid; grid-template-columns: var(--side-width) minmax(0, 1fr); min-height: calc(100dvh - 61px); }
 .desk-main { min-width: 0; padding: var(--space-5) var(--space-6) var(--space-7); }
@@ -104,13 +103,6 @@ textarea.field { resize: vertical; line-height: var(--leading); padding: var(--s
 .filters-line { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2) var(--space-3); }
 .filters-line .ck-filters { flex: 1; min-width: 0; }
 .results { margin-bottom: var(--space-3); }
-@media (max-width: 760px) {
-  /* On a phone each filter is one line that slides sideways: the tickets
-     stay near the top. */
-  .inbox-tools .ck-filters { display: grid; gap: var(--space-2); }
-  .inbox-tools .ck-filter-group { flex-wrap: nowrap; }
-  .inbox-tools .ck-filter-group ul { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-}
 
 /* Inbox list */
 .tickets { display: grid; gap: var(--space-2); }
@@ -221,7 +213,7 @@ textarea.field { resize: vertical; line-height: var(--leading); padding: var(--s
    box still takes a dropped file on its button's line). */
 .composer .ck-drop { padding: 0; border-color: transparent; background: transparent; }
 .composer .ck-drop.ck-over { padding: var(--space-2); border-color: var(--accent-line); background: var(--accent-soft); }
-.composer .ck-drop .ck-button { min-height: 38px; font-size: var(--text-s); padding: 0 var(--space-3); }
+.composer .ck-drop .ck-button { font-size: var(--text-s); padding: 0 var(--space-3); }
 .composer .ck-drop .ck-hint { flex-basis: auto; }
 .composer .ck-drop-hint { display: none; }
 .composer .actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-3) var(--space-3); border-top: var(--border-width) solid var(--line); }
@@ -234,15 +226,6 @@ textarea.field { resize: vertical; line-height: var(--leading); padding: var(--s
 .side-card details.merge summary { list-style: none; padding-left: 0; }
 .side-card details.merge summary::-webkit-details-marker { display: none; }
 .side-card details.merge[open] summary { margin-bottom: var(--space-2); }
-/* The saved replies: each with the start of its text, to choose at a glance. */
-.menu { position: relative; }
-.menu > summary { list-style: none; cursor: pointer; }
-.menu > summary::-webkit-details-marker { display: none; }
-.menu-pop { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 8; width: min(380px, 86vw); max-height: 320px; overflow-y: auto; background: var(--surface); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); box-shadow: var(--shadow-2); padding: var(--space-2); display: grid; gap: 2px; color: var(--ink); }
-.menu-pop button { display: grid; gap: 2px; text-align: left; padding: var(--space-2) var(--space-3); border: 0; background: none; border-radius: var(--radius-s); cursor: pointer; min-height: var(--control-h); }
-.menu-pop button:hover { background: var(--surface-2); }
-.menu-pop button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-pop .menu-empty { padding: var(--space-2); }
 .notice { padding: var(--space-3) var(--space-4); border-radius: var(--radius-m); background: var(--accent-soft); display: flex; gap: var(--space-2); align-items: flex-start; }
 .notice.warm { background: var(--note); }
 .notice.danger { background: var(--surface); box-shadow: inset 0 0 0 var(--line-bold) var(--danger); margin-bottom: var(--space-4); }

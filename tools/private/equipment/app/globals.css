@@ -151,12 +151,11 @@ select.field { padding-right: var(--space-6); }
 
 /* Status stamps: the kit's badge (a shape and a word), inked like a stamp:
    square-cornered, monospaced capitals, an edge in its own colour. */
-.stamp { display: inline-flex; }
-.stamp .ck-badge {
+.ck-badge.stamp {
   font-family: var(--font-mono); font-size: 0.72rem; font-weight: var(--weight-strong); text-transform: uppercase; letter-spacing: 0.06em;
   min-height: 24px; padding: 0 var(--space-2); border-radius: 2px; border: 1.5px solid currentColor;
 }
-.stamp.dashed .ck-badge { border-style: dashed; }
+.ck-badge.stamp.dashed { border-style: dashed; }
 .flag { color: var(--wait); display: inline-flex; }
 .low-text, .holder.low { color: var(--wait); font-weight: var(--weight-strong); }
 .ending { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-s); color: var(--ink-2); }
@@ -512,6 +511,6 @@ select.field { padding-right: var(--space-6); }
   .bin-icon { grid-row: auto; width: 36px; height: 36px; margin-bottom: var(--space-2); }
 }
 
-/* The kit's menu button ("More") among the tool's buttons: the same height
-   and weight as its quiet neighbours. */
-.row .ck-menu > .ck-button { min-height: var(--control-h); padding: 0 var(--space-4); font-size: inherit; box-shadow: var(--shadow-1); }
+/* The kit's menu button ("More", size "m") among the tool's buttons: the
+   same lift as its quiet neighbours. */
+.row .ck-menu > .ck-button { box-shadow: var(--shadow-1); }

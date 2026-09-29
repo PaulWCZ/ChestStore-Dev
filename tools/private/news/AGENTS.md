@@ -95,7 +95,13 @@ npm ci && npm test && npm run build   # all three must pass
   audience radios of the composer (each with a hint), the cover, gallery
   and attachment pickers (they show thumbnails and go through News's
   three-step upload), the "@" mention list (it writes into the text), the
-  in-page "goes out in 8 s" notice with its own Undo.
+  in-page "goes out in 8 s" notice with its own Undo. Kit 0.2.2
+  (re-vendored 2026-09-29): an article's text (`.prose`, the editor too)
+  is in `--font-read`, the theme's reading face; the header's full width
+  is the kit's (`AppShell width="full"`), not a CSS override. The
+  composer's pickers could become `FilePicker` with `preview` and stored
+  files as `ready` entries — not done: it would change the three-step
+  upload and the draft's state for no gain a reader sees.
 - **Only contract tokens in CSS** (`ui/tokens/CONTRACT.md`); a tool token
   is defined from them in `app/tokens.css`; never a colour; weights from the
   theme's tokens, 400 aside (`test/theme.test.ts`).

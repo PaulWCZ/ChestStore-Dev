@@ -34,5 +34,5 @@
 
 :root {
   /* The mark's mint circle: decoration only (no text on it). */
-  --mark-free: color-mix(in oklch, var(--ok) 50%, var(--bg));
+  --mark-free: color-mix(in oklab, var(--ok) 50%, var(--bg));
 }

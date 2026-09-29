@@ -339,8 +339,6 @@ export const fr: Catalogue = {
       lastMonth: "Mois dernier",
       custom: "Dates choisies",
     },
-    from: "Du",
-    to: "Au",
     show: "Afficher",
     group: "Regrouper par",
     groups: {
@@ -561,6 +559,9 @@ export const fr: Catalogue = {
     tooLate: "Choisissez le {date} ou avant.",
     otherDay: "Un autre jour…",
     pickDay: "Choisir un jour",
+    rangeFrom: "Du",
+    rangeTo: "Au",
+    rangeDays: { one: "{count} jour", other: "{count} jours" },
   },
   files: {
     add: "Ajouter des fichiers",

@@ -9,7 +9,7 @@ export function PlacesTabs({ label, words }: { label: string; words: { places: s
   const path = usePathname();
   const current = path.startsWith("/chest/places/rules") ? "rules" : path.startsWith("/chest/places/export") ? "export" : "places";
   return (
-    <Tabs label={label} current={current} link={props => <Link {...props} />}
+    <Tabs label={label} current={current} link={Link}
       items={[
         { id: "places", label: words.places, href: "/chest/places" },
         { id: "rules", label: words.rules, href: "/chest/places/rules" },

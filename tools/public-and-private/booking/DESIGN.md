@@ -55,8 +55,11 @@ and the mark's mint (a `color-mix`, decoration only).
   word first; deleting a type or erasing a guest asks in the kit's
   `Confirm` (never the browser's box); the kit's toasts at the bottom
   confirm (and never offer Undo once a guest was emailed).
-- The shell, tabs, date fields, time lists, file picker, empty states,
-  avatars and badges are the kit's components, restyled lightly by
+- The shell, tabs, the "Mine / Everyone" switch of the bookings (the
+  kit's `Segmented`, as links), the on/off switches (a type, the email
+  setting: the kit's `Switch`), date fields, time lists, file picker,
+  empty states, avatars and badges are the kit's components; tags take
+  the theme's `--radius-chip`, restyled lightly by
   `app/globals.css` ("The kit's components, fitted to Booking's pages").
 
 ## Icon

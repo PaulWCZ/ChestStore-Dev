@@ -30,6 +30,8 @@ export function OwnerPicker({ id, label, hideLabel = false, hint = true, value, 
       suggestions={people.slice(0, 12)}
       suggestionsLabel={t.peoplePicker.suggested}
       required={!nobody}
+      // Nobody is allowed: a button takes the owner away (the kit's clearable).
+      clearable={nobody}
       {...(nobody && hint ? { hint: t.common.nobodyHint } : {})}
       labels={t.peoplePicker}
       lang={t.meta.lang}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, EmptyState, Segmented, Tabs, useToast } from "@argentic/chest-ui/components";
+import { Avatar, EmptyState, Filters, Segmented, Tabs, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ComponentType } from "react";
@@ -29,6 +29,7 @@ type Words = {
   featuresShort: Catalogue["featuresShort"];
   errors: Catalogue["errors"];
   keptFor: string;
+  filters: Catalogue["filters"];
 };
 
 export const featureIcons: Record<Feature, ComponentType> = { screen: Screen, dock: Dock, standing: Standing, window: Window, quiet: Quiet };
@@ -46,7 +47,7 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
   locked: "past" | "closed" | "notYet" | null;
   hint: string;
   forWhom: { id: string; name: string } | null;
-  links: { parts: Record<Part, string>; views: Record<"plan" | "list", string>; features: Record<Feature, string> };
+  links: { parts: Record<Part, string>; views: Record<"plan" | "list", string>; params: Record<string, string | undefined> };
   locale: string;
   t: Words;
 }) {
@@ -139,20 +140,15 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
     <div className="stack desk-page">
       {/* Two rows, each fitting a phone: when (the kit's Segmented) and
           the plan or the list (the kit's Tabs); then what a desk offers —
-          several at once, so the tool's own chips (the kit's Filters take
-          one value per group). */}
+          several at once (the kit's Filters, a multiple group: f=screen,dock). */}
       <div className="toolbar desk-toolbar">
         <Segmented label={t.desks.part} name="part" value={part} options={(["day", "am", "pm"] as const).map(p => ({ value: p, label: t.parts[p] }))}
           onChange={p => router.push(links.parts[p], { scroll: false })} />
         <Tabs label={t.desks.view} current={view} link={props => <Link {...props} scroll={false} />}
           items={[{ id: "plan", label: t.desks.plan, href: links.views.plan }, { id: "list", label: t.desks.list, href: links.views.list }]} />
       </div>
-      <div className="chips feature-chips" role="group" aria-label={t.desks.filters}>
-        {featureKeys.map(f => {
-          const Icon = featureIcons[f];
-          return <Link key={f} href={links.features[f]} className="chip" aria-current={wanted.includes(f) ? "true" : undefined} scroll={false}><Icon />{t.features[f]}</Link>;
-        })}
-      </div>
+      <Filters path="/chest/desks" params={links.params} link={props => <Link {...props} scroll={false} />} labels={t.filters} phone="scroll" className="feature-filters"
+        groups={[{ key: "f", label: t.desks.filters, multiple: true, options: featureKeys.map(f => ({ value: f, label: t.features[f] })) }]} />
       <p className={"hint" + (locked ? " is-locked" : "")} aria-live="polite">
         {locked ? hint : <>{plural(t.desks.freeCount, freeDesks.length, locale)} · {hint}</>}
       </p>

@@ -29,7 +29,7 @@ export default async function NewTypePage() {
   return (
     <>
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
-      <PageHeader title={t.types.form.titleNew} />
+      <PageHeader size="m" title={t.types.form.titleNew} />
       <TypeForm team={await teamChoices(v)} id={null} base={base} locale={locale} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }}
         initial={{ title: "", slug: "", description: "", duration: 30, interval: 30, locationKind: "video", location: "", bufferBefore: 0, bufferAfter: 0, noticeMinutes: 240, windowDays: 45, dailyLimit: 0, questions: [], color: "sky", active: true, videoRooms: false, paymentLink: "", pool: [] }} />
     </>

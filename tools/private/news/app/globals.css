@@ -31,7 +31,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* The pages hold their own measure and margins (front, article, desk). */
 .ck-main { padding: 0; }
 .ck-bar { background: var(--bg); }
-.ck-bar-inner { max-width: none; }
 .ck-brand { font-weight: var(--weight-heavy); font-size: 1.25rem; letter-spacing: -0.01em; }
 .ck-brand .mark { width: 30px; height: 30px; }
 .ck-bar-end .ck-search { flex: 0 1 280px; }
@@ -193,7 +192,9 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .confirm-box.done svg { color: var(--ok); }
 .confirm-box.own { border-left-color: var(--ink); font-weight: 400; }
 
-.prose { font-size: 1.125rem; line-height: 1.7; display: grid; gap: var(--space-4); overflow-wrap: anywhere; }
+/* Long text in the theme's reading face (--font-read: Newsprint reads in
+   its body face; a theme such as Library in its own). */
+.prose { font-family: var(--font-read); font-size: 1.125rem; line-height: 1.7; display: grid; gap: var(--space-4); overflow-wrap: anywhere; }
 .prose h2 { font-size: var(--text-xl); margin-top: var(--space-3); }
 .prose ul, .prose ol { margin: 0; padding-left: 1.4em; display: grid; gap: var(--space-1); }
 .prose li::marker { color: var(--accent-text); font-weight: var(--weight-bold); }

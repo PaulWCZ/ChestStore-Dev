@@ -12,6 +12,13 @@ const plus = (d, n) => new Date(d.getTime() + n * 864e5);
 const toast = () => page.locator(".ck-toast .ck-toast-text").last().innerText();
 // A day typed in the kit's date field (ISO is read in every language), then
 // Enter, which commits it as leaving the field would.
+// The kit's switch and segments hide their input (the label is the
+// target): a person clicks the label; the check reads the input's state.
+const flip = async (scope, name, on) => {
+  const input = scope.getByRole("switch", { name });
+  if ((await input.isChecked()) !== on) await scope.locator(".ck-switch").filter({ has: page.getByRole("switch", { name }) }).locator("label").click();
+  await page.waitForFunction(([id, want]) => document.getElementById(id)?.checked === want, [await input.getAttribute("id"), on]);
+};
 const typeDay = async (selector, value) => {
   await page.locator(selector).fill(value);
   await page.locator(selector).press("Enter");
@@ -27,7 +34,11 @@ async function ask(start, end, options = {}) {
   if (options.kind) await page.locator(".kind-option", { hasText: options.kind }).click();
   await typeDay("#start", start);
   await typeDay("#end", end);
-  if (options.half) await page.getByRole("radio", { name: options.half }).click();
+  if (options.half) {
+    const radio = page.getByRole("radio", { name: options.half });
+    await page.locator("label.ck-segment").filter({ has: radio }).click();
+    expect(await radio.isChecked(), options.half + " chosen");
+  }
   if (options.note) await page.locator("#note").fill(options.note);
   return page.locator(".quote-days").innerText();
 }
@@ -194,7 +205,7 @@ await step("HR downloads the month's payroll export", async () => {
 
 await step("HR switches the company to Alsace-Moselle", async () => {
   await page.goto(origin + "/chest/settings");
-  await page.getByLabel("Alsace-Moselle (Good Friday and 26 December too)").check();
+  await flip(page, "Alsace-Moselle (Good Friday and 26 December too)", true);
   await page.waitForSelector(".ck-toast");
   await page.reload();
   expect(await page.getByText("Good Friday", { exact: true }).isVisible(), "Good Friday listed");
@@ -285,7 +296,7 @@ await step("HR changes a kind in place: saved at once, nothing to forget", async
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/settings");
   const rtt = page.locator(".type-editor").filter({ has: page.locator('input[placeholder="RTT"]') });
-  await rtt.getByLabel("May go below zero").uncheck();
+  await flip(rtt, "May go below zero", false);
   await page.waitForSelector(".ck-toast");
   await page.reload();
   expect(!(await page.locator(".type-editor").filter({ has: page.locator('input[placeholder="RTT"]') }).getByLabel("May go below zero").isChecked()), "saved");

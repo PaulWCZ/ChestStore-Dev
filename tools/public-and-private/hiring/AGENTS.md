@@ -29,7 +29,7 @@ must not break.
 | `lib/tell.ts`, `lib/notify.ts` | Bell and tile |
 | `lib/share.ts` | `hiring.hired` / `hiring.hire_cancelled` for People (events between tools; README "With the other tools") — never add application data to them |
 | `lib/lifecycle.ts` | Members leaving or erased |
-| `lib/theme.ts`, `app/layout.tsx`, `app/tokens.css` | The identity (*Magazine*, `defineTheme`), the careers accents (`accentThemes`, `accentCss`), the look of a request (`currentLook`: `chest.theme()` else the identity) written by `<ThemeStyle>` with the nonce; Hiring's own tokens, defined from contract tokens |
+| `lib/theme.ts`, `app/layout.tsx`, `app/tokens.css` | The identity (*Magazine*: the catalogue's, `identityOf("hiring")`; its `source` only makes the careers accents and a test holds it equal — change Magazine in `ui/src/themes.ts` first), the careers accents (`accentThemes`, `accentCss`), the look of a request (`currentLook`: `chest.theme()` else the identity) written by `<ThemeStyle>` with the nonce; Hiring's own tokens, defined from contract tokens |
 | `components/team-shell.tsx`, `components/public-shell.tsx` | The kit's `AppShell` (tabs, search, member, toasts, 30 s refresh); the careers frame (brand logo or Hiring's, accent only in the own look) |
 | `app/page.tsx`, `app/[slug]/…`, `app/api/cv`, `app/public-actions.ts` | The public part (anonymous) |
 | `app/chest/…`, `app/chest/actions.ts` | The team's part |
@@ -56,7 +56,9 @@ TEST_DATABASE_URL=postgres://… npm test
   over), Dialog (with `dirty` for typed forms), Confirm (irreversible
   only), PeoplePicker, DateField, TimeSelect, FilePicker, SearchBox,
   EmptyState, Avatar, StatusBadge, Segmented, AppShell, PageHeader,
-  NoAccess, BrandMark, LanguageSwitch, useAutoRefresh. Their words come
+  NoAccess, BrandMark, LanguageSwitch, useAutoRefresh. Links are Next's
+  `Link` as it is (`link={Link}`, no wrapper); a company logo is sized by
+  the kit (`--ck-logo-max`), never by the tool's CSS. Their words come
   from the catalogues' `toast`, `dialog`, `peoplePicker`, `dates`, `files`
   sections. Never `window.confirm`/`prompt`, never `type="date"`/`"time"`.
 - **Words**: `node scripts/lint-words.mjs tools/public-and-private/hiring`

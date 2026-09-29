@@ -31,7 +31,7 @@ must not break.
 | `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit (Enter opens, Space picks up), keyboard moves, filters, the archive-column dialog |
 | `app/chest/boards/[id]/list-view.tsx`, `calendar-view.tsx` | The list (sort, group, done hidden) and the calendar (drag a card to a day) |
 | `app/chest/boards/[id]/card-panel.tsx` | A card (client): Mark done, dates, fields, checklists, Move or copy |
-| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Workshop" (`defineTheme`, the catalogue's `workshop` source) and the page's look (`currentLook`: the company's choice, else the identity); the tool's own tokens (column width, board and label colours → palette slots); its components' CSS, contract tokens only |
+| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Workshop" (the catalogue's `workshop` theme, `identityOf("tasks")`) and the page's look (`currentLook`: the company's choice, else the identity); the tool's own tokens (column width, board and label colours → palette slots); its components' CSS, contract tokens only |
 | `components/shell.tsx`, `app/chest/layout.tsx` | The kit's `AppShell` (sections, card search, member chip), `BrandMark`, `NoAccess`, `Toasts` |
 | `app/chest/export/route.ts` | Every board in one JSON file (managers) |
 | `app/chest/api/cards/[id]/upload/route.ts`, `app/chest/files/[id]/route.ts` | Files: authorise, record, open |
@@ -65,11 +65,18 @@ npm ci && npm test && npm run build   # all three must pass
   `DateField` (never `type="date"`; `today` from the server), `FilePicker`
   (+ `putWithProgress`), `Menu`, `Avatar`, `EmptyState`. Their words are
   the catalogues' `toast`, `dialog`, `peoplePicker`, `date`, `files`,
-  `searchBox` sections. Kept on purpose: the board's view switch (links
-  with icons in the coloured header), the who/label filter selects, the
-  list view's table (grouping), the "@" mention list (it writes into the
-  text, with the kit's `searchChoices`), the due-time select (it has "Any
-  time"), the importer's three source cards.
+  `searchBox` sections. Also the kit's (0.2.2): the board's view switch
+  (`Segmented`, link variant, `link={Link}`), the due time (`TimeSelect`
+  with `empty` "Any time"), the step's person (`PeoplePicker clearable`),
+  the personal switches (`Switch`), the faces on a card and in the list
+  (`AvatarStack`); `link={Link}` is Next's `Link` as it is (no wrapper).
+  Kept on purpose: the who/label filter selects (they sit on the board's
+  own colour, where the kit's `Filters` label and "Clear filters" colours
+  are not measured pairs), the list view's table (grouping: `DataTable`
+  has no groups), the "@" mention list (it writes into the text, with the
+  kit's `searchChoices`), the importer's three source cards.
+- **The identity is the catalogue's** (`identityOf("tasks")` in
+  `lib/theme.ts`), never a copy: change Workshop in `ui/src/themes.ts`.
 - **Only contract tokens in CSS** (`ui/tokens/CONTRACT.md`); a tool token is
   defined from them in `app/tokens.css`; never a colour
   (`test/theme.test.ts`). Text on a board colour is `--c-ink` on `--c`.

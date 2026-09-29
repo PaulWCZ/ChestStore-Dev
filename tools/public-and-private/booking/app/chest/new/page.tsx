@@ -21,7 +21,7 @@ export default async function NewBookingPage({ searchParams }: { searchParams: P
   return (
     <>
       <a className="back" href="/chest"><Back />{t.booking.back}</a>
-      <PageHeader title={t.forGuest.title} intro={t.forGuest.intro} />
+      <PageHeader size="m" title={t.forGuest.title} intro={t.forGuest.intro} />
       {chosen ? (
         <ForGuest types={types} typeId={chosen.id} hostZone={host.zone} locale={locale} zones={zoneGroups(t.zones, Date.now(), [host.zone])} t={{ forGuest: t.forGuest, public: t.public, days: t.days, errors: t.errors, answers: t.answers }} />
       ) : (

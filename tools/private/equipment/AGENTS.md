@@ -65,7 +65,14 @@ what must not break.
   preview), `EmptyState`, `Avatar`, `StatusBadge`, `PageHeader`,
   `LanguageSwitch`. Kept on purpose: the item lines (labels with a tick
   to print), the stock pickers in dialogs (records, not people), the
-  category icon menu, the photo and invoice buttons, the paper forms.
+  category icon menu, the photo and invoice buttons, the paper forms,
+  and the list's "With" filter (a select with option groups — team,
+  places — and its own "Anyone": the kit's `Filters` select has neither).
+  Kit 0.2.2 (re-vendored 2026-09-29): the steel bar is `--inverse` (no
+  dark-mode override of our own; it no longer collapses to black ink),
+  status stamps are `StatusBadge className` (no wrapper span), "More" is
+  `Menu size="m"`, the category filter becomes a select past 8
+  categories (`as: "select"`).
 - **CSS names only contract tokens** and the tool's own from
   `app/tokens.css` (`test/theme.test.ts`); never a colour. The paper
   (sheets, labels) uses the system's `Canvas`/`CanvasText` (and a dark grey mixed from them)

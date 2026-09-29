@@ -35,7 +35,7 @@ theme's (`--weight-plate` 900, `--weight-heavy` 800, `--weight-label` 800,
 is a headline — the nameplate at 900, lead headlines at 800 with tight
 tracking, the welcome line in italic, drop caps; *Libre Franklin* (OFL-1.1)
 for reading and for the small uppercase labels (kickers, bylines, section
-names, letter-spaced 0.1–0.14em). Body 16 px, article text 18 px / 1.7.
+names, letter-spaced 0.1–0.14em). Body 16 px, article text 18 px / 1.7, in `--font-read` (the body face in Newsprint; a catalogue theme with a reading face of its own, such as Library, sets it).
 Both self-hosted in `public/fonts/` (the kit writes their `@font-face` from `lib/theme.ts`).
 **Shape**: square — 2 px radii, 2 px ink borders on boxes (event, readers),
 1 px black rules between stories, a 4 px + 1 px double rule under the

@@ -1,16 +1,19 @@
 import * as chest from "@argentic/chest-sdk/chest";
-import { defineTheme, themeCss, type Theme, type ThemeSource } from "@argentic/chest-ui";
+import { defineTheme, identityOf, themeCss, type Theme, type ThemeSource } from "@argentic/chest-ui";
 import { resolveTheme, type Look } from "@argentic/chest-ui/runtime";
 import { cache } from "react";
 import type { Accent } from "./jobs.ts";
 
 // Hiring's own identity (DESIGN.md), "Magazine": an editorial careers
 // magazine — warm cream paper, deep cobalt ink, one tomato accent, a
-// characterful grotesque for the big words. It is a theme of the kit's
-// contract, the same as the catalogue's "magazine" (test/theme.test.ts
-// holds them equal), checked like every theme. Every colour of the tool is
-// here; its CSS names only the contract's tokens.
-const source: ThemeSource = {
+// characterful grotesque for the big words. The identity is the
+// catalogue's own "magazine" theme, imported from the kit (identityOf);
+// the source below is kept only to make the careers page's other accents
+// (Settings → Colour) and must stay the catalogue's source
+// (test/theme.test.ts holds defineTheme(source) equal to the identity: a
+// copy had kept a plum dark slot 3 that kit 0.2.1 made an orange). Every
+// colour of the tool is here; its CSS names only the contract's tokens.
+export const source: ThemeSource = {
   id: "magazine", tool: "hiring",
   name: { en: "Magazine", fr: "Magazine" },
   description: { en: "Confident and editorial: cream paper, deep cobalt, a tomato accent, big characterful words.", fr: "Assuré et éditorial : papier crème, cobalt profond, touche tomate, grands mots de caractère." },
@@ -23,11 +26,13 @@ const source: ThemeSource = {
   palette: {
     // Tomato (slot 3, the orange family): kickers, "new", the index numbers.
     light: { 3: { solid: "#c93a1e", soft: "#fde3da", ink: "#7a2410" } },
-    dark: { 3: { solid: "#ff8a6b", soft: "#3d1f33", ink: "#ffc2b1" } },
+    dark: { 3: { solid: "#ff8a6b", soft: "#422115", ink: "#ffc2b1" } },
   },
 };
 
-export const identity: Theme = defineTheme(source);
+const magazine = identityOf("hiring");
+if (!magazine) throw new Error("the UI kit has no identity for Hiring");
+export const identity: Theme = magazine;
 
 // The careers page's colour (Settings → Colour), when Hiring wears its own
 // look: the identity with another accent, light and dark — each a whole

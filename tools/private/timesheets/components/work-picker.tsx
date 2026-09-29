@@ -1,5 +1,6 @@
 "use client";
 
+import { useFloat } from "@argentic/chest-ui/components";
 import { listKey, matches } from "@argentic/chest-ui/components/logic";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { format } from "../lib/i18n/format.ts";
@@ -63,6 +64,10 @@ export function WorkPicker({ projects, value, onChange, id, t, className = "fiel
     if (move.choose && shown[move.active]) pick(shown[move.active]!);
   }
   const activeOption = open && active >= 0 ? shown[active] : undefined;
+  // Inside a box that scrolls (the week's grid) the list is placed over it,
+  // as the kit's own lists are, never cut at its edge.
+  const listRef = useRef<HTMLUListElement>(null);
+  useFloat(input, listRef, open);
   useEffect(() => {
     if (activeOption) document.getElementById(`${list}-${activeOption.value}`)?.scrollIntoView({ block: "nearest" });
   }, [activeOption, list]);
@@ -90,7 +95,7 @@ export function WorkPicker({ projects, value, onChange, id, t, className = "fiel
         onKeyDown={key}
       />
       {open && (
-        <ul id={list} role="listbox" className="picker-list" aria-label={t.label}>
+        <ul ref={listRef} id={list} role="listbox" className="picker-list" aria-label={t.label}>
           {shown.length === 0 && <li className="picker-none" role="presentation">{t.noMatch}</li>}
           {shown.map((o, i) => (
             <li

@@ -41,7 +41,7 @@ export function Shell({ brand, member, words, sections, more, search, labels, ch
   const items: MenuItem[] = [
     ...(more.import ? [{ label: words.import, href: "/chest/import", icon: <Upload /> }] : []),
     ...(more.settings ? [{ label: words.settings, href: "/chest/settings", icon: <Gear /> }] : []),
-    ...(more.exportAll ? [{ label: words.exportAll, href: "/chest/export/all", icon: <Download /> }] : []),
+    ...(more.exportAll ? [{ label: words.exportAll, href: "/chest/export/all", icon: <Download />, download: true }] : []),
   ];
   return (
     <AppShell

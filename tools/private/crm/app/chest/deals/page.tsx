@@ -1,7 +1,7 @@
-import { EmptyState } from "@argentic/chest-ui/components";
-import Link from "next/link";
+import { EmptyState, Segmented } from "@argentic/chest-ui/components";
+import { Link } from "../../../components/link.tsx";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { Download } from "../../../components/icons.tsx";
+import { Download, ListIcon, Pipeline } from "../../../components/icons.tsx";
 import { can, canEditDeal } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { boardClosedDays, boardDeals, listDeals, type DealFilter } from "../../../lib/deals.ts";
@@ -18,7 +18,6 @@ import { emptyDeal } from "../ui/values.ts";
 import { DealBoard } from "./board.tsx";
 import { DealTable } from "./deal-table.tsx";
 import { Filters } from "./filters.tsx";
-import { ViewSwitch } from "./view-switch.tsx";
 
 type Search = Promise<Record<string, string | string[] | undefined>>;
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
@@ -57,8 +56,13 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
       <div>
         <h1>{t.deals.title}</h1>
       </div>
-      <ViewSwitch view={view} label={t.deals.views} words={{ board: t.deals.board, list: t.deals.list }}
-        board={`/chest/deals${query({ view: "", status: "", stage: "", closing: "", cf: "", cv: "", cmin: "", cmax: "" })}`} list={`/chest/deals${query({ view: "list" })}`} />
+      {/* Board or list: each view has its own address — the kit's
+          segmented choice as links (the current one aria-current). */}
+      <Segmented label={t.deals.views} value={view} link={Link}
+        options={[
+          { value: "board", label: t.deals.board, icon: <Pipeline />, href: `/chest/deals${query({ view: "", status: "", stage: "", closing: "", cf: "", cv: "", cmin: "", cmax: "" })}` },
+          { value: "list", label: t.deals.list, icon: <ListIcon />, href: `/chest/deals${query({ view: "list" })}` },
+        ]} />
       {can(member, "deals.create") && <NewDealButton label={t.deals.new} initial={newDeal} {...dealProps} />}
     </div>
   );

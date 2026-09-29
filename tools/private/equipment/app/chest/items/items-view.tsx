@@ -49,7 +49,8 @@ export function ItemsView({ rows, paging, manager, filtered, query, values, cate
         </div>
         <Filters path="/chest/items" params={params} link={Link} labels={t.filters} groups={[
           { key: "status", label: w.status, all: true, options: [...statuses.map(s => ({ value: s, label: t.status[s] })), { value: "low", label: w.low }] },
-          { key: "category", label: w.category, all: true, options: categories },
+          // Many categories (a big company's 30): a list to choose from.
+          { key: "category", label: w.category, all: true, options: categories, ...(categories.length > 8 ? { as: "select" as const } : {}) },
           { key: "sort", label: w.sort, required: true, value: "tag", options: (["tag", "name", "newest", "ending"] as const).map(s => ({ value: s, label: w.sorts[s] })) },
         ]} />
         <form className="holder-filter" method="get" action="/chest/items">

@@ -95,8 +95,8 @@ export function InboxList({ rows, canManage, team, t, locale }: { rows: Row[]; c
             <div className="bulk-bar" role="group" aria-label={w.bulk}>
               <strong>{plural(w.selected, chosen.length, locale)}</strong>
               <Menu label={w.bulkAssign} showLabel align="start" icon={<Person />} items={[
-                { label: w.bulkNobody, onSelect: () => run({ kind: "assign", assignee: null }), disabled: pending },
-                ...team.map(p => ({ label: p.name, onSelect: () => run({ kind: "assign", assignee: p.id }), disabled: pending })),
+                { id: "nobody", label: w.bulkNobody, onSelect: () => run({ kind: "assign", assignee: null }), disabled: pending },
+                ...team.map(p => ({ id: p.id, label: p.name, onSelect: () => run({ kind: "assign", assignee: p.id }), disabled: pending })),
               ]} />
               <Menu label={w.bulkPriority} showLabel align="start" icon={<Flag />} items={[...priorities].reverse().map(p => ({ label: t.priority[p], onSelect: () => run({ kind: "priority", priority: p }), disabled: pending }))} />
               <form className="row bulk-tag" onSubmit={e => { e.preventDefault(); if (tag.trim()) run({ kind: "tag", name: tag.trim() }); }}>

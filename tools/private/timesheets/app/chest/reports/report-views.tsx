@@ -1,12 +1,13 @@
 "use client";
 
-import { DataTable, DateField, Segmented, StatusBadge, type Column } from "@argentic/chest-ui/components";
+import { DataTable, DateRangeField, Segmented, StatusBadge, type Column } from "@argentic/chest-ui/components";
+import type { DateRange } from "@argentic/chest-ui/components/logic";
 import { useState } from "react";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 
 // The report's pieces that live in the browser: the grouping (the kit's
 // Segmented — native radios the report's form sends as soon as one is
-// chosen), a custom period (two of the kit's DateFields, in the reader's
+// chosen), a custom period (the kit's DateRangeField, in the reader's
 // language), and the breakdown (the kit's DataTable).
 
 export function GroupChoice<G extends string>({ label, value, options }: { label: string; value: G; options: { value: G; label: string }[] }) {
@@ -14,15 +15,9 @@ export function GroupChoice<G extends string>({ label, value, options }: { label
   return <Segmented hideLabel={false} label={label} name="group" value={chosen} options={options} onChange={setChosen} />;
 }
 
-export function RangeFields({ from, to, today, t, labels }: { from: string; to: string; today: string; t: Catalogue["reports"]; labels: Catalogue["date"] }) {
-  const [first, setFirst] = useState<string | null>(from);
-  const [last, setLast] = useState<string | null>(to);
-  return (
-    <>
-      <DateField id="from" name="from" label={t.from} value={first} onChange={setFirst} today={today} max={last} chips={false} labels={labels} />
-      <DateField id="to" name="to" label={t.to} value={last} onChange={setLast} today={today} min={first} chips={false} labels={labels} />
-    </>
-  );
+export function RangeFields({ from, to, today, label, labels, lang }: { from: string; to: string; today: string; label: string; labels: Catalogue["date"]; lang: string }) {
+  const [range, setRange] = useState<DateRange>({ from, to });
+  return <DateRangeField label={label} value={range} onChange={setRange} today={today} names={{ from: "from", to: "to" }} labels={labels} lang={lang} />;
 }
 
 // A line of the breakdown, written on the server (hours in the company's

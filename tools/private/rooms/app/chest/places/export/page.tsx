@@ -48,7 +48,7 @@ export default async function Export({ searchParams }: { searchParams: Promise<R
       )}
       <form className="panel stack" method="get" action="/chest/export">
         <p>{t.export.body}</p>
-        <Period first={first} today={c.today} t={{ from: t.export.from, to: t.export.to }} labels={t.date} />
+        <Period first={first} today={c.today} label={t.export.period} labels={t.date} lang={c.locale} />
         <div className="row">
           <button type="submit" className="button" name="kind" value="bookings"><Download />{t.export.bookings}</button>
           <button type="submit" className="button quiet" name="kind" value="occupancy"><Download />{t.export.occupancy}</button>

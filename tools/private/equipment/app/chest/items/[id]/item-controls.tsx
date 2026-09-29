@@ -95,7 +95,7 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
   // status dialog says what to do with something the company no longer
   // has); it offers Undo.
   const more = (
-    <Menu label={t.common.more} showLabel align="start" icon={<Dots />} items={[
+    <Menu label={t.common.more} showLabel size="m" align="start" icon={<Dots />} items={[
       { label: t.common.edit, href: `/chest/items/${item.id}/edit`, icon: <Pencil /> },
       { label: t.item.status, onSelect: () => open("status"), icon: <Sliders /> },
       { label: t.common.delete, onSelect: remove, tone: "danger", disabled: pending, icon: <Trash /> },

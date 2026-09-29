@@ -139,6 +139,7 @@ export const fr: Catalogue = {
     },
   },
   board: {
+    othersAssigned: { one: "et {count} autre", other: "et {count} autres" },
     back: "Tous les tableaux",
     views: "Affichage",
     boardView: "Tableau",

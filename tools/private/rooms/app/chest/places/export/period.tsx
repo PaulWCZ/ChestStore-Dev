@@ -1,23 +1,14 @@
 "use client";
 
-import { DateField } from "@argentic/chest-ui/components";
-import type { DateWords } from "@argentic/chest-ui/components/logic";
+import { DateRangeField } from "@argentic/chest-ui/components";
+import type { DateRange, DateWords } from "@argentic/chest-ui/components/logic";
 import { useState } from "react";
 
-// The period to download: two days typed or chosen in the member's
-// language (the kit's DateField, never the browser's date field); the form
-// sends them as ISO dates (hidden fields named from and to).
-export function Period({ first, today, t, labels }: { first: string; today: string; t: { from: string; to: string }; labels: DateWords }) {
-  const [from, setFrom] = useState<string | null>(first);
-  const [to, setTo] = useState<string | null>(today);
-  return (
-    <div className="form-grid">
-      <div className="span-2">
-        <DateField label={t.from} name="from" value={from} onChange={setFrom} today={today} max={to} required labels={labels} chips={false} />
-      </div>
-      <div className="span-2">
-        <DateField label={t.to} name="to" value={to} onChange={setTo} today={today} min={from} required labels={labels} />
-      </div>
-    </div>
-  );
+// The period to download: the kit's range of days, typed or chosen in the
+// member's language (never the browser's date field); the last day is
+// never before the first, and the form sends both ends as ISO dates
+// (hidden fields named from and to).
+export function Period({ first, today, label, labels, lang }: { first: string; today: string; label: string; labels: DateWords; lang: string }) {
+  const [range, setRange] = useState<DateRange>({ from: first, to: today });
+  return <DateRangeField label={label} value={range} onChange={setRange} today={today} names={{ from: "from", to: "to" }} required labels={labels} lang={lang} />;
 }

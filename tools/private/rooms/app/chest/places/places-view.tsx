@@ -378,7 +378,7 @@ function DeskEditor({ desk, areaId, areas, people, locale, t, busy, onDirty, onS
         </label>
       </div>
       <Checks legend={t.places.deskFeatures} keys={featureKeys} value={features} words={t.features} onChange={setFeatures} />
-      <PeoplePicker label={t.places.assignedTo} hint={t.places.nobody} value={holder} search={search} labels={t.peoplePicker} lang={locale}
+      <PeoplePicker label={t.places.assignedTo} hint={t.places.nobody} clearable value={holder} search={search} labels={t.peoplePicker} lang={locale}
         onChange={v => { setAssigned(v[0]?.id ?? ""); onDirty(); }} />
       <div className="row actions">
         <button type="submit" className="button" disabled={busy}>{t.places.save}</button>

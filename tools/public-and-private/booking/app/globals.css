@@ -43,6 +43,8 @@ select.field { appearance: auto; }
 .field.short { max-width: 160px; }
 .switch { display: flex; gap: var(--space-3); align-items: center; font-weight: var(--weight-strong); cursor: pointer; min-height: 44px; }
 .switch input { width: 20px; height: 20px; accent-color: var(--accent); }
+/* A type on or off in the list (the kit's Switch), in small words. */
+.type-switch .ck-switch-label { font-size: var(--text-s); }
 .error { color: var(--danger); font-weight: var(--weight-strong); display: flex; gap: var(--space-2); align-items: center; }
 .notice { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4); border-radius: var(--radius-m); background: var(--today-soft); color: var(--today-ink); }
 .notice svg { color: var(--today-ink); margin-top: 3px; }
@@ -72,9 +74,6 @@ code, .code { font-family: var(--font-mono); font-size: 0.9em; background: var(-
 .ticket .button.ghost { background: transparent; color: var(--accent-ink); border-color: currentColor; }
 
 /* Tabs */
-.segmented { display: inline-flex; background: var(--surface-2); border-radius: var(--radius-pill); padding: 3px; }
-.segmented a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 var(--space-4); border-radius: var(--radius-pill); text-decoration: none; color: var(--ink-2); font-weight: var(--weight-strong); font-size: var(--text-s); }
-.segmented a[aria-current="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
 
 /* The agenda: days, then meetings */
 .agenda { display: flex; flex-direction: column; gap: var(--space-5); }
@@ -89,7 +88,7 @@ code, .code { font-family: var(--font-mono); font-size: 0.9em; background: var(-
 .meeting .what { color: var(--ink-2); font-size: var(--text-s); display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .meeting.cancelled { opacity: 0.7; }
 .meeting.cancelled .who-line { text-decoration: line-through; }
-.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-2); font-size: 0.8rem; font-weight: var(--weight-strong); }
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: var(--radius-chip); background: var(--surface-2); color: var(--ink-2); font-size: 0.8rem; font-weight: var(--weight-strong); }
 .tag.today { background: var(--today-soft); color: var(--today-ink); }
 .tag.free { background: var(--free-soft); color: var(--free-ink); }
 .tag.danger { background: var(--danger-soft); color: var(--danger-ink); }
@@ -146,7 +145,8 @@ details.more[open] > summary { margin-bottom: var(--space-3); }
 .public { min-height: 100vh; display: flex; flex-direction: column; }
 .public-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) var(--space-5); max-width: 1080px; width: 100%; margin: 0 auto; }
 .company { display: inline-flex; align-items: center; gap: var(--space-3); font: var(--display-weight) 1.2rem/1.2 var(--font-display); letter-spacing: var(--display-tracking); }
-.company .ck-logo img { height: 36px; max-width: 200px; }
+.company { --ck-logo-max: 200px; }
+.company .ck-logo img { height: 36px; }
 .public-main { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: var(--space-4) var(--space-5) var(--space-7); }
 .public-foot { text-align: center; color: var(--ink-2); font-size: var(--text-s); padding: var(--space-5); }
 .hero { text-align: center; padding: var(--space-6) 0 var(--space-6); }
@@ -272,15 +272,9 @@ details.more[open] > summary { margin-bottom: var(--space-3); }
 .ck-avatar.host-portrait { width: 84px; height: 84px; font-size: 30px; }
 
 /* The kit's components, fitted to Booking's pages. */
-.ck-page-title h1 { font-size: var(--text-xl); }
 .ck-tabs { margin-bottom: var(--space-5); }
 .ck-date .ck-label { font-size: var(--text-m); }
 .notice.spaced { margin-bottom: var(--space-5); }
 .ticket-hint { font-size: var(--text-s); }
 h2.sub { font: var(--weight-strong) var(--text-m)/1.3 var(--font-body); letter-spacing: 0; }
-/* The date field's line in words ("Monday 19 October 2026") appears when a
-   typed date is read, on blur: its place is kept so the button under the
-   field does not move away from the pointer between press and release
-   (kit gap, reported). */
-.ck-date .ck-date-read:empty { display: block; min-height: calc(var(--text-s) * var(--leading)); }
 .meeting > .row:empty { display: none; }

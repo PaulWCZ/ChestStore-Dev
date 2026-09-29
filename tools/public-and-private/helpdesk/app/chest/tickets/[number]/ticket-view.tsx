@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, PeoplePicker, Tabs, useToast } from "@argentic/chest-ui/components";
+import { Avatar, Menu, PeoplePicker, Tabs, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type FileWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -51,7 +51,6 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
   const [tags, showTags] = useOptimistic(ticket.tags);
   const [newTag, setNewTag] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
-  const menu = useRef<HTMLDetailsElement>(null);
   const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values ?? { max: 20000 }), tone: "error" });
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -151,7 +150,6 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
     });
   }
   function insert(body: string) {
-    if (menu.current) menu.current.open = false;
     setText(current => (current.trim() ? current.replace(/\s*$/u, "\n\n") + body : body));
     requestAnimationFrame(() => field.current?.focus());
   }
@@ -214,14 +212,11 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
                   </>
                 ) : <button type="submit" className="ck-button" disabled={sending || !text.trim()}><Note />{w.addNote}</button>}
                 <span className="spacer" />
-                <details className="menu" ref={menu}>
-                  <summary className="ck-button ck-button-quiet ck-button-small"><Quote />{w.saved}</summary>
-                  <div className="menu-pop">
-                    {replies.length === 0 ? <p className="hint menu-empty">{w.noSaved}</p> : replies.map(r => (
-                      <button key={r.id} type="button" onClick={() => insert(r.filled)}><strong>{r.title}</strong><small>{r.filled}</small></button>
-                    ))}
-                  </div>
-                </details>
+                {/* The saved replies: the kit's menu, each reply with the start
+                    of its text under its title, to choose at a glance. */}
+                <Menu label={w.saved} showLabel icon={<Quote />} items={replies.length === 0
+                  ? [{ id: "none", label: w.noSaved, disabled: true }]
+                  : replies.map(r => ({ id: r.id, label: r.title, note: opening(r.filled), onSelect: () => insert(r.filled) }))} />
               </div>
             </Tabs>
           </form>
@@ -258,13 +253,11 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
           {canManage ? <p className="label" aria-hidden="true">{w.assignee}</p> : <p className="label">{w.assignee}</p>}
           {canManage ? (
             <div className="stack tight">
-              <PeoplePicker id="assignee" label={w.assignee} hideLabel value={team.filter(p => p.id === ticket.assignee)} search={localSearch(team)}
+              <PeoplePicker id="assignee" label={w.assignee} hideLabel clearable value={team.filter(p => p.id === ticket.assignee)} search={localSearch(team)}
                 suggestions={[...team.filter(p => p.id === me), ...team.filter(p => p.id !== me)].slice(0, 8)} suggestionsLabel={w.team}
                 onChange={chosen => act(() => assign(ticket.number, chosen[0]?.id ?? null))} labels={{ ...t.peoplePicker, placeholder: w.nobody }} lang={locale} />
               <div className="row">
                 {ticket.assignee !== me && canAnswer && <button type="button" className="link-button" onClick={() => act(() => assign(ticket.number, me))}>{w.takeIt}</button>}
-                {/* The kit's single picker cannot be emptied: "nobody" is its own act. */}
-                {ticket.assignee && <button type="button" className="link-button" onClick={() => act(() => assign(ticket.number, null))}>{w.unassign}</button>}
               </div>
             </div>
           ) : <p>{team.find(p => p.id === ticket.assignee)?.name ?? w.nobody}</p>}
@@ -349,4 +342,10 @@ function MessageBody({ text, html, email, t }: { text: string; html: string | nu
       {html && <button type="button" className="link-button small" aria-pressed={formatted} onClick={() => setFormatted(f => !f)}>{formatted ? t.plain : t.formatted}</button>}
     </>
   );
+}
+
+// The start of a saved reply, on one line: enough to tell it from the others.
+function opening(text: string): string {
+  const line = text.replace(/\s+/gu, " ").trim();
+  return line.length > 90 ? line.slice(0, 89).trimEnd() + "…" : line;
 }

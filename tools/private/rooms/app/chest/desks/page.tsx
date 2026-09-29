@@ -92,10 +92,11 @@ export default async function Desks({ searchParams }: { searchParams: Promise<Re
           links={{
             parts: { day: href({ part: null }), am: href({ part: "am" }), pm: href({ part: "pm" }) },
             views: { plan: href({ view: null }), list: href({ view: "list" }) },
-            features: Object.fromEntries(featureKeys.map(f => [f, href({ f: (wanted.includes(f) ? wanted.filter(x => x !== f) : [...wanted, f]).join(",") || null })])) as Record<Feature, string>,
+            // What the address holds, for the feature filters' links.
+            params: { day, part: part === "day" ? undefined : part, view: view === "plan" ? undefined : view, f: wanted.join(",") || undefined, office: office?.id, for: target?.id },
           }}
           locale={locale}
-          t={{ desks: t.desks, parts: t.parts, features: t.features, featuresShort: t.featuresShort, errors: t.errors, keptFor: t.rooms.keptFor }}
+          t={{ desks: t.desks, parts: t.parts, features: t.features, featuresShort: t.featuresShort, errors: t.errors, keptFor: t.rooms.keptFor, filters: t.filters }}
         />
       )}
     </div>

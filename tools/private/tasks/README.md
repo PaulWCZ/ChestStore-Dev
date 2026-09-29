@@ -183,7 +183,7 @@ one already late. Archiving a repeating card stops its series; choosing
 
 Tasks wears **any look the company chooses in its Chest**: its own identity
 "Workshop" (paper, ink outlines, sun yellow — the default), any theme of the
-store's catalogue (the 17 identities, "Chest", "High contrast"), or the
+store's catalogue (the 18 identities, "Chest", "High contrast"), or the
 company's brand imported from its guidelines — for all tools or for Tasks
 alone, with the same features. The look arrives with the page (one
 `<style>` with the page's nonce, no script); in brand mode the company's

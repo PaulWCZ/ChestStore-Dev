@@ -21,7 +21,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Avatar, Dialog, Menu, useToast } from "@argentic/chest-ui/components";
+import { AvatarStack, Dialog, Menu, Segmented, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
@@ -231,11 +231,12 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
           )}
           {filtered && <button type="button" className="link-button" onClick={() => router.replace(query({ who: "", label: "" }), { scroll: false })}>{t.board.clear}</button>}
         </div>
-        <nav className="segmented" aria-label={t.board.views}>
-          <Link href={query({ view: "", month: "" })} aria-current={view === "board" ? "page" : undefined} scroll={false}><Columns />{t.board.boardView}</Link>
-          <Link href={query({ view: "list", month: "" })} aria-current={view === "list" ? "page" : undefined} scroll={false}><ListIcon />{t.board.listView}</Link>
-          <Link href={query({ view: "calendar" })} aria-current={view === "calendar" ? "page" : undefined} scroll={false}><Calendar />{t.board.calendarView}</Link>
-        </nav>
+        {/* The view is kept in the address: the kit's Segmented, its link variant. */}
+        <Segmented label={t.board.views} link={Link} value={view} className="views" options={[
+          { value: "board", label: t.board.boardView, icon: <Columns />, href: query({ view: "", month: "" }) },
+          { value: "list", label: t.board.listView, icon: <ListIcon />, href: query({ view: "list", month: "" }) },
+          { value: "calendar", label: t.board.calendarView, icon: <Calendar />, href: query({ view: "calendar" }) },
+        ]} />
         <Link className="icon-button" href={`/chest/boards/${board.id}/settings`} title={t.board.settings}><Gear /><span className="visually-hidden">{t.board.settings}</span></Link>
       </div>
       {board.archived && (
@@ -398,8 +399,9 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
           {card.comments > 0 && <span className="stat" title={t.card.comments}><Chat />{card.comments}</span>}
           {card.attachments > 0 && <span className="stat" title={t.card.files}><Clip />{card.attachments}</span>}
           {card.assignees.length > 0 && (
-            <span className="avatars push">
-              {card.assignees.slice(0, 3).map(a => <Avatar key={a} name={people[a]?.name ?? "?"} photo={people[a]?.photo ?? null} size="s" label={people[a]?.name ?? "?"} />)}
+            // The kit's stack: three faces at most, then "+2"; every name said once.
+            <span className="push">
+              <AvatarStack people={card.assignees.map(a => ({ id: a, name: people[a]?.name ?? "?", photo: people[a]?.photo ?? null }))} max={3} size="s" labels={{ more: t.board.othersAssigned }} lang={locale} />
             </span>
           )}
         </span>

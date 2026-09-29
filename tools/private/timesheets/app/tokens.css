@@ -5,24 +5,25 @@
    what is this tool's alone, always defined from contract tokens, never
    from a colour, so it follows every theme (DESIGN.md explains them). */
 :root {
-  /* The instrument panel (the header and the timer): the inverse pair of
-     the page — ink as its ground, the page's ground as its text. Dark in a
-     light look, light in a dark look (the contract's rule for a region in
-     the other mode). */
-  --panel: var(--ink);
-  --panel-ink: var(--bg);
-  /* Secondary text on the panel: a measured pair too (ink is read on it). */
-  --panel-ink-2: var(--surface-2);
-  /* Decoration only: the hairline between the header and the timer. */
-  --panel-line: color-mix(in oklch, var(--bg) 22%, var(--ink));
+  /* The instrument panel (the header and the timer): the theme's region of
+     its own colour (--inverse, kit 0.2.2), dark in both modes — Instrument's
+     ink-green, a brand's deep shade, the ink elsewhere. Only its own measured
+     pairs go on it: --inverse-ink (text, and the focus ring there) and
+     --inverse-ink-2 (secondary text). */
+  --panel: var(--inverse);
+  --panel-ink: var(--inverse-ink);
+  --panel-ink-2: var(--inverse-ink-2);
+  /* The hairline between the header and the timer, a hover there. */
+  --panel-line: var(--inverse-line);
   /* A field's edge on the panel: must be seen (about 3:1 on the panel). */
-  --panel-field-line: color-mix(in oklch, var(--bg) 50%, var(--ink));
-  /* The one luminous signal: the running clock, Start, the current tab, the
-     mark's hand. The marker pen of the theme; ink reads on it (4.5:1), and it
-     reads on the panel (the same pair). */
+  --panel-field-line: color-mix(in oklab, var(--inverse-ink) 60%, var(--inverse));
+  /* The one luminous signal: Start, the current tab, the running clock's
+     glow, the mark's hand. The marker pen of the theme; ink reads on it
+     (4.5:1). Text on the panel is never the signal: in a dark look the
+     marker is a dark ground, which does not read on the dark panel. */
   --signal: var(--highlight);
   --signal-ink: var(--ink);
-  --signal-glow: color-mix(in oklch, var(--highlight) 40%, transparent);
+  --signal-glow: color-mix(in oklab, var(--highlight) 40%, transparent);
 
   /* The mark: a dial of the panel's colours, the signal's hand. */
   --mark-dial: var(--panel);
@@ -31,7 +32,7 @@
 
   /* The week grid: today's column (text on it: a mix of two grounds ink is
      measured on), the row under the pointer. */
-  --today: color-mix(in oklch, var(--highlight) 45%, var(--surface));
+  --today: color-mix(in oklab, var(--highlight) 45%, var(--surface));
   --chosen: var(--surface-2);
 
   /* Charts: billable time, the rest (3:1 on the card in every theme). */

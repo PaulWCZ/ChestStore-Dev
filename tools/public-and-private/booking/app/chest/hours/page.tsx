@@ -32,7 +32,7 @@ export default async function HoursPage() {
   const catalogue = { hours: t.hours, days: t.days, errors: t.errors, date: t.date };
   return (
     <>
-      <PageHeader title={t.hours.title} intro={t.hours.intro} />
+      <PageHeader size="m" title={t.hours.title} intro={t.hours.intro} />
       <WeekEditor weekly={host.weekly} zone={host.zone} dailyMax={host.dailyMax} zones={zoneGroups(t.zones, now, [host.zone])} t={catalogue} />
       <OtherCalendars list={others} locale={locale} t={{ others: t.others, errors: t.errors }} />
       <Blocks list={blocks} today={today} t={catalogue} />

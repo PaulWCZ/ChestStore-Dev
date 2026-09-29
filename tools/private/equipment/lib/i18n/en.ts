@@ -842,6 +842,10 @@ export const en = {
     tooMany: "{count} files at most.",
     units: ["B", "KB", "MB", "GB"],
     decimal: ".",
+    takePhoto: "Take a photo",
+    chooseFile: "Choose a file",
+    kinds: { image: "images", audio: "sound files", video: "videos", text: "text files" },
+    separator: ": ",
   },
   table: {
     rowActions: "Actions",
@@ -853,6 +857,7 @@ export const en = {
     label: "Filters",
     clear: "Clear filters",
     all: "All",
+    apply: "Show",
   },
   search: {
     label: "Search the equipment",

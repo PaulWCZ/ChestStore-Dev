@@ -21,7 +21,7 @@ export default async function TypesPage() {
   const origin = publicOrigin(await headers()) ?? "";
   return (
     <>
-      <PageHeader title={t.types.title} intro={t.types.intro} action={<a className="button" href="/chest/types/new"><Plus />{t.types.new}</a>} />
+      <PageHeader size="m" title={t.types.title} intro={t.types.intro} action={<a className="button" href="/chest/types/new"><Plus />{t.types.new}</a>} />
       {types.length === 0 ? (
         <EmptyState title={t.types.empty} body={t.types.emptyHint} />
       ) : (
@@ -33,7 +33,7 @@ export default async function TypesPage() {
               <li key={ty.id} className={`type${ty.active ? "" : " off"}`} style={{ "--type": `var(--c-${ty.color})` } as React.CSSProperties}>
                 <div className="spread">
                   <h3>{ty.title}</h3>
-                  <TypeSwitch id={ty.id} active={ty.active} label={ty.active ? t.types.on : t.types.off} name={ty.title} errors={t.errors} />
+                  <TypeSwitch id={ty.id} active={ty.active} label={{ on: t.types.on, off: t.types.off }} name={ty.title} errors={t.errors} />
                 </div>
                 <div className="meta">
                   <span><Clock />{plural(t.minutes, ty.duration, locale)}</span>

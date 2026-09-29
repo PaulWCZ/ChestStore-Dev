@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar } from "@argentic/chest-ui/components";
+import { AvatarStack } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -124,7 +124,7 @@ export function ListView({ columns, cards, labels, fields, people, today, locale
                   <tr key={card.id} className={card.done ? "is-done" : undefined}>
                     <td><Link href={href(card.id)} scroll={false}>{card.title}</Link></td>
                     <td>{columnOf(card)?.name}</td>
-                    <td><span className="avatars">{card.assignees.map(a => <Avatar key={a} name={nameOf(a) || "?"} photo={people[a]?.photo ?? null} size="s" label={nameOf(a) || "?"} />)}</span></td>
+                    <td><AvatarStack people={card.assignees.map(a => ({ id: a, name: nameOf(a) || "?", photo: people[a]?.photo ?? null }))} max={4} size="s" labels={{ more: t.board.othersAssigned }} lang={locale} /></td>
                     <td>{card.start && dateOf(card.start)}</td>
                     <td>{card.due && <span className={`chip ${state}`}>{dateOf(card.due, true)}{card.dueTime && " · " + card.dueTime}</span>}</td>
                     <td><span className="row">{card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l).map(l => <span key={l.id} className={`chip label-chip c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}</span></td>

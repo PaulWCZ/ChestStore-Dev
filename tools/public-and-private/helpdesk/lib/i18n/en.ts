@@ -271,6 +271,10 @@ export const en = {
     units: ["B", "KB", "MB", "GB"],
     decimal: ".",
     wait: "Wait for the files to be added.",
+    takePhoto: "Take a photo",
+    chooseFile: "Choose a file",
+    kinds: { image: "images", audio: "sound files", video: "videos", text: "text files" },
+    separator: ": ",
   },
   table: {
     rowActions: "Actions",
@@ -370,7 +374,6 @@ export const en = {
     answerAs: "Write",
     sentClosedToast: "Answer sent. Ticket closed.",
     team: "Those who answer",
-    unassign: "Unassign",
   },
   create: {
     title: "New ticket",
@@ -474,7 +477,6 @@ export const en = {
     eraseBody: "Every ticket of {email}, with its messages and files, is erased for good. This cannot be undone.",
     cancel: "Cancel",
     team: "Those who answer",
-    ruleClear: "Remove the person",
     ruleNobody: "Nobody",
   },
   reports: {

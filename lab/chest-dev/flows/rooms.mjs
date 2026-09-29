@@ -279,8 +279,15 @@ await step("my usual week: say it once; coming days are filled; a tap outside th
   await page.goto(origin + "/chest");
   await page.getByRole("button", { name: "My usual week" }).click();
   const dialog = page.locator("dialog[open]");
-  for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday"]) await dialog.getByRole("group", { name: day }).getByRole("radio", { name: "Office" }).check();
-  await dialog.getByRole("group", { name: "Friday" }).getByRole("radio", { name: "Remote" }).check();
+  // The kit's Segmented (0.2.1+): the radio is hidden, its word is what one taps.
+  const choose = async (day, name) => {
+    const group = dialog.getByRole("group", { name: day });
+    const radio = group.getByRole("radio", { name });
+    await group.locator("label").filter({ has: page.getByRole("radio", { name }) }).click();
+    expect(await radio.isChecked(), `${day}: ${name} chosen`);
+  };
+  for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday"]) await choose(day, "Office");
+  await choose("Friday", "Remote");
   await page.mouse.click(5, 5);
   expect(await page.locator("dialog[open]").count() === 1, "kept open");
   await dialog.getByRole("button", { name: "Keep editing" }).click();

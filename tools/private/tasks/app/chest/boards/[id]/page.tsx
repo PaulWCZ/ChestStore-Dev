@@ -8,7 +8,6 @@ import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { chestToday, zone } from "../../../../lib/clock.ts";
 import { format, formatDate, intl, plural, relative, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
-import { quarterHours } from "../../../../lib/model.ts";
 import { addDays, nextDue, type Repeat } from "../../../../lib/repeat.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Sql } from "../../../../lib/db.ts";
@@ -105,7 +104,6 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
           labels={labs}
           fields={own}
           targets={targets}
-          times={quarterHours}
           people={names}
           audience={audience}
           repeat={repeatView(detail!, cols, b.id, day, locale, t)}

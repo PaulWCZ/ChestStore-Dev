@@ -25,7 +25,7 @@ export default async function SettingsPage() {
   const zones = zoneGroups(t.zones, Date.now(), [s.defaultZone, host?.zone ?? s.defaultZone]);
   return (
     <>
-      <PageHeader title={t.settings.title} />
+      <PageHeader size="m" title={t.settings.title} />
       {s.mailWorks === false && <p className="notice spaced">{t.settings.noMail}</p>}
       {host && <PageSettings host={{ slug: host.slug, welcome: host.welcome, listed: host.listed, hasFeed: host.hasFeed, emailMe: host.emailMe, dailyMax: host.dailyMax }} chestCalendar={s.calendarWorks === false ? null : calendar.page} origin={origin} t={{ settings: t.settings, errors: t.errors, files: t.files }} />}
       {host && <ImportCalendly zone={host.zone} zones={zones} locale={locale} t={{ settings: t.settings, errors: t.errors, files: t.files }} />}

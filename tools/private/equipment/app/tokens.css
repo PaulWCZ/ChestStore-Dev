@@ -5,15 +5,15 @@
    is this tool's alone, always defined from contract tokens, never from a
    colour, so it follows every theme (DESIGN.md explains them). */
 :root {
-  /* The steel shelf (the header bar): in a light look, the inverse pair of
-     the page — ink as its ground, the page's ground as its text, the quiet
-     ground (surface-2) for its secondary text: all measured pairs. */
-  --steel: var(--ink);
-  --steel-ink: var(--bg);
-  --steel-2: var(--surface-2);
-  /* Decoration only: a tab under the pointer, the current tab (their text
-     keeps a measured pair: the mix moves the ground a little). */
-  --steel-line: color-mix(in oklab, var(--steel-ink) 14%, var(--steel));
+  /* The steel shelf (the header bar): the contract's region of its own
+     colour (--inverse, 0.2.2) — Tool crib's steel, a catalogue theme's own
+     band, a brand's deep shade; dark in both modes, with its measured text
+     (--inverse-ink, --inverse-ink-2 for secondary words) and its quiet fill
+     (--inverse-line: a tab under the pointer, the current tab, a well). */
+  --steel: var(--inverse);
+  --steel-ink: var(--inverse-ink);
+  --steel-2: var(--inverse-ink-2);
+  --steel-line: var(--inverse-line);
 
   /* The asset tag: utility orange tape, as printed — the one action
      colour and the text measured on it. */
@@ -37,13 +37,9 @@
   --paper-ink-2: color-mix(in oklab, CanvasText 70%, Canvas);
 }
 
-/* In a dark look the steel bar is the quiet ground of the page (dark
-   steel), with the page's own text on it. */
+/* In a dark look the drawings are quieter still. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --steel: var(--surface-2);
-    --steel-ink: var(--ink);
-    --steel-2: var(--ink-2);
     --crib-icon: var(--ink-2);
   }
 }

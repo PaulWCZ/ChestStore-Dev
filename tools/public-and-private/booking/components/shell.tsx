@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell, type NavItem } from "@argentic/chest-ui/components";
-import { NextLink } from "./links.tsx";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Calendar, Clock, Gear, Stack } from "./icons.tsx";
@@ -25,7 +25,7 @@ export function Shell({ brand, sections, labels, member, children }: {
   const shown = path.startsWith("/chest/bookings/") || path === "/chest/new" ? "/chest" : path;
   const nav: NavItem[] = sections.map(s => ({ href: hrefs[s.id], label: s.label, icon: icons[s.id]() }));
   return (
-    <AppShell brand={brand} nav={nav} path={shown} link={NextLink} member={member} labels={labels}>
+    <AppShell brand={brand} nav={nav} path={shown} link={Link} member={member} labels={labels}>
       {children}
     </AppShell>
   );

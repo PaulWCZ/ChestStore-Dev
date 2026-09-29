@@ -94,8 +94,9 @@ buttons 36 px in dense places.
 - **Picker** of records (a company, a contact): a field that searches the
   server as one types, each option a name and a muted detail, "+ New
   company “…”" last — the tool's own (it creates records), with the kit's
-  keys (`listKey`) and list classes. People (owners) use the kit's
-  `PeoplePicker`.
+  keys (`listKey`), list classes and `useFloat` (the list is placed over a
+  dialog's edge). People (owners) use the kit's `PeoplePicker`, `clearable`
+  where a record may have no owner.
 - **Next step box**: a coloured left edge by the soonest step's urgency;
   each open step with its *Done*; "Plan another step" as a link.
 - **Composer**: a field and four one-tap outline buttons that say what they
@@ -114,7 +115,8 @@ buttons 36 px in dense places.
   under the header on a phone), **toasts** with an Undo that tells the
   truth, **dialogs** that ask before losing what was typed, **Confirm** for
   what cannot be undone, **DateField** and **TimeSelect**, **DataTable**,
-  **SearchBox** ("/"), **Segmented** (Board / List), **Tabs** (settings),
+  **SearchBox** ("/"), **Segmented** (Board / List, its link variant:
+  each view is an address), **Tabs** (settings),
   **Menu** ("More"), **FilePicker**, **StatusBadge**, **Avatar**,
   **EmptyState**, **NoAccess**.
 - **Phone**: the sections under the header, the search under them; the

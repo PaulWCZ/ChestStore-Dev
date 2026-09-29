@@ -391,6 +391,10 @@ export const fr: Catalogue = {
     tooMany: "{count} fichiers au plus.",
     units: ["o", "Ko", "Mo", "Go"],
     decimal: ",",
+    takePhoto: "Prendre une photo",
+    chooseFile: "Choisir un fichier",
+    kinds: { image: "images", audio: "fichiers audio", video: "vidéos", text: "fichiers texte" },
+    separator: " : ",
   },
   searchBox: {
     label: "Rechercher dans les Actualités",

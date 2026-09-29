@@ -18,8 +18,8 @@
   --mine-line: var(--cat-3);
 
   /* Drafting paper: decoration only, no text, no meaning. */
-  --grid: color-mix(in oklch, var(--accent-text) 7%, transparent);
-  --grid-major: color-mix(in oklch, var(--accent-text) 12%, transparent);
+  --grid: color-mix(in oklab, var(--accent-text) 7%, transparent);
+  --grid-major: color-mix(in oklab, var(--accent-text) 12%, transparent);
 
   /* The rooms' grid: one quarter hour is this tall. */
   --slot: 14px;

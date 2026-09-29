@@ -31,7 +31,7 @@ no import outside it. Read `README.md` first.
 | `app/tokens.css`, `app/globals.css` | Tool tokens defined from contract tokens; the tool's components (contract tokens only, a few `ck-` classes restyled) |
 | `components/shell.tsx` | The kit's AppShell: sections, SearchBox ("/"), the "More" Menu |
 | `app/chest/actions.ts` | Server actions: thin, re-read the member |
-| `app/chest/**/page.tsx` | Server pages; `app/chest/ui/*` shared client views (`combobox.tsx` + `pickers.tsx` search records as one types — the kit's keys and list classes, `owner-select.tsx` the kit's PeoplePicker for owners, `bulk.tsx`, `step-box.tsx`, `files-box.tsx`, `custom-fields.tsx`, `merge-dialog.tsx`, `pager.tsx`); `app/chest/deals/board.tsx` the dnd-kit board |
+| `app/chest/**/page.tsx` | Server pages; `app/chest/ui/*` shared client views (`combobox.tsx` + `pickers.tsx` search records as one types — the kit's keys, list classes and `useFloat`, `owner-select.tsx` the kit's PeoplePicker for owners (`clearable` when nobody is allowed), `bulk.tsx`, `step-box.tsx`, `files-box.tsx`, `custom-fields.tsx`, `merge-dialog.tsx`, `pager.tsx`); `app/chest/deals/board.tsx` the dnd-kit board |
 | `app/chest-events`, `app/chest-jobs/[name]` | Signed routes of the Chest |
 | `test/` | `node:test` with `fakeChest`; PGlite or `TEST_DATABASE_URL` |
 
@@ -51,9 +51,16 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
   form), `Confirm` for what cannot be undone (never `window.confirm`),
   `PeoplePicker` (owners), `DateField` / `TimeSelect` (never `type="date"`),
   `DataTable` (in a client component: its columns are functions),
-  `SearchBox`, `Segmented`, `Tabs`, `Menu`, `FilePicker`, `StatusBadge`,
+  `SearchBox`, `Segmented` (Board / List: the link variant, with
+  `components/link.tsx`, Next's `Link` re-exported for server pages), `Tabs`, `Menu`, `FilePicker`, `StatusBadge`,
   `Avatar`, `EmptyState`, `AppShell`, `NoAccess`, `useAutoRefresh`. The
   record pickers (`combobox.tsx`) stay the tool's: they create records.
+- Kit 0.2.2 (re-vendored 2026-09-29): nothing of the tool works around the
+  kit any more. Kept on purpose: the square-cut badges (`.ck-badge {
+  border-radius: var(--radius-s) }`, Sales desk's trading-screen look —
+  the catalogue's `sales-desk` leaves `--radius-chip` a pill), the deals'
+  and lists' compact filter row of selects (it writes the address; the
+  kit's `Filters` chips would split it and hold no custom-field range).
 - **CSS names only contract tokens** (`ui/tokens/CONTRACT.md`) or tool
   tokens of `app/tokens.css` defined from them — never a colour
   (`test/theme.test.ts` checks it). Text on a soft ground is its `-ink`;
