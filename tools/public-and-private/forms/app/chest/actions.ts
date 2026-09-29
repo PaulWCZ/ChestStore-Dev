@@ -9,6 +9,7 @@ import * as answers from "../../lib/answers.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, type Result } from "../../lib/errors.ts";
 import * as forms from "../../lib/forms.ts";
+import * as importer from "../../lib/importer.ts";
 import { catalogue, format, isLocale } from "../../lib/i18n/index.ts";
 import { readPayload, take, type Taken } from "../../lib/respond.ts";
 import { currentMember } from "../../lib/session.ts";
@@ -41,6 +42,21 @@ export async function createForm(key: string): Promise<Result> {
   if (!result.ok) return result;
   done();
   redirect(`/chest/forms/${result.value.id}`);
+}
+
+// importForm: a Google Forms or Typeform form's file becomes a draft; the
+// builder says what could not come.
+export async function importForm(text: string): Promise<Result> {
+  const actor = await currentMember();
+  const result = await attempt(async () => {
+    const found = importer.importForm(text);
+    if (!found.definition.language && actor && isLocale(actor.locale)) found.definition.language = actor.locale;
+    const form = await forms.create(db(), actor, { definition: found.definition });
+    return { id: form.id, skipped: found.skipped };
+  });
+  if (!result.ok) return result;
+  done();
+  redirect(`/chest/forms/${result.value.id}?imported=${result.value.skipped.join(",") || "all"}`);
 }
 
 export async function saveDraft(id: string, text: string, revision: number): Promise<Result<{ revision: number }>> {

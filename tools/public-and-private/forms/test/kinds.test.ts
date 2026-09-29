@@ -55,7 +55,7 @@ test("matrix: one column per row, every row when required, stored in the rows' o
 test("ranking: distinct known items in the respondent's order, all of them when required; average places", () => {
   const items = opts("Price", "Speed", "Quality");
   const r = q("ranking", "What matters most?", { options: items, required: true });
-  const ids = items.map(i => i.id);
+  const ids = items.map(i => i.id) as [string, string, string];
   assert.equal(read(r, [ids[0]]).error, "rank_all");
   assert.equal(read(r, [ids[0], ids[0], ids[1]]).error, "invalid");
   assert.equal(read(r, ["zzzzzzzz"]).error, "invalid");

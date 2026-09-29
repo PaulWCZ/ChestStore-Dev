@@ -1,0 +1,34 @@
+{
+  "id": "Xq7Lm2Pz",
+  "title": "Contact us",
+  "language": "en",
+  "workspace": { "href": "https://api.typeform.com/workspaces/Aw33bz" },
+  "theme": { "href": "https://api.typeform.com/themes/qHWOQ7" },
+  "settings": { "language": "en", "progress_bar": "proportion", "show_progress_bar": true, "is_public": true },
+  "welcome_screens": [{ "id": "w1", "ref": "welcome", "title": "Hello!", "properties": { "show_button": true, "button_text": "Start", "description": "We answer within one working day." } }],
+  "thankyou_screens": [{ "id": "t1", "ref": "default_tys", "title": "Thanks, we will be in touch.", "properties": { "show_button": false } }],
+  "fields": [
+    { "id": "f1", "ref": "name", "title": "What is your name?", "type": "short_text", "validations": { "required": true, "max_length": 80 } },
+    { "id": "f2", "ref": "email", "title": "Your email address", "type": "email", "validations": { "required": true } },
+    { "id": "f3", "ref": "phone", "title": "Your phone number", "type": "phone_number", "properties": { "default_country_code": "FR" }, "validations": { "required": false } },
+    { "id": "f4", "ref": "topic", "title": "What is it about?", "type": "multiple_choice", "properties": { "allow_multiple_selection": false, "allow_other_choice": true, "randomize": false, "choices": [{ "id": "c1", "ref": "q", "label": "A question" }, { "id": "c2", "ref": "quote", "label": "A quote" }, { "id": "c3", "ref": "order", "label": "An order" }] }, "validations": { "required": true } },
+    { "id": "f5", "ref": "rooms", "title": "Which rooms?", "type": "multiple_choice", "properties": { "allow_multiple_selection": true, "choices": [{ "label": "Kitchen" }, { "label": "Living room" }, { "label": "Bedroom" }] } },
+    { "id": "f6", "ref": "style", "title": "Which style do you like?", "type": "picture_choice", "properties": { "allow_multiple_selection": false, "supersized": true, "choices": [{ "label": "Oak", "attachment": { "type": "image", "href": "https://images.typeform.com/images/oak" } }, { "label": "Walnut", "attachment": { "type": "image", "href": "https://images.typeform.com/images/walnut" } }] } },
+    { "id": "f7", "ref": "budget", "title": "Your budget (euros)", "type": "number", "validations": { "min_value": 100, "max_value": 50000 } },
+    { "id": "f8", "ref": "nps", "title": "How likely are you to recommend us?", "type": "nps", "properties": { "labels": { "left": "Not likely", "right": "Very likely" } }, "validations": { "required": true } },
+    { "id": "f9", "ref": "scale", "title": "How urgent is it?", "type": "opinion_scale", "properties": { "steps": 5, "start_at_one": true, "labels": { "left": "Not urgent", "right": "Very urgent" } } },
+    { "id": "f10", "ref": "stars", "title": "Rate our website", "type": "rating", "properties": { "steps": 5, "shape": "star" } },
+    { "id": "f11", "ref": "priorities", "title": "What matters most?", "type": "ranking", "properties": { "choices": [{ "label": "Price" }, { "label": "Delay" }, { "label": "Finish" }] } },
+    { "id": "f12", "ref": "grid", "title": "Rate our service", "type": "matrix", "properties": { "fields": [
+      { "id": "m1", "title": "Welcome", "type": "multiple_choice", "properties": { "choices": [{ "label": "Poor" }, { "label": "Good" }, { "label": "Excellent" }] } },
+      { "id": "m2", "title": "Advice", "type": "multiple_choice", "properties": { "choices": [{ "label": "Poor" }, { "label": "Good" }, { "label": "Excellent" }] } }
+    ] } },
+    { "id": "f13", "ref": "when", "title": "When would suit you?", "type": "date", "properties": { "structure": "DDMMYYYY", "separator": "/" } },
+    { "id": "f14", "ref": "plan", "title": "A plan or a photo", "type": "file_upload" },
+    { "id": "f15", "ref": "consent", "title": "I agree to be contacted", "type": "legal", "validations": { "required": true } },
+    { "id": "f16", "ref": "deposit", "title": "Deposit", "type": "payment", "properties": { "currency": "EUR", "price": { "type": "variable", "value": "50" } } },
+    { "id": "f17", "ref": "message", "title": "Your message", "type": "long_text", "properties": { "description": "A few words are enough." }, "validations": { "max_length": 2000 } }
+  ],
+  "logic": [{ "type": "field", "ref": "topic", "actions": [{ "action": "jump", "details": { "to": { "type": "field", "value": "budget" } }, "condition": { "op": "is", "vars": [{ "type": "field", "value": "topic" }, { "type": "choice", "value": "quote" }] } }] }],
+  "_links": { "display": "https://atelier.typeform.com/to/Xq7Lm2Pz" }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { CopyButton } from "../../../../../components/copy-button.tsx";
 import { Dialog } from "../../../../../components/dialog.tsx";
 import { Branch, Close, Copy, Down, Eye, KindIcon, Languages, Pencil, Picture, Plus, Trash, Up } from "../../../../../components/icons.tsx";
@@ -69,6 +70,7 @@ type Props = {
   locale: Language;
   pictures: Record<string, string>;
   cover: string | null;
+  imported?: string | null;
 };
 type SaveState = "saved" | "saving" | "error" | "conflict";
 
@@ -384,6 +386,7 @@ export function Builder(props: Props) {
         )}
       </div>
       {unpublished && props.version !== 0 && props.canEdit && <p className="changes-note">{b.changes}</p>}
+      {props.imported && <p className="notice" role="status">{props.imported}</p>}
 
       {showProblems && found.length > 0 && (
         <div className="problems" role="alert">
@@ -806,9 +809,11 @@ function ListEditor({ legend, items, max, itemLabel, addLabel, ro, b, onChange, 
                 if (e.key !== "Enter" || ro || e.nativeEvent.isComposing) return;
                 e.preventDefault();
                 if (items.length >= max && !(items[i + 1] && items[i + 1]!.label === "")) return;
+                // The new option is drawn at once, and the cursor moves before
+                // the next key (typing fast never glues two options together).
                 const next = enterOption(items, i);
-                if (next.options !== items) onChange(next.options);
-                focusAt(next.focus);
+                if (next.options !== items) flushSync(() => onChange(next.options));
+                list.current?.querySelectorAll<HTMLInputElement>("input.option-input")[next.focus]?.focus();
               }} />
             {!ro && (
               <>

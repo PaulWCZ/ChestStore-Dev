@@ -7,7 +7,7 @@
 //   [{ "name": "board", "path": "/chest", "member": "camille", "locale": "en",
 //      "actions": [{"click": "text=New task"}, {"fill": ["#title", "Call Inès"]}, {"wait": 300}],
 //      (also {"upload": ["input[type=file]", "test/fixtures/sample.csv"]}, a path in the tool),
-//      "preview": true }]
+//      "preview": true, "full": true }]  (full: the whole page, not only the first screen)
 // A shot may name the company's look (Proposal (studio), the harness's
 // switcher): "look": {"all": "catalogue:newsprint", "tool": "inherit"}
 // ("own", "catalogue:<id>", "brand:sample"; "inherit" for the tool level).
@@ -71,7 +71,7 @@ for (const shot of shots) {
     await run(page, shot.actions);
     await page.waitForTimeout(250);
     const file = kind === "preview" ? join(tool, "chest", "preview.png") : join(tool, "docs", "screens", `${shot.name}-${kind}.png`);
-    await page.screenshot({ path: file, fullPage: false });
+    await page.screenshot({ path: file, fullPage: shot.full === true && kind !== "preview" });
     await context.close();
     console.log(`${shot.name} ${kind} → ${file.slice(tool.length + 1)}`);
     if (kind === "preview" && statSync(file).size > 512 << 10) console.warn("! chest/preview.png is over 512 KiB");

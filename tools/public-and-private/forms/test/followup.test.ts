@@ -187,7 +187,7 @@ test("pictures: checked by their first bytes, published under public/, swept whe
   const { grantImage } = await import("../lib/images.ts");
   const g = await grantImage("image/png", png.length);
   const name = `uploads/team/${g.ticket.split(".")[1]}.png`;
-  await files.put(name, png, { type: "image/png" });
+  await files.put(name, png, "image/png");
   const image = await acceptImage(g.ticket, "covers");
   assert.match(image.object, /^public\/covers\/[0-9a-f]{20}\.png$/u);
   assert.equal(files.publicUrl(image.object, { version: image.version }).startsWith("/_chest/public/covers/"), true);

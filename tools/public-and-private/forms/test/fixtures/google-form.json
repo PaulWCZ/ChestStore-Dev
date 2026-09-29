@@ -1,0 +1,25 @@
+{
+  "formId": "1FAIpQLSd2x9KqGm8vB3cTnR7wYpLhE0aJ5sUoZkXiNfDq",
+  "info": {
+    "title": "Customer satisfaction 2026",
+    "documentTitle": "Customer satisfaction 2026 (copy)",
+    "description": "Three minutes to tell us how we did."
+  },
+  "revisionId": "00000042",
+  "responderUri": "https://docs.google.com/forms/d/e/1FAIpQLSd2x9KqGm8vB3cTnR7wYpLhE0aJ5sUoZkXiNfDq/viewform",
+  "items": [
+    { "itemId": "3a1b2c3d", "title": "Your name", "questionItem": { "question": { "questionId": "1e2f3a4b", "required": true, "textQuestion": {} } } },
+    { "itemId": "3a1b2c3e", "title": "Anything you would like to add?", "description": "Optional", "questionItem": { "question": { "questionId": "1e2f3a4c", "textQuestion": { "paragraph": true } } } },
+    { "itemId": "3a1b2c3f", "title": "How did you hear about us?", "questionItem": { "question": { "questionId": "1e2f3a4d", "required": true, "choiceQuestion": { "type": "RADIO", "options": [{ "value": "A friend" }, { "value": "Instagram" }, { "value": "Our shop window", "goToAction": "NEXT_SECTION" }, { "isOther": true }] } } } },
+    { "itemId": "3a1b2c40", "title": "Which products did you buy?", "questionItem": { "question": { "questionId": "1e2f3a4e", "choiceQuestion": { "type": "CHECKBOX", "options": [{ "value": "Table" }, { "value": "Chairs" }, { "value": "Shelves" }] } } } },
+    { "itemId": "3a1b2c41", "title": "Your region", "questionItem": { "question": { "questionId": "1e2f3a4f", "choiceQuestion": { "type": "DROP_DOWN", "options": [{ "value": "Île-de-France" }, { "value": "Normandie" }, { "value": "Bretagne" }] } } } },
+    { "itemId": "3a1b2c42", "title": "About the delivery", "pageBreakItem": {} },
+    { "itemId": "3a1b2c43", "title": "How likely are you to recommend us?", "questionItem": { "question": { "questionId": "1e2f3a50", "required": true, "scaleQuestion": { "low": 0, "high": 10, "lowLabel": "Not likely", "highLabel": "Very likely" } } } },
+    { "itemId": "3a1b2c44", "title": "Rate the delivery team", "questionItem": { "question": { "questionId": "1e2f3a51", "ratingQuestion": { "ratingScaleLevel": 5, "iconType": "STAR" } } } },
+    { "itemId": "3a1b2c45", "title": "Rate each part of your visit", "questionGroupItem": { "grid": { "columns": { "type": "RADIO", "options": [{ "value": "Poor" }, { "value": "Fair" }, { "value": "Good" }, { "value": "Excellent" }] } }, "questions": [{ "questionId": "1e2f3a52", "required": true, "rowQuestion": { "title": "Welcome" } }, { "questionId": "1e2f3a53", "required": true, "rowQuestion": { "title": "Advice" } }, { "questionId": "1e2f3a54", "required": true, "rowQuestion": { "title": "Price" } }] } },
+    { "itemId": "3a1b2c46", "title": "Delivery day", "questionItem": { "question": { "questionId": "1e2f3a55", "dateQuestion": { "includeYear": true } } } },
+    { "itemId": "3a1b2c47", "title": "Photos of the furniture in place", "questionItem": { "question": { "questionId": "1e2f3a56", "fileUploadQuestion": { "folderId": "0B1xyz", "types": ["IMAGE"], "maxFiles": 5, "maxFileSize": "10485760" } } } },
+    { "itemId": "3a1b2c48", "title": "Thank you!", "description": "We read every answer.", "textItem": {} },
+    { "itemId": "3a1b2c49", "title": "Our workshop", "imageItem": { "image": { "contentUri": "https://lh3.googleusercontent.com/x", "altText": "The workshop" } } }
+  ]
+}

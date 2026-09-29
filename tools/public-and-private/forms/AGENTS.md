@@ -18,6 +18,14 @@ must not break.
 | `lib/guard.ts` | The public form's guard (SDK `visitors`, fallback to `form_counts`) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (batched, keyed `answers:<form>`), badges, the team broadcast |
 | `lib/mailer.ts` | The copy of an answer (mail proposal) |
+| `lib/alerts.ts` | New answers by email to the people told, in the bell's batches (`mailed_at`) |
+| `lib/answered.ts` | `forms.answered` for the other tools (events between tools); never anonymous |
+| `lib/images.ts` | Covers and picture-choice pictures: grant, check, publish under `public/`, addresses, sweep |
+| `lib/embed.ts`, `lib/settings.ts` | The websites allowed to frame the public forms (proxy.ts), the tool's settings table |
+| `lib/importer.ts` | Google Forms / Typeform definitions → a draft (pure) |
+| `lib/zip.ts` | A streaming ZIP writer (the "Everything (ZIP)" export) and a reader for tests |
+| `lib/leave-guard.ts` | Unsaved changes are saved before the tool's tabs and links leave (builder, settings) |
+| `lib/brand.ts` | The company's logo from `chest.theme()` |
 | `lib/summary.ts`, `lib/export.ts`, `lib/csv.ts` | Summary per question across versions, NPS; CSV rows and the formula-safe writer |
 | `lib/templates.ts` | Templates; their words are in the catalogues (`templates.*`) |
 | `lib/lifecycle.ts` | Members leaving or erased |
@@ -47,14 +55,21 @@ TEST_DATABASE_URL=postgres://… npm test
   them); `copyDefinition()` renames them for a new form.
 - Anonymous forms: never add a member id, an address, a time finer than
   the month, or a file to an anonymous answer; keep the rewrite in random
-  order and the floor of five (`limits.anonymousFloor`). Tests in
-  `test/answers.test.ts` guard it.
+  order and the floor of five (`limits.anonymousFloor`); never list one
+  person's row (no table, no single answer, no row filter, no per-row CSV,
+  no event, no answer content in an email). Tests in `test/answers.test.ts`
+  and `test/followup.test.ts` guard it.
+- Every page saves by itself (one model): a new editing page registers
+  its flush with `holdLeaving` and links go through `NavLink`.
+- A form's second language only holds texts (`alt.texts`, keyed by what
+  they translate); ids and logic are the form's own. `localize()` before
+  rendering to a respondent, never before `check()`.
 - The answer limit is taken in the same statement that counts the answer
   (`update … where answer_count < max_answers`); keep it there.
 - A public upload is attached only through its claim (or the tool's
   signed ticket on a team form), and checked (type, size, first bytes).
 - Words only in `lib/i18n/en.ts` and `fr.ts` (same keys; tests check);
   services return codes. The CSV separator is a catalogue word.
-- Migrations that shipped are never edited: add `0002_…`.
+- Migrations that shipped are never edited: add `0003_…` (`0002_follow_up.sql`: follow-up, email alerts, events, cover, settings).
 - Anything the Chest does not give goes through the SDK working copy's
   proposals, caught when absent — never faked inside the tool.

@@ -10,20 +10,41 @@ built again from the studio's template to stand next to Tally and Typeform.
 ## What it does
 
 - **A builder you write in**: the form's title and introduction, then
-  question cards. *Add a question* offers 14 kinds — short answer, long
+  question cards. *Add a question* offers 17 kinds — short answer, long
   answer, email, phone, number, one choice, several choices, dropdown,
-  yes/no, rating (3–10 stars), opinion scale (0/1 to 5–10, words at both
-  ends: NPS), date, file upload, text only. Each: required, help text,
+  **picture choice** (one or several), yes/no, rating (3–10 stars),
+  opinion scale (0/1 to 5–10, words at both ends: NPS), **matrix** (rows
+  rated on one scale), **ranking** (tap the items in order), date, file
+  upload (**up to 10 files**), text only. Each: required, help text,
   limits (length, smallest/largest, how many to pick), options you reorder
-  (Enter adds the next one), an *Other* with its own text. Duplicate, move,
-  change the kind, delete with *Undo*.
+  (Enter goes to the next option, adding one when needed — the cursor
+  follows), an *Other* with its own text, a **name in links** (`?nps=9`).
+  New options are empty with "Option 1" as a placeholder; one left empty
+  blocks publishing. Duplicate, move, change the kind, delete with *Undo*.
 - **Pages and logic**: *Show only if…* an earlier answer is / is not /
   includes / is more than / is less than / is answered; after a page,
   rules *If … go to page N* or *the end*. Rules only go forward, so a form
   can never loop. The same engine runs in the browser and on the server.
 - **Live preview**: the real respondent's page beside the builder (a tab on
-  a phone), following the question you edit. Every change is saved by
-  itself; two editors never overwrite each other silently.
+  a phone), following the question you edit.
+- **Everything saves by itself** — questions and settings alike, one model
+  for the whole tool: a moment after the last change, and at once before a
+  tab or link of the tool leaves the page (the tab waits for the save); a
+  closed tab sends its last change with a keepalive request. Two editors
+  never overwrite each other silently: *Reload* to see theirs, or *Keep my
+  version*.
+- **Two languages per form** (optional): the questions are written in
+  English or French; a second version of every text can be added and
+  edited beside the first (the builder switches between them and counts
+  what is not translated yet). A respondent reads their language when the
+  form has it, the form's own otherwise — **the tool's words follow the
+  form's language**, so a page never mixes two languages; the public
+  switch offers only the form's languages.
+- **Import from Google Forms or Typeform**: the form's file as their APIs
+  give it (JSON: Google's `forms.get`, Typeform's `GET /forms/{id}`)
+  becomes a draft — pages, kinds, choices, *Other*, grids, required,
+  limits, Typeform's language and welcome text; the builder lists what did
+  not come (logic rules, pictures, payments).
 - **Templates in English and French**: contact, event registration,
   feedback and NPS (with logic), job application (with a CV), IT request
   (a team form), an anonymous team check-in. Or a blank form. Duplicate a
@@ -42,13 +63,22 @@ built again from the studio's template to stand next to Tally and Typeform.
   limit on the number of answers (held under concurrent answers), a custom
   thank-you title and message, or a redirect to an https address.
 - **The respondent's page**: one question at a time (letters to choose,
-  Enter to go on, a pick with the finger moves on by itself) or all
-  questions of a page; a progress bar; a colour among six, each checked
-  for contrast; in the visitor's language for the tool's words (the
-  switch, then the browser, then the Chest's); what is typed is kept on the
-  device until sent; errors in plain words under each question.
-- **Prefill**: `?<question>=value` in the link fills an answer (a choice by
-  its label); *Share* builds such a link.
+  Enter to go on, a pick with the finger moves on by itself, yes/no
+  included) or all questions of a page; a progress bar and "40% done"
+  (never a total that changes); the button says *OK*, not *Send*, while an
+  answer could still bring another question; keyboard hints ("press
+  Enter", "Ctrl + Enter" on a long answer, "drop a file") only where there
+  is a keyboard; a colour among six, each checked for contrast; the
+  **company's logo** when its Chest has its brand (`chest.theme()`), and an
+  optional **cover picture** per form; what is typed is kept on the device
+  until sent, and a reload offers *Continue where you stopped*; errors in
+  plain words under each question.
+- **Prefill**: `?<name>=value` (the question's name in links, or its id)
+  fills an answer (a choice by its label); *Share* builds such a link.
+- **On the company's website**: a manager lists the websites allowed to
+  show the public forms (their `frame-ancestors`); *Share* gives a frame
+  code that takes the form's height, and a button code that opens it. The
+  frame waits for the Chest (below); the button works today.
 - **Files**: a file question takes images, documents or both, 10 MB each.
   On a public form the file goes from the visitor's browser to the Chest
   and is **claimed only by the answer that sent it** (Proposal *public
@@ -56,17 +86,42 @@ built again from the studio's template to stand next to Tally and Typeform.
   Its type and first bytes are checked before it is kept.
 - **Spam**: no captcha — the form's signed "shown at" time and counters
   per visitor and for everyone (Proposal *visitors*).
-- **Answers**: a table (a list of cards on a phone) with search, a filter
-  on any choice or yes/no, one answer on its page (with its files), delete
-  with *Undo*; a summary per question: bars with counts and percents, the
-  average for stars and scales, the **NPS** for 0–10 scales, the range of
-  numbers and dates, the latest texts; **CSV** for a spreadsheet (a
-  byte-order mark, `;` for French spreadsheets, cells that could run as a
-  formula written behind a quote, numbers as numbers).
-- **The bell and the tile**: the people chosen for a form (among those who
-  may open it) hear of new answers — at most one item per form and person
-  every 10 minutes, replaced, never doubled; the tile counts what they have
-  not seen. Opening the answers clears both.
+- **Answers** (one tab, *Answers* and *Summary*): a table (a list of cards
+  on a phone) with search, filters that apply at once (a choice or yes/no,
+  a follow-up state with counts, a range of days), newest or oldest first,
+  the columns chosen, a shadow when it scrolls sideways; one answer on its
+  page with *Newer* / *Older*, its files, a mail link to the respondent;
+  delete with *Undo*; a summary per question: bars with counts and
+  percents, the average for stars and scales, the **NPS** for 0–10 scales,
+  a matrix row by row, a ranking's average places, the range of numbers
+  and dates, the latest texts; **CSV** for a spreadsheet (a byte-order
+  mark, `;` for French spreadsheets, cells that could run as a formula
+  written behind a quote, numbers as numbers, a matrix one column per
+  row); **everything as a ZIP** (the CSV, the form as JSON with every
+  version, every file in a folder per answer).
+- **Following up** (request forms, and any named form): each answer is
+  *New*, *In progress* or *Done*, with a note. On a team form the person
+  who sent it finds it under **What you sent** on their home, with its
+  state and note, and the bell tells them when it changes.
+- **The bell, the tile and email**: the people chosen for a form (among
+  those who may open it) hear of new answers — at most one item per form
+  and person every 10 minutes, replaced, never doubled; the tile counts
+  what they have not seen. Opening the answers clears both. With *Also
+  send them each batch by email* (Proposal *mail*), the same batches come
+  by email, the answers written in it, and *Reply* writes to the
+  respondent when the batch holds one answer that gave an address; an
+  anonymous form's email says only how many.
+- **Other tools of the Chest**: with *Send answers to: the other tools of
+  your Chest*, each answer is published as `forms.answered` (Proposal
+  *events between tools*): the form, its title, the answer, its fields as
+  `{question, key, label, kind, value}` (files by name), the respondent's
+  email if given, the member for a named team form. An admin links the
+  receivers (Clients could make a contact, Helpdesk a ticket). Never for
+  an anonymous form.
+- **Deleted forms** stay 30 days in *Deleted forms* (their owner, or any
+  manager, brings one back); deleting a form with answers asks first and
+  says how many go. Forms started and never touched go after a day.
+- **Search** on the forms list (title words, accents aside).
 - **A copy by email** of their answers to the person who gave an address
   (public forms) or to the member (team forms), in their language
   (Proposal *mail*). Never for anonymous forms.
@@ -84,8 +139,11 @@ built again from the studio's template to stand next to Tally and Typeform.
   answer rewrites the form's answers and participants in one transaction,
   in a random order (tested: every row carries the last transaction's
   stamp). Answer ids are random.
-- **Nothing is shown under five answers** — not the table, the summary or
-  the CSV, to anyone (owner and managers included).
+- **Never one person's row**: an anonymous form has no answers table, no
+  single-answer page, no row filter and no per-row CSV. Its *Answers* show
+  the count and each written answer on its own, each list shuffled; its
+  *Summary* and CSV are aggregates. Nothing at all under five answers, to
+  anyone (owner and managers included).
 - An anonymous form **cannot ask for files** (an upload goes through the
   member's own session), sends **no copies**, and **cannot change its
   anonymity once someone answered**.
@@ -99,13 +157,14 @@ built again from the studio's template to stand next to Tally and Typeform.
 
 | Role | Can |
 |---|---|
-| `manager` (first: owner, admins, builders) | Create forms; open and change **every** form (a colleague left); erase a person's answers |
+| `manager` (first: owner, admins, builders) | Create forms; open and change **every** form (a colleague left); erase a person's answers; choose the websites that may show the public forms |
 | `creator` | Create forms; open the forms they own or that are shared with them |
 | `member` | Answer the team's forms; open the forms shared with them |
 
 On one form: **owner** (its creator, or any manager) shares it and deletes
-it; **editor** builds, publishes, closes, changes settings, deletes
-answers; **viewer** reads the answers and the summary, exports. A form
+it; **editor** builds, publishes, closes, changes settings, follows
+answers up, deletes answers; **viewer** reads the answers and the summary,
+exports (the Settings tab is not shown to a viewer). A form
 someone may not open is *not found*. A member with no role sees why, not
 an error.
 
@@ -120,8 +179,10 @@ an error.
 - **How many clicks for the main job?** From home to a published form with
   a template: *New form* → a template → *Publish* → *Copy link*: four.
   Answering: one tap per choice question, Enter or *OK* for a text.
-- **What happens on a mistake?** A deleted question, page, answer or form:
-  *Undo*. Publishing an unfinished form lists what to fix with *Show me*.
+- **What happens on a mistake?** A deleted question, page or answer:
+  *Undo* (the toast waits while the pointer or keyboard is on it); a
+  deleted form: 30 days in *Deleted forms*. Publishing an unfinished form
+  lists what to fix with *Show me* (nothing is flagged before that).
   A respondent's wrong email is refused with the reason under the
   question; a closed tab keeps what they typed. Erasing a person's answers
   is the only thing that asks for a word (it cannot be undone).
@@ -136,7 +197,11 @@ an error.
 | `/lang/<code>` | anyone | The language switch |
 | `/chest` | members | Forms to answer, mine, shared with me, everyone's (managers) |
 | `/chest/new` | manager, creator | Start a form |
-| `/chest/forms/<id>` (+ `/share`, `/settings`, `/answers`, `/answers/<answer>`, `/summary`, `/export`, `/files/<answer>/<question>`) | owner, editors, viewers of that form | Build, share, settings, answers, summary, CSV, a file (a fresh signed link) |
+| `/chest/forms/<id>` (+ `/share`, `/settings`, `/answers`, `/answers/<answer>`, `/summary`, `/export`, `/archive`, `/files/<answer>/<question>`) | owner, editors, viewers of that form | Build, share, settings (editors), answers, summary, CSV, ZIP, a file (a fresh signed link) |
+| `POST /chest/forms/<id>/draft` | editors (same origin) | The builder's last save when the page goes away (keepalive) |
+| `POST /chest/api/image` | editors of the form | Authorise one picture upload (a cover, a picture choice) |
+| `/chest/sent/<answer>` | the member who sent it | What I sent, and where it stands |
+| `/chest/trash` | owners, managers | Deleted forms, 30 days |
 | `/chest/f/<form>` | members | Answer a team form |
 | `POST /chest/api/upload` | members | Authorise one file upload (team form) |
 | `/chest/privacy` | manager | Find and erase a person's answers |
@@ -147,9 +212,11 @@ an error.
 
 Capabilities: `database`, `files`, `members`, `notifications`; receives
 `member.*`. Proposals (in `chest.proposals.json` until a Chest accepts
-them): `mail.send`, `files.publicUploads`, `schedules` (`bell`,
-`cleanup`), and the tile's French words; the tool also calls `visitors`,
-`chest` (company, time zone, addresses) and `notifications.broadcast`.
+them): `mail.send`, `files.publicUploads`, `files.publicFiles` (covers and
+pictures), `emits: ["forms.answered"]`, `schedules` (`bell`, `cleanup`),
+and the tile's French words; the tool also calls `visitors`, `chest`
+(company, time zone, addresses, `theme()` for the logo) and
+`notifications.broadcast`.
 When a member loses access or leaves, they are taken off the forms shared
 with them and the bell; forms they own stay (managers open them). On
 erasure, their answers to team forms are deleted with their files, their
@@ -174,7 +241,28 @@ if shipped and keeps working without them:
 - **Broadcast** (`notifications.broadcast`): without it, a team form's
   opening is not announced; its link is shared by hand.
 - **Chest settings** (`chest.company()`, `timeZone()`, `publicUrl()`,
-  `teamUrl()`).
+  `teamUrl()`, `theme()`: the brand's logo on respondents' pages).
+- **Public files** (`files.publicUrl`): covers and picture choices; without
+  them, the pictures do not show on the public page.
+- **Events between tools** (`events.publish("forms.answered")`): without
+  them, the switch is harmless — nothing leaves.
+
+Not in the working copy yet (see the SDK report):
+
+- **Being framed by the company's website**: the Chest's front adds
+  `frame-ancestors 'none'` to every public response (floor policy), and
+  the stricter policy wins, so the frame code cannot work on a Chest
+  today. Needed: a manifest permission such as `"embeddable": true` that
+  lets the front drop its own `frame-ancestors` for the public host and
+  keep the tool's (which lists the sites a manager allowed).
+- **Webhooks to a customer's URL** (Zapier, Make, a spreadsheet script):
+  a tool has no outbound network except declared hosts, and a customer's
+  URL is not known when the manifest is written. Needed: a `webhooks`
+  capability — the tool calls `webhooks.send(target, body)` for a target
+  its admin configured in the Chest (`https` only, never a private
+  address), the Chest signs (HMAC-SHA256, `Chest-Webhook` header),
+  delivers at least once with retries for 24 h, journals each delivery and
+  shows failures to the admin.
 
 ## Develop
 
@@ -195,18 +283,32 @@ seeded (files are the Chest's): the flow uploads one.
 ## What it does not do yet
 
 - No payments, quizzes or scores, calculated fields, recall of an earlier
-  answer in a question ("Thanks, {name}").
+  answer in a question ("Thanks, {name}"), signature question.
 - No partial answers (what someone typed but did not send stays on their
   device) — a privacy decision to take first.
-- No matrix/grid, ranking, picture choice or signature questions.
-- No webhooks, integrations or spreadsheet sync (needs outbound network or
-  events between tools); other tools cannot yet link to a form's answers.
-- No import of a form from Typeform, Tally or Google Forms (no stable,
-  public export format of form definitions was found).
+- **Not shown in another website yet** (the Chest's frame policy, above);
+  the button code works. No webhooks or spreadsheet sync (a Chest
+  capability is needed, above). Other tools receive answers only once the
+  Chest has events between tools and an admin linked them — no store tool
+  receives `forms.answered` yet.
+- **Email alerts** need the Chest's mail; without it Settings says so and
+  the bell alone tells. No daily digest (the batches are every 10 minutes).
+- Import: form definitions from Google Forms and Typeform only (not
+  Tally, Jotform or Microsoft Forms), without their logic rules, pictures
+  or scoring; **no import of past answers** (a company keeps its history
+  in the old tool or a CSV).
+- A matrix takes one choice per row (no checkbox grid); a picture choice
+  has no *Other*; a ranking has no "rank only the top 3".
+- Sharing is with one person at a time (no Chest group, no "everyone");
+  the closing date uses the browser's date field.
+- One anonymous check-in tool too many: Forms' "Anonymous team check-in"
+  template overlaps the Polls tool's pulse, and a form cannot recur each
+  week — the store still has to decide who owns pulse surveys.
 - No email verification of respondents; no respondent editing an answer
-  after sending.
-- Several files per file question, and files over 10 MB, are not taken
-  (the public upload proposal caps at 10 MiB).
+  after sending (they see it and its follow-up in *What you sent*).
+- Files over 10 MB are not taken (the public upload proposal caps at 10
+  MiB). Pictures of a team form are published files too (random names,
+  never listed).
 - The summary reads the latest 20,000 answers of a form; the CSV 100,000.
 - On a Chest without schedules, retention does not run by itself;
   answers are still erased by hand.

@@ -25,17 +25,18 @@ export type Batch = { formId: string; title: string; anonymous: boolean; answers
 // batch: the answers a form's email carries now, and the time up to which
 // they go (mailed_at after sending).
 export async function batch(sql: Sql, formId: string, language: Locale = "en"): Promise<{ batch: Batch; until: Date; ids: string[] } | null> {
-  const [form] = await sql<{ title: string; anonymous: boolean; mailed_at: Date | null; notify_email: boolean }[]>`
-    select draft->>'title' as title, anonymous, mailed_at, notify_email from forms where id = ${formId} and deleted_at is null`;
+  const [form] = await sql<{ title: string; anonymous: boolean; notify_email: boolean }[]>`
+    select draft->>'title' as title, anonymous, notify_email from forms where id = ${formId} and deleted_at is null`;
   if (!form || !form.notify_email) return null;
   // An anonymous answer keeps no time finer than its month: the email says
   // how many came, as the bell does, never what.
   if (form.anonymous) return { batch: { formId, title: form.title, anonymous: true, answers: [], more: 0, replyTo: null }, until: new Date(), ids: [] };
-  // The first batch of a form holds its last day of answers at most.
-  const since = form.mailed_at ?? new Date(Date.now() - 86400000);
+  // The first batch of a form holds its last day of answers at most. The
+  // comparison stays in the database (its stamps are finer than a date's).
   const fresh = await sql<Pending[]>`
     select id, version, email, data, created_at from answers
-    where form_id = ${formId} and deleted_at is null and created_at > ${since}
+    where form_id = ${formId} and deleted_at is null
+      and created_at > (select coalesce(mailed_at, now() - interval '1 day') from forms where id = ${formId})
     order by created_at asc limit 200`;
   if (fresh.length === 0) return null;
   const defs = new Map<number, Definition>();

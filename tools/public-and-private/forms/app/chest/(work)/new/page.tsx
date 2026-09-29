@@ -3,9 +3,11 @@ import { can } from "../../../../lib/access.ts";
 import { plural } from "../../../../lib/i18n/index.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { template, templateKeys } from "../../../../lib/templates.ts";
+import { ImportForm } from "./import-form.tsx";
 import { Picker, type Choice } from "./picker.tsx";
 
-// Start a form: blank, or one of the templates, in the member's language.
+// Start a form: blank, one of the templates (in the member's language), or
+// the questions of a form brought from Google Forms or Typeform.
 export default async function NewForm() {
   const v = await viewer();
   if (!v) return null;
@@ -31,6 +33,7 @@ export default async function NewForm() {
       <h1 className="page-title">{t.create.title}</h1>
       <p className="lede">{t.create.lede}</p>
       <Picker choices={choices} creating={t.create.creating} errors={t.errors} />
+      <ImportForm t={t.create} errors={t.errors} />
     </div>
   );
 }

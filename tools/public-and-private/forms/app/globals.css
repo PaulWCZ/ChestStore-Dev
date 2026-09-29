@@ -509,7 +509,9 @@ select.field { appearance: auto; }
 /* ---- Phones ------------------------------------------------------------------------------ */
 .desktop-only { }
 @media (max-width: 900px) {
-  .builder-grid { grid-template-columns: 1fr; }
+  .builder-grid { grid-template-columns: minmax(0, 1fr); }
+  .builder-grid > *, .page-block, .question-list, .question-list > li, .jumps, .condition, .jump { min-width: 0; }
+  .card-title { overflow-wrap: anywhere; min-width: 0; }
   .phone-only { display: inline-flex !important; }
   .builder.view-edit .preview-pane { display: none; }
   .builder.view-preview .canvas { display: none; }
@@ -676,3 +678,9 @@ select.field { appearance: auto; }
   .pictures { grid-template-columns: 1fr 1fr; }
   .settings-status { top: 52px; }
 }
+.follow-states, .view-switch { justify-self: start; width: fit-content; max-width: 100%; flex-wrap: wrap; }
+.grid-table td .dim { margin-left: 4px; }
+.answers-filter { align-items: flex-end; }
+.import-box { margin-top: var(--space-6); background: var(--surface); border-radius: var(--radius-l); padding: var(--space-4) var(--space-5); box-shadow: var(--shadow-card); display: grid; gap: var(--space-3); }
+.import-box summary { cursor: pointer; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
+.import-box[open] { gap: var(--space-3); }

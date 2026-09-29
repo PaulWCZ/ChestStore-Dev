@@ -27,3 +27,26 @@ studio):
 Dependencies from npm under their own licences: `next`, `react`,
 `react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
 studio's working copy in `vendor/`). Icons drawn for this tool.
+
+## Import formats (read, not copied)
+
+`lib/importer.ts` reads the form definitions two vendors' APIs give. No
+code was copied: the field names come from each vendor's own published
+client, read on 2026-09-29 (the vendors' documentation sites were not
+reachable from the studio's network):
+
+- Google Forms API v1, `forms.get` (a `Form`: `info`, `items[]` with
+  `questionItem.question`, `questionGroupItem.grid`, `pageBreakItem`,
+  `textItem`…): `@googleapis/forms` 11.0.1, `v1.ts`
+  (<https://www.npmjs.com/package/@googleapis/forms>, Apache-2.0); the
+  reference page is
+  <https://developers.google.com/workspace/forms/api/reference/rest/v1/forms>.
+- Typeform Create API, `GET /forms/{form_id}` (`title`, `language`,
+  `fields[]` with `type`, `properties`, `validations`, `welcome_screens`,
+  `logic`): `@typeform/api-client` 2.8.0, `dist/typeform-types.d.ts`
+  (<https://www.npmjs.com/package/@typeform/api-client>, MIT).
+
+The test files `test/fixtures/google-form.json` and
+`test/fixtures/typeform-form.json` were written by the studio in those
+documented shapes (a realistic form of each); they are not exports of a
+real account.
