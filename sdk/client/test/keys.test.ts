@@ -83,7 +83,8 @@ test("calendar and notifications keys name a thing: beyond 64 they are refused, 
   try {
     const event = { members: [camille.id], title: "Due", days: { first: "2026-10-12", last: "2026-10-12" } };
     await assert.rejects(calendar.put({ ...event, key: long("1") }), code("invalid_key"));
-    await assert.rejects(calendar.putMany([{ ...event, key: long("1") }]), code("invalid_key"));
+    // putMany (studio.16) answers it event by event: refused, not cut.
+    assert.deepEqual((await calendar.putMany([{ ...event, key: long("1") }])).map(r => (r.ok ? "ok" : r.reason)), ["invalid_key"]);
     await assert.rejects(calendar.remove(long("1")), code("invalid_key"));
     assert.equal(chest.calendar.size, 0, "nothing was put under a cut key");
     await assert.rejects(notifications.notify([camille.id], { title: "Due", key: long("1") }), code("invalid_key"));

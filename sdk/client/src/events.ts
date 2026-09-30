@@ -58,7 +58,9 @@ export type Handlers = { [K in ChestEventType]?: (event: Extract<ChestEvent, { t
 // same POST /chest-events, signed the same way, once an admin linked the
 // two tools (approved in words: "Is told by Leave when a leave is
 // approved"). data is what the publisher documents (plain JSON, 16 KiB at
-// most); people in it are member ids.
+// most); people in it are member ids. occurredAt is when it happened: the
+// time the publisher gave (publish's occurredAt, studio.16 — an event told
+// late by a retry keeps its time), or the Chest's time of the publish.
 export type ToolEvent = { id: string; type: string; source: string; occurredAt: string; data: Record<string, unknown> };
 export type ToolHandlers = Record<string, (event: ToolEvent) => void | Promise<void>>;
 export const toolEventPattern = /^[a-z0-9]+(-[a-z0-9]+)*\.[a-z][a-z0-9_.-]{0,62}$/u;
@@ -256,19 +258,31 @@ export async function handle(request: IncomingMessage | Request, handlers: Handl
 // people). key makes a retry harmless: the same key within 24 hours is one
 // event — any text of 1 to 512 characters without control characters,
 // never cut (a long one goes as its SHA-256, as mail's; studio.15); the
-// same key with another type or other data is refused (ChestError
-// key_conflict, 409), never answered with the first event. Says the event's id and how many tools it goes to (the Chest
-// delivers, at least once, like member events). Errors: ChestError
-// invalid_event (400: a type this tool does not emit, data too large),
-// CapabilityNotGranted (not declared, or a Chest without events between
-// tools yet), QuotaExceeded (1,000 events an hour), Unavailable.
-export async function publish(type: string, data: Record<string, unknown>, options: { key?: string } = {}): Promise<{ id: string; receivers: number }> {
+// same key with another type, other data or another occurredAt is refused
+// (ChestError key_conflict, 409), never answered with the first event.
+//
+// occurredAt (Proposal (studio.16)) is when it happened, when the tool
+// publishes later than that — a retry after the Chest was unreachable, a
+// schedule that tells what waited: a Date or an ISO 8601 instant with Z or
+// an offset, within the last 24 hours (the window in which the key makes
+// a retry one event) and not ahead of now beyond a minute of clock skew.
+// Receivers read it as the event's occurredAt; without it, the Chest's
+// time of the publish. Store it with what waits to be published, and give
+// the same one at every attempt.
+//
+// Says the event's id and how many tools it goes to (the Chest delivers,
+// at least once, like member events). Errors: ChestError invalid_event
+// (400: a type this tool does not emit, data too large, occurredAt out of
+// bounds), CapabilityNotGranted (not declared, or a Chest without events
+// between tools yet), QuotaExceeded (1,000 events an hour), Unavailable.
+export async function publish(type: string, data: Record<string, unknown>, options: { key?: string; occurredAt?: Date | string } = {}): Promise<{ id: string; receivers: number }> {
   const tool = process.env["CHEST_TOOL"] ?? "";
   if (!toolEventPattern.test(type) || !type.startsWith(tool + ".")) throw new ChestError("invalid_event", 400, `an event of this tool is named "${tool}.<name>"`);
   if (data === null || typeof data !== "object" || Array.isArray(data)) throw new ChestError("invalid_event", 400, "data is a JSON object");
   const key = options.key === undefined ? undefined : idempotencyKey(options.key);
   if (key === null) throw new ChestError("invalid_event", 400, "a key is 1 to 512 characters, without control characters");
-  const body = JSON.stringify({ type, data, ...(key !== undefined ? { key } : {}) });
+  const occurred = options.occurredAt === undefined ? undefined : occurredAtOf(options.occurredAt);
+  const body = JSON.stringify({ type, data, ...(key !== undefined ? { key } : {}), ...(occurred !== undefined ? { occurred_at: occurred } : {}) });
   if (Buffer.byteLength(body) > 16 << 10) throw new ChestError("invalid_event", 400, "data is 16 KiB at most");
   const response = await ask("events", "POST", "/events", { body, type: "application/json" });
   if (response.status === 404) {
@@ -279,6 +293,51 @@ export async function publish(type: string, data: Record<string, unknown>, optio
   const answer = (await readJson(response)) as { id?: unknown; receivers?: unknown } | null;
   if (!answer || typeof answer.id !== "string" || !/^evt_[a-z2-7]{26}$/u.test(answer.id) || typeof answer.receivers !== "number") throw new Unavailable();
   return { id: answer.id, receivers: answer.receivers };
+}
+
+// How far back and ahead an event's occurredAt may be (Proposal
+// (studio.16)): 24 hours back — the window of a key, so an event told late
+// is still one event — and a minute ahead, for the clocks of the tool's
+// container and of the Chest.
+export const occurredLimits = { behindMs: 86_400_000, aheadMs: 60_000 } as const;
+
+// occurredAtOf reads an occurredAt as the Chest keeps it (ISO 8601 in UTC,
+// milliseconds), or throws invalid_event: not an instant with its zone,
+// older than 24 hours, or ahead of now beyond a minute. now is the clock
+// it is measured against (the Chest checks again against its own).
+export function occurredAtOf(value: Date | string, now: number = Date.now()): string {
+  if (typeof value === "string" && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/u.test(value)) throw new ChestError("invalid_event", 400, "occurredAt is a Date or an ISO 8601 instant with Z or an offset");
+  const at = value instanceof Date ? value.getTime() : typeof value === "string" ? Date.parse(value) : Number.NaN;
+  if (!Number.isFinite(at)) throw new ChestError("invalid_event", 400, "occurredAt is a Date or an ISO 8601 instant with Z or an offset");
+  if (at < now - occurredLimits.behindMs) throw new ChestError("invalid_event", 400, "occurredAt is within the last 24 hours");
+  if (at > now + occurredLimits.aheadMs) throw new ChestError("invalid_event", 400, "occurredAt is not in the future");
+  return new Date(at).toISOString();
+}
+
+// receivers says which tools receive an event this tool emits (Proposal
+// (studio.16)): the names (chest.json "name") of the installed tools that
+// declare it in "receives" AND that an admin linked to this tool for it —
+// what publish would deliver to now, sorted; [] when none. For a page that
+// offers a link to another tool ("Send contacts to Clients"): greyed with
+// its reason when Clients is not among them, which chest.toolUrl — that
+// only says a tool is installed — cannot tell. It reads the Chest's
+// current links: call it when rendering such a page, not at every
+// publish. Errors: ChestError invalid_event (a type this tool does not
+// emit), CapabilityNotGranted (not declared, or a Chest without events
+// between tools), Unavailable.
+export async function receivers(type: string): Promise<string[]> {
+  const tool = process.env["CHEST_TOOL"] ?? "";
+  if (typeof type !== "string" || !toolEventPattern.test(type) || !type.startsWith(tool + ".")) throw new ChestError("invalid_event", 400, `an event of this tool is named "${tool}.<name>"`);
+  const response = await ask("events", "GET", "/events/receivers?type=" + encodeURIComponent(type));
+  if (response.status === 404) {
+    await response.body?.cancel();
+    throw new CapabilityNotGranted("events");
+  }
+  if (response.status !== 200) throw await refusal(response, "events");
+  const answer = (await readJson(response)) as { tools?: unknown } | null;
+  const tools = answer?.tools;
+  if (!Array.isArray(tools) || tools.length > 1000 || !tools.every(t => typeof t === "string" && t.length <= 63 && /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(t))) throw new Unavailable();
+  return [...new Set(tools as string[])].sort();
 }
 
 // acknowledgeErasure tells the Chest the tool deleted or anonymised what it

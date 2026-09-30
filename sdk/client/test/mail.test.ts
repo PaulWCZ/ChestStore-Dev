@@ -218,3 +218,40 @@ test("email preference: none is skipped, digest waits for the Chest's daily emai
     await chest.close();
   }
 });
+
+// Proposal (studio.16): People's start form offers to email the newcomer
+// only when the Chest will deliver; asked without sending.
+test("available (studio.16): whether the Chest would send now, and why not, without sending", async () => {
+  const chest = await fakeChest({ members: [camille], capabilities: ["mail"], mail: { perDay: 2 } });
+  try {
+    assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: 2 });
+    assert.equal(chest.outbox.length, 0);
+    await mail.send({ to: "a@example.test", subject: "Hello", text: "Hi" });
+    assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: 1 });
+    await mail.send({ to: "b@example.test", subject: "Hello", text: "Hi" });
+    assert.deepEqual(await mail.available(), { ok: false, reason: "quota", remainingToday: 0 });
+    // The owner has not connected the company's mail: send says the capability is missing.
+    chest.delivery.mail = "not_connected";
+    assert.equal((await mail.available()).reason, "not_connected");
+    chest.delivery.mail = "suspended";
+    assert.deepEqual(await mail.available(), { ok: false, reason: "suspended", remainingToday: 0 });
+  } finally {
+    await chest.close();
+  }
+  const notConnected = await fakeChest({ capabilities: ["mail"], delivery: { mail: "not_connected" } });
+  try {
+    assert.equal((await mail.available()).ok, false);
+    await assert.rejects(mail.send({ to: "a@example.test", subject: "Hello", text: "Hi" }), CapabilityNotGranted);
+  } finally {
+    await notConnected.close();
+  }
+  // Not declared, or outside a Chest: not granted, never an error.
+  const bare = await fakeChest({ capabilities: [] });
+  try {
+    assert.deepEqual(await mail.available(), { ok: false, reason: "not_granted", remainingToday: null });
+  } finally {
+    await bare.close();
+  }
+  delete process.env["CHEST_API"];
+  assert.deepEqual(await mail.available(), { ok: false, reason: "not_granted", remainingToday: null });
+});

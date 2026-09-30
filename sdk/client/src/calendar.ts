@@ -72,6 +72,12 @@ export type CalendarEvent = When & {
 // What a put did: the members whose feed shows it, and those skipped (ids
 // the Chest does not know, or members without the tool), in the order given.
 export type Put = { key: string; members: string[]; skipped: string[] };
+// What putMany did for one event (Proposal (studio.16)), at its index in
+// the list given: put, or refused and why — the rest of the call is not
+// held back by it.
+export type PutRefusal = "invalid_event" | "invalid_key" | "invalid_id" | "duplicate_key" | "quota_exceeded";
+export type PutResult = ({ ok: true; index: number } & Put) | { ok: false; index: number; key: string; reason: PutRefusal; message: string };
+const refusals: readonly PutRefusal[] = ["invalid_event", "invalid_key", "invalid_id", "duplicate_key", "quota_exceeded"];
 // An event as the Chest keeps it, read back with list().
 export type KeptEvent = { key: string; members: string[]; title: Partial<Record<Locale, string>>; description?: Partial<Record<Locale, string>>; location?: string; path?: string; busy: boolean; private: boolean; updated: string; sequence: number } & ({ start: string; end: string } | { days: { first: string; last: string } });
 
@@ -199,43 +205,73 @@ export async function put(event: CalendarEvent): Promise<Put> {
   return { key, members: answer.members, skipped: answer.skipped };
 }
 
-// putMany puts many events (Proposal (studio.15)): a first sync — every
-// open task with a due date, every approved leave — is one call per 100
-// events, not one per event against the 600 writes a minute. Each event is
-// checked before anything is sent (one wrong event: nothing sent), keys are
-// distinct, and the answer is each event's Put in the order given. The
-// Chest applies a batch whole or not at all (QuotaExceeded when its new
-// keys would pass 5,000 events; RateLimited counts a batch as one write);
-// beyond 100 the SDK sends batches one after the other, so an error
-// after the first leaves the earlier batches applied — put again: it is
+// putMany puts many events (Proposal (studio.15); per event since
+// studio.16): a first sync — every open task with a due date, every
+// approved leave — is one call per 100 events, not one per event against
+// the 600 writes a minute. The answer is one PutResult per event, in the
+// order given: ok (put: its members and those skipped) or not, with the
+// reason — an event the SDK or the Chest refuses (invalid_event,
+// invalid_key, invalid_id), a key given twice in the call (duplicate_key:
+// neither is put, as the SDK cannot tell which one the tool meant), or a
+// new key beyond the tool's 5,000 events (quota_exceeded: those that fit
+// are put, in order). One wrong event never holds the others back; nothing
+// is sent for an event the SDK refuses. What still throws is about the
+// call, not an event: CapabilityNotGranted, RateLimited (a batch is one
+// write of the minute), Unavailable, and an argument that is not an array.
+// Beyond 100 the SDK sends batches one after the other, so an error after
+// the first leaves the earlier batches applied — put again: it is
 // idempotent by key.
-export async function putMany(events: CalendarEvent[]): Promise<Put[]> {
+//
+// No all-or-nothing mode: no tool needs one (Rooms, Clients and Tasks all
+// put what they can and retry the rest), and one that wants it checks
+// every event with check() before calling.
+export async function putMany(events: CalendarEvent[]): Promise<PutResult[]> {
   if (!Array.isArray(events)) throw invalid("events is an array");
-  const bodies = events.map(e => check(e));
-  const keys = new Set<string>();
-  for (const b of bodies) {
-    if (keys.has(b["key"] as string)) throw invalid(`the key ${b["key"] as string} is given twice`);
-    keys.add(b["key"] as string);
-  }
+  const now = new Date();
+  const out: (PutResult | undefined)[] = new Array(events.length);
+  const valid: { index: number; body: Record<string, unknown> }[] = [];
+  const count = new Map<string, number>();
+  const keyOf = (e: unknown): string => (e !== null && typeof e === "object" && typeof (e as { key?: unknown }).key === "string" ? (e as { key: string }).key : "");
+  for (const e of events) count.set(keyOf(e), (count.get(keyOf(e)) ?? 0) + 1);
+  events.forEach((e, index) => {
+    const key = keyOf(e);
+    try {
+      const body = check(e, now);
+      if ((count.get(key) ?? 0) > 1) out[index] = { ok: false, index, key, reason: "duplicate_key", message: `the key ${key} is given more than once` };
+      else valid.push({ index, body });
+    } catch (error) {
+      const code = error instanceof ChestError ? error.code : "invalid_event";
+      out[index] = { ok: false, index, key, reason: refusals.includes(code as PutRefusal) ? code as PutRefusal : "invalid_event", message: error instanceof Error ? error.message : "invalid event" };
+    }
+  });
   const ids = (v: unknown): v is string[] => Array.isArray(v) && v.every(id => typeof id === "string" && memberIdPattern.test(id));
-  const out: Put[] = [];
-  for (let i = 0; i < bodies.length; i += limits.perBatch) {
-    const batch = bodies.slice(i, i + limits.perBatch);
-    const response = await ask("calendar", "PUT", "/calendar/events", { body: JSON.stringify({ events: batch }), type: "application/json" });
+  for (let i = 0; i < valid.length; i += limits.perBatch) {
+    const batch = valid.slice(i, i + limits.perBatch);
+    const response = await ask("calendar", "PUT", "/calendar/events", { body: JSON.stringify({ events: batch.map(b => b.body) }), type: "application/json" });
     if (response.status === 404) {
       await response.body?.cancel();
       throw new CapabilityNotGranted("calendar");
     }
     if (response.status !== 200) throw await refusal(response, "calendar");
     const answer = (await json(response)) as { results?: unknown } | null;
-    const results = answer && Array.isArray(answer.results) ? answer.results as { key?: unknown; members?: unknown; skipped?: unknown }[] : null;
+    const results = answer && Array.isArray(answer.results) ? answer.results as { key?: unknown; members?: unknown; skipped?: unknown; error?: unknown; message?: unknown }[] : null;
     if (!results || results.length !== batch.length) throw new Unavailable();
     results.forEach((r, n) => {
-      if (!r || r.key !== batch[n]!["key"] || !ids(r.members) || !ids(r.skipped)) throw new Unavailable();
-      out.push({ key: r.key as string, members: r.members, skipped: r.skipped });
+      const { index, body } = batch[n]!;
+      const key = body["key"] as string;
+      if (!r || r.key !== key) throw new Unavailable();
+      if (r.error !== undefined) {
+        if (typeof r.error !== "string" || !/^[a-z_]{1,40}$/u.test(r.error)) throw new Unavailable();
+        // A reason of a later Chest reads as invalid_event: not put.
+        const reason = refusals.includes(r.error as PutRefusal) ? r.error as PutRefusal : "invalid_event";
+        out[index] = { ok: false, index, key, reason, message: typeof r.message === "string" ? r.message.slice(0, 200) : `the Chest refused: ${r.error}` };
+        return;
+      }
+      if (!ids(r.members) || !ids(r.skipped)) throw new Unavailable();
+      out[index] = { ok: true, index, key, members: r.members, skipped: r.skipped };
     });
   }
-  return out;
+  return out as PutResult[];
 }
 
 // remove takes the event of that key out of every feed; true when there

@@ -234,7 +234,9 @@ at install and at every update.
 | `ChestError` `erasure_not_found` from `acknowledgeErasure` | The erasure was not sent to this tool: acknowledge the `erasure` of the `member.erased` event you received. |
 | `RateLimited` from `members` | More than 600 calls a minute: use `lookup` (200 ids a call, kept a minute) instead of one `get` per row. |
 | Build fails in the browser bundle | The SDK was imported from client code. |
-| `ChestError` `key_conflict` from `mail.send`, `events.publish` or `webhooks.send` | The key was used within 24 hours for other recipients (another event): usually a key cut to 64 characters. Never cut a key: give it whole (up to 512 characters), the SDK sends a long one as its digest. |
+| `ChestError` `key_conflict` from `mail.send`, `events.publish` or `webhooks.send` | The key was used within 24 hours for other recipients (another event): usually a key cut to 64 characters, or a key made of database ids after a restore (the ids started again; the Chest remembers the key). Never cut a key: give it whole (up to 512 characters), the SDK sends a long one as its digest; put the recipient (member id or address) in it. |
+| A calendar event is marked put but is not in the feed (studio.16) | `calendar.putMany` answers one result per event and no longer throws for a wrong one: read each result's `ok` (and `reason`) instead of catching `invalid_event`. |
+| An event told late is counted on the wrong day by its receiver | Publish it with `events.publish(type, data, { key, occurredAt })` (studio.16): the time it happened, stored with what waits, within the last 24 hours. |
 | A fetch() to a declared host fails in a test | Give it a handler: `fakeChest({ network: { "graph.microsoft.com": request => Response.json(…) } })`; in a Chest, Node 24.5+ follows the proxy (`NODE_USE_ENV_PROXY=1`), and only `fetch`/`node:http(s)` do. |
 
 ## Contributing to this package

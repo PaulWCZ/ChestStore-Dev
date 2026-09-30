@@ -19,19 +19,19 @@ const name = manifest.name;
 // all, files, members, notifications and events as namespaces, never testing.
 const expected = {
   errors: ["CapabilityNotGranted", "ChestError", "QuotaExceeded", "RateLimited", "TooLarge", "Unavailable"],
-  member: ["groupIdPattern", "localeOf", "locales", "mailPreferenceOf", "member", "memberIdPattern"],
+  member: ["groupIdPattern", "localeOf", "locales", "mailPreferenceOf", "member", "memberIdPattern", "readTimeZone"],
   database: ["databaseUrl"],
   files: ["claim", "delete", "get", "list", "move", "publicUrl", "put", "stat", "uploadUrl", "url"],
   members: ["forget", "get", "groups", "list", "lookup", "matchEmails", "matchLimits"],
   notifications: ["badge", "broadcast", "notify", "withdraw"],
-  events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "publish", "toolEventPattern", "verify"],
-  mail: ["bouncePattern", "handle", "idempotencyKey", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "threadAddress", "threadOf", "threadPattern", "threadTag", "verify"],
+  events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "occurredAtOf", "occurredLimits", "publish", "receivers", "toolEventPattern", "verify"],
+  mail: ["available", "bouncePattern", "handle", "idempotencyKey", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "threadAddress", "threadOf", "threadPattern", "threadTag", "verify"],
   calendar: ["check", "escapeText", "feed", "foldLine", "ics", "isDay", "keyPattern", "limits", "list", "page", "pick", "put", "putMany", "remove", "uidOf", "unfold"],
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
   chest: ["company", "currency", "forgetTheme", "locale", "publicUrl", "readThemeChoice", "readToolUrls", "teamUrl", "theme", "themeIdPattern", "timeZone", "today", "toolLink", "toolNamePattern", "toolUrl"],
   visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
   checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
-  webhooks: ["add", "checkInput", "checkManifest", "checkMessage", "checkUrl", "deliveryIdPattern", "enable", "escapeSlack", "eventIdPattern", "format", "handle", "isPublicAddress", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "secretPattern", "send", "shownUrl", "sign", "targetIdPattern", "verify", "verifySignature", "webhookEventPattern"],
+  webhooks: ["add", "available", "checkInput", "checkManifest", "checkMessage", "checkUrl", "deliveryIdPattern", "enable", "escapeSlack", "eventIdPattern", "format", "handle", "isPublicAddress", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "secretPattern", "send", "shownUrl", "sign", "targetIdPattern", "verify", "verifySignature", "webhookEventPattern"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
 const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors", "checks", "calendar", "webhooks"];

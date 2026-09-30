@@ -244,6 +244,54 @@ export async function status(id: string): Promise<Status | null> {
   return { id, status: answer.status as Status["status"], at: answer.at };
 }
 
+// Proposal (studio.16): whether the Chest will deliver what the tool
+// sends, asked without sending — for a form that offers "Email the
+// newcomer their first-day details" (People) or a Settings page that says
+// whether alerts can go out. ok is true when a send would be queued now;
+// otherwise reason says why, in words a tool turns into a sentence:
+//   "not_granted"    the version does not declare "mail", the owner did not
+//                    approve it, or the Chest has no mail yet (outside a
+//                    Chest too) — "Emails will be sent once your Chest can
+//                    send them";
+//   "not_connected"  the owner has not connected the company's mail
+//                    provider yet — "Ask your Chest's owner to connect
+//                    email";
+//   "suspended"      the Chest stopped sending for now (its provider
+//                    refuses it, the owner paused the tool's mail);
+//   "quota"          the day's messages are used — "Emails go out again
+//                    tomorrow".
+// remainingToday is what is left of the day's messages (null when the
+// Chest does not say). A snapshot: send can still fail, and a member's own
+// preference (mailPreference) may still hold a message back.
+export type MailAvailability = { ok: boolean; reason: "not_granted" | "not_connected" | "suspended" | "quota" | null; remainingToday: number | null };
+
+// available asks the Chest whether it would deliver now; it never sends
+// and never throws for a missing capability. Errors: Unavailable (the
+// Chest did not answer: say "unknown", not "off").
+export async function available(): Promise<MailAvailability> {
+  let response: Response;
+  try {
+    response = await ask("mail", "GET", "/mail/status");
+  } catch (error) {
+    if (error instanceof CapabilityNotGranted) return { ok: false, reason: "not_granted", remainingToday: null };
+    throw error;
+  }
+  if (response.status === 404 || response.status === 403) {
+    await response.body?.cancel();
+    return { ok: false, reason: "not_granted", remainingToday: null };
+  }
+  if (response.status !== 200) throw await refusal(response, "mail");
+  const answer = (await json(response)) as { send?: unknown; remaining_today?: unknown } | null;
+  const remaining = answer?.remaining_today;
+  if (!answer || !(remaining === undefined || remaining === null || (Number.isSafeInteger(remaining) && (remaining as number) >= 0))) throw new Unavailable();
+  const remainingToday = typeof remaining === "number" ? remaining : null;
+  if (answer.send === "not_connected" || answer.send === "suspended") return { ok: false, reason: answer.send, remainingToday };
+  // A state of a later Chest that is not "ready" is not a promise to send.
+  if (answer.send !== "ready") return { ok: false, reason: "suspended", remainingToday };
+  if (remainingToday === 0) return { ok: false, reason: "quota", remainingToday };
+  return { ok: true, reason: null, remainingToday };
+}
+
 // mailboxAddress is the address of one of the tool's mailboxes, to show on
 // its pages ("Write to support@atelier-martin.fr"); null when the owner has
 // not given it one yet.

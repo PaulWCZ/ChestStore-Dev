@@ -183,44 +183,74 @@ test("without the capability, or on a Chest without the calendar, put says so", 
 
 // Proposal (studio.15): Tasks' first sync put one event per call against
 // 600 writes a minute; putMany sends 100 a call, each checked first.
-test("putMany: many events in few calls, each checked before anything is sent, answered in order", async () => {
+// studio.16: answered event by event — one wrong event holds none of the
+// others back (Rooms, Clients and Tasks put a refused batch again one by
+// one).
+test("putMany: many events in few calls, answered event by event in the order given", async () => {
   const chest = await fakeChest({ members: [camille, hugo], capabilities: ["calendar"] });
   try {
     const due = (n: number) => ({ key: `task:${n}`, members: n % 2 ? [camille.id, nora.id] : [hugo.id], title: { en: `Due: card ${n}`, fr: `Échéance : carte ${n}` }, days: { first: "2026-10-12", last: "2026-10-12" }, busy: false });
     const puts = await calendar.putMany(Array.from({ length: 250 }, (_, n) => due(n)));
     assert.equal(puts.length, 250);
-    assert.deepEqual(puts[1], { key: "task:1", members: [camille.id], skipped: [nora.id] });
+    assert.ok(puts.every(p => p.ok));
+    assert.deepEqual(puts[1], { ok: true, index: 1, key: "task:1", members: [camille.id], skipped: [nora.id] });
     assert.equal(puts[249]?.key, "task:249");
     assert.equal(chest.calendar.size, 250);
     // Again: replaced, not added; one event more is one sequence more.
     await calendar.putMany([due(1), due(2)]);
     assert.equal(chest.calendar.get("task:1")?.sequence, 1);
     assert.equal(chest.calendar.size, 250);
-    // One wrong event, or a key twice: nothing is sent.
-    await assert.rejects(calendar.putMany([due(300), { ...due(301), days: { first: "2026-10-12", last: "2026-10-01" } }]), code("invalid_event"));
-    await assert.rejects(calendar.putMany([due(302), due(302)]), code("invalid_event"));
-    assert.equal(chest.calendar.has("task:300"), false);
     assert.deepEqual(await calendar.putMany([]), []);
   } finally {
     await chest.close();
   }
 });
 
-test("putMany: a batch is one write of the minute, and whole or nothing against the 5,000 events", async () => {
+test("putMany (studio.16): a wrong event, a bad key or a key given twice is refused alone, with its reason; the rest is put", async () => {
+  const chest = await fakeChest({ members: [camille], capabilities: ["calendar"] });
+  try {
+    const one = (n: number | string) => ({ key: `e:${n}`, members: [camille.id], title: "x", days: { first: "2026-10-12", last: "2026-10-12" } });
+    const results = await calendar.putMany([
+      one(1),
+      { ...one(2), days: { first: "2026-10-12", last: "2026-10-01" } },   // the last day before the first
+      { ...one(3), key: "a key with spaces" },
+      { ...one(4), members: ["camille"] },
+      one(5), one(5),                                                      // twice: neither is put
+      null as unknown as calendar.CalendarEvent,
+      one(6),
+    ]);
+    assert.deepEqual(results.map(r => (r.ok ? "ok" : r.reason)), ["ok", "invalid_event", "invalid_key", "invalid_id", "duplicate_key", "duplicate_key", "invalid_event", "ok"]);
+    assert.deepEqual(results.map(r => r.index), [0, 1, 2, 3, 4, 5, 6, 7]);
+    const refused = results[1]!;
+    assert.ok(!refused.ok && refused.key === "e:2" && refused.message.includes("days"));
+    assert.deepEqual([...chest.calendar.keys()].sort(), ["e:1", "e:6"]);
+    // Nothing is sent for events the SDK refuses: a call of only those is no call.
+    const size = chest.calendar.size;
+    assert.equal((await calendar.putMany([{ ...one(7), title: "" }]))[0]?.ok, false);
+    assert.equal(chest.calendar.size, size);
+  } finally {
+    await chest.close();
+  }
+});
+
+test("putMany: a batch is one write of the minute; new keys beyond the 5,000 events are refused one by one, those that fit are put", async () => {
   const chest = await fakeChest({ members: [camille], capabilities: ["calendar"] });
   try {
     const one = (n: number) => ({ key: `e:${n}`, members: [camille.id], title: "x", days: { first: "2026-10-12", last: "2026-10-12" } });
-    // 5,000 events in 50 calls: well within 600 writes a minute.
-    for (let i = 0; i < 5000; i += 1000) await calendar.putMany(Array.from({ length: 1000 }, (_, n) => one(i + n)));
+    // 4,999 events in 50 calls: well within 600 writes a minute.
+    for (let i = 0; i < 4999; i += 1000) await calendar.putMany(Array.from({ length: Math.min(1000, 4999 - i) }, (_, n) => one(i + n)));
+    assert.equal(chest.calendar.size, 4999);
+    // A known key is replaced, the first new key fits, the next ones do not.
+    const before = chest.calendar.get("e:0")!.sequence;
+    const results = await calendar.putMany([one(0), one(5000), one(5001), one(5002)]);
+    assert.deepEqual(results.map(r => (r.ok ? "ok" : r.reason)), ["ok", "ok", "quota_exceeded", "quota_exceeded"]);
+    assert.equal(chest.calendar.get("e:0")!.sequence, before + 1);
     assert.equal(chest.calendar.size, calendar.limits.events);
-    // A batch whose new keys pass the bound changes nothing, even its known keys.
-    const before = chest.calendar.get("e:0")?.sequence;
-    await assert.rejects(calendar.putMany([one(0), one(5000)]), (e: unknown) => e instanceof ChestError && e.code === "quota_exceeded");
-    assert.equal(chest.calendar.get("e:0")?.sequence, before);
-    // Without the capability, or on a Chest without the calendar.
+    // Without the capability, or on a Chest without the calendar: the call throws.
     const bare = await fakeChest({ capabilities: [], calendar: false });
     try {
       await assert.rejects(calendar.putMany([one(1)]), CapabilityNotGranted);
+      await assert.rejects(calendar.putMany("x" as unknown as calendar.CalendarEvent[]), code("invalid_event"));
     } finally {
       await bare.close();
     }

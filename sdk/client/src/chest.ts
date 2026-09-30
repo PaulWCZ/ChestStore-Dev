@@ -17,7 +17,7 @@
 // by a schedule), and asked its admin for the company's name in its own
 // settings.
 import { ask, json } from "./api.js";
-import { localeOf, type Locale } from "./member.js";
+import { localeOf, readTimeZone, type Locale } from "./member.js";
 
 const env = (name: string): string | undefined => {
   const value = process.env[name];
@@ -33,17 +33,21 @@ export function company(): string {
 // timeZone is the Chest's time zone: the day of "due today", the hour of a
 // reminder. Europe/Paris when the Chest says none, or one this runtime does
 // not know.
-export function timeZone(): string {
+//
+// Proposal (studio.16): given a member (member(request), members.lookup),
+// it is that member's own zone when they chose one in the Chest
+// (member.timeZone), the Chest's otherwise — the zone of what concerns one
+// person: the whole days of their leave, the hour of their reminder, "today"
+// on their own page. What concerns everyone (a room's opening hours, a
+// company-wide cycle, a schedule's hour) keeps the Chest's zone.
+//
+//   const zone = chest.timeZone(who);            // "America/Montreal", or the Chest's
+//   const day = chest.today(Date.now(), zone);
+export function timeZone(member?: { timeZone?: string | undefined } | null): string {
+  const own = member ? readTimeZone(member.timeZone) : undefined;
+  if (own) return own;
   const value = env("CHEST_TIMEZONE");
-  if (value && value.length <= 64) {
-    try {
-      new Intl.DateTimeFormat("en", { timeZone: value });
-      return value;
-    } catch {
-      // Not a zone this runtime knows: the default.
-    }
-  }
-  return "Europe/Paris";
+  return readTimeZone(value) ?? "Europe/Paris";
 }
 
 // today is the date ("YYYY-MM-DD") at that instant in the Chest's zone (or

@@ -11,7 +11,7 @@ tested, faked in `testing`, documented in `sdk/README.md` (sections marked
 Seventeen tools were built for the opening store, each to production
 quality, each in its own folder, by builders who used the SDK as a
 third-party developer would. What they needed and did not find is below,
-proven by code: every proposal is built in `sdk/` (0.3.0-studio.15 —
+proven by code: every proposal is built in `sdk/` (0.3.0-studio.16 —
 typed, tested, faked in `testing`, documented in `sdk/README.md` under
 **Proposal (studio)**) and used by at least one tool.
 
@@ -1187,6 +1187,8 @@ Harness items raised by the same builders are fixed in the studio:
   calls, well inside a minute.
 - **Still missing**: `removeMany` (a board archived removes its events one
   call each — rarer, and bounded by what the board had).
+- **Superseded in part by §4.27 (studio.16)**: the batch is no longer
+  whole-or-nothing — each event is answered on its own.
 
 ### 4.23 When a former member left — `FormerMember.leftAt` (built)
 
@@ -1241,10 +1243,204 @@ Harness items raised by the same builders are fixed in the studio:
   `digest`, `status: "held"`): existing tools, which treat errors as "mail
   off", keep working. Optional in the types, so no tool's `Member`
   literals break; absent means `"all"`.
+- **Corrected in studio.16 (§4.29)**: the README said a tool "keeps no
+  email switch of its own". Wrong: Tasks', Goals' and Leave's switches are
+  about *which* of their emails a person wants, which the Chest's three
+  values cannot say. Both apply — the tool's decides whether it sends,
+  the Chest's whether and how the person receives.
 - **Still missing**: an unsubscribe link in each non-transactional email
   that sets the preference (RFC 8058 one-click `List-Unsubscribe`, which
   Gmail and Yahoo ask of bulk senders — from memory, not re-read on
   2026-09-29); per-tool exceptions ("none, except Leave").
+
+### 4.25 When an event happened — `events.publish({occurredAt})` (built)
+
+- **Needed by**: **Support** (`helpdesk`) and **Tasks**, which keep what
+  the Chest could not take and publish it again from a schedule every 15
+  minutes (`tools/public-and-private/helpdesk/lib/ticket-events.ts`, its
+  `late` schedule; `tools/private/tasks/lib/card-events.ts`, its `mail`
+  schedule `*/15 * * * *` in `chest.proposals.json`); and **Goals**, their
+  receiver, which counts solved tickets and done cards per cycle by the
+  event's `occurredAt` (`tools/private/goals/lib/sources.ts`, `when(e)`;
+  `lib/crm.ts` the same). The Chest stamped `occurredAt` at the publish:
+  a ticket solved at 23:55 on a cycle's last day and told at 00:10 was
+  counted in the next cycle. The two publishers already carry the true
+  time — in their key (`tasks:<card>:done:<time>`) — where no receiver
+  can read it.
+- **Working copy**: `events.publish(type, data, { key?, occurredAt? })`,
+  `occurredAtOf(value, now?)`, `occurredLimits` (`sdk/client/src/events.ts`);
+  the wire's `occurred_at`; the fake checks it again, keeps it in
+  `chest.published[].occurredAt` and counts it in the key's fingerprint
+  (`sdk/client/src/testing.ts`). Test: `events.test.ts` ("publish with
+  occurredAt (studio.16): …" — a 20-minute-late event keeps its time, an
+  offset is the same instant, another time under the same key is
+  `key_conflict`, 25 hours back, 5 minutes ahead, no zone, not a date are
+  refused, 30 s ahead is taken, the receiver sees it).
+- **Contract**: a `Date` or an ISO 8601 instant with `Z` or an offset
+  (a local time is refused: it means nothing to the Chest), stored in UTC;
+  at most **24 hours back** — the window in which a key makes a retry one
+  event, so a late event is still recognised as the same one — and at
+  most **one minute ahead** (the container's clock against the Chest's; the
+  Chest checks again against its own). The receiver's envelope does not
+  change: its `occurredAt` is the publisher's time when given, the Chest's
+  otherwise — no new field, so receivers on an older SDK (whose `verify`
+  refuses an envelope with a sixth key) keep working. A retry must give the
+  same time: another `occurredAt` under a key is `key_conflict`, as other
+  data is.
+- **Why not trust any date**: a publisher could back-date without bound
+  and rewrite a closed cycle's count; 24 hours covers every retry we saw
+  (15 minutes) with room for a Chest down for a night.
+- **Still missing**: Support and Tasks keep unpublished events a week.
+  Past 24 hours the SDK refuses `occurredAt`; such an event goes without
+  it (and its time in `data`, which Goals would have to read). A week's
+  window would need the Chest to keep keys a week — possible, not chosen
+  until a tool shows a Chest down that long.
+
+### 4.26 Who receives an event — `events.receivers(type)` (built)
+
+- **Needed by**: **Forms**. Its Settings greys "Send contacts to Clients"
+  and "Send requests to Support" when nothing would receive them
+  (`tools/public-and-private/forms/lib/linked.ts`, `installed()`), but can
+  only ask `chest.toolUrl("crm") !== null` — *installed*, not *linked*:
+  Clients installed and never linked by an admin to Forms' events shows
+  the link as working, and every contact publishes into nothing
+  (`receivers: 0` is learned only after a publish).
+- **Working copy**: `events.receivers(type) → Promise<string[]>`
+  (`sdk/client/src/events.ts`), `GET /events/receivers?type=`;
+  `fakeChest({ linked })`, `chest.linked` (what `publish` counts too).
+  Test: `events.test.ts` ("receivers (studio.16): …" — linked, installed
+  but not linked, an admin links a second tool, another tool's or an
+  undeclared type refused, `CapabilityNotGranted` outside a Chest).
+- **Shape — a list, not a boolean**: Forms has two links to two tools and
+  needs to know *which* tool listens; a list of names (sorted, those
+  installed, declaring the type in `receives`, and linked by an admin to
+  this tool for it) answers that and "anyone?" (`length > 0`) alike.
+- **Only the tool's own types** (`invalid_event` otherwise): a tool learns
+  who listens to *it* — which its admin set up, and which `publish`'s
+  `receivers` count already half-says — never another tool's links.
+- **Not cached by the SDK**: an admin's link should show at the next page;
+  a Settings page calls it once per render. Not a capability: it is part
+  of `emits`.
+- **Still missing**: the tool's title in the member's language ("Clients"
+  / "Clients") to write the sentence — the same gap as `toolUrl` (§4.18).
+
+### 4.27 One result per calendar event — `calendar.putMany` (changed)
+
+- **Needed by**: **Rooms**, **Clients** (`crm`) and **Tasks** — all three
+  catch the batch's refusal and put it again one event at a time
+  (`tools/private/rooms/lib/calendar.ts`, "One the Chest refuses refuses
+  the whole batch: then they go one by one"; `tools/private/crm/lib/step-calendar.ts`,
+  `putMany`; `tools/private/tasks/lib/due-calendar.ts`, `putAll`): one bad
+  date costs up to 100 writes of the minute's 600, and three copies of the
+  same fallback.
+- **Working copy**: `putMany(events) → PutResult[]`, types `PutResult`
+  (`{ok: true, index, key, members, skipped}` or `{ok: false, index, key,
+  reason, message}`) and `PutRefusal` (`invalid_event`, `invalid_key`,
+  `invalid_id`, `duplicate_key`, `quota_exceeded`), in
+  `sdk/client/src/calendar.ts`; the fake's `PUT /calendar/events` answers
+  each event (`testing.ts`). Tests: `calendar.test.ts` (3: 250 events in
+  order; a wrong date, a bad key, a bad member id, a key twice and a
+  non-object each refused alone while the rest is put; new keys past 5,000
+  refused one by one while a replacement and the first new key fit;
+  `CapabilityNotGranted`) and `keys.test.ts` (a 65-character key answered
+  `invalid_key`, never cut).
+- **Decisions**: the SDK checks each event and sends only what it accepts;
+  the Chest answers each (it checks again). A key given twice in one call
+  refuses **both** (the SDK cannot tell which the tool meant; putting the
+  last silently hides a bug). Quota: replacements always go, new keys go
+  in order until the 5,000th. Still thrown, as they are about the call:
+  `CapabilityNotGranted`, `RateLimited`, `Unavailable`, a non-array.
+  `index` is there because the key may be the very thing that is wrong.
+- **No all-or-nothing option**: none of the three wants it — each puts
+  what it can and retries the rest. A tool that needs it checks every
+  event with the exported `calendar.check` before calling; an option would
+  be a second contract for the Chest to keep with no user.
+- **Breaking, said**: from studio.15, `putMany` no longer throws for a
+  wrong event. A tool re-vendored without reading the results would mark a
+  refused event as put. Each tool's fallback becomes a loop over results
+  (`if (!r.ok) …`) the day it is re-vendored; `sdk/AGENTS.md` lists the
+  symptom.
+
+### 4.28 Will the Chest deliver? — `mail.available()`, `webhooks.available()` (built)
+
+- **Needed by**: **People**'s start form, which offers to email the
+  newcomer their first-day details (`tools/private/people/lib/welcome.ts`)
+  and learns that mail is off only by failing a send (`lib/errors.ts`
+  turns `CapabilityNotGranted` into "unavailable"); **Forms**, which
+  remembers `mail_works` after its first email (`lib/linked.ts`,
+  `startOf`); **Support**'s Settings, which shows the Slack/Teams form and
+  says "Your Chest cannot send notices to other services yet" only once a
+  call has failed with `CapabilityNotGranted` (`tools/public-and-private/helpdesk/lib/notices.ts`,
+  `webhooks_unavailable`).
+- **Working copy**: `mail.available() → {ok, reason, remainingToday}`
+  (`reason`: `not_granted`, `not_connected`, `suspended`, `quota`, null),
+  `GET /mail/status`; `webhooks.available() → {ok, reason, targets, max}`
+  (`reason`: `not_granted`, `suspended`, null), `GET /webhooks/status`;
+  `fakeChest({ delivery })`, `chest.delivery` (mail `ready` /
+  `not_connected` / `suspended`, webhooks `ready` / `suspended`), and the
+  fake's `send`/`add` follow it. Tests: `mail.test.ts` ("available
+  (studio.16): …": ready with the day's count, quota, not connected —
+  where `send` is `CapabilityNotGranted` —, suspended, not declared,
+  outside a Chest), `webhooks.test.ts` (ready, targets of max, suspended
+  refusing `add`, not declared, outside a Chest).
+- **Decisions**: never throws for a missing capability — the point is to
+  ask before acting, so "no" is an answer, not an error; `Unavailable`
+  still throws (the Chest did not answer: the page says "unknown", not
+  "off"). A reason, not a boolean: each reason is a different sentence and
+  a different person to ask (the owner connects mail; the quota comes back
+  tomorrow). A state of a later Chest that is not `ready` reads as
+  `suspended`: never a promise to send. A snapshot, said: `send` can still
+  fail, and a member's preference may still hold a message back.
+- **Still missing**: whether a given *mailbox* can receive
+  (`mailboxAddress` null says only that it has no address yet).
+
+### 4.29 README corrections — the tool's own email switch; recipients in keys (fixed)
+
+- **The tool's own switch.** `sdk/README.md` said a tool "keeps no email
+  switch of its own". Tasks, Goals and Leave keep one (§4.24), and rightly:
+  "no reminders from Tasks" is a choice the Chest's `all`/`digest`/`none`
+  cannot express. Now: a tool may keep its own switch for what is specific
+  to it; **both apply** — the tool's switch decides whether it sends, the
+  Chest's preference whether and how the person receives; the page says so
+  when they differ. Same fix in the `member.ts` comment.
+- **Keys built from database ids carry the recipient.** The Chest
+  remembers a key 24 hours; after a database restore the tool's ids start
+  again from the backup, and `subscriber:42` names someone else — the
+  Chest answers `key_conflict` or, for the same recipients, the first
+  message (nothing sent). **Status** (`tools/public-and-private/status/lib/mailer.ts`,
+  keys carry the address) and **Hiring** (`lib/outbox.ts`,
+  `message:<id>:<address>`) found it and put the recipient in the key; the
+  README now says it under `mail` ("Put the recipient in the key…", for
+  `mail`, `webhooks.send` and `events.publish`) and `sdk/AGENTS.md` names
+  the restore among the causes of `key_conflict`.
+
+### 4.30 The member's own time zone — `member.timeZone`, `chest.timeZone(member)` (built)
+
+- **Needed by**: **Leave**. Whole days and reminders are computed in the
+  Chest's zone (`tools/private/leave/lib/leave-calendar.ts` and
+  `lib/busy.ts`, `chest.timeZone()`): for a person in Montreal of a Paris
+  company, "today" turns at 18:00 their time, and anything sent at 08:00
+  Paris time reaches them at 02:00 (computed, not observed: no studio
+  harness has members in two zones).
+- **Working copy**: `Member.timeZone?: string` read from the assertion's
+  optional `zoneinfo` claim (the OpenID Connect claim for a person's zone)
+  and `members.*`' `time_zone` field; `readTimeZone(value)` in `member.ts`
+  (IANA names the runtime knows, 64 characters; anything else left out,
+  never refusing the member); `chest.timeZone(member?)` — the member's zone,
+  else the Chest's; `signAssertion` and the fake's members carry it.
+  Tests: `member.test.ts` (2: the claim, odd values left out, the
+  validator; `chest.timeZone(member)` and its fallbacks, `today` at 03:30
+  UTC is 30 September in Montreal and 1 October for the Chest, `lookup`
+  carries it).
+- **Decisions**: optional, like `mailPreference` — no tool's `Member`
+  literal breaks; read through `chest.timeZone(member)` so a tool never
+  forgets the fallback. The README says which zone to use for what: the
+  member's for what concerns one person (their leave's days, their
+  reminder, "today" on their page), the Chest's for what concerns everyone
+  (opening hours, cycles, schedules, the calendar feed's whole days).
+- **Still missing**: a schedule per member's zone ("08:00 wherever each
+  one is"): a schedule runs in the Chest's zone, so a tool would have to
+  run hourly and pick the members whose 08:00 it is.
 
 ## 5. Public-facing tools
 

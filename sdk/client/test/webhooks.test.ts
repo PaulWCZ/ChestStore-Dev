@@ -221,3 +221,30 @@ test("a retry left without an answer ends failed after its eighth attempt, 24 ho
     await fake.close();
   }
 });
+
+// Proposal (studio.16): Support's Settings shows "Send new tickets to
+// Slack" only when the Chest will deliver, before anyone pastes an address.
+test("available (studio.16): whether the Chest would deliver notices, how many addresses the tool has and may have", async () => {
+  const fake = await fakeChest({ webhooks: { max: 3 } });
+  try {
+    assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 0, max: 3 });
+    await webhooks.add({ url: slack, kind: "slack", label: "Support channel" });
+    assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 1, max: 3 });
+    // Paused by the owner: said without sending, and nothing is added or sent.
+    fake.delivery.webhooks = "suspended";
+    assert.deepEqual(await webhooks.available(), { ok: false, reason: "suspended", targets: 1, max: 3 });
+    await assert.rejects(webhooks.add({ url: teams, kind: "teams", label: "Teams" }), code("suspended"));
+    assert.equal(fake.webhooks.deliveries.length, 0);
+  } finally {
+    await fake.close();
+  }
+  // Not declared (no webhooks option: 403), or outside a Chest.
+  const bare = await fakeChest();
+  try {
+    assert.deepEqual(await webhooks.available(), { ok: false, reason: "not_granted", targets: null, max: null });
+  } finally {
+    await bare.close();
+  }
+  delete process.env["CHEST_API"];
+  assert.deepEqual(await webhooks.available(), { ok: false, reason: "not_granted", targets: null, max: null });
+});

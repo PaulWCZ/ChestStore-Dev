@@ -3,7 +3,10 @@ import { createHmac } from "node:crypto";
 import { IncomingMessage } from "node:http";
 import { Socket } from "node:net";
 import { afterEach, beforeEach, mock, test } from "node:test";
-import { mailPreferenceOf, member } from "../src/member.js";
+import * as chest from "../src/chest.js";
+import { mailPreferenceOf, member, readTimeZone } from "../src/member.js";
+import * as members from "../src/members.js";
+import { fakeChest, withMember } from "../src/testing.js";
 
 // An assertion the Chest's front signed (chest/toolfront.Assertion, Go), for
 // the tool "web", at 1790000000, with the instance key 00 01 … 1f: the
@@ -119,4 +122,41 @@ test("locale (proposal): the member's language among the store's, English when a
 
 test("mailPreference (Proposal (studio.15)): one of all, digest, none; anything else is not said, and never refuses the member", () => {
   assert.deepEqual(["all", "digest", "none", "weekly", "", 1, undefined].map(mailPreferenceOf), ["all", "digest", "none", undefined, undefined, undefined, undefined]);
+});
+
+// Proposal (studio.16): Leave counts whole days and sends reminders in the
+// member's own zone when they work away from the company's.
+test("timeZone (studio.16): the member's own zone from the zoneinfo claim; one the runtime does not know is left out", () => {
+  assert.equal(member(web(sign({ zoneinfo: "America/Montreal" })))?.timeZone, "America/Montreal");
+  assert.equal(member(web(sign({})))?.timeZone, undefined);
+  for (const zone of ["Mars/Olympus", "", "../etc/passwd", 7, "+01:00", "x".repeat(65)]) {
+    const who = member(web(sign({ zoneinfo: zone })));
+    assert.ok(who, "an odd zone never refuses the member");
+    assert.equal(who.timeZone, undefined);
+  }
+  assert.deepEqual(["Europe/Paris", "UTC", "America/Argentina/Buenos_Aires", "Etc/GMT+5", "Nowhere/Land", null].map(readTimeZone), ["Europe/Paris", "UTC", "America/Argentina/Buenos_Aires", "Etc/GMT+5", undefined, undefined]);
+});
+
+test("timeZone (studio.16): chest.timeZone(member) is theirs, else the Chest's; lookup and the fake carry it", async () => {
+  const base = { firstName: "Léa", lastName: "Roy", name: "Léa Roy", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [] };
+  const lea = { ...base, id: "mbr_leaaaaaaaaaaaaaaaaaaaaaaaa", timeZone: "America/Montreal" };
+  const hugo = { ...base, id: "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", name: "Hugo" };
+  const fake = await fakeChest({ members: [lea, hugo], timeZone: "Europe/Paris" });
+  try {
+    const who = member(withMember(new Request("http://tool.test/chest"), lea));
+    assert.equal(who?.timeZone, "America/Montreal");
+    assert.equal(chest.timeZone(who), "America/Montreal");
+    assert.equal(chest.timeZone(member(withMember(new Request("http://tool.test/chest"), hugo))), "Europe/Paris");
+    assert.equal(chest.timeZone(), "Europe/Paris");
+    assert.equal(chest.timeZone(null), "Europe/Paris");
+    assert.equal(chest.timeZone({ timeZone: "Mars/Olympus" }), "Europe/Paris");
+    // 03:30 UTC on 1 October is still 30 September in Montreal.
+    const at = Date.parse("2026-10-01T03:30:00Z");
+    assert.equal(chest.today(at, chest.timeZone(who)), "2026-09-30");
+    assert.equal(chest.today(at, chest.timeZone(null)), "2026-10-01");
+    const found = await members.lookup([lea.id, hugo.id]);
+    assert.deepEqual(found.members.map(m => [m.id, m.timeZone]), [[lea.id, "America/Montreal"], [hugo.id, undefined]]);
+  } finally {
+    await fake.close();
+  }
 });

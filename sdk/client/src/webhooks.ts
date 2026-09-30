@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { BlockList, isIP } from "node:net";
 import { ask, idempotencyKey, json as answerOf, refusal } from "./api.js";
-import { ChestError, Unavailable } from "./errors.js";
+import { CapabilityNotGranted, ChestError, Unavailable } from "./errors.js";
 import { memberIdPattern } from "./member.js";
 
 // Proposal (studio) — webhooks: notices the Chest delivers, on the tool's
@@ -403,6 +403,44 @@ export async function rotateSecret(id: string): Promise<string> {
   const secret = object(await answerOf(response))?.["secret"];
   if (typeof secret !== "string" || !secretPattern.test(secret)) throw new Unavailable();
   return secret;
+}
+
+// Proposal (studio.16): whether the Chest will deliver the tool's notices,
+// asked without sending — a Settings page that offers "Send new tickets to
+// Slack" shows the form, or says why not, before anyone pastes an address.
+// ok is true when add() and send() would be taken now; otherwise reason:
+//   "not_granted"  the version does not declare "webhooks", the owner did
+//                  not approve it, or the Chest has none (outside a Chest
+//                  too) — "Your Chest cannot send notices to other
+//                  services yet";
+//   "suspended"    the owner paused the tool's notices (nothing is
+//                  delivered; targets are kept).
+// targets and max say how many addresses the tool has and may have (the
+// manifest's max): "3 of 200"; add() is refused at max even when ok.
+export type WebhookAvailability = { ok: boolean; reason: "not_granted" | "suspended" | null; targets: number | null; max: number | null };
+
+// available asks the Chest whether it would deliver now; it never sends
+// and never throws for a missing capability. Errors: Unavailable.
+export async function available(): Promise<WebhookAvailability> {
+  let response: Response;
+  try {
+    response = await call("GET", "/webhooks/status");
+  } catch (error) {
+    if (error instanceof CapabilityNotGranted) return { ok: false, reason: "not_granted", targets: null, max: null };
+    throw error;
+  }
+  if (response.status === 404 || response.status === 403) {
+    await response.body?.cancel();
+    return { ok: false, reason: "not_granted", targets: null, max: null };
+  }
+  if (response.status !== 200) throw await refusal(response, "webhooks");
+  const answer = object(await answerOf(response));
+  const count = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
+  if (!answer || !count(answer["targets"]) || !count(answer["max"])) throw new Unavailable();
+  const shape = { targets: answer["targets"], max: answer["max"] };
+  if (answer["state"] === "ready") return { ok: true, reason: null, ...shape };
+  // "suspended", or a state of a later Chest: not a promise to deliver.
+  return { ok: false, reason: "suspended", ...shape };
 }
 
 // send queues one delivery of the message per target and returns at once:
