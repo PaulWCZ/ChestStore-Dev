@@ -68,8 +68,11 @@ first; this page is the map and the rules.
   invoiced in `lib/entries.ts`) until Quotes answers or a manager takes it
   back. The event's contract is in README "With the other tools": change it
   only with a new `version`.
-- **Emails** leave through `lib/mail.ts` with a short key (the recipient is
-  appended; 64 characters in all).
+- **Emails** leave through `lib/mail.ts` with a key built from what names
+  the email (the recipient is appended) and given **whole** — never cut:
+  the SDK sends a long one as its digest (studio.15). None is
+  `transactional`: each asks someone to act, so the person's choice in the
+  Chest (`mailPreference`) holds.
 
 ## Commands
 
@@ -127,7 +130,8 @@ own form), the project picker (above).
   (outside the transaction; it never fails the write).
 - **Authors**: an entry's `member_id` is `mbr_…`, `erased`, or `imp_<n>` (a
   former person of an import, named in `former_people`); `people()` resolves
-  all three.
+  all three, with `leftAt` for a former member (null when the Chest does
+  not say, and for imported people).
 - **Days vs instants**: an entry has a `day` (the Chest's calendar day) and
   optional instants; format days with `formatDay` (UTC), instants with the
   zone from `lib/clock.ts`. Never hard-code a zone or a currency.

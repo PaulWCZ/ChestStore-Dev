@@ -130,7 +130,8 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   recorded for someone follow their choice. On a Chest without mail
   nothing is sent and nothing fails.
 - **My leave in my calendar** (the `calendar` proposal): each approved
-  leave — asked and approved, declared, recorded by HR, imported — is an
+  absence — asked and approved, declared, recorded by HR, imported; not
+  remote work nor another kind that is not an absence — is an
   event in its person's own Chest calendar feed, the one Google Calendar,
   Outlook or Apple Calendar subscribe to once. **Private, and it never says
   why**: the title is "Off" ("Absent" in French), never the kind of leave
@@ -384,7 +385,7 @@ candidate. Booking and Hiring already tell each other their busy times
 | Who | Each member with approved leave in the window, and once more (empty `spans`) when the last of it goes — never again after that |
 | When | After every change, after the Chest's and People's events, and each weekday morning (the window moves on); only when the member's times changed (`shared_busy` keeps each one's SHA-256 fingerprint) |
 | Window | From the start of today (UTC) to 90 days later; at most 300 spans (past them, `to` stops where the first one left out starts: nothing unknown is claimed free) |
-| Spans | Each **approved** leave's whole days in the Chest's time zone (Europe/Paris by default; a morning ends at noon, an afternoon starts at noon), as UTC minutes, merged. A waiting request is not busy. Days the person does not work inside a leave are busy too (they are off) |
+| Spans | Each **approved** leave's whole days in the Chest's time zone (Europe/Paris by default; a morning ends at noon, an afternoon starts at noon), as UTC minutes, merged. A waiting request is not busy, nor a kind that is not an absence (remote work, training: *not away* in Settings). Days the person does not work inside a leave are busy too (they are off) |
 | Never | The kind of leave, its note, who approved it — nor that it is leave: times only |
 | Replaces | Everything the receiver holds **from Leave** for that member between `from` and `to`; `at` orders snapshots (keep one only if newer) |
 | Key | `leave.busy:<member>:<ms>:<sha-256>` (whole; the SDK sends it as its digest): the same content told again the same day is one event; busy, free, busy again are three |

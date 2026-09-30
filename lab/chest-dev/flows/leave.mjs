@@ -65,6 +65,24 @@ async function outbox() {
   return mails;
 }
 
+// The harness's /_dev as text: the signed-in member's calendar feed
+// address, and the events published to other tools (latest first).
+async function devPage() {
+  return (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+}
+async function feedOf() {
+  const path = /\/_chest\/calendar\/[A-Za-z0-9_-]+\.ics/u.exec(await devPage())?.[0];
+  expect(path, "the harness shows the feed's address");
+  return (await (await page.request.get(origin + path)).text()).replace(/\r\n[ \t]/gu, "");
+}
+// The latest leave.busy told of someone (the Events panel, latest first).
+async function busyOf(member) {
+  // The panel cuts a long snapshot at 600 characters: only whole ones read.
+  const read = text => { try { return JSON.parse(text); } catch { return null; } };
+  return [...(await devPage()).matchAll(/<code>leave\.busy<\/code> <small>([^<]*)<\/small>/gu)].map(m => read(m[1])).find(d => d?.member === member) ?? null;
+}
+const compact = d => day(d).replaceAll("-", "");
+
 async function send(label = "Send the request") {
   await page.getByRole("button", { name: label }).click();
   await page.waitForURL(/\/chest\?done=/u);
@@ -189,6 +207,27 @@ await step("the requester is emailed the answers too", async () => {
   expect(mails.some(m => m.startsWith("Your time off is approved")) && mails.some(m => m.startsWith("Your time off is refused") && m.includes("Inventaire ce jour-là")), "emails to Hugo: " + mails.join(" | "));
 });
 
+await step("approved: the week is in Hugo's own calendar feed as 'Off', private — never why; his home says so", async () => {
+  await page.goto(origin + "/chest");
+  const link = page.getByRole("link", { name: "Your approved leave is in your calendar" });
+  for (let i = 0; i < 10 && !(await link.isVisible()); i++) { await page.waitForTimeout(500); await page.reload(); }
+  expect(await link.getAttribute("href") === "/_chest/calendar", "the link to the Chest's calendar page");
+  const ics = await feedOf();
+  const event = ics.split("BEGIN:VEVENT").find(e => e.includes(`DTSTART;VALUE=DATE:${compact(monday)}`));
+  expect(event, "the week is in the feed");
+  expect(/SUMMARY:Off\r\n/u.test(event) && /CLASS:PRIVATE/u.test(event) && event.includes(`DTEND;VALUE=DATE:${compact(plus(monday, 5))}`), "Off, private, Monday to Friday: " + event);
+  expect(/URL:http:\/\/[^\r\n]*\/chest\/requests\/\d+/u.test(event), "it opens the request");
+  expect(!/Lisbon|Paid leave|Congés payés/u.test(ics), "never the note nor the kind");
+});
+
+await step("Booking is told Hugo's busy times: his week as UTC minutes, times only", async () => {
+  const busy = await busyOf(id("hugo"));
+  expect(busy && busy.v === 1, "leave.busy published for Hugo");
+  expect(Object.keys(busy).sort().join(",") === "at,from,member,spans,to,v", "times only: " + Object.keys(busy).join(","));
+  const week = busy.spans.find(([start]) => start.startsWith(day(plus(monday, -1))));
+  expect(week && /T2[23]:00Z$/u.test(week[0]) && week[1].startsWith(day(plus(monday, 4))) && /T2[23]:00Z$/u.test(week[1]), "Monday 00:00 to Saturday 00:00 in Paris: " + JSON.stringify(busy.spans));
+});
+
 await step("a last day before the first day: the field refuses it, and the form shows no day and counts nothing until it is fixed", async () => {
   await page.goto(origin + "/chest/new");
   const first = day(plus(monday, 9));
@@ -218,6 +257,19 @@ await step("he asks to cancel the approved week; she confirms; the days come bac
   await page.goto(origin + "/chest");
   const after = await page.locator(".balance", { hasText: "Paid leave" }).locator("strong").innerText();
   expect(Number(after) === Number(before) + 5, `balance ${before} → ${after}`);
+});
+
+await step("cancelled: the week leaves Hugo's feed, and Booking hears he is free again", async () => {
+  await page.goto(origin + "/chest");
+  let ics = "";
+  for (let i = 0; i < 10; i++) {
+    ics = await feedOf();
+    if (!ics.includes(`DTSTART;VALUE=DATE:${compact(monday)}`)) break;
+    await page.waitForTimeout(500);
+  }
+  expect(!ics.includes(`DTSTART;VALUE=DATE:${compact(monday)}`), "the week is gone from the feed");
+  const busy = await busyOf(id("hugo"));
+  expect(busy && !busy.spans.some(([start]) => start.startsWith(day(plus(monday, -1)))), "no longer busy that week: " + JSON.stringify(busy?.spans));
 });
 
 await step("sick leave is recorded at once, without a note", async () => {

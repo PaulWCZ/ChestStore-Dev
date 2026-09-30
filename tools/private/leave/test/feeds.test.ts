@@ -151,6 +151,18 @@ test("a first sync puts many at once (100 a call), and only what changed after",
   assert.deepEqual(snapshot, { ...busySnapshot(lea.id, rows.map(d => ({ start: zoned(d, 0, zone).getTime(), end: zoned(addDays(d, 1), 0, zone).getTime() })), Date.parse(String(snapshot["at"]))) });
 });
 
+test("remote work is not an absence: neither 'Off' in the feed nor busy for Booking", async () => {
+  const { sql } = database;
+  const remote = (await types(sql)).find(t => t.key === "remote")!.id;
+  const monday = quietMonday(77);
+  const r = await requests.createRequest(sql, asMember(tom), { typeId: remote, start: monday, startHalf: "am", end: monday, endHalf: "pm" });
+  assert.equal(r.status, "approved");
+  const before = busyOf(tom.id).length;
+  await keepInLine(sql);
+  assert.equal(chest.calendar.has(`leave:${r.id}`), false);
+  assert.equal(busyOf(tom.id).length, before);
+});
+
 test("erased: the events go, and what was told of them is forgotten", async () => {
   const { sql } = database;
   const event = { type: "member.erased" as const, id: "evt_" + "e".repeat(26), data: { id: lea.id, erasure: "era_" + "e".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
