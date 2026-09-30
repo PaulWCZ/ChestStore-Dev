@@ -557,6 +557,11 @@ await step("French, phone width: the page reads without sideways scroll; the sub
   const publicPage = await page.locator(".ck-bar .public-link").boundingBox();
   expect(brand && publicPage && Math.abs(publicPage.y - brand.y) < 8 && publicPage.x > brand.x + brand.width - 1, `the public link beside the name: ${JSON.stringify({ brand, publicPage })}`);
   expect((await page.locator(".ck-bar .public-link").innerText()).trim() === "Page publique", "its words whole");
+  // Round 3 (N7): "En ce moment" wrapped onto two lines at 390 px; each
+  // section's name is on one line, whole (kit 0.2.6 phone tabs).
+  const tabs = await page.locator(".ck-nav-link .ck-nav-label").evaluateAll(labels => labels.map(l => ({ text: l.textContent, lines: Math.round(l.getBoundingClientRect().height / parseFloat(getComputedStyle(l).lineHeight)), cut: l.scrollWidth > l.clientWidth + 1 })));
+  expect(tabs.length === 5 && tabs.every(t => t.lines === 1 && !t.cut), `five section names, each on one line: ${JSON.stringify(tabs)}`);
+  expect(tabs[0].text === "En ce moment", "the first one is \"En ce moment\"");
 });
 
 await browser.close();

@@ -48,7 +48,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
     listFiles(sql, member, { contact: c.id }),
     maybeSame(sql, c.id),
   ]);
-  const names = await directory([c.owner, ...steps.map(s => s.owner), ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...files.map(f => f.addedBy)], locale);
+  const names = await directory([c.owner, ...steps.map(s => s.owner), ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...items.flatMap(a => (a.kind === "booking" && typeof a.data["host"] === "string" ? [a.data["host"]] : [])), ...files.map(f => f.addedBy)], locale);
   const kinds = new Map(choices.stages.map(s => [s.id, s.kind]));
   const now = new Date();
   const day = today();

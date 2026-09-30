@@ -515,7 +515,7 @@ export async function updatePost(sql: Sql, actor: Member | null, postId: unknown
         event_day = ${c.event?.day ?? null}, event_last_day = ${c.event?.lastDay ?? null}, event_start = ${c.event?.start ?? null}, event_end = ${c.event?.end ?? null}, place = ${c.event?.place ?? null}, seats = ${c.event?.seats ?? null},
         welcome = ${c.welcome}, edited_at = ${scheduled ? null : now}, text_version = ${version}
         ${reconfirm ? tx`, confirm_from = ${version}` : tx``}
-        ${tellAgain ? tx`, announced_at = null, announce_after = null, email_short = false` : tx``}
+        ${tellAgain ? tx`, announced_at = null, announce_after = null, email_short = false, announce_due = ${now}` : tx``}
       where id = ${key}`;
     if (c.kind !== "event") await tx`delete from rsvps where post_id = ${key}`;
     if (!c.important) await tx`delete from confirmations where post_id = ${key}`;

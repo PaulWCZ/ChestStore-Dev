@@ -637,6 +637,30 @@ await step("round 3: “I’m coming” in one tap from the email of an Importan
   expect(!(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "Je viens" }).count()), "Léa is not answered for");
 });
 
+await step("pass 4: a post published 19 days ago, made Important now, is told to its audience then, once", async () => {
+  await as(context, origin, "camille");
+  await speak("en");
+  const subject = "Important: The Wi-Fi password changes on Monday";
+  expect(!(await dev()).includes(subject), "nobody told before");
+  await page.goto(origin + "/chest/posts/2/edit");
+  await page.waitForSelector(".composer[data-ready]", { state: "attached" });
+  await page.getByLabel("Important").check();
+  await page.getByRole("button", { name: /^Save and tell \d+ people/u }).click();
+  await page.waitForURL(/\/chest\/posts\/2$/u);
+  // The next pass (the front page opened, or the publish schedule) tells.
+  await page.goto(origin + "/chest");
+  const panel = await dev();
+  const letters = panel.split("<li>").filter(li => li.includes(subject) && li.includes("@example.test"));
+  expect(letters.length > 0, "emailed now");
+  expect(panel.includes("hugo@example.test") && letters.some(li => li.includes("hugo@example.test")), "Hugo emailed");
+  // Once: another pass sends nothing more.
+  await page.goto(origin + "/chest");
+  const after = (await dev()).split("<li>").filter(li => li.includes(subject) && li.includes("@example.test"));
+  expect(after.length === letters.length, `emailed once (${letters.length} then ${after.length})`);
+  await page.goto(origin + "/chest/posts/2");
+  expect(/Read by 0 of \d+/u.test(await page.locator(".readers h2").innerText()), "asked to confirm");
+});
+
 await step("round 3: an empty front page: no empty band, one import link; a reader is told whom to ask and may share something", async () => {
   // Every post out of sight for this step (the screenshots, taken after the flows, get them back).
   const sql = postgres("postgres://t_news:dev@127.0.0.1:5432/t_news", { max: 1, onnotice: () => {} });

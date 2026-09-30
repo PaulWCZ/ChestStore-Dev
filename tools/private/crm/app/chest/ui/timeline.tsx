@@ -5,20 +5,23 @@ import Link from "next/link";
 import { useState, useTransition, type ReactNode } from "react";
 import { Check, Clock, Flag, Lost, Mail, Meeting, Note, Pencil, Person, Phone, Pipeline, Plus, Trash, Trophy } from "../../../components/icons.tsx";
 import type { Activity } from "../../../lib/activities.ts";
-import { format } from "../../../lib/i18n/format.ts";
+import type { MeetingLine } from "../../../lib/page-data.ts";
+import { format, plural } from "../../../lib/i18n/format.ts";
 import { phoneHref } from "../../../lib/model.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { editActivity, removeActivity, restoreActivity } from "../actions.ts";
 import type { People } from "./shared.ts";
 
-const icons = { call: Phone, meeting: Meeting, email: Mail, note: Note, step: Check, created: Plus, stage: Pipeline, won: Trophy, lost: Lost, reopened: Flag, owner: Person, unassigned: Person, merged: Plus, form: Mail };
+const icons = { call: Phone, meeting: Meeting, email: Mail, note: Note, step: Check, created: Plus, stage: Pipeline, won: Trophy, lost: Lost, reopened: Flag, owner: Person, unassigned: Person, merged: Plus, form: Mail, booking: Meeting };
 const logged = new Set(["call", "meeting", "email", "note"]);
 
 // When each thing happened, written by the server ("3 days ago"): the
 // browser's own calendar data might write it otherwise.
-// A "form" line may carry the link back to the answer in Forms (made by
-// the server: lib/page-data.ts, answerLink), else null.
-export type TimelineItem = Activity & { when: string; whenFull: string; link: string | null };
+// A "form" line may carry the link back to the answer in Forms, a
+// "booking" line the link back to the meeting in Booking (made by the
+// server: lib/page-data.ts), else null. A booking line also carries its
+// meeting as the reader reads it.
+export type TimelineItem = Activity & { when: string; whenFull: string; link: string | null; meeting: MeetingLine | null };
 type Props = {
   items: TimelineItem[];
   people: People;
@@ -34,7 +37,7 @@ type Props = {
 // What happened, newest first. What people logged reads as they wrote it;
 // what the tool recorded reads as a sentence. The author edits their own
 // words; the author or a manager removes them, with Undo.
-export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, context, t }: Props) {
+export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, context, locale, t }: Props) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [, start] = useTransition();
@@ -50,6 +53,27 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
     const at = t.timeline.form.indexOf("{form}");
     if (!a.link || at < 0) return format(t.timeline.form, { form });
     return <>{t.timeline.form.slice(0, at)}<a href={a.link} target="_blank" rel="noopener">{form}</a>{t.timeline.form.slice(at + "{form}".length)}</>;
+  }
+
+  // "Booked a meeting: Project call", the type a link to the booking in
+  // Booking when there is one; under it, when and with whom.
+  function meetingHead(a: TimelineItem): ReactNode {
+    const text = a.meeting?.cancelled ? t.timeline.bookingCancelled : t.timeline.booked;
+    const type = a.meeting?.type || t.booking.meeting;
+    const at = text.indexOf("{type}");
+    if (!a.link || at < 0) return format(text, { type });
+    return <>{text.slice(0, at)}<a href={a.link} target="_blank" rel="noopener">{type}</a>{text.slice(at + "{type}".length)}</>;
+  }
+  function meetingWhen(a: TimelineItem): ReactNode {
+    const m = a.meeting;
+    if (!m) return null;
+    const host = m.host ? (m.host === me ? t.people.you : people[m.host]?.name ?? null) : null;
+    return (
+      <p className={m.cancelled ? "event-who cancelled" : "event-who"}>
+        <span className="num">{host ? format(t.timeline.bookingWhen, { when: m.when, host }) : format(t.timeline.bookingWhenAlone, { when: m.when })}</span>
+        {m.moves > 0 && <><span className="sep" aria-hidden="true">·</span><span>{plural(t.timeline.bookingMoved, m.moves, locale)}</span></>}
+      </p>
+    );
   }
 
   // Who filled the form in, as the form gave it (lib/from-forms.ts keeps
@@ -77,8 +101,9 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
     const name = who(a.author);
     switch (a.kind) {
       // Made from a form's answer (lib/from-forms.ts): no teammate did it.
-      case "created": return a.data["form"] !== undefined ? format(t.timeline.createdForm, { form: String(a.data["form"]) }) : format(a.data["imported"] ? t.timeline.createdImported : t.timeline.created, { name });
+      case "created": return a.data["booking"] !== undefined ? t.timeline.createdBooking : a.data["form"] !== undefined ? format(t.timeline.createdForm, { form: String(a.data["form"]) }) : format(a.data["imported"] ? t.timeline.createdImported : t.timeline.created, { name });
       case "form": return format(t.timeline.form, { form: String(a.data["form"] ?? "") });
+      case "booking": return format(t.timeline.booked, { type: "" });
       case "stage": return format(t.timeline.stage, { name, from: stage(a.data["from"]), to: stage(a.data["to"]) });
       case "won": return format(t.timeline.won, { name });
       case "lost": return format(t.timeline.lost, { name });
@@ -129,11 +154,12 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
             <span className="event-icon" aria-hidden="true"><Icon /></span>
             <div className="event-main">
               <p className="event-head">
-                {text === null ? <><strong>{t.timeline.kinds[a.kind]}</strong><span className="sep" aria-hidden="true">·</span><span>{a.data["by"] ? format(t.timeline.importedBy, { name: String(a.data["by"]) }) : who(a.author)}</span></> : <span>{a.kind === "form" ? formLine(a) : text}</span>}
+                {text === null ? <><strong>{t.timeline.kinds[a.kind]}</strong><span className="sep" aria-hidden="true">·</span><span>{a.data["by"] ? format(t.timeline.importedBy, { name: String(a.data["by"]) }) : who(a.author)}</span></> : <span>{a.kind === "form" ? formLine(a) : a.kind === "booking" ? meetingHead(a) : text}</span>}
                 {elsewhere && <span className="event-on">{format(t.timeline.on, { what: "" })}<Link prefetch={false} href={elsewhere.href}>{elsewhere.label}</Link></span>}
                 <time dateTime={a.at} title={a.whenFull}>{a.when}</time>
               </p>
               {submittedBy(a)}
+              {meetingWhen(a)}
               {editing === a.id ? (
                 <form className="event-edit" onSubmit={e => {
                   e.preventDefault();

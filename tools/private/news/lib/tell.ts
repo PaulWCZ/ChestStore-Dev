@@ -149,13 +149,18 @@ async function tellWelcomed(post: Due): Promise<Told> {
   return { done: true };
 }
 
-// announce tells what is due: Important posts, welcomes and shout-outs published in the
-// last 7 days and not yet told. Two passes never tell the same post at once
+// announce tells what is due: Important posts, welcomes and shout-outs
+// published — or made due again by an edit (announce_due: made Important,
+// another audience, asked to confirm again) — in the last 7 days, and not
+// yet told. Past 7 days a post is no longer news (the Chest was not
+// reached for a week). Telling again never doubles anything: the bell item
+// has one key per post, an email goes once per person and version, and
+// who confirmed is not asked again. Two passes never tell the same post at once
 // (a two-minute lease). It stops at the first post the Chest refuses.
 export async function announce(sql: Sql, now = new Date()): Promise<{ told: string[]; waiting: string[] }> {
   const due = await sql<{ id: string }[]>`
     select id from posts where announced_at is null and deleted_at is null and (important or kind in ('welcome', 'shoutout'))
-      and publish_at <= ${now} and publish_at > ${now}::timestamptz - interval '7 days'
+      and publish_at <= ${now} and greatest(publish_at, announce_due) > ${now}::timestamptz - interval '7 days'
     order by publish_at, id limit 10`;
   const told: string[] = [];
   const waiting: string[] = [];

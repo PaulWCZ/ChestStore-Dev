@@ -121,6 +121,24 @@ minute, in plain words.
   answer is the same whether the address was known or not. Unconfirmed
   addresses are forgotten after 7 days. **Without mail on the Chest** the
   form disappears and `/subscribe` gives the RSS address instead.
+  **Which emails are transactional** (SDK studio.15: the Chest applies a
+  member's email choice — all, one a day, none — to every recipient who
+  is a member, unless the message is `transactional`): subscribers are
+  mostly customers, outside addresses the preference never touches; it
+  matters when an employee subscribes with their own work address. Decided
+  per email: the **confirmation link** (and "you are already subscribed",
+  with the link of their page) is transactional — it answers what the
+  person just asked for in the form, and without it nothing works. **Each
+  update's email** is not: it is a notice like any other, so a member who
+  chose "none" gets none and one who chose "one a day" finds it in the
+  Chest's daily email (the page, the feeds and the team's inbox still
+  say it at once). There is **no unsubscribe confirmation email**:
+  *Unsubscribe* is a page, which says it is done, and the address is
+  deleted at once — writing to an address one has just been asked to
+  forget would be the wrong way round. Each key names its recipient's
+  address (`update:<update>:<subscriber>:<address>`, sent whole, hashed by
+  the SDK when long), so a subscriber's id reused after a restored
+  database can never collide with another address's key.
 - **Updates in a chat** (Proposal *webhooks*): under the email form, "Or
   in Slack, Teams or your own tool" → where (Slack, Microsoft Teams, a web
   address that receives JSON), the channel's webhook address (where to

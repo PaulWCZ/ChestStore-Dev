@@ -44,7 +44,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     formChoices(sql, member, t),
     listFiles(sql, member, { company: c.id }),
   ]);
-  const names = await directory([c.owner, ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...files.map(f => f.addedBy)], locale);
+  const names = await directory([c.owner, ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...items.flatMap(a => (a.kind === "booking" && typeof a.data["host"] === "string" ? [a.data["host"]] : [])), ...files.map(f => f.addedBy)], locale);
   const kinds = new Map(choices.stages.map(s => [s.id, s.kind]));
   const place = [c.address.replace(/\n/gu, ", "), [c.postcode, c.city].filter(Boolean).join(" "), c.country ? countryName(c.country, locale) : ""].filter(Boolean).join(", ");
   const details = [

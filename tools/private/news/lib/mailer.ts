@@ -35,15 +35,21 @@ export function letterText(t: Catalogue, letter: Letter, path: string, why: stri
 }
 
 // email sends each recipient their letter; key(person) makes a retry send
-// nothing twice (the Chest keeps a key 24 hours).
+// nothing twice (the Chest keeps a key 24 hours; the SDK sends a long one
+// as its SHA-256, so it is never cut). The Chest applies each person's
+// email preference (member.mailPreference, Proposal (studio.15)): who chose
+// none is skipped — not counted as sent; who chose one email a day gets it
+// in the Chest's daily email — counted. Nothing News sends is
+// transactional: an announcement, its reminders and the digest are all
+// things a person may choose to read in their Chest instead.
 export async function email(sql: Sql, people: Recipient[], write: (t: Catalogue, person: Recipient) => { letter: Letter; path: string; why: string }, key: (person: Recipient) => string): Promise<Mailed> {
   const sent: string[] = [];
   for (const person of people) {
     const t = catalogue(person.locale);
     const { letter, path, why } = write(t, person);
     try {
-      await mail.send({ to: { member: person.id }, subject: letter.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, letter, path, why), key: key(person).slice(0, 64) });
-      sent.push(person.id);
+      const result = await mail.send({ to: { member: person.id }, subject: letter.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, letter, path, why), key: key(person) });
+      if (!result.skipped.includes(person.id)) sent.push(person.id);
     } catch (error) {
       if (error instanceof CapabilityNotGranted) {
         await learn(sql, "mail", "off");

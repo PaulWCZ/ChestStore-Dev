@@ -374,6 +374,7 @@ textarea.field { resize: vertical; min-height: 64px; }
 /* What a form gave (name · email · phone), under its line. */
 .event-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); font-size: var(--text-s); color: var(--ink); overflow-wrap: anywhere; }
 .event-who .sep { color: var(--ink-2); }
+.event-who.cancelled .num { text-decoration: line-through; text-decoration-thickness: 1px; }
 .event-body { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); padding: var(--space-2) var(--space-3); font-size: var(--text-m); }
 .event-actions { display: flex; gap: 2px; opacity: 0.4; }
 .event:hover .event-actions, .event:focus-within .event-actions { opacity: 1; }
@@ -642,3 +643,8 @@ textarea.field { resize: vertical; min-height: 64px; }
 /* The week of the Team page's activities: four choices that scroll
    sideways on a narrow phone rather than push the page. */
 .week-pick { max-width: 100%; overflow-x: auto; padding: 2px; }
+
+/* Meetings guests booked in Booking (My day, lib/from-booking.ts). */
+.meetings { margin-bottom: var(--space-4); }
+.meetings .meeting-when { font-size: var(--text-xs); color: var(--ink-2); font-weight: var(--weight-strong); }
+.meetings .mini-meta { flex-wrap: wrap; justify-content: space-between; }

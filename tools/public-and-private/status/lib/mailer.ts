@@ -37,7 +37,12 @@ async function send(sql: Query, message: mail.Message): Promise<Outcome> {
 }
 
 // The first email of a subscription: the link that confirms it — or, to an
-// address already confirmed, the link of its page.
+// address already confirmed, the link of its page. It is the answer to the
+// person's own request (they just typed their address in the form), so it
+// is transactional: an address that is also a member's, who chose "none"
+// or "digest" in their Chest, still gets the link now. Update emails are
+// not transactional: they honour that choice (the Chest holds them back
+// or puts them in its daily email), as every other notice does.
 export async function welcome(sql: Query, s: Subscriber, state: "new" | "pending" | "confirmed", origin: string): Promise<Outcome> {
   const t = wordsFor(s.language).mail;
   const name = company() || t.team;
@@ -49,10 +54,16 @@ export async function welcome(sql: Query, s: Subscriber, state: "new" | "pending
     subject: format(confirmed ? t.alreadySubject : t.confirmSubject, { company: name }),
     text: format(confirmed ? t.alreadyBody : t.confirmBody, { company: name, link }),
     fromName: name,
-    key: `welcome:${s.id}:${day}:${confirmed ? "c" : "p"}`,
+    key: `welcome:${s.id}:${s.email.toLowerCase()}:${day}:${confirmed ? "c" : "p"}`,
+    transactional: true,
   });
 }
 
+// Keys (SDK studio.15) name the message whole — never cut: the SDK sends a
+// long one as its SHA-256. They carry the address too: the Chest refuses a
+// key reused within a day for other recipients (key_conflict), and a
+// subscriber's id can name another address after a restored database; with
+// the address in it, a key can only ever mean one recipient.
 type Queued = { incident_language: string | null;
   id: string; attempts: number; subscriber_id: string; email: string; language: string; token: string;
   update_id: string; status: Step; body: string; body_second: string | null; posted_at: Date;
@@ -116,7 +127,7 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
     const { subject, text } = updateEmail(q, components, origin, zone);
     let outcome: Outcome;
     try {
-      outcome = await send(sql, { to: q.email, subject, text, fromName: company() || wordsFor(q.language).mail.team, key: `update:${q.update_id}:${q.subscriber_id}` });
+      outcome = await send(sql, { to: q.email, subject, text, fromName: company() || wordsFor(q.language).mail.team, key: `update:${q.update_id}:${q.subscriber_id}:${q.email.toLowerCase()}` });
     } catch (error) {
       // An address the Chest refuses (bounced, complained, invalid): this
       // message is dropped, the next ones are tried.

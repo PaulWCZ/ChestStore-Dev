@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { forgetHost } from "./from-booking.ts";
 import { reconcile } from "./step-calendar.ts";
 import { managers } from "./team.ts";
 import { left } from "./tell.ts";
@@ -42,6 +43,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update activities set data = data - 'member' where data->>'member' = ${memberId}`;
     await tx`update activities set data = jsonb_set(data, '{from}', '"erased"') where data->>'from' = ${memberId}`;
     await tx`update activities set data = jsonb_set(data, '{to}', '"erased"') where data->>'to' = ${memberId}`;
+    await forgetHost(tx, memberId);
   });
 }
 

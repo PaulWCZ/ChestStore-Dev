@@ -1,1 +1,1 @@
-{"calendar": true, "schedules": [{"name": "morning", "cron": "30 7 * * 1-5"}], "emits": ["crm.deal.won", "crm.deal.reopened"], "receives": ["forms.contact"]}
+{"calendar": true, "schedules": [{"name": "morning", "cron": "30 7 * * 1-5"}], "emits": ["crm.deal.won", "crm.deal.reopened"], "receives": ["forms.contact", "booking.confirmed", "booking.cancelled"]}

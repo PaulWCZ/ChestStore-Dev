@@ -6,6 +6,7 @@ import type { Activity } from "./activities.ts";
 import type { Custom, FieldDef, FieldObject } from "./custom.ts";
 import type { Sql } from "./db.ts";
 import { fieldsByObject, optionLabel } from "./fields.ts";
+import { bookingLink, meetingTime, typeName } from "./from-booking.ts";
 import { formatDate, formatDay, intl, plural, relative, type Catalogue, type Locale } from "./i18n/index.ts";
 import { stageName, today, type Stage } from "./model.ts";
 import { listStages } from "./stages.ts";
@@ -42,8 +43,17 @@ export function dealFormProps(choices: Awaited<ReturnType<typeof formChoices>>, 
 
 // A timeline as its view shows it: each item's time in words, written here,
 // and the link back to the answer in Forms of a "Filled in the form" line.
-export function withWhen(items: Activity[], locale: Locale, now = new Date()): (Activity & { when: string; whenFull: string; link: string | null })[] {
-  return items.map(a => ({ ...a, when: relative(a.at, locale, now), whenFull: formatDate(a.at, locale, { dateStyle: "full", timeStyle: "short" }), link: answerLink(a) }));
+// A meeting booked in Booking (lib/from-booking.ts) also carries its type
+// in the reader's language, its time, and the link back to it in Booking.
+export type MeetingLine = { type: string; when: string; host: string | null; cancelled: boolean; moves: number };
+export function withWhen(items: Activity[], locale: Locale, now = new Date()): (Activity & { when: string; whenFull: string; link: string | null; meeting: MeetingLine | null })[] {
+  return items.map(a => ({ ...a, when: relative(a.at, locale, now), whenFull: formatDate(a.at, locale, { dateStyle: "full", timeStyle: "short" }), link: a.kind === "booking" ? bookingLink(a.data["path"]) : answerLink(a), meeting: meetingLine(a, locale) }));
+}
+
+function meetingLine(a: Activity, locale: Locale): MeetingLine | null {
+  if (a.kind !== "booking" || typeof a.data["start"] !== "string") return null;
+  const moves = Number(a.data["moves"] ?? 0);
+  return { type: typeName(a.data["type"], locale), when: meetingTime(a.data["start"], locale), host: typeof a.data["host"] === "string" ? a.data["host"] : null, cancelled: a.data["status"] === "cancelled", moves: Number.isInteger(moves) && moves > 0 ? moves : 0 };
 }
 
 // answerLink is the address of the answer in Forms that a "form" line

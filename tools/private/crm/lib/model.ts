@@ -39,7 +39,7 @@ export const limits = {
 export const loggedKinds = ["call", "meeting", "email", "note"] as const;
 export type LoggedKind = (typeof loggedKinds)[number];
 export const isLoggedKind = (value: unknown): value is LoggedKind => typeof value === "string" && (loggedKinds as readonly string[]).includes(value);
-export type ActivityKind = LoggedKind | "step" | "created" | "stage" | "won" | "lost" | "reopened" | "owner" | "unassigned" | "merged" | "form";
+export type ActivityKind = LoggedKind | "step" | "created" | "stage" | "won" | "lost" | "reopened" | "owner" | "unassigned" | "merged" | "form" | "booking";
 
 // clean trims a text and bounds it; line breaks are kept only where the
 // text may have several lines; other control characters are dropped.

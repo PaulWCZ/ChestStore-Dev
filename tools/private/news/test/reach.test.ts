@@ -426,3 +426,53 @@ test("the weekly digest by email too, unless the person turned it off", async ()
     await chest.close();
   }
 });
+
+test("an older post made Important later is told to its audience then, once", async () => {
+  await open();
+  try {
+    // Published 10 days ago, not Important: nobody was told.
+    const p = await posts.createPost(database.sql, pub, { kind: "announcement", title: "Parking rules", body: "Park on the left." }, { zone, now: new Date(Date.now() - 10 * 864e5) });
+    await tell.announce(database.sql);
+    assert.equal(chest.notifications.length, 0);
+    // Made Important today: its audience is told now, in the bell and by email.
+    const saved = await posts.updatePost(database.sql, pub, p.id, { kind: "announcement", title: "Parking rules", body: "Park on the left.", important: true }, { zone });
+    assert.equal(saved.importantChanged, true);
+    assert.deepEqual(await tell.announce(database.sql), { told: [p.id], waiting: [] });
+    const told = chest.notifications.filter(n => n.key === `post:${p.id}:important`).map(n => n.member).sort();
+    assert.deepEqual(told, [hugo.id, ines.id, lea.id, nora.id, sofia.id].sort());
+    assert.equal(chest.outbox.length, 5);
+    assert.equal(chest.badges.get(hugo.id), 1);
+    // Once: the next passes send nothing more.
+    assert.deepEqual(await tell.announce(database.sql), { told: [], waiting: [] });
+    assert.equal(chest.outbox.length, 5);
+    // A later change of its audience tells the new audience only by email
+    // (the bell item is replaced, never doubled), and still after 7 days.
+    await posts.confirm(database.sql, asMember(hugo), p.id);
+    await posts.updatePost(database.sql, pub, p.id, { kind: "announcement", title: "Parking rules", body: "Park on the left.", important: true, people: [hugo.id, nora.id] }, { zone });
+    assert.deepEqual(await tell.announce(database.sql), { told: [p.id], waiting: [] });
+    assert.equal(chest.outbox.length, 5, "Nora was emailed already; Hugo confirmed");
+    // A post made Important long after, then left for more than 7 days
+    // without the Chest being reached, is no longer told: as a new one.
+    await database.sql`update posts set announced_at = null, announce_due = now() - interval '8 days' where id = ${p.id}`;
+    assert.deepEqual(await tell.announce(database.sql), { told: [], waiting: [] });
+  } finally {
+    await chest.close();
+  }
+});
+
+test("each person's email preference in the Chest is honoured: none is not emailed, nor counted", async () => {
+  await open({ members: everyone.map(m => (m.id === hugo.id ? { ...m, mailPreference: "none" as const } : m.id === sofia.id ? { ...m, mailPreference: "digest" as const } : m)) });
+  try {
+    const p = await posts.createPost(database.sql, pub, { kind: "announcement", title: "Fire drill", important: true }, { zone });
+    await tell.announce(database.sql);
+    const to = chest.outbox.map(m => m.to[0]).sort();
+    assert.deepEqual(to, [ines, lea, nora].map(m => m.email).sort());
+    assert.deepEqual(chest.held.map(h => [h.member, h.reason]).sort(), [[hugo.id, "none"], [sofia.id, "digest"]].sort());
+    // Everyone is still told in the bell.
+    assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5);
+    // Sofia gets it in the Chest's daily email; Hugo chose none.
+    assert.equal((await posts.post(database.sql, pub, p.id, { zone })).emailed, 4);
+  } finally {
+    await chest.close();
+  }
+});

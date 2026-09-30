@@ -37,6 +37,16 @@ channel where announcements drown.
   post's text changes, the publisher may **ask everyone to confirm again**:
   earlier confirmations stop counting (the list says who confirmed an
   earlier version) and everyone is told again.
+- **Made Important later**: a post made Important when it is already out
+  — the day after or a month after — is told then, like a new one, to its
+  audience who has not confirmed it: in the bell and by email, once (the
+  bell item is replaced, never doubled; nobody is emailed twice for the
+  same version). The same goes for a new audience or *Ask everyone to
+  confirm again*. What is told is due for 7 days from the edit (from
+  publishing, for a new post): a post the Chest could not be reached for
+  in a week is no longer told (`migrations/0007_…`). Until this version
+  the 7 days counted from publishing only, so an older post made
+  Important told nobody.
 - **Views, a number only**: for publishers, how many different people of
   a post's audience opened it (*Opened by 12 of the 40 people it is for*),
   shown from 5 people and counted every hour, next to *Read by* and how many
@@ -79,8 +89,7 @@ publisher today), a proposal for some groups only (it is for everyone;
 the publisher may narrow it after publishing), several pictures or a
 video in a proposal, editing a proposal before it is published (the
 publisher edits the post after); answering an event from the **bell
-itself** (see "Needs from the SDK"); making an *older* post Important
-tells people only if it was published in the last 7 days (as before).
+itself** (see "Needs from the SDK").
 - **Reactions** (👍 ❤️ 🎉 👏 😄), **comments** and one level of
   **replies**; **@mentions** (type @ and a name: the people who see the
   post are proposed) tell the person mentioned. The author of a post hears
@@ -227,7 +236,13 @@ Wiki's spaces kept to groups).
 - **Email** (Proposal (studio): `"mail": {"send": true}`, "Sends emails in
   your company's name"): one message per person, `to: {member}` — News
   never knows an address — in their language, keyed so a retry never sends
-  twice; the Chest's default quota is 500 a day: past it, the rest of an
+  twice (the whole key: the SDK sends a long one as its SHA-256). Each
+  person's email choice in their Chest (Proposal (studio.15):
+  `member.mailPreference`) is applied by the Chest: *none* gets no email
+  from News (the bell still tells them, and *sent by email* does not count
+  them), *one a day* gets it in the Chest's daily email. Nothing News sends
+  is marked transactional. News's own *Stop the email* (the weekly digest)
+  stays, for a person who wants other tools' emails but not this one; the Chest's default quota is 500 a day: past it, the rest of an
   Important post's audience is told in the bell only and the publisher
   sees *The Chest's email limit for the day stopped the rest*. The links
   of an event's email are signed with a key News makes once at random and
@@ -388,5 +403,4 @@ publisher today), a proposal for some groups only (it is for everyone;
 the publisher may narrow it after publishing), several pictures or a
 video in a proposal, editing a proposal before it is published (the
 publisher edits the post after); answering an event from the **bell
-itself** (see "Needs from the SDK"); making an *older* post Important
-tells people only if it was published in the last 7 days (as before).
+itself** (see "Needs from the SDK").

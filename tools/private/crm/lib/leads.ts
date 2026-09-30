@@ -32,18 +32,21 @@ export type Lead = {
   form: string;
   message: string;
   maybe: { id: string; name: string } | null;
+  // A lead made by a booking (lib/from-booking.ts): its meeting.
+  booking: { type: Record<string, string>; start: string } | null;
 };
 
 export async function leads(sql: Sql, actor: Member | null, limit = 20): Promise<{ rows: Lead[]; total: number }> {
   if (!can(actor, "read")) throw new AppError("forbidden");
-  const rows = await sql<{ id: string; name: string; email: string; phone: string; company: string | null; since: Date; form: string | null; message: string | null; maybe_id: string | null; maybe_name: string | null; total: number }[]>`
+  const rows = await sql<{ id: string; name: string; email: string; phone: string; company: string | null; since: Date; form: string | null; message: string | null; maybe_id: string | null; maybe_name: string | null; booking: { type?: Record<string, string>; start?: string } | null; total: number }[]>`
     select c.id, c.name, c.email, c.phone, o.name as company, c.lead_since as since,
-      f.data->>'form' as form, f.body as message, m.id as maybe_id, m.name as maybe_name,
+      f.data->>'form' as form, f.body as message, m.id as maybe_id, m.name as maybe_name, g.data as booking,
       count(*) over ()::int as total
     from contacts c
     left join companies o on o.id = c.company_id
     left join contacts m on m.id = c.maybe_same
     left join lateral (select a.data, a.body from activities a where a.contact_id = c.id and a.kind = 'form' order by a.at desc, a.id desc limit 1) f on true
+    left join lateral (select a.data from activities a where a.contact_id = c.id and a.kind = 'booking' and a.data->>'status' = 'confirmed' order by a.at desc, a.id desc limit 1) g on true
     where c.lead_since is not null and c.owner is null
     order by c.lead_since desc, c.id desc
     limit ${limit}`;
@@ -53,6 +56,7 @@ export async function leads(sql: Sql, actor: Member | null, limit = 20): Promise
       id: String(r.id), name: r.name, email: r.email, phone: r.phone, company: r.company, since: r.since.toISOString(),
       form: r.form ?? "", message: r.message ?? "",
       maybe: r.maybe_id ? { id: String(r.maybe_id), name: r.maybe_name ?? "" } : null,
+      booking: r.booking && typeof r.booking.start === "string" ? { type: r.booking.type ?? {}, start: r.booking.start } : null,
     })),
   };
 }

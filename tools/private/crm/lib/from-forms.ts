@@ -61,14 +61,14 @@ export type FormContact = {
   message: string;
 };
 
-const refPattern = /^[A-Za-z0-9_-]{1,64}$/u;
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+export const refPattern = /^[A-Za-z0-9_-]{1,64}$/u;
+export const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const cut = (text: string, max: number) => [...text].slice(0, max).join("").trim();
 // One line of text, or several (a message): control characters and
 // direction overrides out, bounded.
-const line = (value: unknown, max: number): string => (typeof value === "string" ? cut(value.replace(/\s+/gu, " ").replace(/[\p{Cc}‪-‮⁦-⁩]/gu, "").trim(), max) : "");
+export const line = (value: unknown, max: number): string => (typeof value === "string" ? cut(value.replace(/\s+/gu, " ").replace(/[\p{Cc}‪-‮⁦-⁩]/gu, "").trim(), max) : "");
 const text = (value: unknown, max: number): string => (typeof value === "string" ? cut(value.replace(/\r\n?/gu, "\n").replace(/[^\P{Cc}\n\t]/gu, "").replace(/[‪-‮⁦-⁩]/gu, "").trim(), max) : "");
-const safe = (read: () => string): string => {
+export const safe = (read: () => string): string => {
   try {
     return read();
   } catch {
@@ -102,7 +102,6 @@ export function readFormContact(event: Pick<ToolEvent, "id" | "data">, now = new
   };
 }
 
-type Found = { id: string; name: string; email: string; phone: string; phone2: string; company_id: string | null; owner: string | null };
 
 // sameName: two names of one person, as people write them — accents,
 // case, punctuation and the order of the words aside. An empty name is
@@ -115,7 +114,9 @@ export function sameName(a: string, b: string): boolean {
 
 // match: the contact this person surely is (`found`), else the one they
 // may be (`maybe`: same phone, another name) — see the rule above.
-async function match(tx: Query, c: FormContact): Promise<{ found: Found | null; maybe: Found | null }> {
+// Also how Booking's guests are found (lib/from-booking.ts): the same rule.
+export type Found = { id: string; name: string; email: string; phone: string; phone2: string; company_id: string | null; owner: string | null };
+export async function match(tx: Query, c: Pick<FormContact, "email" | "phone" | "name">): Promise<{ found: Found | null; maybe: Found | null }> {
   if (c.email) {
     const [row] = await tx<Found[]>`select id, name, email, phone, phone2, company_id, owner from contacts where email <> '' and lower(email) = ${c.email} order by id limit 1`;
     if (row) return { found: row, maybe: null };
@@ -136,12 +137,12 @@ async function match(tx: Query, c: FormContact): Promise<{ found: Found | null; 
 
 // The company of that name, accents and case aside; added if there is none
 // (unassigned, like the contact).
-async function companyNamed(tx: Query, name: string, form: string, at: Date): Promise<string | null> {
+export async function companyNamed(tx: Query, name: string, form: string, at: Date, from: Record<string, unknown> = { form }): Promise<string | null> {
   if (!name) return null;
   const [known] = await tx<{ id: string }[]>`select id from companies where folded = crm_fold(${name}) order by id limit 1`;
   if (known) return String(known.id);
   const [row] = await tx<{ id: string }[]>`insert into companies (name, owner, created_by) values (${name}, null, 'chest') returning id`;
-  await tx`insert into activities (kind, company_id, author, data, at) values ('created', ${row!.id}, 'chest', ${tx.json({ form })}, ${at})`;
+  await tx`insert into activities (kind, company_id, author, data, at) values ('created', ${row!.id}, 'chest', ${tx.json(from as never)}, ${at})`;
   return String(row!.id);
 }
 

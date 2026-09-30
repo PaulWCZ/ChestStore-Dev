@@ -1,4 +1,5 @@
 import { shownName } from "./seed-words.ts";
+import { typeName } from "./from-booking.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./errors.ts";
@@ -93,7 +94,7 @@ export async function contactJson(sql: Sql, actor: Member | null, contactId: unk
       exportedAt: new Date().toISOString(),
       contact: { name: c.name, email: c.email, phone: c.phone, otherPhone: c.phone2, web: c.url, fields: Object.fromEntries(contactFields.filter(f => c.custom[f.id] !== undefined).map(f => [f.label, c.custom[f.id]])), title: c.title, company: c.company?.name ?? null, tags: c.tags, notes: c.notes, owner: name(c.owner), createdAt: c.createdAt, updatedAt: c.updatedAt, lastContact: c.lastContact },
       deals: data.deals.map(d => ({ title: d.title, value: amountInput(d.valueCents), stage: d.stage, createdAt: d.createdAt })),
-      activities: data.activities.map(a => ({ kind: t.timeline.kinds[a.kind], text: a.body, by: name(a.author), at: a.at, deal: a.deal?.title ?? null })),
+      activities: data.activities.map(a => ({ kind: t.timeline.kinds[a.kind], text: a.body, by: name(a.author), at: a.at, deal: a.deal?.title ?? null, ...(a.kind === "booking" ? { meeting: { type: typeName(a.data["type"], locale), start: a.data["start"] ?? null, end: a.data["end"] ?? null, cancelled: a.data["status"] === "cancelled" } } : {}) })),
       nextSteps: data.steps.map(s => ({ text: s.text, due: s.due, time: s.time, owner: name(s.owner), doneAt: s.doneAt })),
       files: data.files,
     }, null, 2),

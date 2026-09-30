@@ -105,6 +105,42 @@ test("what goes in bulk is caught up: a deal deleted, a contact deleted, a membe
   assert.equal(chest.calendar.get(`step:${s2.step.id}`)!.title.en, "Call · Anne Petit-Roux");
 });
 
+test("a first sync goes in batches of 100 (calendar.putMany, SDK studio.15); a step the Chest refuses does not hold back the others", async () => {
+  const { sql } = database;
+  await reconcile(sql);
+  const made: string[] = [];
+  for (let i = 0; i < 230; i++) made.push((await steps.addStep(sql, asMember(i % 2 ? ines : hugo), null, { text: `Call ${i}`, due: day, time: "09:00" })).step.id);
+  // One of them three years ahead (as an old import may hold): the Chest
+  // refuses that event alone.
+  await sql`update steps set due_on = due_on + interval '3 years' where id = ${made[150]!}`;
+  const calls: string[] = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+    const request = new Request(input, init);
+    if (request.url.startsWith(chest.api) && new URL(request.url).pathname.startsWith("/calendar/events")) calls.push(`${request.method} ${new URL(request.url).pathname}`);
+    return real(input, init);
+  }) as typeof fetch;
+  let done;
+  try {
+    done = await reconcile(sql);
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.equal(done.put, 229);
+  for (const id of made) assert.equal(chest.calendar.has(`step:${id}`), id !== made[150], id);
+  // The steps go by day: two batches of 100, then the last 30 — which hold
+  // the refused one, so the SDK sends nothing of them (it checks a batch
+  // whole) and they go one by one: 31 calls instead of 230.
+  const batches = calls.filter(c => c === "PUT /calendar/events").length;
+  assert.equal(batches, 2, calls.slice(0, 5).join(", "));
+  assert.equal(calls.length, 2 + 29, "only the refused batch went one by one");
+  assert.equal(await calendarWorks(sql), true);
+  // Nothing changed: nothing sent again.
+  assert.equal((await reconcile(sql)).put, 0);
+  await sql`delete from steps where id = any(${made}::bigint[])`;
+  await reconcile(sql);
+});
+
 test("a Chest without the calendar: the steps stand, the tool knows it", async () => {
   const { sql } = database;
   const other = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "files"] });

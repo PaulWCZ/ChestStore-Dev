@@ -12,7 +12,7 @@ import { OwnerPicker } from "./ui/owner-select.tsx";
 import type { Teammate } from "./ui/shared.ts";
 import { StepForm } from "./ui/step-box.tsx";
 
-export type LeadRow = { id: string; name: string; email: string; phone: string; company: string | null; when: string; form: string; message: string; maybe: { id: string; name: string } | null };
+export type LeadRow = { id: string; name: string; email: string; phone: string; company: string | null; when: string; form: string; message: string; maybe: { id: string; name: string } | null; booked: string };
 type Props = { rows: LeadRow[]; total: number; team: Teammate[]; me: string; canAssign: boolean; today: string; calendar: boolean; t: Catalogue };
 
 // The leads inbox, at the top of My day: the contacts forms made that
@@ -82,6 +82,7 @@ export function LeadsBox({ rows, total, team, me, canAssign, today, calendar, t 
                     {row.phone && <a className="num" href={phoneHref(row.phone)}><Phone />{row.phone}</a>}
                   </p>
                   {row.form && <p className="small-text muted">{format(t.timeline.form, { form: row.form })}</p>}
+                  {row.booked && <p className="small-text muted">{row.booked}</p>}
                   {row.message && <p className="lead-message">{row.message}</p>}
                   {row.maybe && <p className="notice warn lead-maybe"><Link prefetch={false} href={`/chest/contacts/${row.id}`}>{format(w.maybe, { name: row.maybe.name })}</Link></p>}
                 </div>

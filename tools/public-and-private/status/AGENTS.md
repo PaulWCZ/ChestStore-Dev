@@ -48,7 +48,7 @@ what must not break.
 npm ci && npm test && npm run build   # all three must pass
 ```
 
-## UI kit (`@argentic/chest-ui` 0.2.2-studio.1, `vendor/`)
+## UI kit (`@argentic/chest-ui` 0.2.6-studio.1, `vendor/`)
 
 Used: `ThemeStyle`/`resolveTheme` (look), `AppShell` + `Nav` (sections), `BrandMark`, `Toasts`/`useToast` (every success, error and Undo — through `components/use-run.ts`, whose `undo()` makes a truthful Undo), `Dialog` (resolve, reopen, finish or cancel a maintenance: `dirty` asks before losing typed text), `Confirm` (delete a heartbeat, erase a subscriber — never `window.confirm`), `DateField` and `TimeSelect` (never the browser's date or time field), `Menu` (a service's rarer actions), `EmptyState`, `PageHeader`, `FilePicker` (Statuspage import), `LanguageSwitch`, `useAutoRefresh`. The kit's words are the catalogues' `toast`, `dialog`, `date`, `files` sections. Contract tokens of 0.2.2: `--inverse` (+ `-ink`, `-ink-2`, `-line`) for the own look's dark header — never the inverse pair or a dark-mode override —, `--font-read` for update and post-mortem text, `--radius-chip` for chips and state pills, `--field-pad-x` for fields.
 

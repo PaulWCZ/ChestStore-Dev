@@ -52,16 +52,28 @@ export async function calendarWorks(sql: Query): Promise<boolean | null> {
   return row ? row.value === "yes" : null;
 }
 
-async function put(sql: Query, s: Eligible): Promise<boolean> {
+function eventOf(s: Eligible): calendar.CalendarEvent {
   const start = zoned(s.due_on, s.due_time, chest.timeZone());
   const title = Object.fromEntries(locales.map(l => [l, (s.about ? format(catalogue(l).calendar.titleOn, { text: s.text, on: s.about }) : s.text).slice(0, 120)]));
   const description = Object.fromEntries(locales.map(l => [l, catalogue(l).calendar.description]));
+  return {
+    key: key(s.id), members: [s.owner], title, description,
+    start, end: new Date(start.getTime() + stepMinutes * 60_000),
+    path: s.deal_id ? `/chest/deals/${s.deal_id}` : s.contact_id ? `/chest/contacts/${s.contact_id}` : "/chest",
+  };
+}
+
+async function kept(sql: Query, list: Eligible[]): Promise<void> {
+  for (const s of list) {
+    await sql`insert into step_events (step_id, owner, fingerprint) values (${s.id}, ${s.owner}, ${fingerprint(s)})
+      on conflict (step_id) do update set owner = excluded.owner, fingerprint = excluded.fingerprint, put_at = now()`;
+  }
+  if (list.length > 0) await remember(sql, true);
+}
+
+async function put(sql: Query, s: Eligible): Promise<boolean> {
   try {
-    await calendar.put({
-      key: key(s.id), members: [s.owner], title, description,
-      start, end: new Date(start.getTime() + stepMinutes * 60_000),
-      path: s.deal_id ? `/chest/deals/${s.deal_id}` : s.contact_id ? `/chest/contacts/${s.contact_id}` : "/chest",
-    });
+    await calendar.put(eventOf(s));
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     // A day far away (more than two years ahead, a year ago) is refused
@@ -69,10 +81,33 @@ async function put(sql: Query, s: Eligible): Promise<boolean> {
     if (error.code !== "invalid_event") await remember(sql, false);
     return false;
   }
-  await sql`insert into step_events (step_id, owner, fingerprint) values (${s.id}, ${s.owner}, ${fingerprint(s)})
-    on conflict (step_id) do update set owner = excluded.owner, fingerprint = excluded.fingerprint, put_at = now()`;
-  await remember(sql, true);
+  await kept(sql, [s]);
   return true;
+}
+
+// putMany: many steps at once (Proposal (studio.15): calendar.putMany, 100
+// a call, one write of the minute each) — a first sync, a bulk change, the
+// morning. A batch holding one event the Chest refuses (a day too far) is
+// put one by one, so the others still go. Says how many were put, and
+// whether to go on (false: the Chest has no calendar).
+async function putMany(sql: Query, list: Eligible[]): Promise<{ put: number; goOn: boolean }> {
+  let put_ = 0;
+  for (let i = 0; i < list.length; i += 100) {
+    const batch = list.slice(i, i + 100);
+    try {
+      await calendar.putMany(batch.map(eventOf));
+      await kept(sql, batch);
+      put_ += batch.length;
+    } catch (error) {
+      if (!(error instanceof ChestError)) throw error;
+      if (error.code !== "invalid_event") {
+        await remember(sql, false);
+        return { put: put_, goOn: false };
+      }
+      for (const s of batch) if (await put(sql, s)) put_++;
+    }
+  }
+  return { put: put_, goOn: true };
 }
 
 async function take(sql: Query, stepId: string): Promise<boolean> {
@@ -115,13 +150,10 @@ export async function reconcile(sql: Query, max = 500): Promise<{ put: number; r
       if (done.put + done.removed >= max) return done;
       if (!byId.has(k.step_id) && (await take(sql, k.step_id))) done.removed++;
     }
-    for (const s of now) {
-      if (done.put + done.removed >= max) break;
-      if (knownIds.get(s.id) === fingerprint(s)) continue;
-      if (await put(sql, s)) done.put++;
-      // A Chest without the calendar: one try a run, not one per step.
-      else if ((await calendarWorks(sql)) === false) break;
-    }
+    // What is new or changed, sent in batches; a Chest without the
+    // calendar: one try a run, not one per step.
+    const changed = now.filter(s => knownIds.get(s.id) !== fingerprint(s)).slice(0, Math.max(0, max - done.put - done.removed));
+    done.put += (await putMany(sql, changed)).put;
   } catch (error) {
     console.error("calendar: reconcile failed", error instanceof Error ? error.name : "error");
   }

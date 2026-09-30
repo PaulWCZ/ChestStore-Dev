@@ -1,0 +1,13 @@
+-- When a post became due to be told.
+--
+-- A post is told (its Important bell item and email, a welcome, a
+-- shout-out) by the next pass after it is published, within 7 days: past
+-- them, a post the Chest could not be reached for is no longer news. Until
+-- now those 7 days counted from publish_at, so a post published more than
+-- 7 days ago and made Important later (or given a new audience, or asked to
+-- be confirmed again) told nobody. announce_due is when an edit made it due
+-- again; the 7 days count from the later of the two.
+--
+-- The previous version keeps working on this schema: the column is
+-- optional and it never reads it.
+alter table posts add column announce_due timestamptz;

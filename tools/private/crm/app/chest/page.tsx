@@ -2,7 +2,7 @@ import { calendarWorks, reconcile } from "../../lib/step-calendar.ts";
 import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Building, Chart, Pipeline, Trophy, Upload } from "../../components/icons.tsx";
+import { Building, Chart, Meeting, Pipeline, Trophy, Upload } from "../../components/icons.tsx";
 import { can, canEditDeal, roleOf } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { openByStage, wonThisMonth } from "../../lib/deals.ts";
@@ -20,6 +20,7 @@ import { emptyCompany, emptyDeal } from "./ui/values.ts";
 import { DayList, SelfStepButton, type DayRow } from "./day-list.tsx";
 import { LeadsBox } from "./leads-box.tsx";
 import { countFormLinesToCheck, leads } from "../../lib/leads.ts";
+import { bookingLink, meetingTime, typeName, upcoming } from "../../lib/from-booking.ts";
 
 // My day: what I promised to do (late and today first), then my open
 // deals, stage by stage. The one obvious action: do the next thing, say
@@ -128,13 +129,17 @@ export default async function MyDay() {
   }
 
   const writes = can(member, "records.write");
-  const [steps, byStage, won, inbox, toCheck] = await Promise.all([
+  const [steps, byStage, won, inbox, toCheck, meetings] = await Promise.all([
     myDay(sql, member, now), openByStage(sql, member, member.id), wonThisMonth(sql, member, now),
     // New contacts from forms, nobody's yet (lib/leads.ts), and — for a
     // manager — form answers that may sit in the wrong person's file.
     writes ? leads(sql, member) : Promise.resolve({ rows: [], total: 0 }),
     countFormLinesToCheck(sql, member),
+    // Meetings guests booked in Booking (lib/from-booking.ts), for the week
+    // to come: those I host, and those of my contacts.
+    upcoming(sql, member.id),
   ]);
+  const hosts = await directory(meetings.map(m => m.host), locale);
   // The tile's number may have gone stale overnight: set it right whenever
   // its owner comes home.
   await refreshBadges(sql, [member.id]);
@@ -168,7 +173,28 @@ export default async function MyDay() {
         <section aria-labelledby="steps-title" className="day-steps">
           {toCheck > 0 && <p className="notice warn"><Link prefetch={false} href="/chest/settings/forms">{plural(t.check.notice, toCheck, locale)}</Link></p>}
           {inbox.rows.length > 0 && (
-            <LeadsBox rows={inbox.rows.map(l => ({ ...l, when: relative(l.since, locale) }))} total={inbox.total} team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} calendar={inCalendar} t={t} />
+            <LeadsBox rows={inbox.rows.map(({ booking, ...l }) => ({ ...l, when: relative(l.since, locale), booked: booking ? format(t.booking.booked, { type: typeName(booking.type, locale) || t.booking.meeting, when: meetingTime(booking.start, locale) }) : "" }))} total={inbox.total} team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} calendar={inCalendar} t={t} />
+          )}
+          {meetings.length > 0 && (
+            <section className="panel meetings" aria-labelledby="meetings-title">
+              <h2 id="meetings-title" className="label-mono">{t.booking.upcoming}</h2>
+              <ul className="mini-list">
+                {meetings.map(m => {
+                  const link = bookingLink(m.path);
+                  const host = m.host && m.host !== member.id ? hosts[m.host]?.name : null;
+                  return (
+                    <li key={m.booking}>
+                      <span className="meeting-when num">{meetingTime(m.start, locale)}</span>
+                      <Link prefetch={false} href={`/chest/contacts/${m.contact.id}`}><Meeting />{m.contact.name}</Link>
+                      <span className="mini-meta">
+                        <span className="muted">{[typeName(m.type, locale), host ? format(t.booking.with, { host }) : ""].filter(Boolean).join(" · ")}</span>
+                        {link && <a className="link-button" href={link} target="_blank" rel="noopener">{t.booking.open}</a>}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           )}
           <h2 id="steps-title" className="visually-hidden">{t.step.title}</h2>
           {rows.length === 0 ? inbox.rows.length > 0 ? null : (
