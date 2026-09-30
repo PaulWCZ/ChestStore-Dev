@@ -33,5 +33,7 @@
   {"name": "contact-maybe", "path": "/chest/contacts/17", "member": "hugo", "locale": "en", "only": ["desktop"]},
   {"name": "form-check", "path": "/chest/settings/forms", "member": "camille", "locale": "en", "only": ["desktop"]},
   {"name": "team-monday-fr", "path": "/chest/team", "member": "camille", "locale": "fr", "only": ["phone"]},
-  {"name": "board-port", "path": "/chest/deals", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}}
+  {"name": "board-port", "path": "/chest/deals", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}},
+  {"name": "contact-booked-fr", "path": "/chest/contacts/2", "member": "ines", "locale": "fr"},
+  {"name": "day-meetings-brand", "path": "/chest", "member": "hugo", "locale": "fr", "look": {"tool": "brand:sample"}}
 ]

@@ -166,3 +166,19 @@ insert into activities (kind, body, data, contact_id, company_id, author, at, cr
   ('form', E'Is the order of four chairs ready? I can come on Saturday.',
    '{"event": "evt_seedform0000000000000003", "formId": "5", "form": "Contact us", "answer": "seedanswer000003", "path": "/chest/forms/5/answers/seedanswer000003"}',
    (select id from contacts where name = 'Pierre Petit'), (select company_id from contacts where name = 'Pierre Petit'), 'chest', now() - interval '5 days', now() - interval '5 days');
+
+-- Two meetings guests booked in Booking (booking.confirmed,
+-- lib/from-booking.ts): Marc Durand with Inès tomorrow at 10:00, Antoine
+-- Vidal (Hugo's client) with Inès the day after at 14:00 — in the My day of
+-- both, and on their histories.
+insert into booked_meetings (booking, status, moves, starts_at, ends_at, host) values
+  ('901', 'confirmed', 0, (date_trunc('day', now() at time zone 'Europe/Paris') + interval '1 day 10 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '1 day 10 hours 30 minutes') at time zone 'Europe/Paris', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'),
+  ('902', 'confirmed', 1, (date_trunc('day', now() at time zone 'Europe/Paris') + interval '2 days 14 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '2 days 15 hours') at time zone 'Europe/Paris', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
+insert into activities (kind, data, contact_id, company_id, author, at, created_at)
+  select 'booking', jsonb_build_object('event', 'evt_seedbooking00000000000' || m.booking, 'booking', m.booking, 'status', 'confirmed', 'start', to_char(m.starts_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), 'end', to_char(m.ends_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), 'host', m.host,
+      'type', case m.booking when '901' then '{"en": "Project call", "fr": "Appel projet"}'::jsonb else '{"en": "Showroom visit", "fr": "Visite du showroom"}'::jsonb end,
+      'kind', case m.booking when '901' then 'video' else 'place' end, 'moves', m.moves, 'cancelledBy', null, 'path', '/chest/bookings/' || m.booking,
+      'who', jsonb_build_object('name', c.name, 'email', c.email, 'phone', '')),
+    c.id, c.company_id, 'chest', now() - interval '2 hours', now() - interval '2 hours'
+  from booked_meetings m join contacts c on c.name = case m.booking when '901' then 'Marc Durand' else 'Antoine Vidal' end;
+update booked_meetings m set activity_id = a.id from activities a where a.kind = 'booking' and a.data->>'booking' = m.booking;

@@ -626,7 +626,9 @@ await step("a candidate's own data carries the files sent to her (the offer lett
 });
 
 await step("the morning schedule: each interviewer gets the day's interviews by email, in their language (their email choice applied by the Chest)", async () => {
-  // An interview today, late enough to be ahead of now, with Hugo.
+  // An interview today at 20:45 (the last start the form offers), with
+  // Hugo. The form refuses a time more than an hour past, so this step
+  // needs to run before 21:45 Paris time.
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
   await page.goto(origin + "/chest/candidates/3");
   await page.getByRole("button", { name: "Interview", exact: true }).click();
@@ -634,7 +636,7 @@ await step("the morning schedule: each interviewer gets the day's interviews by 
   await page.locator("#iv-day").fill(today);
   await page.locator("#iv-day").press("Tab");
   await page.locator("dialog[open] .check", { hasText: "Hugo Bernard" }).locator("input").check();
-  await page.locator("#iv-time").selectOption("23:30");
+  await page.locator("#iv-time").selectOption("20:45");
   await page.locator("#iv-place").fill("Atelier Martin, Lyon");
   await page.locator("dialog[open]").getByRole("button", { name: "Send the invitation" }).click();
   await page.waitForSelector(".ck-toast");
@@ -642,10 +644,15 @@ await step("the morning schedule: each interviewer gets the day's interviews by 
   expect(r.status() === 303, "schedule: " + r.status());
   const log = await dev();
   const mail = log.split("<li>").find(item => item.includes("Your interviews today"));
-  expect(Boolean(mail) && mail.includes("hugo@example.test") && mail.includes("23:30 — Aïcha Benali") && mail.includes("/chest/candidates/3"), "Hugo's morning email, with the time, the name and the link");
+  expect(Boolean(mail) && mail.includes("hugo@example.test") && mail.includes("20:45 — Aïcha Benali") && mail.includes("/chest/candidates/3"), "Hugo's morning email, with the time, the name and the link");
   // Run again (a retry): still one email for him today.
   await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
-  expect((await dev()).split("Your interviews today").length - 1 === 1, "one a day");
+  const again = await dev();
+  expect(again.split("<b>Your interviews today</b>").length - 1 === 1, "one a day");
+  // Every interviewer on it gets theirs in their own language: Inès, a
+  // job's interviewer ticked by default, reads French.
+  const ines = again.split("<li>").find(item => item.includes("<b>Vos entretiens aujourd’hui</b>"));
+X
 });
 
 await step("a candidate applies from a phone with a photo of her CV; the team sees it on her page", async () => {
