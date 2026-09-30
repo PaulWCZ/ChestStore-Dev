@@ -910,7 +910,7 @@ export const en = {
   },
   exportAll: {
     file: "hiring",
-    readme: "Everything Hiring kept, as spreadsheets (UTF-8 CSV) and files: jobs.csv, candidates.csv (with the name of each CV in cv/), notes.csv, feedback.csv, emails.csv, interviews.csv, history.csv. People of the team are their Chest member ids (mbr_…).",
+    readme: "Everything Hiring kept, as spreadsheets (UTF-8 CSV) and files: jobs.csv, candidates.csv (with the name of each CV in cv/), notes.csv, feedback.csv, emails.csv (with the name of each file sent or received in emails/), interviews.csv, history.csv. People of the team are their Chest member ids (mbr_…).",
     headers: {
       id: "Id",
       title: "Title",
@@ -938,6 +938,7 @@ export const en = {
       in: "Received",
       out: "Sent",
       subject: "Subject",
+      files: "Files",
       status: "Status",
       start: "Start",
       end: "End",

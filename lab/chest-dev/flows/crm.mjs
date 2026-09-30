@@ -718,5 +718,71 @@ await step("seeded names in the reader's language: the sample's fields, tags and
   expect(await page.locator("dt", { hasText: "Livraison souhaitée le" }).count() === 1, "own fields in French");
 });
 
+// Booking → Clients (booking.confirmed / booking.cancelled, Booking's
+// README "With the other tools"): the harness plays Booking.
+const booked = (booking, extra = {}) => {
+  const start = extra.start ?? new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1, 8, 0));
+  return { v: 1, booking, status: "confirmed", at: new Date(Date.now() - 60000).toISOString(), host: "mbr_hugo" + "a".repeat(22), start: start.toISOString(), end: new Date(start.getTime() + 3600000).toISOString(), type: { id: "3", name: { en: "Project call", fr: "Appel projet" } }, kind: "video", contact: { name: "Sarah Klein", email: "Sarah.Klein@example.com", phone: null, company: null, language: "en" }, source: "page", moves: 0, path: "/chest/bookings/" + booking, ...extra };
+};
+const tellBooking = data => page.request.post(origin + "/_dev/deliver", { form: { type: data.status === "cancelled" ? "booking.cancelled" : "booking.confirmed", data: JSON.stringify(data) }, maxRedirects: 0 });
+
+await step("Booking tells Clients a guest booked Hugo: a contact of Hugo's, the meeting in his My day and on her history, linking back to Booking; a move replaces its time, a repeat changes nothing", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await tellBooking(booked("9001"));
+  await page.goto(origin + "/chest");
+  const meetings = page.locator("section.meetings");
+  await meetings.waitFor();
+  const row = meetings.locator("li", { hasText: "Sarah Klein" });
+  const text = await row.innerText();
+  expect(text.includes("Project call") && text.includes("10:00"), "in My day, at 10:00 Paris: " + text);
+  expect(await row.getByRole("link", { name: "Open in Booking" }).getAttribute("href") === "https://booking-chest.chest.test/chest/bookings/9001", "Open in Booking");
+  await row.getByRole("link", { name: "Sarah Klein" }).click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  const line = page.locator(".timeline .event.k-booking");
+  await line.waitFor();
+  const said = await line.innerText();
+  expect(said.includes("Booked a meeting: Project call") && said.includes("10:00") && said.includes("with you"), "the line: " + said);
+  expect(await line.getByRole("link", { name: "Project call" }).getAttribute("href") === "https://booking-chest.chest.test/chest/bookings/9001", "the type links back to the booking");
+  expect((await page.locator(".timeline").innerText()).includes("Added when they booked a meeting"), "added by the booking");
+  expect((await page.locator("main").innerText()).includes("sarah.klein@example.com"), "her email, lower-cased");
+  // Moved to the day after, at 14:00 Paris; told twice; an older move late.
+  const later = booked("9001", { moves: 1, start: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 2, 12, 0)) });
+  await tellBooking(later);
+  await tellBooking(later);
+  await tellBooking(booked("9001"));
+  await page.reload();
+  expect(await page.locator(".timeline .event.k-booking").count() === 1, "one line");
+  const moved = await page.locator(".timeline .event.k-booking").innerText();
+  expect(moved.includes("14:00") && moved.includes("Moved once") && !moved.includes("10:00"), "its time replaced: " + moved);
+});
+
+await step("Booking cancels it: the line says so, My day drops it, and a confirmation after it is ignored", async () => {
+  await tellBooking(booked("9001", { status: "cancelled", cancelledBy: "guest", moves: 1 }));
+  await tellBooking(booked("9001", { moves: 2 }));
+  await page.reload();
+  const line = await page.locator(".timeline .event.k-booking").innerText();
+  expect(line.includes("Meeting cancelled: Project call"), "cancelled: " + line);
+  await page.goto(origin + "/chest");
+  expect(await page.locator("section.meetings li", { hasText: "Sarah Klein" }).count() === 0, "not in My day");
+});
+
+await step("privacy: a guest with Claire Durand's phone under another name is a contact of her own, maybe the same person; nothing lands in Claire's file; version 2 is ignored", async () => {
+  await tellBooking(booked("9002", { contact: { name: "Marie Leroy", email: "marie.leroy@example.com", phone: "+33 6 12 34 56 78", company: null, language: "fr" } }));
+  await tellBooking(booked("9003", { v: 2, contact: { name: "Version Two", email: "v2@example.com", phone: null, company: null, language: "en" } }));
+  await page.goto(origin + "/chest/contacts?q=Claire");
+  await page.locator("a.row-link", { hasText: "Claire Durand" }).first().click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  expect(await page.locator(".timeline .event.k-booking").count() === 0, "nothing in Claire's file");
+  await page.goto(origin + "/chest/contacts?q=marie.leroy");
+  await page.locator("a.row-link", { hasText: "Marie Leroy" }).first().click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  expect((await page.locator(".maybe-same").innerText()).includes("Claire Durand"), "maybe the same person");
+  expect(await page.locator(".timeline .event.k-booking").count() === 1, "her meeting on her own file");
+  await page.goto(origin + "/chest/contacts?q=v2%40example.com");
+  expect(await page.locator("a.row-link", { hasText: "Version Two" }).count() === 0, "version 2 ignored");
+});
+
 await browser.close();
 done(problems);

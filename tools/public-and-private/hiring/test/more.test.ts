@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import * as chestFiles from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as candidates from "../lib/candidates.ts";
 import { parseCsv } from "../lib/csv.ts";
-import { everything, theirData } from "../lib/export-all.ts";
+import { emailFiles, everything, theirData } from "../lib/export-all.ts";
 import { en } from "../lib/i18n/en.ts";
 import { dateOf, emailInName, guess, rowsOf } from "../lib/import-map.ts";
 import { importRows, undoImport } from "../lib/import.ts";
@@ -227,4 +228,34 @@ test("a ZIP the tool writes opens; everything exports; a candidate's own data", 
   const data = JSON.parse(new TextDecoder().decode(theirs.entries[0]!.data));
   assert.equal(data.candidate.email, "export@example.com");
   await assert.rejects(theirData(sql, asMember(hugo), c.id, en), { code: "forbidden" });
+});
+
+test("the files of a candidate's emails, sent and received, are in their data and in the full export (round 3 limit)", async () => {
+  const { sql } = database;
+  const job = await openJob(sql, recruiter(), "Files export");
+  const c = (await candidates.apply(sql, application(job.slug, { email: "files@example.com", name: "Fanny Files" }))).candidate;
+  await chestFiles.put("sent/offer-1.pdf", "%PDF offer", "application/pdf");
+  await chestFiles.put("sent/offer-2.pdf", "%PDF second", "application/pdf");
+  await chestFiles.put("mail/answer.pdf", "%PDF signed", "application/pdf");
+  const [out] = await sql<{ id: string }[]>`insert into messages (candidate_id, direction, kind, author, subject, body, status, attachments)
+    values (${c.id}, 'out', 'message', ${camille.id}, 'Your offer', 'Here it is.', 'sent', ${sql.json([{ file: "sent/offer-1.pdf", name: "Offer.pdf", type: "application/pdf", size: 10 }, { file: "sent/offer-2.pdf", name: "Offer.pdf", type: "application/pdf", size: 11 }] as never)}) returning id`;
+  const [back] = await sql<{ id: string }[]>`insert into messages (candidate_id, direction, kind, subject, body, from_address, status, attachments)
+    values (${c.id}, 'in', 'message', 'Re: Your offer', 'Signed.', 'files@example.com', 'received', ${sql.json([{ file: "mail/answer.pdf", name: "../../signed/offer.pdf", type: "application/pdf", size: 11 }, { file: "mail/gone.pdf", name: "gone.pdf", type: "application/pdf", size: 1 }] as never)}) returning id`;
+  const sent = `emails/${out!.id}/Offer.pdf`, second = `emails/${out!.id}/2-Offer.pdf`, signed = `emails/${back!.id}/__.._signed_offer.pdf`;
+  assert.deepEqual(emailFiles({ id: back!.id, attachments: [{ file: "x", name: "../../signed/offer.pdf", type: "", size: 0 }] }).map(f => f.path), [signed], "one path segment per name");
+  // The candidate's own archive: the files beside data.json, named in it.
+  const theirs = await theirData(sql, recruiter(), c.id, en);
+  const names = theirs.entries.map(e => e.name);
+  for (const name of [sent, second, signed]) assert.ok(names.includes(name), name);
+  assert.ok(!names.some(n => n.includes("gone")), "a file the Chest no longer has is left out");
+  assert.equal(new TextDecoder().decode(theirs.entries.find(e => e.name === second)!.data), "%PDF second");
+  const data = JSON.parse(new TextDecoder().decode(theirs.entries[0]!.data));
+  assert.deepEqual(data.emails.map((m: { files: string[] }) => m.files), [[sent, second], [signed, `emails/${back!.id}/gone.pdf`]]);
+  // The full export: the same files, named in emails.csv.
+  const inside = await readZip(new Uint8Array(await new Response(zipStream(everything(sql, recruiter(), en))).arrayBuffer()));
+  assert.equal(new TextDecoder().decode(inside.get(signed)), "%PDF signed");
+  assert.ok(inside.has(sent) && inside.has(second));
+  const rows = parseCsv(new TextDecoder().decode(inside.get("emails.csv")));
+  assert.equal(rows[0]!.at(-1), "Files");
+  assert.ok(rows.some(r => r.at(-1) === `${sent}\n${second}`), "each email names its files");
 });

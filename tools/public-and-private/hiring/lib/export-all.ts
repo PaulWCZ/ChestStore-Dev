@@ -7,7 +7,7 @@ import { toCsv } from "./csv.ts";
 import type { Sql } from "./db.ts";
 import type { Catalogue } from "./i18n/index.ts";
 import { ofCandidate } from "./interviews.ts";
-import { conversation } from "./messages.ts";
+import { conversation, type Attachment } from "./messages.ts";
 import { cvTypes, isCvType, slugify } from "./model.ts";
 import { stageLabel } from "./stages.ts";
 import type { Entry } from "./zip.ts";
@@ -22,6 +22,29 @@ import type { Entry } from "./zip.ts";
 const csvOf = (rows: (string | number | null | undefined)[][]) => new TextEncoder().encode(toCsv(rows.map(r => r.map(v => (v === null || v === undefined ? "" : v)))));
 const day = (d: Date | string | null) => (d === null ? "" : (typeof d === "string" ? d : d.toISOString()).slice(0, 16).replace("T", " "));
 const extension = (type: string | null) => (type && isCvType(type) ? cvTypes[type] : "docx");
+
+// The files of emails — sent (an offer letter, a template's files) and
+// received (what a candidate attached) — each under its email's folder,
+// by the name it had: "emails/<email id>/offer.pdf". A name is one path
+// segment (no slash nor backslash, no leading dot) and never twice in one email.
+const segment = (name: string) => name.replace(/[\\/\u0000-\u001f]/gu, "_").replace(/^\.+/u, "_").slice(0, 200) || "file";
+export function emailFiles(message: { id: string; attachments: Attachment[] | null }, folder = "emails"): { path: string; file: string }[] {
+  const used = new Set<string>();
+  return (Array.isArray(message.attachments) ? message.attachments : []).filter(a => typeof a.file === "string").map(a => {
+    const base = segment(String(a.name ?? ""));
+    let path = `${folder}/${message.id}/${base}`;
+    for (let n = 2; used.has(path); n++) path = `${folder}/${message.id}/${n}-${base}`;
+    used.add(path);
+    return { path, file: a.file };
+  });
+}
+// One file of the Chest's, or nothing when it is gone (erased, expired).
+async function* read(list: { path: string; file: string }[]): AsyncGenerator<Entry> {
+  for (const f of list) {
+    const file = await files.get(f.file).catch(() => null);
+    if (file) yield { name: f.path, data: file.data };
+  }
+}
 
 export async function* everything(sql: Sql, actor: Member | null, t: Catalogue): AsyncGenerator<Entry> {
   if (!can(actor, "export")) throw new AppError("forbidden");
@@ -41,9 +64,10 @@ export async function* everything(sql: Sql, actor: Member | null, t: Catalogue):
   const feedback = await sql<{ candidate_id: string; author: string; rating: number; strengths: string; concerns: string; recommendation: string; updated_at: Date }[]>`select * from feedback order by candidate_id, created_at`;
   yield { name: "feedback.csv", data: csvOf([[h.candidate, h.author, t.candidate.rating, t.candidate.strengths, t.candidate.concerns, t.candidate.recommendation, h.date],
     ...feedback.map(f => [f.candidate_id, f.author, f.rating, f.strengths, f.concerns, t.candidate.recommendations[f.recommendation as "yes"], day(f.updated_at)])]) };
-  const mails = await sql<{ candidate_id: string | null; direction: string; kind: string; author: string | null; from_address: string | null; subject: string; body: string; status: string; created_at: Date }[]>`select * from messages order by candidate_id, created_at`;
-  yield { name: "emails.csv", data: csvOf([[h.candidate, h.direction, h.author, h.subject, h.text, h.status, h.date],
-    ...mails.map(m => [m.candidate_id ?? "", m.direction === "in" ? h.in : h.out, m.author ?? m.from_address ?? "", m.subject, m.body, m.status, day(m.created_at)])]) };
+  const mails = await sql<{ id: string; candidate_id: string | null; direction: string; kind: string; author: string | null; from_address: string | null; subject: string; body: string; status: string; created_at: Date; attachments: Attachment[] | null }[]>`select * from messages order by candidate_id, created_at, id`;
+  const mailFiles = new Map(mails.map(m => [m, emailFiles({ id: String(m.id), attachments: m.attachments })]));
+  yield { name: "emails.csv", data: csvOf([[h.candidate, h.direction, h.author, h.subject, h.text, h.status, h.date, h.files],
+    ...mails.map(m => [m.candidate_id ?? "", m.direction === "in" ? h.in : h.out, m.author ?? m.from_address ?? "", m.subject, m.body, m.status, day(m.created_at), mailFiles.get(m)!.map(f => f.path).join("\n")])]) };
   const interviews = await sql<{ candidate_id: string; starts_at: Date; ends_at: Date; place: string; people: string[]; cancelled_at: Date | null }[]>`
     select i.candidate_id, i.starts_at, i.ends_at, i.place, i.cancelled_at, coalesce((select array_agg(p.member_id) from interview_people p where p.interview_id = i.id), '{}') as people from interviews i order by i.starts_at`;
   yield { name: "interviews.csv", data: csvOf([[h.candidate, h.start, h.end, h.place, h.people, h.cancelled], ...interviews.map(i => [i.candidate_id, day(i.starts_at), day(i.ends_at), i.place, i.people.join(" "), day(i.cancelled_at)])]) };
@@ -55,6 +79,8 @@ export async function* everything(sql: Sql, actor: Member | null, t: Catalogue):
     const file = await files.get(c.cv_object).catch(() => null);
     if (file) yield { name: `cv/${c.id}.${extension(c.cv_type)}`, data: file.data };
   }
+  // Every email's files, one at a time too.
+  for (const list of mailFiles.values()) yield* read(list);
   yield { name: "README.txt", data: new TextEncoder().encode(t.exportAll.readme) };
 }
 
@@ -66,13 +92,17 @@ export async function theirData(sql: Sql, actor: Member | null, candidateId: unk
   const mails = await conversation(sql, actor, candidateId);
   const interviews = await ofCandidate(sql, actor, candidateId);
   const c = d.candidate;
+  // The files of their emails, both ways (the offer letter sent, what they
+  // attached): part of what the team holds about them.
+  const attached = await sql<{ id: string; attachments: Attachment[] | null }[]>`select id, attachments from messages where candidate_id = ${c.id}`;
+  const filesOf = new Map(attached.map(m => [String(m.id), emailFiles({ id: String(m.id), attachments: m.attachments })]));
   const data = {
     candidate: { name: c.name, email: c.email, phone: c.phone, link: c.link, language: c.language, coverLetter: c.coverLetter, answers: c.answers, appliedAt: c.createdAt, source: c.source, keptInPoolSince: c.poolAt, lastActivityAt: c.lastActivityAt },
     job: { title: d.job.title, stage: stageLabel(d.stages.find(s => s.id === c.stageId), t.jobSettings.defaults), status: c.status, rejectReason: c.rejectReason },
     feedback: [...(d.mine ? [d.mine] : []), ...d.others].map(f => ({ rating: f.rating, strengths: f.strengths, concerns: f.concerns, recommendation: f.recommendation, at: f.updatedAt })),
     notes: d.notes.map(n => ({ text: n.body, at: n.at })),
     interviews: interviews.map(i => ({ start: i.start, end: i.end, place: i.place, cancelled: i.cancelled })),
-    emails: mails.map(m => ({ direction: m.direction, subject: m.subject, text: m.body, at: m.createdAt, status: m.status })),
+    emails: mails.map(m => ({ direction: m.direction, subject: m.subject, text: m.body, at: m.createdAt, status: m.status, files: (filesOf.get(m.id) ?? []).map(f => f.path) })),
     history: d.activity.map(a => ({ kind: a.kind, at: a.at })),
   };
   const entries: Entry[] = [{ name: "data.json", data: new TextEncoder().encode(JSON.stringify(data, null, 2)) }];
@@ -80,5 +110,6 @@ export async function theirData(sql: Sql, actor: Member | null, candidateId: unk
     const file = await files.get(cvObject).catch(() => null);
     if (file) entries.push({ name: c.cv.fileName || `cv.${extension(c.cv.type)}`, data: file.data });
   }
+  for (const m of mails) for await (const entry of read(filesOf.get(m.id) ?? [])) entries.push(entry);
   return { name: `${slugify(c.name)}.zip`, entries };
 }

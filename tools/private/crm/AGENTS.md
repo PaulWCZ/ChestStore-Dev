@@ -20,6 +20,7 @@ no import outside it. Read `README.md` first.
 | `lib/attachments.ts` | Files on records (the Chest's `files`); `app/chest/api/files` authorises and records uploads, `app/chest/files/[id]` signs a link |
 | `lib/reports.ts` | The Team page's numbers (`weekActivities`, `stageConversion`: the Monday numbers); a viewer's home |
 | `lib/from-forms.ts`, `lib/leads.ts` | Forms' `forms.contact`: the matching rule (email; phone only with the same name — `sameName`; else a new contact with `maybe_same`), the submitted identity on the line (`data.who`); leads (`lead_since`: take, give, not a lead), "maybe the same person" (`keepApart`), the manager's check of form lines (`formLinesToCheck`, `markChecked`, `moveLine`). `app/chest/leads-box.tsx` (My day), `app/chest/settings/forms/` (the check) |
+| `lib/from-booking.ts` | Booking's `booking.confirmed` / `booking.cancelled`: the guest found by `match()` (the forms' rule), one `booking` line per booking with its state in `booked_meetings` (moves only forward, cancelled final, a deleted contact never brought back), `upcoming()` for My day, `bookingLink()` (`chest.toolLink("booking", path)`), `forgetHost()` on erasure |
 | `lib/countries.ts`, `lib/zip.ts` | Country codes and names (Intl); a stored ZIP for the whole-book export |
 | `lib/parse-import.ts` (browser-safe), `lib/importers.ts` | CSV mapping (HubSpot, Pipedrive, French headers; unknown columns → notes, `custom:<id>`, `new`) and import of records and history; owners not in the team; fill empty; `undoImport`; vCard import |
 | `lib/vcard.ts` | vCard parser (2.1/3.0/4.0) and 4.0 writer |
@@ -99,6 +100,12 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
   email, or same phone and same name): never loosen `match()` in
   `lib/from-forms.ts` — one person's words in another's file is a GDPR
   breach. Keep `data.who` on every form line.
+- **A booking's state lives in `booked_meetings`** (`lib/from-booking.ts`):
+  never decide a move or a cancellation from the line's `data` alone; a
+  row without a line means "nothing comes back" (a cancellation first, a
+  contact deleted).
+- Calendar events in bulk go through `reconcile()` (`calendar.putMany`,
+  100 a call), never a loop of `calendar.put`.
 - Contacts are personal data: anything new that stores text about a person
   must be deleted by `forget()` (lib/contacts.ts: delete, bulk delete,
   undoing an import) and included in `exportContact`.

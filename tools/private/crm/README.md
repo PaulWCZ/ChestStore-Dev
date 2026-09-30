@@ -165,7 +165,7 @@ and every service test.
 | `/chest/export/{companies,contacts,deals,vcf}`, `/chest/export/all` | Lists as files, with the page's filters; the whole book as a ZIP (managers) |
 | `/chest/search?q=` | Search |
 | `/chest/import`, `/chest/settings`, `/chest/settings/fields` | Import (and recent imports, Undo); stages and fields (managers) |
-| `/chest-events` | The Chest's lifecycle events, and `forms.contact` from Forms (signed) |
+| `/chest-events` | The Chest's lifecycle events, `forms.contact` from Forms and `booking.confirmed` / `booking.cancelled` from Booking (signed) |
 | `/chest-jobs/morning` | The weekday morning (proposal *schedules*, signed) |
 | `/` | The public host: says where the tool lives |
 
@@ -309,9 +309,61 @@ the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
   form is named without a link. Following it opens Forms only for a member
   who has Forms; its host tells the others.
 
+### What Clients receives: `booking.confirmed` and `booking.cancelled` from Booking
+
+When a guest books a meeting with a member in **Booking** (on its public
+page, or a host books for them), moves it or cancels it, Booking publishes
+`booking.confirmed` / `booking.cancelled` (version 1; the contract is
+Booking's README, "With the other tools"). Clients (`lib/from-booking.ts`,
+on `/chest-events`, `booked_meetings` in migration 0006):
+
+- **Finds the guest by the forms' rule**: the same email (lower-cased) is
+  the same person; a phone only with the same name; never the phone alone
+  — another name at the same number is a new contact marked "Maybe the
+  same person". The contact is made with the name, email and phone the
+  guest gave, "Added when they booked a meeting".
+- **Who owns a new contact: the host**, when they work on clients here (a
+  salesperson or a manager with Clients) — they are the one meeting them.
+  Otherwise nobody: a **lead** in *My day*, the managers told, the lead
+  saying the meeting ("Booked: Project call, Tue 6 Oct, 10:00"). A known
+  contact keeps its owner and what the team wrote (an empty email or phone
+  is filled in); their owner is told in the bell, unless they are the host
+  (Booking told them).
+- **One meeting line per booking**: "Booked a meeting: Project call"
+  (« A pris rendez-vous : … », each reader's language), and under it the
+  time in the Chest's zone and the host ("Tue 6 Oct, 10:00 with Inès
+  Moreau"). A later `confirmed` with more `moves` replaces its time and
+  host ("Moved once"); a repeated one or an older move delivered late
+  changes nothing. `cancelled` marks it "Meeting cancelled" (the time
+  struck through) and is **final**: a `confirmed` after it — even one the
+  Chest delivered late — is ignored. A cancellation that arrives before
+  its confirmation brings nobody in, and the confirmation is then
+  ignored. The same event twice is handled once.
+- **In My day**: *Meetings booked* lists the week's meetings to come that
+  the member hosts or whose contact they own — the time, the contact, the
+  type, and *Open in Booking*.
+- **Links back to the booking**: the type's name on the line and *Open in
+  Booking* open it in Booking, made when the page is shown with
+  `chest.toolLink("booking", path)` from the path the event gave (never an
+  address); no link while Booking is not installed, or when the path is
+  not a team page of Booking.
+- **Untrusted like a form's**: only version 1; the booking id, the times
+  (a meeting of at most a day, within three years), the moves, the host
+  (a member id) and the path (`/chest/…`) checked; names and type names
+  cleaned (control characters and direction overrides out) and bounded;
+  anything else is accepted and ignored. Never the guest's note, answers
+  or link: Booking does not send them.
+- **Deleted stays deleted**: a contact deleted or erased in Clients is not
+  brought back by a later event of the same booking; an erased host's id
+  leaves the meetings they hosted. The meeting is part of the contact's
+  file for their right of access (the JSON export gives its type and
+  times).
+
 In the harness, `/_dev` → *Deliver an event of another tool* (`forms.contact`
 and its data as JSON) plays Forms (a new event id each time); `test/from-forms.test.ts` plays it with the SDK's
-`fakeChest().deliver` (a replay by the same id included).
+`fakeChest().deliver` (a replay by the same id included); the same form
+with `booking.confirmed` or `booking.cancelled` plays Booking
+(`test/from-booking.test.ts`, and the flow's last steps).
 
 ## Needs from the SDK
 
@@ -323,7 +375,8 @@ and its data as JSON) plays Forms (a new event id each time); `test/from-forms.t
   number is set right whenever its owner opens *My day*, and removed history
   simply stays hidden.
 - `events` between tools — **Proposal (studio)**, `emits` and `receives`
-  (`forms.contact`) in `chest.proposals.json`: see "With the other tools".
+  (`forms.contact`, `booking.confirmed`, `booking.cancelled`) in
+  `chest.proposals.json`: see "With the other tools".
 - `chest.toolLink` — **Proposal (studio)** (SDK report §4.18): the address
   of the answer in Forms, from the addresses the Chest gives in
   `CHEST_TOOL_URLS`. On a Chest without it, the form is named without a
@@ -334,7 +387,9 @@ and its data as JSON) plays Forms (a new event id each time); `test/from-forms.t
   `chest.proposals.json` ("Adds events to the calendar of the members
   concerned"): timed next steps in their owner's calendar
   (`lib/step-calendar.ts`: `publishStep` after each change of a step,
-  `reconcile` after bulk changes and each morning). On a Chest without it,
+  `reconcile` after bulk changes and each morning — in batches of 100
+  with `calendar.putMany`, Proposal (studio.15); a batch holding an event
+  the Chest refuses goes one by one). On a Chest without it,
   the steps stand and the form stops promising the calendar
   (`tool_state`).
 - **Needed, not built: received mail for the tool** — to log emails by

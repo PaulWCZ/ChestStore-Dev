@@ -906,7 +906,7 @@ export const fr: Catalogue = {
   },
   exportAll: {
     file: "recrutement",
-    readme: "Tout ce que Recrutement a conservé, en tableaux (CSV UTF-8) et en fichiers : jobs.csv, candidates.csv (avec le nom de chaque CV dans cv/), notes.csv, feedback.csv, emails.csv, interviews.csv, history.csv. Les membres de l’équipe y sont désignés par leur identifiant Chest (mbr_…).",
+    readme: "Tout ce que Recrutement a conservé, en tableaux (CSV UTF-8) et en fichiers : jobs.csv, candidates.csv (avec le nom de chaque CV dans cv/), notes.csv, feedback.csv, emails.csv (avec le nom de chaque fichier envoyé ou reçu dans emails/), interviews.csv, history.csv. Les membres de l’équipe y sont désignés par leur identifiant Chest (mbr_…).",
     headers: {
       id: "Identifiant",
       title: "Intitulé",
@@ -934,6 +934,7 @@ export const fr: Catalogue = {
       in: "Reçu",
       out: "Envoyé",
       subject: "Objet",
+      files: "Fichiers",
       status: "Statut",
       start: "Début",
       end: "Fin",
