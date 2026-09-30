@@ -18,7 +18,8 @@ import type { Query, Sql } from "./db.ts";
 //                    booked (name, email, phone), which type, when
 // booking.cancelled  a booking cancelled, for Clients
 //
-// Heard: hiring.busy — the interviews a member is on (times only): not
+// Heard: hiring.busy — the interviews a member is on — and leave.busy —
+// the days a member is off (approved leave in Leave): times only, never
 // offered here.
 
 const day = 86_400_000;
@@ -75,12 +76,17 @@ export async function shareAllBusy(sql: Query, now = Date.now()): Promise<number
 // type's name in every language of the store. Never the guest's note, their
 // answers or their link: those stay in Booking (path opens the booking for
 // a member who may see it, through chest.toolLink("booking", path)).
-async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancelled", now: number): Promise<Record<string, unknown>> {
+// at is when that happened, as recorded — made, last moved, cancelled —
+// never the time of telling: a retry of the same key carries the same
+// data, so the Chest takes it as the same event (a key reused for other
+// data is refused: SDK studio.15).
+async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancelled"): Promise<Record<string, unknown>> {
+  const at = status === "cancelled" ? (b.cancelledAt ?? b.movedAt ?? b.createdAt) : b.moves > 0 ? (b.movedAt ?? b.createdAt) : b.createdAt;
   return {
     v: 1,
     booking: b.id,
     status,
-    at: new Date(now).toISOString(),
+    at: at.toISOString(),
     host: b.memberId === "erased" ? null : b.memberId,
     start: b.startsAt.toISOString(),
     end: b.endsAt.toISOString(),
@@ -96,18 +102,21 @@ async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancel
 
 // changed: a booking was made, moved or cancelled — Clients hears of it,
 // and the busy times of its host (and of the one it left, a team type
-// moved to another host) are told again.
-export async function changed(sql: Query, kind: "booked" | "moved" | "cancelled", b: Booking, options: { previousHost?: string; now?: number } = {}): Promise<void> {
+// moved to another host) are told again. Says whether the Chest took the
+// booking's event (told again, the same one: taken as the same event).
+export async function changed(sql: Query, kind: "booked" | "moved" | "cancelled", b: Booking, options: { previousHost?: string; now?: number } = {}): Promise<boolean> {
   const now = options.now ?? Date.now();
-  if (kind === "cancelled") await publish("booking.cancelled", await bookingData(sql, b, "cancelled", now), `booking:${b.id}:cancelled`);
-  else await publish("booking.confirmed", await bookingData(sql, b, "confirmed", now), `booking:${b.id}:confirmed:${b.moves}`);
+  const taken = kind === "cancelled"
+    ? await publish("booking.cancelled", await bookingData(sql, b, "cancelled"), `booking:${b.id}:cancelled`)
+    : await publish("booking.confirmed", await bookingData(sql, b, "confirmed"), `booking:${b.id}:confirmed:${b.moves}`);
   await shareBusy(sql, [b.memberId, ...(options.previousHost ? [options.previousHost] : [])], now);
+  return taken;
 }
 
 // ——— What other tools tell Booking ———
 
 // takeBusy keeps a member's busy times as another tool told them
-// (hiring.busy): the snapshot replaces that tool's earlier one, unless it
+// (hiring.busy, leave.busy): the snapshot replaces that tool's earlier one, unless it
 // is older than the one kept. Says whether it was kept.
 export async function takeBusy(sql: Sql, event: events.ToolEvent): Promise<boolean> {
   const source = event.source;

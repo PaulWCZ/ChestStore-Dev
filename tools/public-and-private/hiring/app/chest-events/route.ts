@@ -5,7 +5,7 @@ import { takeBusy } from "../../lib/share.ts";
 
 // The members' lifecycle, and what other tools tell (Proposal (studio):
 // events between tools — booking.busy, the times a member is taken in
-// Booking), posted by the Chest (signed, at least once). Never under
+// Booking; leave.busy, the days a member is off in Leave), posted by the Chest (signed, at least once). Never under
 // /chest, never behind a session, the body read by handle() only.
 export async function POST(request: Request): Promise<Response> {
   const sql = db();
@@ -14,6 +14,7 @@ export async function POST(request: Request): Promise<Response> {
       seen: seen(sql),
       tools: {
         "booking.busy": async e => { await takeBusy(sql, e); },
+        "leave.busy": async e => { await takeBusy(sql, e); },
       },
     }),
   });

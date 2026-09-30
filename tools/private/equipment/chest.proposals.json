@@ -2,6 +2,9 @@
   "mail": {
     "send": true
   },
+  "emits": [
+    "equipment.returned"
+  ],
   "receives": [
     "people.leaving",
     "people.leaving_cancelled"
@@ -14,6 +17,10 @@
     {
       "name": "intune",
       "cron": "40 5 * * *"
+    },
+    {
+      "name": "returns",
+      "cron": "*/15 * * * *"
     }
   ],
   "translations": {

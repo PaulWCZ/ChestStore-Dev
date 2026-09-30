@@ -10,15 +10,19 @@ import { missingAsCsv, refresh } from "../../lib/intune.ts";
 import * as inventory from "../../lib/inventory.ts";
 import * as items from "../../lib/items.ts";
 import { confirm, remind, setCharter } from "../../lib/receipts.ts";
+import { tellPeople } from "../../lib/returned.ts";
 import { remindReceipt } from "../../lib/tell.ts";
 import * as requests from "../../lib/requests.ts";
 import { currentMember } from "../../lib/session.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again, and the
-// service checks their rights. They answer codes, never sentences.
+// service checks their rights. They answer codes, never sentences. After
+// each, what is back from a leaving person is told to People
+// (lib/returned.ts; never fails the action).
 async function act<T>(step: (actor: Awaited<ReturnType<typeof currentMember>>) => Promise<T>): Promise<Result<T>> {
   const result = await attempt(async () => step(await currentMember()));
+  if (result.ok) await tellPeople(db());
   revalidatePath("/chest", "layout");
   return result;
 }

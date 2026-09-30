@@ -15,8 +15,9 @@ import { withdraw } from "./notify.ts";
 //   notes it in its history, and the managers are told "Léa left and holds
 //   3 items", with a link to her page and its "Take everything back". Their
 //   name then reads "(former member)" wherever they appear. A departure
-//   People told of is forgotten (and its "leaves on" bell item goes): they
-//   have left. What they asked for and was not given is cancelled. Their
+//   People told of leaves the managers' lists (and its "leaves on" bell
+//   item goes): they have left. It is kept, so that People still hears
+//   when everything is back (lib/returned.ts). What they asked for and was not given is cancelled. Their
 //   receipts stay: the handover sheet is the proof the company keeps.
 // - Erasure: their id disappears from everything ('erased'). What they held
 //   stays held by "Former member" until a manager takes it back: the company
@@ -32,13 +33,18 @@ export async function leave(sql: Sql, memberId: string): Promise<number> {
       if (last?.kind === "left" && last.member === memberId) continue;
       await tx`insert into history (item_id, actor, kind, member) values (${id}, 'chest', 'left', ${memberId})`;
     }
-    await tx`delete from departures where member_id = ${memberId}`;
+    // Out of the managers' lists; kept so that People hears when everything
+    // is back (lib/returned.ts).
+    await tx`update departures set left_at = now() where member_id = ${memberId} and left_at is null`;
     return held.length;
   });
 }
 
 export async function erase(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
+    // First: nothing coming back from here on is told of them.
+    await tx`delete from departures where member_id = ${memberId}`;
+    await tx`delete from returned_events where member_id = ${memberId}`;
     await tx`update items set holder = 'erased' where holder = ${memberId}`;
     await tx`update items set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update seats set member_id = 'erased' where member_id = ${memberId}`;
@@ -46,7 +52,6 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update problems set solved_by = 'erased' where solved_by = ${memberId}`;
     await tx`update history set actor = 'erased' where actor = ${memberId}`;
     await tx`update history set member = 'erased' where member = ${memberId}`;
-    await tx`delete from departures where member_id = ${memberId}`;
     await eraseReceipts(tx, memberId);
     await eraseSightings(tx, memberId);
     await tx`update requests set status = case when status in ('open', 'approved') then 'cancelled' else status end, member_id = 'erased', updated_at = now() where member_id = ${memberId}`;

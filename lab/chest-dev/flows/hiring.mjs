@@ -571,6 +571,53 @@ await step("Booking says Inès is at a showroom visit: Mathis is never offered t
   expect(!["09:30", "10:00", "10:30", "12:00", "12:30", "13:00", "13:30"].some(t => times.includes(t)), "never across the visit or lunch: " + times.join(" "));
 });
 
+// The weekday after a day (a day as the Chest's zone writes it).
+const weekdayAfter = day => {
+  let d = day;
+  do d = new Date(Date.parse(d + "T12:00:00Z") + 86400000).toISOString().slice(0, 10); while ([0, 6].includes(new Date(d + "T12:00:00Z").getUTCDay()));
+  return d;
+};
+
+await step("Leave says Inès is off a whole day: Mathis is offered no time that day, the recruiter reads « off all day »; « now free » gives the day back", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  const off = weekdayAfter(weekdayAhead());
+  const next = new Date(Date.parse(off + "T12:00:00Z") + 86400000).toISOString().slice(0, 10);
+  // Leave's snapshot: times only (the whole day in Paris), never the kind of leave.
+  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans });
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([[utcMinute(off, "00:00"), utcMinute(next, "00:00")]], new Date())) } });
+  // Mathis's link (sent in the step before): that day offers nothing.
+  const link = /https?:\/\/[^\s"<]*\/interview\/[A-Za-z0-9_-]{43}\?lang=fr/u.exec(await dev())?.[0];
+  expect(link, "Mathis's link");
+  const label = new Intl.DateTimeFormat("fr", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(off + "T12:00:00Z"));
+  const timesThatDay = async () => {
+    await context.clearCookies();
+    await page.goto(link.replace(/^https?:\/\/[^/]+/u, origin));
+    await page.waitForSelector(".pick-day");
+    // Every day, the folded ones too.
+    const more = page.getByRole("button", { name: "Plus de jours" });
+    if (await more.count() && await more.isVisible()) await more.click();
+    return (await page.locator(".pick-day", { hasText: label }).locator(".pick-time").allInnerTexts()).map(x => x.trim());
+  };
+  expect((await timesThatDay()).length === 0, "no time on Inès's day off");
+  // The recruiter choosing by hand reads it: off, never why.
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/candidates/2");
+  await page.getByRole("button", { name: "Interview", exact: true }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByText("I choose the time").click();
+  await page.locator("#iv-day").fill(off);
+  await page.locator("#iv-day").press("Tab");
+  await page.waitForSelector("dialog[open] .busy");
+  const busy = await dialog.locator(".busy").innerText();
+  expect(busy.includes("Inès Moreau: off all day"), "her day off shown: " + busy);
+  await page.keyboard.press("Escape");
+  // Her leave cancelled: Leave says she is free again; the day comes back.
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([], new Date(Date.now() + 1000))) } });
+  const back = await timesThatDay();
+  expect(back.length > 0 && !["12:00", "12:30", "13:00", "13:30"].some(t => back.includes(t)), "the day offered again (never over lunch): " + back.join(" "));
+});
+
 await step("on a phone the candidate sees three days first, then « Plus de jours »", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();

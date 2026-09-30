@@ -407,6 +407,11 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   }, [mode, day, chosen.join(",")]);
   // Times as the Chest's zone reads them, from the server's answer.
   const hhmm = (iso: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: interview.zoneId }).format(new Date(iso));
+  // Whose busy time, in words: an interview here, Booking's, or a day off
+  // told by Leave (never the kind of leave: Leave never sends it; a whole
+  // day reads 00:00–23:59 from the server).
+  const busyLine = (b: { start: string; end: string; source?: string }) =>
+    b.source === "leave" ? (hhmm(b.start) === "00:00" && hhmm(b.end) === "23:59" ? w.busyLineLeaveDay : w.busyLineLeave) : b.source ? w.busyLineBooking : w.busyLine;
   const startMin = time, endMin = startMin + minutes;
   const toMin = (iso: string) => { const [a, b] = hhmm(iso).split(":").map(Number) as [number, number]; return a * 60 + b; };
   const clash = busy.filter(b => toMin(b.start) < endMin && toMin(b.end) > startMin);
@@ -517,7 +522,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
         <div className={`busy${clash.length ? " clash" : ""}`} role="status">
           <p className="label">{clash.length ? w.clash : w.busy}</p>
           <ul className="plain-list">
-            {busy.map((b, i) => <li key={i}>{format(b.source ? w.busyLineBooking : w.busyLine, { name: names.get(b.member) ?? "", from: hhmm(b.start), to: hhmm(b.end) })}</li>)}
+            {busy.map((b, i) => <li key={i}>{format(busyLine(b), { name: names.get(b.member) ?? "", from: hhmm(b.start), to: hhmm(b.end) })}</li>)}
           </ul>
         </div>
       )}

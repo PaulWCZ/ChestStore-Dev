@@ -193,7 +193,7 @@ export async function offer(sql: Query, token: unknown, now = new Date()): Promi
 // hours, on the quarter hour for 15- and 45-minute interviews and the half
 // hour otherwise, at least scheduleLimits.noticeHours ahead, when none of
 // the people is in another interview nor busy by what another tool told
-// (Booking), and — unless the recruiter asked for it, or chose hours
+// (Booking: taken; Leave: off), and — unless the recruiter asked for it, or chose hours
 // within it — not over lunch.
 export async function freeTimes(sql: Query, r: Request, now: Date): Promise<{ day: string; times: string[] }[]> {
   const z = zone();

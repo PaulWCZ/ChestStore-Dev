@@ -3,7 +3,8 @@
 // Hiring both speak it — Booking tells when a host is taken (bookings,
 // times blocked, their Google/Outlook/Apple calendars), Hiring when
 // someone is in an interview — so neither offers a time the other has
-// already given away. Pure: no database, no SDK.
+// already given away. Leave speaks it too ("leave.busy": the days someone
+// is off), and both hear it. Pure: no database, no SDK.
 //
 // The event's data, a snapshot:
 //

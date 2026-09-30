@@ -199,7 +199,10 @@ await step("People tells that Tom leaves: the managers hear it once, see what to
   expect(/Tom Walker leaves on/u.test(await dev()), "told again");
 });
 
-await step("Tom leaves: nothing comes back by itself, the managers are told; Camille takes everything back (in French), Undo, again", async () => {
+await step("Tom leaves: nothing comes back by itself, the managers are told; Camille takes everything back (in French), Undo, again; People is told each time everything is back (equipment.returned)", async () => {
+  // The harness's Events panel lists what the tool published (newest first).
+  const returned = async () => (await dev()).replaceAll("&quot;", '"').split(`<code>equipment.returned</code> <small>{"member":"${id("tom")}"}</small>`).length - 1;
+  const before = await returned();
   await page.request.post(origin + "/_dev/event", { form: { type: "member.removed", member: id("tom") } });
   expect((await dev()).includes("Tom Walker left and holds"), "bell to Sofia");
   expect(!(await dev()).includes("Tom Walker leaves on"), "the leaving notice gave way");
@@ -211,8 +214,10 @@ await step("Tom leaves: nothing comes back by itself, the managers are told; Cam
   await page.locator(".panel.warn a", { hasText: "Tom Walker" }).click();
   await page.waitForURL(/\/chest\/people\/mbr_tom/u);
   expect((await page.locator(".notice").innerText()).includes("A quitté l’entreprise"), "left notice");
+  expect(await returned() === before, "nothing published while Tom holds things");
   await page.getByRole("button", { name: "Tout reprendre" }).click();
   await page.getByText(/éléments repris/u).waitFor();
+  expect(await returned() === before + 1, "equipment.returned {member: Tom} published once everything is back");
   await page.getByRole("button", { name: "Annuler l’action" }).click();
   await page.waitForTimeout(1500);
   await page.reload();
@@ -222,6 +227,7 @@ await step("Tom leaves: nothing comes back by itself, the managers are told; Cam
   await page.waitForTimeout(800);
   await page.reload();
   expect(await page.locator(".checklist .line").count() === 0, "nothing left");
+  expect(await returned() === before + 2, "told again once everything is back again");
 });
 
 await step("categories: rename one and add one", async () => {

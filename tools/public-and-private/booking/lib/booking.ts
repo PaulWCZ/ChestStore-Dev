@@ -77,6 +77,8 @@ export type Booking = {
   createdAt: Date;
   cancelledAt: Date | null;
   moves: number;
+  // When it was last moved (null: never, or before this was kept).
+  movedAt: Date | null;
   // The guest's link: for their emails only, never shown to the team.
   secret: string;
   // The booking's own video room ("" : the type's link, in location).
@@ -806,6 +808,7 @@ type BookingRow = {
   created_at: Date;
   cancelled_at: Date | null;
   moves: number;
+  moved_at?: Date | null;
   secret: string;
   video_link: string;
   source: "page" | "host" | "import";
@@ -836,6 +839,7 @@ const toBooking = (r: BookingRow): Booking => ({
   createdAt: r.created_at,
   cancelledAt: r.cancelled_at,
   moves: r.moves,
+  movedAt: r.moved_at ?? null,
   secret: r.secret,
   videoLink: r.video_link ?? "",
   source: r.source ?? "page",
@@ -999,7 +1003,7 @@ async function moveTo(sql: Query, booking: Booking, owner: Host, type: BookingTy
           const day = wall(when, who.zone).date;
           if (!(await hostFree(step, who, current, day, day, now, booking.id, wait)).some(s => Date.parse(s.start) === when.getTime())) throw new AppError("taken");
           const [row] = await step<BookingRow[]>`
-            update bookings set member_id = ${who.memberId}, starts_at = ${when}, ends_at = ${end}, duration = ${current.duration}, blocked = ${blockedRange(current, when, end)}::tstzrange, moves = moves + 1, reminded_at = null
+            update bookings set member_id = ${who.memberId}, starts_at = ${when}, ends_at = ${end}, duration = ${current.duration}, blocked = ${blockedRange(current, when, end)}::tstzrange, moves = moves + 1, moved_at = ${new Date(now)}, reminded_at = null
             where id = ${booking.id} and status = 'confirmed' returning *`;
           if (!row) throw new AppError("too_late");
           return { booking: toBooking(row), before: booking.startsAt, from: booking.memberId };

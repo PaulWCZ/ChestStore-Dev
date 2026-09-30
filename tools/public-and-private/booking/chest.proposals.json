@@ -23,7 +23,8 @@
     "booking.cancelled"
   ],
   "receives": [
-    "hiring.busy"
+    "hiring.busy",
+    "leave.busy"
   ],
   "translations": {
     "fr": {

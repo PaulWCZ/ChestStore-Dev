@@ -112,7 +112,8 @@ test("leaving then gone: the departure gives way to “left and holds”; other 
   // Forgotten 30 days after the last day; a cancelled one after a week.
   assert.equal(await told("people.leaving", { member: sofia.id, lastDay: now }), 204);
   assert.equal(await purgeDepartures(sql, addDays(now, 30)), 0);
-  assert.equal(await purgeDepartures(sql, addDays(now, 31)), 1);
+  // Sofia's, and Inès's (kept after she left, so People hears when her things are back).
+  assert.equal(await purgeDepartures(sql, addDays(now, 31)), 2);
   await sql`insert into departures (member_id, last_day, told_at) values (${camille.id}, null, now() - interval '8 days')`;
   assert.equal(await purgeDepartures(sql, now), 1);
 });

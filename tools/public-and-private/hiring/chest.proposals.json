@@ -30,7 +30,8 @@
     "hiring.busy"
   ],
   "receives": [
-    "booking.busy"
+    "booking.busy",
+    "leave.busy"
   ],
   "translations": {
     "fr": {

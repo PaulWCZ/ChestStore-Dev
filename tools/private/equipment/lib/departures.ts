@@ -21,8 +21,10 @@ import { present } from "./people.ts";
 // an older word is ignored (a cancelled one keeps its time for a week).
 //
 // When the person then leaves the Chest (member.removed, access.revoked),
-// the departure is forgotten: "Held by people who left" takes over, as it
-// always did (lib/lifecycle.ts).
+// the departure leaves the managers' lists: "Held by people who left" takes
+// over, as it always did (lib/lifecycle.ts). It is kept (left_at) until 30
+// days after the last day, so that once everything they held is back,
+// People is still told (equipment.returned, lib/returned.ts).
 export const keepPastDays = 30;
 export const keepCancelledDays = 7;
 
@@ -69,7 +71,7 @@ export async function leaving(sql: Sql, event: ToolEvent, now: string): Promise<
   const at = toldAt(event.occurredAt);
   const done = await sql`
     insert into departures (member_id, last_day, told_at) values (${d.memberId}, ${d.lastDay}, ${at})
-    on conflict (member_id) do update set last_day = excluded.last_day, told_at = excluded.told_at
+    on conflict (member_id) do update set last_day = excluded.last_day, told_at = excluded.told_at, left_at = null
     where departures.told_at <= excluded.told_at`;
   if (done.count === 0) return null;
   return { ...d, count: await heldCount(sql, d.memberId) };
@@ -99,7 +101,7 @@ export async function leavingList(sql: Query, actor: Member | null): Promise<Lea
     select d.member_id, to_char(d.last_day, 'YYYY-MM-DD') as last_day,
       (select count(*)::int from items i where i.holder = d.member_id and i.deleted_at is null) as items,
       (select count(*)::int from seats s join items i on i.id = s.item_id where s.member_id = d.member_id and i.deleted_at is null) as seats
-    from departures d where d.last_day is not null order by d.last_day, d.member_id limit 200`;
+    from departures d where d.last_day is not null and d.left_at is null order by d.last_day, d.member_id limit 200`;
   return rows.filter(r => r.items + r.seats > 0).map(r => ({ memberId: r.member_id, lastDay: r.last_day, items: r.items, seats: r.seats }));
 }
 
@@ -107,7 +109,7 @@ export async function leavingList(sql: Query, actor: Member | null): Promise<Lea
 export async function lastDayOf(sql: Query, actor: Member | null, memberId: string): Promise<string | null> {
   if (!can(actor, "items.manage")) throw new AppError("forbidden");
   if (!memberPattern.test(memberId)) return null;
-  const [row] = await sql<{ last_day: string | null }[]>`select to_char(last_day, 'YYYY-MM-DD') as last_day from departures where member_id = ${memberId}`;
+  const [row] = await sql<{ last_day: string | null }[]>`select to_char(last_day, 'YYYY-MM-DD') as last_day from departures where member_id = ${memberId} and left_at is null`;
   return row?.last_day ?? null;
 }
 

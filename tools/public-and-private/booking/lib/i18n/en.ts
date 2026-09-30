@@ -190,6 +190,7 @@ export const en = {
       apple: "In your Apple calendar",
       other: "In your other calendar",
       hiring: "An interview in Hiring",
+      leave: "Off",
       tool: "In another tool of the Chest",
     },
     showFree: "Show free times",

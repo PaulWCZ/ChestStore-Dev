@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST as events } from "../app/chest-events/route.ts";
 import * as candidates from "../lib/candidates.ts";
 import * as cv from "../lib/cv.ts";
-import { catalogue, locales } from "../lib/i18n/index.ts";
+import { catalogue, format, locales } from "../lib/i18n/index.ts";
 import * as interviews from "../lib/interviews.ts";
 import { jobTemplateKeys } from "../lib/jobs.ts";
 import * as lifecycle from "../lib/lifecycle.ts";
@@ -100,6 +100,42 @@ test("Booking says Inès is busy: the candidate is never offered that hour, nor 
   await chest.deliver({ type: "booking.busy", source: "booking", data: bookingBusy(hugo.id, [visit], new Date(Date.now() + 2000)) }, events);
   await lifecycle.leave(sql, hugo.id);
   assert.equal((await sql`select 1 from told_busy where member_id = ${hugo.id}`).length, 0);
+});
+
+test("Leave says Inès is off: no time is offered on her day off, the recruiter reads « off all day », a later snapshot gives the day back", async () => {
+  const { sql } = database;
+  const job = await openJob(sql, asMember(camille), "Workshop assistant");
+  const monday = nextMonday();
+  const tuesday = addDays(monday, 1), wednesday = addDays(monday, 2), thursday = addDays(monday, 3);
+  // Leave's snapshot (the same shape as Booking's): Inès off all Tuesday;
+  // Camille off on Wednesday morning (midnight to noon in the Chest's zone).
+  const offInes: [Date, Date] = [instantOf(tuesday, "00:00", zone), instantOf(wednesday, "00:00", zone)];
+  assert.equal(await chest.deliver({ type: "leave.busy", source: "leave", data: bookingBusy(ines.id, [offInes], new Date(Date.now() + 10000)) }, events), 204);
+  assert.equal(await chest.deliver({ type: "leave.busy", source: "leave", data: bookingBusy(camille.id, [[instantOf(wednesday, "00:00", zone), instantOf(wednesday, "12:00", zone)]], new Date(Date.now() + 10000)) }, events), 204);
+  const c = (await candidates.apply(sql, someone(job.slug))).candidate;
+  const sent = await selfSchedule.send(sql, asMember(camille), c.id, { people: [ines.id, camille.id], minutes: 60, firstDay: monday, lastDay: wednesday, dayStart: 540, dayEnd: 1080 }, isTeam, "https://jobs.test");
+  const byDay = new Map((await selfSchedule.offer(sql, tokenOf(sent.link)))!.days.map(d => [d.day, d.times]));
+  assert.ok((byDay.get(monday) ?? []).length > 0, "Monday offered");
+  assert.deepEqual(byDay.get(tuesday) ?? [], [], "never a time on Inès's day off");
+  assert.deepEqual(byDay.get(wednesday), ["14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"], "Camille's afternoon only (lunch left out)");
+  await assert.rejects(selfSchedule.choose(sql, tokenOf(sent.link), { day: tuesday, time: "10:00" }, signer), { code: "taken" });
+  // The recruiter choosing the time sees it as Leave's: the whole day, times only.
+  const busy = await interviews.busy(sql, asMember(camille), [ines.id], tuesday);
+  assert.deepEqual(busy.map(b => b.source), ["leave"]);
+  assert.equal(busy[0]!.start, offInes[0].toISOString());
+  const w = catalogue("en").interview;
+  assert.equal(format(w.busyLineLeaveDay, { name: "Inès Moreau" }), "Inès Moreau: off all day");
+  assert.ok(!catalogue("fr").interview.busyLineLeave.includes("congé"), "never the kind of leave");
+  // Booking's busy times are kept apart: Leave's snapshot replaces only Leave's.
+  await chest.deliver({ type: "booking.busy", source: "booking", data: bookingBusy(ines.id, [[instantOf(thursday, "10:00", zone), instantOf(thursday, "11:00", zone)]], new Date(Date.now() + 20000)) }, events);
+  // Her leave cancelled: Leave tells "now free"; Tuesday is offered again, Booking's hour still is not.
+  await chest.deliver({ type: "leave.busy", source: "leave", data: bookingBusy(ines.id, [], new Date(Date.now() + 30000)) }, events);
+  const c2 = (await candidates.apply(sql, someone(job.slug))).candidate;
+  const again = await selfSchedule.send(sql, asMember(camille), c2.id, { people: [ines.id], minutes: 60, firstDay: tuesday, lastDay: thursday, dayStart: 540, dayEnd: 720 }, isTeam, "https://jobs.test");
+  const days = new Map((await selfSchedule.offer(sql, tokenOf(again.link)))!.days.map(d => [d.day, d.times]));
+  assert.ok((days.get(tuesday) ?? []).includes("10:00"), "Tuesday 10:00 offered again");
+  assert.ok(!(days.get(thursday) ?? []).includes("10:00"), "Booking's hour still kept");
+  assert.equal((await interviews.busy(sql, asMember(camille), [ines.id], tuesday)).length, 0);
 });
 
 test("Hiring tells Booking the interviews' times, only when they change, never what Booking told it", async () => {

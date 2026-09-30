@@ -186,6 +186,7 @@ export const fr: Catalogue = {
       apple: "Dans votre agenda Apple",
       other: "Dans votre autre agenda",
       hiring: "Un entretien dans Recrutement",
+      leave: "Absent",
       tool: "Dans un autre outil du Chest",
     },
     showFree: "Afficher les créneaux libres",

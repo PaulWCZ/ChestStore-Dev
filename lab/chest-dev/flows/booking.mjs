@@ -578,6 +578,32 @@ await step("Hiring tells Booking Inès has an interview: that hour is not offere
   expect(!dev.includes(`"${data.spans[0][0]}"`), "no echo in what Booking publishes");
 });
 
+await step("Leave tells Booking Inès is off a whole day: no time is offered that day, her agenda reads « Absent »; « now free » gives the day back", async () => {
+  await page.goto(origin + "/chest");
+  const open = page.locator(".day", { has: page.locator(".meeting.free") });
+  const day = (await open.nth((await open.count()) - 1).getAttribute("aria-labelledby")).slice(2);
+  const next = new Date(Date.parse(day + "T12:00:00Z") + 86400000).toISOString().slice(0, 10);
+  const slotsThatDay = async () => (await (await page.request.get(origin + `/api/slots?host=ines-moreau&type=project-call&from=${day}&to=${day}`)).json()).slots;
+  const before = await slotsThatDay();
+  expect(before.length > 0, "the day is open before");
+  // Leave's snapshot: times only (the whole day in Paris), never the kind of leave.
+  const snapshot = (spans, at) => ({ v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: at.toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans });
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([[utcMinute(day, 0), utcMinute(next, 0)]], new Date())) } });
+  expect((await slotsThatDay()).length === 0, "no time offered on her day off");
+  await page.goto(origin + "/chest");
+  const row = page.locator(`.day[aria-labelledby="d-${day}"] .meeting.elsewhere`, { hasText: "Absent" });
+  expect(await row.count() > 0, "« Absent » on her agenda that day");
+  expect(await page.locator(`.day[aria-labelledby="d-${day}"] .meeting.free`).count() === 0, "no free stretch left that day");
+  // Booking never tells Hiring back what Leave told it.
+  const told = (await devText()).replaceAll("&quot;", '"');
+  expect(!told.includes(`["${utcMinute(day, 0)}","${utcMinute(next, 0)}"]`), "no echo in what Booking publishes");
+  // Her leave cancelled: Leave says she is free again; the day comes back as it was.
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "leave.busy", data: JSON.stringify(snapshot([], new Date(Date.now() + 1000))) } });
+  expect(JSON.stringify(await slotsThatDay()) === JSON.stringify(before), "the same times offered again");
+  await page.goto(origin + "/chest");
+  expect(await page.locator(`.day[aria-labelledby="d-${day}"] .meeting.elsewhere`, { hasText: "Absent" }).count() === 0, "gone from her agenda");
+});
+
 await step("a visitor's booking is told to Clients (who, which type, when; never the note) and the host's busy times to Hiring", async () => {
   await context.clearCookies();
   await page.goto(origin + "/lang/en?back=/hugo-bernard/measurement");

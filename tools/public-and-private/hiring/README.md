@@ -102,8 +102,9 @@ decides together.
   calendars get it and they hear it in the bell. On a Chest without email
   the recruiter gets the link to send. Or **the recruiter chooses**:
   a day, a time in the Chest's zone, a length, who meets them (with the
-  times they are already busy that day — an interview, or Booking's
-  "(Booking)" —, and a warning on a clash), a place or video link, a note; the candidate gets an email with
+  times they are already busy that day — an interview, Booking's
+  "(Booking)", or "off all day" when Leave says they are off —, and a
+  warning on a clash), a place or video link, a note; the candidate gets an email with
   an `.ics` (and a CANCEL one if called off), the interviewers get it in
   their Chest calendar feed, and a reminder on the morning of it: an item
   in the bell and one email with the whole day ("08:00 — Bastien Leroy,
@@ -254,8 +255,9 @@ Capabilities: `database`, `files`, `members`, `notifications`; receives
 them): `mail.send` and the `jobs` mailbox (receiving), `calendar`,
 `files.publicUploads` and `files.publicFiles` (logo, photos),
 `schedules` (`cleanup` 03:25, `outbox` every 15 minutes, `morning` 07:40
-on weekdays), `emits` (`hiring.hired`, `hiring.hire_cancelled`) and the
-tile's French words. When a member loses access or leaves, they are
+on weekdays), `emits` (`hiring.hired`, `hiring.hire_cancelled`,
+`hiring.busy`), `receives` (`booking.busy`, `leave.busy`) and the tile's
+French words. When a member loses access or leaves, they are
 taken off their jobs and no longer asked for feedback; what they wrote stays
 under "(former member)". On erasure, their id goes from notes, feedback,
 history (including "asked X for feedback" and interviews' people), jobs,
@@ -275,13 +277,20 @@ decision, never the tool's:
 | `hiring.hire_cancelled` | Moved out of *Hired* (*Undo* included), rejected from it, or erased | `{ candidate }` — key `hiring:<candidate>:cancelled:<time>` |
 | `hiring.busy` | A member's interviews changed (planned, chosen by a candidate, called off; the `outbox` schedule catches the rest and moves the window each day) — for Booking | A snapshot of times only: `{ v: 1, member, at, from, to, spans: [[start, end], …] }` (UTC minutes, 90 days from today, 300 spans at most) — key `busy:<member>:<ms>:<hash>` |
 
-**What Hiring hears** (`"receives": ["booking.busy"]`): Booking's snapshot
-of a host's busy times, in the same shape (`lib/busy-snapshot.ts`, the
-same file in both tools). Kept per tool and member, the latest by `at`
-only (`told_busy`, `told_spans`); a candidate is never offered those
-times, the recruiter sees them marked "(Booking)"; forgotten when the
-member leaves or is erased. Hiring never tells again what Booking told it,
-and never says who a candidate is, which job, or where.
+**What Hiring hears** (`"receives": ["booking.busy", "leave.busy"]`):
+Booking's snapshot of a host's busy times, and Leave's of the days a
+member is off (approved leave, whole days or halves in the Chest's time
+zone — never the kind of leave, which Leave never sends), in the same
+shape (`lib/busy-snapshot.ts`, the same file in each tool). Both go to
+one handler (`takeBusy`), kept per tool and member, the latest by `at`
+only (`told_busy`, `told_spans`); a candidate choosing their time is never
+offered those times, and in *I choose the time* the recruiter sees them
+marked "(Booking)" or "off" ("off all day" for a whole day); a later
+snapshot ("now free") gives them back; forgotten when the member leaves
+or is erased. Hiring never tells again what another tool told it, and
+never says who a candidate is, which job, or where. The owner approves
+"Is told by Booking when a member is busy (times only)" and "Is told by
+Leave when a member is off".
 
 Only who is joining, for which job, where and when: never the CV, the cover
 letter, notes, feedback or ratings. Publishing is a courtesy: when the Chest
@@ -323,7 +332,7 @@ tool calls them as if shipped and keeps working without them:
   Chest's counting, the tool counts in its own table.
 - **Events between tools** (`events.publish`, `receives`): without them,
   People is not told of hires, Booking does not see interviews, and free
-  times come from Hiring's interviews only.
+  times come from Hiring's interviews only (no Booking, no days off).
 - **Chest settings** (`chest.company()`, `chest.publicUrl()`,
   `chest.timeZone()`, `chest.locale()`): the company name by default, the
   careers page's address, the zone of interview times, the language the
@@ -360,9 +369,10 @@ upload one.
   outbound network). Whether Google indexes a given careers page, and
   whether a real Chest's public host adds its own `X-Robots-Tag`, was not
   verified (no crawler reaches the studio).
-- **Free times** come from Hiring's interviews and what Booking tells
+- **Free times** come from Hiring's interviews, what Booking tells
   (its bookings and the Google/Outlook/Apple calendars a host connected
-  there). An interviewer who is not a Booking host, or has not connected
+  there) and the days off Leave tells (approved leave only: a request
+  still waiting is not a day off). An interviewer who is not a Booking host, or has not connected
   a calendar there, is known by Hiring's interviews only; Booking's own
   reading lags up to about 15 minutes. Lunch is fixed at 12:00–14:00 (not
   per company yet). The candidate cannot move a time they chose (they

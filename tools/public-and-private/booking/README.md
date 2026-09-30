@@ -63,7 +63,8 @@ confirmation; nobody is ever booked twice.
   bell, the Chest's calendar, the host's email copy and the CSV (a *Guest's
   language* column). The coming week's **busy times from elsewhere** show
   as grey rows within the host's hours — "Busy · In your Google calendar
-  16:00–17:00", "An interview in Hiring" — times only, so a hole in the
+  16:00–17:00", "An interview in Hiring", "Off" (a day of leave, told by
+  Leave) — times only, so a hole in the
   free times is never a mystery. On a phone, free stretches and busy rows
   fold behind **Show free times** (remembered on that phone): the meetings
   come first.
@@ -237,8 +238,8 @@ carries `v: 1`; a receiver ignores a version it does not know.
 | Event | When | Key (the Chest's 24-hour de-duplication) |
 |---|---|---|
 | `booking.busy` | A host's busy times changed: a booking made, moved, cancelled or erased, a time blocked or freed, a calendar connected, disconnected or read (schedule `calendars`, every 15 minutes: only what changed), and once a day as the window moves on | `busy:<member>:<ms>:<hash>` |
-| `booking.confirmed` | A booking made (by a visitor or a host for them) or moved (the same booking, told again) | `booking:<id>:confirmed:<moves>` |
-| `booking.cancelled` | A booking cancelled by its guest or host, or because its host was erased | `booking:<id>:cancelled` |
+| `booking.confirmed` | A booking made (by a visitor or a host for them) or moved (the same booking, told again) | `booking:<id>:confirmed:<moves>` (its data is the same each time it is told: `at` is when it was made or last moved, as recorded) |
+| `booking.cancelled` | A booking cancelled by its guest or host, or because its host was erased | `booking:<id>:cancelled` (`at`: when it was cancelled) |
 
 `booking.busy` — for Hiring (its candidates never pick a time a host
 already gave away); the same shape as Hiring's `hiring.busy`
@@ -271,7 +272,11 @@ booked prospect becomes a contact with the meeting on their timeline):
   "source": "page", "moves": 0, "path": "/chest/bookings/42" }
 ```
 
-`booking.cancelled` is the same with `"status": "cancelled"` and
+`at` is when the booking was made, last moved (`bookings.moved_at`) or
+cancelled — as recorded, never the time of telling: a retry of the same
+key carries the same data, so the Chest takes it as the same event (it
+refuses a key reused for other data, SDK studio.15). `booking.cancelled`
+is the same with `"status": "cancelled"` and
 `"cancelledBy": "guest" | "host"`; `host` is null once the host was
 erased. `kind`: `place`, `phone`, `video` or `ask`; `source`: `page` (a
 visitor), `host` (a host for them), `import`. `company` is null: the form
@@ -296,6 +301,7 @@ does).
 | Event | From | Does |
 |---|---|---|
 | `hiring.busy` | Hiring: the interviews a member is on (the `booking.busy` shape) | Those times are not offered (`busyOf`), and show on the host's agenda as "An interview in Hiring". Kept per tool and member, the latest snapshot only (`told_busy`, `told_spans`); forgotten when the member leaves or is erased |
+| `leave.busy` | Leave: the days a member is off — approved leave, whole days in the Chest's time zone (the same shape; Leave's README, "With the other tools") | The same handler (`takeBusy`): no time is offered those days, and the host's agenda shows them as "Off" ("Absent") — never the kind of leave, which Leave never sends. A later snapshot ("now free": empty `spans`) gives the days back; Hiring's interviews, kept apart, stay |
 
 ## On a Chest
 
@@ -304,7 +310,11 @@ does).
   the four calendar hosts (the owner approves "Can reach
   calendar.google.com", …). Nothing else leaves the tool. Proposals:
   `emits` (`booking.busy`, `booking.confirmed`, `booking.cancelled`) and
-  `receives` (`hiring.busy`), README "With the other tools".
+  `receives` (`hiring.busy`, `leave.busy`), README "With the other
+  tools". The owner approves "Tells other tools when a host is busy
+  (times only), when a booking is made, moved or cancelled (who, which
+  type, when)", "Is told by Hiring when a member is in an interview" and
+  "Is told by Leave when a host is off".
 - **Other calendars' addresses are secrets**: kept to read them, shown
   again only as their host and file name, deleted when the host
   disconnects one, loses access, leaves or is erased.
@@ -373,7 +383,7 @@ does).
 - **Events between tools** — **Proposal (studio)** (`emits`,
   `receives`): without them, Hiring does not see the hosts' busy times,
   Clients hears of no booking, and Booking does not see Hiring's
-  interviews; bookings work the same.
+  interviews nor Leave's days off; bookings work the same.
 
 ## Develop
 
@@ -396,10 +406,11 @@ In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --re
   no CalDAV account, no calendar shared with the host by someone else
   unless it has its own address. Declined invitations still read as busy
   (an iCal feed does not say who "you" are).
-- **Other tools' busy times**: Hiring's interviews only (the one tool
-  that tells them today). Rooms' meetings and Leave's days off are not
-  told to Booking yet (Leave tells Rooms; a host marks a day off in
-  Hours).
+- **Other tools' busy times**: Hiring's interviews and Leave's days off
+  only. Rooms' meetings are not told to Booking yet. A half day off
+  (Leave sends noon to midnight, or midnight to noon) blocks that half
+  only; a host still marks a day off in Hours by hand when they do not
+  use Leave.
 - **Clients** (the CRM) receives `booking.confirmed` only once its own
   receiver is built (its tool, not this one): the contract is above.
   Bookings imported from Calendly are not told to Clients (they are

@@ -53,7 +53,9 @@ export async function hireCancelled(candidate: string, at = new Date()): Promise
 // so Booking never lets a customer take an hour a candidate chose. Heard:
 // booking.busy — a host's bookings, times blocked and Google/Outlook/Apple
 // calendars — so a candidate is never offered an hour the interviewer
-// already gave away (lib/self-schedule.ts, lib/interviews.ts busy).
+// already gave away; and leave.busy — the days a member is off (approved
+// leave in Leave, times only, never its kind) — so no interview is
+// offered on them (lib/self-schedule.ts, lib/interviews.ts busy).
 
 const day = 86_400_000;
 

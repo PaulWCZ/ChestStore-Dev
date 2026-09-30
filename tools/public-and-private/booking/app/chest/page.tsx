@@ -66,6 +66,8 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
     if (source.startsWith("outlook.")) return w.outlook;
     if (source.endsWith("icloud.com")) return w.apple;
     if (source === "tool:hiring") return w.hiring;
+    // Leave tells times only, never the kind of leave: "Off".
+    if (source === "tool:leave") return w.leave;
     return source.startsWith("tool:") ? w.tool : w.other;
   };
   // A block in the host's clock: its day, from, to (24:00 when it ends at

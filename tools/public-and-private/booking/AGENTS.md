@@ -19,7 +19,7 @@ what must not break.
 | `lib/ical.ts`, `lib/windows-zones.ts` | Reading a calendar for its busy times only (RRULE, EXDATE, RECURRENCE-ID, whole days, TZID, VTIMEZONE) — pure, tested |
 | `lib/calendars.ts` | The hosts' other calendars: allowed hosts (= `chest.json` `network`), fetching with limits, keeping busy spans, schedule and lazy refresh |
 | `lib/publish.ts` | Each booking in the host's Chest calendar (Proposal `calendar`) |
-| `lib/share.ts`, `lib/busy-snapshot.ts` | Events between tools (README "With the other tools"): `booking.busy` (a host's own busy times, only when changed: `shared_busy`), `booking.confirmed` / `booking.cancelled` for Clients (`changed`), `hiring.busy` heard (`takeBusy` → `told_busy`, `told_spans`); the snapshot's shape, pure and the same file in Hiring |
+| `lib/share.ts`, `lib/busy-snapshot.ts` | Events between tools (README "With the other tools"): `booking.busy` (a host's own busy times, only when changed: `shared_busy`), `booking.confirmed` / `booking.cancelled` for Clients (`changed`), `hiring.busy` and `leave.busy` heard (`takeBusy` → `told_busy`, `told_spans`; `tool:leave` reads "Off" on the agenda, never the kind of leave); the snapshot's shape, pure and the same file in Hiring |
 | `lib/import.ts` | Calendly's scheduled-events CSV |
 | `lib/embed.ts` | The public pages' `frame-ancestors` from the websites an administrator allowed |
 | `lib/zones.ts`, `components/zone-select.tsx` | The time-zone list (cities in the reader's language from the catalogue's `zones.cities`, offsets, regions), written on the server |
@@ -79,7 +79,10 @@ npm ci && npm test && npm run build   # all three must pass
   `share.shareBusy` after it. `booking.busy` carries times only and only
   the host's own (`ownBusy`): never what another tool told Booking (no
   echo). `booking.confirmed` never carries the note, the answers or the
-  guest's link. Change a payload only with a new `v`.
+  guest's link. An event's data depends only on what is recorded (`at`
+  is `created_at`, `moved_at` or `cancelled_at`, never the time of
+  telling): the same key told again must carry the same data, or the
+  Chest refuses it (`key_conflict`). Change a payload only with a new `v`.
 - **One type, one name on the team's screens**: show a booking's type
   with `typeNames` / `titlesOf` (the reader's language); `booking.title`
   is what the guest read, for their emails only.

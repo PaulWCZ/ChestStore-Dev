@@ -142,7 +142,8 @@ export async function upcoming(sql: Sql, actor: Member | null, now = new Date())
 
 // busy: the times some people are already in an interview on a day (in
 // the Chest's zone), or busy by what another tool told (source: "booking"
-// — their bookings and other calendars), to plan around them. Only times:
+// — their bookings and other calendars; "leave" — a day off), to plan
+// around them. Only times:
 // which candidate or customer is never said.
 export type Busy = { member: string; start: string; end: string; source?: string };
 export async function busy(sql: Sql, actor: Member | null, people: unknown, onDay: unknown): Promise<Busy[]> {

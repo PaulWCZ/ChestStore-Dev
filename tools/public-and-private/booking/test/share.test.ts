@@ -93,7 +93,7 @@ test("a booking tells Clients who booked, which type in every language, when —
   const confirmed = chest.published.find(p => p.type === "booking.confirmed")!;
   assert.equal(confirmed.key, `booking:${made.booking.id}:confirmed:0`);
   assert.deepEqual(confirmed.data, {
-    v: 1, booking: made.booking.id, status: "confirmed", at: new Date(monday).toISOString(), host: ines.id,
+    v: 1, booking: made.booking.id, status: "confirmed", at: made.booking.createdAt.toISOString(), host: ines.id,
     start: "2026-10-06T08:00:00.000Z", end: "2026-10-06T09:00:00.000Z",
     type: { id: type.id, name: { en: "Project call", fr: "Appel projet" } }, kind: "video",
     contact: { name: "Sarah Klein", email: "sarah@example.com", phone: null, company: null, language: "en" },
@@ -111,10 +111,13 @@ test("a booking tells Clients who booked, which type in every language, when —
   const again = chest.published.filter(p => p.type === "booking.confirmed");
   assert.deepEqual(again.map(p => [p.key, p.data["start"], p.data["moves"]]), [[`booking:${made.booking.id}:confirmed:0`, "2026-10-06T08:00:00.000Z", 0], [`booking:${made.booking.id}:confirmed:1`, "2026-10-07T08:00:00.000Z", 1]]);
   assert.deepEqual(busyOf(ines.id).at(-1)!.data["spans"], [["2026-10-07T08:00Z", "2026-10-07T09:00Z"]]);
+  // at: when it moved, as recorded — not when it was told.
+  assert.equal(again[1]!.data["at"], new Date(monday).toISOString());
   const gone = await b.cancelByHost(sql, asMember(ines), made.booking.id, "", monday);
   await share.changed(sql, "cancelled", gone, { now: monday + 180000 });
   const cancelled = chest.published.find(p => p.type === "booking.cancelled")!;
   assert.equal(cancelled.key, `booking:${made.booking.id}:cancelled`);
+  assert.equal(cancelled.data["at"], gone.cancelledAt!.toISOString());
   assert.equal(cancelled.data["status"], "cancelled");
   assert.equal(cancelled.data["cancelledBy"], "host");
   assert.deepEqual(busyOf(ines.id).at(-1)!.data["spans"], []);
@@ -145,6 +148,60 @@ test("a time blocked and another calendar's busy times are told; what Hiring tol
   await lifecycle.leave(sql, ines.id);
   const [left] = await sql<{ n: number }[]>`select count(*)::int as n from told_busy where member_id = ${ines.id}`;
   assert.equal(left!.n, 0);
+});
+
+test("told again, a booking is the same event: its data does not change with the time of telling", async () => {
+  const { sql, host, type } = await inesReady();
+  const made = await b.book(sql, host, type, { ...guest, start: "2026-10-06T08:00:00.000Z" }, monday);
+  assert.equal(await share.changed(sql, "booked", made.booking, { now: monday + 5000 }), true);
+  // A retry (the request answered too late, the page sent twice) minutes later: taken, one event.
+  assert.equal(await share.changed(sql, "booked", made.booking, { now: monday + 300000 }), true, "not a key_conflict");
+  const moved = await b.moveByHost(sql, asMember(ines), made.booking.id, "2026-10-07T08:00:00.000Z", monday + 60000);
+  assert.equal(await share.changed(sql, "moved", moved.booking, { previousHost: moved.from, now: monday + 400000 }), true);
+  // Read again from the database (a retry after a restart): the same data.
+  const reread = (await b.bookingsByIds(sql, [made.booking.id]))[0]!;
+  assert.equal(await share.changed(sql, "moved", reread, { now: monday + 900000 }), true, "the move told again is the same event");
+  const confirmed = chest.published.filter(p => p.type === "booking.confirmed" && p.data["booking"] === made.booking.id);
+  assert.deepEqual(confirmed.map(p => [p.key, p.data["at"]]), [
+    [`booking:${made.booking.id}:confirmed:0`, made.booking.createdAt.toISOString()],
+    [`booking:${made.booking.id}:confirmed:1`, new Date(monday + 60000).toISOString()],
+  ]);
+  const gone = await b.cancelByHost(sql, asMember(ines), made.booking.id, "", monday + 120000);
+  assert.equal(await share.changed(sql, "cancelled", gone, { now: monday + 1000000 }), true);
+  assert.equal(await share.changed(sql, "cancelled", (await b.bookingsByIds(sql, [made.booking.id]))[0]!, { now: monday + 2000000 }), true);
+  assert.equal(chest.published.filter(p => p.type === "booking.cancelled" && p.data["booking"] === made.booking.id).length, 1);
+  // Other data under a key already used is refused by the Chest, never taken as the first: the booking stands.
+  assert.equal(await share.changed(sql, "cancelled", { ...gone, guestName: "Someone else" }, { now: monday + 2000000 }), false);
+});
+
+test("Leave tells Booking a host is off: no time is offered those days, the agenda says « Off », a later snapshot frees them", async () => {
+  const { sql, host, type } = await inesReady();
+  const tuesday = async () => (await b.freeTimes(sql, host, type, "2026-10-06", "2026-10-06", monday)).map(s => s.start.slice(11, 16));
+  assert.ok((await tuesday()).length > 0, "Tuesday is open");
+  // Inès is off on Tuesday: the whole day in Paris, times only.
+  const off = { v: 1, member: ines.id, at: new Date(monday).toISOString(), from: "2026-10-05T00:00Z", to: "2027-01-03T00:00Z", spans: [["2026-10-05T22:00Z", "2026-10-06T22:00Z"]] };
+  assert.equal(await chest.deliver({ type: "leave.busy", source: "leave", data: off }, POST), 204);
+  assert.deepEqual(await tuesday(), [], "no time on a day off");
+  assert.ok((await b.freeTimes(sql, host, type, "2026-10-07", "2026-10-07", monday)).length > 0, "Wednesday stays open");
+  // Hiring's interviews are kept apart: Leave's snapshot replaces only Leave's.
+  await chest.deliver({ type: "hiring.busy", source: "hiring", data: { ...off, spans: [["2026-10-07T07:00Z", "2026-10-07T08:00Z"]] } }, POST);
+  const rows = await b.busyElsewhere(sql, host, 7, monday);
+  assert.ok(rows.some(r => r.day === "2026-10-06" && r.source === "tool:leave"), "the day off on her agenda");
+  assert.equal(catalogue("en").bookings.busyWhere.leave, "Off");
+  assert.equal(catalogue("fr").bookings.busyWhere.leave, "Absent");
+  // Never told back to another tool.
+  assert.equal(await share.shareBusy(sql, [ines.id], monday + 7000), 1);
+  assert.ok(!JSON.stringify(busyOf(ines.id).at(-1)!.data).includes("2026-10-05T22:00Z"), "no echo");
+  // An older snapshot arriving late changes nothing.
+  await chest.deliver({ type: "leave.busy", source: "leave", data: { ...off, at: new Date(monday - 60000).toISOString(), spans: [] } }, POST);
+  assert.deepEqual(await tuesday(), []);
+  // The leave cancelled: Leave says she is free again; Tuesday opens, the interview stays.
+  await chest.deliver({ type: "leave.busy", source: "leave", data: { ...off, at: new Date(monday + 60000).toISOString(), spans: [] } }, POST);
+  assert.ok((await tuesday()).length > 0, "Tuesday open again");
+  assert.ok(!(await b.freeTimes(sql, host, type, "2026-10-07", "2026-10-07", monday)).some(s => s.start.slice(11, 16) === "07:00"), "Hiring's interview still kept");
+  // A snapshot named for Booking itself is never taken.
+  await chest.deliver({ type: "leave.busy", source: "booking", data: { ...off, at: new Date(monday + 120000).toISOString() } }, POST);
+  assert.ok((await tuesday()).length > 0);
 });
 
 test("without events between tools, bookings stand and nothing breaks", async () => {
