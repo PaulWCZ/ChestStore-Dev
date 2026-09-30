@@ -6,7 +6,7 @@ import { today } from "../../../lib/interviews.ts";
 import { sweepTemplateFiles } from "../../../lib/messages.ts";
 import * as outbox from "../../../lib/outbox.ts";
 import { shareDueBusy } from "../../../lib/share.ts";
-import { timeOf } from "../../../lib/time.ts";
+import { dayOf, timeOf } from "../../../lib/time.ts";
 import { interviewsToday, refreshBadges } from "../../../lib/tell.ts";
 
 // Scheduled tasks (Proposal (studio)):
@@ -16,7 +16,8 @@ import { interviewsToday, refreshBadges } from "../../../lib/tell.ts";
 // - outbox, every 15 minutes: emails that are due (a rejection after its
 //   Undo) leave even when nobody has the tool open; interviews reach the
 //   interviewers' calendars, and their times the tools linked to Hiring;
-// - morning, on weekdays: each interviewer hears of the day's interviews.
+// - morning, on weekdays: each interviewer hears of the day's interviews,
+//   in the bell and in one email (which honours their email choice).
 export async function POST(request: Request): Promise<Response> {
   return new Response(null, {
     status: await schedules.handle(request, {
@@ -37,7 +38,9 @@ export async function POST(request: Request): Promise<Response> {
       },
       morning: async run => {
         const list = await today(db(), new Date(run.scheduledAt));
-        await interviewsToday(list, start => timeOf(start, run.timeZone));
+        // The day is the run's: a retry after midnight still says that day,
+        // under the same keys (one email per person and day).
+        await interviewsToday(list, start => timeOf(start, run.timeZone), dayOf(new Date(run.scheduledAt), run.timeZone));
       },
     }),
   });

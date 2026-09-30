@@ -67,10 +67,11 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
   function meetingWhen(a: TimelineItem): ReactNode {
     const m = a.meeting;
     if (!m) return null;
-    const host = m.host ? (m.host === me ? t.people.you : people[m.host]?.name ?? null) : null;
+    const host = m.host && m.host !== me ? people[m.host]?.name ?? null : null;
+    const when = m.host === me ? t.timeline.bookingWithYou : host ? t.timeline.bookingWhen : t.timeline.bookingWhenAlone;
     return (
       <p className={m.cancelled ? "event-who cancelled" : "event-who"}>
-        <span className="num">{host ? format(t.timeline.bookingWhen, { when: m.when, host }) : format(t.timeline.bookingWhenAlone, { when: m.when })}</span>
+        <span className="num">{format(when, { when: m.when, host: host ?? "" })}</span>
         {m.moves > 0 && <><span className="sep" aria-hidden="true">·</span><span>{plural(t.timeline.bookingMoved, m.moves, locale)}</span></>}
       </p>
     );

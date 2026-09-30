@@ -15,7 +15,11 @@ import { people } from "./people.ts";
 //
 // Two instances may flush at once: a message is claimed by pushing its
 // time five minutes ahead (for update skip locked), and sent with the key
-// message:<id>, so the Chest sends it once even when sent twice.
+// message:<id>:<address>, so the Chest sends it once even when sent twice.
+// The key is whole (SDK studio.15 hashes a long one, never cut) and names
+// its recipient: the Chest refuses a key reused for other recipients
+// (key_conflict), which an id alone could be after a restored database or
+// a corrected address.
 
 type Due = {
   id: string; candidate_id: string; kind: string; author: string | null; subject: string; body: string; calendar: string | null; attachments: { file: string; name: string }[] | null;
@@ -42,7 +46,7 @@ export async function flush(sql: Sql, limit = 20): Promise<number> {
         text: d.body,
         candidateId: String(d.candidate_id),
         fromName: sender ? mailer.fromName(sender, s.companyName) : s.companyName || undefined,
-        key: `message:${d.id}`,
+        key: `message:${d.id}:${d.email.toLowerCase()}`,
         // The invitation's calendar file, and the files the recruiter sent
         // (the tool's own files: the Chest reads them itself).
         attachments: [

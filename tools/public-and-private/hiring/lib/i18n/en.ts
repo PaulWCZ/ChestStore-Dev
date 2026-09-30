@@ -981,6 +981,9 @@ export const en = {
   },
   mail: {
     team: "The team",
+    morningSubject: "Your interviews today",
+    morningBody: "Hello {firstName},\n\nToday you meet:\n{list}\n\nYour feedback goes on each candidate’s page, once you have met them.",
+    morningLine: "{time} — {name}, {job}: {link}",
     confirmSubject: "We received your application — {job}",
     confirmBody: "Hello {name},\n\nThank you for applying for {job} at {company}. Your application has reached the team: we read every one, and we will write to you, whatever our answer.\n\nOur open positions: {careers}\n\n{company}",
     confirmBodyNoLink: "Hello {name},\n\nThank you for applying for {job} at {company}. Your application has reached the team: we read every one, and we will write to you, whatever our answer.\n\n{company}",

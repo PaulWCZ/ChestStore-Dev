@@ -629,6 +629,41 @@ await step("the builder's preview says 'Preview' in the member's language; the f
   await english();
 });
 
+await step("pass 4: a manager lets everyone make forms: a member makes one, owns it, and keeps it once the switch is off", async () => {
+  await english();
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".quiet-note").allInnerTexts()).some(x => x.includes("They can let everyone make forms")), "a member is told whom to ask");
+  expect(!(await page.getByRole("switch", { name: "Everyone can make forms" }).count()), "only a manager sees the switch");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest");
+  const toggle = page.getByRole("switch", { name: "Everyone can make forms" });
+  expect(!(await toggle.isChecked()), "off until a manager turns it on");
+  await page.locator("label.ck-switch-label", { hasText: "Everyone can make forms" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Everyone can make forms now.')");
+  await page.reload();
+  expect(await page.getByRole("switch", { name: "Everyone can make forms" }).isChecked(), "kept");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/new");
+  await page.locator(".template-card", { hasText: "Blank form" }).click();
+  await page.waitForURL(/\/chest\/forms\/\d+$/u);
+  const hisForm = page.url();
+  await page.locator("#form-title").fill("Hugo's team quiz");
+  await page.waitForSelector(".save-state.saved", { timeout: 10000 });
+  await page.goto(origin + "/chest");
+  await page.waitForSelector(".form-card:has-text(\"Hugo's team quiz\")");
+  // Off again: no new form, his own stays his.
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest");
+  await page.locator("label.ck-switch-label", { hasText: "Everyone can make forms" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Only managers and creators make new forms now.')");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/new");
+  expect((await page.locator(".narrow").innerText()).includes("ask a manager"), "no new form");
+  await page.goto(hisForm);
+  expect(await page.locator("#form-title").inputValue() === "Hugo's team quiz", "his form is still his to edit");
+});
+
 await phone.close();
 await browser.close();
 done(problems);

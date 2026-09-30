@@ -165,7 +165,11 @@ export const fr: Catalogue = {
     unseen: { one: "{count} nouvelle", other: "{count} nouvelles" },
     edited: "Modifié {when}",
     closes: "Se ferme le {date}",
-    noCreate: "Vous pouvez remplir les formulaires de l’équipe. Pour créer les vôtres, demandez le rôle Créateur à un responsable.",
+    noCreate: "Vous pouvez remplir les formulaires de l’équipe. Pour créer les vôtres, demandez à un responsable. Il peut permettre à tout le monde d’en créer.",
+    everyone: "Tout le monde peut créer des formulaires",
+    everyoneHint: "Les membres créent leurs propres formulaires, sans le rôle Créateur. Ils ne voient que ceux qu’ils créent ou qu’on partage avec eux.",
+    everyoneOn: "Tout le monde peut créer des formulaires.",
+    everyoneOff: "Seuls les responsables et les créateurs créent de nouveaux formulaires.",
     empty: {
       title: "Posez vos questions, recevez des réponses claires",
       body: "Créez un formulaire en quelques minutes, partagez un lien, lisez les réponses ici.",

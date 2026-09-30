@@ -1,6 +1,7 @@
 import { EmptyState } from "@argentic/chest-ui/components";
 import { Back } from "../../../../components/icons.tsx";
-import { can } from "../../../../lib/access.ts";
+import { mayCreate } from "../../../../lib/creators.ts";
+import { db } from "../../../../lib/db.ts";
 import { plural } from "../../../../lib/i18n/index.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { template, templateKeys } from "../../../../lib/templates.ts";
@@ -13,7 +14,7 @@ export default async function NewForm() {
   const v = await viewer();
   if (!v) return null;
   const { member, t, locale } = v;
-  if (!can(member, "forms.create")) {
+  if (!(await mayCreate(db(), member))) {
     return <div className="narrow"><a className="back-link" href="/chest"><Back />{t.create.back}</a><EmptyState title={t.home.noCreate} /></div>;
   }
   const choices: Choice[] = templateKeys.map(key => {

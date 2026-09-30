@@ -8,6 +8,7 @@ import * as jobs from "../lib/jobs.ts";
 import * as mailer from "../lib/mailer.ts";
 import * as messages from "../lib/messages.ts";
 import * as outbox from "../lib/outbox.ts";
+import { emailInterviewers } from "../lib/tell.ts";
 import { addDays, dayOf, instantOf } from "../lib/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, openJob } from "./support/fixtures.ts";
@@ -227,4 +228,71 @@ test("the morning reminder lists today's interviews", async () => {
   await sql`insert into interview_people (interview_id, member_id) values (${row!.id}, ${hugo.id})`;
   const list = await interviews.today(sql, later);
   assert.ok(list.some(i => i.id === String(row!.id) && i.people.includes(hugo.id)));
+});
+
+// Members with an address and an email choice, for one test: the fake
+// Chest's members are replaced, then given back.
+async function withPreferences<T>(choices: Record<string, "all" | "digest" | "none">, run: () => Promise<T>): Promise<T> {
+  const saved = [...chest.members];
+  chest.members.splice(0, chest.members.length, ...saved.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test`, ...(choices[m.id] ? { mailPreference: choices[m.id] } : {}) })));
+  chest.clearCaches();
+  try {
+    return await run();
+  } finally {
+    chest.members.splice(0, chest.members.length, ...saved);
+    chest.held.length = 0;
+    chest.clearCaches();
+  }
+}
+
+test("email preferences (studio.15): a candidate's emails are transactional, even to a member who chose none", async () => {
+  const { sql } = database;
+  await withPreferences({ [nora.id]: "none" }, async () => {
+    // Nora, an employee, applies to an internal job with her work address.
+    const job = await openJob(sql, recruiter(), "Internal move");
+    await jobs.addInterviewer(sql, recruiter(), job.id, hugo.id, hasTool);
+    const c = (await candidates.apply(sql, application(job.slug, { email: "nora@atelier.test", name: "Nora Petit" }))).candidate;
+    const words = mailer.confirmation(c, job, "Atelier Martin", null);
+    assert.equal(await outbox.sendNow(sql, await messages.queueConfirmation(sql, c.id, words.subject, words.text)), "sent");
+    assert.deepEqual([chest.outbox.at(-1)!.to, chest.outbox.at(-1)!.subject], [["nora@atelier.test"], words.subject], "the application's confirmation");
+    const day = addDays(dayOf(new Date(), "Europe/Paris"), 3);
+    const done = await interviews.schedule(sql, recruiter(), c.id, { day, time: "11:00", minutes: 30, people: [hugo.id], place: "Room 2", note: "" }, isTeam);
+    assert.equal(await outbox.sendNow(sql, done.message!), "sent");
+    assert.deepEqual(chest.outbox.at(-1)!.to, ["nora@atelier.test"], "the interview's confirmation goes whatever she chose");
+    const id = await messages.write(sql, recruiter(), c.id, { subject: "Before Thursday", text: "Bring your portfolio." });
+    assert.equal(await outbox.sendNow(sql, id), "sent");
+    assert.equal(chest.outbox.at(-1)!.subject, "Before Thursday");
+    assert.equal(chest.held.length, 0, "nothing to a candidate is ever held back");
+  });
+});
+
+test("email preferences (studio.15): the interviewers' morning email honours each one's choice, once a day", async () => {
+  await withPreferences({ [ines.id]: "none", [lea.id]: "digest" }, async () => {
+    const at = (h: number) => new Date(Date.UTC(2026, 9, 1, h)).toISOString();
+    const list = [
+      { id: "901", candidateId: "41", candidateName: "Aurélie Roux", jobTitle: "Office manager", start: at(12), people: [hugo.id, ines.id] },
+      { id: "900", candidateId: "40", candidateName: "Bastien Leroy", jobTitle: "Sales", start: at(8), people: [hugo.id, lea.id] },
+    ];
+    const time = (start: string) => start.slice(11, 16);
+    const before = chest.outbox.length;
+    const first = await emailInterviewers(list, time, "2026-10-01");
+    assert.deepEqual(first.sent, [hugo.id]);
+    assert.deepEqual(first.held.sort(), [ines.id, lea.id].sort());
+    assert.deepEqual(chest.held.map(h => [h.member, h.reason]).sort(), [[ines.id, "none"], [lea.id, "digest"]].sort());
+    const toHugo = chest.outbox.slice(before);
+    assert.equal(toHugo.length, 1);
+    assert.deepEqual(toHugo[0]!.to, ["hugo@atelier.test"]);
+    assert.equal(toHugo[0]!.subject, "Your interviews today");
+    assert.match(toHugo[0]!.text, /Hello Hugo,[\s\S]*08:00 — Bastien Leroy, Sales: \S*\/chest\/candidates\/40[\s\S]*12:00 — Aurélie Roux, Office manager/u);
+    // The schedule runs again (a retry): nobody gets a second email.
+    await emailInterviewers(list, time, "2026-10-01");
+    assert.equal(chest.outbox.length, before + 1);
+    // Inès reads French; with "all" she gets hers the next day, in French.
+    chest.members.find(m => m.id === ines.id)!.mailPreference = "all";
+    chest.clearCaches();
+    await emailInterviewers(list.slice(0, 1), time, "2026-10-02");
+    const toInes = chest.outbox.at(-1)!;
+    assert.deepEqual([toInes.to, toInes.subject], [["inès@atelier.test"], "Vos entretiens aujourd’hui"]);
+    assert.match(toInes.text, /^Bonjour Inès,/u);
+  });
 });

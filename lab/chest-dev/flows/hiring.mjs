@@ -614,6 +614,40 @@ await step("an offer letter: a template carries it, the email sends it, the conv
   expect(body.subarray(0, 5).toString() === "%PDF-", "the file downloads");
 });
 
+await step("a candidate's own data carries the files sent to her (the offer letter), and the full export too (round 3 limit)", async () => {
+  // Aïcha (3) was sent the offer letter and a contract in the step above.
+  const theirs = await page.request.get(origin + "/chest/candidates/3/data");
+  const zip = await theirs.body();
+  expect(theirs.status() === 200 && zip.subarray(0, 2).toString() === "PK", "their data");
+  const names = zip.toString("latin1");
+  expect(/emails\/\d+\/Offer letter\.pdf/u.test(names) && /emails\/\d+\/Contract\.pdf/u.test(names), "both files in her archive, under their email");
+  const all = (await (await page.request.get(origin + "/chest/export")).body()).toString("latin1");
+  expect(/emails\/\d+\/Offer letter\.pdf/u.test(all) && /emails\/\d+\/Contract\.pdf/u.test(all), "and in the full export");
+});
+
+await step("the morning schedule: each interviewer gets the day's interviews by email, in their language (their email choice applied by the Chest)", async () => {
+  // An interview today, late enough to be ahead of now, with Hugo.
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  await page.goto(origin + "/chest/candidates/3");
+  await page.getByRole("button", { name: "Interview", exact: true }).click();
+  await page.locator("dialog[open]").getByText("I choose the time").click();
+  await page.locator("#iv-day").fill(today);
+  await page.locator("#iv-day").press("Tab");
+  await page.locator("dialog[open] .check", { hasText: "Hugo Bernard" }).locator("input").check();
+  await page.locator("#iv-time").selectOption("23:30");
+  await page.locator("#iv-place").fill("Atelier Martin, Lyon");
+  await page.locator("dialog[open]").getByRole("button", { name: "Send the invitation" }).click();
+  await page.waitForSelector(".ck-toast");
+  const r = await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
+  expect(r.status() === 303, "schedule: " + r.status());
+  const log = await dev();
+  const mail = log.split("<li>").find(item => item.includes("Your interviews today"));
+  expect(Boolean(mail) && mail.includes("hugo@example.test") && mail.includes("23:30 — Aïcha Benali") && mail.includes("/chest/candidates/3"), "Hugo's morning email, with the time, the name and the link");
+  // Run again (a retry): still one email for him today.
+  await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
+  expect((await dev()).split("Your interviews today").length - 1 === 1, "one a day");
+});
+
 await step("a candidate applies from a phone with a photo of her CV; the team sees it on her page", async () => {
   await context.clearCookies();
   await page.setViewportSize({ width: 390, height: 844 });

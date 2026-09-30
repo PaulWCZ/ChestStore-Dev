@@ -168,7 +168,11 @@ export const en = {
     unseen: { one: "{count} new", other: "{count} new" },
     edited: "Edited {when}",
     closes: "Closes {date}",
-    noCreate: "You can answer your team’s forms. To make your own, ask a manager for the Creator role.",
+    noCreate: "You can answer your team’s forms. To make your own, ask a manager. They can let everyone make forms.",
+    everyone: "Everyone can make forms",
+    everyoneHint: "Members make their own forms, without the Creator role. They only see the forms they make or that are shared with them.",
+    everyoneOn: "Everyone can make forms now.",
+    everyoneOff: "Only managers and creators make new forms now.",
     empty: {
       title: "Ask anything, get clear answers",
       body: "Build a form in minutes, share one link, and read the answers here.",

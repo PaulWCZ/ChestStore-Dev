@@ -22,6 +22,7 @@ import { zonedInstant } from "../../lib/zone.ts";
 import * as chest from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import { saveSites } from "../../lib/embed.ts";
+import { mayCreate, setEveryoneCreates } from "../../lib/creators.ts";
 import * as files from "@argentic/chest-sdk/files";
 import { acceptImage, imageUrl } from "../../lib/images.ts";
 import { languageFor, type Image } from "../../lib/model.ts";
@@ -230,12 +231,21 @@ export async function saveEmbedSites(text: string): Promise<Result<{ sites: stri
   return result;
 }
 
+// "Everyone can make forms": a manager's switch (lib/creators.ts).
+export async function everyoneCreates(on: boolean): Promise<Result<{ on: boolean }>> {
+  const result = await attempt(async () => ({ on: await setEveryoneCreates(db(), await currentMember(), on) }));
+  done();
+  return result;
+}
+
 // People to share a form with, as the owner types a name: the members who
 // have the tool (the Chest searches first and last names, accents aside).
 export async function findPeople(query: string): Promise<Result<{ id: string; name: string; photo: string | null; role: string | null }[]>> {
   return attempt(async () => {
     const actor = await currentMember();
-    if (!actor || !can(actor, "forms.create")) throw new AppError("forbidden");
+    // Who makes forms, or owns one (a Member who made forms while everyone
+    // could: lib/creators.ts), shares them.
+    if (!actor || !((await mayCreate(db(), actor)) || (await forms.ownsAny(db(), actor)))) throw new AppError("forbidden");
     const q = typeof query === "string" ? query.trim().slice(0, 60) : "";
     try {
       const page = await members.list({ limit: 8, ...(q ? { q } : {}) });

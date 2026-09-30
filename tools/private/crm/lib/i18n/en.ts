@@ -483,6 +483,7 @@ export const en = {
     bookingCancelled: "Meeting cancelled: {type}",
     bookingWhen: "{when} with {host}",
     bookingWhenAlone: "{when}",
+    bookingWithYou: "{when} with you",
     bookingMoved: { one: "Moved once", other: "Moved {count} times" },
     createdBooking: "Added when they booked a meeting",
     createdImported: "{name} imported it",

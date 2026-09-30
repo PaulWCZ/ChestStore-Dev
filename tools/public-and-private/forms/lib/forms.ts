@@ -2,6 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { randomInt } from "node:crypto";
 import { atLeast, can, levelOn, type Level } from "./access.ts";
 import { AppError } from "./app-error.ts";
+import { mayCreate } from "./creators.ts";
 import type { Query, Sql } from "./db.ts";
 import {
   allQuestions,
@@ -242,7 +243,7 @@ export function newSlug(): string {
 export type Start = { definition: Definition; settings?: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous" | "notifyEmail">>; routes?: Routes };
 
 export async function create(sql: Sql, actor: Member | null, start: Start): Promise<Form> {
-  if (!actor || !can(actor, "forms.create")) throw new AppError("forbidden");
+  if (!actor || !(await mayCreate(sql, actor))) throw new AppError("forbidden");
   const def = definition(start.definition);
   const s = start.settings ?? {};
   const anonymous = s.audience === "team" && s.anonymous === true;
@@ -431,12 +432,19 @@ export async function remove(sql: Sql, actor: Member | null, formId: unknown): P
   await sql`update forms set deleted_at = now() where id = ${form.id}`;
 }
 
+// ownsAny: the actor owns a form (deleted ones aside).
+export async function ownsAny(sql: Sql, actor: Member): Promise<boolean> {
+  const [row] = await sql`select 1 from forms where owner = ${actor.id} and deleted_at is null limit 1`;
+  return row !== undefined;
+}
+
 // The forms put aside in the last 30 days that the actor may bring back:
-// their own, or every one for a manager. Newest first.
+// their own (whatever their role: a Member may own forms, lib/creators.ts),
+// or every one for a manager. Newest first.
 export type Deleted = { id: string; title: string; owner: string; answers: number; deletedAt: string };
 export const trashDays = 30;
 export async function trash(sql: Sql, actor: Member | null): Promise<Deleted[]> {
-  if (!actor || !can(actor, "forms.create")) return [];
+  if (!actor || !can(actor, "forms.answer")) return [];
   const all = can(actor, "forms.all");
   const rows = await sql<{ id: string; title: string; owner: string; answers: number; deleted_at: Date }[]>`
     select f.id, f.draft->>'title' as title, f.owner, f.deleted_at,

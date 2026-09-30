@@ -119,6 +119,8 @@ select.field { appearance: auto; }
 .to-answer-title { font-weight: var(--weight-strong); flex: 1; min-width: 12ch; }
 .to-answer li.done .to-answer-title { color: var(--ink-2); }
 .home-foot { margin-top: var(--space-7); font-size: var(--text-s); }
+.everyone-switch { margin-top: var(--space-7); max-width: 64ch; }
+.everyone-switch + .home-foot { margin-top: var(--space-5); }
 .home-foot a { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink-2); }
 .empty-hero { text-align: center; display: grid; justify-items: center; gap: var(--space-4); padding: var(--space-7) var(--space-4); background: var(--surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); }
 .empty-hero h2 { font-size: var(--text-hero); max-width: 20ch; }

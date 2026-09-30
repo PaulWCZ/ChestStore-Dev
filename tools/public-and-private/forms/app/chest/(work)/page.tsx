@@ -6,12 +6,14 @@ import { Globe, Inbox, Mask, Plus, Shield, Trash, Users } from "../../../compone
 import { FollowBadge, StateBadge } from "../../../components/state-badge.tsx";
 import { sent } from "../../../lib/answers.ts";
 import { can } from "../../../lib/access.ts";
+import { everyoneCreates, mayCreate } from "../../../lib/creators.ts";
 import { db } from "../../../lib/db.ts";
 import { list, teamForms, trash, type Listed } from "../../../lib/forms.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDate, plural, relative } from "../../../lib/i18n/index.ts";
 import { viewer } from "../../../lib/session.ts";
 import { DeletedToast } from "./deleted-banner.tsx";
+import { EveryoneSwitch } from "./everyone-switch.tsx";
 import { StartButtons } from "./new/start-buttons.tsx";
 import { templateKeys } from "../../../lib/templates.ts";
 
@@ -25,11 +27,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const sql = db();
   const params = await searchParams;
   const search = typeof params["q"] === "string" ? params["q"].slice(0, 100) : "";
-  const [all, toAnswer, mySent, deletedForms] = await Promise.all([list(sql, member, search), teamForms(sql, member), sent(sql, member, 20), trash(sql, member)]);
+  const [all, toAnswer, mySent, deletedForms, creator, everyone] = await Promise.all([list(sql, member, search), teamForms(sql, member), sent(sql, member, 20), trash(sql, member), mayCreate(sql, member), everyoneCreates(sql)]);
   const mine = all.filter(f => f.owner === member.id);
   const shared = all.filter(f => f.owner !== member.id && f.level !== "owner");
   const others = all.filter(f => f.owner !== member.id && f.level === "owner");
-  const creator = can(member, "forms.create");
   const now = new Date();
   const zone = chest.timeZone();
   const card = (f: Listed) => {
@@ -132,6 +133,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       {section(t.home.yours, mine)}
       {section(t.home.shared, shared)}
       {section(t.home.others, others)}
+
+      {can(member, "forms.all") && <EveryoneSwitch on={everyone} words={t.home} errors={t.errors} />}
 
       {(deletedForms.length > 0 || (can(member, "privacy.erase") && all.length > 0)) && (
         <p className="home-foot">

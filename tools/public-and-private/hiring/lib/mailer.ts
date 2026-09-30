@@ -10,6 +10,15 @@ import { catalogue, format, isLocale, type Catalogue } from "./i18n/index.ts";
 // mail app does with the headers. On a Chest without mail yet
 // (CapabilityNotGranted), or when the Chest refuses the message, nothing
 // is sent and the tool says so.
+//
+// Every email to a candidate is transactional (SDK studio.15): it answers
+// their own application — the confirmation, an interview's time or its
+// cancellation, the link to choose a time, a recruiter's message, the
+// answer. A candidate is usually an outside address, which no email
+// preference touches, so the flag changes nothing for them; it matters
+// for an employee who applies to an internal job with their work address
+// and chose "no email" or "one a day" in their Chest: without it, the
+// Chest would hold their interview's confirmation back.
 // later: the Chest did not answer, or the day's quota is used: the
 // outbox tries again (lib/outbox.ts).
 export type Delivery = "email" | "none" | "later";
@@ -35,6 +44,7 @@ export async function send(message: { to: string; subject: string; text: string;
     subject: message.subject,
     text: message.text,
     key: message.key,
+    transactional: true,
     ...(message.fromName ? { fromName: message.fromName.slice(0, 100) } : {}),
     ...(message.attachments?.length ? { attachments: message.attachments } : {}),
     ...(message.inReplyTo ? { inReplyTo: message.inReplyTo } : {}),

@@ -479,6 +479,7 @@ export const fr: Catalogue = {
     bookingCancelled: "Rendez-vous annulé : {type}",
     bookingWhen: "{when} avec {host}",
     bookingWhenAlone: "{when}",
+    bookingWithYou: "{when} avec vous",
     bookingMoved: { one: "Déplacé une fois", other: "Déplacé {count} fois" },
     createdBooking: "Ajouté à sa prise de rendez-vous",
     createdImported: "{name} l’a importé",

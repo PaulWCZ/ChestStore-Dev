@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/app-error.ts";
+import { everyoneCreates, mayCreate, setEveryoneCreates } from "../lib/creators.ts";
 import * as forms from "../lib/forms.ts";
 import { catalogue } from "../lib/i18n/index.ts";
 import { template } from "../lib/templates.ts";
@@ -33,6 +34,36 @@ test("who may create forms: managers and creators, not members, not people witho
   await refused(forms.create(sql, asMember(hugo), { definition: good() }), "forbidden");
   await refused(forms.create(sql, asMember(nora), { definition: good() }), "forbidden");
   await refused(forms.create(sql, null, { definition: good() }), "forbidden");
+});
+
+test("everyone can make forms: a manager's switch lets members create, see only their own, and keep them once it is off", async () => {
+  const { sql } = database;
+  assert.equal(await everyoneCreates(sql), false, "off until a manager turns it on");
+  assert.equal(await mayCreate(sql, asMember(hugo)), false);
+  await refused(setEveryoneCreates(sql, asMember(ines), true), "forbidden");
+  await refused(setEveryoneCreates(sql, asMember(hugo), true), "forbidden");
+  await refused(setEveryoneCreates(sql, asMember(camille), "yes"), "invalid");
+  assert.equal(await setEveryoneCreates(sql, asMember(camille), true), true);
+  assert.equal(await mayCreate(sql, asMember(hugo)), true);
+  assert.equal(await mayCreate(sql, asMember(nora)), false, "no role, still nothing");
+  assert.equal(await mayCreate(sql, null), false);
+  await refused(forms.create(sql, asMember(nora), { definition: good() }), "forbidden");
+  const mine = await forms.create(sql, asMember(hugo), { definition: good() });
+  assert.equal(mine.owner, hugo.id);
+  assert.equal(await forms.ownsAny(sql, asMember(hugo)), true);
+  // Hugo owns his form; he does not see Inès's.
+  const hers = await forms.create(sql, asMember(ines), { definition: good() });
+  const seen = (await forms.list(sql, asMember(hugo), "")).map(f => f.id);
+  assert.ok(seen.includes(mine.id) && !seen.includes(hers.id));
+  assert.equal((await forms.list(sql, asMember(hugo), "")).find(f => f.id === mine.id)!.level, "owner");
+  // Off again: no new form, but his own stays his.
+  await setEveryoneCreates(sql, asMember(camille), false);
+  await refused(forms.create(sql, asMember(hugo), { definition: good() }), "forbidden");
+  assert.ok((await forms.list(sql, asMember(hugo), "")).some(f => f.id === mine.id && f.level === "owner"));
+  // He can still put it aside and bring it back.
+  await forms.remove(sql, asMember(hugo), mine.id);
+  assert.deepEqual((await forms.trash(sql, asMember(hugo))).map(f => f.id), [mine.id]);
+  await forms.restore(sql, asMember(hugo), mine.id);
 });
 
 test("a form is seen by its owner, managers and people it is shared with — others do not know it exists", async () => {

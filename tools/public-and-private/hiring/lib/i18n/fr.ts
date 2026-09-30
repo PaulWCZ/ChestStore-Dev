@@ -977,6 +977,9 @@ export const fr: Catalogue = {
   },
   mail: {
     team: "L’équipe",
+    morningSubject: "Vos entretiens aujourd’hui",
+    morningBody: "Bonjour {firstName},\n\nAujourd’hui, vous rencontrez :\n{list}\n\nVotre avis se donne sur la page de chaque candidat, une fois l’entretien passé.",
+    morningLine: "{time} — {name}, {job} : {link}",
     confirmSubject: "Nous avons bien reçu votre candidature — {job}",
     confirmBody: "Bonjour {name},\n\nMerci d’avoir postulé au poste « {job} » chez {company}. Votre candidature est bien arrivée à l’équipe : nous les lisons toutes, et nous vous écrirons, quelle que soit notre réponse.\n\nNos postes ouverts : {careers}\n\n{company}",
     confirmBodyNoLink: "Bonjour {name},\n\nMerci d’avoir postulé au poste « {job} » chez {company}. Votre candidature est bien arrivée à l’équipe : nous les lisons toutes, et nous vous écrirons, quelle que soit notre réponse.\n\n{company}",

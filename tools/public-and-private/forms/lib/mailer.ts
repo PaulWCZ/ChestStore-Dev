@@ -10,6 +10,10 @@ import type { Definition } from "./model.ts";
 // in; the questions as the form's author wrote them. On a Chest without
 // mail yet (CapabilityNotGranted), or when the Chest refuses the message,
 // nothing is sent and the thank-you page says nothing about a copy.
+// A copy is the person's own answer, sent because they gave it: it is
+// transactional (Proposal (studio.15)), sent whatever email preference a
+// member chose in their Chest. The owner's alerts (lib/alerts.ts) are not:
+// the Chest applies the owner's preference to them.
 export type Delivery = "email" | "none";
 
 // copyText: the email's words (tested alone).
@@ -28,7 +32,7 @@ export function copyText(def: Definition, answers: Answers, language: string, co
 export async function sendCopy(to: string | { member: string }, def: Definition, answers: Answers, language: string, company: string, answerId: string): Promise<Delivery> {
   const { subject, text } = copyText(def, answers, language, company);
   try {
-    await mail.send({ to: typeof to === "string" ? to : { member: to.member }, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}` });
+    await mail.send({ to: typeof to === "string" ? to : { member: to.member }, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}`, transactional: true });
     return "email";
   } catch (error) {
     if (error instanceof ChestError) return "none";

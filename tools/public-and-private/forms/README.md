@@ -328,7 +328,22 @@ SDK*.
 |---|---|
 | `manager` (first: owner, admins, builders) | Create forms; open and change **every** form (a colleague left); erase a person's answers; choose the websites that may show the public forms |
 | `creator` | Create forms; open the forms they own or that are shared with them |
-| `member` | Answer the team's forms; open the forms shared with them |
+| `member` | Answer the team's forms; open the forms shared with them; **make forms too when a manager turns on *Everyone can make forms*** |
+
+**Everyone can make forms** (critique round 3, N6). In Google Forms and
+Tally anyone makes a form; here a manager turns one switch at the foot of
+the home page, instead of giving the Creator role person by person. It is
+off until a manager turns it on (a Chest that upgrades keeps what it had).
+With it on, a Member makes forms exactly as a Creator does — owns them,
+shares them, publishes them, public ones included — and still opens only
+the forms they own or that are shared with them: only managers open every
+form. It fits the access model without a new level: on one form, its
+maker is its owner whatever their role (`lib/access.ts` `levelOn`); the
+switch only answers "may this person start a new form?"
+(`lib/creators.ts` `mayCreate`). Turned off again, nobody loses a form: a
+Member keeps owning, editing and sharing what they made (and its
+*Deleted forms*), and starts no new one. The Creator role stays for a
+company that keeps the switch off.
 
 On one form: **owner** (its creator, or any manager) shares it and deletes
 it; **editor** builds, publishes, closes, changes settings, follows
@@ -341,7 +356,9 @@ an error.
 
 - **What does a new user see first?** "Ask anything, get clear answers",
   one button — *Make your first form* — and three templates as chips. A
-  member without the Creator role sees the team's forms to answer.
+  member without the Creator role (while *Everyone can make forms* is off)
+  sees the team's forms to answer, and is told a manager can let everyone
+  make forms.
 - **What is the first thing they do?** Pick a template (or blank): the
   builder opens with the form on the left and its live preview on the
   right; they change a question and see it change.
@@ -404,7 +421,12 @@ if shipped and keeps working without them:
 - **Visitors** (`formToken`, `checkForm`, `count`, `language`, `visitor`):
   without the Chest's counting, the tool counts in its own table.
 - **Mail** (`mail.send`, to an address or `{member}`): without it, no copy
-  is sent and the thank-you page does not mention one.
+  is sent and the thank-you page does not mention one. A copy is the
+  person's own answer: it is sent `transactional` (Proposal (studio.15)),
+  whatever email preference a member chose in their Chest; the owner's
+  alerts are not, so the Chest applies the owner's preference to them
+  (none: not sent, the bell still tells; one a day: in the Chest's daily
+  email). The form's own *Also send them each batch by email* switch stays, per form.
 - **Schedules** (`bell`, `cleanup`): without them the bell still tells at
   once when the form was quiet for 10 minutes, but a batch waits for the
   next answer; retention does not run by itself (see below).
