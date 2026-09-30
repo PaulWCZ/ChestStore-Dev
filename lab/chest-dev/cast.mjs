@@ -15,21 +15,31 @@ export const cast = {
   ],
   // strength: "first" gets the tool's first (strongest) role, "last" its
   // last, "none" no role; a tool may give anyone another role in
-  // docs/dev.json {"roles": {"ines": "approver"}}.
+  // docs/dev.json {"roles": {"ines": "approver"}}. language: the one the
+  // Chest speaks to them (SDK 0.3.0, was locale). Everyone works in the
+  // Chest's zone (CHEST_TIME_ZONE) unless docs/dev.json says otherwise
+  // ({"timeZones": {"tom": "America/Montreal"}}) or the harness runs with
+  // --elsewhere (Tom works from Montréal: elsewhere below).
   people: [
-    { key: "camille", firstName: "Camille", lastName: "Martin", locale: "fr", admin: true, groups: ["office"], strength: "first" },
-    { key: "ines", firstName: "Inès", lastName: "Moreau", locale: "fr", groups: ["sales"], strength: "last" },
-    { key: "hugo", firstName: "Hugo", lastName: "Bernard", locale: "en", groups: ["sales"], strength: "last" },
-    { key: "lea", firstName: "Léa", lastName: "Dubois", locale: "fr", groups: ["tech"], strength: "last" },
-    { key: "tom", firstName: "Tom", lastName: "Walker", locale: "en", groups: ["tech"], strength: "last" },
-    { key: "sofia", firstName: "Sofia", lastName: "Rossi", locale: "en", groups: ["office"], strength: "last" },
-    { key: "nora", firstName: "Nora", lastName: "Petit", locale: "fr", groups: [], strength: "none" },
+    { key: "camille", firstName: "Camille", lastName: "Martin", language: "fr", admin: true, groups: ["office"], strength: "first" },
+    { key: "ines", firstName: "Inès", lastName: "Moreau", language: "fr", groups: ["sales"], strength: "last" },
+    { key: "hugo", firstName: "Hugo", lastName: "Bernard", language: "en", groups: ["sales"], strength: "last" },
+    { key: "lea", firstName: "Léa", lastName: "Dubois", language: "fr", groups: ["tech"], strength: "last" },
+    { key: "tom", firstName: "Tom", lastName: "Walker", language: "en", groups: ["tech"], strength: "last" },
+    { key: "sofia", firstName: "Sofia", lastName: "Rossi", language: "en", groups: ["office"], strength: "last" },
+    { key: "nora", firstName: "Nora", lastName: "Petit", language: "fr", groups: [], strength: "none" },
   ],
 };
 
-export function castFor(manifest, toolFolder) {
+// The member who works away from the company with --elsewhere, and where:
+// six hours behind Paris, so their day and the Chest's differ every evening.
+export const elsewhere = { key: "tom", timeZone: "America/Montreal" };
+
+export function castFor(manifest, toolFolder, { zone = "Europe/Paris", elsewhere: away = false } = {}) {
   const roles = manifest.roles ?? [];
-  const extra = existsSync(join(toolFolder, "docs", "dev.json")) ? JSON.parse(readFileSync(join(toolFolder, "docs", "dev.json"), "utf8")).roles ?? {} : {};
+  const dev = existsSync(join(toolFolder, "docs", "dev.json")) ? JSON.parse(readFileSync(join(toolFolder, "docs", "dev.json"), "utf8")) : {};
+  const extra = dev.roles ?? {};
+  const zones = { ...(away ? { [elsewhere.key]: elsewhere.timeZone } : {}), ...(dev.timeZones ?? {}) };
   return cast.people.map(p => {
     const role = p.key in extra ? extra[p.key] : p.strength === "first" ? roles[0] ?? null : p.strength === "last" ? roles.at(-1) ?? null : null;
     return {
@@ -42,7 +52,8 @@ export function castFor(manifest, toolFolder) {
       isAdmin: Boolean(p.admin),
       isBuilder: false,
       groups: p.groups.map(gid),
-      locale: p.locale,
+      language: p.language,
+      timeZone: zones[p.key] ?? zone,
       email: `${p.key}@example.test`,
     };
   });

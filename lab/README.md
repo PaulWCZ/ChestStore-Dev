@@ -3,7 +3,7 @@
 | Folder | What |
 |---|---|
 | `template/` | The starter every store tool is copied from: a small, complete tool ("Notes") that shows every pattern — member and roles, language, database and migrations, names from member ids, notifications in the recipient's language, lifecycle events and erasure, optimistic UI with undo, polling, CSP, tests with `fakeChest` and PostgreSQL (PGlite), screenshots |
-| `chest-dev/` | The local Chest (`chest dev` as we would like it): fake Chest from the SDK working copy, the tool's database, a member and language switcher, the bell, lifecycle buttons, proposals' controls; and `screens.mjs` for screenshots |
+| `chest-dev/` | The local Chest (`chest dev` as we would like it): fake Chest from the SDK working copy, the tool's database, a member and language switcher, the bell, lifecycle buttons, proposals' controls; and `screens.mjs` for screenshots — see [chest-dev/README.md](chest-dev/README.md) (SDK 0.3.1-studio.1: the Chest's zone, database zone, controls) |
 
 ## The loop for a new tool
 

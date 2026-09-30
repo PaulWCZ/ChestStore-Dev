@@ -34,14 +34,33 @@ function webhooksPanelOf(chest, proposals) {
   return `<section><h2>Webhooks (proposal)</h2><p>Up to ${escape(String(proposals.webhooks.max))} addresses. Deliveries are simulated: every target answers 200 unless told otherwise.</p><ul>${targets || "<li class=none>The tool has added no target yet.</li>"}</ul><form method="post" action="/_dev/webhook"><button name="action" value="retry">Play the pending retries</button></form><p>Journal:</p><ul>${deliveries || "<li class=none>No delivery yet.</li>"}</ul>${events ? `<p>Told to the tool:</p><ul>${events}</ul>` : ""}</section>`;
 }
 
-export function devPage({ manifest, proposals = {}, chest, me, origin, schedulesApi, catalogue = [], sampleBrand = null }) {
+// What members chose in the Chest (Proposal (studio.15)): how each wants
+// email (mailPreference: read by the members API, applied by mail.send) and
+// the zone they work in; and what their preferences held back (chest.held).
+function membersPanelOf(chest, proposals, zone) {
+  const name = id => chest.members.find(m => m.id === id)?.name ?? chest.former.find(f => f.id === id)?.name ?? id;
+  const rows = chest.members.map(m => `<li><form method="post" action="/_dev/member"><input type="hidden" name="member" value="${escape(m.id)}"><b>${escape(m.name)}</b> <select name="mailPreference" aria-label="Email for ${escape(m.name)}">${["all", "digest", "none"].map(p => `<option${(m.mailPreference ?? "all") === p ? " selected" : ""}>${p}</option>`).join("")}</select> <input name="timeZone" value="${escape(m.timeZone)}" size="16" aria-label="Zone of ${escape(m.name)}"${m.timeZone === zone ? "" : ' style="border-color:#ffb86b"'}> <button>Set</button></form></li>`).join("");
+  const held = (chest.held ?? []).slice(-12).reverse().map(h => `<li><code>${escape(h.reason)}</code> ${escape(name(h.member))} · <b>${escape(h.subject)}</b><details><summary>text</summary><pre style="white-space:pre-wrap">${escape(h.text)}</pre></details></li>`).join("");
+  return `<section><h2>Members' choices</h2><p><small>Email: <code>all</code>, <code>digest</code> (one email a day from the Chest), <code>none</code> — the members API answers it, <code>mail.send</code> applies it. Zone: <code>member.timeZone</code> (the Chest's is ${escape(zone)}).</small></p><ul>${rows}</ul>${proposals.mail ? `<p>Held back by a preference (<code>chest.held</code>):</p><ul>${held || "<li class=none>Nothing held.</li>"}</ul>` : ""}</section>`;
+}
+
+// Whether the Chest delivers (Proposal (studio.16)): what mail.available()
+// and webhooks.available() answer, and what send does.
+function deliveryPanelOf(chest, proposals, mailQuota) {
+  const mailNow = mailQuota ? "quota" : chest.delivery.mail;
+  const mail = proposals.mail ? `<form method="post" action="/_dev/delivery"><label>Mail <select name="mail">${["ready", "not_connected", "suspended", "quota"].map(v => `<option${v === mailNow ? " selected" : ""}>${v}</option>`).join("")}</select></label><button>Set</button></form>` : "";
+  const hooks = proposals.webhooks ? `<form method="post" action="/_dev/delivery"><label>Webhooks <select name="webhooks">${["ready", "suspended"].map(v => `<option${v === chest.delivery.webhooks ? " selected" : ""}>${v}</option>`).join("")}</select></label><button>Set</button></form>` : "";
+  return `<section><h2>Delivery (proposal)</h2>${mail}${hooks}<p><small>Now: mail <code>${escape(mailNow)}</code>${proposals.webhooks ? `, webhooks <code>${escape(chest.delivery.webhooks)}</code>` : ""}. <code>not_connected</code>: send is refused as without mail; <code>suspended</code>: unavailable; <code>quota</code>: none left today.</small></p></section>`;
+}
+
+export function devPage({ manifest, proposals = {}, chest, me, origin, zone = process.env["CHEST_TIME_ZONE"] ?? "UTC", mailQuota = false, schedulesApi, catalogue = [], sampleBrand = null }) {
   const name = id => chest.members.find(m => m.id === id)?.name ?? id;
   const people = chest.members.map(m => `<option value="${m.id}"${m.id === me.id ? " selected" : ""}>${escape(m.name)} — ${escape(m.role ?? "no role")}${m.isAdmin ? " (admin)" : ""}</option>`).join("");
   const bell = chest.notifications.slice().reverse().map(n => `<li><b>${escape(name(n.member))}</b> · ${escape(n.title)}${n.body ? `<br><small>${escape(n.body)}</small>` : ""}<br><a href="${escape(n.path)}">${escape(n.path)}</a>${n.key ? ` <code>${escape(n.key)}</code>` : ""}</li>`).join("") || "<li class=none>Nothing yet.</li>";
   const badges = [...chest.badges].map(([id, count]) => `<li>${escape(name(id))}: <b>${count}</b></li>`).join("") || "<li class=none>None.</li>";
   const files = [...chest.files].map(([n, f]) => `<li><code>${escape(n)}</code> ${escape(f.type)} · ${f.data.byteLength} B</li>`).join("") || "<li class=none>None.</li>";
   const schedules = (chest.schedules ?? []).map(s => {
-    const next = schedulesApi?.nextRun(s.cron, new Date(), process.env["CHEST_TIMEZONE"] ?? "Europe/Paris");
+    const next = schedulesApi?.nextRun(s.cron, new Date(), zone);
     return `<li><form method="post" action="/_dev/schedule"><input type="hidden" name="name" value="${escape(s.name)}"><b>${escape(s.name)}</b> <code>${escape(s.cron)}</code> — ${escape(schedulesApi?.describeCron(s.cron) ?? "")}, next ${escape(next ? next.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "never")} <button>Run now</button></form></li>`;
   }).join("");
   const runs = (chest.runs ?? []).slice(-8).reverse().map(r => `<li><code>${escape(r.name)}</code> ${escape(r.scheduledAt.slice(0, 16))} → ${r.status}</li>`).join("");
@@ -51,20 +70,21 @@ export function devPage({ manifest, proposals = {}, chest, me, origin, schedules
   const mailPanel = proposals.mail ? `<section><h2>Mail (proposal)</h2><p>Outbox:</p><ul>${outbox || "<li class=none>Nothing sent.</li>"}</ul>${mailboxes ? `<form method="post" action="/_dev/receive" style="display:grid;gap:6px"><p style="margin:0">Send an email to the tool:</p><select name="mailbox">${mailboxes}</select><select name="reply"><option value="">A new message</option>${replies}</select><input name="from" value="jean.client@example.com"><input name="fromName" value="Jean Client"><input name="subject" value="My order has not arrived"><textarea name="text" rows="3">Hello, I ordered two weeks ago and nothing came. Can you check? Jean</textarea><details><summary>HTML part, and what the Chest found</summary><textarea name="html" rows="3" placeholder="&lt;p&gt;HTML part (the Chest cleans it)&lt;/p&gt;"></textarea><label><input type="checkbox" name="auto" value="1"> An automatic answer (out of office)</label><br><label><input type="checkbox" name="forged" value="1"> The sender's domain does not vouch for it</label></details><button>Deliver</button></form>` : ""}</section>` : "";
   // The calendar bridge (proposal): the signed-in member's feed and what
   // the tool put.
-  const calendarEvents = [...(chest.calendar?.values() ?? [])].sort((a, b) => String(a.start ?? a.days?.first).localeCompare(String(b.start ?? b.days?.first))).slice(0, 30).map(e => `<li${e.members.includes(me.id) ? "" : ' style="opacity:.6"'}><b>${escape(e.title[me.locale] ?? e.title.en ?? Object.values(e.title)[0])}</b> <code>${escape(e.key)}</code><br><small>${escape(e.days ? `${e.days.first} → ${e.days.last} (whole days)` : `${e.start.slice(0, 16).replace("T", " ")} → ${e.end.slice(0, 16).replace("T", " ")} UTC`)}${e.busy ? "" : " · free"}${e.private ? " · private" : ""} · ${escape(e.members.map(name).join(", "))}</small></li>`).join("");
+  const calendarEvents = [...(chest.calendar?.values() ?? [])].sort((a, b) => String(a.start ?? a.days?.first).localeCompare(String(b.start ?? b.days?.first))).slice(0, 30).map(e => `<li${e.members.includes(me.id) ? "" : ' style="opacity:.6"'}><b>${escape(e.title[me.language] ?? e.title.en ?? Object.values(e.title)[0])}</b> <code>${escape(e.key)}</code><br><small>${escape(e.days ? `${e.days.first} → ${e.days.last} (whole days)` : `${e.start.slice(0, 16).replace("T", " ")} → ${e.end.slice(0, 16).replace("T", " ")} UTC`)}${e.busy ? "" : " · free"}${e.private ? " · private" : ""} · ${escape(e.members.map(name).join(", "))}</small></li>`).join("");
   const feedUrl = chest.calendar ? chest.feedUrl(me.id) : "";
   const calendarPanel = proposals.calendar === true ? `<section><h2>Calendar (proposal)</h2><p>${escape(me.name)}'s feed (secret; a calendar app on this machine may subscribe): <a href="${escape(feedUrl)}"><code>${escape(feedUrl.replace(origin, ""))}</code></a> · <a href="/_chest/calendar">their page</a></p><form method="post" action="/_dev/feed"><input type="hidden" name="member" value="${escape(me.id)}"><input type="hidden" name="back" value="/_dev"><button>New address</button></form><p>Events the tool put (dimmed: not in ${escape(me.name)}'s feed):</p><ul>${calendarEvents || "<li class=none>None yet.</li>"}</ul></section>` : "";
   // The Chest's groups (proposal): who is in each, and the admin's moves.
   const groupOptions = (chest.groups ?? []).map(g => `<option value="${escape(g.id)}">${escape(g.name)}</option>`).join("");
   const groupList = (chest.groups ?? []).map(g => `<li><b>${escape(g.name)}</b>${g.grants === false ? "" : " <small>(gives the tool)</small>"}: ${escape(g.members.map(name).join(", ") || "nobody")}</li>`).join("");
   const groupsPanel = proposals.groups === "read" ? `<section><h2>The Chest's groups (proposal)</h2><ul>${groupList || "<li class=none>None.</li>"}</ul><form method="post" action="/_dev/group"><select name="member">${chest.members.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("")}</select><select name="group">${groupOptions}</select><button name="action" value="add">Add to group</button><button name="action" value="remove">Take out</button></form><p><small>Tells the tool: <code>member.updated</code> (groups)${(proposals.receives ?? []).includes("group.*") ? " and <code>group.changed</code>" : ""}.</small></p></section>` : "";
-  const published = (chest.published ?? []).slice(-8).reverse().map(e => `<li><code>${escape(e.type)}</code> <small>${escape(JSON.stringify(e.data).slice(0, 600))}</small></li>`).join("");
+  const published = (chest.published ?? []).slice(-8).reverse().map(e => `<li><code>${escape(e.type)}</code> <small>${escape(JSON.stringify(e.data).slice(0, 600))}</small><br><small class="event-meta">${e.key ? `key <code>${escape(e.key)}</code> · ` : "no key · "}occurred <time>${escape(e.occurredAt)}</time></small></li>`).join("");
   const receivable = (proposals.receives ?? []).map(r => `<option>${escape(r)}</option>`).join("");
-  const eventsPanel = proposals.emits || proposals.receives ? `<section><h2>Events between tools (proposal)</h2>${proposals.emits ? `<p>Published:</p><ul>${published || "<li class=none>None yet.</li>"}</ul>` : ""}${receivable ? `<form method="post" action="/_dev/deliver" style="display:grid;gap:6px"><p style="margin:0">Deliver an event of another tool:</p><select name="type">${receivable}</select><textarea name="data" rows="3">{"member": "${escape(me.id)}"}</textarea><button>Deliver</button></form>` : ""}</section>` : "";
+  const eventsPanel = proposals.emits || proposals.receives ? `<section><h2>Events between tools (proposal)</h2>${proposals.emits ? `<p>Published:</p><ul>${published || "<li class=none>None yet.</li>"}</ul>` : ""}${receivable ? `<form method="post" action="/_dev/deliver" style="display:grid;gap:6px"><p style="margin:0">Deliver an event of another tool:</p><select name="type">${receivable}</select><textarea name="data" rows="3">{"member": "${escape(me.id)}"}</textarea><input name="occurredAt" placeholder="occurredAt (now): 2026-09-30T08:00:00Z" aria-label="occurredAt"><input name="source" placeholder="source (the type's first part)" aria-label="source"><button>Deliver</button></form>` : ""}</section>` : "";
   const checks = (chest.checks ?? []).map(c => `<li><form method="post" action="/_dev/check"><input type="hidden" name="name" value="${escape(c.name)}"><b>${escape(c.name)}</b> <code>${escape(c.url)}</code> every ${escape(String(c.every))} min <button name="ok" value="1">Send "up"</button> <button name="ok" value="0">Send "down"</button></form></li>`).join("");
   const checksPanel = proposals.checks ? `<section><h2>Checks (proposal)</h2>${checks ? `<ul>${checks}</ul>` : "<p>The tool has configured no check yet.</p>"}</section>` : "";
   const webhooksPanel = proposals.webhooks ? webhooksPanelOf(chest, proposals) : "";
-  const extra = (chest.theme && sampleBrand ? lookPanel(manifest, chest, catalogue, sampleBrand) : "") + checksPanel + webhooksPanel + eventsPanel + calendarPanel + groupsPanel + mailPanel + (schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "");
+  const deliveryPanel = proposals.mail || proposals.webhooks ? deliveryPanelOf(chest, proposals, mailQuota) : "";
+  const extra = membersPanelOf(chest, proposals, zone) + deliveryPanel + (chest.theme && sampleBrand ? lookPanel(manifest, chest, catalogue, sampleBrand) : "") + checksPanel + webhooksPanel + eventsPanel + calendarPanel + groupsPanel + mailPanel + (schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "");
   const events = chest.members.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chest dev · ${escape(manifest.title ?? manifest.name)}</title>
 <style>
@@ -81,15 +101,15 @@ form{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px}code{
 <main>
 <section><h2>You are</h2>
 <form method="post" action="/_dev/as"><select name="member">${people}</select>
-<select name="locale"><option value="">their language (${escape(me.locale ?? "en")})</option><option value="en"${me.locale === "en" ? "" : ""}>English</option><option value="fr">Français</option></select>
+<select name="language"><option value="">their language</option><option value="en">English</option><option value="fr">Français</option></select>
 <input type="hidden" name="back" value="/_dev"><button>Switch</button></form>
-<p>Signed in as <b>${escape(me.name)}</b>, role <code>${escape(me.role ?? "none")}</code>, language <code>${escape(me.locale ?? "en")}</code>. Roles of the tool: ${(manifest.roles ?? []).map(r => `<code>${escape(r)}</code>`).join(" ")}.</p></section>
+<p>Signed in as <b>${escape(me.name)}</b>, role <code>${escape(me.role ?? "none")}</code>, language <code>${escape(me.language)}</code>, zone <code>${escape(me.timeZone)}</code>. The Chest: ${escape(process.env["CHEST_ORGANIZATION"] ?? "")}, <code>${escape(zone)}</code>, today <code>${escape(new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date()))}</code>. Roles of the tool: ${(manifest.roles ?? []).map(r => `<code>${escape(r)}</code>`).join(" ")}.</p></section>
 <section><h2>Bell (notifications)</h2><form method="post" action="/_dev/clear"><button>Clear</button></form><ul>${bell}</ul></section>
 <section><h2>Badges</h2><ul>${badges}</ul></section>
 <section><h2>Files</h2><ul>${files}</ul></section>
 <section><h2>Members' lifecycle</h2>
 <form method="post" action="/_dev/event"><select name="member">${events}</select><select name="type"><option>member.updated</option><option>access.revoked</option><option>member.removed</option><option>member.erased</option></select><button>Send event</button></form>
-<p>Removed or erased members leave the fake Chest. Acknowledged erasures: ${chest.acknowledged.map(a => `<code>${escape(a)}</code>`).join(" ") || "none"}.</p></section>
+<p>Removed or erased members leave the fake Chest, with the time they left (<code>leftAt</code>). Former: ${chest.former.map(f => `${escape(f.name ?? "(erased)")}${f.leftAt ? ` <small>left ${escape(f.leftAt.slice(0, 10))}</small>` : ""}`).join(", ") || "none"}. Acknowledged erasures: ${chest.acknowledged.map(a => `<code>${escape(a)}</code>`).join(" ") || "none"}.</p></section>
 ${extra}
 </main></body></html>`;
 }

@@ -10,7 +10,10 @@ export async function open(port, member = "camille", options = {}) {
   const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
   const origin = `http://localhost:${port}`;
   const context = await browser.newContext({ viewport: options.viewport ?? { width: 1280, height: 860 }, locale: "en-GB" });
-  await context.addCookies([{ name: "dev_member", value: id(member), url: origin }, ...(options.locale ? [{ name: "dev_locale", value: options.locale, url: origin }] : [])]);
+  // options.language (or options.locale, its former name): the member's
+  // language on /chest, instead of theirs (cookie dev_locale).
+  const language = options.language ?? options.locale;
+  await context.addCookies([{ name: "dev_member", value: id(member), url: origin }, ...(language ? [{ name: "dev_locale", value: language, url: origin }] : [])]);
   const page = await context.newPage();
   const problems = [];
   page.on("console", m => { if (m.type() === "error" && !/Failed to load resource/u.test(m.text())) problems.push("console: " + m.text()); });
@@ -41,6 +44,13 @@ export function done(problems) {
   console.log(failures ? `${failures} failed` : "all passed");
   process.exit(failures ? 1 : 0);
 }
+// The harness's controls (lab/chest-dev/README.md), for flows: a POST to
+// /_dev/<control> with a form, which answers 303 when done.
+export async function control(page, origin, name, form) {
+  const answer = await page.request.post(`${origin}/_dev/${name}`, { form, maxRedirects: 0 });
+  if (answer.status() !== 303) throw new Error(`/_dev/${name} answered ${answer.status()}: ${await answer.text()}`);
+}
+
 export function expect(value, message) {
   if (!value) throw new Error(message);
 }

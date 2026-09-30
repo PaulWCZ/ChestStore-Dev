@@ -19,7 +19,7 @@
     "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.3.0-studio.11.tgz",
+    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.3.1-studio.1.tgz",
     "@argentic/chest-ui": "file:vendor/argentic-chest-ui-0.2.3-studio.1.tgz"
   },
   "devDependencies": {

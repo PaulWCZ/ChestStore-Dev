@@ -4,7 +4,7 @@
 //   node lab/chest-dev/screens.mjs <tool folder> [--port 4000]
 //
 // Reads <tool>/docs/screens.json:
-//   [{ "name": "board", "path": "/chest", "member": "camille", "locale": "en",
+//   [{ "name": "board", "path": "/chest", "member": "camille", "language": "en",
 //      "actions": [{"click": "text=New task"}, {"fill": ["#title", "Call Inès"]}, {"wait": 300}],
 //      (also {"upload": ["input[type=file]", "test/fixtures/sample.csv"]}, a path in the tool),
 //      "preview": true, "full": true }]  (full: the whole page, not only the first screen)
@@ -12,6 +12,8 @@
 // switcher): "look": {"all": "catalogue:newsprint", "tool": "inherit"}
 // ("own", "catalogue:<id>", "brand:sample"; "inherit" for the tool level).
 // When any shot names one, every shot sets it (own by default).
+// "language" (SDK 0.3.0's word; "locale", its former name, is still read)
+// is the member's language on /chest and the visitor's on the public part.
 // It writes docs/screens/<name>-desktop.png (1440×900) and
 // <name>-phone.png (390×844, 3× scale); the entry marked preview also gives
 // chest/preview.png (1280×800, under 512 KiB).
@@ -52,7 +54,8 @@ async function setLook(level, choice) {
   if (answer.status !== 303) throw new Error(`the harness refused the look ${level}=${choice} (${answer.status}): is it dev.mjs of this studio?`);
 }
 
-for (const shot of shots) {
+for (const given of shots) {
+  const shot = { ...given, locale: given.language ?? given.locale };
   if (looks) {
     await setLook("all", shot.look?.all ?? "own");
     await setLook("tool", shot.look?.tool ?? "inherit");

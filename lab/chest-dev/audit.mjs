@@ -24,7 +24,8 @@ if (!folder || !existsSync(join(folder, "docs", "screens.json"))) {
   console.error("usage: node lab/chest-dev/audit.mjs <tool folder> [--port 4000] (with docs/screens.json)");
   process.exit(1);
 }
-const shots = JSON.parse(readFileSync(join(resolve(folder), "docs", "screens.json"), "utf8"));
+// "language" (SDK 0.3.0's word) or "locale" (its former name), as screens.mjs.
+const shots = JSON.parse(readFileSync(join(resolve(folder), "docs", "screens.json"), "utf8")).map(shot => ({ ...shot, locale: shot.language ?? shot.locale }));
 const origin = `http://localhost:${port}`;
 const axe = require.resolve("axe-core/axe.min.js");
 const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));

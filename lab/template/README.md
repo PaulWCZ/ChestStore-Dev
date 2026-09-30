@@ -42,7 +42,9 @@ The owner, the admins and the tool's builders come in with the first role.
 - `capabilities`: `database` (the notes), `members` (names and photos of
   authors), `notifications` (an author is told when a manager pins their
   note), `receives: ["member.*"]` (an erased member's notes are deleted).
-- Private part in the member's language (`member.locale`), public part with
+- Private part in the member's language (`member.language`, narrowed by
+  `localeOf` to a language the tool speaks), dates in the member's zone
+  (`member.timeZone`), public part with
   a visible switch; English first, French second (`lib/i18n/`).
 - No network, no disk writes, nothing in the background: deleted notes are
   purged when the list is next read.
@@ -56,10 +58,13 @@ The owner, the admins and the tool's builders come in with the first role.
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)** of the SDK working copy
-  (`0.3.0-studio`, packed in `vendor/`). Without it, everyone reads English.
-- `chest.theme()` — **Proposal (studio)**, 0.3.0-studio.11: the look the
-  company chose. On a Chest without it, the tool keeps its own identity.
+`@argentic/chest-sdk` 0.3.1-studio.1 (the released 0.3.0 plus the studio's
+proposals, packed in `vendor/`):
+
+- `member.language`, `member.timeZone`, `members.lookup` — the released
+  0.3.0.
+- `chest.theme()` — **Proposal (studio)**: the look the company chose. On a
+  Chest without it, the tool keeps its own identity.
 
 ## Develop
 

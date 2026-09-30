@@ -20,9 +20,10 @@ export function plural(forms: { readonly one: string; readonly other: string; re
   return format(form, { count: new Intl.NumberFormat(intl(locale)).format(n), ...values });
 }
 
-// Dates in the reader's language, in a time zone: the Chest's
-// (chest.timeZone(), read on the server and passed down — this file is also
-// the browser's, so it cannot read the Chest's settings itself).
+// Dates in the reader's language, in a time zone: the reader's own
+// (member(request).timeZone) for a time shown to a member, the Chest's
+// (chest.timeZone) for a company's day — read on the server and passed down:
+// this file is also the browser's, so it cannot read them itself.
 export function formatDate(value: Date | string, locale: Locale, zone: string, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
   return new Intl.DateTimeFormat(intl(locale), { timeZone: zone, ...options }).format(typeof value === "string" ? new Date(value) : value);
 }

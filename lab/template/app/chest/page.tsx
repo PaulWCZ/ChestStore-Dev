@@ -1,4 +1,3 @@
-import * as chest from "@argentic/chest-sdk/chest";
 import { Toasts } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { can } from "../../lib/access.ts";
@@ -24,7 +23,7 @@ export default async function NotesPage() {
     author: n.author === member.id ? t.people.you : nameOf(who.get(n.author), locale),
     photo: who.get(n.author)?.photo ?? null,
     when: relative(n.createdAt, locale, now),
-    date: formatDate(n.createdAt, locale, chest.timeZone(), { dateStyle: "full", timeStyle: "short" }),
+    date: formatDate(n.createdAt, locale, member.timeZone, { dateStyle: "full", timeStyle: "short" }),
   }));
   return (
     <Toasts labels={t.toast}>

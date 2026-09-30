@@ -1,6 +1,10 @@
 // The studio's `chest dev`: runs one tool as a Chest would, on this machine.
 //
-//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--seed] [--reset] [--empty] [--tools crm,helpdesk] [--linked]
+//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--stale-ok] [--seed] [--reset] [--empty] [--tools crm,helpdesk] [--linked] [--elsewhere] [--granting-groups]
+//
+// SDK 0.3.1-studio.1 (lab/chest-dev/README.md): the Chest is "Atelier
+// Martin", in CHEST_TIME_ZONE (Europe/Paris unless set), speaking English,
+// paying in euros; the tool's database sessions are in that zone.
 //
 // - a fake Chest (the SDK working copy's fakeChest: members, groups, files,
 //   notifications, events, and every proposal it fakes), with a cast of
@@ -25,7 +29,8 @@
 //   admin linked them to this tool for the events they receive.
 //
 // Environment: DEV_DATABASE_URL (a PostgreSQL superuser URL, default
-// postgres://postgres:postgres@127.0.0.1:5432/postgres).
+// postgres://postgres:postgres@127.0.0.1:5432/postgres); CHEST_TIME_ZONE
+// (the Chest's zone, default Europe/Paris).
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -46,7 +51,19 @@ const option = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 if (!folder || !existsSync(join(folder, "chest.json"))) {
-  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--seed] [--reset] [--empty]");
+  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--stale-ok] [--seed] [--reset] [--empty] [--tools a,b] [--linked] [--elsewhere] [--granting-groups]");
+  process.exit(1);
+}
+// The Chest's zone (CHEST_TIME_ZONE): the tool's chest.timeZone, the zone of
+// its database sessions, and every cast member's unless docs/dev.json or
+// --elsewhere says otherwise. Checked before anything starts: PostgreSQL and
+// the SDK must both know it.
+const zone = process.env["CHEST_TIME_ZONE"] ?? "Europe/Paris";
+try {
+  if (!/^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/u.test(zone)) throw new Error("shape");
+  new Intl.DateTimeFormat("en", { timeZone: zone });
+} catch {
+  console.error(`✗ CHEST_TIME_ZONE=${JSON.stringify(zone)} is not an IANA time zone (Europe/Paris, America/Montreal, UTC…)`);
   process.exit(1);
 }
 const tool = resolve(folder);
@@ -107,9 +124,18 @@ if (capabilities.includes("database")) {
   if (!hasRole) await admin.unsafe(`create role ${role} login password '${password}'`);
   const fresh = flag("reset") || !exists;
   if (fresh) await admin.unsafe(`create database ${role} owner ${role} template template0 encoding 'UTF8'`);
+  // The Chest makes its zone the TimeZone of the tool's database sessions
+  // (SDK 0.3.0, the chest module): current_date and now()::date are the
+  // Chest's day. Set on the database at every start (the zone may have
+  // changed since), before any session of the tool opens — migrations and
+  // seed/sample.sql included.
+  await admin.unsafe(`alter database ${role} set timezone to '${zone}'`);
   await admin.end();
   databaseUrl = `postgres://${role}:${password}@127.0.0.1:5432/${role}?sslmode=disable`;
   const sql = postgres(databaseUrl.replace("?sslmode=disable", ""), { max: 1, onnotice: () => {} });
+  const [session] = await sql`select current_setting('TimeZone') as zone, current_date::text as today`;
+  if (session.zone !== zone) console.warn(`! the database's sessions are in ${session.zone}, not ${zone}: a role setting overrides it (alter role ${role} reset timezone)`);
+  console.log(`database ${role}: sessions in ${session.zone}, current_date ${session.today}`);
   await sql`create table if not exists chest_migrations (name text primary key, sha256 text not null, applied_at timestamptz not null default now())`;
   const migrations = existsSync(join(tool, "migrations")) ? readdirSync(join(tool, "migrations")).filter(f => f.endsWith(".sql")).sort() : [];
   for (const file of migrations) {
@@ -135,13 +161,24 @@ if (capabilities.includes("database")) {
 
 // The fake Chest, with the cast given the tool's roles.
 process.env["CHEST_TOOL"] = manifest.name;
-const members = castFor(manifest, tool);
+// The mail options stay this harness's: /_dev/delivery "quota" sets perDay
+// to 0 (the day's messages used), which the fake reads at each call.
+const mailOptions = { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [], perDay: 500 };
+const members = castFor(manifest, tool, { zone, elsewhere: flag("elsewhere") });
+// Paul Lefèvre left the company three weeks ago (FormerMember.leftAt,
+// Proposal (studio.15)): the seeds' "former member".
+const paulLeft = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() - 21, 16, 0, 0)).toISOString();
 const chest = await testing.fakeChest({
   members,
-  former: [{ id: "mbr_" + "paul" + "a".repeat(22), name: "Paul Lefèvre" }],
-  groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id) })),
+  former: [{ id: "mbr_" + "paul" + "a".repeat(22), name: "Paul Lefèvre", leftAt: paulLeft }],
+  // Every cast member has the tool without a group giving it (a tool open
+  // to everyone, the usual case): as on a Chest, member.groups and
+  // members.*.groups are then [], and a member's groups are asked with
+  // members.groups.of (a tool with "groups": "read"). --granting-groups:
+  // the three groups give the tool (a tool the owner gave to groups).
+  groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id), grants: flag("granting-groups") })),
   capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(proposals.groups === "read" ? ["groups"] : [])],
-  mail: { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [] },
+  mail: mailOptions,
   // The calendar bridge (Proposal (studio)): each member's feed at
   // http://localhost:<port>/_chest/calendar/<secret>.ics — a calendar app
   // on this machine may subscribe to it.
@@ -163,10 +200,11 @@ const chest = await testing.fakeChest({
   // makes a target fail and plays the retries; webhook.disabled goes to
   // the tool's POST /chest-webhooks.
   ...(proposals.webhooks ? { webhooks: { max: proposals.webhooks.max, to: `http://127.0.0.1:${inner}` } } : {}),
-  timeZone: process.env["CHEST_TIMEZONE"] ?? "Europe/Paris",
-  // The Chest's settings (Proposal (studio): the chest module): the cast's
-  // company; both hosts are this harness's one origin.
-  settings: { company: "Atelier Martin", currency: "EUR", locale: "en", ...(manifest.public ? { publicUrl: origin } : {}) },
+  // The Chest (SDK 0.3.0: CHEST_ORGANIZATION, CHEST_TIME_ZONE,
+  // CHEST_LANGUAGE; Proposal (studio): CHEST_CURRENCY, and the public host
+  // CHEST_PUBLIC_URL of a tool with a public part — both hosts are this
+  // harness's one origin, CHEST_TEAM_URL too).
+  chest: { organization: "Atelier Martin", timeZone: zone, language: "en", currency: "EUR", ...(manifest.public ? { publicUrl: origin } : {}) },
   // The company's look (Proposal (studio)): its own identity for every tool
   // until the switcher on /_dev says otherwise.
   theme: {},
@@ -192,17 +230,24 @@ if (flag("linked")) {
 }
 
 // The tool, with the Chest's environment.
+// The fake Chest wrote the Chest's variables in this process's environment
+// (fakeChest sets them, as the Chest sets the tool's): they are passed on
+// by name, those it leaves unset (CHEST_PUBLIC_URL for a tool without a
+// public part) left out. The names before SDK 0.3.0 never reach the tool.
+const chestEnv = Object.fromEntries(["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_CURRENCY", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]));
 const env = {
   ...process.env,
   PORT: String(inner),
   CHEST_API: chest.api,
   CHEST_TOKEN: chest.token,
   CHEST_TOOL: manifest.name,
+  ...chestEnv,
   NODE_ENV: flag("prod") ? "production" : "development",
   NEXT_TELEMETRY_DISABLED: "1",
   ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
 };
 delete env["DEV_DATABASE_URL"];
+for (const old of ["CHEST_COMPANY", "CHEST_TIMEZONE", "CHEST_LOCALE"]) delete env[old];
 // --prod serves the last `npm run build`: say so loudly when the sources are
 // newer, so a flow or a screenshot never checks yesterday's code by mistake.
 if (flag("prod")) {
@@ -240,11 +285,17 @@ function cookies(request) {
     return [c.slice(0, i), decodeURIComponent(c.slice(i + 1))];
   }));
 }
+// The member signed in, as the Chest asserts them: their language, or the
+// one chosen on /_dev (the cookie keeps its name, dev_locale: flows set
+// it), and only the groups that give the tool (0.3.0: the assertion
+// carries no other).
+const languages = new Set(["en", "fr"]);
 function current(request) {
   const jar = cookies(request);
   const chosen = chest.members.find(m => m.id === jar["dev_member"]) ?? chest.members[0];
-  const locale = jar["dev_locale"];
-  return locale ? { ...chosen, locale } : chosen;
+  const language = languages.has(jar["dev_locale"]) ? jar["dev_locale"] : null;
+  const granting = new Set(chest.groups.filter(g => g.grants !== false).map(g => g.id));
+  return { ...chosen, groups: chosen.groups.filter(g => granting.has(g)), ...(language ? { language } : {}) };
 }
 
 function relay(request, response, target, headers) {
@@ -274,7 +325,8 @@ const front = createServer(async (request, response) => {
       const back = { Location: form.get("back") && /^\/(?!\/)/u.test(form.get("back")) ? form.get("back") : "/_dev" };
       if (path === "/_dev/as") {
         const set = [`dev_member=${encodeURIComponent(form.get("member") ?? "")}; Path=/; SameSite=Lax`];
-        set.push(form.get("locale") ? `dev_locale=${form.get("locale")}; Path=/; SameSite=Lax` : "dev_locale=; Path=/; Max-Age=0");
+        const language = form.get("language") ?? form.get("locale");
+        set.push(languages.has(language) ? `dev_locale=${language}; Path=/; SameSite=Lax` : "dev_locale=; Path=/; Max-Age=0");
         return void response.writeHead(303, { ...back, "Set-Cookie": set }).end();
       }
       if (path === "/_dev/event") {
@@ -283,11 +335,13 @@ const front = createServer(async (request, response) => {
         const data = type === "member.erased" ? { id, erasure: "era_" + Array.from({ length: 26 }, () => "abcdefghijklmnopqrstuvwxyz234567"[Math.floor(Math.random() * 32)]).join(""), deadline: new Date(Date.now() + 30 * 864e5).toISOString() } : type === "member.updated" ? { id, changed: ["name"] } : { id };
         if (type === "member.removed" || type === "member.erased") {
           const gone = chest.members.findIndex(m => m.id === id);
-          // As a real Chest: whoever left is "former", with their name,
-          // or with none once erased.
+          // As a real Chest: whoever left is "former", with their name
+          // and when they left (leftAt, Proposal (studio.15)), or with
+          // none once erased (the date kept: it names nobody).
+          const leftAt = new Date().toISOString();
           if (gone >= 0) {
             const [who] = chest.members.splice(gone, 1);
-            chest.former.push(type === "member.erased" ? { id, erased: true } : { id, name: who.name });
+            chest.former.push(type === "member.erased" ? { id, erased: true, leftAt } : { id, name: who.name, leftAt });
           } else if (type === "member.erased") {
             const known = chest.former.find(f => f.id === id);
             if (known) { delete known.name; known.erased = true; }
@@ -362,10 +416,56 @@ const front = createServer(async (request, response) => {
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/deliver") {
+        // An event of another tool: its data (JSON), and optionally when it
+        // happened (occurredAt, an ISO 8601 instant: an event delivered
+        // late or out of order), the tool it comes from (source: the type's
+        // first part by default) and its id (evt_…: the same event twice).
         let data = {};
         try { data = JSON.parse(form.get("data") || "{}"); } catch { data = {}; }
-        const status = await chest.deliver({ type: form.get("type"), data }, `http://127.0.0.1:${inner}`);
-        console.log(`event ${form.get("type")} delivered → ${status}`);
+        const occurredAt = form.get("occurredAt") ? new Date(form.get("occurredAt")) : null;
+        if (occurredAt && Number.isNaN(occurredAt.getTime())) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("occurredAt: an ISO 8601 instant (2026-09-30T08:00:00Z)");
+        const event = { type: form.get("type"), data, ...(occurredAt ? { occurredAt: occurredAt.toISOString() } : {}), ...(form.get("source") ? { source: form.get("source") } : {}), ...(form.get("id") ? { id: form.get("id") } : {}) };
+        const status = await chest.deliver(event, `http://127.0.0.1:${inner}`);
+        console.log(`event ${event.type}${event.source ? ` from ${event.source}` : ""}${event.occurredAt ? ` (occurred ${event.occurredAt})` : ""} delivered → ${status}`);
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/member") {
+        // What a member chose in the Chest (their profile): how they want
+        // email (mailPreference, Proposal (studio.15): all, digest, none —
+        // read by members.get/list/lookup, applied by mail.send) and the
+        // zone they work in (member.timeZone). No event tells the tool: the
+        // next request's assertion, and the members API, say it.
+        const who = chest.members.find(m => m.id === form.get("member"));
+        if (!who) return void response.writeHead(404, { "Content-Type": "text/plain" }).end("no such member");
+        const preference = form.get("mailPreference");
+        if (preference !== null && !["all", "digest", "none", ""].includes(preference)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("mailPreference: all, digest or none");
+        if (preference === "all" || preference === "") delete who.mailPreference;
+        else if (preference) who.mailPreference = preference;
+        const place = form.get("timeZone");
+        if (place) {
+          try { new Intl.DateTimeFormat("en", { timeZone: place }); } catch { return void response.writeHead(400, { "Content-Type": "text/plain" }).end("timeZone: an IANA zone"); }
+          who.timeZone = place;
+        }
+        chest.clearCaches();
+        console.log(`${who.name}: email ${who.mailPreference ?? "all"}, zone ${who.timeZone}`);
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/delivery") {
+        // Whether the Chest delivers (Proposal (studio.16)): mail ready,
+        // not_connected (the owner has not connected the company's mail),
+        // suspended (the Chest stopped sending), quota (the day's messages
+        // are used); webhooks ready or suspended (the owner paused them).
+        const mail = form.get("mail"), hooks = form.get("webhooks");
+        if (mail) {
+          if (!["ready", "not_connected", "suspended", "quota"].includes(mail)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("mail: ready, not_connected, suspended or quota");
+          chest.delivery.mail = mail === "quota" ? "ready" : mail;
+          mailOptions.perDay = mail === "quota" ? 0 : 500;
+        }
+        if (hooks) {
+          if (!["ready", "suspended"].includes(hooks)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("webhooks: ready or suspended");
+          chest.delivery.webhooks = hooks;
+        }
+        console.log(`delivery: mail ${mailOptions.perDay === 0 ? "quota" : chest.delivery.mail}, webhooks ${chest.delivery.webhooks}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/theme") {
@@ -391,7 +491,7 @@ const front = createServer(async (request, response) => {
       }
       return void response.writeHead(404).end();
     }
-    const html = devPage({ manifest, proposals, chest, me: current(request), origin, schedulesApi: testing.schedulesApi, catalogue, sampleBrand });
+    const html = devPage({ manifest, proposals, chest, me: current(request), origin, zone, mailQuota: mailOptions.perDay === 0, schedulesApi: testing.schedulesApi, catalogue, sampleBrand });
     return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
   }
   if (path.startsWith("/_chest/")) {
