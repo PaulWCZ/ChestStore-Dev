@@ -345,7 +345,9 @@ node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 5300   # from the st
 
 `seed/sample.sql` fills Atelier Martin's careers page: three open jobs (one
 written in French, one with screening questions), a closed one, fifteen
-candidates with feedback, notes, emails, two interviews, a template, an
+candidates with feedback, notes, emails, three interviews (one at 09:00
+this morning, Paris time, whenever it is loaded: the morning reminder
+always has a day to tell), a template, an
 email to file and history. `test/fixtures/` holds a Teamtailor-style and a
 French CSV export for the importer. Sample CVs cannot be seeded (files are the Chest's): the flows
 upload one.

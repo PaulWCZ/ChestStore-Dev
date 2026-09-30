@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { POST as jobsRoute } from "../app/chest-jobs/[name]/route.ts";
 import { POST as mailRoute } from "../app/chest-mail/route.ts";
 import * as candidates from "../lib/candidates.ts";
 import * as interviews from "../lib/interviews.ts";
@@ -26,6 +27,7 @@ before(async () => {
     calendar: { domain: "atelier.test", toolTitle: "Hiring", company: "Atelier Martin" },
     settings: { company: "Atelier Martin" },
     timeZone: "Europe/Paris",
+    schedules: [{ name: "morning", cron: "40 7 * * 1-5" }],
   });
 });
 after(async () => {
@@ -294,5 +296,30 @@ test("email preferences (studio.15): the interviewers' morning email honours eac
     const toInes = chest.outbox.at(-1)!;
     assert.deepEqual([toInes.to, toInes.subject], [["inès@atelier.test"], "Vos entretiens aujourd’hui"]);
     assert.match(toInes.text, /^Bonjour Inès,/u);
+  });
+});
+
+test("the morning schedule tells the day of its run — not the clock's — once per interviewer and day", async () => {
+  const { sql } = database;
+  await withPreferences({}, async () => {
+    const job = await openJob(sql, recruiter(), "Morning run");
+    const c = (await candidates.apply(sql, application(job.slug, { email: "morning@example.com", name: "Mona Matin" }))).candidate;
+    // A Monday far from today: the run's scheduledAt is all that says "today".
+    const start = instantOf("2027-03-15", "09:00", "Europe/Paris");
+    const [row] = await sql<{ id: string }[]>`insert into interviews (candidate_id, starts_at, ends_at, created_by) values (${c.id}, ${start}, ${new Date(start.getTime() + 1800_000)}, ${camille.id}) returning id`;
+    await sql`insert into interview_people (interview_id, member_id) values (${row!.id}, ${hugo.id})`;
+    const before = chest.outbox.length;
+    // 08:40 in Paris; a retry of the same run delivered after midnight UTC.
+    assert.equal(await chest.run("morning", request => jobsRoute(request), { scheduledAt: "2027-03-15T07:40:00Z" }), 204);
+    const mine = chest.outbox.slice(before).filter(m => m.subject === "Your interviews today");
+    assert.equal(mine.length, 1);
+    assert.deepEqual(mine[0]!.to, ["hugo@atelier.test"]);
+    assert.match(mine[0]!.text, new RegExp(`09:00 — Mona Matin, Morning run: \\S*/chest/candidates/${c.id}`, "u"));
+    const count = chest.outbox.length;
+    assert.equal(await chest.run("morning", request => jobsRoute(request), { scheduledAt: "2027-03-15T07:40:00Z", attempt: 2 }), 204);
+    assert.equal(chest.outbox.length, count, "a retry sends nothing new");
+    // The next day's run has nothing to tell him.
+    assert.equal(await chest.run("morning", request => jobsRoute(request), { scheduledAt: "2027-03-16T06:40:00Z" }), 204);
+    assert.equal(chest.outbox.length, count);
   });
 });

@@ -153,10 +153,14 @@ insert into activity (candidate_id, actor, kind, data, created_at) values
   (11, null, 'replied', '{"auto": false}', now() - interval '10 days');
 insert into interviews (id, candidate_id, starts_at, ends_at, place, note, created_by, calendar) overriding system value values
   (1, 1, date_trunc('day', now()) + interval '2 days 14 hours', date_trunc('day', now()) + interval '2 days 15 hours', 'Atelier Martin, 14 rue des Tanneurs, Lyon', 'Bring a few pieces of your portfolio.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'pending'),
-  (2, 13, date_trunc('day', now()) + interval '3 days 10 hours', date_trunc('day', now()) + interval '3 days 11 hours', 'Atelier Martin, 14 rue des Tanneurs, Lyon', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'pending');
+  (2, 13, date_trunc('day', now()) + interval '3 days 10 hours', date_trunc('day', now()) + interval '3 days 11 hours', 'Atelier Martin, 14 rue des Tanneurs, Lyon', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'pending'),
+  -- This morning at 09:00, Paris time, whatever the hour the sample is
+  -- loaded: the interviewers' morning reminder always has a day to tell.
+  (3, 8, (date_trunc('day', now() at time zone 'Europe/Paris') + interval '9 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '9 hours 45 minutes') at time zone 'Europe/Paris', 'Showroom, rue Mercière, Lyon', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'pending');
 insert into interview_people (interview_id, member_id) values
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'), (1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa'),
-  (2, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
+  (2, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'),
+  (3, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa'), (3, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
 insert into activity (candidate_id, actor, kind, data, created_at) values
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'interview', jsonb_build_object('at', to_char((date_trunc('day', now()) + interval '2 days 14 hours') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'people', jsonb_build_array('mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa')), now() - interval '1 day');
 insert into templates (name, language, subject, body, created_by) values
