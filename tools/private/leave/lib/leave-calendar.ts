@@ -39,7 +39,7 @@ export const keepDays = 30;
 export const feedPage = calendar.page;
 const eventKey = (id: string) => `leave:${id}`;
 
-type Row = { id: string; member_id: string; start: string; start_half: "am" | "pm"; end: string; end_half: "am" | "pm" };
+export type Row = { id: string; member_id: string; start: string; start_half: "am" | "pm"; end: string; end_half: "am" | "pm" };
 const raw = (r: Row) => [r.member_id, r.start, r.start_half, r.end, r.end_half].join("|");
 
 export type State = "unknown" | "on" | "off";
@@ -89,31 +89,33 @@ async function kept(sql: Query, r: Row): Promise<void> {
     on conflict (key) do update set raw = excluded.raw, put_at = now()`;
 }
 
-async function putAll(sql: Query, rows: Row[], timeZone: string): Promise<number> {
+// putAll puts the rows, 100 a call, and records each event the Chest took.
+// The Chest answers each event (studio.16): one it refuses (a wrong date,
+// a new key past its 5,000 events) is never recorded as put — it is tried
+// again at the next run — while the others of its batch are. Exported for
+// its test.
+export async function putAll(sql: Query, rows: Row[], timeZone: string): Promise<number> {
   let count = 0;
   for (let i = 0; i < rows.length; i += calendar.limits.perBatch) {
     const batch = rows.slice(i, i + calendar.limits.perBatch);
+    let results: calendar.PutResult[];
     try {
-      await calendar.putMany(batch.map(r => eventOf(r, timeZone)));
+      results = await calendar.putMany(batch.map(r => eventOf(r, timeZone)));
     } catch (error) {
-      // The Chest takes a batch whole or not at all: one wrong event
-      // (invalid_event) and the batch goes again one by one, that one skipped.
+      // About the call, not an event: no calendar, slow down, unreachable.
       await refused(sql, error);
-      for (const r of batch) {
-        try {
-          await calendar.put(eventOf(r, timeZone));
-        } catch (one) {
-          await refused(sql, one);
-          continue;
-        }
-        await kept(sql, r);
-        count++;
-      }
-      await remember(sql, "on");
-      continue;
+      throw new Stop();
     }
-    for (const r of batch) await kept(sql, r);
-    count += batch.length;
+    for (const result of results) {
+      const r = batch[result.index];
+      if (!r) continue;
+      if (!result.ok) {
+        console.warn(`calendar: an event not put: ${result.reason}`);
+        continue;
+      }
+      await kept(sql, r);
+      count++;
+    }
     await remember(sql, "on");
   }
   return count;

@@ -63,22 +63,37 @@ function eventsOf(value: unknown): NoticeEvent[] {
   return chosen;
 }
 
+// Whether the Chest delivers notices now (webhooks.available, studio.16),
+// asked before the page offers the form rather than learned from a failed
+// call: "not_granted" (a Chest without webhooks, or the owner has not
+// approved them), "suspended" (the owner paused this tool's notices: the
+// addresses are kept, nothing goes), "unknown" (the Chest did not answer).
+export type NoticeDelivery = "ready" | "not_granted" | "suspended" | "unknown";
+
 // targets lists the addresses, with what the Chest says of each; and
-// whether this Chest delivers notices at all (without it, Settings says so
-// and hides the form).
-export async function targets(sql: Query, actor: Member | null): Promise<{ available: boolean; targets: Target[] }> {
+// whether this Chest delivers notices now (otherwise Settings says why and
+// hides the form).
+export async function targets(sql: Query, actor: Member | null): Promise<{ available: boolean; delivery: NoticeDelivery; targets: Target[] }> {
   admin(actor);
   const rows = await sql<Row[]>`select id, kind, label, shown, events, created_by, disabled_at, last_error from notice_targets order by created_at, id`;
-  let remote = new Map<string, webhooks.WebhookTarget>();
-  let available = true;
+  let delivery: NoticeDelivery = "unknown";
   try {
-    remote = new Map((await webhooks.list()).map(w => [w.id, w]));
+    const state = await webhooks.available();
+    delivery = state.ok ? "ready" : state.reason === "suspended" ? "suspended" : "not_granted";
   } catch (error) {
-    if (error instanceof CapabilityNotGranted) available = false;
-    else if (!(error instanceof ChestError)) throw error;
+    if (!(error instanceof ChestError)) throw error;
+  }
+  let remote = new Map<string, webhooks.WebhookTarget>();
+  if (delivery !== "not_granted") {
+    try {
+      remote = new Map((await webhooks.list()).map(w => [w.id, w]));
+    } catch (error) {
+      if (!(error instanceof ChestError)) throw error;
+    }
   }
   return {
-    available,
+    available: delivery === "ready",
+    delivery,
     targets: rows.map(r => {
       const w = remote.get(r.id);
       return {
@@ -109,6 +124,7 @@ export async function addTarget(sql: Sql, actor: Member | null, input: { url: un
     added = await webhooks.add({ url, kind, label, owner: who.id });
   } catch (error) {
     if (error instanceof CapabilityNotGranted) throw new AppError("webhooks_unavailable");
+    if (error instanceof ChestError && error.code === "suspended") throw new AppError("webhooks_suspended");
     if (error instanceof QuotaExceeded) throw new AppError("too_many_targets", { max: noticeLimits.targets });
     if (error instanceof ChestError && error.code === "verification_failed") throw new AppError("webhook_no_answer");
     if (error instanceof ChestError && (error.code === "invalid_target" || error.code === "address_refused")) throw new AppError(kind === "slack" ? "webhook_slack" : kind === "teams" ? "webhook_teams" : "webhook_address");
@@ -218,8 +234,12 @@ export async function notice(sql: Query, event: NoticeEvent, t: NoticeTicket, ke
       event: `ticket.${event}`,
       text,
       data: { ticket: { number: t.number, subject: t.subject, channel: t.channel, priority: t.priority, status: t.status, url }, customer: { name: customer }, ...(extra.hours ? { waited_hours: extra.hours } : {}) },
-      // Whole: the SDK sends a long key as its SHA-256 (studio.15).
-      key,
+      // Whole: the SDK sends a long key as its SHA-256 (studio.15). Who
+      // the notice is about and the addresses it goes to are in it
+      // (studio.16): after a restore from a backup, a ticket's id can name
+      // another request, which the Chest would answer with the first one's
+      // delivery (or refuse).
+      key: [key, t.requester ?? t.customerEmail, ...rows.map(r => r.id)].join(":"),
     });
     for (const s of sent.skipped) {
       if (s.reason === "not_found") await sql`delete from notice_targets where id = ${s.target}`;

@@ -17,7 +17,7 @@ import { viewer } from "../../lib/session.ts";
 import { typeName } from "../../lib/type-name.ts";
 import { MyRequests, type RequestRow } from "./my-requests.tsx";
 import { EmailSwitch } from "./email-switch.tsx";
-import { emailOn } from "../../lib/mail.ts";
+import { emailOn, mailNotice } from "../../lib/mail.ts";
 import { feedPage, state as calendarState } from "../../lib/leave-calendar.ts";
 
 // A type's name inside a sentence: "paid leave", but "RTT" stays.
@@ -43,13 +43,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const sql = db();
   const now = today();
   const monday = addDays(now, -((weekday(now) + 6) % 7));
-  const [all, myBalances, myRequests, week, open, steps] = await Promise.all([
+  const [all, myBalances, myRequests, week, open, steps, notice] = await Promise.all([
     types(sql, { archived: true }),
     balancesOf(sql, [member.id]).then(m => m.get(member.id) ?? []),
     mine(sql, member),
     between(sql, member, monday, addDays(monday, 6)),
     can(member, "approve") ? waiting(sql, member) : Promise.resolve([]),
     can(member, "settings") ? setupSteps(sql) : Promise.resolve(null),
+    mailNotice(),
   ]);
   const typeOf = new Map(all.map(ty => [ty.id, ty]));
   const others = week.filter(e => e.memberId !== member.id && e.status === "approved" && e.away);
@@ -170,9 +171,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
       <div className="home-footer">
         {(await calendarState(sql)) === "on" && <p className="feed-link"><a href={feedPage}><Calendar />{t.home.feed}</a></p>}
-        <EmailSwitch on={await emailOn(sql, member)} t={{ label: t.home.email, errors: t.errors }} />
-        {member.mailPreference === "none" && <p className="small muted email-choice">{t.home.emailNone}</p>}
-        {member.mailPreference === "digest" && <p className="small muted email-choice">{t.home.emailDigest}</p>}
+        {notice !== "none" && <EmailSwitch on={await emailOn(sql, member)} t={{ label: t.home.email, errors: t.errors }} />}
+        {notice === "off" && <p className="small muted email-choice">{t.home.emailOff}</p>}
+        {notice === "quota" && <p className="small muted email-choice">{t.home.emailQuota}</p>}
+        {notice === null && member.mailPreference === "none" && <p className="small muted email-choice">{t.home.emailNone}</p>}
+        {notice === null && member.mailPreference === "digest" && <p className="small muted email-choice">{t.home.emailDigest}</p>}
       </div>
     </div>
   );

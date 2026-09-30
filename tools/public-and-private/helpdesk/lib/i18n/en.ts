@@ -517,6 +517,8 @@ export const en = {
     noticesHint: "Tell a channel of your team’s chat when a request needs someone. Sent: the number, the subject, who asked and a link — never the messages.",
     noticesNone: "No channel yet.",
     noticesUnavailable: "Your Chest cannot send notices to other services yet. This will work once it can.",
+    noticesSuspended: "Your Chest’s owner has paused notices from Support. Your channels are kept: they will be told again once notices are back on.",
+    noticesUnknown: "Your Chest did not answer just now, so channels cannot be added. Try again in a moment.",
     noticeAdd: "Add a channel",
     noticeKind: "Where",
     noticeKinds: { slack: "Slack", teams: "Microsoft Teams", generic: "Another service (a web address)" },
@@ -662,6 +664,7 @@ export const en = {
     webhook_address: "Write a public https address. For Slack or Teams, choose that kind above.",
     webhook_no_answer: "That address did not answer the Chest’s check. Set up the receiver first, then try again.",
     webhooks_unavailable: "Your Chest cannot send notices to other services yet.",
+    webhooks_suspended: "Your Chest’s owner has paused notices from Support.",
     too_many_targets: "{max} channels at most.",
   },
   // A request from Forms: the other answers, one a line, in the message.

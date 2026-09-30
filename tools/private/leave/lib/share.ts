@@ -18,7 +18,8 @@ import { today } from "./model.ts";
 //   leave.cancelled { member, from, to, fromHalf, toHalf, request }
 //
 // dates "YYYY-MM-DD"; fromHalf "pm" starts at noon, toHalf "am" ends at
-// noon. Key: "leave:<request>:<approved|cancelled>:<outbox id>".
+// noon. Key: "leave:<request>:<approved|cancelled>:<outbox id>:<member>".
+// occurredAt: the time of the change, while the Chest takes it (publish).
 //
 // Told: each approved **absence** (a kind with away = true) that is not
 // over. A kind that is not an absence (remote work, training: "not away"
@@ -53,8 +54,11 @@ function fromRaw(raw: string, member: string, request: string): Told | null {
   return { member, from, to, fromHalf, toHalf, request };
 }
 
-export const leaveEventKey = (type: Type, request: string, id: string): string =>
-  `leave:${request}:${type === "leave.approved" ? "approved" : "cancelled"}:${id}`;
+// The key carries whom the event is about (SDK README, studio.16): after a
+// restore from a backup, the outbox's ids start again and an id could name
+// another person's word the Chest still remembers.
+export const leaveEventKey = (type: Type, request: string, id: string, member: string): string =>
+  `leave:${request}:${type === "leave.approved" ? "approved" : "cancelled"}:${id}:${member}`;
 
 type Row = { id: string; member_id: string; start: string; start_half: Half; end: string; end_half: Half; status: string; away: boolean };
 
@@ -73,8 +77,12 @@ export async function plan(sql: Sql, now = new Date()): Promise<number> {
         or r.id = any(${[...told.keys()]}::bigint[])`;
     const byId = new Map(rows.map(r => [r.id, r]));
     let written = 0;
-    const put = async (type: Type, t: Told) => {
-      await tx`insert into leave_outbox (type, data) values (${type}, ${tx.json(t)})`;
+    // at is the time of the change (the transaction's). An approval that
+    // follows a cancellation of the same request in this run (a leave
+    // shortened) is a millisecond later: receivers keep the latest word per
+    // request by its time, and the pair would otherwise tie.
+    const put = async (type: Type, t: Told, later = false) => {
+      await tx`insert into leave_outbox (type, data, at) values (${type}, ${tx.json(t)}, now() + ${later ? "1 millisecond" : "0"}::interval)`;
       written++;
     };
     for (const id of new Set([...told.keys(), ...byId.keys()])) {
@@ -88,16 +96,20 @@ export async function plan(sql: Sql, now = new Date()): Promise<number> {
         if (!wanted) await tx`delete from shared_leave where request_id = ${id}`;
         continue;
       }
+      let cancelled = false;
       if (before) {
         // What was told no longer stands as told: taken back — with the
         // days the receivers hold (a leave told before this version: its
         // days now, the request is the same).
         const was = fromRaw(before.raw, before.member_id, id) ?? (cur && { ...cur, member: before.member_id });
-        if (was) await put("leave.cancelled", was);
+        if (was) {
+          await put("leave.cancelled", was);
+          cancelled = true;
+        }
         await tx`delete from shared_leave where request_id = ${id}`;
       }
       if (wanted && cur) {
-        await put("leave.approved", cur);
+        await put("leave.approved", cur, cancelled);
         await tx`insert into shared_leave (request_id, member_id, raw) values (${id}, ${cur.member}, ${rawOf(cur)})`;
       }
     }
@@ -105,17 +117,49 @@ export async function plan(sql: Sql, now = new Date()): Promise<number> {
   });
 }
 
+// occurredAt (studio.16): an event carries the time of its change while
+// the Chest takes it — up to 24 hours back; we stop an hour short, for the
+// clocks and a slow run —, so a receiver that orders words by time orders
+// them as they happened even when told late. Older, it goes without, and
+// the Chest stamps the time it takes it (later, never earlier, than the
+// change). A request's words written together (a cancellation and the
+// approval of a shortened leave) are judged together — by the first one's
+// time —, so the approval never carries an old time while its cancellation
+// carries the Chest's newer one.
+export const occurredWindowMs = 23 * 3_600_000;
+
+export function occurredAtFor(first: Date, at: Date, now: number = Date.now()): Date | undefined {
+  // A database clock ahead of the container's by more than the Chest takes
+  // (a minute): without, rather than refused for ever.
+  return first.getTime() >= now - occurredWindowMs && at.getTime() <= now + 30_000 ? at : undefined;
+}
+
 // publish tells what waits, oldest first, and stops at the first refusal
 // of the Chest (the next run tries again). The same key twice is one event
 // for the Chest: two runs at once publish nothing twice. Says how many
 // were published.
-export async function publish(sql: Query): Promise<number> {
-  const rows = await sql<{ id: string; type: Type; data: Told }[]>`
-    select id::text as id, type, data from leave_outbox where published_at is null order by id limit ${shareLimits.perRun}`;
+export async function publish(sql: Query, now: () => number = Date.now): Promise<number> {
+  const rows = await sql<{ id: string; type: Type; data: Told; at: Date; first: Date }[]>`
+    select o.id::text as id, o.type, o.data, o.at,
+      (select min(p.at) from leave_outbox p
+        where p.data->>'request' = o.data->>'request' and p.id <= o.id and p.at >= o.at - interval '1 second') as first
+    from leave_outbox o where o.published_at is null order by o.id limit ${shareLimits.perRun}`;
   let told = 0;
+  // Requests told without their time in this run: their next words too.
+  const untimed = new Set<string>();
   for (const row of rows) {
     try {
-      await events.publish(row.type, row.data, { key: leaveEventKey(row.type, row.data.request, row.id) });
+      const occurredAt = untimed.has(row.data.request) ? undefined : occurredAtFor(row.first, row.at, now());
+      if (!occurredAt) untimed.add(row.data.request);
+      const key = leaveEventKey(row.type, row.data.request, row.id, row.data.member);
+      try {
+        await events.publish(row.type, row.data, { key, ...(occurredAt ? { occurredAt } : {}) });
+      } catch (error) {
+        // The time refused (the Chest's clock against ours): told without.
+        if (!occurredAt || !(error instanceof ChestError) || error.code !== "invalid_event") throw error;
+        untimed.add(row.data.request);
+        await events.publish(row.type, row.data, { key });
+      }
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
       // A key the Chest already holds for another event would be refused

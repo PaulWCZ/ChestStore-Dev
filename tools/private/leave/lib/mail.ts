@@ -25,6 +25,25 @@ export async function emailOn(sql: Query, actor: Member | null): Promise<boolean
   return !row?.email_off;
 }
 
+// What the home says of email next to the switch (studio.16:
+// mail.available()), so it never promises an email the Chest would not
+// send: "none" — this Chest has no email: no switch at all; "off" — not
+// connected by the owner yet, or paused: the switch stays (it is the
+// person's choice) with a sentence saying nothing leaves for now; "quota" —
+// the day's emails are used: they go again tomorrow; null — ready, or the
+// Chest did not answer (unknown is not "off").
+export type MailNotice = "none" | "off" | "quota" | null;
+export async function mailNotice(): Promise<MailNotice> {
+  try {
+    const a = await mail.available();
+    if (a.ok) return null;
+    return a.reason === "not_granted" ? "none" : a.reason === "quota" ? "quota" : "off";
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return null;
+  }
+}
+
 export async function setEmail(sql: Query, actor: Member | null, on: unknown): Promise<void> {
   if (!can(actor, "request")) throw new AppError("forbidden");
   if (typeof on !== "boolean") throw new AppError("invalid");

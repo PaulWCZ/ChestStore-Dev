@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-jobs/[name]/route.ts";
 import { updateCompany } from "../lib/company.ts";
@@ -7,6 +8,7 @@ import { finalise, getDocument, listDocuments } from "../lib/documents.ts";
 import { AppError } from "../lib/errors.ts";
 import { followUp, followUpOnce } from "../lib/followup.ts";
 import { entriesOf } from "../lib/journal.ts";
+import { mailState } from "../lib/mailing.ts";
 import { defaultAccounts } from "../lib/company.ts";
 import { addPayment } from "../lib/payments.ts";
 import { addMonths, makeDueDrafts, repeatInvoice, repeatOf, stopRepeat } from "../lib/repeats.ts";
@@ -57,6 +59,8 @@ test("reminders: off until an administrator turns them on, then one email per st
   assert.ok(mail.subject.startsWith("Relance\u202f: facture F-2026-0001"));
   assert.ok(mail.text.startsWith("Bonjour Marie Dupain,"));
   assert.equal(mail.attachments[0]?.name, "Facture-F-2026-0001.pdf");
+  // The recipient is in the key: after a restore, the invoice's id may name another one.
+  assert.equal(mail.key, idempotencyKey(`reminder-${inv.id}-0-marie@dupain.test`));
   // Billing hears of it (Sofia finalised it).
   assert.ok(chest.notifications.some(n => n.member === sofia.id && n.key === `late:${inv.id}`));
   // The same day again, or the next: nothing more for this step.
@@ -141,4 +145,28 @@ test("the entries of a deposit invoice and of the final invoice that takes it ba
   // Reverse charge: no VAT line.
   const eu = entriesOf({ ...doc, depositPercent: null, vatTreatment: "reverse_charge" }, [{ kind: "line", itemId: null, description: "Site", quantity: 1000, unit: "", unitPrice: 100000, discount: 0, vatRate: 2000, goods: false, net: 100000 }], defaultAccounts);
   assert.deepEqual(eu.map(e => [e.account, e.debit, e.credit]), [["411000", 100000, 0], ["706000", 0, 100000]]);
+});
+
+test("mail not connected in the Chest: the morning's reminders go to the bell only, and pages say why (mail.available)", async () => {
+  const { sql } = database;
+  assert.deepEqual(await mailState(sql), { works: true, reason: null });
+  chest.delivery.mail = "not_connected";
+  try {
+    assert.deepEqual(await mailState(sql), { works: false, reason: "not_connected" });
+    await updateCompany(sql, asMember(camille), { remindersOn: true, remindersEmail: true, reminderDays: "7" });
+    const c = await client(sql, { name: "Hors ligne SARL", siren: "", vatNumber: "" });
+    const inv = await finalise(sql, asMember(camille), (await draft(sql, "invoice", c.id, [line("Site", 1000, 40000)])).id, "2029-06-01");
+    const sent = chest.outbox.length;
+    const run = await followUp(sql, "2029-07-12");
+    assert.equal(run.emailed, 0);
+    assert.ok(run.told >= 1);
+    assert.equal(chest.outbox.length, sent, "no email tried");
+    assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}`));
+    chest.delivery.mail = "suspended";
+    assert.deepEqual(await mailState(sql), { works: false, reason: "suspended" });
+  } finally {
+    chest.delivery.mail = "ready";
+    await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
+  }
+  assert.deepEqual(await mailState(sql), { works: true, reason: null });
 });

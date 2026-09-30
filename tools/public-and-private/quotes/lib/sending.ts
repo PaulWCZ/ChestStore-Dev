@@ -219,7 +219,9 @@ export async function sendAutomaticReminder(sql: Sql, full: Full, step: number, 
       to, subject: message.subject, text: message.text, fromName: name.slice(0, 100).replace(/[\r\n]/gu, " "),
       ...(c.email ? { replyTo: c.email } : {}),
       ...(bytes ? { attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }] } : {}),
-      key: `reminder-${full.id}-${step}`,
+      // The recipient in the key (sdk/README, "Put the recipient in the
+      // key"): after a restore, an invoice's id may name another one.
+      key: `reminder-${full.id}-${step}-${to}`,
     });
   } catch (error) {
     if (error instanceof CapabilityNotGranted) {

@@ -35,6 +35,17 @@ export const ticketEventKey = (row: Pick<Row, "type" | "ticket" | "at">): string
 export const ticketEventData = (row: Pick<Row, "type" | "ticket" | "assignee">): Record<string, unknown> =>
   row.type === "helpdesk.ticket.solved" ? { ticket: String(row.ticket), assignee: row.assignee } : { ticket: String(row.ticket) };
 
+// When it happened, told to the Chest (events.publish's occurredAt,
+// studio.16): Goals counts a ticket solved at 23:55 on a cycle's last day
+// in that cycle even when the Chest took it at 00:10. The Chest takes a
+// time at most 24 hours back; an event older than that (a Chest down for a
+// night) goes without it — its time stays in the key, and the receiver
+// reads the Chest's. Five minutes of margin for the two clocks.
+export const occurredMarginMs = 5 * 60_000;
+export function occurredAtFor(at: Date, now = Date.now()): Date | undefined {
+  return now - at.getTime() < events.occurredLimits.behindMs - occurredMarginMs ? at : undefined;
+}
+
 // publishTicketEvents tells what waits, oldest first; stops at the first
 // refusal of the Chest (the next run tries again). The same key twice is
 // one event for the Chest: two runs at once publish nothing twice.
@@ -45,7 +56,8 @@ export async function publishTicketEvents(sql: Query): Promise<number> {
   let told = 0;
   for (const row of rows) {
     try {
-      await events.publish(row.type, ticketEventData(row), { key: ticketEventKey(row) });
+      const occurredAt = occurredAtFor(row.at);
+      await events.publish(row.type, ticketEventData(row), { key: ticketEventKey(row), ...(occurredAt ? { occurredAt } : {}) });
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
       // A key the Chest already holds for something else would be refused
@@ -61,6 +73,11 @@ export async function publishTicketEvents(sql: Query): Promise<number> {
   }
   return told;
 }
+
+// A retry within the day gives the same time (the Chest would refuse
+// another under the key); one that crosses the 24 hours drops it, and the
+// Chest, which then may still hold the key, answers key_conflict: the
+// event was taken the first time, and is marked told.
 
 // tellLinkedTools is publishTicketEvents that never fails the action it
 // follows: a person's reply is saved whatever the Chest answers.

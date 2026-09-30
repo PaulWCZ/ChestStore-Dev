@@ -23,8 +23,9 @@ const events: Event[] = ["new", "replied", "late"];
 // add one — Slack, Teams, or another service's web address. A generic
 // receiver's secret key is shown once, in a dialog. Removing asks first:
 // the Chest forgets the address, so it cannot be undone.
-export function NoticesBox({ available, targets, canSettings, t }: { available: boolean; targets: NoticeTarget[]; canSettings: boolean; t: Words }) {
+export function NoticesBox({ delivery, targets, canSettings, t }: { delivery: "ready" | "not_granted" | "suspended" | "unknown"; targets: NoticeTarget[]; canSettings: boolean; t: Words }) {
   const s = t.settings;
+  const available = delivery === "ready";
   const toast = useToast();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -68,7 +69,7 @@ export function NoticesBox({ available, targets, canSettings, t }: { available: 
   return (
     <Box title={s.noticesTitle} icon={<Send />} id="notices">
       <p className="hint">{s.noticesHint}</p>
-      {!available && <p className="notice warm"><Alert />{s.noticesUnavailable}</p>}
+      {!available && <p className="notice warm"><Alert />{delivery === "suspended" ? s.noticesSuspended : delivery === "unknown" ? s.noticesUnknown : s.noticesUnavailable}</p>}
       {targets.length === 0 ? (available && <p className="muted">{s.noticesNone}</p>) : (
         <ul className="notice-targets">
           {targets.map(target => (

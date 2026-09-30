@@ -733,6 +733,12 @@ export const en = {
     sent: "Sent to {to}, with the PDF.",
     reminded: "Reminder sent to {to}.",
     noMailTitle: "Your Chest cannot send emails yet",
+    noMailWhy: {
+      not_granted: "Your Chest cannot send emails yet",
+      not_connected: "Your Chest’s email is not connected yet: its owner can connect it",
+      suspended: "Your Chest has paused sending emails for now",
+      quota: "Your Chest has sent all its emails for today",
+    },
     byHandTitle: "Send it yourself",
     noMailBody: "Download the PDF, attach it to an email from your own mailbox, then come back and mark it as sent.",
     noMailReminder: "Download the PDF, send it again with a word from your own mailbox, then mark the reminder as done.",
@@ -935,6 +941,12 @@ export const en = {
       emailHint: "In the client’s language, in your company’s name. The person who issued the invoice is told too. If your Chest cannot send email yet, only they are told.",
       bell: "Only tell us",
       bellHint: "The person who issued the invoice is told in the Chest’s bell, and reminds the client.",
+      noMail: {
+        not_granted: "Your Chest cannot send emails yet: for now, only the person who issued the invoice is told.",
+        not_connected: "Your Chest’s email is not connected yet: for now, only the person who issued the invoice is told. The Chest’s owner can connect it.",
+        suspended: "Your Chest has paused sending emails: reminders wait until it sends again.",
+        quota: "Your Chest has sent all its emails for today: reminders go tomorrow.",
+      },
     },
     regime: {
       standard: "You charge VAT",

@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
 import { erase } from "../lib/lifecycle.ts";
-import { forgetTicketEvents, publishTicketEvents, ticketEventTypes } from "../lib/ticket-events.ts";
+import { forgetTicketEvents, occurredAtFor, publishTicketEvents, ticketEventTypes } from "../lib/ticket-events.ts";
 import * as tickets from "../lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -143,4 +143,37 @@ test("erased: the agent's id leaves what waits; what was told a day ago, or refu
   await forgetTicketEvents(sql, new Date(Date.now() + 2 * 86_400_000));
   const [left] = await sql<{ n: number }[]>`select count(*)::int as n from ticket_events`;
   assert.equal(left!.n, 0);
+});
+
+// studio.16: the Chest keeps when it happened (occurredAt), so Goals counts
+// a ticket solved late on a cycle's last day in that cycle even when it is
+// told after midnight. Within 24 hours the true time goes with it; older (a
+// Chest down for a night), it goes without — the Chest refuses older times.
+test("a late event carries when the ticket was solved; one older than a day goes without it", async () => {
+  const { sql } = database;
+  const recent = await request("Late by forty minutes");
+  const old = await request("Late by a day and more");
+  await chest.close();
+  chest = await chestWith([]);
+  await tickets.reply(sql, asMember(hugo), recent.number, "Done.", { close: true });
+  await tickets.reply(sql, asMember(hugo), old.number, "Done too.", { close: true });
+  assert.equal(await publishTicketEvents(sql), 0);
+  const solvedAt = new Date(Date.now() - 40 * 60_000);
+  await sql`update ticket_events set at = ${solvedAt} where ticket = ${recent.number} and published_at is null`;
+  await sql`update ticket_events set at = ${new Date(Date.now() - 25 * 3_600_000)} where ticket = ${old.number} and published_at is null`;
+
+  await chest.close();
+  chest = await chestWith([...ticketEventTypes]);
+  assert.equal(await chest.run("late", JOB), 204);
+  const late = chest.published.find(e => e.data["ticket"] === String(recent.number))!;
+  assert.equal(late.occurredAt, solvedAt.toISOString(), "the real time of the change");
+  assert.match(late.key!, new RegExp(`:${solvedAt.getTime()}$`, "u"));
+  const older = chest.published.find(e => e.data["ticket"] === String(old.number))!;
+  assert.ok(older, "an event older than a day is still told");
+  assert.ok(Date.now() - new Date(older.occurredAt).getTime() < 60_000, "without its time: the Chest's own");
+  // The helper, at its edges.
+  const now = Date.parse("2026-09-30T12:00:00Z");
+  assert.ok(occurredAtFor(new Date(now - 23 * 3_600_000), now));
+  assert.equal(occurredAtFor(new Date(now - 24 * 3_600_000), now), undefined);
+  assert.equal(occurredAtFor(new Date(now - 23 * 3_600_000 - 56 * 60_000), now), undefined, "five minutes of margin for the clocks");
 });

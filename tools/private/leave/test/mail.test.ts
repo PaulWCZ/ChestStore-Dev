@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/app-error.ts";
-import { emailOn, setEmail } from "../lib/mail.ts";
+import { emailOn, mailNotice, setEmail } from "../lib/mail.ts";
 import * as requests from "../lib/requests.ts";
 import { types } from "../lib/rules.ts";
 import { setApprover } from "../lib/staff.ts";
@@ -103,4 +103,18 @@ test("on a Chest without mail nothing is sent and nothing fails", async () => {
   await tell.asked(sql, asMember(hugo), r);
   assert.equal(chest.outbox.length, 0);
   assert.equal(chest.notifications.filter(n => n.member === ines.id).length, 1);
+});
+
+test("the home says the truth about email before anything is sent: none, not connected or paused, the day's quota", async () => {
+  assert.equal(await mailNotice(), "none", "a Chest without mail: no switch promising it");
+  await chest.close();
+  chest = await fakeChest({ members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  assert.equal(await mailNotice(), null, "ready: the switch, nothing more");
+  for (const [state, notice] of [["not_connected", "off"], ["suspended", "off"]] as const) {
+    chest.delivery.mail = state;
+    assert.equal(await mailNotice(), notice);
+  }
+  await chest.close();
+  chest = await fakeChest({ members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test", perDay: 0 } });
+  assert.equal(await mailNotice(), "quota");
 });

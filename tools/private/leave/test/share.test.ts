@@ -170,3 +170,52 @@ test("erased: what was told of them and what waits is forgotten, nothing more is
   assert.equal((await database.sql`select 1 from leave_outbox where data->>'member' = ${hugo.id}`).length, 0);
   assert.equal(told(id).length, 1);
 });
+
+test("each word carries the time of its change; a shortened leave's approval is strictly later than its cancellation", async () => {
+  const monday = quietMonday(140);
+  const id = await approvedLeave(ines.id, week(monday));
+  const t0 = Date.now();
+  await share.keepInLine(database.sql);
+  const approved = Date.parse(last(id)!.occurredAt);
+  assert.ok(approved <= Date.now() && approved >= t0 - 60_000, "the time of the change, within the window");
+  await setEndDate(database.sql, asMember(camille), ines.id, addDays(monday, 1));
+  await share.keepInLine(database.sql);
+  const [, cancelled, again] = told(id);
+  assert.deepEqual([cancelled!.type, again!.type], ["leave.cancelled", "leave.approved"]);
+  const outbox = await database.sql<{ type: string; at: Date }[]>`select type, at from leave_outbox where data->>'request' = ${id} order by id`;
+  // What the Chest keeps is what the outbox says, to the millisecond.
+  assert.deepEqual([cancelled!.occurredAt, again!.occurredAt], outbox.slice(1).map(o => o.at.toISOString()));
+  assert.ok(Date.parse(again!.occurredAt) > Date.parse(cancelled!.occurredAt), "the approval after its cancellation");
+  for (const e of [cancelled!, again!]) assert.ok(Date.parse(e.occurredAt) >= Date.now() - 24 * 3_600_000 && Date.parse(e.occurredAt) <= Date.now() + 60_000);
+});
+
+test("a word that waited: its time while the Chest takes it (under 23 hours), the Chest's own after", async () => {
+  const monday = quietMonday(147);
+  await chest.close();
+  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups });
+  const late = await approvedLeave(camille.id, week(addDays(monday, 7)));
+  const old = await approvedLeave(camille.id, week(monday));
+  await share.keepInLine(database.sql);
+  const twentyMinutes = new Date(Date.now() - 20 * 60_000);
+  await database.sql`update leave_outbox set at = ${twentyMinutes} where published_at is null and data->>'request' = ${late}`;
+  await database.sql`update leave_outbox set at = now() - interval '25 hours' where published_at is null and data->>'request' = ${old}`;
+  await chest.close();
+  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 2 });
+  const before = Date.now();
+  await share.publish(database.sql);
+  assert.equal(last(late)!.occurredAt, twentyMinutes.toISOString());
+  assert.ok(Date.parse(last(old)!.occurredAt) >= before - 1000, "too old for the Chest: stamped when taken");
+});
+
+test("a request's words written together are judged together: never an old approval after a newly stamped cancellation", () => {
+  const now = Date.parse("2026-09-30T12:00:00Z");
+  const hours = (h: number) => new Date(now - h * 3_600_000);
+  assert.deepEqual(share.occurredAtFor(hours(1), hours(1), now), hours(1));
+  assert.equal(share.occurredAtFor(hours(23.5), hours(23.5), now), undefined);
+  // The cancellation just past the window, its approval a millisecond later just inside: both without.
+  const first = new Date(now - share.occurredWindowMs - 1);
+  assert.equal(share.occurredAtFor(first, first, now), undefined);
+  assert.equal(share.occurredAtFor(first, new Date(first.getTime() + 1), now), undefined);
+  // A database clock far ahead: without, rather than refused for ever.
+  assert.equal(share.occurredAtFor(new Date(now + 120_000), new Date(now + 120_000), now), undefined);
+});

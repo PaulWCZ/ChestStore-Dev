@@ -8,6 +8,7 @@ import { daysBetween } from "./model.ts";
 import { formatMoney } from "./money.ts";
 import { notify, withdraw } from "./notify.ts";
 import { holders } from "./people.ts";
+import { remindByEmail } from "./mailing.ts";
 import { sendAutomaticReminder } from "./sending.ts";
 
 // Reminding the late payers without anyone having to remember: once an
@@ -42,6 +43,8 @@ export async function remindLatePayers(sql: Sql, today: string): Promise<Reminde
   if (!c.reminders.on) return run;
   const steps = c.reminders.days;
   const late = (await receivables(sql, system, today)).filter(r => r.state === "overdue" && r.dueDate);
+  // Asked once per morning, only when there is something to remind.
+  let byEmail: boolean | null = null;
   for (const row of late) {
     const days = daysBetween(row.dueDate!, today);
     let step = -1;
@@ -52,7 +55,7 @@ export async function remindLatePayers(sql: Sql, today: string): Promise<Reminde
     if (claimed.length === 0) continue;
     await sql`insert into reminder_steps (document_id, step, channel) select ${row.id}, s, 'none' from generate_series(0, ${step - 1}) s on conflict do nothing`;
     let channel: "email" | "bell" = "bell";
-    if (c.reminders.email && c.mailWorks !== false) {
+    if (c.reminders.email && (byEmail ??= await remindByEmail(sql))) {
       try {
         const full = await getDocument(sql, system, row.id, today);
         if ((await sendAutomaticReminder(sql, full, step, today)) === "email") channel = "email";

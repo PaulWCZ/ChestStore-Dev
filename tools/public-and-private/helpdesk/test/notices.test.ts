@@ -134,10 +134,29 @@ test("on a Chest without webhooks, Settings says so and adding is refused in wor
   const plain = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
   try {
     assert.equal((await notices.targets(sql, asMember(camille))).available, false);
+    assert.equal((await notices.targets(sql, asMember(camille))).delivery, "not_granted");
     await assert.rejects(notices.addTarget(sql, asMember(camille), { url: slack, kind: "slack", label: "Support", events: ["new"] }), refused("webhooks_unavailable"));
   } finally {
     await plain.close();
   }
+});
+
+// studio.16: Settings asks the Chest before offering the form
+// (webhooks.available), rather than learning it from a failed call.
+test("a Chest that paused the tool's notices: Settings says so, adding is refused in words, the channels are kept", async () => {
+  const { sql } = database;
+  const target = await notices.addTarget(sql, asMember(camille), { url: "https://hooks.slack.com/services/T0007/B0007/pausedpausedpausedpaused", kind: "slack", label: "Paused", events: ["new"] });
+  assert.equal((await notices.targets(sql, asMember(camille))).delivery, "ready");
+  chest.delivery.webhooks = "suspended";
+  try {
+    const listed = await notices.targets(sql, asMember(camille));
+    assert.deepEqual({ available: listed.available, delivery: listed.delivery }, { available: false, delivery: "suspended" });
+    assert.ok(listed.targets.some(x => x.id === target.target.id), "kept");
+    await assert.rejects(notices.addTarget(sql, asMember(camille), { url: slack, kind: "slack", label: "Another", events: ["new"] }), refused("webhooks_suspended"));
+  } finally {
+    chest.delivery.webhooks = "ready";
+  }
+  await notices.removeTarget(sql, asMember(camille), target.target.id);
 });
 
 test("a long key goes whole (the SDK hashes it): two events sharing their first 64 characters are two notices, the same one twice is one", async () => {

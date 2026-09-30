@@ -477,6 +477,34 @@ await step("import a HubSpot file: unknown columns kept in the notes, unknown ow
   expect(await page.locator(".row-link", { hasText: "Bastien Roche" }).count() === 0, "taken back");
 });
 
+await step("an imported history with a to-do years ahead: the Chest refuses that one event, the others still reach the calendar (putMany per event, SDK studio.16)", async () => {
+  const inDays = n => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const file = tmp + "/pipedrive-activities.csv";
+  writeFileSync(file, `Subject,Due date,Done,Person email\nTaste the new cheeses,${inDays(2)} 10:00,Not done,g.perrin@fromagerie-perrin.fr\nVisit the cellar,${inDays(3)} 11:00,Not done,g.perrin@fromagerie-perrin.fr\nRenew the contract,${inDays(3 * 365 + 5)} 09:00,Not done,g.perrin@fromagerie-perrin.fr\n`);
+  await page.goto(origin + "/chest/import");
+  await page.locator("label.ck-segment", { hasText: "History" }).click();
+  expect(await page.getByRole("radio", { name: "History" }).isChecked(), "History chosen");
+  await page.locator(".source", { hasText: "Spreadsheet" }).locator("input[type=file]").setInputFiles(file);
+  await page.waitForSelector(".mapping table");
+  await page.getByRole("button", { name: /^Import · 3 rows$/u }).click();
+  await page.waitForSelector(".report-panel");
+  // All three are next steps of Gaëlle Perrin's; two in Hugo's calendar,
+  // the one three years ahead not (the Chest's calendar holds two years).
+  await devSays(text => text.includes("<b>Taste the new cheeses · Gaëlle Perrin</b>") && text.includes("<b>Visit the cellar · Gaëlle Perrin</b>"), "the two near to-dos in the calendar");
+  expect(!(await dev()).includes("Renew the contract"), "the far one is not in the calendar");
+  await page.goto(origin + "/chest/contacts?q=perrin");
+  await page.locator(".row-link", { hasText: "Gaëlle Perrin" }).click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  const main = await page.locator("main").innerText();
+  expect(main.includes("Renew the contract") && main.includes("Visit the cellar"), "all three stand as next steps");
+  // Taken back: the steps and their events go.
+  await page.goto(origin + "/chest/import");
+  await page.locator(".mini-list li", { hasText: "pipedrive-activities.csv" }).getByRole("button", { name: "Undo this import" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Undo this import" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Import undone')");
+  await devSays(text => !text.includes("Taste the new cheeses") && !text.includes("Visit the cellar"), "out of the calendar once undone");
+});
+
 await step("select contacts, tag them at once", async () => {
   await page.goto(origin + "/chest/contacts?q=durand");
   await page.getByLabel("Select this page").check();

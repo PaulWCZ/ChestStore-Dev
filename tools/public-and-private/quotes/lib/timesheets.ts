@@ -174,18 +174,32 @@ export async function billableCancelled(sql: Sql, event: ToolEvent): Promise<"de
   return "kept";
 }
 
+// When the invoice was issued, told to the Chest (events.publish's
+// occurredAt, studio.16): a retry the next morning still says the day it
+// was issued, not the day it was told. The Chest takes a time at most 24
+// hours back; older (a Chest that refused for longer), the event goes
+// without it, and the receiver reads the Chest's time. Five minutes of
+// margin for the two clocks.
+export const occurredMarginMs = 5 * 60_000;
+export function occurredAtFor(at: Date | null, now = Date.now()): Date | undefined {
+  if (!at) return undefined;
+  const age = now - at.getTime();
+  return age >= 0 && age < events.occurredLimits.behindMs - occurredMarginMs ? at : undefined;
+}
+
 // invoicedHandoff tells Timesheets the invoice of a hand-off is issued
 // (once; a Chest that cannot publish now is tried again later).
-export async function invoicedHandoff(sql: Query, documentId: string, by: string | null): Promise<boolean> {
-  const [h] = await sql<{ handoff: string; number: string | null; status: string; finalised_by: string | null }[]>`
-    select h.handoff, d.number, d.status, d.finalised_by from handoffs h join documents d on d.id = h.document_id
+export async function invoicedHandoff(sql: Query, documentId: string, by: string | null, now = Date.now()): Promise<boolean> {
+  const [h] = await sql<{ handoff: string; number: string | null; status: string; finalised_by: string | null; finalised_at: Date | null }[]>`
+    select h.handoff, d.number, d.status, d.finalised_by, d.finalised_at from handoffs h join documents d on d.id = h.document_id
     where h.document_id = ${documentId} and h.cancelled_at is null and h.published_at is null`;
   if (!h || h.status !== "final" || !h.number) return false;
   const who = by ?? h.finalised_by;
+  const occurredAt = occurredAtFor(h.finalised_at, now);
   try {
     await events.publish("quotes.invoiced", {
       handoff: h.handoff, invoice: h.number, path: `/chest/documents/${documentId}`, ...(who && /^mbr_[a-z2-7]{26}$/u.test(who) ? { by: who } : {}),
-    }, { key: `quotes:invoiced:${h.handoff}` });
+    }, { key: `quotes:invoiced:${h.handoff}`, ...(occurredAt ? { occurredAt } : {}) });
   } catch (error) {
     if (error instanceof ChestError) return false;
     throw error;
@@ -195,12 +209,12 @@ export async function invoicedHandoff(sql: Query, documentId: string, by: string
 }
 
 // The hand-offs issued but not told yet (the daily follow-up).
-export async function publishPending(sql: Query): Promise<number> {
+export async function publishPending(sql: Query, now = Date.now()): Promise<number> {
   const rows = await sql<{ document_id: number }[]>`
     select h.document_id from handoffs h join documents d on d.id = h.document_id
     where h.published_at is null and h.cancelled_at is null and d.status = 'final' limit 200`;
   let told = 0;
-  for (const r of rows) if (await invoicedHandoff(sql, String(r.document_id), null)) told++;
+  for (const r of rows) if (await invoicedHandoff(sql, String(r.document_id), null, now)) told++;
   return told;
 }
 

@@ -87,25 +87,31 @@ async function put(sql: Query, s: Eligible): Promise<boolean> {
 
 // putMany: many steps at once (Proposal (studio.15): calendar.putMany, 100
 // a call, one write of the minute each) — a first sync, a bulk change, the
-// morning. A batch holding one event the Chest refuses (a day too far) is
-// put one by one, so the others still go. Says how many were put, and
-// whether to go on (false: the Chest has no calendar).
+// morning. The Chest answers each event (studio.16): only those it put are
+// remembered; a refused one (a day too far) stays unremembered, so it is
+// tried again at the next run, and never holds the others back. Says how
+// many were put, and whether to go on (false: the Chest has no calendar).
 async function putMany(sql: Query, list: Eligible[]): Promise<{ put: number; goOn: boolean }> {
   let put_ = 0;
   for (let i = 0; i < list.length; i += 100) {
     const batch = list.slice(i, i + 100);
+    let results: calendar.PutResult[];
     try {
-      await calendar.putMany(batch.map(eventOf));
-      await kept(sql, batch);
-      put_ += batch.length;
+      results = await calendar.putMany(batch.map(eventOf));
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
-      if (error.code !== "invalid_event") {
-        await remember(sql, false);
-        return { put: put_, goOn: false };
-      }
-      for (const s of batch) if (await put(sql, s)) put_++;
+      await remember(sql, false);
+      return { put: put_, goOn: false };
     }
+    const took: Eligible[] = [];
+    for (const r of results) {
+      const s = batch[r.index];
+      if (!s) continue;
+      if (r.ok) took.push(s);
+      else console.error(`calendar: step ${s.id} not put (${r.reason})`);
+    }
+    await kept(sql, took);
+    put_ += took.length;
   }
   return { put: put_, goOn: true };
 }

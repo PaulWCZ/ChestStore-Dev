@@ -5,7 +5,7 @@ import { POST } from "../app/chest-events/route.ts";
 import { busySnapshot } from "../lib/busy-snapshot.ts";
 import { shareBusy } from "../lib/busy.ts";
 import { addDays } from "../lib/calendar.ts";
-import { state, sync } from "../lib/leave-calendar.ts";
+import { putAll, state, sync, type Row } from "../lib/leave-calendar.ts";
 import * as requests from "../lib/requests.ts";
 import { types } from "../lib/rules.ts";
 import { keepInLine } from "../lib/share.ts";
@@ -149,6 +149,22 @@ test("a first sync puts many at once (100 a call), and only what changed after",
   await shareBusy(sql);
   const snapshot = busyOf(lea.id).at(-1)!.data;
   assert.deepEqual(snapshot, { ...busySnapshot(lea.id, rows.map(d => ({ start: zoned(d, 0, zone).getTime(), end: zoned(addDays(d, 1), 0, zone).getTime() })), Date.parse(String(snapshot["at"]))) });
+});
+
+test("one event the Chest refuses in a batch: the others are put and recorded, the refused one never recorded as put", async () => {
+  const { sql } = database;
+  const monday = quietMonday(91);
+  const row = (id: string, start: string, end: string): Row => ({ id, member_id: hugo.id, start, start_half: "am", end, end_half: "pm" });
+  // A leave that ends before it starts: the SDK refuses it (invalid_event).
+  const rows = [row("900001", monday, monday), row("900002", addDays(monday, 3), addDays(monday, 1)), row("900003", addDays(monday, 7), addDays(monday, 8))];
+  assert.equal(await putAll(sql, rows, zone), 2);
+  assert.ok(chest.calendar.has("leave:900001"));
+  assert.ok(chest.calendar.has("leave:900003"));
+  assert.equal(chest.calendar.has("leave:900002"), false);
+  const recorded = (await sql<{ key: string }[]>`select key from calendar_events where key like 'leave:90000%' order by key`).map(r => r.key);
+  assert.deepEqual(recorded, ["leave:900001", "leave:900003"]);
+  await sql`delete from calendar_events where key like 'leave:90000%'`;
+  for (const key of ["leave:900001", "leave:900003"]) chest.calendar.delete(key);
 });
 
 test("remote work is not an absence: neither 'Off' in the feed nor busy for Booking", async () => {

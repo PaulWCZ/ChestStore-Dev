@@ -168,7 +168,9 @@ export async function remindReceipt(actor: Member, holder: string, item: Named, 
       to: { member: holder },
       subject: cut(format(t.mail.remindSubject, { item: item.name }), 120),
       text: [format(t.mail.remindText, { name: actor.name, item: item.name, tag: item.tag, date }), "", "—", t.mail.why].join("\n"),
-      key: `remind:${item.id}:${givenOn}:${new Date().toISOString().slice(0, 10)}`,
+      // The recipient in the key (studio.16): after a restore from a
+      // backup, an item's id can name another thing given to someone else.
+      key: `remind:${item.id}:${holder}:${givenOn}:${new Date().toISOString().slice(0, 10)}`,
     });
     return true;
   } catch (error) {

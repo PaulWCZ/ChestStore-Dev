@@ -9,6 +9,7 @@ import { editAbility, editable, getDocument, upcomingNumber, type Full } from ".
 import { AppError } from "../../../../lib/errors.ts";
 import { catalogue, format, formatDate, formatDay, locales, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
 import { listItems } from "../../../../lib/items.ts";
+import { mailState } from "../../../../lib/mailing.ts";
 import { formatMoney } from "../../../../lib/money.ts";
 import { sellerOf } from "../../../../lib/parties.ts";
 import { continuedAt } from "../../../../lib/numbering.ts";
@@ -40,6 +41,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     throw error;
   }
   const c = await company(sql);
+  const mailing = await mailState(sql);
   const seller = full.seller ?? sellerOf(c);
   const repeating = full.type === "invoice" ? await repeatOf(sql, full.id) : null;
   const canEdit = editable(full) && can(member, editAbility(full.type));
@@ -180,7 +182,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       payments={payments}
       related={related}
       words={Object.fromEntries(locales.map(l => [l, catalogue(l).pdf])) as Record<Locale, Catalogue["pdf"]>}
-      mailWorks={c.mailWorks}
+      mailWorks={mailing.works}
+      mailReason={mailing.reason}
       upcoming={upcoming ?? null}
       companyMissing={gaps}
       clientMissing={clientGaps}

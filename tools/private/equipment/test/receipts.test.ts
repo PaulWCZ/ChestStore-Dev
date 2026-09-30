@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { initials } from "@argentic/chest-ui/components/logic";
 import { AppError } from "../lib/app-error.ts";
@@ -177,6 +178,9 @@ test("remind them: the holder hears it in the bell, and by email where the Chest
   assert.equal(bell?.path, "/chest/mine");
   // Mail is a proposal: sent where the Chest grants it, the bell alone otherwise.
   assert.equal(mailed, chest.outbox.some(m => m.subject === "Did you receive Pixel 7?"));
+  // The recipient in the key (studio.16): an item's id can name another
+  // thing after a restore from a backup.
+  if (mailed) assert.equal(chest.outbox.at(-1)!.key, mail.idempotencyKey(`remind:${phone.id}:${hugo.id}:${r.givenOn}:${new Date().toISOString().slice(0, 10)}`));
   await refused(remind(sql, M, phone.id), "reminded_today");
   assert.equal((await unconfirmedReceipts(sql, M, "2999-01-01")).find(u => u.item.id === phone.id)?.remindedToday, true);
   await confirm(sql, H, phone.id);

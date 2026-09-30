@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert, Info, Trash } from "../../../components/icons.tsx";
 import type { Accounts, Company } from "../../../lib/company.ts";
+import type { MailState } from "../../../lib/mailing.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { limits } from "../../../lib/model.ts";
@@ -22,7 +23,7 @@ const fieldOf: Record<string, keyof Fields> = {
 };
 const forms = ["SARL", "SAS", "SASU", "EURL", "EI", "SA", "SCOP", "SNC", "SCI"];
 
-export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, terms, rates, numbering }: { t: Catalogue; locale: Locale; company: Company; missing: string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; terms: { name: string; size: string } | null; rates: { rate: string; text: string }[]; numbering: ReactNode }) {
+export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, terms, rates, numbering, mailReason }: { mailReason: MailState["reason"]; t: Catalogue; locale: Locale; company: Company; missing: string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; terms: { name: string; size: string } | null; rates: { rate: string; text: string }[]; numbering: ReactNode }) {
   const s = t.settings;
   const r = s.reminderRules;
   const router = useRouter();
@@ -237,6 +238,12 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
                     <label className="option"><input type="radio" name="reminder-how" checked={!f.remindersEmail} onChange={() => set({ remindersEmail: false })} /><span>{r.bell}</span><span className="sub">{r.bellHint}</span></label>
                   </div>
                 </fieldset>
+                {f.remindersEmail && mailReason && (
+                  <div className="callout quiet" role="note">
+                    <Info />
+                    <p>{r.noMail[mailReason]}</p>
+                  </div>
+                )}
               </>
             )}
           </div>

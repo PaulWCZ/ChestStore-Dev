@@ -161,8 +161,12 @@ Intercom): there is no chat bubble.
   its secret part), delivers, retries, and stops an address that keeps
   failing: Settings then says *Stopped* with the reason and *Try again*,
   and the administrators hear of it in the bell. Removing a channel asks
-  first (the Chest forgets the address). On a Chest without webhooks,
-  Settings says so and hides the form.
+  first (the Chest forgets the address). Settings asks the Chest first
+  (`webhooks.available()`, studio.16): on a Chest without webhooks, one
+  whose owner paused Support's notices (the channels are kept), or one
+  that did not answer, it says which and hides the form. Each notice's key
+  carries who asked and the channels it goes to, so a restore from a
+  backup never makes the Chest take a new request for an old one.
 - **An incident in progress** (from **Status**, below): a line above the
   inbox and every ticket — "Incident in progress: Payments unavailable",
   the services it touches, a link to its public page — and, first in
@@ -275,9 +279,12 @@ contract is Goals' (its README, "With the other tools"):
   one event. What the Chest refused for a week is forgotten by the nightly
   cleanup, and what was told, after a day. An erased agent's id is removed
   from what waits.
-- The event's time (`occurredAt`) is when the Chest took it: one published
-  late by the schedule is dated then, not when the ticket was closed (the
-  SDK's `publish` takes no time of its own; its key keeps the real one).
+- The event's time (`occurredAt`, studio.16) is when the ticket was
+  solved or reopened, even when the schedule tells it later: Goals counts
+  a ticket solved at 23:55 on a cycle's last day in that cycle. The Chest
+  takes a time at most 24 hours back (five minutes of margin are kept for
+  the clocks); an older event — a Chest down for a night — goes without
+  it and is dated when the Chest took it (its key keeps the real time).
 
 ## Roles
 
@@ -371,6 +378,8 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
   The customer's confirmation and the team's answers are
   `transactional` (studio.15): the answer to their own request arrives
   even when the address is a member's who chose no email from the tools.
+  Their keys carry the customer's address (studio.16): after a restore
+  from a backup, a ticket number can name another customer's request.
   **On a real Chest today there is no mail**: until the Chest ships it,
   sell Support as "a contact form and a shared inbox", not as a Zendesk
   replacement for email.

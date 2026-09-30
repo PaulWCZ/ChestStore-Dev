@@ -374,7 +374,7 @@ Without events between tools, nothing changes here.
 | `leave.cancelled` | The same data, as it was told — the leave no longer stands: cancelled, refused after all, its approval taken back, cancelled by a last day (HR's, People's or the Chest's when someone leaves), or its kind now *not away* |
 | A leave shortened | By a last day that cuts it: `leave.cancelled`, then `leave.approved` for the days that remain (same `request`). Rooms takes back all of a request's days on a cancellation and adds an approval's days; People keeps the latest word per request (by `occurredAt`) — so the pair shortens it for both within the contract they already read, without a new event type |
 | When | After every change, after the Chest's and People's events, and each weekday morning: `shared_leave` holds what was told, and each run tells what differs, whichever way the leave changed |
-| Reliable | Each event is written to an outbox (`leave_outbox`) in the same transaction as the record of what was told, then published oldest first; while the Chest cannot take them (not linked yet, its hourly quota), they wait and go at the next run. Key `leave:<request>:<approved\|cancelled>:<outbox id>`: the same event tried again is one event. One waiting for days that are over is dropped |
+| Reliable | Each event is written to an outbox (`leave_outbox`) in the same transaction as the record of what was told, then published oldest first; while the Chest cannot take them (not linked yet, its hourly quota), they wait and go at the next run. Key `leave:<request>:<approved\|cancelled>:<outbox id>:<member>` (whom it is about, so a restored backup's ids never name another person's word): the same event tried again is one event. Each carries the time of its change (`occurredAt`) while the Chest takes it (23 hours; older, the Chest's own time), and a shortened leave's approval is a millisecond after its cancellation, so receivers that keep the latest word order them as they happened. One waiting for days that are over is dropped |
 | Erasure | What was told of the person and what waits is forgotten; the receivers forget them on their own `member.erased` |
 
 **Leave → Booking (and Hiring): `leave.busy`** — so a host who is off is
@@ -443,12 +443,17 @@ once, in People's HR record:
   absences only, a cut told as cancelled then approved); `leave.busy` to
   Booking and Hiring (see "With the other tools").
 - **Calendar** — **Proposal (studio)** (`chest.proposals.json` `"calendar":
-  true`; `calendar.putMany`, studio.15, for a first sync, 100 events a
-  call): approved leave in each person's feed (see "What it does").
+  true`; `calendar.putMany`, studio.16, for a first sync, 100 events a
+  call, answered per event: one the Chest refuses is never recorded as
+  put and is tried again at the next run): approved leave in each
+  person's feed (see "What it does").
 - **Mail** — **Proposal (studio)** (`chest.proposals.json` `"mail":
   {"send": true}`): emails beside the bell (see "What it does"), keys
   given whole (studio.15), `member.mailPreference` and `transactional`
-  (studio.15). Without it, the bell and the tile only.
+  (studio.15). The home asks `mail.available()` (studio.16) before
+  promising anything: no switch on a Chest without mail, and a sentence
+  when the owner has not connected email, has paused it, or the day's
+  emails are used. Without it, the bell and the tile only.
 - **Events from People** — **Proposal (studio)**: receives
   `people.record`, `people.leaving`, `people.leaving_cancelled`.
 - Wished, not built: a **member's own time zone** (the Chest gives one

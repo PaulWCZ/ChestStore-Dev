@@ -11,7 +11,7 @@ import { leavingList, lastDayOf } from "../lib/departures.ts";
 import * as items from "../lib/items.ts";
 import { erase } from "../lib/lifecycle.ts";
 import { addDays } from "../lib/model.ts";
-import { forgetReturned, publishReturned, returnedLimits } from "../lib/returned.ts";
+import { forgetReturned, occurredAtFor, publishReturned, returnedLimits } from "../lib/returned.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -204,4 +204,41 @@ test("a Chest that cannot take it yet: it waits, the schedule tells it later; fo
   await sql`insert into returned_events (member_id, at) values (${ines.id}, now() - make_interval(days => ${returnedLimits.keepDays + 1}))`;
   await forgetReturned(sql, new Date(Date.now() + 2 * 86_400_000));
   assert.equal(Number((await sql`select count(*)::int as n from returned_events`)[0]!["n"]), 0);
+});
+
+// studio.16: the Chest keeps when it happened (occurredAt): People reads
+// when the last thing came back even when the schedule tells it later.
+// Within 24 hours the true time goes with it; older (a Chest down for a
+// night), it goes without — the Chest refuses older times.
+test("a late event carries when the last thing came back; one older than a day goes without it", async () => {
+  const { sql } = database;
+  await equip(hugo.id);
+  await equip(lea.id);
+  await leaving(hugo.id);
+  await leaving(lea.id);
+  await chest.close();
+  chest = await chestWith([]);
+  try {
+    await items.takeEverythingBack(sql, M, hugo.id);
+    await items.takeEverythingBack(sql, M, lea.id);
+    assert.equal(await publishReturned(sql), 0, "refused: waits");
+  } finally {
+    await chest.close();
+    chest = await chestWith(["equipment.returned"]);
+  }
+  const backAt = new Date(Date.now() - 40 * 60_000);
+  await sql`update returned_events set at = ${backAt} where member_id = ${hugo.id} and published_at is null`;
+  await sql`update returned_events set at = ${new Date(Date.now() - 25 * 3_600_000)} where member_id = ${lea.id} and published_at is null`;
+  assert.equal(await chest.run("returns", JOB), 204);
+  const late = chest.published.find(e => e.data["member"] === hugo.id)!;
+  assert.equal(late.occurredAt, backAt.toISOString(), "the real time of the change");
+  assert.match(late.key!, new RegExp(`:${backAt.getTime()}$`, "u"));
+  const older = chest.published.find(e => e.data["member"] === lea.id)!;
+  assert.ok(older, "an event older than a day is still told");
+  assert.ok(Date.now() - new Date(older.occurredAt).getTime() < 60_000, "without its time: the Chest's own");
+  // The helper, at its edges.
+  const now = Date.parse("2026-09-30T12:00:00Z");
+  assert.ok(occurredAtFor(new Date(now - 23 * 3_600_000), now));
+  assert.equal(occurredAtFor(new Date(now - 24 * 3_600_000), now), undefined);
+  assert.equal(occurredAtFor(new Date(now - 23 * 3_600_000 - 56 * 60_000), now), undefined, "five minutes of margin for the clocks");
 });

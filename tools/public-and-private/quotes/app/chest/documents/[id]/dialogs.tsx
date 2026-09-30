@@ -8,6 +8,7 @@ import { format, languageNames } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney, inputAmount, parsePercent } from "../../../../lib/money.ts";
 import type { DocView, Message } from "../../../../lib/views.ts";
+import type { MailState } from "../../../../lib/mailing.ts";
 import { addPayment, finalise, invoiceFromQuote, markReminded, markSent, messageFor, remind, repeatInvoice, send } from "../../actions.ts";
 
 type Close = { onClose: () => void };
@@ -17,7 +18,7 @@ const errorText = (t: Catalogue, code: string, values?: Record<string, number | 
 // in the client's language, the words changeable; or by one's own means
 // where the Chest cannot send email yet.
 // `onDone` says whether an email left (its toast then never offers Undo).
-export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }: Close & { t: Catalogue; doc: DocView; kind: "send" | "reminder"; mailWorks: boolean | null; pdfHref: string; onDone: (text: string, emailed: boolean) => void }) {
+export function SendDialog({ t, doc, kind, mailWorks, mailReason, pdfHref, onClose, onDone }: Close & { t: Catalogue; doc: DocView; kind: "send" | "reminder"; mailWorks: boolean | null; mailReason: MailState["reason"]; pdfHref: string; onDone: (text: string, emailed: boolean) => void }) {
   const s = t.send;
   const [message, setMessage] = useState<Message | null>(null);
   const [prepared, setPrepared] = useState<Message | null>(null);
@@ -69,7 +70,7 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
           <div className="callout quiet" role="note">
             <Info />
             <div>
-              <p><strong>{mailWorks === false ? s.noMailTitle : s.byHandTitle}</strong></p>
+              <p><strong>{mailWorks === false ? (mailReason ? s.noMailWhy[mailReason] : s.noMailTitle) : s.byHandTitle}</strong></p>
               <p>{kind === "reminder" ? s.noMailReminder : s.noMailBody}</p>
             </div>
           </div>

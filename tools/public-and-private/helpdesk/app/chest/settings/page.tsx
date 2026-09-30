@@ -55,7 +55,7 @@ export default async function SettingsPage() {
           <>
             <HoursBox hours={s.hours} lateHours={s.lateHours} year={Number(chest.today().slice(0, 4))} today={chest.today()} canSettings={canSettings} locale={locale} t={{ settings: t.settings, errors: t.errors, dates: t.dates }} />
             <RulesBox rules={rules.map(r => ({ ...r, assigneeName: r.assignee ? name(r.assignee) : null }))} team={team.map(id => ({ id, name: name(id) }))} tags={tagList.map(g => g.name)} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, priority: t.priority, peoplePicker: t.peoplePicker }} />
-            {notices && <NoticesBox available={notices.available} targets={notices.targets} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, dialog: t.dialog }} />}
+            {notices && <NoticesBox delivery={notices.delivery} targets={notices.targets} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, dialog: t.dialog }} />}
             <EmbedBox origins={s.frameOrigins} publicAddress={origin} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, embedTitle: t.public.embedTitle }} />
           </>
         }

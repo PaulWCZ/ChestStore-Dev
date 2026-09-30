@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
+import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-mail/route.ts";
 import * as mailer from "../lib/mailer.ts";
@@ -47,6 +48,7 @@ test("an email to support@ opens a ticket, confirmed on its thread; the customer
   // Confirmed in French (the Chest's language), threaded under their email.
   const confirmation = chest.outbox.at(-1)!;
   assert.deepEqual(confirmation.to, [from]);
+  assert.equal(confirmation.key, mail.idempotencyKey(`confirm:${number}:${from}`), "the recipient in the key: a ticket number can name another request after a restore");
   assert.match(confirmation.subject, new RegExp(`^Nous avons bien reçu votre demande\u202f: Broken lamp \\[#${number}\\]$`, "u"));
   assert.match(confirmation.replyTo!, new RegExp(`^support\\+t${number}-[a-z2-7]{10}@atelier\\.test$`, "u"));
   assert.match(confirmation.inReplyTo!, /^<rcv_/u);
@@ -73,6 +75,7 @@ test("an agent's reply goes on the thread with the conversation's headers; the a
   await tickets.delivered(database.sql, done.messageId, sent.delivery, sent.delivery === "email" ? sent.mail : undefined);
   const reply = chest.outbox.at(-1)!;
   assert.equal(reply.inReplyTo, incoming, "answers the customer's email");
+  assert.equal(reply.key, mail.idempotencyKey(`reply:${done.messageId}:${from}`));
   assert.ok(reply.references!.includes(incoming) && reply.references![0] === chest.outbox.at(-2)!.messageId, "the confirmation first");
   assert.match(reply.replyTo!, new RegExp(`^support\\+t${number}-`, "u"));
   assert.equal((await ticketOf(number)).status, "waiting");

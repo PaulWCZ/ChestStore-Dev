@@ -3,6 +3,7 @@ import { can } from "../../../lib/access.ts";
 import { company, missing } from "../../../lib/company.ts";
 import { db } from "../../../lib/db.ts";
 import { formatDate } from "../../../lib/i18n/index.ts";
+import { mailState } from "../../../lib/mailing.ts";
 import { documentNumber } from "../../../lib/model.ts";
 import { formatRate, vatRates } from "../../../lib/money.ts";
 import { numberingChanges, sequences } from "../../../lib/numbering.ts";
@@ -44,6 +45,7 @@ export default async function SettingsPage() {
       logo={c.logo ? `/chest/logo?v=${encodeURIComponent(c.logo)}` : null}
       terms={c.terms ? { name: c.terms.name, size: formatSize(c.terms.size) } : null}
       rates={vatRates.filter(r => r > 0).map(r => ({ rate: String(r), text: formatRate(r, locale) }))}
+      mailReason={(await mailState(sql)).reason}
       numbering={
         <NumberingPanel
           t={t}

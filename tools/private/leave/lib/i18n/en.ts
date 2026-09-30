@@ -139,6 +139,8 @@ export const en = {
     email: "Also send me these by email: requests to answer, answers, cancellations",
     emailNone: "In your Chest settings you chose no email: only the answers to your own requests still come.",
     emailDigest: "In your Chest settings you chose one email a day: these wait for it, except the answers to your own requests.",
+    emailOff: "Emails are not sent for now: ask your Chest’s owner. The bell still tells you.",
+    emailQuota: "Today's emails are used up: they go out again tomorrow. The bell still tells you.",
     feed: "Your approved leave is in your calendar",
     hello: "Hello {name}",
     summary: "{days} of {type} left.",

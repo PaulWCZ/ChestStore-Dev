@@ -9,6 +9,7 @@ import { format, formatDay } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../../lib/money.ts";
 import type { ClientOption, DocView, Fact, ItemOption, Moment, OnlineView, PaymentView, RelatedView, Rights, VersionView } from "../../../../lib/views.ts";
+import type { MailState } from "../../../../lib/mailing.ts";
 import { CopyLink } from "../../../../components/copy-link.tsx";
 import { decide, discardVersion, duplicate, markReady, removeDraft, reviseQuote, removePayment, renewLink, restoreDraft, restorePayment, revokeLink, startCreditNote, stopRepeat } from "../../actions.ts";
 import { FinaliseDialog, InvoiceDialog, PaymentDialog, RepeatDialog, SendDialog } from "./dialogs.tsx";
@@ -35,6 +36,7 @@ export type DocumentViewProps = {
   payments: PaymentView[];
   related: RelatedView[];
   mailWorks: boolean | null;
+  mailReason: MailState["reason"];
   upcoming: string | null;
   companyMissing: string[];
   clientMissing: string[];
@@ -263,7 +265,7 @@ export function DocumentView(props: DocumentViewProps) {
       )}
 
       {(open === "send" || open === "reminder") && (
-        <SendDialog t={t} doc={doc} kind={open} mailWorks={props.mailWorks} pdfHref={pdfHref} onClose={() => setOpen(null)} onDone={(text, emailed) => { setOpen(null); say(text, emailed ? { sent: true } : {}); }} />
+        <SendDialog t={t} doc={doc} kind={open} mailWorks={props.mailWorks} mailReason={props.mailReason} pdfHref={pdfHref} onClose={() => setOpen(null)} onDone={(text, emailed) => { setOpen(null); say(text, emailed ? { sent: true } : {}); }} />
       )}
       {open === "finalise" && (
         <FinaliseDialog t={t} doc={doc} upcoming={props.upcoming} companyMissing={props.companyMissing} clientMissing={props.clientMissing} canSettings={props.rights.settings}

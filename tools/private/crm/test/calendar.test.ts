@@ -105,7 +105,7 @@ test("what goes in bulk is caught up: a deal deleted, a contact deleted, a membe
   assert.equal(chest.calendar.get(`step:${s2.step.id}`)!.title.en, "Call · Anne Petit-Roux");
 });
 
-test("a first sync goes in batches of 100 (calendar.putMany, SDK studio.15); a step the Chest refuses does not hold back the others", async () => {
+test("a first sync goes in batches of 100 (calendar.putMany, SDK studio.15); the Chest answers each event (studio.16): a refused step is not remembered, the others are", async () => {
   const { sql } = database;
   await reconcile(sql);
   const made: string[] = [];
@@ -128,15 +128,20 @@ test("a first sync goes in batches of 100 (calendar.putMany, SDK studio.15); a s
   }
   assert.equal(done.put, 229);
   for (const id of made) assert.equal(chest.calendar.has(`step:${id}`), id !== made[150], id);
-  // The steps go by day: two batches of 100, then the last 30 — which hold
-  // the refused one, so the SDK sends nothing of them (it checks a batch
-  // whole) and they go one by one: 31 calls instead of 230.
-  const batches = calls.filter(c => c === "PUT /calendar/events").length;
-  assert.equal(batches, 2, calls.slice(0, 5).join(", "));
-  assert.equal(calls.length, 2 + 29, "only the refused batch went one by one");
+  // The steps go by day: three batches (100, 100, 30); the last holds the
+  // refused one, and still goes in one call — no step sent one by one.
+  assert.deepEqual(calls, ["PUT /calendar/events", "PUT /calendar/events", "PUT /calendar/events"]);
   assert.equal(await calendarWorks(sql), true);
-  // Nothing changed: nothing sent again.
+  // Only what the Chest took is remembered as put.
+  const remembered = new Set((await sql<{ step_id: string }[]>`select step_id::text as step_id from step_events where step_id = any(${made}::bigint[])`).map(r => r.step_id));
+  assert.equal(remembered.size, 229);
+  assert.equal(remembered.has(made[150]!), false, "the refused step is not taken for put");
+  // Nothing changed: only the refused one is tried again, and still refused.
   assert.equal((await reconcile(sql)).put, 0);
+  // Brought back within reach: put at the next run.
+  await sql`update steps set due_on = due_on - interval '3 years' where id = ${made[150]!}`;
+  assert.equal((await reconcile(sql)).put, 1);
+  assert.equal(chest.calendar.has(`step:${made[150]!}`), true);
   await sql`delete from steps where id = any(${made}::bigint[])`;
   await reconcile(sql);
 });

@@ -728,6 +728,12 @@ export const fr: Catalogue = {
     sent: "Envoyé à {to}, avec le PDF.",
     reminded: "Relance envoyée à {to}.",
     noMailTitle: "Votre Chest ne peut pas encore envoyer d’e-mails",
+    noMailWhy: {
+      not_granted: "Votre Chest ne peut pas encore envoyer d’e-mails",
+      not_connected: "La messagerie de votre Chest n’est pas encore connectée : son propriétaire peut la connecter",
+      suspended: "Votre Chest a mis l’envoi d’e-mails en pause",
+      quota: "Votre Chest a envoyé tous ses e-mails du jour",
+    },
     byHandTitle: "Envoyez-le vous-même",
     noMailBody: "Téléchargez le PDF, joignez-le à un e-mail depuis votre messagerie, puis revenez le marquer comme envoyé.",
     noMailReminder: "Téléchargez le PDF, renvoyez-le avec un mot depuis votre messagerie, puis marquez la relance comme faite.",
@@ -930,6 +936,12 @@ export const fr: Catalogue = {
       emailHint: "Dans la langue du client, au nom de votre entreprise. La personne qui a émis la facture est prévenue aussi. Si votre Chest ne peut pas encore envoyer d’e-mails, seule elle est prévenue.",
       bell: "Seulement nous prévenir",
       bellHint: "La personne qui a émis la facture est prévenue dans la cloche du Chest, et relance le client.",
+      noMail: {
+        not_granted: "Votre Chest ne peut pas encore envoyer d’e-mails : pour l’instant, seule la personne qui a émis la facture est prévenue.",
+        not_connected: "La messagerie de votre Chest n’est pas encore connectée : pour l’instant, seule la personne qui a émis la facture est prévenue. Le propriétaire du Chest peut la connecter.",
+        suspended: "Votre Chest a mis l’envoi d’e-mails en pause : les relances attendent qu’il envoie à nouveau.",
+        quota: "Votre Chest a envoyé tous ses e-mails du jour : les relances partent demain.",
+      },
     },
     regime: {
       standard: "Vous facturez la TVA",

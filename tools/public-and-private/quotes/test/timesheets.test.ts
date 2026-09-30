@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
 import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
 import { finalise, getDocument } from "../lib/documents.ts";
-import { handoffOf, invoicedHandoff, publishPending, readBillable } from "../lib/timesheets.ts";
+import { handoffOf, invoicedHandoff, occurredAtFor, publishPending, readBillable } from "../lib/timesheets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -162,4 +162,29 @@ test("the Chest refuses quotes.invoiced when the invoice is issued: the next mor
   assert.equal(await chest.run("followup", JOB), 204);
   assert.equal(await publishPending(sql), 0);
   assert.equal(chest.published.filter(e => e.type === "quotes.invoiced").length, 1, "published once");
+});
+
+test("told late, quotes.invoiced keeps the time the invoice was issued; past 24 hours it goes without it", async () => {
+  const { sql } = database;
+  // Issued now on a Chest that refused; told 3 hours later.
+  await told("timesheets.billable", billable("60"));
+  const id = String(await draftOf("60"));
+  await finalise(sql, asMember(sofia), id, today);
+  const [{ finalised_at: issuedAt }] = await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${id}`;
+  const later = issuedAt.getTime() + 3 * 3600_000;
+  assert.equal(await invoicedHandoff(sql, id, null, later), true);
+  const [late] = chest.published.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "60");
+  assert.equal(late!.occurredAt, issuedAt.toISOString(), "the time it was issued, not the time it was told");
+
+  // Told 30 hours after it was issued: the Chest would refuse that time; told without it.
+  await told("timesheets.billable", billable("61"));
+  const old = String(await draftOf("61"));
+  await finalise(sql, asMember(sofia), old, today);
+  const [{ finalised_at: oldAt }] = await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${old}`;
+  const before = Date.now();
+  assert.equal(await publishPending(sql, oldAt.getTime() + 30 * 3600_000), 1);
+  const [older] = chest.published.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "61");
+  assert.ok(Date.parse(older!.occurredAt) >= before - 1000, "the Chest's time of the publish");
+  assert.equal(occurredAtFor(new Date(Date.now() - 24 * 3600_000 + 60_000)), undefined, "within the margin of the 24 hours: without it");
+  assert.equal(occurredAtFor(null), undefined);
 });

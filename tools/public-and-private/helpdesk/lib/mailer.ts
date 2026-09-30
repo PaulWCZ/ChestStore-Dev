@@ -45,7 +45,9 @@ export async function confirm(ticket: Pick<Ticket, "number" | "subject" | "custo
     thread: thread(ticket.number),
     ...(company ? { fromName: company } : {}),
     ...(answering ? { inReplyTo: answering, references: [answering] } : {}),
-    key: `confirm:${ticket.number}`,
+    // The recipient in the key (studio.16): after a restore from a backup,
+    // a ticket number can name another customer's request.
+    key: `confirm:${ticket.number}:${ticket.customerEmail}`,
     // Their own request's receipt and its only link: it must arrive
     // whatever a customer who is also a member chose for email.
     transactional: true,
@@ -66,7 +68,7 @@ export async function answer(ticket: Pick<Ticket, "number" | "subject" | "custom
     fromName: (company ? `${agent.firstName || agent.name} — ${company}` : agent.firstName || agent.name).slice(0, 100),
     ...(threading.inReplyTo ? { inReplyTo: threading.inReplyTo, references: threading.references } : {}),
     ...(files.length > 0 ? { attachments: files.map(f => ({ file: f.object, name: f.fileName })) } : {}),
-    key: `reply:${messageId}`,
+    key: `reply:${messageId}:${ticket.customerEmail}`,
     // The answer to their own request (studio.15).
     transactional: true,
   });

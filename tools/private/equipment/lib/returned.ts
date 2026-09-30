@@ -36,6 +36,17 @@ async function stillTrue(sql: Query, member: string): Promise<boolean> {
   return row !== undefined && row.leaving && row.held === 0;
 }
 
+// When it happened, told to the Chest (events.publish's occurredAt,
+// studio.16): People reads the true time of the last take-back even when
+// the schedule tells it later. The Chest takes a time at most 24 hours
+// back; an event older than that (a Chest down for a night) goes without
+// it — its time stays in the key, and the receiver reads the Chest's. Five
+// minutes of margin for the two clocks.
+export const occurredMarginMs = 5 * 60_000;
+export function occurredAtFor(at: Date, now = Date.now()): Date | undefined {
+  return now - at.getTime() < events.occurredLimits.behindMs - occurredMarginMs ? at : undefined;
+}
+
 // publishReturned tells what waits, oldest first; stops at the first
 // refusal of the Chest (the next run tries again). The same key twice is
 // one event for the Chest: two runs at once publish nothing twice.
@@ -49,7 +60,8 @@ export async function publishReturned(sql: Query): Promise<number> {
       continue;
     }
     try {
-      await events.publish("equipment.returned", { member: row.member_id }, { key: returnedKey(row) });
+      const occurredAt = occurredAtFor(row.at);
+      await events.publish("equipment.returned", { member: row.member_id }, { key: returnedKey(row), ...(occurredAt ? { occurredAt } : {}) });
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
       // A key the Chest already holds for something else would be refused
@@ -65,6 +77,11 @@ export async function publishReturned(sql: Query): Promise<number> {
   }
   return told;
 }
+
+// A retry within the day gives the same time (the Chest would refuse
+// another under the key); one that crosses the 24 hours drops it, and the
+// Chest, which then may still hold the key, answers key_conflict: the
+// event was taken the first time, and is marked told.
 
 // tellPeople is publishReturned that never fails the action it follows: a
 // laptop taken back is taken back whatever the Chest answers.

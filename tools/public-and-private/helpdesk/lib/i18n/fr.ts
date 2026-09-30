@@ -515,6 +515,8 @@ export const fr: Catalogue = {
     noticesHint: "Prévenez un canal de la messagerie de l’équipe quand une demande attend quelqu’un. Envoyé : le numéro, l’objet, qui demande et un lien — jamais les messages.",
     noticesNone: "Aucun canal pour l’instant.",
     noticesUnavailable: "Votre Chest ne peut pas encore envoyer d’avis à d’autres services. Cela marchera dès qu’il le pourra.",
+    noticesSuspended: "Le propriétaire de votre Chest a mis en pause les avis de Support. Vos canaux sont gardés : ils seront à nouveau prévenus dès la reprise.",
+    noticesUnknown: "Votre Chest n’a pas répondu à l’instant : impossible d’ajouter un canal. Réessayez dans un moment.",
     noticeAdd: "Ajouter un canal",
     noticeKind: "Où",
     noticeKinds: { slack: "Slack", teams: "Microsoft Teams", generic: "Un autre service (une adresse web)" },
@@ -660,6 +662,7 @@ export const fr: Catalogue = {
     webhook_address: "Écrivez une adresse https publique. Pour Slack ou Teams, choisissez-le plus haut.",
     webhook_no_answer: "Cette adresse n’a pas répondu à la vérification du Chest. Préparez d’abord le récepteur, puis réessayez.",
     webhooks_unavailable: "Votre Chest ne peut pas encore envoyer d’avis à d’autres services.",
+    webhooks_suspended: "Le propriétaire de votre Chest a mis en pause les avis de Support.",
     too_many_targets: "{max} canaux au plus.",
   },
   // A request from Forms: the other answers, one a line, in the message.
