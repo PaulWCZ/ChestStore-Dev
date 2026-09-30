@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
@@ -29,7 +29,7 @@ export function letterText(t: Catalogue, letter: Letter, path: string, base: str
 export async function email(recipients: Iterable<string>, letter: (t: Catalogue, locale: Locale) => Letter | null, options: { path: string; key: string }): Promise<number> {
   const ids = [...new Set(recipients)].filter(r => r.startsWith("mbr_"));
   if (ids.length === 0) return 0;
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   let sent = 0;
   for (const person of (await people(ids)).values()) {
     if (person.status !== "member") continue;

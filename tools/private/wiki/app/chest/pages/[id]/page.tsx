@@ -111,7 +111,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
           {p.space.visibility === "private" && <p className="muted small read-only"><Lock />{t.mine.notice}</p>}
           {!writer && can(member, "write") && <p className="muted small read-only"><Lock />{format(t.page.readOnly, { space: p.space.name })}</p>}
           {holder && (
-            <p className="notice" role="status"><Lock />{format(holder.idle ? t.page.editingIdle : t.page.editing, { name: nameOf(who.get(holder.memberId), locale), time: moment(holder.since, locale, now) })}</p>
+            <p className="notice" role="status"><Lock />{format(holder.idle ? t.page.editingIdle : t.page.editing, { name: nameOf(who.get(holder.memberId), locale), time: moment(holder.since, locale, now, member.timeZone) })}</p>
           )}
           {read.concerned && read.asked && (read.mine === null || read.mine.version < read.asked.version) && (
             <ReadRequest pageId={p.id} again={read.mine !== null}
@@ -156,7 +156,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
             moderator={writer}
             initial={thread.map(c => {
               const person = who.get(c.author);
-              return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: moment(c.createdAt, locale, now), edited: c.editedAt !== null, parentId: c.parentId, quote: c.quote, resolved: c.resolvedAt !== null, resolvedBy: c.resolvedBy ? (c.resolvedBy === member.id ? t.comments.you : nameOf(who.get(c.resolvedBy), locale)) : null };
+              return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: moment(c.createdAt, locale, now, member.timeZone), edited: c.editedAt !== null, parentId: c.parentId, quote: c.quote, resolved: c.resolvedAt !== null, resolvedBy: c.resolvedBy ? (c.resolvedBy === member.id ? t.comments.you : nameOf(who.get(c.resolvedBy), locale)) : null };
             })}
             people={mentionable}
             t={{ comments: t.comments, errors: t.errors, locale }}

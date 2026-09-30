@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { notFound } from "next/navigation";
 import { can } from "../../../../lib/access.ts";
 import { getClient } from "../../../../lib/clients.ts";

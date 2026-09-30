@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { forbidden, notFound } from "next/navigation";
 import { AppError } from "../../../../../lib/app-error.ts";
 import { can } from "../../../../../lib/access.ts";
@@ -42,7 +42,7 @@ export default async function EditItem({ params }: { params: Promise<{ id: strin
         fields={fields.map(f => ({ ...f, name: fieldName(f, t) }))}
         nextTag={hints.nextTag}
         suppliers={hints.suppliers}
-        currency={chest.currency()}
+        currency={chest.currency}
         today={chest.today()}
         t={{ form: t.form, item: t.item, periods: t.periods, errors: t.errors, common: t.common, date: t.date }}
       />

@@ -8,7 +8,7 @@ import { can } from "../../../lib/access.ts";
 import { bookableDays, context, lockOf, shownDay } from "../../../lib/context.ts";
 import { deskDay, lentDesks } from "../../../lib/desk-bookings.ts";
 import { directory } from "../../../lib/directory.ts";
-import { chestGroups } from "../../../lib/groups.ts";
+import { chestGroups, groupsOf } from "../../../lib/groups.ts";
 import { format, formatDay } from "../../../lib/i18n/index.ts";
 import { features as featureKeys, isPart, memberPattern, type Feature, type Part } from "../../../lib/model.ts";
 import { nameOf, people } from "../../../lib/people.ts";
@@ -31,7 +31,7 @@ export default async function Desks({ searchParams }: { searchParams: Promise<Re
   const everyone = exempt ? await directory() : [];
   const target = exempt && typeof params["for"] === "string" && memberPattern.test(params["for"]) ? everyone.find(p => p.id === params["for"] && p.id !== member.id) ?? null : null;
   // Whom the page books for: me, or the person an admin chose.
-  const me = target ? { id: target.id, groups: target.groups } : { id: member.id, groups: member.groups };
+  const me = target ? { id: target.id, groups: target.groups } : { id: member.id, groups: await groupsOf(member) };
   const href = (changes: Record<string, string | null>) => {
     const q = new URLSearchParams();
     const base: Record<string, string | null> = { day, part: part === "day" ? null : part, view: view === "plan" ? null : view, f: wanted.join(",") || null, office: office?.id ?? null, for: target?.id ?? null, ...changes };

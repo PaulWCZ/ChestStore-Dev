@@ -1,8 +1,9 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import * as chest from "@argentic/chest-sdk/chest";
-import { can, mayCreate, mayEdit, readerOf } from "./access.ts";
+import { chest } from "@argentic/chest-sdk/chest";
+import { can, mayCreate, mayEdit } from "./access.ts";
+import { groupsOf, readerFor } from "./groups.ts";
 import { AppError } from "./app-error.ts";
 import { isLocale } from "./i18n/index.ts";
 import { isSource, mayBeMine, refreshFed, refPattern, sourceKind, type Source } from "./sources.ts";
@@ -34,7 +35,7 @@ export async function activeMember(value: unknown): Promise<string> {
 // The objective an actor may read (every member with a role reads all).
 export async function readObjective(sql: Query, actor: Member | null, objectiveId: unknown, clock: Clock = clockNow()): Promise<Objective> {
   if (!can(actor, "read")) throw new AppError("forbidden");
-  const found = await objectiveById(sql, id(objectiveId), clock, readerOf(actor!));
+  const found = await objectiveById(sql, id(objectiveId), clock, await readerFor(actor!));
   if (!found) throw new AppError("not_found");
   return found;
 }
@@ -56,7 +57,7 @@ async function checkParent(sql: Query, actor: Member, cycleId: string, level: Le
   const parentId = optionalId(parent);
   if (parentId === null) return null;
   if (level === "company") throw new AppError("parent_invalid");
-  const [row] = await sql<{ cycle_id: string; level: Level }[]>`select o.cycle_id, o.level from objectives o where o.id = ${parentId} and o.archived_at is null ${visibleTo(sql, readerOf(actor))}`;
+  const [row] = await sql<{ cycle_id: string; level: Level }[]>`select o.cycle_id, o.level from objectives o where o.id = ${parentId} and o.archived_at is null ${visibleTo(sql, await readerFor(actor))}`;
   if (!row || String(row.cycle_id) !== cycleId) throw new AppError("parent_invalid");
   const allowed: Level[] = level === "team" ? ["company"] : ["company", "team"];
   if (!allowed.includes(row.level)) throw new AppError("parent_invalid");
@@ -85,7 +86,7 @@ export function checkFeed(source: Source | null, mine: unknown, scope: unknown):
 }
 
 // The language a unit is written in: its writer's (lib/values.ts, unitFor).
-export const unitLocaleOf = (actor: Pick<Member, "locale">): string | null => (isLocale(actor.locale) ? actor.locale : null);
+export const unitLocaleOf = (actor: Pick<Member, "language">): string | null => (isLocale(actor.language) ? actor.language : null);
 
 export function checkSource(value: unknown): Source | null {
   if (value === undefined || value === null || value === "" || value === "manual") return null;
@@ -101,7 +102,7 @@ export async function checkKeyResult(input: KeyResultInput, fallbackOwner: strin
   const owner = input.owner === undefined || input.owner === "" || input.owner === null ? fallbackOwner : await activeMember(input.owner);
   const weight = input.weight === undefined ? 1 : Number(input.weight);
   if (![1, 2, 3].includes(weight)) throw new AppError("invalid");
-  return { ...m, title, owner, weight, currency: m.kind === "money" ? chest.currency() : null, source, ...checkFeed(source, input.mine, input.scope) };
+  return { ...m, title, owner, weight, currency: m.kind === "money" ? chest.currency : null, source, ...checkFeed(source, input.mine, input.scope) };
 }
 
 export async function insertKeyResult(sql: Query, actor: Member, objectiveId: string, k: CheckedKeyResult): Promise<string> {
@@ -144,7 +145,7 @@ export async function createObjective(sql: Sql, actor: Member | null, input: New
   const { personal } = await settings(sql);
   if (level === "personal" && !personal) throw new AppError("personal_off");
   if (theTeam?.archived) throw new AppError("team_archived");
-  if (!mayCreate(actor, level, theTeam, personal)) throw new AppError("forbidden");
+  if (!mayCreate(actor, level, theTeam, personal, await groupsOf(actor))) throw new AppError("forbidden");
   const title = clean(input.title, limits.title);
   const why = clean(input.why ?? "", limits.why, { multiline: true, optional: true });
   const owner = input.owner === undefined || input.owner === "" || input.owner === null ? actor.id : await activeMember(input.owner);
@@ -190,7 +191,7 @@ export async function updateObjective(sql: Sql, actor: Member | null, objectiveI
     const next = await teamFor(sql, "team", input.teamId);
     if (next?.archived) throw new AppError("team_archived");
     const { personal } = await settings(sql);
-    if (!mayCreate(actor, "team", next, personal)) throw new AppError("forbidden");
+    if (!mayCreate(actor, "team", next, personal, await groupsOf(actor!))) throw new AppError("forbidden");
     teamId = next!.id;
   }
   if (parent !== undefined && parent === o.id) throw new AppError("parent_invalid");

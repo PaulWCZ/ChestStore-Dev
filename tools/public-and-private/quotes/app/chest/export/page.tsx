@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { Info, Table, Zip } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
@@ -56,7 +56,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
   const rows = (await listDocuments(db(), member, { types: ["invoice", "credit"], from: chosen.from, to: chosen.to }, today)).filter(r => r.status === "final");
   const invoices = rows.filter(r => r.type === "invoice");
   const credits = rows.filter(r => r.type === "credit");
-  const currency = rows[0]?.currency ?? chest.currency();
+  const currency = rows[0]?.currency ?? chest.currency;
   const sum = (key: "net" | "vat" | "gross") => rows.reduce((s, r) => s + (r.type === "credit" ? -r[key] : r[key]), 0);
   const query = new URLSearchParams(chosen).toString();
   const day = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });

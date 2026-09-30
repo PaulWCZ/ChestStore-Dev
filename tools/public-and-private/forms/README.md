@@ -177,7 +177,7 @@ the Chest cannot take it, the answer is kept all the same. People are
 member ids (`mbr_…`), never names from the Chest; texts are what the
 respondent wrote, trimmed and bounded; yes/no and *Other* in the language
 the respondent read. `path` is the answer's page on the Chest's team
-address (`chest.teamUrl()` + `path`), for a link back.
+address (`chest.teamUrl` + `path`), for a link back.
 
 **Clients receives `forms.contact`** (its README, "What Clients receives":
 the contact found by email — or by phone only when the name is the same
@@ -417,7 +417,8 @@ owned are owned by "erased", then the erasure is acknowledged.
 
 ## Needs from the SDK
 
-All exist as proposals in the studio's working copy; the tool calls them as
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1). All exist as
+proposals in the studio's working copy; the tool calls them as
 if shipped and keeps working without them:
 
 - **Public uploads with claim** (`files.uploadUrl(…, {public, expiresUnclaimedAfter})`,
@@ -437,8 +438,11 @@ if shipped and keeps working without them:
   next answer; retention does not run by itself (see below).
 - **Broadcast** (`notifications.broadcast`): without it, a team form's
   opening is not announced; its link is shared by hand.
-- **Chest settings** (`chest.company()`, `timeZone()`, `publicUrl()`,
-  `teamUrl()`, `theme()`: the look the company chose, and its logo).
+- **Chest settings** (`chest.publicUrl`, `chest.teamUrl`, `chest.theme()`:
+  the look the company chose, and its logo; official in 0.3.0:
+  `chest.organization.name`, `chest.timeZone` — the day of a closing date
+  and of the answers' filter, and of the database's `current_date` —,
+  `chest.language`).
 - **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.3-studio.1; public
   forms wear the company's brand or Forms' own look, never a catalogue
   theme chosen for the team — `surface: "public"`):

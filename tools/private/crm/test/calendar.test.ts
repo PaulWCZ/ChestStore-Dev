@@ -6,7 +6,7 @@ import * as deals from "../lib/deals.ts";
 import { en } from "../lib/i18n/en.ts";
 import { fr } from "../lib/i18n/fr.ts";
 import { leave } from "../lib/lifecycle.ts";
-import { addDays, today } from "../lib/model.ts";
+import { addDays, dayIn } from "../lib/model.ts";
 import { calendarWorks, publishStep, reconcile } from "../lib/step-calendar.ts";
 import * as steps from "../lib/steps.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -21,15 +21,14 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  process.env["CHEST_TIMEZONE"] = "Europe/Paris";
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "files", "calendar"] });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "files", "calendar"], chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();
   await database.close();
 });
 
-const day = addDays(today(), 3);
+const day = addDays(dayIn("Europe/Paris"), 3);
 
 test("a step with a time goes into its owner's calendar, in both languages, 30 minutes", async () => {
   const { sql } = database;

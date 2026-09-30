@@ -1,5 +1,5 @@
 import { knownBoards } from "../../../../lib/sources.ts";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,7 +7,8 @@ import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Chevron, Lock } from "../../../../components/icons.tsx";
 import { PersonLine } from "../../../../components/person.tsx";
 import { Confidence, Progress } from "../../../../components/progress.tsx";
-import { can, mayEdit, readerOf } from "../../../../lib/access.ts";
+import { can, mayEdit } from "../../../../lib/access.ts";
+import { readerFor } from "../../../../lib/groups.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { comments as readComments } from "../../../../lib/comments.ts";
 import { db } from "../../../../lib/db.ts";
@@ -50,7 +51,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
   const time = cycleTime(cycle, ctx.clock.today);
   const ended = closed || time.phase === "after";
   const [siblings, history, notes, changes, viewers] = await Promise.all([
-    cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)),
+    cycleObjectives(sql, cycle.id, ctx.clock, await readerFor(member)),
     checkIns(sql, o.keyResults.map(k => k.id)),
     readComments(sql, o.id),
     keyResultChanges(sql, o.keyResults.map(k => k.id)),
@@ -59,7 +60,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
   const parent = o.parentId ? siblings.find(s => s.id === o.parentId) ?? null : null;
   const grandParent = parent?.parentId ? siblings.find(s => s.id === parent.parentId) ?? null : null;
   const children = siblings.filter(s => s.parentId === o.id);
-  const carriedFrom = o.carriedFrom ? await objectiveById(sql, o.carriedFrom, ctx.clock, readerOf(member), { archived: true }) : null;
+  const carriedFrom = o.carriedFrom ? await objectiveById(sql, o.carriedFrom, ctx.clock, await readerFor(member), { archived: true }) : null;
   const carriedCycle = carriedFrom ? ctx.cycles.find(c => c.id === carriedFrom.cycleId) ?? null : null;
   const changeList = [...changes.values()].flat();
   const ids = [o.owner, o.retroBy ?? "", ...o.keyResults.map(k => k.owner), ...[...history.values()].flat().map(c => c.author), ...notes.map(c => c.author), ...children.map(c => c.owner), ...viewers, ...changeList.flatMap(c => [c.author, ...(c.field === "owner" ? [c.before, c.after] : [])])];
@@ -116,10 +117,10 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
           <section aria-labelledby="krs" className="stack">
             <div className="section-title flush">
               <h2 id="krs">{t.objective.keyResults}</h2>
-              {editable && <span className="end"><AddKeyResult objectiveId={o.id} owners={owners} boards={boards} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} /></span>}
+              {editable && <span className="end"><AddKeyResult objectiveId={o.id} owners={owners} boards={boards} defaultOwner={o.owner} locale={locale} currency={chest.currency} t={cardWords} /></span>}
             </div>
             {view.keyResults.length === 0 ? (
-              <EmptyState title={t.objective.noKeyResults} body={t.objective.noKeyResultsBody} action={editable ? <AddKeyResult objectiveId={o.id} owners={owners} boards={boards} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} primary /> : null} />
+              <EmptyState title={t.objective.noKeyResults} body={t.objective.noKeyResultsBody} action={editable ? <AddKeyResult objectiveId={o.id} owners={owners} boards={boards} defaultOwner={o.owner} locale={locale} currency={chest.currency} t={cardWords} primary /> : null} />
             ) : view.keyResults.map(k => {
               const raw = o.keyResults.find(x => x.id === k.id)!;
               const list = history.get(k.id) ?? [];

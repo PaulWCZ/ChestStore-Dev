@@ -11,19 +11,19 @@ export async function currentMember(): Promise<Member | null> {
 }
 
 // The viewer of a members' page: the member, their language — the Chest
-// gives it (member.locale), the tool has no switch of its own — and its
+// gives it (member.language), the tool has no switch of its own — and its
 // words.
 export type Viewer = { member: Member; locale: Locale; t: Catalogue };
 
 export async function viewer(): Promise<Viewer | null> {
   const who = await currentMember();
   if (!who) return null;
-  const locale: Locale = isLocale(who.locale) ? who.locale : "en";
+  const locale: Locale = isLocale(who.language) ? who.language : "en";
   return { member: who, locale, t: catalogue(locale) };
 }
 
 // The language of a public page: the visitor's switch (cookie "lang"), the
-// browser's languages, English.
+// browser's languages, the Chest's own language (chest.language), English.
 export async function publicWords(): Promise<{ locale: Locale; t: Catalogue }> {
   // Proposal (studio): visitors.language — the switch, then the browser,
   // then the Chest's own language (not always English).

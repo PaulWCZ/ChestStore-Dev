@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
@@ -105,7 +105,7 @@ export async function emailInterviewers(list: Today[], time: (start: string) => 
   const done = { sent: [] as string[], held: [] as string[] };
   if (byPerson.size === 0) return done;
   const who = await lookUp(byPerson.keys());
-  const team = chest.teamUrl() ?? "";
+  const team = chest.teamUrl ?? "";
   for (const [id, theirs] of byPerson) {
     const person = who.get(id);
     if (person?.status !== "member") continue;
@@ -116,7 +116,7 @@ export async function emailInterviewers(list: Today[], time: (start: string) => 
         to: { member: id },
         subject: t.morningSubject,
         text: format(t.morningBody, { firstName: person.name.split(/\s+/u)[0] || person.name, list: lines.join("\n") }),
-        ...(chest.company() ? { fromName: chest.company() } : {}),
+        fromName: chest.organization.name,
         // One a day per person, whatever the retries: the key names both.
         key: `morning:${day}:${id}`,
       });

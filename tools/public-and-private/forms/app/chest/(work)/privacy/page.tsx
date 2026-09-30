@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState } from "@argentic/chest-ui/components";
 import { Back, Search } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
@@ -41,7 +41,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
     }
   }
   const who = await people((found ?? []).flatMap(f => (f.respondent ? [f.respondent] : [])));
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   return (
     <div className="narrow">
       <a className="back-link" href="/chest"><Back />{t.shell.home}</a>

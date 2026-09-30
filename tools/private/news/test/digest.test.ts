@@ -24,7 +24,7 @@ beforeEach(async () => {
   await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ members, groups: fakeGroups, capabilities: ["members", "files", "notifications"], schedules: [{ name: "publish", cron: "*/15 * * * *" }, { name: "digest", cron: "30 8 * * 1" }] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, groups: fakeGroups, capabilities: ["members", "files", "notifications"], schedules: [{ name: "publish", cron: "*/15 * * * *" }, { name: "digest", cron: "30 8 * * 1" }] });
   return chest;
 };
 const zone = "Europe/Paris";

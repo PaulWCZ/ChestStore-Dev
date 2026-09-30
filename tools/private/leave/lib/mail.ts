@@ -1,7 +1,8 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
+import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
@@ -44,6 +45,18 @@ export async function mailNotice(): Promise<MailNotice> {
   }
 }
 
+// How this person chose, in the Chest, to get email from every tool: the
+// members API says it (never the request's assertion); absent is "all",
+// and so is a Chest that does not answer (nothing is claimed held).
+export async function mailPreference(memberId: string): Promise<"all" | "digest" | "none"> {
+  try {
+    return (await members.get(memberId))?.mailPreference ?? "all";
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return "all";
+  }
+}
+
 export async function setEmail(sql: Query, actor: Member | null, on: unknown): Promise<void> {
   if (!can(actor, "request")) throw new AppError("forbidden");
   if (typeof on !== "boolean") throw new AppError("invalid");
@@ -65,8 +78,8 @@ export function letterText(t: Catalogue, letter: Letter, path: string, base: str
 // without mail, or when everyone turned it off here).
 //
 // Two choices apply: the person's switch here (Leave's own emails), and
-// the one they made once in the Chest for every tool (member.mailPreference:
-// all, one a day, none), which mail.send applies — "held" is not an error.
+// the one they made once in the Chest for every tool (mailPreference in
+// the members API: all, one a day, none), which mail.send applies — "held" is not an error.
 // transactional: the answer to the person's own request (approved,
 // refused, their cancellation settled), which they get whatever they chose
 // in the Chest; everything else (a request to answer, leave recorded for
@@ -77,7 +90,7 @@ export async function email(sql: Query, recipients: Iterable<string>, letter: (t
   const off = new Set((await sql<{ member_id: string }[]>`select member_id from staff where member_id in ${sql(ids)} and email_off`).map(r => r.member_id));
   const wanted = ids.filter(i => !off.has(i));
   if (wanted.length === 0) return 0;
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   let sent = 0;
   for (const person of (await people(wanted)).values()) {
     if (person.status !== "member") continue;

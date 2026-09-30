@@ -8,7 +8,7 @@ import { isLocale, type Locale } from "./i18n/index.ts";
 export function asker(request: Request): { actor: Member; locale: Locale } | null {
   const actor = member(request);
   if (!actor) return null;
-  return { actor, locale: isLocale(actor.locale) ? actor.locale : "en" };
+  return { actor, locale: isLocale(actor.language) ? actor.language : "en" };
 }
 
 const noStore = { "Cache-Control": "no-store" };

@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { RemindButton } from "../../components/remind-button.tsx";
 import { Avatar, EmptyState, PageHeader } from "@argentic/chest-ui/components";

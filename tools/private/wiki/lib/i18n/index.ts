@@ -56,4 +56,4 @@ export function newPageWords(t: Catalogue) {
 }
 export type NewPageWords = ReturnType<typeof newPageWords>;
 
-export { format, formatDate, intl, moment, orList, plural, relative, timeZone } from "./format.ts";
+export { format, formatDate, intl, moment, orList, plural, relative } from "./format.ts";

@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { atLeast } from "../../../../../../lib/access.ts";
 import { db } from "../../../../../../lib/db.ts";
 import { team, versionOf } from "../../../../../../lib/forms.ts";
@@ -28,7 +28,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   const { owner, shared, watchers } = await team(sql, form.id);
   const ids = [...new Set([owner, ...shared.map(s => s.member)])].filter(id => id.startsWith("mbr_"));
   const who = await people(ids);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const closes = form.closesAt ? zonedParts(new Date(form.closesAt), zone) : null;
   const { taken } = (await sql<{ taken: boolean }[]>`select exists (select 1 from answers where form_id = ${form.id}) or exists (select 1 from participants where form_id = ${form.id}) as taken`)[0]!;
   const published = form.version > 0 ? await versionOf(sql, form.id, form.version) : null;

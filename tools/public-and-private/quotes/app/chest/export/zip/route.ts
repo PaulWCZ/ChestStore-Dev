@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { db } from "../../../../lib/db.ts";
 import { exportZip, period } from "../../../../lib/export.ts";
 import { attachment, asker, failure, refuse } from "../../../../lib/http.ts";
@@ -9,7 +9,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!who) return refuse("forbidden", 401);
   try {
     const query = new URL(request.url).searchParams;
-    const { stream, fileName } = await exportZip(db(), who.actor, who.locale, period(query.get("from"), query.get("to")), chest.today(), chest.currency());
+    const { stream, fileName } = await exportZip(db(), who.actor, who.locale, period(query.get("from"), query.get("to")), chest.today(), chest.currency);
     return new Response(stream, { headers: { "Content-Type": "application/zip", "Content-Disposition": attachment(fileName), "Cache-Control": "no-store" } });
   } catch (error) {
     return failure(error);

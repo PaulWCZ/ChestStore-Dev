@@ -1,7 +1,8 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { db } from "../../../../../../lib/db.ts";
 import { AppError } from "../../../../../../lib/errors.ts";
 import { attachment } from "../../../../../../lib/export.ts";
-import { catalogue, format, isLocale } from "../../../../../../lib/i18n/index.ts";
+import { catalogue, format } from "../../../../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../../../../lib/people.ts";
 import { csvCell, report } from "../../../../../../lib/reads.ts";
 import { currentMember } from "../../../../../../lib/session.ts";
@@ -13,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const actor = await currentMember();
-    const locale = isLocale(actor?.locale) ? actor!.locale : "en";
+    const locale = localeOf(actor?.language ?? "en");
     const t = catalogue(locale);
     const { page, ask, rows } = await report(db(), actor, id);
     const who = await people(rows.map(r => r.memberId));

@@ -96,6 +96,10 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
   `lib/session.ts` or `lib/people.ts`; dates with month names are formatted
   on the server (a browser's calendar data differs from Node's).
 - Money stays integer cents; format with `money()`.
+- The company's day is `today()` of `lib/zone.ts` (`chest.timeZone`), never
+  a zone written in the code nor `new Date().toISOString().slice(0, 10)`;
+  SQL that cuts instants into days says `at time zone ${chestZone()}`.
+  A date shown to a member is formatted in `member.timeZone`.
 - **A form answer is filed on a contact only when surely theirs** (same
   email, or same phone and same name): never loosen `match()` in
   `lib/from-forms.ts` — one person's words in another's file is a GDPR

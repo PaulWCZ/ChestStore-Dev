@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { approversFor } from "../../lib/approvals.ts";
@@ -11,7 +11,7 @@ import * as cards from "../../lib/cards.ts";
 import * as expenses from "../../lib/expenses.ts";
 import { importExpenses as importLines, type Imported } from "../../lib/imports.ts";
 import * as payments from "../../lib/payments.ts";
-import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import { catalogue } from "../../lib/i18n/index.ts";
 import { holders, mayApprove, nameOf, people } from "../../lib/people.ts";
 import { forget, inspect } from "../../lib/receipts.ts";
 import { currentMember } from "../../lib/session.ts";
@@ -89,7 +89,7 @@ export async function sendExpenses(ids: string[]): Promise<Result<{ count: numbe
     const sql = db();
     const sent = await expenses.submit(sql, actor, ids, mayApprove);
     await tell.sent(sql, actor, sent);
-    const locale = isLocale(actor.locale) ? actor.locale : "en";
+    const locale = localeOf(actor.language);
     const to = sent.approver ? nameOf((await people([sent.approver])).get(sent.approver), locale)
       : (await approversFor(sql, actor.id)).length > 0 ? catalogue(locale).people.accountants : null;
     return { count: sent.expenses.length, to };
@@ -102,7 +102,7 @@ export async function decideExpenses(ids: string[], verdict: "approve" | "refuse
     const decisions = await expenses.decide(sql, actor, ids, verdict, reason);
     await tell.decided(sql, actor, decisions, verdict, reason ?? "");
     const owner = decisions[0]?.owner ?? "";
-    const locale = isLocale(actor.locale) ? actor.locale : "en";
+    const locale = localeOf(actor.language);
     return { count: decisions.reduce((n, d) => n + d.expenses.length, 0), owner: nameOf((await people([owner])).get(owner), locale) };
   });
 }
@@ -160,7 +160,7 @@ export async function setApprover(memberId: string, approverId: string | null): 
     const previous = await settings.setApprover(sql, actor, memberId, approverId, mayApprove);
     await tell.settleWaiting(sql, [memberId]);
     await tell.refresh(sql, [memberId, ...previous, ...(approverId ? [approverId] : [])]);
-    const locale = isLocale(actor.locale) ? actor.locale : "en";
+    const locale = localeOf(actor.language);
     const t = catalogue(locale);
     return { name: approverId ? nameOf((await people([approverId])).get(approverId), locale) : t.settings.approvers.accountants };
   });

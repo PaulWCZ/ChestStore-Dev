@@ -8,7 +8,7 @@ import * as deals from "../lib/deals.ts";
 import { AppError } from "../lib/errors.ts";
 import { lookalikes, search } from "../lib/search.ts";
 import * as steps from "../lib/steps.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";

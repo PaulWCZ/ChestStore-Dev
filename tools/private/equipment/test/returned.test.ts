@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as chestSettings from "@argentic/chest-sdk/chest";
+import { chest as chestSettings } from "@argentic/chest-sdk/chest";
 import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
 import { POST } from "../app/chest-events/route.ts";
 import { listCategories } from "../lib/categories.ts";
@@ -143,7 +143,7 @@ test("after they left the Chest, their laptop coming back is still told; the man
     assert.deepEqual(since(start), [{ type: "equipment.returned", data: { member: lea.id } }]);
   } finally {
     chest.former.splice(chest.former.findIndex(m => m.id === lea.id), 1);
-    chest.members.push(lea);
+    chest.members.push(asMember(lea));
     chest.clearCaches();
   }
 });

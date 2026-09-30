@@ -9,6 +9,7 @@ what must not break.
 |---|---|
 | `chest.json`, `chest.proposals.json` | The manifest; the proposals (studio): `schedules`, `mail.send`, `groups: "read"` (+ `group.*`), `receives` of Clients', Tasks', Support's and Hiring's events |
 | `lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
+| `lib/groups.ts` | Every group a member is in (`members.groups.of`; `member.groups` holds only those that give Goals), and `readerFor` |
 | `lib/model.ts` | Pure rules: bounds, values ("12,5"), measures, progress, confidence, cycles' time, scores |
 | `lib/read.ts` | Read models: cycles, objectives with key results, progress, stale, "this week", waiting counts and list, check-ins, key results' changes; `visibleTo(reader)`: **the one filter of confidential objectives** — every read of objectives for a person goes through it |
 | `lib/cycles.ts`, `lib/teams.ts`, `lib/objectives.ts`, `lib/key-results.ts`, `lib/comments.ts`, `lib/orphans.ts` | Services `(sql, actor, …input)`: rights first, bounds, parameterised SQL, codes |

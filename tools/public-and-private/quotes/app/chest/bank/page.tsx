@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { PageHeader } from "@argentic/chest-ui/components";
 import { Back } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
@@ -16,7 +16,7 @@ export default async function BankPage() {
     <div className="page narrow">
       <a className="back" href="/chest/invoices"><Back />{t.shell.invoices}</a>
       <PageHeader size="m" title={t.bank.title} intro={t.bank.intro} />
-      {can(member, "payments") ? <BankView t={t} locale={locale} currency={chest.currency()} /> : <p className="notice">{t.errors.forbidden}</p>}
+      {can(member, "payments") ? <BankView t={t} locale={locale} currency={chest.currency} /> : <p className="notice">{t.errors.forbidden}</p>}
     </div>
   );
 }

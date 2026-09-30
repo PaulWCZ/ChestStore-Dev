@@ -34,7 +34,7 @@ before(async () => {
     mail: { domain: "atelier.test", mailboxes: [] },
     emits: ["forms.answered", "forms.contact", "forms.request"],
     receivers: 1,
-    settings: { company: "Atelier Martin", locale: "en" },
+    chest: { organization: "Atelier Martin", language: "en" },
     webhooks: { max: 200, to: webhookEvents },
   });
 });
@@ -270,6 +270,6 @@ test("a seeded form bilingual: its title in the reader's language on the home pa
   const d = { ...form([q("short", "Name")], "Contact us"), language: "en" as const, alt: { language: "fr" as const, texts: { title: "Contactez-nous" } } };
   const f = await forms.create(sql, asMember(ines), { definition: d, settings: { audience: "public" } });
   assert.equal((await forms.list(sql, asMember(ines), "")).find(x => x.id === f.id)?.title, "Contactez-nous", "Inès reads French");
-  assert.equal((await forms.list(sql, asMember({ ...ines, locale: "en" }), "")).find(x => x.id === f.id)?.title, "Contact us");
-  assert.ok((await forms.list(sql, asMember({ ...ines, locale: "en" }), "contactez")).some(x => x.id === f.id), "found by either title");
+  assert.equal((await forms.list(sql, asMember({ ...ines, language: "en" }), "")).find(x => x.id === f.id)?.title, "Contact us");
+  assert.ok((await forms.list(sql, asMember({ ...ines, language: "en" }), "contactez")).some(x => x.id === f.id), "found by either title");
 });

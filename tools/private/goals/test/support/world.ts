@@ -26,8 +26,7 @@ export async function world(options: { schedules?: { name: string; cron: string 
     ],
     capabilities: ["members", "notifications", ...(options.mail === false ? [] : ["mail" as const]), ...(options.groups ? ["groups" as const] : [])],
     mail: { domain: "atelier-martin.test" },
-    timeZone: "Europe/Paris",
-    settings: { company: "Atelier Martin", currency: "EUR", locale: "fr" },
+    chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", currency: "EUR", language: "fr" },
     ...(options.schedules ? { schedules: options.schedules } : {}),
   });
   return { database, chest, async close() { await chest.close(); await database.close(); } };

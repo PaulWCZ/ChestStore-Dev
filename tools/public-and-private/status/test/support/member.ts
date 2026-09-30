@@ -1,7 +1,8 @@
-import { localeOf, type Member } from "@argentic/chest-sdk/member";
+import type { Member } from "@argentic/chest-sdk/member";
 import type { FakeMember } from "@argentic/chest-sdk/testing";
 
-// A test person as member() reads them from the Chest's assertion.
+// A test person as member() reads them from the Chest's assertion: the
+// Chest's language and zone (the fake's defaults) when the person has none.
 export function asMember(person: FakeMember): Member {
-  return { ...person, locale: localeOf(person.locale) };
+  return { ...person, language: person.language ?? "en", timeZone: person.timeZone ?? "UTC" };
 }

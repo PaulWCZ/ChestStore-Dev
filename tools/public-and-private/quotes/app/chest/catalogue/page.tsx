@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { listItems } from "../../../lib/items.ts";
@@ -11,5 +11,5 @@ export default async function CataloguePage({ searchParams }: { searchParams: Pr
   const { member, locale, t } = v;
   const archived = (await searchParams)["archived"] === "1";
   const items = await listItems(db(), member, { archived });
-  return <CatalogueView t={t} locale={locale} items={items} archived={archived} canWrite={can(member, "catalogue.write")} currency={chest.currency()} />;
+  return <CatalogueView t={t} locale={locale} items={items} archived={archived} canWrite={can(member, "catalogue.write")} currency={chest.currency} />;
 }

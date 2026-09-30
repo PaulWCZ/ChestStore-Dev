@@ -9,7 +9,7 @@ import { feedPage } from "../../../lib/calendar.ts";
 import { bookableDays, context, formDays, lockOf, shownDay } from "../../../lib/context.ts";
 import { told } from "../../../lib/mail.ts";
 import { directory } from "../../../lib/directory.ts";
-import { chestGroups } from "../../../lib/groups.ts";
+import { chestGroups, groupsOf } from "../../../lib/groups.ts";
 import { format, formatDay, formatTime } from "../../../lib/i18n/index.ts";
 import { addDays, minutesNow } from "../../../lib/model.ts";
 import { nameOf, people } from "../../../lib/people.ts";
@@ -30,10 +30,11 @@ export default async function Rooms({ searchParams }: { searchParams: Promise<Re
   // Once today's hours are over, the next working day opens by default.
   const over = minutesNow(c.zone) >= c.rules.dayEnd - 15;
   const day = shownDay(params["day"], over ? { ...c, today: addDays(c.today, 1) } : c);
-  const groups = new Map((await chestGroups()).map(g => [g.id, g.name]));
+  const [groupList, mine] = await Promise.all([chestGroups(), groupsOf(member)]);
+  const groups = new Map(groupList.map(g => [g.id, g.name]));
   const rooms: GridRoom[] = (office?.floors ?? []).flatMap(f => f.rooms.map(r => ({
     id: r.id, name: r.name, capacity: r.capacity, equipment: r.equipment, note: r.note, photo: r.photo, floor: f.name,
-    group: r.groupId ? { name: groups.get(r.groupId) ?? t.rooms.aGroup, mine: exempt || member.groups.includes(r.groupId) } : null,
+    group: r.groupId ? { name: groups.get(r.groupId) ?? t.rooms.aGroup, mine: exempt || mine.includes(r.groupId) } : null,
   })));
   const [bookings, everyone, how] = office ? await Promise.all([roomDay(sql, member, office.id, day, c.zone), directory(), told(sql)]) : [[], [], await told(sql)];
   const who = await people(bookings.flatMap(b => [b.memberId, ...b.attendees]));

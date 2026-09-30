@@ -568,5 +568,16 @@ await step("French, phone width: the page reads without sideways scroll; the sub
   expect(tabs[0].text === "En ce moment", "the first one is \"En ce moment\"");
 });
 
+await step("the public page speaks the visitor's language, else the Chest's (English here)", async () => {
+  const lang = async (headers) => {
+    // A visitor without the harness's cookies.
+    const html = await (await fetch(origin + "/", { headers })).text();
+    return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
+  };
+  expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");
+  expect((await lang({ "accept-language": "de-DE,de;q=0.9" })) === "en", "a German browser reads the Chest's language");
+  expect((await lang({ "accept-language": "de-DE", cookie: "lang=fr" })) === "fr", "the switch wins");
+});
+
 await browser.close();
 done(problems);

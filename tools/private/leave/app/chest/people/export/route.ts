@@ -1,8 +1,8 @@
-import { member } from "@argentic/chest-sdk/member";
+import { localeOf, member } from "@argentic/chest-sdk/member";
 import { AppError } from "../../../../lib/app-error.ts";
 import { toCsv } from "../../../../lib/csv.ts";
 import { db } from "../../../../lib/db.ts";
-import { catalogue, format, isLocale } from "../../../../lib/i18n/index.ts";
+import { catalogue, format } from "../../../../lib/i18n/index.ts";
 import { payroll } from "../../../../lib/payroll.ts";
 import { people, plainName } from "../../../../lib/people.ts";
 import { types } from "../../../../lib/rules.ts";
@@ -16,7 +16,7 @@ export async function GET(request: Request): Promise<Response> {
   const actor = member(request);
   if (!actor) return new Response(null, { status: 401 });
   const month = new URL(request.url).searchParams.get("month") ?? "";
-  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const locale = localeOf(actor.language);
   const t = catalogue(locale);
   try {
     const rows = await payroll(db(), actor, month);

@@ -9,7 +9,7 @@ import postgres from "postgres";
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4500);
-const { browser, context, page, origin, problems } = await open(port, "camille", { locale: "en" });
+const { browser, context, page, origin, problems } = await open(port, "camille", { language: "en" });
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();

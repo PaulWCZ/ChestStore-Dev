@@ -1,5 +1,5 @@
 import { forbidden } from "next/navigation";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { can } from "../../../../lib/access.ts";
 import { listCategories } from "../../../../lib/categories.ts";
 import { db } from "../../../../lib/db.ts";
@@ -29,7 +29,7 @@ export default async function NewItem({ searchParams }: { searchParams: Promise<
         fields={fields.map(f => ({ ...f, name: fieldName(f, t) }))}
         nextTag={hints.nextTag}
         suppliers={hints.suppliers}
-        currency={chest.currency()}
+        currency={chest.currency}
         today={chest.today()}
         t={{ form: t.form, item: t.item, periods: t.periods, errors: t.errors, common: t.common, date: t.date }}
       />

@@ -2,6 +2,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { atLeast, boardAccess, roleOf, type BoardAccess } from "./access.ts";
+import { withGroupsAmong } from "./groups.ts";
 import { board, fields as boardFields, membership as membershipOf, type Board } from "./boards.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
@@ -455,7 +456,7 @@ export async function audience(b: Board, ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return allowed;
   try {
     const found = await members.lookup(ids);
-    for (const m of found.members) if (boardAccess(m, b) !== "none") allowed.add(m.id);
+    for (const m of await withGroupsAmong(found.members, b.groups)) if (boardAccess(m, b) !== "none") allowed.add(m.id);
   } catch (error) {
     if (error instanceof ChestError) throw new AppError("unavailable");
     throw error;
@@ -840,7 +841,8 @@ export async function urgentCounts(sql: Sql, memberIdsList: string[], now = ches
   let who = new Map<string, Member>();
   if (privateOnes.length > 0) {
     try {
-      who = new Map((await members.lookup([...new Set(privateOnes.map(r => r.member_id))])).members.map(m => [m.id, m]));
+      const found = (await members.lookup([...new Set(privateOnes.map(r => r.member_id))])).members;
+      who = new Map((await withGroupsAmong(found, [...shapes.values()].flatMap(s => s.groups))).map(m => [m.id, m]));
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
     }

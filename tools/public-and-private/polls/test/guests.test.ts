@@ -22,7 +22,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, timeZone: "Europe/Paris" });
+  chest = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();
@@ -261,7 +261,7 @@ test("a date chosen for more than 1,000 people goes to their calendars in parts 
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, timeZone: "Europe/Paris" });
+  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     const { id, first, second } = await openDinner();
     const q = (await polls.load(sql, id)).questions[0]!;
@@ -292,7 +292,7 @@ test("the Chest answers each part (calendar.putMany, SDK studio.16): a refused p
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, timeZone: "Europe/Paris" });
+  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     // The tool's 5,000 events nearly all used (other polls' dates): room
     // for two new parts, not three.
@@ -334,7 +334,7 @@ test("a part refused in the middle leaves a hole: taking the date back still rem
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, timeZone: "Europe/Paris" });
+  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     const { id, first } = await openDinner();
     await polls.closePoll(sql, asMember(sofia), id, now);

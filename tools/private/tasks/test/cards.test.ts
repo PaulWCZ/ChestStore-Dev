@@ -5,7 +5,7 @@ import * as boards from "../lib/boards.ts";
 import * as cards from "../lib/cards.ts";
 import { AppError } from "../lib/errors.ts";
 import { en } from "../lib/i18n/en.ts";
-import { today } from "../lib/model.ts";
+import { chestToday } from "../lib/clock.ts";
 import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -68,7 +68,7 @@ test("a card is given only to people who see the board; they are told in their l
   const { b, todo, done } = await setup("private");
   await boards.setPeople(sql, asMember(hugo), b.id, { people: [hugo.id, ines.id], owners: [hugo.id], groups: [] });
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Order boxes");
-  await cards.updateCard(sql, asMember(hugo), c.id, { due: today() });
+  await cards.updateCard(sql, asMember(hugo), c.id, { due: chestToday() });
   await assert.rejects(cards.setAssignees(sql, asMember(hugo), c.id, [lea.id]), refused("invalid"));
   await assert.rejects(cards.setAssignees(sql, asMember(hugo), c.id, ["nobody"]), refused("invalid"));
   const change = await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id, hugo.id]);

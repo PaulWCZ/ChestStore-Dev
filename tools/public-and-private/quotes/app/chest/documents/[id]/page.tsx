@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { can } from "../../../../lib/access.ts";
@@ -32,7 +32,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const sql = db();
   const today = chest.today();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   let full: Full;
   try {
     full = await getDocument(sql, member, id, today);

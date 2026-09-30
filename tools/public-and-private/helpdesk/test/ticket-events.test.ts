@@ -23,7 +23,7 @@ let chest: FakeChest;
 const chestWith = (emits: string[]) => fakeChest({
   tool: "helpdesk", members: everyone, emits, capabilities: ["members", "files", "notifications"],
   schedules: [{ name: "cleanup", cron: "15 3 * * *" }, { name: "late", cron: "*/15 * * * *" }],
-  settings: { company: "Atelier Martin", locale: "en" },
+  chest: { organization: "Atelier Martin", language: "en" },
 });
 before(async () => {
   database = await testDatabase();

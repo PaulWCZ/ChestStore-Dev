@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { atLeast, can } from "../../../../../../lib/access.ts";
 import { db } from "../../../../../../lib/db.ts";
@@ -45,7 +45,7 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
       taken={[owner, ...shared.map(s => s.member)]}
       canManage={atLeast(level, "owner")}
       embed={form.audience === "public" ? { sites: await embedSites(sql), canEdit: can(member, "forms.all"), title: def?.title ?? form.draft.title, colour } : null}
-      today={zonedParts(new Date(), chest.timeZone()).day}
+      today={zonedParts(new Date(), chest.timeZone).day}
       locale={locale}
       t={{ share: t.share, levels: t.levels, errors: t.errors, yes: t.respond.yes, no: t.respond.no, date: t.date, peoplePicker: t.peoplePicker }}
     />

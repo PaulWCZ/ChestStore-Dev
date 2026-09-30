@@ -1,10 +1,10 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale, Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Locale, type Member } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
 import * as members from "@argentic/chest-sdk/members";
 import type { Query } from "./db.ts";
-import { catalogue, isLocale } from "./i18n/index.ts";
+import { catalogue } from "./i18n/index.ts";
 import { format, formatDay } from "./i18n/format.ts";
 import { daysBetween, welcomeLateDays } from "./model.ts";
 import { today } from "./zone.ts";
@@ -51,11 +51,10 @@ export async function newcomer(sql: Query, journeyId: string): Promise<(Newcomer
       if (!(error instanceof ChestError)) throw error;
     }
     if (!found) return null;
-    return { to: { member: found.id }, name: found.firstName || found.name, locale: found.locale, linked: true, anchor: j.anchor, managerId: j.profile_manager };
+    return { to: { member: found.id }, name: found.firstName || found.name, locale: localeOf(found.language), linked: true, anchor: j.anchor, managerId: j.profile_manager };
   }
   if (j.status !== "expected" || !j.work_email || !mail.isAddress(j.work_email)) return null;
-  const chestLocale = chest.locale();
-  return { to: j.work_email, name: (j.arrival_name ?? "").split(/\s+/u)[0] || (j.arrival_name ?? ""), locale: isLocale(chestLocale) ? chestLocale : "en", linked: false, anchor: j.anchor, managerId: j.arrival_manager };
+  return { to: j.work_email, name: (j.arrival_name ?? "").split(/\s+/u)[0] || (j.arrival_name ?? ""), locale: localeOf(chest.language), linked: false, anchor: j.anchor, managerId: j.arrival_manager };
 }
 
 // The email, in the newcomer's language.
@@ -91,9 +90,9 @@ export async function welcome(sql: Query, actor: Member, journeyId: string): Pro
       if (!(error instanceof ChestError)) throw error;
     }
   }
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   const letter = welcomeLetter({
-    locale: who.locale, name: who.name, company: chest.company(), anchor: who.anchor, manager, sender: actor.name,
+    locale: who.locale, name: who.name, company: chest.organization.name, anchor: who.anchor, manager, sender: actor.name,
     link: base ? new URL("/chest/todo", base).toString() : null, linked: who.linked,
   });
   try {

@@ -13,7 +13,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();

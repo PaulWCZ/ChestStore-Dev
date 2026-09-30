@@ -1,7 +1,7 @@
 // Tasks, as a person uses it, in a real browser: node lab/chest-dev/flows/tasks.mjs [port]
 // (the harness runs the tool with --reset: the sample boards are there).
 import { writeFileSync } from "node:fs";
-import { as, done, expect, id, open, step } from "./lib.mjs";
+import { as, control, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4000);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { allow404: /\/chest\/boards\/\d+$/u });
@@ -453,6 +453,46 @@ await step("a private board shares with the people chosen at creation, and says 
   await page.goto(url);
   expect((await page.locator("body").innerText()).includes("Nothing here"), "Tom does not");
   await as(context, origin, "hugo");
+});
+
+await step("a private board shared with a group that does not give Tasks: its members see it, until they leave the group", async () => {
+  await page.goto(origin + "/chest/boards");
+  await page.getByRole("button", { name: "New board" }).first().click();
+  await page.keyboard.type("Server room");
+  await page.getByText("Only people I choose").click();
+  await page.locator(".share-box").getByRole("combobox").fill("Tech");
+  await page.locator(".ck-option.ck-active", { hasText: "Tech" }).waitFor();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Create the board" }).click();
+  await page.waitForURL(/\/chest\/boards\/\d+$/u);
+  expect((await page.locator(".privacy").innerText()).includes("1 group"), "private marker: " + await page.locator(".privacy").innerText());
+  const url = page.url();
+  await as(context, origin, "tom");
+  await page.goto(url);
+  expect(await page.getByRole("heading", { name: "Server room" }).isVisible(), "Tom (Tech) sees it");
+  await as(context, origin, "ines");
+  await page.goto(url);
+  expect((await page.locator("body").innerText()).includes("Rien ici") || (await page.locator("body").innerText()).includes("Nothing here"), "Inès (Sales) does not");
+  await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "remove" });
+  await as(context, origin, "tom");
+  await page.goto(url);
+  expect((await page.locator("body").innerText()).includes("Nothing here"), "Tom, out of Tech, no longer does");
+  await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "add" });
+  await as(context, origin, "hugo");
+});
+
+await step("My tasks says what the Chest will do with the emails: the person's own choice, the Chest's mail paused", async () => {
+  await page.goto(origin + "/chest");
+  const hints = async () => (await page.locator(".switches").innerText());
+  expect(!(await hints()).includes("one email a day"), "no hint while Hugo wants every email");
+  await control(page, origin, "member", { member: id("hugo"), mailPreference: "digest" });
+  await page.goto(origin + "/chest");
+  expect((await hints()).includes("You chose one email a day"), "his digest choice: " + await hints());
+  await control(page, origin, "delivery", { mail: "suspended" });
+  await page.goto(origin + "/chest");
+  expect(!(await hints()).includes("one email a day") && (await page.locator(".switches .hint").count()) === 1, "paused mail: only that is said: " + await hints());
+  await control(page, origin, "delivery", { mail: "ready" });
+  await control(page, origin, "member", { member: id("hugo"), mailPreference: "all" });
 });
 
 await step("a Trello export: the check says who is found and what stays behind; private by default", async () => {

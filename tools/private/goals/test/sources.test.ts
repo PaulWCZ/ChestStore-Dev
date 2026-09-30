@@ -6,13 +6,14 @@ import { erase } from "../lib/lifecycle.ts";
 import { checkIn, updateKeyResult } from "../lib/key-results.ts";
 import { createObjective } from "../lib/objectives.ts";
 import { noCycleWords, whoStarts } from "../lib/people.ts";
-import { objectiveById } from "../lib/read.ts";
+import { cycleObjectives, objectiveById } from "../lib/read.ts";
+import { forgetMemberGroups, groupsOf, readerFor } from "../lib/groups.ts";
 import { knownBoards } from "../lib/sources.ts";
 import { addGroupTeam, chestGroups, forgetGroups } from "../lib/teams.ts";
 import { clockAt } from "../lib/tell.ts";
 import { unitFor, valueText } from "../lib/values.ts";
 import { asMember } from "./support/member.ts";
-import { camille, hugo, ines } from "./support/members.ts";
+import { camille, hugo, ines, sofia } from "./support/members.ts";
 import { running, world, type World } from "./support/world.ts";
 
 // Key results fed by the store's other tools (lib/sources.ts): cards done
@@ -141,6 +142,25 @@ test("every group of the Chest may become a team, not only those that give Goals
   await sql`delete from teams`;
 });
 
+test("a group that does not give Goals is still a team its members write for and read: its membership is asked of the Chest", async () => {
+  const { sql } = w.database;
+  const { cycle } = await running(w);
+  forgetGroups();
+  forgetMemberGroups();
+  const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
+  const hugoM = asMember(hugo), sofiaM = asMember(sofia);
+  // The assertion carries only the groups that give Goals: not Warehouse.
+  assert.ok(!hugoM.groups.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  assert.ok((await groupsOf(hugoM)).includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  const o = await createObjective(sql, hugoM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Ship every order the same day", visibility: "team", keyResults: [{ title: "Orders shipped the same day", kind: "percent", start: "70", target: "95", owner: hugo.id }] });
+  await assert.rejects(createObjective(sql, sofiaM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Not my team" }), refused("forbidden"));
+  const clock = clockAt();
+  assert.ok((await cycleObjectives(sql, cycle.id, clock, await readerFor(hugoM))).some(x => x.id === o.id), "the team reads its confidential objective");
+  assert.ok(!(await cycleObjectives(sql, cycle.id, clock, await readerFor(sofiaM))).some(x => x.id === o.id), "someone outside the group does not");
+  await sql`delete from cycles`;
+  await sql`delete from teams`;
+});
+
 test("a unit follows its own language's rule, whoever reads it; unknown, the form for one is for 1 only", () => {
   const en = { kind: "number" as const, unit: "customer/customers", currency: null, unitLocale: "en" };
   const fr = { kind: "number" as const, unit: "client/clients", currency: null, unitLocale: "fr" };
@@ -164,7 +184,7 @@ test("a key result's unit is kept with its writer's language", async () => {
   assert.equal(valueText(k, 0, "en"), "0 client");
   await updateKeyResult(sql, admin, k.id, { unit: "customer/customers" });
   const again = (await objectiveById(sql, o.id, clockAt(), null))!.keyResults[0]!;
-  assert.equal(again.unitLocale, camille.locale, "rewritten: its writer’s language");
+  assert.equal(again.unitLocale, camille.language, "rewritten: its writer’s language");
   await sql`delete from cycles`;
   await sql`delete from teams`;
 });

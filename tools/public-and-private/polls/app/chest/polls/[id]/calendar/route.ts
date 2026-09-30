@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
 import { calendar } from "../../../../../lib/ics.ts";
@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const zone = chestZone();
     const start = option.start ? zoned(option.day, option.start, zone) : null;
     const end = option.start && option.end ? zoned(option.day, option.end, zone) : null;
-    const team = chest.teamUrl();
+    const team = chest.teamUrl;
     const text = calendar({
       uid: `polls-${poll.id}-final@chest.tool`,
       // A later choice replaces the event in the calendar that has it.

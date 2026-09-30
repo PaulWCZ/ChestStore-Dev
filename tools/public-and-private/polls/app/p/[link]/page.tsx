@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
 import { storeLanguages } from "@argentic/chest-ui/components/logic";
 import { cookies } from "next/headers";
@@ -42,7 +42,7 @@ export default async function GuestPage({ params, searchParams }: { params: Prom
   const secret = (await cookies()).get(guestCookie(poll.id))?.value;
   const me = await mine(sql, poll, secret);
   const organiser = nameOf((await people([poll.organiser])).get(poll.organiser), locale);
-  const company = chest.company();
+  const company = chest.organization.name;
   const q = poll.questions[0]!;
   const taken = poll.slots === null ? null : await placesTaken(sql, poll);
   const final = poll.finalOption ? q.options.find(o => o.id === poll.finalOption) : undefined;

@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { hostOf, titlesOf, type Booking } from "./booking.ts";
 import type { Query } from "./db.ts";
 import { format, meetingTime, type Locale } from "./i18n/index.ts";
@@ -45,5 +45,5 @@ export async function hostCopy(sql: Query, kind: "booked" | "moved" | "cancelled
   const person = (await people([b.memberId])).get(b.memberId);
   if (person?.status !== "member") return;
   const titles = await titlesOf(sql, b);
-  await toHost(kind, { ...b, title: titles[person.locale as Locale] ?? b.title }, { locale: person.locale, zone: host.zone, link: `${chest.teamUrl() ?? ""}${path(b)}` });
+  await toHost(kind, { ...b, title: titles[person.locale as Locale] ?? b.title }, { locale: person.locale, zone: host.zone, link: `${chest.teamUrl ?? ""}${path(b)}` });
 }

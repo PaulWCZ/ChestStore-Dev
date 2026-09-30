@@ -1,5 +1,5 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
+import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { catalogue, format } from "./i18n/index.ts";
 
@@ -16,7 +16,7 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   if (wanted.length === 0) return found;
   try {
     const answer = await members.lookup(wanted);
-    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale });
+    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: localeOf(m.language) });
     for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en" });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;

@@ -1,5 +1,5 @@
 import { StatusBadge } from "@argentic/chest-ui/components";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back, Download, External, Link as LinkIcon, Mail, Phone, Star } from "../../../../components/icons.tsx";
@@ -93,7 +93,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
     const w = catalogue(l).templates;
     return (["availability", "followUp", "offer", "reject"] as const).map(k => ({ id: `${k}:${l}`, name: w[k].name, language: l, subject: w[k].subject, body: w[k].body }));
   });
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const shortDay = (d: string) => new Intl.DateTimeFormat(locale === "fr" ? "fr" : "en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(d + "T12:00:00Z"));
   const today = dayOf(new Date(), zone);
   // Jobs this person could be proposed for: open or draft, not this one.

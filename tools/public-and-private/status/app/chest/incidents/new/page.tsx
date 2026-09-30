@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
@@ -14,7 +14,7 @@ export default async function NewIncident({ searchParams }: { searchParams: Prom
   const v = await viewer();
   if (!v) return null;
   const { t, member } = v;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const all = await allComponents(db(), { locale: v.locale });
   const groups = pickerGroups(all);
   // From an automatic check that failed: the service, a major outage and

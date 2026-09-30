@@ -225,7 +225,10 @@ Wiki's spaces kept to groups).
 - **Groups** are the Chest's. With the **groups** permission (Proposal
   (studio): `"groups": "read"`, "Sees your Chest's groups and who is in
   them") News offers **every** group (`members.groups.all()`), and each
-  member's `groups` are all of theirs — a company that opens News to
+  member's groups are all of theirs, asked of the Chest (0.3.0's
+  `member.groups` lists only the groups that give News:
+  `members.groups.of(id)` for the reader signed in, every group's members
+  for the list of readers, kept a minute; `lib/groups.ts`) — a company that opens News to
   everyone can still write for Sales. It receives `group.*`: someone who
   leaves a group (`member.updated`, `group.changed`) or a group removed
   (`group.removed`) takes the bell item of the Important posts they are no
@@ -238,7 +241,7 @@ Wiki's spaces kept to groups).
   never knows an address — in their language, keyed so a retry never sends
   twice (the whole key: the SDK sends a long one as its SHA-256). Each
   person's email choice in their Chest (Proposal (studio.15):
-  `member.mailPreference`) is applied by the Chest: *none* gets no email
+  `members.get(id).mailPreference`) is applied by the Chest: *none* gets no email
   from News (the bell still tells them, and *sent by email* does not count
   them), *one a day* gets it in the Chest's daily email. Nothing News sends
   is marked transactional. News's own *Stop the email* (the weekly digest)
@@ -324,8 +327,10 @@ Wiki's spaces kept to groups).
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
-  the bell in each member's language.
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+
+- `member.language` (SDK 0.3.0): the interface in each member's language;
+  `members.*` `language` for the bell and emails in the recipient's.
 - **Scheduled tasks** (`schedules`) — **Proposal (studio)**, in `vendor/`:
   `chest.proposals.json` declares `publish` every 15 minutes and `digest`
   on Monday at 08:30 (`app/chest-jobs/[name]/route.ts`). Without it News
@@ -335,13 +340,15 @@ Wiki's spaces kept to groups).
   go first): in a larger company it goes on with each publish pass, a page
   of 500 at a time, within the week; someone told twice gets the same item
   again (one key), never two.
-- The Chest's **time zone** (`CHEST_TIMEZONE`, same proposal): event times
-  and schedules are typed on the Chest's clock; Europe/Paris otherwise.
+- The Chest's **time zone** (`chest.timeZone`, SDK 0.3.0): event times
+  and schedules are typed on the Chest's clock. The Chest makes it its
+  database sessions' zone too: the sample data's days and times
+  (`current_date`, `::timestamptz`) are on that clock.
 - **Localized manifest title** (studio report): the tile says "News" to a
   French member; the interface says *Actualités*.
 - **Groups read** (`"groups": "read"`, `receives: ["group.*"]`),
   **mail** (`send`) and the **calendar** — Proposals (studio), in
-  `vendor/` (SDK 0.3.0-studio.12), described above.
+  `vendor/`, described above.
 - Wanted, not built: **actions on a bell item** (`notify(…, { actions:
   [{ label, path }] })`: *I'm coming* / *Not coming* in the Chest's bell
   itself — today the bell opens the post, where the answer is two taps

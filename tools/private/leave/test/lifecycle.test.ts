@@ -7,7 +7,7 @@ import * as requests from "../lib/requests.ts";
 import { types } from "../lib/rules.ts";
 import { setApprover, setEndDate, staffRow } from "../lib/staff.ts";
 import { AppError } from "../lib/app-error.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { addDays, holidaysBetween } from "../lib/calendar.ts";
 import { quietMonday, week } from "./support/dates.ts";

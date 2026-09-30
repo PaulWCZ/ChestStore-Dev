@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, canRemoveFile } from "./access.ts";
 import type { Attachment } from "./attachments.ts";
@@ -8,7 +8,8 @@ import type { Sql } from "./db.ts";
 import { fieldsByObject, optionLabel } from "./fields.ts";
 import { bookingLink, meetingTime, typeName } from "./from-booking.ts";
 import { formatDate, formatDay, intl, plural, relative, type Catalogue, type Locale } from "./i18n/index.ts";
-import { stageName, today, type Stage } from "./model.ts";
+import { stageName, type Stage } from "./model.ts";
+import { chestZone, today } from "./zone.ts";
 import { listStages } from "./stages.ts";
 import { team } from "./team.ts";
 
@@ -46,8 +47,8 @@ export function dealFormProps(choices: Awaited<ReturnType<typeof formChoices>>, 
 // A meeting booked in Booking (lib/from-booking.ts) also carries its type
 // in the reader's language, its time, and the link back to it in Booking.
 export type MeetingLine = { type: string; when: string; host: string | null; cancelled: boolean; moves: number };
-export function withWhen(items: Activity[], locale: Locale, now = new Date()): (Activity & { when: string; whenFull: string; link: string | null; meeting: MeetingLine | null })[] {
-  return items.map(a => ({ ...a, when: relative(a.at, locale, now), whenFull: formatDate(a.at, locale, { dateStyle: "full", timeStyle: "short" }), link: a.kind === "booking" ? bookingLink(a.data["path"]) : answerLink(a), meeting: meetingLine(a, locale) }));
+export function withWhen(items: Activity[], locale: Locale, now = new Date(), timeZone = chestZone()): (Activity & { when: string; whenFull: string; link: string | null; meeting: MeetingLine | null })[] {
+  return items.map(a => ({ ...a, when: relative(a.at, locale, now), whenFull: formatDate(a.at, locale, { dateStyle: "full", timeStyle: "short", timeZone }), link: a.kind === "booking" ? bookingLink(a.data["path"]) : answerLink(a), meeting: meetingLine(a, locale) }));
 }
 
 function meetingLine(a: Activity, locale: Locale): MeetingLine | null {

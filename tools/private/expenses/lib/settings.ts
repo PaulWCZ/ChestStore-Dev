@@ -1,6 +1,6 @@
-import * as chest from "@argentic/chest-sdk/chest";
-import type { Member } from "@argentic/chest-sdk/member";
-import { defaultLocale, isLocale, type Locale } from "./i18n/index.ts";
+import { chest } from "@argentic/chest-sdk/chest";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
+import { isLocale, type Locale } from "./i18n/index.ts";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -23,7 +23,7 @@ import { checkScale, isVehicleKind, powers, type Scale, type VehicleKind } from 
 export type Journal = { code: string; employees: string; vat: string; card: string };
 export type Settings = { currency: string; reminder: boolean; setupDone: boolean; journal: Journal; payer: string; bankLocale: Locale };
 const defaults = (): Settings => ({ currency: defaultCurrency, reminder: true, setupDone: false, journal: { code: "NDF", employees: "421000", vat: "445660", card: "467000" }, payer: "", bankLocale: chestLocale() });
-const chestLocale = (): Locale => { const l = chest.locale(); return isLocale(l) ? l : defaultLocale; };
+const chestLocale = (): Locale => localeOf(chest.language);
 
 const accountPattern = /^[0-9A-Za-z]{1,20}$/u;
 function isJournal(value: unknown): value is Journal {

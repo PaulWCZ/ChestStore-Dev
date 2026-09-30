@@ -27,10 +27,11 @@ export function catalogue(locale: Locale): Catalogue {
 
 // publicLocale is the language of a page of the public part, where there is
 // no member: the visitor's choice (a cookie set by the switch), otherwise the
-// first language of Accept-Language the tool speaks, otherwise English.
-export function publicLocale(cookie: string | undefined, acceptLanguage: string | null | undefined): Locale {
+// first language of Accept-Language the tool speaks, otherwise the Chest's
+// own language (chest.language, when the tool speaks it), otherwise English.
+export function publicLocale(cookie: string | undefined, acceptLanguage: string | null | undefined, fallback: Locale = defaultLocale): Locale {
   if (isLocale(cookie)) return cookie;
-  if (!acceptLanguage) return defaultLocale;
+  if (!acceptLanguage) return fallback;
   const ranked = acceptLanguage
     .split(",")
     .slice(0, 32)
@@ -42,7 +43,7 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
     })
     .filter(r => r.weight > 0)
     .sort((a, b) => b.weight - a.weight || a.index - b.index);
-  return ranked.map(r => r.language).find(isLocale) ?? defaultLocale;
+  return ranked.map(r => r.language).find(isLocale) ?? fallback;
 }
 
 export { fileSize, format, formatDate, intl, plural, relative, timeZone } from "./format.ts";

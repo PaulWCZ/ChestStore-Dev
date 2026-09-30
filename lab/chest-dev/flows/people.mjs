@@ -2,13 +2,16 @@
 // (the harness runs the tool with --reset: the sample company is there, Nora
 // started six days ago and her welcome checklist is under way).
 import { readFileSync, writeFileSync } from "node:fs";
-import { as, done, expect, id, open, step } from "./lib.mjs";
+import { as, control, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4700);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(checklists|records(\/\d+)?|people\/mbr_\w+\/edit)$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
 const cards = () => page.locator(".wall .person-name").allTextContents();
 let noraRecord = "";
+// Today in the Chest's zone: the harness's, CHEST_TIME_ZONE of the shell
+// or Europe/Paris (lab/chest-dev/README.md).
+const chestToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: process.env.CHEST_TIME_ZONE || "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 await step("a member finds people by name (accents aside), by topic, by team", async () => {
   await page.goto(origin + "/chest");
@@ -599,8 +602,8 @@ await step("a hire who already has access is offered to link on the directory, i
 });
 
 await step("Leave tells of an approved leave: the card and the profile say “Away · back on …”, never why; cancelled, it goes", async () => {
-  // Days in the Chest's time zone (the harness's: Europe/Paris).
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  // Days in the Chest's time zone (the harness's).
+  const today = chestToday();
   const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
   await deliver("leave.approved", { member: id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
   await page.context().addCookies([{ name: "dev_locale", value: "en", url: origin }]);
@@ -624,7 +627,7 @@ await step("Leave tells of an approved leave: the card and the profile say “Aw
 });
 
 await step("Leave shortens Hugo's leave (cancelled, then approved for fewer days): the card keeps him away, back sooner", async () => {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const today = chestToday();
   const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
   const whole = { member: id("hugo"), from: day(0), to: day(6), fromHalf: "am", toHalf: "pm", request: "904" };
   const badge = async () => {
@@ -639,6 +642,20 @@ await step("Leave shortens Hugo's leave (cancelled, then approved for fewer days
   await deliver("leave.approved", { ...whole, to: day(1) });
   const after = await badge();
   expect(after.startsWith("Away") && after !== before, `still away, back sooner: ${before} → ${after}`);
+});
+
+await step("the Chest's email paused: the arrival form says Marc gets no welcome email, and why; resumed, it promises it again", async () => {
+  await as(context, origin, "camille");
+  await control(page, origin, "delivery", { mail: "suspended" });
+  try {
+    await page.goto(origin + "/chest/checklists");
+    await page.locator(".arrival", { hasText: "Marc Lefèvre" }).getByRole("link", { name: "Start the arrival checklist" }).click();
+    await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
+    const said = (await page.locator("[data-welcome]").allInnerTexts()).join(" | ");
+    expect(said.includes("Your Chest is not sending emails right now: Marc Lefèvre gets no welcome email.") && await page.locator("[data-welcome=yes]").count() === 0, "paused, said: " + said);
+  } finally {
+    await control(page, origin, "delivery", { mail: "ready" });
+  }
 });
 
 await step("pass 4: HR starts Marc's welcome checklist: he gets a short welcome email at his work address, signed by HR, who is the reply address", async () => {

@@ -9,7 +9,9 @@ minute, in plain words.
 
 ## What it does
 
-- **The public page** (`/`), in the company's name (`chest.company()`):
+- **The public page** (`/`), in the company's name
+  (`chest.organization.name`), in the visitor's language (their switch,
+  else their browser's, else the Chest's):
   the overall state in one line and one colour — *All systems
   operational*, *Degraded performance*, *Partial outage*, *Major outage*,
   *Under maintenance* —; what is happening now, with each incident's
@@ -385,6 +387,11 @@ public page never shows who posted.
 
 ## Needs from the SDK
 
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), a packed copy in
+`vendor/`. The member's `language` and the Chest's `organization.name`,
+`timeZone` and `language` are the released 0.3.0; the table lists what
+is not in it yet.
+
 | Proposal | Used for | Without it |
 |---|---|---|
 | `mail` | Confirmation and update emails; `mail.available()` (studio.16) before the form is offered and on *Subscribers* | The form is hidden; the page offers the feeds |
@@ -394,13 +401,13 @@ public page never shows who posted.
 | `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
 | `webhooks` | Updates delivered to Slack, Teams and web addresses (SDK report §4.17); `webhooks.available()` (studio.16) before the chat option is offered and on *Subscribers* ("3 of 200 addresses used", or paused by the Chest's owner) | "Or in Slack, Teams…" is not offered |
 | events between tools | `status.incident` to Support | Support shows no incident; nothing else changes |
-| `chest` | Company name, time zone, language, public address; `theme()` for the look the company chose (a catalogue theme or its brand) | — (the SDK's defaults; the tool's own look) |
+| `chest` (studio part) | The public address (`chest.publicUrl`); `theme()` for the look the company chose (a catalogue theme or its brand) | The last public address seen; the tool's own look |
 
 What it would need next (in the final report of the studio):
 
 - **Custom domains** (`status.your-company.com`): a platform item, SDK
   report §4.15 — the Chest maps the hostname and its certificate, and
-  `chest.publicUrl()` already carries the address, so no tool change.
+  `chest.publicUrl` already carries the address, so no tool change.
   Until then the page lives at the Chest's own address; *Settings* says so.
 - **`webhooks.available()`** — built (studio.16), used: the public page
   offers a chat only when the Chest would deliver now, and says "paused"

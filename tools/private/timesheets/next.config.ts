@@ -7,10 +7,13 @@ import type { NextConfig } from "next";
 // - no build cache left in the image;
 // - nothing written at run time (read-only disk): no image optimiser, every
 //   page rendered per request (app/layout.tsx);
-// - the server's own name kept out of the answers.
+// - the server's own name kept out of the answers;
+// - `next dev` leaves the tool's files alone (agentRules: false; otherwise
+//   it appends its own block to AGENTS.md at every start).
 const config: NextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
+  agentRules: false,
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: true },
   // forbidden() answers 403 with app/chest/forbidden.tsx (pages for managers).

@@ -3,6 +3,7 @@
     "send": true
   },
   "calendar": true,
+  "groups": "read",
   "emits": [
     "leave.approved",
     "leave.cancelled",

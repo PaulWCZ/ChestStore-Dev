@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { db } from "./db.ts";
 import { atom, rss, type Feed } from "./feed.ts";
@@ -25,9 +25,9 @@ export async function incidentFeed(): Promise<Feed> {
   const { t, locale } = await publicWords();
   const sql = db();
   const base = await origin();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const now = new Date();
-  const company = chest.company() || t.mail.team;
+  const company = chest.organization.name || t.mail.team;
   const list = await recentActivity(sql, now, 50);
   const entries = list.map(i => {
     const visible = i.updates.filter(u => u.postedAt.getTime() <= now.getTime());
@@ -59,7 +59,7 @@ export async function maintenanceCalendar(): Promise<string> {
   const { t, locale } = await publicWords();
   const sql = db();
   const base = await origin();
-  const company = chest.company() || t.mail.team;
+  const company = chest.organization.name || t.mail.team;
   const host = (() => {
     try {
       return new URL(base).host || "status";

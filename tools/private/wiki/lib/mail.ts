@@ -1,8 +1,8 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, Unavailable } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
+import { localeOf } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
-import { catalogue, format, isLocale, type Catalogue } from "./i18n/index.ts";
+import { catalogue, format, type Catalogue } from "./i18n/index.ts";
 
 // Email beside the bell (Proposal (studio): "mail": {"send": true}, as
 // News, Tasks, Polls and Goals). The bell reaches only people who open
@@ -14,7 +14,7 @@ import { catalogue, format, isLocale, type Catalogue } from "./i18n/index.ts";
 // email yet nothing fails: the bell has told them.
 
 export type Letter = { subject: string; lines: string[] };
-export type Recipient = { id: string; locale: Locale | string };
+export type Recipient = { id: string; language: string };
 // sent: the people it went to (now, or in their daily digest from the
 // Chest — not those who turned Chest email off: mail.send applies each
 // person's choice, these letters are never transactional); stop: why the
@@ -25,7 +25,7 @@ export type Mailed = { sent: string[]; stop: "quota" | "off" | "unavailable" | n
 // letterText writes the body: the letter, the link to open the page (when
 // the Chest gives the tool's address), and why this email came.
 export function letterText(t: Catalogue, letter: Letter, path: string, why: string): string {
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   const link = base ? new URL(path, base).toString() : null;
   return [...letter.lines, "", link ? format(t.mail.open, { link }) : t.mail.openChest, "", "—", why].join("\n");
 }
@@ -38,7 +38,7 @@ export async function email(people: Recipient[], write: (t: Catalogue) => { lett
   const sent: string[] = [];
   for (const person of people) {
     if (!person.id.startsWith("mbr_")) continue;
-    const t = catalogue(isLocale(person.locale) ? person.locale : "en");
+    const t = catalogue(localeOf(person.language));
     const { letter, path, why } = write(t);
     try {
       const done = await mail.send({ to: { member: person.id }, subject: letter.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, letter, path, why), key: key(person) });

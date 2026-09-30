@@ -1,5 +1,5 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
+import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { roles } from "./access.ts";
@@ -26,7 +26,7 @@ async function team(): Promise<{ id: string; locale: Locale }[]> {
   let after: string | null = null;
   for (let page = 0; page < 20; page++) {
     const answer: members.MemberPage = await members.list({ limit: 500, ...(after ? { after } : {}) });
-    found.push(...answer.members.filter(m => m.role !== null && (roles as readonly string[]).includes(m.role)).map(m => ({ id: m.id, locale: m.locale })));
+    found.push(...answer.members.filter(m => m.role !== null && (roles as readonly string[]).includes(m.role)).map(m => ({ id: m.id, locale: localeOf(m.language) })));
     if (!answer.next) break;
     after = answer.next;
   }

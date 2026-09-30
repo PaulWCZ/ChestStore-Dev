@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { BrandMark, NoAccess, Toasts } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
 import { Mark } from "../../components/mark.tsx";

@@ -12,13 +12,13 @@ before(async () => { w = await world(); });
 after(async () => { await w.close(); });
 
 function inZone<T>(zone: string, run: () => T): T {
-  const was = process.env["CHEST_TIMEZONE"];
-  process.env["CHEST_TIMEZONE"] = zone;
+  const was = process.env["CHEST_TIME_ZONE"];
+  process.env["CHEST_TIME_ZONE"] = zone;
   try {
     return run();
   } finally {
-    if (was === undefined) delete process.env["CHEST_TIMEZONE"];
-    else process.env["CHEST_TIMEZONE"] = was;
+    if (was === undefined) delete process.env["CHEST_TIME_ZONE"];
+    else process.env["CHEST_TIME_ZONE"] = was;
   }
 }
 

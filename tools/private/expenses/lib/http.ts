@@ -1,14 +1,14 @@
 import { ChestError, TooLarge } from "@argentic/chest-sdk/errors";
-import { member, type Member } from "@argentic/chest-sdk/member";
+import { localeOf, member, type Member } from "@argentic/chest-sdk/member";
 import { AppError, type ErrorCode } from "./app-error.ts";
-import { isLocale, type Locale } from "./i18n/index.ts";
+import type { Locale } from "./i18n/index.ts";
 
 // For the routes of /chest (uploads, receipts, exports): who asks, as the
 // Chest asserts it on this very request, and answers as codes.
 export function asker(request: Request): { actor: Member; locale: Locale } | null {
   const actor = member(request);
   if (!actor) return null;
-  return { actor, locale: isLocale(actor.locale) ? actor.locale : "en" };
+  return { actor, locale: localeOf(actor.language) };
 }
 
 const noStore = { "Cache-Control": "no-store" };

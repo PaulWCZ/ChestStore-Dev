@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { AppError } from "../../../../lib/app-error.ts";
@@ -31,7 +31,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
     if (error instanceof AppError && error.code === "not_found") notFound();
     throw error;
   }
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const now = new Date();
   const when = (d: Date) => stamp(d, zone, locale, now);
   const ids = [incident.createdBy, incident.removedBy ?? "", ...incident.updates.flatMap(u => [u.author, u.removedBy ?? "", ...u.log.map(l => l.actor)])];

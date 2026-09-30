@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { db } from "./db.ts";
 import { hooksDelivery } from "./hooks.ts";
 import { mailDelivery } from "./settings.ts";
@@ -30,5 +30,5 @@ export async function publicContext() {
   const sql = db();
   const now = new Date();
   const { offerMail, offerChat } = await offers(now);
-  return { t, locale, sql, now, zone: chest.timeZone(), company: chest.company(), offerMail, offerChat, offerUpdates: offerMail || offerChat };
+  return { t, locale, sql, now, zone: chest.timeZone, company: chest.organization.name, offerMail, offerChat, offerUpdates: offerMail || offerChat };
 }

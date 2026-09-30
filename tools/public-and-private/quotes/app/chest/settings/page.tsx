@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { can } from "../../../lib/access.ts";
 import { company, missing } from "../../../lib/company.ts";
 import { db } from "../../../lib/db.ts";
@@ -29,7 +29,7 @@ export default async function SettingsPage() {
     const name = ch.changedBy === member.id ? t.people.you : nameOf(who.get(ch.changedBy), locale);
     const text = ch.number ? t.settings.numbering.historyNext.replace("{name}", name).replace("{number}", ch.number)
       : (ch.numberFormat === "continuous" ? t.settings.numbering.historyContinuous : t.settings.numbering.historyYearly).replace("{name}", name);
-    return { id: ch.id, text, when: formatDate(ch.changedAt, locale, { timeZone: chest.timeZone(), day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
+    return { id: ch.id, text, when: formatDate(ch.changedAt, locale, { timeZone: chest.timeZone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
   });
   const canEdit = can(member, "settings");
   const formatSize = (bytes: number) => new Intl.NumberFormat(locale === "fr" ? "fr-FR" : "en-GB", { style: "unit", unit: bytes >= 1048576 ? "megabyte" : "kilobyte", maximumFractionDigits: 1 }).format(bytes >= 1048576 ? bytes / 1048576 : Math.max(1, bytes / 1024));
@@ -40,7 +40,7 @@ export default async function SettingsPage() {
       company={c}
       missing={missing(c)}
       canEdit={canEdit}
-      currency={chest.currency()}
+      currency={chest.currency}
       sample={documentNumber("X", year, 1)}
       logo={c.logo ? `/chest/logo?v=${encodeURIComponent(c.logo)}` : null}
       terms={c.terms ? { name: c.terms.name, size: formatSize(c.terms.size) } : null}

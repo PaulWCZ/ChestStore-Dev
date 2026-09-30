@@ -1,5 +1,5 @@
-import * as chest from "@argentic/chest-sdk/chest";
-import type { Member } from "@argentic/chest-sdk/member";
+import { chest } from "@argentic/chest-sdk/chest";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can, jobAccess, roleOf, type JobAccess } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -90,7 +90,7 @@ const toStage = (r: StageDb): Stage => ({ id: String(r.id), name: r.name, preset
 // ---- Settings --------------------------------------------------------------
 
 // companyName is what the careers page is signed with: the tool's own
-// setting, or the company's name the Chest gives (chest.company()).
+// setting, or the company's name the Chest gives (chest.organization.name).
 // intros: the few words under the title, one per language (the French
 // page never shows the English words); intro: the single text of before,
 // shown in every language until the intros are written. The brand: an
@@ -114,7 +114,7 @@ export async function settings(sql: Query): Promise<Settings> {
   const given = found["intros"];
   if (typeof given === "object" && given !== null) for (const l of locales) { const v = (given as Record<string, unknown>)[l]; if (typeof v === "string" && v) intros[l] = v; }
   return {
-    companyName: own || chest.company(),
+    companyName: own || chest.organization.name,
     ownName: own,
     intro: typeof found["intro"] === "string" ? found["intro"] : defaults.intro,
     intros,
@@ -132,7 +132,7 @@ export async function settings(sql: Query): Promise<Settings> {
 // single intro of before, only in the Chest's own language (it was written
 // in one language: shown in another, it mixed languages on the page);
 // empty means the tool's default sentence in that language.
-export function introFor(s: Settings, locale: Locale, written: string = chest.locale()): string {
+export function introFor(s: Settings, locale: Locale, written: string = localeOf(chest.language)): string {
   return s.intros[locale] ?? (Object.keys(s.intros).length === 0 && locale === written ? s.intro : "");
 }
 

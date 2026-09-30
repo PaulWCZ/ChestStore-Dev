@@ -6,7 +6,7 @@ import { countryOptions } from "../../../lib/words.ts";
 import { db } from "../../../lib/db.ts";
 import { paidRecently, toPay, totals, warnings, type Expense } from "../../../lib/expenses.ts";
 import { dot, format, formatDate, languageNames, plural, relative, shortDate } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/today.ts";
 import { formatMoney } from "../../../lib/money.ts";
 import { readiness, remittance, runs } from "../../../lib/payments.ts";
 import { leftNote, nameOf, people } from "../../../lib/people.ts";

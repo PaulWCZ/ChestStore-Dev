@@ -29,7 +29,7 @@ import { ZipWriter } from "./zip.ts";
 // the Chest, until one of them downloaded it.
 
 // The tool reading its documents to archive them (reading and export rights).
-const system = { id: "tool:archive", role: "viewer", name: "", firstName: "", lastName: "", photo: null, groups: [], isAdmin: false, isBuilder: false, locale: "en" } as Member;
+const system = { id: "tool:archive", role: "viewer", name: "", firstName: "", lastName: "", photo: null, groups: [], isAdmin: false, isBuilder: false, language: "en", timeZone: "UTC" } satisfies Member;
 
 // A part stays under what the Chest takes in one call (16 MiB), with room.
 export const archiveLimits = { partBytes: 14 * 1024 * 1024, monthsPerRun: 3 } as const;

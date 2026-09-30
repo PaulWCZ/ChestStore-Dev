@@ -1,11 +1,13 @@
 "use server";
 
+import { chest } from "@argentic/chest-sdk/chest";
+import { localeOf } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
 import { db } from "../../lib/db.ts";
 import * as editing from "../../lib/editing.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import * as history from "../../lib/history.ts";
-import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import { catalogue } from "../../lib/i18n/index.ts";
 import { memberPattern } from "../../lib/model.ts";
 import * as pages from "../../lib/pages.ts";
 import { nameOf, people } from "../../lib/people.ts";
@@ -62,10 +64,10 @@ export async function deleteSpace(spaceId: string): Promise<Result<null>> {
 }
 
 export async function addExample(): Promise<Result<{ spaceId: string; pageId: string }>> {
-  return act(actor => starter(db(), actor, catalogue(isLocale(actor.locale) ? actor.locale : "en")));
+  return act(actor => starter(db(), actor, catalogue(localeOf(actor.language))));
 }
 
-const wordsOf = (actor: Actor) => catalogue(isLocale(actor.locale) ? actor.locale : "en");
+const wordsOf = (actor: Actor) => catalogue(localeOf(actor.language));
 
 // Pages. A new page starts blank, from a template of its space, or from a
 // built-in model in the editor's language.
@@ -122,7 +124,7 @@ export async function purgePage(pageId: string): Promise<Result<null>> {
 export type Holder = { name: string; since: string; idle: boolean; minutes: number };
 
 async function holder(lock: editing.Lock, actor: Actor): Promise<Holder> {
-  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const locale = localeOf(actor.language);
   const person = (await people([lock.memberId])).get(lock.memberId);
   return { name: nameOf(person, locale), since: lock.since.toISOString(), idle: lock.idle, minutes: Math.max(0, Math.round((Date.now() - lock.activeAt.getTime()) / 60000)) };
 }
@@ -191,7 +193,7 @@ export async function restoreVersion(pageId: string, number: number): Promise<Re
 export type CommentView = { id: string; author: string; name: string; photo: string | null; body: string; at: string; when: string; edited: boolean; parentId: string | null; quote: string | null; resolved: boolean; resolvedBy: string | null };
 
 async function view(c: comments.Comment, actor: Actor): Promise<CommentView> {
-  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const locale = localeOf(actor.language);
   const who = await people([c.author, ...(c.resolvedBy ? [c.resolvedBy] : [])]);
   const person = who.get(c.author);
   return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: "", edited: c.editedAt !== null, parentId: c.parentId, quote: c.quote, resolved: c.resolvedAt !== null, resolvedBy: c.resolvedBy ? nameOf(who.get(c.resolvedBy), locale) : null };
@@ -275,7 +277,7 @@ export async function remindRead(pageId: string): Promise<Result<{ reminded: num
     const p = await pages.page(db(), actor, pageId, "write");
     const state = await reads.readState(db(), actor, p.id);
     if (!state.asked) throw new AppError("invalid");
-    return { reminded: await tell.remindReaders(db(), p, state.asked, new Date().toISOString().slice(0, 10)) };
+    return { reminded: await tell.remindReaders(db(), p, state.asked, chest.today()) };
   });
 }
 

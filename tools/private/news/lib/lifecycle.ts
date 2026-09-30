@@ -94,7 +94,9 @@ export function handlers(sql: Sql): events.Handlers {
     // leave their bell (and their number); those now for them show on the
     // front page and in their number.
     "member.updated": async event => {
-      if (event.data.changed.includes("groups")) await reconcile(sql, { member: event.data.id });
+      if (!event.data.changed.includes("groups")) return;
+      forgetGroups();
+      await reconcile(sql, { member: event.data.id });
     },
     // Groups (Proposal (studio), "groups": "read"): members left a group, or
     // the group is gone — its posts' bell items leave whoever they are no

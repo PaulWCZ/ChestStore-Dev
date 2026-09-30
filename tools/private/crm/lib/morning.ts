@@ -1,7 +1,7 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import type { Sql } from "./db.ts";
 import { plural } from "./i18n/index.ts";
-import { today } from "./model.ts";
 import { badges, cut, notify } from "./notify.ts";
 import { reconcile } from "./step-calendar.ts";
 import { urgentCounts } from "./steps.ts";
@@ -13,7 +13,7 @@ import { urgentCounts } from "./steps.ts";
 // and what people removed more than a day ago is purged. Idempotent: a run
 // delivered twice sends the same item again under the same key.
 export async function morning(sql: Sql, run: Run): Promise<void> {
-  const day = today(new Date(run.scheduledAt), run.timeZone);
+  const day = chest.todayIn(run.timeZone, new Date(run.scheduledAt));
   const rows = await sql<{ owner: string; text: string }[]>`
     select owner, text from steps where done_at is null and owner like 'mbr_%' and due_on <= ${day} order by due_on, id`;
   const byOwner = new Map<string, string[]>();

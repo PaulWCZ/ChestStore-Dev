@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader, SearchBox } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { Inbox, Plus } from "../../components/icons.tsx";
@@ -41,7 +41,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const filtered = Boolean(search.priority || search.tag);
   const tagName = tagList.find(g => g.id === search.tag)?.name;
   const now = new Date();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const canManage = can(member, "tickets.manage");
   const canCreate = can(member, "tickets.answer");
   const team = canManage ? await answerers() : [];

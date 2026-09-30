@@ -1,3 +1,4 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { noCycleWords } from "../../../lib/people.ts";
 import { Filters, Menu } from "@argentic/chest-ui/components";
 import { Link } from "../../../components/link.tsx";
@@ -10,7 +11,8 @@ import { Download, Mountain, Plus, Shape, Upload } from "../../../components/ico
 import { FoldArea, FoldButton } from "../../../components/fold.tsx";
 import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Progress } from "../../../components/progress.tsx";
-import { can, readerOf } from "../../../lib/access.ts";
+import { can } from "../../../lib/access.ts";
+import { readerFor } from "../../../lib/groups.ts";
 import { db } from "../../../lib/db.ts";
 import { format, plural, relative } from "../../../lib/i18n/index.ts";
 import { objectiveProgress, percent, runsOn } from "../../../lib/model.ts";
@@ -36,7 +38,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
   const ctx = await context(sql, member);
   const q = await searchParams;
   const asked = q.cycle;
-  const cycle = asked && /^[1-9][0-9]{0,17}$/u.test(asked) ? ctx.cycles.find(c => c.id === asked) : await defaultCycle(sql, member.locale);
+  const cycle = asked && /^[1-9][0-9]{0,17}$/u.test(asked) ? ctx.cycles.find(c => c.id === asked) : await defaultCycle(sql, localeOf(member.language));
   if (asked && !cycle) notFound();
   if (!cycle) {
     return (
@@ -46,7 +48,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
       </div>
     );
   }
-  const objectives = await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member));
+  const objectives = await cycleObjectives(sql, cycle.id, ctx.clock, await readerFor(member));
   const who = await ctx.people(idsOf(objectives));
   const views = objectives.map(o => objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed: cycle.closed, teams: ctx.teams }));
   const byId = new Map(views.map(o => [o.id, o]));

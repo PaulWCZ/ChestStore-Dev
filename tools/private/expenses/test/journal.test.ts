@@ -81,7 +81,7 @@ test("the entries: 18 FEC columns, one balanced entry per expense, each person's
 });
 
 test("the spreadsheet says the flat rate, the nights, the rate and the guests; by the month of payment", async () => {
-  const text = await (await get(csvRoute, "/chest/export/csv?month=2026-09", { ...camille, locale: "en" })).text();
+  const text = await (await get(csvRoute, "/chest/export/csv?month=2026-09", { ...camille, language: "en" })).text();
   assert.match(text, /"Night and breakfast, elsewhere in France \(URSSAF\), 3 nights × 56\.80 EUR, Chantier Nantes"/u);
   assert.match(text, /,2 nights,/u);
   assert.match(text, /,12\.50,GBP,1\.1653,14\.57,/u);

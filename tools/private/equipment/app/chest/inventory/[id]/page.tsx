@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { ItemLine } from "../../../../components/bits.tsx";
@@ -26,7 +26,7 @@ export default async function InventoryReport({ params }: { params: Promise<{ id
   });
   const names = await people(holderIds(found.missing));
   const today = chest.today();
-  const date = formatDate(found.inventory.closedAt!, locale, { day: "numeric", month: "long", year: "numeric" }, chest.timeZone());
+  const date = formatDate(found.inventory.closedAt!, locale, { day: "numeric", month: "long", year: "numeric" }, chest.timeZone);
   const missing = (found.inventory.total ?? 0) - (found.inventory.seen ?? 0);
   return (
     <div className="wide">

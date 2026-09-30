@@ -1,5 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, inTeam, mayCreate, readerOf } from "./access.ts";
+import { groupsOf } from "./groups.ts";
 import type { Query } from "./db.ts";
 import type { Level } from "./model.ts";
 import { cycleObjectives, type Clock } from "./read.ts";
@@ -10,13 +11,14 @@ import { settings, type Team } from "./teams.ts";
 // support in that cycle.
 export async function formChoices(sql: Query, actor: Member, cycleId: string, teamList: Team[], clock: Clock) {
   const { personal } = await settings(sql);
+  const groups = await groupsOf(actor);
   const active = teamList.filter(x => !x.archived);
   const levels: Level[] = [];
-  if (mayCreate(actor, "company", null, personal)) levels.push("company");
-  if (active.some(x => mayCreate(actor, "team", x, personal)) || (active.length === 0 && can(actor, "team.write"))) levels.push("team");
-  if (mayCreate(actor, "personal", null, personal)) levels.push("personal");
-  const teams = active.map(x => ({ id: x.id, name: x.name, writable: can(actor, "any.write") || inTeam(actor, x), group: x.groupId !== null }));
-  const objectives = await cycleObjectives(sql, cycleId, clock, readerOf(actor));
+  if (mayCreate(actor, "company", null, personal, groups)) levels.push("company");
+  if (active.some(x => mayCreate(actor, "team", x, personal, groups)) || (active.length === 0 && can(actor, "team.write"))) levels.push("team");
+  if (mayCreate(actor, "personal", null, personal, groups)) levels.push("personal");
+  const teams = active.map(x => ({ id: x.id, name: x.name, writable: can(actor, "any.write") || inTeam(actor, x, groups), group: x.groupId !== null }));
+  const objectives = await cycleObjectives(sql, cycleId, clock, readerOf(actor, groups));
   const names = new Map(teamList.map(x => [x.id, x.name]));
   const parents = objectives.filter(o => o.level !== "personal").map(o => ({ id: o.id, title: o.title, level: o.level, team: o.teamId ? names.get(o.teamId) ?? null : null }));
   return { levels, teams, parents, personal };

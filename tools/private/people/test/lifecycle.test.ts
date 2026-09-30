@@ -81,7 +81,7 @@ test("a manager who leaves: their reports keep their place (flagged), their step
   assert.equal((await j.journey(sql, hr, again.id)).items.find(i => i.role === "manager")?.assignee, camille.id);
   // Back in the Chest: the next directory read finds her profile again, and
   // she is Nora's manager again.
-  chest.members.push({ ...ines });
+  chest.members.push(asMember(ines));
   chest.former.splice(chest.former.findIndex(f => f.id === ines.id), 1);
   members.forget();
   await directory(sql, hr);

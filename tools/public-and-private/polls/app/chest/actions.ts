@@ -11,7 +11,7 @@ import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import * as guests from "../../lib/guests.ts";
 import { memberPattern } from "../../lib/model.ts";
-import { defaultLocale, isLocale } from "../../lib/i18n/index.ts";
+import { localeOf } from "@argentic/chest-sdk/member";
 import { nameOf, people } from "../../lib/people.ts";
 import * as polls from "../../lib/polls.ts";
 import * as replies from "../../lib/replies.ts";
@@ -244,7 +244,7 @@ export async function myReplies(pollId: string, keys: string[]): Promise<Result<
   return act(async actor => {
     const found = await replies.mine(db(), actor, pollId, keys);
     const who = await people(found.flatMap(c => c.replies.map(r => r.author)));
-    const locale = isLocale(actor.locale) ? actor.locale : defaultLocale;
+    const locale = localeOf(actor.language);
     return found.map(c => ({ ...c, replies: c.replies.map(r => ({ id: r.id, name: r.author === "anonymous" ? null : nameOf(who.get(r.author), locale), body: r.body })) }));
   });
 }

@@ -7,7 +7,7 @@ import { balancesOf } from "../../../lib/balances.ts";
 import { db } from "../../../lib/db.ts";
 import { everyoneOrNone } from "../../../lib/directory.ts";
 import { formatDay, formatDays, plural } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/today.ts";
 import { nameOf, people } from "../../../lib/people.ts";
 import { types } from "../../../lib/rules.ts";
 import { viewer } from "../../../lib/session.ts";

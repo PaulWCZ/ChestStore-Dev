@@ -28,7 +28,7 @@ what must not break.
 | `lib/reviews.ts` | Review reminders: set, "still correct", due pages |
 | `lib/reads.ts` | Read and acknowledged: ask (everyone or groups), confirm, the report (`/reads`, `/reads/csv` with `csvCell`), pages to read |
 | `lib/pins.ts` | Pages pinned to the home page |
-| `lib/groups.ts` | Every group of the Chest (`companyGroups`: `groups.all()` with the proposal, else the groups that give the wiki; cached a minute, `forgetGroups` on group events) and members of the tool (`membersOfTool`, `editorsOfTool`) |
+| `lib/groups.ts` | Every group of the Chest (`companyGroups`: `groups.all()` with the proposal, else the groups that give the wiki; cached a minute, `forgetGroups` on group events) and members of the tool (`membersOfTool`, `editorsOfTool`); each person's groups asked of the Chest (`withGroups`: `members.groups.of`, for `currentMember()`; `withAllGroups`: the groups' members, for lists), since `member.groups` lists only the groups that give the wiki |
 | `lib/tell.ts` | **Everything the bell says** (keys `comments:`, `saved:`, `review:`, `read:`, `mention:`), each recipient checked against the space's access at that moment; `comment_notices` (which comment an item shows: `commentGone`/`commentShown`); emails of read requests and reminders (`readAsked`, `remindReaders`); the `reviews` schedule's work (review reminders, reminders a week after an ask); `reconcileReads` on group changes |
 | `app/chest-jobs/[name]/route.ts` | Scheduled tasks (proposal): `reviews` |
 | `lib/starter.ts` | The one-click example handbook (words in the catalogues' `starter`) |
@@ -132,13 +132,3 @@ npm ci && npm test && npm run build   # all three must pass
   others must record it in `comment_notices`.
 - **Imports keep their source's date** through `writeContent({ at })`;
   the home page's *Recently updated* uses `recent({ withoutImports: true })`.
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->

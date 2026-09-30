@@ -20,8 +20,12 @@ export function plural(forms: { readonly one: string; readonly other: string; re
   return format(form, { count: new Intl.NumberFormat(intl(locale)).format(n), ...values });
 }
 
-// Dates in the reader's language and the Chest's time zone (Europe/Paris
-// unless the tool is told otherwise — Proposal: a Chest time zone).
+// Dates in the reader's language. A day ("2026-09-30") is written from its
+// noon UTC, the same day in every zone; an instant shown to a member passes
+// their zone (options.timeZone, member.timeZone on the server). This module
+// is also the client's, where the Chest's settings are not: the fallback
+// zone for an instant is Europe/Paris, the harness's and the first
+// customers'.
 export const timeZone = "Europe/Paris";
 export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
   return new Intl.DateTimeFormat(intl(locale), { timeZone, ...options }).format(typeof value === "string" ? new Date(value) : value);

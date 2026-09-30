@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError, Unavailable } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
 import * as mail from "@argentic/chest-sdk/mail";

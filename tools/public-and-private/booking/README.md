@@ -165,8 +165,8 @@ confirmation; nobody is ever booked twice.
   by default) are deleted every night; a guest's data (answers included)
   can be erased by their email address.
 - English and French, everywhere: the team's pages in each member's
-  language, the public pages by the visitor's switch or browser, the
-  emails in the language the guest booked in.
+  language, the public pages by the visitor's switch or browser (else the
+  Chest's language), the emails in the language the guest booked in.
 
 ## Roles
 
@@ -334,7 +334,11 @@ does).
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`.
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), a packed copy in
+`vendor/`. The member's `language` and the Chest's `organization.name`,
+`timeZone` and `language` are the released 0.3.0; what follows is not in
+it yet.
+
 - **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`).
   Without it the tool works: the guest keeps their page's link (shown
   after booking), and Settings says guests get no email. The pages ask
@@ -350,11 +354,12 @@ does).
   kept until an administrator erases them.
 - **Photos on the public host**: the Chest's photo links work on the team
   host only; public pages show initials.
-- **The Chest's settings** — **Proposal (studio)** (`chest`): the company's
-  name (an administrator may name it otherwise for visitors), the default
-  time zone of new hosts, and the public host's address. On a Chest that
-  does not give them yet: no name, Europe/Paris, and the address derived
-  from the request (remembered for emails sent by a schedule).
+- **The Chest's addresses** — **Proposal (studio)** (`chest.publicUrl`,
+  `chest.teamUrl`): the public host's address; on a Chest that does not
+  give it yet, the address is derived from the request (remembered for
+  emails sent by a schedule). The company's name (an administrator may
+  name it otherwise for visitors) and the default time zone of new hosts
+  are the Chest's (`chest.organization.name`, `chest.timeZone`, 0.3.0).
 - **The visitor's address** for the booking form's counters is read from
   `X-Forwarded-For`, assumed set by the Chest's front.
 - **`calendar`** — **Proposal (studio)** (`chest.proposals.json`:

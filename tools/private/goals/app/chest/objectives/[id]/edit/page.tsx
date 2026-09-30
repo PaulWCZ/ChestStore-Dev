@@ -1,5 +1,5 @@
 import { knownBoards } from "../../../../../lib/sources.ts";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
@@ -50,7 +50,7 @@ export default async function EditObjective({ params }: { params: Promise<{ id: 
         me={member.id}
         initial={{ level: o.level, teamId: o.teamId ?? "", parentId: o.parentId ?? "", owner: o.owner, title: o.title, why: o.why, visibility: o.visibility, viewers: await viewersOf(sql, o.id) }}
         locale={v.locale}
-        currency={chest.currency()}
+        currency={chest.currency}
         boards={boards}
         personalNote={false}
         t={{ form: t.form, tools: t.tools, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker }}

@@ -351,14 +351,18 @@ closed poll is seen by those asked, its organiser and admins.
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
-  the bell in each member's language.
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+
+- `member.language` — SDK 0.3.0: the interface and the bell in each
+  member's language (`localeOf`: English for a language Polls does not
+  speak yet).
 - `notifications.broadcast` — **Proposal (studio)**: telling a poll's
   audience in one call; Polls falls back to paged `notify` without it.
 - `schedules` — **Proposal (studio)**: `chest.proposals.json` declares `pass`
   every 15 minutes. Without it, Polls still works (see above).
-- `chest.timeZone()` / `today()` — **Proposal (studio)**: dates and closing
-  times on the Chest's clock.
+- `chest.timeZone` / `chest.today()` — SDK 0.3.0: dates and closing
+  times on the Chest's clock; the Chest puts the database's sessions in
+  that zone too (`current_date` is the Chest's day).
 - `mail` — **Proposal (studio)**: reminders by email (`send` to `{member}`).
   Keys are passed whole (studio.15 hashes long ones). Reminders honour each
   member's `mailPreference` (studio.15, applied by `mail.send`; not
@@ -369,8 +373,14 @@ closed poll is seen by those asked, its organiser and admins.
   address. `mail.available()` (studio.16) decides whether the guest form
   asks for an email.
 - `groups: "read"` — **Proposal (studio)**, in `vendor/` (`members.groups.all`,
-  `members.groups.members`, `group.*` events): any group of the Chest as an
-  audience; results per team (`lib/groups.ts`, adapted from News).
+  `members.groups.members`, `members.groups.of`, `group.*` events): any
+  group of the Chest as an audience; results per team (`lib/groups.ts`,
+  adapted from News). The assertion (`member(request).groups`) and
+  `members.*` name only the groups that **give** Polls — none when Polls is
+  open to everyone — so who a poll asks is read from the Chest: the member
+  of a request with `groups.of` (once per request, `lib/session.ts`), an
+  audience or a badge count with `groups.members` of the poll's groups.
+  Without the permission, the groups the Chest gave with the member.
 - `calendar` — **Proposal (studio)**: the chosen date in each person's
   Chest calendar (`calendar.putMany`, studio.15: keys `poll:<id>`, then
   `poll:<id>:2`… for each further 1,000 people); without it, the .ics
@@ -379,10 +389,12 @@ closed poll is seen by those asked, its organiser and admins.
   5,000 events full, a date out of its range) is taken out of calendars
   and its people are remembered (`polls.calendar_missing`), so their page
   offers the .ics file rather than saying "In your calendar".
-- `visitors` — **Proposal (studio)**: the guest form's token and the
-  Chest's counters of visitors; without them, Polls counts in its own
+- `visitors` — **Proposal (studio)**: the guest page's language (the
+  visitor's switch, their browser's, then the Chest's own), the guest
+  form's token and the Chest's counters of visitors; without them, Polls
+  counts in its own
   table (`guest_counts`).
-- `chest.publicUrl()` — **Proposal (studio)**: the guest link's address
+- `chest.publicUrl` — **Proposal (studio)**: the guest link's address
   (else derived from the request, as Booking does).
 - Wanted, not built:
   - **A broadcast to members by id** (`to: { members: [ids] }`) and one

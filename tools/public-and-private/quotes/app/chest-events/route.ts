@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import * as events from "@argentic/chest-sdk/events";
 import { dealReopened, dealWon } from "../../lib/crm.ts";
 import { db } from "../../lib/db.ts";
@@ -13,14 +13,14 @@ import { billableCancelled, billableReceived } from "../../lib/timesheets.ts";
 // handle() only.
 export async function POST(request: Request): Promise<Response> {
   const sql = db();
-  const locale = chest.locale();
+  const locale = chest.language;
   return new Response(null, {
     status: await events.handle(request, handlers(sql), {
       seen: seen(sql),
       tools: {
-        "crm.deal.won": async e => { await dealWon(sql, e, { today: chest.today(), locale: isLocale(locale) ? locale : "en", currency: chest.currency() }); },
+        "crm.deal.won": async e => { await dealWon(sql, e, { today: chest.today(), locale: isLocale(locale) ? locale : "en", currency: chest.currency }); },
         "crm.deal.reopened": async e => { await dealReopened(sql, e); },
-        "timesheets.billable": async e => { await billableReceived(sql, e, { locale: isLocale(locale) ? locale : "en", currency: chest.currency() }); await refreshBadges(sql, chest.today()); },
+        "timesheets.billable": async e => { await billableReceived(sql, e, { locale: isLocale(locale) ? locale : "en", currency: chest.currency }); await refreshBadges(sql, chest.today()); },
         "timesheets.billable_cancelled": async e => { await billableCancelled(sql, e); await refreshBadges(sql, chest.today()); },
       },
     }),

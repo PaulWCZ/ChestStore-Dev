@@ -3,7 +3,7 @@
 // lunch, 2 the Christmas party (closed, date chosen), 3 the weekly pulse's
 // open round (6-9 its closed rounds), 4 the office plants, 5 Camille's
 // draft, 10 the open-day sign-up sheet).
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, control, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5500);
 const { browser, context, page, origin, problems } = await open(port, "sofia", { locale: "en" });
@@ -240,6 +240,35 @@ await step("a plain member asks the team too, to people picked by name; an admin
   await page.goto(origin + "/chest");
   await page.getByText("Everyone can start a poll").click();
   await page.waitForSelector(".ck-toast:has-text('Saved.')");
+});
+
+await step("a poll put to Sales, a group that does not give Polls (open to everyone): Sales is asked, Tech is not, and joining Sales is enough", async () => {
+  // The harness plays a Chest where Polls is open to everyone: no group
+  // gives it, the assertion names none; Polls asks the Chest who is in Sales.
+  await who("sofia", "en");
+  await page.goto(origin + "/chest/new?kind=choice");
+  await page.getByLabel("Your question").fill("Sales dinner on Thursday?");
+  await page.getByLabel("Answer 1").fill("Yes");
+  await page.getByLabel("Answer 2").fill("No");
+  await page.getByText("Chosen groups or people").click();
+  await page.locator(".group-list label", { hasText: "Sales" }).locator("input").check();
+  await page.getByRole("button", { name: "Send to the team" }).click();
+  await page.waitForURL(/\/chest\/polls\/\d+$/u);
+  const salesUrl = page.url();
+  expect(/Sofia Rossi demande[ \u00a0\u202f]: Sales dinner on Thursday\?/u.test(await dev()), "Inès (Sales) told in French");
+  await who("hugo", "en");
+  await page.goto(salesUrl);
+  expect(await page.getByRole("heading", { name: "Sales dinner on Thursday?" }).isVisible(), "Hugo (Sales) sees it");
+  await page.locator(".pick-option", { hasText: "Yes" }).click();
+  await page.getByRole("button", { name: "Send my answer" }).click();
+  await page.waitForSelector(".thanks .said:has-text('Yes')");
+  await who("lea", "en");
+  expect((await page.request.get(salesUrl)).status() === 404, "Léa (Tech) is not asked: not even seen");
+  await control(page, origin, "group", { member: id("lea"), group: "grp_sales" + "a".repeat(21), action: "add" });
+  expect((await page.request.get(salesUrl)).status() === 200, "Léa joined Sales: asked at once");
+  await control(page, origin, "group", { member: id("lea"), group: "grp_sales" + "a".repeat(21), action: "remove" });
+  expect((await page.request.get(salesUrl)).status() === 404, "Léa left Sales: no longer asked");
+  await who("sofia", "en");
 });
 
 await step("on a phone, the date grid scrolls inside its frame: the page stays 390 px", async () => {

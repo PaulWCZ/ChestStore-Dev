@@ -1,5 +1,5 @@
 import { StatusBadge } from "@argentic/chest-ui/components";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -61,7 +61,7 @@ export default async function JobBoard({ params }: { params: Promise<{ id: strin
         cards={cards}
         manage={manage}
         locale={locale}
-        today={dayOf(new Date(), chest.timeZone())}
+        today={dayOf(new Date(), chest.timeZone)}
         mailing={manage ? await mailState() : "unknown"}
         t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, reject: t.reject, common: t.common, hire: t.hire, dialog: t.dialog, date: t.dates }}
       />

@@ -1,11 +1,12 @@
 -- Sample data for local runs and screenshots (never run by the Chest):
 -- Atelier Martin's online shop. The member ids are the dev harness's
--- (lab/chest-dev/cast.mjs); times are relative to today, in Paris.
+-- (lab/chest-dev/cast.mjs); times are relative to today, in the Chest's
+-- zone (the database session's TimeZone, which the Chest sets).
 -- 90 days of history (six incidents, one maintenance done), one incident
 -- being watched now (in English and French), a maintenance planned next
 -- week, three subscribers, a post-mortem, templates, a team-only service.
 create function pg_temp.at(days integer, minutes integer) returns timestamptz language sql as $$
-  select (date_trunc('day', now() at time zone 'Europe/Paris') + make_interval(days => days, mins => minutes)) at time zone 'Europe/Paris'
+  select (date_trunc('day', localtimestamp) + make_interval(days => days, mins => minutes))::timestamptz
 $$;
 
 -- An incident with its updates: steps is an array of [minutes after its
@@ -94,8 +95,8 @@ begin
   -- Next week: the payment provider's upgrade, Tuesday 22:00–23:30.
   insert into incidents (kind, title, status, started_at, ends_at, auto_posts, created_by, created_at)
     values ('maintenance', 'Payment provider upgrade', 'scheduled',
-      pg_temp.at(8 - extract(isodow from now() at time zone 'Europe/Paris')::int + 1, 1320),
-      pg_temp.at(8 - extract(isodow from now() at time zone 'Europe/Paris')::int + 1, 1410), true, camille, now() - interval '2 days') returning id into mid;
+      pg_temp.at(8 - extract(isodow from current_date)::int + 1, 1320),
+      pg_temp.at(8 - extract(isodow from current_date)::int + 1, 1410), true, camille, now() - interval '2 days') returning id into mid;
   insert into maintenance_components (incident_id, component_id) select mid, id from components where name in ('Checkout', 'Payments');
   insert into updates (incident_id, status, body, posted_at, author) values
     (mid, 'scheduled', 'Our payment provider is upgrading its systems. Ordering and paying will be unavailable for about 90 minutes. Browsing the shop is not affected.', now() - interval '2 days', camille);

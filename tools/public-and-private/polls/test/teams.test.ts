@@ -76,7 +76,7 @@ test("which groups may show: the floor, the whole company, a group inside anothe
 });
 
 const g = (name: string) => "grp_" + name + "a".repeat(26 - name.length);
-const person = (n: number): FakeMember => ({ id: "mbr_p" + "abcdefghijklmnop"[n] + "a".repeat(24), firstName: "P" + n, lastName: "Q", name: "P" + n + " Q", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], locale: "en" });
+const person = (n: number): FakeMember => ({ id: "mbr_p" + "abcdefghijklmnop"[n] + "a".repeat(24), firstName: "P" + n, lastName: "Q", name: "P" + n + " Q", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en" });
 const people = Array.from({ length: 12 }, (_, i) => person(i));
 const ids = (from: number, to: number) => people.slice(from, to).map(p => p.id);
 const teams = [
@@ -88,7 +88,7 @@ const teams = [
 const cast = [...people.map(p => ({ ...p, groups: teams.filter(t => t.members.includes(p.id)).map(t => t.id) })), { ...sofia, groups: [] }];
 
 test("an anonymous survey per team: counts per group of 5 or more, shown once closed, never a group that could be worked out", async () => {
-  const chest = await fakeChest({ members: cast, groups: teams, capabilities: ["members", "notifications", "groups"], timeZone: zone });
+  const chest = await fakeChest({ members: cast, groups: teams, capabilities: ["members", "notifications", "groups"], chest: { timeZone: zone } });
   try {
     const { sql } = database;
     const made = await polls.createPoll(sql, asMember(sofia), { kind: "survey", title: "Our week", anonymous: true, questions: [{ kind: "scale", text: "Your week?" }, { kind: "text", text: "Anything?" }], open: true }, ctx);

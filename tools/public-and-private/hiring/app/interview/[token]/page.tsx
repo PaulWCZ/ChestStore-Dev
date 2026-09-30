@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Check } from "../../../components/icons.tsx";
@@ -29,7 +29,7 @@ export default async function ChooseTime({ params }: { params: Promise<{ token: 
   if (!found) notFound();
   const s = await settings(sql);
   const company = s.companyName || t.careers.titlePlain;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const w = t.pick;
   const foot = <><span>{format(t.careers.footer, { company })}</span><span>{format(t.careers.privacy, { period: retentionWords(t, s.retentionMonths) })}</span></>;
   const { request } = found;

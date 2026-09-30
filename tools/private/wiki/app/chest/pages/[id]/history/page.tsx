@@ -57,7 +57,7 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
                 <Link href={href(x.number)} aria-current={x.number === chosen.number ? "page" : undefined}>
                   <span className="v-head"><strong>{format(t.history.version, { number: x.number })}</strong>{i === 0 && <span className="pill">{t.history.current}</span>}</span>
                   <span className="v-kind">{kind(x.kind, x.restoredFrom)}</span>
-                  <span className="muted" title={formatDate(x.createdAt, locale, { dateStyle: "long", timeStyle: "short" })}>{format(t.history.by, { when: relative(x.createdAt, locale, now), name: name(x.author) })}</span>
+                  <span className="muted" title={formatDate(x.createdAt, locale, { dateStyle: "long", timeStyle: "short", timeZone: member.timeZone })}>{format(t.history.by, { when: relative(x.createdAt, locale, now), name: name(x.author) })}</span>
                 </Link>
               </li>
             ))}
@@ -67,7 +67,7 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
           <div className="version-head">
             <div>
               <h2 id="version-title">{format(t.history.version, { number: chosen.number })}</h2>
-              <p className="muted">{formatDate(chosen.createdAt, locale, { dateStyle: "full", timeStyle: "short" })} · {name(chosen.author)}</p>
+              <p className="muted">{formatDate(chosen.createdAt, locale, { dateStyle: "full", timeStyle: "short", timeZone: member.timeZone })} · {name(chosen.author)}</p>
             </div>
             {p.space.access === "write" && chosen.number !== list[0]?.number && (
               <RestoreButton pageId={p.id} number={chosen.number} label={t.history.restore} errors={t.errors} />

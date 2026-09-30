@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { currentMember } from "../../../../lib/session.ts";
@@ -11,7 +12,7 @@ export async function GET(): Promise<Response> {
     return new Response(zip, {
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="news-${new Date().toISOString().slice(0, 10)}.zip"`,
+        "Content-Disposition": `attachment; filename="news-${chest.today()}.zip"`,
         "Cache-Control": "private, no-store",
       },
     });

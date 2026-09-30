@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
@@ -33,7 +33,7 @@ export default async function Labels({ searchParams }: { searchParams: Promise<R
   const shown = items.slice(0, limits.labels);
   const capped = items.length > limits.labels;
   const origin = teamOrigin(await headers());
-  const company = chest.company();
+  const company = chest.organization.name;
   const sheets: (typeof shown)[] = [];
   for (let i = 0; i < shown.length; i += perSheet) sheets.push(shown.slice(i, i + perSheet));
   return (

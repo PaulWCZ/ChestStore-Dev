@@ -21,7 +21,7 @@ beforeEach(async () => {
   await database.sql`truncate polls, tellings restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ members, groups: chestGroups, capabilities: ["members", "notifications"], schedules: [{ name: "pass", cron: "*/15 * * * *" }], timeZone: "Europe/Paris" });
+  chest = await fakeChest({ members, groups: chestGroups, capabilities: ["members", "notifications"], schedules: [{ name: "pass", cron: "*/15 * * * *" }], chest: { timeZone: "Europe/Paris" } });
   return chest;
 };
 
@@ -146,7 +146,7 @@ test("over the Chest's quotas, a telling waits and goes on later from where it s
   const letters = "abcdefghijklmnopqrstuvwxyz234567";
   const crowd: FakeMember[] = Array.from({ length: 1300 }, (_, i) => {
     const code = [...Array(4)].map((_, k) => letters[Math.floor(i / 32 ** k) % 32]).join("");
-    return { id: "mbr_" + code + "q".repeat(22), firstName: "P" + i, lastName: "Crowd", name: `P${i} Crowd`, photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], locale: "en" };
+    return { id: "mbr_" + code + "q".repeat(22), firstName: "P" + i, lastName: "Crowd", name: `P${i} Crowd`, photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en" };
   });
   await open([sofia, ...crowd]);
   try {

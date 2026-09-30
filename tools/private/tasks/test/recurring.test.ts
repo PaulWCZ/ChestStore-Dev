@@ -20,7 +20,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, timeZone: "Pacific/Auckland" });
+  chest = await fakeChest({ members: everyone, chest: { timeZone: "Pacific/Auckland" } });
 });
 after(async () => {
   await chest.close();

@@ -1,5 +1,5 @@
 import { addDays, holidaysBetween, weekday } from "../../lib/calendar.ts";
-import { today } from "../../lib/model.ts";
+import { today } from "../../lib/today.ts";
 
 // A Monday at least `after` days ahead whose week (Monday to Saturday, and
 // the next Monday) has no public holiday, even in Alsace-Moselle: tests

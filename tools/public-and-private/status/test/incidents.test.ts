@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/app-error.ts";
 import { addComponent } from "../lib/components.ts";
 import * as incidents from "../lib/incidents.ts";
@@ -9,14 +10,18 @@ import { asMember } from "./support/member.ts";
 import { camille, nora, tom } from "./support/members.ts";
 
 let database: TestDatabase;
+// The Chest the tool runs in: its zone and language are read on every page.
+let chest: FakeChest;
 const editor = asMember(camille);
 const zone = "Europe/Paris";
 let checkout = "", payments = "", website = "";
 
 before(async () => {
   database = await testDatabase();
+  chest = await fakeChest({ chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" } });
 });
 after(async () => {
+  await chest.close();
   await database.close();
 });
 beforeEach(async () => {

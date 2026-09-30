@@ -191,7 +191,8 @@ export async function removeArrival(sql: Sql, actor: Member | null, arrivalId: u
 }
 
 // Never linked: gone 90 days after the start date (or after being told,
-// without one), with the checklists about them.
+// without one — told_at::date is that day in the Chest's zone, the zone of
+// the database's sessions), with the checklists about them.
 export async function purgeArrivals(sql: Query, now: string): Promise<number> {
   const limit = addDays(now, -keepUnlinkedDays);
   const gone = await sql`

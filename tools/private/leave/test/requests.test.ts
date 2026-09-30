@@ -8,7 +8,7 @@ import * as requests from "../lib/requests.ts";
 import { archiveType, saveType, types } from "../lib/rules.ts";
 import { setApprover, setStartDate } from "../lib/staff.ts";
 import * as tell from "../lib/tell.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";

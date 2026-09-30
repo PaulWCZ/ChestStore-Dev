@@ -1,11 +1,11 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 
-// The public host's address: the Chest gives it (chest.publicUrl(),
+// The public host's address: the Chest gives it (chest.publicUrl,
 // Proposal (studio)); without, derived from a request on either host (the
 // team host is <tool>-chest.<chest>, the public one <tool>.<chest>), and
 // the last one seen remembered for emails written outside a request.
 export function publicOrigin(headers: Headers, tool = process.env["CHEST_TOOL"] ?? ""): string | null {
-  const given = chest.publicUrl();
+  const given = chest.publicUrl;
   if (given) return given;
   const host = (headers.get("x-forwarded-host") ?? headers.get("host") ?? "").split(",")[0]!.trim().toLowerCase();
   if (!/^[a-z0-9.-]{1,253}(:[0-9]{1,5})?$/u.test(host)) return null;
@@ -23,5 +23,5 @@ export function visitorKey(headers: Headers): string {
 // The start of a link to the public part, outside a request (an email
 // received): the Chest's word, else the last address seen.
 export function publicBase(remembered: string | null): string {
-  return chest.publicUrl() ?? remembered ?? "";
+  return chest.publicUrl ?? remembered ?? "";
 }

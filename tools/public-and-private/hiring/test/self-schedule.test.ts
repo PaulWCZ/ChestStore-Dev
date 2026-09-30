@@ -20,8 +20,7 @@ before(async () => {
     capabilities: ["members", "files", "notifications", "mail", "calendar"],
     mail: { domain: "atelier.test", mailboxes: ["jobs"] },
     calendar: { domain: "atelier.test", toolTitle: "Hiring", company: "Atelier Martin" },
-    settings: { company: "Atelier Martin" },
-    timeZone: "Europe/Paris",
+    chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" },
   });
 });
 after(async () => {

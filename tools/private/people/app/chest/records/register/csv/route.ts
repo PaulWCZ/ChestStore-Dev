@@ -1,6 +1,7 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { can } from "../../../../../lib/access.ts";
 import { db } from "../../../../../lib/db.ts";
-import { catalogue, isLocale } from "../../../../../lib/i18n/index.ts";
+import { catalogue } from "../../../../../lib/i18n/index.ts";
 import { everyone, people, plainName } from "../../../../../lib/people.ts";
 import { register, registerCsv, registerGaps } from "../../../../../lib/register.ts";
 import { currentMember } from "../../../../../lib/session.ts";
@@ -13,7 +14,7 @@ export async function GET(): Promise<Response> {
   const actor = await currentMember();
   if (!actor) return new Response(null, { status: 401 });
   if (!can(actor, "records.manage")) return new Response(null, { status: 404 });
-  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const locale = localeOf(actor.language);
   const t = catalogue(locale);
   const r = await register(db(), actor, "register_exported");
   const [tutors, listed] = await Promise.all([people(r.interns.flatMap(l => (l.tutorId ? [l.tutorId] : []))), everyone()]);

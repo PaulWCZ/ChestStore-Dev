@@ -4,6 +4,7 @@ import { AppError } from "./app-error.ts";
 import { checkWhen, conflict, moment, span } from "./booking-rules.ts";
 import { enqueue, roomKey } from "./calendar.ts";
 import { bookedFor } from "./desk-bookings.ts";
+import { groupsOf } from "./groups.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
 import { addDays, clean, day, id, int, limits, memberIds, minutes } from "./model.ts";
 
@@ -66,11 +67,12 @@ function slot(m: Awaited<ReturnType<typeof moment>>, startValue: unknown, endVal
 }
 
 // A room one may book: still there, and — when it is kept for a group —
-// the actor is in that group, or an admin.
-async function liveRoom(sql: Query, roomId: string, actor: Member, exempt: boolean): Promise<{ id: string; name: string }> {
+// the one it is for is in that group (groups: every group they are in,
+// groupsOf), or the actor is an admin.
+async function liveRoom(sql: Query, roomId: string, groups: readonly string[], exempt: boolean): Promise<{ id: string; name: string }> {
   const [room] = await sql<{ id: string; name: string; group_id: string | null }[]>`select id, name, group_id from rooms where id = ${roomId} and archived_at is null`;
   if (!room) throw new AppError("not_found");
-  if (room.group_id !== null && !exempt && !actor.groups.includes(room.group_id)) throw new AppError("group_only");
+  if (room.group_id !== null && !exempt && !groups.includes(room.group_id)) throw new AppError("group_only");
   return { id: String(room.id), name: room.name };
 }
 
@@ -92,7 +94,7 @@ export async function bookRoom(sql: Sql, actor: Member | null, input: RoomInput,
     const s = slot(m, input.start, input.end);
     const weeks = input.weeks === undefined ? 1 : int(input.weeks, 1, m.exempt ? 52 : m.rules.repeatWeeks);
     checkWhen(m, first, s, "room");
-    await liveRoom(tx, roomId, actor, m.exempt);
+    await liveRoom(tx, roomId, who.groups, m.exempt);
     const series = weeks > 1 ? String((await tx<{ n: string }[]>`select nextval('room_series') as n`)[0]!.n) : null;
     const ids: string[] = [];
     const taken: string[] = [];
@@ -126,6 +128,7 @@ export async function bookRoom(sql: Sql, actor: Member | null, input: RoomInput,
 export async function updateRoomBooking(sql: Sql, actor: Member | null, bookingId: unknown, input: RoomInput, zone: string): Promise<{ before: RoomBooking; after: RoomBooking }> {
   if (!actor || !can(actor, "book")) throw new AppError("forbidden");
   const bid = id(bookingId);
+  const mine = input.roomId === undefined ? [] : await groupsOf(actor);
   return sql.begin(async tx => {
     const [row] = await tx<{ member_id: string; over: boolean; started: boolean }[]>`
       select member_id, upper(during) <= now() as over, lower(during) <= now() as started from room_bookings where id = ${bid} and cancelled_at is null for update`;
@@ -142,7 +145,7 @@ export async function updateRoomBooking(sql: Sql, actor: Member | null, bookingI
     if (keepsStart) {
       if (s.end <= m.now && d === m.today) throw new AppError("past");
     } else checkWhen(m, d, s, "room");
-    if (roomId !== before!.roomId) await liveRoom(tx, roomId, actor, m.exempt);
+    if (roomId !== before!.roomId) await liveRoom(tx, roomId, mine, m.exempt);
     const title = input.title === undefined ? before!.title : clean(input.title, limits.title, { optional: true });
     try {
       await tx.savepoint(async sp => {

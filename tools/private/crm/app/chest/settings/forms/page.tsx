@@ -29,7 +29,7 @@ export default async function FormsCheck() {
       </div>
       {!manager ? <p className="notice">{t.check.readOnly}</p>
         : list.rows.length === 0 ? <div className="empty-box"><EmptyState title={t.check.empty} /></div>
-        : <CheckList rows={list.rows.map(r => ({ id: r.id, when: formatDate(r.at, locale, { dateStyle: "medium", timeStyle: "short" }), form: r.form, body: r.body, who: r.who, why: r.why, contact: r.contact, link: answerLink({ kind: "form", data: r.data as Record<string, string | number | null> }) }))} t={t} />}
+        : <CheckList rows={list.rows.map(r => ({ id: r.id, when: formatDate(r.at, locale, { dateStyle: "medium", timeStyle: "short", timeZone: member.timeZone }), form: r.form, body: r.body, who: r.who, why: r.why, contact: r.contact, link: answerLink({ kind: "form", data: r.data as Record<string, string | number | null> }) }))} t={t} />}
     </div>
   );
 }

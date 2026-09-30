@@ -11,7 +11,7 @@ import { jobTemplateKeys, listJobs, type JobRow } from "../../lib/jobs.ts";
 import { unmatchedCount } from "../../lib/messages.ts";
 import { stageLabel } from "../../lib/stages.ts";
 import { meetingTime } from "../../lib/i18n/format.ts";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { nameOf, people } from "../../lib/people.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { viewer } from "../../lib/session.ts";
@@ -25,7 +25,7 @@ export default async function Jobs() {
   const sql = db();
   const [list, waiting, next] = await Promise.all([listJobs(sql, member), waitingOn(sql, member), upcoming(sql, member)]);
   const toFile = can(member, "candidates.manage") ? await unmatchedCount(sql) : 0;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const who = await people(waiting.map(w => w.requestedBy));
   const recruiter = can(member, "jobs.manage");
   const careers = (publicOrigin(await headers()) ?? "") + "/";

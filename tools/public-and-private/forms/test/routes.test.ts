@@ -25,7 +25,7 @@ before(async () => {
     capabilities: ["members", "files", "notifications"],
     emits: ["forms.answered", "forms.contact", "forms.request"],
     receivers: 1,
-    settings: { company: "Atelier Martin" },
+    chest: { organization: "Atelier Martin" },
   });
 });
 after(async () => {

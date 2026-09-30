@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { IncidentCard } from "../../components/incident-card.tsx";
 import { StateLabel } from "../../components/state.tsx";
@@ -13,7 +13,7 @@ import { impactOf, statusView, touchedNames } from "../../lib/status-view.ts";
 // about services only the team uses.
 export async function TeamStatus({ locale, t }: { locale: Locale; t: Catalogue }) {
   const now = new Date();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const view = await statusView(db(), zone, now, { team: true, locale });
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   const current = [...view.open, ...view.maintenanceNow, ...view.maintenanceAhead];

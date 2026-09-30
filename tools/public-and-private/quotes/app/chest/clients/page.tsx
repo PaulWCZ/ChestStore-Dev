@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { can } from "../../../lib/access.ts";
 import { listClients } from "../../../lib/clients.ts";
 import { db } from "../../../lib/db.ts";
@@ -15,7 +15,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const q = typeof params["q"] === "string" ? params["q"].slice(0, 80) : "";
   const list = await listClients(db(), member, { archived, q });
   const all = archived || q ? await listClients(db(), member) : list;
-  const language = chest.locale();
+  const language = chest.language;
   return (
     <ClientsView t={t} locale={locale} clients={list} archived={archived} q={q} total={all.length} canWrite={can(member, "clients.write")} defaultLanguage={isLocale(language) ? language : "en"} />
   );

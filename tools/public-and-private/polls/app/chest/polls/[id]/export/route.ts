@@ -2,7 +2,8 @@ import { toCsv } from "../../../../../lib/csv.ts";
 import { dates } from "../../../../../lib/dates.ts";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
-import { catalogue, format, isLocale } from "../../../../../lib/i18n/index.ts";
+import { localeOf } from "@argentic/chest-sdk/member";
+import { catalogue, format } from "../../../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../../../lib/people.ts";
 import { exportData } from "../../../../../lib/polls.ts";
 import { currentMember } from "../../../../../lib/session.ts";
@@ -17,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const actor = await currentMember();
     const data = await exportData(db(), actor, id);
-    const locale = isLocale(actor?.locale) ? actor!.locale : "en";
+    const locale = actor ? localeOf(actor.language) : "en";
     const t = catalogue(locale);
     const d = dates(locale, chestZone());
     const when = (o: { day: string | null; start: string | null; end: string | null }) => (o.day ? d.dayShort(o.day) + (o.start ? " " + d.hours(o as { day: string; start: string | null; end: string | null }, t.dates.range) : "") : "");

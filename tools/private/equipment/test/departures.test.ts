@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as chestSettings from "@argentic/chest-sdk/chest";
+import { chest as chestSettings } from "@argentic/chest-sdk/chest";
 import { POST } from "../app/chest-events/route.ts";
 import { listCategories } from "../lib/categories.ts";
 import { lastDayOf, leavingList, purgeDepartures, readLeaving } from "../lib/departures.ts";

@@ -129,7 +129,7 @@ async function mayQuote(owner: string | null): Promise<boolean> {
   if (!owner) return false;
   try {
     const m = await members.get(owner);
-    return m !== null && can({ ...m, locale: m.locale ?? "en" } as Parameters<typeof can>[0], "quotes.write");
+    return m !== null && can(m, "quotes.write");
   } catch (error) {
     if (error instanceof ChestError) return false;
     throw error;

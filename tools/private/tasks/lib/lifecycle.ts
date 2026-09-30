@@ -1,6 +1,7 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { sync } from "./due-calendar.ts";
+import { forgetGroups } from "./groups.ts";
 
 // What Tasks does when a member changes, loses access, leaves or is erased
 // (the Chest posts these to /chest-events, at least once).
@@ -54,6 +55,12 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
 
 export function handlers(sql: Sql): events.Handlers {
   return {
+    // Someone moved between groups, or a group changed (Proposal (studio),
+    // "groups": "read"): who sees a private board shared with a group is
+    // asked again.
+    "member.updated": async event => { if (event.data.changed.includes("groups")) forgetGroups(); },
+    "group.changed": async () => { forgetGroups(); },
+    "group.removed": async () => { forgetGroups(); },
     // Their cards and steps change hands: the calendars follow.
     "access.revoked": async event => { await leave(sql, event.data.id); await sync(sql); },
     "member.removed": async event => { await leave(sql, event.data.id); await sync(sql); },

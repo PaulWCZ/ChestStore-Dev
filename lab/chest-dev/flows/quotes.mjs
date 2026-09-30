@@ -13,7 +13,7 @@
 // "Bon pour accord"; a link turned off stops working. Sofia imports the
 // invoices still to collect from the previous tool, and keeps a copy of the
 // monthly archive.
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, control, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
@@ -601,6 +601,21 @@ await step("Camille continues the numbering of her previous tool, and turns remi
   await page.waitForSelector("text=Enregistré.");
   await page.request.post(origin + "/_dev/schedule", { form: { name: "followup" } });
   expect(/Relance\s:\sfacture F-\d{4}-\d{4}/u.test(await dev()), "a late payer reminded by email");
+});
+
+await step("the Chest pauses email: Settings says the reminders wait, and nothing is emailed until it sends again", async () => {
+  await control(page, origin, "delivery", { mail: "suspended" });
+  try {
+    await page.goto(origin + "/chest/settings");
+    const warning = page.locator("section[aria-labelledby=s-reminders] .callout");
+    await warning.waitFor();
+    expect((await warning.innerText()).includes("Votre Chest a mis l’envoi d’e-mails en pause"), "the pause said, in French: " + await warning.innerText());
+  } finally {
+    await control(page, origin, "delivery", { mail: "ready" });
+  }
+  await page.goto(origin + "/chest/settings");
+  await page.getByText("Envoyer un e-mail au client, avec la facture").waitFor();
+  expect(await page.locator("section[aria-labelledby=s-reminders] .callout").count() === 0, "sending again: no warning left");
 });
 
 await step("round 3: a new client from its SIREN — the public directory, or an honest word when it cannot be reached", async () => {

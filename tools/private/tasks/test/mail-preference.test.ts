@@ -10,7 +10,7 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 
-// Each person's email choice in the Chest (member.mailPreference, SDK
+// Each person's email choice in the Chest (members.get(id).mailPreference, SDK
 // studio.15), which mail.send applies beside Tasks' own switch: "none" is
 // not emailed, "digest" waits for the Chest's one email a day. And keys
 // are passed whole: two people emailed under one long key each get theirs.
@@ -73,4 +73,12 @@ test("the email switch tells the truth: the Chest sends, does not send yet, or h
     await bare.close();
   }
   assert.equal(en.home.emailOff.includes("owner"), true);
+});
+
+// 0.3.0: the assertion carries no email choice; the home page reads it from
+// the members API.
+test("the home page's hint reads each person's choice from the Chest", async () => {
+  assert.equal(await mail.mailPreference(ines.id), "none");
+  assert.equal(await mail.mailPreference(lea.id), "digest");
+  assert.equal(await mail.mailPreference(hugo.id), "all");
 });

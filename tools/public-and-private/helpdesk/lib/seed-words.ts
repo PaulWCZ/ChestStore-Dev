@@ -24,4 +24,4 @@ export function storedTag(name: string): string {
 }
 
 // The catalogue of whoever reads (a member), English otherwise.
-export const readerWords = (actor: Pick<Member, "locale"> | null): Catalogue => catalogue(actor && isLocale(actor.locale) ? actor.locale : "en");
+export const readerWords = (actor: Pick<Member, "language"> | null): Catalogue => catalogue(actor && isLocale(actor.language) ? actor.language : "en");

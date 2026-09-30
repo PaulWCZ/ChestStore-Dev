@@ -1,7 +1,7 @@
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { format } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/today.ts";
 import { vehicleKinds } from "../../../lib/scale.ts";
 import { viewer } from "../../../lib/session.ts";
 import { priorDistance, scaleFor, vehicleOf, vehicleProof } from "../../../lib/settings.ts";

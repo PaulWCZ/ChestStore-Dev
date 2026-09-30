@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as activities from "../lib/activities.ts";
 import * as deals from "../lib/deals.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/zone.ts";
 import { stageConversion, weekActivities, weekStart } from "../lib/reports.ts";
 import { listStages } from "../lib/stages.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";

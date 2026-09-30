@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { identityOf, type Theme } from "@argentic/chest-ui";
 import { resolveTheme, type Look } from "@argentic/chest-ui/runtime";
 import { cache } from "react";

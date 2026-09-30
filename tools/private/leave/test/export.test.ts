@@ -8,7 +8,8 @@ import { AppError } from "../lib/app-error.ts";
 import { setApprover, setEmployeeNumber, setStartDate } from "../lib/staff.ts";
 import { GET as balancesCsv } from "../app/chest/people/balances/route.ts";
 import * as balances from "../lib/balances.ts";
-import { lastPayrollDay, today } from "../lib/model.ts";
+import { lastPayrollDay } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import { addDays, addMonths } from "../lib/calendar.ts";
 import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -52,7 +53,7 @@ test("the payroll CSV: HR gets it in their language (French: ';' and decimal com
   const [header, line] = text.replace(/^﻿/u, "").split("\r\n");
   assert.equal(header, "Matricule;Personne;Type;Code paie;Premier jour;Depuis;Dernier jour;Jusqu’à;Jours ce mois-ci;Jours au total");
   assert.match(line ?? "", /^0042;Hugo Bernard;Congés payés;CP;\d{4}-\d{2}-\d{2};matin;\d{4}-\d{2}-\d{2};soir;5;5$/u);
-  const en = await get({ ...camille, locale: "en" }, "?month=" + month);
+  const en = await get({ ...camille, language: "en" }, "?month=" + month);
   assert.match((await en.text()).split("\r\n")[0] ?? "", /Employee number,Person,Kind,Payroll code,First day/u);
   assert.equal((await get(ines, "?month=" + month)).status, 403);
   assert.equal((await get(camille, "?month=nope")).status, 400);
@@ -106,19 +107,19 @@ test("a payroll code HR changes (or removes) is the one both files carry", async
   await requests.createRequest(sql, asMember(camille), { typeId: paid.id, memberId: hugo.id, ...week(monday) });
   const month = monday.slice(0, 7);
   await saveType(sql, asMember(camille), paid.id, { payrollCode: " cp01 " });
-  const header = (await (await get({ ...camille, locale: "en" }, "?month=" + month)).text()).split("\r\n");
+  const header = (await (await get({ ...camille, language: "en" }, "?month=" + month)).text()).split("\r\n");
   assert.match(header[1] ?? "", /^0042,Hugo Bernard,Paid leave,CP01,/u);
   await assert.rejects(saveType(sql, asMember(camille), paid.id, { payrollCode: "congés payés" }), (e: unknown) => e instanceof AppError && e.code === "bad_code");
   await assert.rejects(saveType(sql, asMember(ines), paid.id, { payrollCode: "X" }), (e: unknown) => e instanceof AppError && e.code === "forbidden");
   await saveType(sql, asMember(camille), paid.id, { payrollCode: "" });
-  const line = (await (await get({ ...camille, locale: "en" }, "?month=" + month)).text()).split("\r\n")[1] ?? "";
+  const line = (await (await get({ ...camille, language: "en" }, "?month=" + month)).text()).split("\r\n")[1] ?? "";
   assert.match(line, /^0042,Hugo Bernard,Paid leave,,/u);
   await saveType(sql, asMember(camille), paid.id, { payrollCode: "CP" });
 });
 
 test("the balances file on any day up to next month's end: a projection (named so), the month counted at the end of its last day; later is refused", async () => {
   const { sql } = database;
-  const call = (query: string) => balancesCsv(withMember(new Request("http://tool.test/chest/people/balances" + query), { ...camille, locale: "en" }));
+  const call = (query: string) => balancesCsv(withMember(new Request("http://tool.test/chest/people/balances" + query), { ...camille, language: "en" }));
   const now = today();
   const end = lastPayrollDay(now);
   // The end of next month: fine, named "projected"; the day after: refused.
@@ -157,6 +158,6 @@ test("payroll files write a former member's name as it is — never '(former mem
     assert.ok(!/ancien membre|former member/iu.test(all));
   } finally {
     chest.former.splice(chest.former.findIndex(f => f.id === sofia.id), 1);
-    chest.members.push(sofia);
+    chest.members.push(asMember(sofia));
   }
 });

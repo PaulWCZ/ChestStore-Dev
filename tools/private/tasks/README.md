@@ -223,8 +223,12 @@ the tool's builders come in with the first role, `manager`.
   makes no second card and no second item. Nothing else runs in the
   background: deleted-for-good is a click; the tile's number is also
   recomputed whenever something changes and when its owner opens *My tasks*.
-- **"Today"** is the day in the Chest's time zone (`chest.timeZone()`,
-  Proposal (studio)): late cards, the reminder, the next date of a repeat.
+- **"Today"** is the day in the Chest's time zone (`chest.timeZone`,
+  SDK 0.3.0): late cards, the reminder, the next date of a repeat. The
+  Chest makes that zone its database sessions' too, so `current_date`
+  (the sample data) is the same day. A due time is the Chest's hour; a
+  comment's date and time are shown in the reader's own zone
+  (`member.timeZone`).
 
 ### Why the next card comes when this one is done
 
@@ -271,17 +275,29 @@ another.
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
-  the bell in each member's language.
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+
+- `member.language` (SDK 0.3.0): the interface in each member's language;
+  `members.*` `language` for the bell and the emails in the recipient's.
+- `chest` (SDK 0.3.0): `chest.timeZone` and `chest.today()`, for "today";
+  `chest.teamUrl` — **Proposal (studio)** — the address in an email.
+- `groups` — **Proposal (studio)** (`"groups": "read"`,
+  `chest.proposals.json`): a private board may be shared with any group of
+  the Chest (`members.groups.all()`), not only those that give Tasks —
+  usually none, as Tasks is open to everyone. Whether someone is in the
+  group is asked of the Chest (`members.groups.of` for the person signed in,
+  `groups.members` for a list; `lib/groups.ts`), since 0.3.0's
+  `member.groups` lists only the groups that give the tool. Kept a minute,
+  forgotten on `member.updated` / `group.*`. Without the permission: the
+  groups that give Tasks, as before.
 - `schedules` — **Proposal (studio)**: the morning run (reminders, the
   repeats' safety net, the tiles' numbers).
-- `chest` — **Proposal (studio)**: the Chest's time zone, for "today";
-  its address (`teamUrl`), for the link in an email.
 - `mail` — **Proposal (studio)**: `mail.send({to: {member}})` for the
   emails of assignment, mention and the morning. Keys are passed whole
   (studio.15 hashes a long one: before, `slice(0, 64)` could give two
   people one key); the person's own choice in the Chest
-  (`member.mailPreference`) is applied by `mail.send` — none of these
+  (`members.get(id).mailPreference`, which *My tasks* reads to say it) is
+  applied by `mail.send` — none of these
   emails is transactional. The grouping and the
   hold are the tool's own (`mail_queue`), sent after each request (Next's
   `after()`) and by a `mail` schedule every 15 minutes; with no schedule

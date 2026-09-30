@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import * as calendar from "@argentic/chest-sdk/calendar";
-import * as chest from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Query } from "./db.ts";
 import { catalogue, format, locales } from "./i18n/index.ts";
-import { zoned } from "./model.ts";
+import { zoned } from "./zone.ts";
 
 // Timed next steps in their owner's Chest calendar (Proposal (studio): the
 // calendar bridge, chest.proposals.json "calendar"). "Call Claire, Tuesday
@@ -53,7 +52,7 @@ export async function calendarWorks(sql: Query): Promise<boolean | null> {
 }
 
 function eventOf(s: Eligible): calendar.CalendarEvent {
-  const start = zoned(s.due_on, s.due_time, chest.timeZone());
+  const start = zoned(s.due_on, s.due_time);
   const title = Object.fromEntries(locales.map(l => [l, (s.about ? format(catalogue(l).calendar.titleOn, { text: s.text, on: s.about }) : s.text).slice(0, 120)]));
   const description = Object.fromEntries(locales.map(l => [l, catalogue(l).calendar.description]));
   return {

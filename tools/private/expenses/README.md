@@ -352,11 +352,19 @@ suggestions to confirm with the company's accountant.
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`: interface, bell and
-  export in each member's language.
-- `chest.locale()` — **Proposal (studio)** (`@argentic/chest-sdk/chest`): the
-  Chest's language, the default of the bank statements' text until the
-  accountant picks one (`settings.bankLocale`). Without it, English.
+The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.3.0 +
+studio proposals (0.3.1-studio.1).
+
+- `member.language` (SDK 0.3.0): interface, bell and export in each
+  member's language (`localeOf`: English for a language the tool does not
+  speak yet).
+- `chest.language`, `chest.timeZone`, `chest.today()` (SDK 0.3.0): the
+  Chest's language is the default of the bank statements' text until the
+  accountant picks one (`settings.bankLocale`); the Chest's day
+  (`lib/today.ts`) is "today" everywhere — a receipt's date that has come,
+  a transfer's execution day, the scale's year — the same day as the
+  database's `current_date`, which the Chest puts in its zone. The SEPA
+  file's creation time is written in the Chest's zone.
 - `mail` — **Proposal (studio)** (`chest.proposals.json`, `lib/mail.ts`):
   emails to approvers, card holders and people with drafts. Without it,
   the bell only. Keys are passed whole (studio.15 hashes a long one), and
@@ -373,8 +381,9 @@ suggestions to confirm with the company's accountant.
     context)`, a key the Chest keeps per tool and never gives it, rotated by
     the Chest): bank details sealed without asking an admin to set
     `BANK_DETAILS_KEY` (today's seam: `lib/seal.ts`);
-  - **an AI or OCR primitive** (the AI gateway's `ai.chat` with an image, or
-    `ocr.read(file)` on a receipt the Chest holds): reading blurred, crumpled
+  - **reading receipts with AI** (SDK 0.3.0's `@argentic/chest-sdk/ai` with
+    an image, not used yet, or an `ocr.read(file)` on a receipt the Chest
+    holds): reading blurred, crumpled
     or PDF receipts and HEIC photos, which the phone's Tesseract cannot;
     today's seam: `components/ocr.ts` → `lib/receipt-text.ts`;
   - **bank and card feeds** (a bank connection through the Chest, PSD2):
@@ -383,9 +392,11 @@ suggestions to confirm with the company's accountant.
     knowing a transfer was executed;
   - `members.email` for importers (matching an Expensify export's
     submitter by email rather than by name);
-  - a **time zone and currency of the Chest** used by the tool (the
-    vendored SDK, studio.15, has `chest`; the tool still assumes
-    Europe/Paris), and **thumbnails of HEIC photos** (iPhone).
+  - the **Chest's currency** (`chest.currency`, a studio proposal) as the
+    default of the company's currency (the accountant sets it today), and
+    **thumbnails of HEIC photos** (iPhone). An instant shown on the client
+    (none today but relative times) would be in Europe/Paris
+    (`lib/i18n/format.ts`); the server passes the member's zone.
 
 ## Looks
 

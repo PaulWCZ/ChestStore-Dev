@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
@@ -13,7 +13,7 @@ export default async function NewMaintenance() {
   const v = await viewer();
   if (!v) return null;
   const { t } = v;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const groups = pickerGroups(await allComponents(db(), { locale: v.locale }));
   const tomorrow = addDays(chest.today(), 1);
   return (

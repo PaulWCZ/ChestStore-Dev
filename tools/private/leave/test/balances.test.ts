@@ -7,7 +7,7 @@ import * as balances from "../lib/balances.ts";
 import { planImport } from "../lib/import.ts";
 import { en } from "../lib/i18n/en.ts";
 import { fr } from "../lib/i18n/fr.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import { types } from "../lib/rules.ts";
 import { setApprover, setStartDate } from "../lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";

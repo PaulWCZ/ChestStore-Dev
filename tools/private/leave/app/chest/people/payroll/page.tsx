@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { Back, Download } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { addMonths } from "../../../../lib/calendar.ts";
-import { lastPayrollDay, today } from "../../../../lib/model.ts";
+import { lastPayrollDay } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/today.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { OnDay, OnMonth } from "./on-day.tsx";
 

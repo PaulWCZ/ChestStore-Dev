@@ -18,7 +18,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();
@@ -181,7 +181,7 @@ test("the groups of a post are checked: groups that give News, at most 16", asyn
 });
 
 test("without the Chest's answer, a post cannot be kept to a new group", async () => {
-  const blind = await fakeChest({ members: everyone, groups: fakeGroups, capabilities: ["files", "notifications"] });
+  const blind = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, groups: fakeGroups, capabilities: ["files", "notifications"] });
   try {
     await assert.rejects(forSales(), refused("unavailable"));
     // For everyone, nothing to ask.

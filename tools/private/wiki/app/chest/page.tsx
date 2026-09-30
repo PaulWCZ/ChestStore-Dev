@@ -101,7 +101,7 @@ export default async function Home() {
             {reading.map(r => (
               <li key={r.id}>
                 <Link className="draft-title" href={`/chest/pages/${r.id}`}>{r.title}</Link>
-                <span className="muted">{format(t.reads.since, { date: formatDate(r.askedAt, locale, { day: "numeric", month: "short" }) })}</span>
+                <span className="muted">{format(t.reads.since, { date: formatDate(r.askedAt, locale, { day: "numeric", month: "short", timeZone: member.timeZone }) })}</span>
               </li>
             ))}
           </ul>
@@ -114,7 +114,7 @@ export default async function Home() {
             {checks.map(c => (
               <li key={c.id}>
                 <Link className="draft-title" href={`/chest/pages/${c.id}`}>{c.title}</Link>
-                <span className="muted">{format(t.home.reviewDue, { date: formatDate(c.since, locale, { day: "numeric", month: "short" }) })}</span>
+                <span className="muted">{format(t.home.reviewDue, { date: formatDate(c.since, locale, { day: "numeric", month: "short", timeZone: member.timeZone }) })}</span>
               </li>
             ))}
           </ul>

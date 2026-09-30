@@ -1,5 +1,5 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { readerOf } from "./access.ts";
+import { readerFor } from "./groups.ts";
 import { toCsv } from "./csv.ts";
 import { readCycle } from "./cycles.ts";
 import type { Sql } from "./db.ts";
@@ -14,7 +14,7 @@ import { teams } from "./teams.ts";
 // language. Values are plain numbers a spreadsheet can add up.
 export async function cycleCsv(sql: Sql, actor: Member | null, cycleId: unknown, t: Catalogue, locale: Locale, zone: string, now: Date = new Date()): Promise<{ name: string; csv: string }> {
   const cycle = await readCycle(sql, actor, cycleId);
-  const objectives = await cycleObjectives(sql, cycle.id, { now, weekStart: now }, readerOf(actor!));
+  const objectives = await cycleObjectives(sql, cycle.id, { now, weekStart: now }, await readerFor(actor!));
   const teamNames = new Map((await teams(sql, { archived: true })).map(x => [x.id, x.name]));
   const who = await people(objectives.flatMap(o => [o.owner, ...o.keyResults.map(k => k.owner)]));
   const byId = new Map(objectives.map(o => [o.id, o]));
@@ -59,7 +59,7 @@ export async function cycleCsv(sql: Sql, actor: Member | null, cycleId: unknown,
 // company keeps when it leaves (the cycle's CSV has only the values now).
 export async function checkInsCsv(sql: Sql, actor: Member | null, cycleId: unknown, t: Catalogue, locale: Locale, zone: string, now: Date = new Date()): Promise<{ name: string; csv: string }> {
   const cycle = await readCycle(sql, actor, cycleId);
-  const objectives = await cycleObjectives(sql, cycle.id, { now, weekStart: now }, readerOf(actor!));
+  const objectives = await cycleObjectives(sql, cycle.id, { now, weekStart: now }, await readerFor(actor!));
   const krs = objectives.flatMap(o => o.keyResults.map(k => ({ o, k })));
   const history = await checkIns(sql, krs.map(x => x.k.id), 1000);
   const who = await people([...history.values()].flat().map(c => c.author));

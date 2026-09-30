@@ -1,11 +1,10 @@
-import * as chest from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
 import { shareBusy } from "./busy.ts";
 import { addDays, type Half } from "./calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { sync } from "./leave-calendar.ts";
-import { today } from "./model.ts";
+import { today } from "./today.ts";
 
 // What Leave tells the other tools of the Chest (Proposal (studio): events
 // between tools; chest.proposals.json "emits"), once an admin linked them.
@@ -68,7 +67,7 @@ export async function plan(sql: Sql, now = new Date()): Promise<number> {
   return sql.begin(async tx => {
     // Two runs at once (an action and an event) write each change once.
     await tx`select pg_advisory_xact_lock(hashtext('leave.shared_leave'))`;
-    const from = addDays(today(now, chest.timeZone()), -1);
+    const from = addDays(today(now), -1);
     const told = new Map((await tx<{ request_id: string; member_id: string; raw: string }[]>`select request_id::text, member_id, raw from shared_leave`).map(r => [r.request_id, r]));
     const rows = await tx<Row[]>`
       select r.id::text as id, r.member_id, to_char(r.start_date, 'YYYY-MM-DD') as start, r.start_half, to_char(r.end_date, 'YYYY-MM-DD') as end, r.end_half, r.status, t.away
@@ -180,7 +179,7 @@ export async function publish(sql: Query, now: () => number = Date.now): Promise
 // and what waited for days that are over (the receivers drop past days) or
 // for 90 days.
 export async function forgetOld(sql: Query, now = new Date()): Promise<void> {
-  const from = addDays(today(now, chest.timeZone()), -1);
+  const from = addDays(today(now), -1);
   await sql`delete from leave_outbox
     where (published_at is not null and published_at < ${new Date(now.getTime() - shareLimits.keepPublishedHours * 3_600_000)})
       or (published_at is null and (data->>'to' < ${from} or at < ${new Date(now.getTime() - shareLimits.keepWaitingDays * 86_400_000)}))`;

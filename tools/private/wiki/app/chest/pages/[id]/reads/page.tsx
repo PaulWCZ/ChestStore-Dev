@@ -50,7 +50,7 @@ export default async function ReadsPage({ params }: { params: Promise<{ id: stri
             <tr key={r.memberId} className={r.current ? "done" : r.version === null ? "not-yet" : "older"}>
               <th scope="row">{nameOf(who.get(r.memberId), locale)}</th>
               <td><StatusBadge size="s" {...(r.version === null ? { tone: "wait", label: t.reads.notYet } : r.current ? { tone: "ok", label: t.reads.done } : { tone: "neutral", label: format(t.reads.older, { version: r.version }) })} /></td>
-              <td>{r.at ? formatDate(r.at, locale, { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+              <td>{r.at ? formatDate(r.at, locale, { day: "numeric", month: "short", year: "numeric", timeZone: member.timeZone }) : "—"}</td>
             </tr>
           ))}
         </tbody>

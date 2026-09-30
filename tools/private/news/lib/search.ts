@@ -1,9 +1,8 @@
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { fold, hasHit, highlight, snippet, terms, type Segment } from "./highlight.ts";
-import { isLocale } from "./i18n/index.ts";
 import { plain } from "./markdown.ts";
 import { limits, mentionToken, pick, withNames, type Kind, type Version } from "./model.ts";
 import { mentionOf, people, type Person } from "./people.ts";
@@ -74,7 +73,7 @@ export async function search(sql: Sql, actor: Member | null, query: unknown, now
   for (const p of posts) {
     // The reader's version, as everywhere; when the words are only in
     // another language of the post, the result says which.
-    const shown = pick(p, actor.locale);
+    const shown = pick(p, localeOf(actor.language));
     const all = [{ locale: p.locale, title: p.title, body: p.body }, ...p.versions].filter(v => v.locale !== shown.locale);
     const matches = (v: Version) => hasHit(highlight(v.title, marks)) || hasHit(snippet(plain(v.body), marks));
     const other = matches(shown) ? undefined : all.find(matches);
@@ -93,7 +92,7 @@ export async function search(sql: Sql, actor: Member | null, query: unknown, now
       rank: p.rank,
     });
   }
-  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const locale = localeOf(actor.language);
   const mentioned = comments.flatMap(c => [...c.body.matchAll(mentionToken)].map(m => m[1]!));
   const who = mentioned.length > 0 ? await people(mentioned) : new Map<string, Person>();
   const readable = (body: string) => withNames(body, id => mentionOf(who.get(id), locale));
@@ -101,7 +100,7 @@ export async function search(sql: Sql, actor: Member | null, query: unknown, now
     const key = String(c.post_id);
     // Found by a comment only: the post's headline in the reader's language.
     const hit = found.get(key) ?? {
-      id: key, kind: c.kind, title: highlight(pick({ locale: c.locale, title: c.title, body: c.post_body, versions: c.versions }, actor.locale).title, marks), text: null, author: c.post_author,
+      id: key, kind: c.kind, title: highlight(pick({ locale: c.locale, title: c.title, body: c.post_body, versions: c.versions }, localeOf(actor.language)).title, marks), text: null, author: c.post_author,
       publishAt: c.publish_at.toISOString(), scheduled: c.publish_at.getTime() > now.getTime(), comments: [], foundIn: null, rank: 0,
     };
     hit.rank = Math.max(hit.rank, c.rank);
@@ -122,8 +121,8 @@ export async function otherLanguage(sql: Sql, actor: Member | null): Promise<str
   if (!actor || !can(actor, "read")) throw new AppError("forbidden");
   const [row] = await sql<{ locale: string }[]>`
     select p.locale from posts p
-    where ${seen(sql, actor)} and p.locale <> ${actor.locale}
-      and not exists (select 1 from post_versions v where v.post_id = p.id and v.locale = ${actor.locale})
+    where ${seen(sql, actor)} and p.locale <> ${localeOf(actor.language)}
+      and not exists (select 1 from post_versions v where v.post_id = p.id and v.locale = ${localeOf(actor.language)})
     group by p.locale order by count(*) desc limit 1`;
   return row?.locale ?? null;
 }

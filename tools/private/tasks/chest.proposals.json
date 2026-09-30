@@ -17,6 +17,10 @@
     "tasks.card.done",
     "tasks.card.reopened"
   ],
+  "groups": "read",
+  "receives": [
+    "group.*"
+  ],
   "translations": {
     "fr": {
       "title": "Tâches",

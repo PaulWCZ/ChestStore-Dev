@@ -1,12 +1,12 @@
 "use server";
 
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
 import * as comments from "../../lib/comments.ts";
 import * as cycles from "../../lib/cycles.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
-import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import { catalogue } from "../../lib/i18n/index.ts";
 import * as importer from "../../lib/import.ts";
 import * as keyResults from "../../lib/key-results.ts";
 import * as mail from "../../lib/mail.ts";
@@ -35,7 +35,7 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
   return result;
 }
 
-const words = (actor: Member) => catalogue(isLocale(actor.locale) ? actor.locale : "en");
+const words = (actor: Member) => catalogue(localeOf(actor.language));
 
 // Cycles.
 export async function createCycle(input: { name: string; startsOn: string; endsOn: string; current?: boolean }): Promise<Result<{ id: string }>> {

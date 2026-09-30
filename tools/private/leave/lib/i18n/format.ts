@@ -14,10 +14,9 @@ export function plural(forms: { readonly one: string; readonly other: string; re
   return format(form, { count: new Intl.NumberFormat(locale).format(n), ...values });
 }
 
-// Dates in the reader's language and the Chest's time zone (Europe/Paris
-// unless the tool is told otherwise — Proposal: a Chest time zone).
-export const timeZone = "Europe/Paris";
-export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
+// An instant in the reader's language and zone (member(request).timeZone:
+// "store in UTC, show in the member's").
+export function formatDate(value: Date | string, locale: Locale, timeZone: string, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
   return new Intl.DateTimeFormat(dateTag(locale), { timeZone, ...options }).format(typeof value === "string" ? new Date(value) : value);
 }
 

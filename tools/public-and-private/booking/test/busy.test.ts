@@ -31,7 +31,7 @@ before(async () => {
   database = await testDatabase();
   // The hosts chest.json declares, answered as through the Chest's egress
   // proxy (SDK studio.15): the tool's own plain fetch() reaches them.
-  chest = await fakeChest({ tool: "booking", members: everyone, capabilities: ["members", "notifications", "calendar", "mail"], calendar: { domain: "atelier.test", toolTitle: "Booking", company: "Atelier" }, network: Object.fromEntries(declared.map(host => [host, answer])) });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, tool: "booking", members: everyone, capabilities: ["members", "notifications", "calendar", "mail"], calendar: { domain: "atelier.test", toolTitle: "Booking", company: "Atelier" }, network: Object.fromEntries(declared.map(host => [host, answer])) });
 });
 after(async () => {
   await chest.close();

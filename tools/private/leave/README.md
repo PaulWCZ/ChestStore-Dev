@@ -62,7 +62,9 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
 - **Who's away**: a month grid, one row per person, one column per day —
   approved leave in its colour, leave waiting for an answer striped and
   lighter, half days as half cells, week-ends and public holidays shaded,
-  today marked. Filter by *My people* (approvers) or by the Chest's groups.
+  today marked. Filter by *My people* (approvers) or by the Chest's groups
+  (every group of the Chest with the `groups` proposal — Leave is usually
+  open to everyone, which gives it no group of its own).
   Colleagues see that someone is *Away*, never why: the kind is shown only to
   the person, their approver and HR (remote work is no secret: shown as
   *Remote work*). The days a part-timer does not work are hatched in their
@@ -122,7 +124,7 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   Chest to their address (the tool never knows it). Never the note. One
   switch at the foot of *My leave* turns them off. The choice each person
   made once in the Chest for every tool (all, one a day, none;
-  `member.mailPreference`, applied by `mail.send`) holds too, and *My
+  `mailPreference` in the members API, applied by `mail.send`) holds too, and *My
   leave* says so under the switch. Only **the answer to the person's own
   request** (approved, refused, their cancellation settled) is sent
   `transactional` — it reaches them whatever they chose in the Chest (not
@@ -138,7 +140,9 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   (not "Sick leave") nor the note, and it is `CLASS:PRIVATE`, so a
   calendar shared with colleagues shows the time busy without a word. Whole
   days are whole days; a half day is noon to midnight (afternoon) or
-  midnight to noon (morning), in the Chest's time zone. It opens the
+  midnight to noon (morning), in the zone the person works in (the one the
+  Chest says for them: someone working from Montréal is off from
+  Montréal's midnight). It opens the
   request. Cancelled, its approval taken back, refused after all, cut or
   cancelled by a last day, erased: it goes. A month after it ends it leaves
   the feed (the Chest keeps 5,000 events per tool). *My leave* links to the
@@ -345,7 +349,7 @@ rounded cards; `lib/theme.ts`, DESIGN.md) — or any theme of the Chest's
 catalogue (the store's 17 identities, "Chest", "High contrast"), or the
 **company's brand** (its colours, fonts, corners and logo), as the company
 chooses in its Chest for all its tools or for Leave alone (`chest.theme()`,
-**Proposal (studio)**, SDK 0.3.0-studio.12). Every feature is the same in
+**Proposal (studio)** of SDK 0.3.0 + studio proposals (0.3.1-studio.1)). Every feature is the same in
 every look, and every text stays readable (WCAG AA, light and dark): the
 kinds of leave keep their colour family (sky stays bluish, peach
 orange-ish…) in every theme, and are told by their name where a theme has
@@ -394,7 +398,7 @@ candidate. Booking and Hiring already tell each other their busy times
 | Who | Each member with approved leave in the window, and once more (empty `spans`) when the last of it goes — never again after that |
 | When | After every change, after the Chest's and People's events, and each weekday morning (the window moves on); only when the member's times changed (`shared_busy` keeps each one's SHA-256 fingerprint) |
 | Window | From the start of today (UTC) to 90 days later; at most 300 spans (past them, `to` stops where the first one left out starts: nothing unknown is claimed free) |
-| Spans | Each **approved** leave's whole days in the Chest's time zone (Europe/Paris by default; a morning ends at noon, an afternoon starts at noon), as UTC minutes, merged. A waiting request is not busy, nor a kind that is not an absence (remote work, training: *not away* in Settings). Days the person does not work inside a leave are busy too (they are off) |
+| Spans | Each **approved** leave's whole days in the zone the member works in (`members.lookup`; the Chest's for someone it no longer answers for; a morning ends at their noon, an afternoon starts at it), as UTC minutes, merged. A waiting request is not busy, nor a kind that is not an absence (remote work, training: *not away* in Settings). Days the person does not work inside a leave are busy too (they are off) |
 | Never | The kind of leave, its note, who approved it — nor that it is leave: times only |
 | Replaces | Everything the receiver holds **from Leave** for that member between `from` and `to`; `at` orders snapshots (keep one only if newer) |
 | Key | `leave.busy:<member>:<ms>:<sha-256>` (whole; the SDK sends it as its digest): the same content told again the same day is one event; busy, free, busy again are three |
@@ -430,10 +434,19 @@ once, in People's HR record:
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
-  the bell in each member's language.
+Leave runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+From 0.3.0: `member(request)` with the member's `language` (the interface
+and the bell in each member's language) and `timeZone`; `chest.today()`,
+the company's day — the same as the database's `current_date`, since the
+Chest makes its zone the TimeZone of the tool's database sessions;
+`members.lookup` with each member's zone (the hours of their leave).
+
 - `chest.theme()` — **Proposal (studio)**: the look the company chose
   (see "Looks"). Without it, Leave wears Seaside.
+- **The Chest's groups** — **Proposal (studio)** (`chest.proposals.json`
+  `"groups": "read"`): *Who's away* filtered by any group of the Chest
+  (`members.groups.all`, `members.groups.members`). Without it, only the
+  groups that give Leave (none when it is open to everyone).
 - **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`,
   `app/chest-jobs/[name]/route.ts`): the weekday morning reminder at 08:30.
   Without it, requests still reach approvers through the bell and the tile.
@@ -443,27 +456,25 @@ once, in People's HR record:
   absences only, a cut told as cancelled then approved); `leave.busy` to
   Booking and Hiring (see "With the other tools").
 - **Calendar** — **Proposal (studio)** (`chest.proposals.json` `"calendar":
-  true`; `calendar.putMany`, studio.16, for a first sync, 100 events a
-  call, answered per event: one the Chest refuses is never recorded as
-  put and is tried again at the next run): approved leave in each
-  person's feed (see "What it does").
+  true`; `calendar.putMany` for a first sync, 100 events a call, answered
+  per event: one the Chest refuses is never recorded as put and is tried
+  again at the next run): approved leave in each person's feed (see "What
+  it does"); a half day at the person's own hours, put again when their
+  zone changes.
 - **Mail** — **Proposal (studio)** (`chest.proposals.json` `"mail":
   {"send": true}`): emails beside the bell (see "What it does"), keys
-  given whole (studio.15), `member.mailPreference` and `transactional`
-  (studio.15). The home asks `mail.available()` (studio.16) before
-  promising anything: no switch on a Chest without mail, and a sentence
-  when the owner has not connected email, has paused it, or the day's
-  emails are used. Without it, the bell and the tile only.
+  given whole, the member's `mailPreference` (members API) and
+  `transactional`. The home asks `mail.available()` before promising
+  anything: no switch on a Chest without mail, and a sentence when the
+  owner has not connected email, has paused it, or the day's emails are
+  used. Without it, the bell and the tile only.
 - **Events from People** — **Proposal (studio)**: receives
   `people.record`, `people.leaving`, `people.leaving_cancelled`.
-- Wished, not built: a **member's own time zone** — Leave still uses the
-  company's, `chest.timeZone()`: someone working from Montréal is off from
-  midnight in Paris in the feed and the busy times; the SDK now offers
-  `chest.timeZone(member)` (studio.16), not adopted here yet; a
-  **shared feed** of a team's absences ("Away", never the kind) for
-  managers — the calendar proposal is personal feeds only; a member's
-  **manager** known by the Chest (HR sets approvers here instead). The
-  counting of days itself is still Europe/Paris (French rules).
+- Wished, not built: a **shared feed** of a team's absences ("Away", never
+  the kind) for managers — the calendar proposal is personal feeds only; a
+  member's **manager** known by the Chest (HR sets approvers here
+  instead). The counting of days follows French rules whatever the
+  Chest's zone.
 
 ## Develop
 

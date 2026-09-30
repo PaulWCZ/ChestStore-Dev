@@ -4,6 +4,7 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { checkOpening, clean, id, limits, readPoll, type Kind, type PollSpec, type Repeat } from "./model.ts";
 import { fromAnswers, results, type AnswerRow, type Counts, type QuestionResult, type QuestionRow, type TextRow } from "./results.ts";
+import { withAllGroups, withGroupsOf } from "./groups.ts";
 import { startSeries } from "./series.ts";
 import { day as readDay, time as readTime, zoned } from "./time.ts";
 
@@ -576,8 +577,14 @@ export async function pendingCounts(sql: Query, people: { id: string; groups: re
   const done = await sql<{ poll_id: string; member: string }[]>`
     select poll_id, member from participants where poll_id = any(${open.map(o => o.id)}::bigint[]) and member = any(${people.map(p => p.id)})`;
   const answered = new Set(done.map(d => `${d.poll_id}/${d.member}`));
-  for (const p of people) {
-    const actor = { id: p.id, role: p.role, isAdmin: false, groups: [...p.groups] };
+  // Their groups among the open polls' (the Chest names only those that
+  // give Polls with a member: lib/groups.ts) — one question for one person,
+  // one per group for many.
+  const targeted = open.flatMap(o => o.groups ?? []);
+  const given = people.map(p => ({ ...p, groups: [...p.groups] }));
+  const withGroups = targeted.length === 0 ? given : given.length === 1 ? [await withAllGroups(given[0]!)] : await withGroupsOf(given, targeted);
+  for (const p of withGroups) {
+    const actor = { id: p.id, role: p.role, isAdmin: false, groups: p.groups };
     counts.set(p.id, open.filter(o => asked(actor, { everyone: o.everyone, groups: o.groups ?? [], people: o.people ?? [] }) && !answered.has(`${o.id}/${p.id}`)).length);
   }
   return counts;

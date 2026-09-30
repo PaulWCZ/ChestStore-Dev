@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import type { Expense } from "./expenses.ts";
 import type { Catalogue, Locale } from "./i18n/index.ts";
-import { today } from "./model.ts";
+import { today } from "./today.ts";
 import { format } from "./i18n/index.ts";
 import { commonCurrencies, formatMoney, inputAmount, rateText } from "./money.ts";
 import { thumbnailTypes } from "./model.ts";

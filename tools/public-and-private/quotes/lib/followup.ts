@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Sql } from "./db.ts";
 import { isLocale } from "./i18n/index.ts";
 import { archiveDue } from "./monthly.ts";
@@ -27,7 +27,7 @@ export async function followUp(sql: Sql, today: string): Promise<{ drafts: numbe
 
 // The archive's spreadsheets speak the Chest's language.
 export function archiveLocale(): "en" | "fr" {
-  const l = chest.locale();
+  const l = chest.language;
   return isLocale(l) ? l : "en";
 }
 

@@ -21,7 +21,7 @@ let chest: FakeChest;
 let google: () => Response = () => new Response("no", { status: 404 });
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, network: { "calendar.google.com": () => google() } });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, network: { "calendar.google.com": () => google() } });
 });
 after(async () => {
   await chest.close();

@@ -3,7 +3,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can, expenseAccess, type ExpenseAccess } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { clean, distanceTenths, id, ids, limits, memberId, paidByValues, spentOn, today, type PaidBy, type Status } from "./model.ts";
+import { clean, distanceTenths, id, ids, limits, memberId, paidByValues, spentOn, type PaidBy, type Status } from "./model.ts";
+import { today } from "./today.ts";
 import { convert, isCurrency, parseAmount, parseRate } from "./money.ts";
 import type { ReceiptFile } from "./receipts.ts";
 import { tripCents, type VehicleKind } from "./scale.ts";
@@ -269,7 +270,7 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
     if (vat === null) throw new AppError("amount_invalid");
     if (vat > amount) throw new AppError("vat_too_high");
   }
-  const day = spentOn(input.spentOn);
+  const day = spentOn(input.spentOn, today());
   // Another currency: the rate typed (the card statement's), else the
   // company's rate for it, else none yet.
   let rate: { micro: number; source: "typed" | "company" } | null = null;
@@ -349,7 +350,7 @@ export type AllowanceInput = { spentOn?: unknown; allowanceId?: unknown; units?:
 
 export async function saveAllowance(sql: Sql, actor: Member | null, expenseId: unknown, input: AllowanceInput): Promise<Expense> {
   if (!actor || !can(actor, "own")) throw new AppError("forbidden");
-  const day = spentOn(input.spentOn);
+  const day = spentOn(input.spentOn, today());
   const units = count(input.units);
   const note = clean(input.note ?? "", limits.note, { optional: true, multiline: true });
   const rateId = id(input.allowanceId);
@@ -385,7 +386,7 @@ export async function saveTrip(sql: Sql, actor: Member | null, expenseId: unknow
   if (!actor || !can(actor, "own")) throw new AppError("forbidden");
   const vehicle = await vehicleOf(sql, actor.id);
   if (!vehicle) throw new AppError("no_vehicle");
-  const day = spentOn(input.spentOn);
+  const day = spentOn(input.spentOn, today());
   const from = clean(input.from ?? "", limits.place);
   const to = clean(input.to ?? "", limits.place);
   const note = clean(input.note ?? "", limits.note, { optional: true, multiline: true });
@@ -655,7 +656,7 @@ export async function paidRecently(sql: Query, actor: Member | null): Promise<Ex
 export async function markPaid(sql: Sql, actor: Member | null, selection: unknown, paidOnValue: unknown): Promise<Decision[]> {
   if (!can(actor, "pay")) throw new AppError("forbidden");
   const list = ids(selection, 2000);
-  const paidOn = spentOn(paidOnValue);
+  const paidOn = spentOn(paidOnValue, today());
   return sql.begin(async tx => {
     const rows = await tx<{ id: string; status: Status; paid_by: PaidBy }[]>`select id, status, paid_by from expenses where id = any(${list}::bigint[]) and deleted_at is null for update`;
     if (rows.length !== list.length) throw new AppError("not_found");

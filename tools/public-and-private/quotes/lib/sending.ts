@@ -5,7 +5,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import { pdfOfFull } from "./archive.ts";
-import { company, rememberMail } from "./company.ts";
+import { company, goesBy, rememberMail } from "./company.ts";
 import type { Sql } from "./db.ts";
 import { getDocument, recordReminder, recordSent, sendQuote, type Full } from "./documents.ts";
 import { catalogue, format, formatDay, type Locale } from "./i18n/index.ts";
@@ -136,7 +136,7 @@ export async function sendDocument(sql: Sql, actor: Member | null, documentId: u
   if (!can(actor, full.type === "quote" ? "quotes.write" : "invoices.issue")) throw new AppError("forbidden");
   if (full.type !== "quote" && full.status !== "final") throw new AppError("not_final");
   const c = await company(sql);
-  const name = c.tradeName || c.legalName;
+  const name = goesBy(c);
   if (full.type === "quote") {
     // Numbered (and checked) in its own transaction; taken back below if
     // the email cannot go.
@@ -193,7 +193,7 @@ export async function sendReminder(sql: Sql, actor: Member | null, documentId: u
   if (full.type !== "invoice" || (full.status !== "final" && full.status !== "imported")) throw new AppError("not_final");
   if (full.due <= 0) throw new AppError("nothing_due");
   const c = await company(sql);
-  const delivery = await deliver(sql, full, message, senderName(actor!, c.tradeName || c.legalName), c.email, today);
+  const delivery = await deliver(sql, full, message, senderName(actor!, goesBy(c)), c.email, today);
   if (delivery === "email") await recordReminder(sql, actor, full.id, message.to);
   return { delivery };
 }
@@ -209,7 +209,7 @@ export async function markReminded(sql: Sql, actor: Member | null, documentId: u
 // attached. "no_mail" when the Chest cannot send email: nothing went.
 export async function sendAutomaticReminder(sql: Sql, full: Full, step: number, today: string): Promise<Delivery> {
   const c = await company(sql);
-  const name = c.tradeName || c.legalName;
+  const name = goesBy(c);
   const to = full.buyer?.email ?? full.client?.email ?? "";
   if (!to) return "no_mail";
   const message = draftMessage(full, "reminder", { company: name, sender: "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "" });

@@ -2,7 +2,7 @@ import { NoAccess } from "@argentic/chest-ui/components";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { format } from "../../../../lib/i18n/index.ts";
-import { today } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/today.ts";
 import { commonCurrencies, inputAmount } from "../../../../lib/money.ts";
 import { holders } from "../../../../lib/people.ts";
 import { vehicleKinds } from "../../../../lib/scale.ts";

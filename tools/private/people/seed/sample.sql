@@ -68,10 +68,11 @@ insert into arrivals (source, ref, name, job, team, place, start_date, hired_by)
   ('hiring', 'cand_42', 'Lucie Garnier', 'Sales associate', 'Sales', 'Lyon', current_date + 12, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
 
 -- Told by Leave (events between tools): Inès is away until the day after
--- tomorrow, Tom this afternoon. Days in the Chest's time zone.
+-- tomorrow, Tom this afternoon. Days in the Chest's time zone: the
+-- database's current_date (the Chest sets its sessions' zone).
 insert into away (request, member_id, from_day, to_day, from_half, to_half, told_at) values
-  ('L-118', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', (now() at time zone 'Europe/Paris')::date - 1, (now() at time zone 'Europe/Paris')::date + 2, 'am', 'pm', now()),
-  ('L-121', 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', (now() at time zone 'Europe/Paris')::date, (now() at time zone 'Europe/Paris')::date, 'pm', 'pm', now());
+  ('L-118', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', current_date - 1, current_date + 2, 'am', 'pm', now()),
+  ('L-121', 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', current_date, current_date, 'pm', 'pm', now());
 
 -- The example steps speak each reader's language (their phrase).
 update template_items t set phrase = p.phrase from (values

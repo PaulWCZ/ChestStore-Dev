@@ -537,7 +537,8 @@ await step("a former member's claim: To approve and To pay back say he left; he 
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/approve");
   const paul = page.locator("section", { hasText: "Paul Lefèvre (ancien membre)" });
-  expect((await paul.innerText()).includes("A quitté l’entreprise : valider, c’est encore la rembourser"), "warned before approving: " + (await paul.innerText()));
+  // The Chest says when he left (leftAt): the day is written.
+  expect(/A quitté l’entreprise le \d{1,2} \p{L}+\s: valider, c’est encore la rembourser/u.test(await paul.innerText()), "warned before approving, with the day he left: " + (await paul.innerText()));
   await paul.locator(".row", { hasText: "SNCF" }).getByRole("button", { name: /^Valider/u }).click();
   await page.locator(".ck-toast", { hasText: "1 dépense validée." }).waitFor();
   await page.goto(origin + "/chest/pay");

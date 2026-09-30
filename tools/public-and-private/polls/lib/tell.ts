@@ -1,10 +1,10 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { roles } from "./access.ts";
-import { all, maxPages, page, type Person } from "./audience.ts";
+import { all, audienceGroups, maxPages, page, type Person } from "./audience.ts";
 import { dates, optionText } from "./dates.ts";
 import type { Sql } from "./db.ts";
 import { catalogue, format, locales, type Catalogue } from "./i18n/index.ts";
@@ -95,10 +95,14 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
   const zone = chestZone();
   const name = await organiserName(poll);
   let cursor = after;
+  // Who is in the poll's groups, once for every page; the Chest could not
+  // say: told at the next pass rather than to the wrong people.
+  const known = await audienceGroups(poll);
+  if (known === null) return { done: false, after: cursor };
   for (let i = 0; i < maxPages; i++) {
     let found;
     try {
-      found = await page(poll, cursor);
+      found = await page(poll, cursor, known);
     } catch (error) {
       if (error instanceof CapabilityNotGranted) return { done: true };
       if (error instanceof ChestError) return { done: false, after: cursor };
@@ -137,7 +141,7 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
 // the others.
 async function emailReminders(poll: Poll, people: Person[], t: Catalogue, locale: Locale, organiser: string, zone: string): Promise<void> {
   const d = dates(locale, zone);
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   const link = base ? base.replace(/\/$/u, "") + pollPath(poll.id) : pollPath(poll.id);
   const stamp = (poll.nudgedAt ?? poll.closesAt ?? "").replace(/\D/gu, "").slice(0, 12);
   for (const p of people) {
@@ -229,10 +233,12 @@ export async function runTellings(sql: Sql, now = new Date()): Promise<{ told: s
 // member's next visit.
 export async function refreshAsked(sql: Sql, poll: Pick<Poll, "everyone" | "groups" | "people">): Promise<void> {
   let after: string | null = null;
+  const known = await audienceGroups(poll);
+  if (known === null) return;
   for (let i = 0; i < maxPages; i++) {
     let found;
     try {
-      found = await page(poll, after);
+      found = await page(poll, after, known);
     } catch (error) {
       if (error instanceof ChestError) return;
       throw error;

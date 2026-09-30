@@ -1,6 +1,7 @@
 "use server";
 
 import * as members from "@argentic/chest-sdk/members";
+import { localeOf } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { can } from "../../lib/access.ts";
@@ -10,7 +11,7 @@ import { db } from "../../lib/db.ts";
 import { attempt, type Result } from "../../lib/errors.ts";
 import * as forms from "../../lib/forms.ts";
 import * as importer from "../../lib/importer.ts";
-import { catalogue, format, isLocale } from "../../lib/i18n/index.ts";
+import { catalogue, format } from "../../lib/i18n/index.ts";
 import { readPayload, take, type Taken } from "../../lib/respond.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
@@ -19,7 +20,7 @@ import { startOf } from "../../lib/linked.ts";
 import * as hooks from "../../lib/hooks.ts";
 import * as uploads from "../../lib/uploads.ts";
 import { zonedInstant } from "../../lib/zone.ts";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import { saveSites } from "../../lib/embed.ts";
 import { mayCreate, setEveryoneCreates } from "../../lib/creators.ts";
@@ -38,7 +39,7 @@ export async function createForm(key: string): Promise<Result> {
   const actor = await currentMember();
   const result = await attempt(async () => {
     if (!isTemplate(key)) throw new AppError("invalid");
-    const locale = actor && isLocale(actor.locale) ? actor.locale : "en";
+    const locale = actor ? localeOf(actor.language) : "en";
     const t = template(key, catalogue(locale));
     return forms.create(db(), actor, await startOf(db(), t));
   });
@@ -53,7 +54,7 @@ export async function importForm(text: string): Promise<Result> {
   const actor = await currentMember();
   const result = await attempt(async () => {
     const found = importer.importForm(text);
-    if (!found.definition.language && actor && isLocale(actor.locale)) found.definition.language = actor.locale;
+    if (!found.definition.language && actor) found.definition.language = localeOf(actor.language);
     const form = await forms.create(db(), actor, { definition: found.definition });
     return { id: form.id, skipped: found.skipped };
   });
@@ -114,7 +115,7 @@ export async function reopenForm(id: string): Promise<Result> {
 
 export async function duplicateForm(id: string): Promise<Result> {
   const actor = await currentMember();
-  const t = catalogue(actor && isLocale(actor.locale) ? actor.locale : "en");
+  const t = catalogue(actor ? localeOf(actor.language) : "en");
   const result = await attempt(async () => forms.duplicate(db(), actor, id, title => format(t.builder.copyOf, { title: title || t.builder.untitled })));
   if (!result.ok) return result;
   done();
@@ -169,7 +170,7 @@ export async function saveSettings(id: string, json: string): Promise<Result> {
     if (typeof value["closesDay"] === "string" && value["closesDay"] !== "") {
       const hour = Number(value["closesHour"] ?? 0);
       try {
-        closesAt = zonedInstant(value["closesDay"], hour, chest.timeZone());
+        closesAt = zonedInstant(value["closesDay"], hour, chest.timeZone);
       } catch {
         throw new AppError("invalid");
       }
@@ -293,7 +294,7 @@ export async function answerTeam(payload: string): Promise<Taken> {
     // No revalidation here: the page would re-render as "already answered"
     // under the respondent's thank-you. Every page is rendered per request.
     // The language the member read the form in: theirs, or the form's own.
-    return await take(db(), found.form, p, actor, languageFor(found.definition, isLocale(actor.locale) ? actor.locale : "en"));
+    return await take(db(), found.form, p, actor, languageFor(found.definition, localeOf(actor.language)));
   } catch (error) {
     if (error instanceof AppError) return { ok: false, error: error.code };
     console.error("answer not saved", error instanceof Error ? error.name + ": " + error.message : "error");

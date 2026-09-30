@@ -12,7 +12,7 @@ import * as expenses from "../lib/expenses.ts";
 import { checkBic, checkIban, groupIban, mod97 } from "../lib/iban.ts";
 import { catalogue } from "../lib/i18n/index.ts";
 import { erase } from "../lib/lifecycle.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import * as payments from "../lib/payments.ts";
 import { leftNote, people } from "../lib/people.ts";
 import { seal, sealing, unseal } from "../lib/seal.ts";

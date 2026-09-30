@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
@@ -170,7 +171,7 @@ export async function remindReceipt(actor: Member, holder: string, item: Named, 
       text: [format(t.mail.remindText, { name: actor.name, item: item.name, tag: item.tag, date }), "", "—", t.mail.why].join("\n"),
       // The recipient in the key (studio.16): after a restore from a
       // backup, an item's id can name another thing given to someone else.
-      key: `remind:${item.id}:${holder}:${givenOn}:${new Date().toISOString().slice(0, 10)}`,
+      key: `remind:${item.id}:${holder}:${givenOn}:${chest.today()}`,
     });
     return true;
   } catch (error) {

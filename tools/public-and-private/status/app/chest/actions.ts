@@ -1,6 +1,6 @@
 "use server";
 
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
 import * as checks from "../../lib/checks.ts";
@@ -63,7 +63,7 @@ async function namesOf(ids: string[]): Promise<string[]> {
 // ---- Incidents -------------------------------------------------------------
 
 export type WhenInput = { day: string; minutes: number };
-const zone = () => chest.timeZone();
+const zone = () => chest.timeZone;
 
 type SecondInput = { title?: string; body?: string; resolution?: string } | null;
 

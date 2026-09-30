@@ -21,7 +21,7 @@ must not break.
 | `lib/series.ts` | Repeating pulses: `startSeries`, `openRounds` (on the pass), `repeatSeries` (stop / again), `trend` (a number per round) |
 | `lib/comments.ts` | Comments on named polls: list, add, remove, restore |
 | `lib/tell.ts` | The bell, the tile and email reminders: ask, remind (day before), nudge (the organiser's reminder), final date (broadcast, or pages resumable past the quota), comments, settle after closing, `pass`/`catchUp` |
-| `lib/groups.ts` | The Chest's groups (`groups: "read"` proposal, else those giving Polls), cached a minute; who is in them |
+| `lib/groups.ts` | The Chest's groups (`groups: "read"` proposal, else those giving Polls), cached a minute; who is in them; a member's or many people's groups beyond those that give Polls (`withAllGroups`, `withGroupsOf`) |
 | `lib/teams.ts` | An anonymous survey per team: `visibleTeams` (floor 5, nothing deducible by subtraction — pure, tested) and `teamResults` |
 | `lib/audience.ts` | Who a poll asks (`members.list`, groups, people by name), finding people by name |
 | `lib/guests.ts`, `lib/guard.ts`, `lib/public-origin.ts` | Guests on a date poll: the link, answering by name, the secret's hash, removing; the public form's guard (visitors, own counters); the public address |
@@ -75,7 +75,10 @@ npm ci && npm test && npm run build   # all three must pass
   kind chips with their icons, the chunky answer controls.
 
 - **Identity only from `member()`** (`lib/session.ts`); answers bind to it.
-  Never accept a member id from a form (see Rallly's vote IDOR).
+  Never accept a member id from a form (see Rallly's vote IDOR). Its
+  `groups` (and `members.*`'s) are only those that give Polls: check a
+  poll's groups against `withAllGroups`/`withGroupsOf` (`lib/groups.ts`),
+  never against the assertion's alone.
 - **A poll someone may not see is `not_found`**, never `forbidden`.
 - **Per team, counts only.** `group_tallies` holds counts per group, never
   a text, a member or a time; groups of fewer than 5 members are not

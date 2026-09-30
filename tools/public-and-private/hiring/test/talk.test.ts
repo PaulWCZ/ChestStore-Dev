@@ -25,8 +25,7 @@ before(async () => {
     capabilities: ["members", "files", "notifications", "mail", "calendar"],
     mail: { domain: "atelier.test", mailboxes: ["jobs"] },
     calendar: { domain: "atelier.test", toolTitle: "Hiring", company: "Atelier Martin" },
-    settings: { company: "Atelier Martin" },
-    timeZone: "Europe/Paris",
+    chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" },
     schedules: [{ name: "morning", cron: "40 7 * * 1-5" }],
   });
 });

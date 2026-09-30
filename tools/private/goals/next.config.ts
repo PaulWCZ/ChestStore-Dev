@@ -8,11 +8,14 @@ import type { NextConfig } from "next";
 // - nothing written at run time (read-only disk): no image optimiser, every
 //   page rendered per request (app/layout.tsx);
 // - the server's own name kept out of the answers;
+// - `next dev` leaves the tool's files alone (agentRules: false; otherwise
+//   it appends its own block to AGENTS.md at every start);
 // - a spreadsheet to import (1,000,000 characters at most, lib/import.ts)
 //   fits in a server action's body.
 const config: NextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
+  agentRules: false,
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: true },
   experimental: { cpus: 1, webpackBuildWorker: false, webpackMemoryOptimizations: true, serverActions: { bodySizeLimit: "4mb" } },

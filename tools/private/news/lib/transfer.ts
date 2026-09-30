@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
@@ -58,9 +58,9 @@ export async function exportAll(sql: Sql, actor: Member | null, zone: string): P
     select id, post_id, role, object, file_name, type, size from files where post_id in ${sql(ids)} order by post_id, position nulls last, added_at, id`;
   const mentioned = comments.flatMap(c => [...c.body.matchAll(/@\[(mbr_[a-z2-7]{26})\]/gu)].map(m => m[1]!));
   const who = await people([...rows.flatMap(r => [r.author, ...(r.welcome ? [r.welcome] : []), ...r.people]), ...comments.map(c => c.author), ...mentioned]);
-  const name = (id: string) => nameOf(who.get(id), actor.locale);
+  const name = (id: string) => nameOf(who.get(id), localeOf(actor.language));
   const groups = await groupNames();
-  const t = catalogue(actor.locale);
+  const t = catalogue(localeOf(actor.language));
   const when = (d: Date) => { const l = local(d, zone); return `${l.day} ${l.time}`; };
 
   const entries: { name: string; data: Uint8Array | string }[] = [];
@@ -239,7 +239,7 @@ export async function importSlack(sql: Sql, actor: Member | null, bytes: Uint8Ar
       throw new AppError("unavailable");
     }
   }
-  const t = catalogue(actor.locale);
+  const t = catalogue(localeOf(actor.language));
   const batch = randomBytes(8).toString("hex");
   const unmatched = new Set<string>();
   let added = 0;
@@ -255,7 +255,7 @@ export async function importSlack(sql: Sql, actor: Member | null, bytes: Uint8Ar
       const at = new Date(Math.round(Number(m.ts) * 1000));
       const [row] = await tx<{ id: string }[]>`
         insert into posts (kind, title, body, locale, author, publish_at, created_at, announced_at, origin, import_batch)
-        values ('info', ${[...title].slice(0, 140).join("")}, ${[...said].slice(0, 20000).join("")}, ${actor.locale}, ${author ?? actor.id}, ${at}, ${at}, now(), ${`slack:${channel.id}:${m.ts}`}, ${batch})
+        values ('info', ${[...title].slice(0, 140).join("")}, ${[...said].slice(0, 20000).join("")}, ${localeOf(actor.language)}, ${author ?? actor.id}, ${at}, ${at}, now(), ${`slack:${channel.id}:${m.ts}`}, ${batch})
         on conflict (origin) do nothing returning id`;
       if (row) added++;
       else skipped++;

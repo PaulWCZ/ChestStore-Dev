@@ -24,7 +24,8 @@ must not break.
 | `lib/repeat.ts` | Repeat rules and the next due date — pure, used in the browser too, tested alone (month ends, summer time) |
 | `lib/repeats.ts` | A repeating card's series: `makeNext` (once, row locked), `takeBack` (on reopen, if untouched), `catchUp` (the morning) |
 | `lib/morning.ts`, `lib/reminders.ts`, `app/chest-jobs/[name]/route.ts` | The weekday morning (schedule `morning`): reminders, catch-up, badges; the per-person switch and taking an item back |
-| `lib/clock.ts` | "Today" in the Chest's time zone (`chest.timeZone()`) — server only |
+| `lib/clock.ts` | "Today" in the Chest's time zone (`chest.timeZone`) — server only |
+| `lib/groups.ts` | Who is in a group, asked of the Chest (`members.groups.of` / `groups.members`, Proposal (studio) `"groups": "read"`): `member.groups` lists only the groups that give Tasks |
 | `lib/lifecycle.ts` | Leaving and erasure |
 | `lib/audience.ts` | Who sees a board, for pickers |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |

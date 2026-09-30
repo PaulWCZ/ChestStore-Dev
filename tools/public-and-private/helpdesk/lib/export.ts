@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { toCsv } from "./csv.ts";
 import type { Sql } from "./db.ts";
@@ -21,7 +21,7 @@ import { zip } from "./zip.ts";
 
 export async function exportZip(sql: Sql, actor: Member | null, t: Catalogue, locale: Locale, now = new Date()): Promise<Uint8Array> {
   const all = await exportAll(sql, actor);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const ids = all.flatMap(x => [x.assignee, x.requester, ...x.messages.map(m => m.author)]).filter((a): a is string => !!a && a.startsWith("mbr_"));
   const who = await people(ids);
   const person = (id: string | null) => (id === null ? "" : id === "erased" ? t.people.erased : nameOf(who.get(id), locale));

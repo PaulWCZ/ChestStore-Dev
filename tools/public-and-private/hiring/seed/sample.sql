@@ -151,12 +151,15 @@ insert into activity (candidate_id, actor, kind, data, created_at) values
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'wrote', '{"kind": "message"}', now() - interval '18 days'),
   (1, null, 'replied', '{"auto": false}', now() - interval '17 days'),
   (11, null, 'replied', '{"auto": false}', now() - interval '10 days');
+-- Days and hours are the Chest's: the database session is in its zone,
+-- so date_trunc('day', now()) is its midnight (14:00 is 14:00 there).
 insert into interviews (id, candidate_id, starts_at, ends_at, place, note, created_by, calendar) overriding system value values
   (1, 1, date_trunc('day', now()) + interval '2 days 14 hours', date_trunc('day', now()) + interval '2 days 15 hours', 'Atelier Martin, 14 rue des Tanneurs, Lyon', 'Bring a few pieces of your portfolio.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'pending'),
   (2, 13, date_trunc('day', now()) + interval '3 days 10 hours', date_trunc('day', now()) + interval '3 days 11 hours', 'Atelier Martin, 14 rue des Tanneurs, Lyon', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'pending'),
-  -- This morning at 09:00, Paris time, whatever the hour the sample is
-  -- loaded: the interviewers' morning reminder always has a day to tell.
-  (3, 8, (date_trunc('day', now() at time zone 'Europe/Paris') + interval '9 hours') at time zone 'Europe/Paris', (date_trunc('day', now() at time zone 'Europe/Paris') + interval '9 hours 45 minutes') at time zone 'Europe/Paris', 'Showroom, rue Mercière, Lyon', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'pending');
+  -- This morning at 09:00 in the Chest's zone (the zone of the database
+  -- session, as on a Chest), whatever the hour the sample is loaded: the
+  -- interviewers' morning reminder always has a day to tell.
+  (3, 8, date_trunc('day', now()) + interval '9 hours', date_trunc('day', now()) + interval '9 hours 45 minutes', 'Showroom, rue Mercière, Lyon', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'pending');
 insert into interview_people (interview_id, member_id) values
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'), (1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa'),
   (2, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'),

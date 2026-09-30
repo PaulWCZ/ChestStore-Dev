@@ -99,14 +99,15 @@ export function fieldValue(kind: FieldKind, options: readonly string[], value: u
   return text;
 }
 
-// Today in the Chest's time zone, as a day.
-export function today(now = new Date(), timeZone = "Europe/Paris"): string {
+// The day an instant falls on in a time zone (the Chest's: lib/clock.ts).
+// The zone is always given: a default would be a wrong zone read silently.
+export function today(now: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 // When a due day stands, seen from today.
 export type DueState = "late" | "today" | "soon" | "later" | "none";
-export function dueState(due: string | null, now = today()): DueState {
+export function dueState(due: string | null, now: string): DueState {
   if (!due) return "none";
   if (due < now) return "late";
   if (due === now) return "today";
@@ -134,7 +135,7 @@ export const isTemplate = (value: unknown): value is Template => typeof value ==
 
 // A day and a time of day in the Chest's time zone, as an instant
 // ("2026-03-02", "14:30" in Paris → 13:30 UTC), for a calendar event.
-export function zoned(day: string, clock: string, timeZone = "Europe/Paris"): Date {
+export function zoned(day: string, clock: string, timeZone: string): Date {
   const guess = Date.parse(`${day}T${clock}:00Z`);
   const offset = (at: number) => {
     const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(at)).map(p => [p.type, p.value]));

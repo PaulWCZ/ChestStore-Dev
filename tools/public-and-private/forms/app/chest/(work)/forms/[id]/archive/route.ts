@@ -1,13 +1,13 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
-import { member } from "@argentic/chest-sdk/member";
+import { localeOf, member } from "@argentic/chest-sdk/member";
 import { allAnswers } from "../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../lib/db.ts";
 import { exportRows } from "../../../../../../lib/export.ts";
 import { toCsv } from "../../../../../../lib/csv.ts";
-import { catalogue, format, isLocale } from "../../../../../../lib/i18n/index.ts";
+import { catalogue, format } from "../../../../../../lib/i18n/index.ts";
 import { filesIn, type StoredFile } from "../../../../../../lib/logic.ts";
 import { people } from "../../../../../../lib/people.ts";
 import { zipStream, type Entry } from "../../../../../../lib/zip.ts";
@@ -20,13 +20,13 @@ import { zipStream, type Entry } from "../../../../../../lib/zip.ts";
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const who = member(request);
   if (!who) return new Response(null, { status: 401 });
-  const locale = isLocale(who.locale) ? who.locale : "en";
+  const locale = localeOf(who.language);
   try {
     const sql = db();
     const { form, answers, versions } = await allAnswers(sql, who, (await params).id, 100000);
     if (form.anonymous) throw new AppError("anonymous_rows");
     const t = catalogue(locale);
-    const zone = chest.timeZone();
+    const zone = chest.timeZone;
     const names = await people(answers.flatMap(a => (a.respondent ? [a.respondent] : [])));
     const now = new Date();
     const text = (s: string) => async () => new TextEncoder().encode(s);

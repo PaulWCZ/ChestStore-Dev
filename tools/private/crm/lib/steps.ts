@@ -3,7 +3,8 @@ import { can, canEditDeal, ownsStep } from "./access.ts";
 import { record } from "./activities.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { addDays, clean, day, id, limits, owner as ownerOf, time, today } from "./model.ts";
+import { addDays, clean, day, id, limits, owner as ownerOf, time } from "./model.ts";
+import { today } from "./zone.ts";
 import { checkAssignable } from "./team.ts";
 
 // Next steps: what comes next on a deal, with a contact, or for oneself

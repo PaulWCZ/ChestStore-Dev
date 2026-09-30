@@ -1,6 +1,6 @@
 "use server";
 
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as visitors from "@argentic/chest-sdk/visitors";
 import { headers } from "next/headers";

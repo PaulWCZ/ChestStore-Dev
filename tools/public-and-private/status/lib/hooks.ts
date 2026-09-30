@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
@@ -284,7 +284,7 @@ export async function flushHooks(sql: Sql, options: { limit?: number; now?: Date
     order by q.id limit ${Math.min(Math.max(options.limit ?? 50, 1), 500)}`;
   if (batch.length === 0) return { sent: 0, stopped: null };
   const origin = await publicOrigin(sql);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const services = new Map((await allComponents(sql)).map(c => [c.id, c]));
   const incidentIds = [...new Set(batch.map(b => String(b.incident_id)))];
   const touched = await sql<{ incident_id: string; update_id: string | null; component_id: string; state: string }[]>`

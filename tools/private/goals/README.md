@@ -106,7 +106,9 @@ and members come from the Chest, so nobody keeps a second list, and only its
 members write its objectives — or **a name** given here (many small
 companies give their tools to everyone and have no groups): anyone may write
 for such a team. Admins add them in *Settings* ("Add the 2 groups of your
-Chest" is one click).
+Chest" is one click). Who is in a group is asked of the Chest
+(`members.groups.of`), not read from the member's own groups, which hold
+only the groups that give Goals.
 
 ### Personal objectives, and what Goals never does
 
@@ -223,8 +225,10 @@ owner, the admins and the tool's builders come in with the first role.
   id leaves what the other tools told (cards, tickets, hires); then the
   erasure is acknowledged.
 - Dates: "today" and "this week" (from Monday 00:00) are the Chest's, in its
-  time zone (`chest.timeZone()` / `chest.today()`); an amount is in the
-  Chest's currency (`chest.currency()`), kept on each key result.
+  time zone (`chest.timeZone` / `chest.today()`), the same day as the
+  database's `current_date` (the Chest puts its sessions in that zone); an
+  amount is in the Chest's currency (`chest.currency`), kept on each key
+  result.
 - No WebSocket: the open pages re-read themselves every minute while visible.
 
 ## With the other tools
@@ -282,9 +286,13 @@ form from then on) — both need a query between tools (below).
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**: the interface and the bell in each
-  member's language.
-- The `chest` module — **Proposal (studio)**: time zone, today, currency.
+The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.3.0 +
+studio proposals (0.3.1-studio.1).
+
+- `member.language` (0.3.0): the interface and the bell in each member's
+  language.
+- `chest` (0.3.0): `chest.timeZone`, `chest.today()`, `chest.language`;
+  `chest.currency` is a **Proposal (studio)**.
 - **Scheduled tasks** — **Proposal (studio)**, in `chest.proposals.json`:
   `reminder` (Friday 08:45: the weekly update reminder) and `week` (Monday
   06:50: every tile's number for the new week). **Without schedules** the
@@ -293,7 +301,8 @@ form from then on) — both need a query between tools (below).
   the Chest to run schedules.
 - `mail` — **Proposal (studio)**: the Friday reminder and *Remind* by email.
   Keys `reminder:<day>:<member>` / `nudge:<day>:<member>`, passed whole
-  (studio.15); not transactional: the member's `mailPreference` applies.
+  (studio.15); not transactional: the member's `mailPreference` applies
+  (read with `members.get`: the assertion never carries it).
   Without it, nothing fails: the bell still says it. `mail.available()`
   (studio.16) says beforehand whether email can go, so the page never
   promises one the Chest cannot send.
@@ -301,7 +310,9 @@ form from then on) — both need a query between tools (below).
   Tasks, Support and Hiring feed key results (*With the other tools*).
 - `groups: "read"` — **Proposal (studio)**: every group of the Chest may
   become a team (`members.groups.all`, `members.groups.members`, `group.*`
-  events); without it, only the groups that give Goals.
+  events), and a member's groups are `members.groups.of(id)`
+  (`lib/groups.ts`: who writes for a team, who reads its confidential
+  objectives); without it, only the groups that give Goals.
 - `chest.theme()` — **Proposal (studio)**: the company's look (a catalogue
   theme or its brand); outside a Chest that has it, Goals wears its own.
 - **Not in the SDK, needed** (see the final report / SDK report):

@@ -414,7 +414,7 @@ export const en = {
     addPerson: "Add someone",
     removePerson: "Remove {name}",
     groups: "Groups",
-    noGroups: "No groups give access to Tasks.",
+    noGroups: "Your Chest has no groups yet.",
     labels: "Labels",
     addLabel: "Add a label",
     removeLabel: "Delete the label",

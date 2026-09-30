@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { forbidden } from "next/navigation";
@@ -21,7 +21,7 @@ export default async function InventoryPage() {
   if (!can(member, "items.manage")) forbidden();
   const sql = db();
   const [now, past] = await Promise.all([progress(sql, member), pastInventories(sql, member)]);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const today = chest.today();
   const names = await people([...(now ? [now.inventory.startedBy, ...holderIds([...now.seen, ...now.notSeen])] : [])]);
   const date = (d: string) => formatDate(d, locale, { day: "numeric", month: "long", year: "numeric" }, zone);

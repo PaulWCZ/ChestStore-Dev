@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { Back } from "../../../../components/icons.tsx";
 import { db } from "../../../../lib/db.ts";
 import { trash, trashDays } from "../../../../lib/forms.ts";
@@ -15,7 +15,7 @@ export default async function TrashPage() {
   const { t, locale, member } = v;
   const forms = await trash(db(), member);
   const owners = await people(forms.map(f => f.owner));
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   return (
     <div className="panel-page">
       <a className="back-link" href="/chest"><Back />{t.shell.home}</a>

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/app-error.ts";
-import { emailOn, mailNotice, setEmail } from "../lib/mail.ts";
+import { emailOn, mailNotice, mailPreference, setEmail } from "../lib/mail.ts";
 import * as requests from "../lib/requests.ts";
 import { types } from "../lib/rules.ts";
 import { setApprover } from "../lib/staff.ts";
@@ -10,7 +10,7 @@ import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, nora } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, nora, tom } from "./support/members.ts";
 
 // Email beside the bell (the mail proposal): the approver hears of a
 // request, the requester of the answer, each in their language with the
@@ -78,6 +78,9 @@ test("the person's choice in the Chest holds too: no email means none — but th
   choose(hugo.id, "none");
   chest.clearCaches();
   try {
+    // What the home reads to say so: the members API, never the assertion.
+    assert.equal(await mailPreference(ines.id), "none");
+    assert.equal(await mailPreference(tom.id), "all");
     chest.outbox.length = 0;
     chest.held.length = 0;
     const r = await requests.createRequest(sql, asMember(hugo), { typeId: paid, ...week(quietMonday(50)) });

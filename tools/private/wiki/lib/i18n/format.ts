@@ -20,11 +20,11 @@ export function plural(forms: { readonly one: string; readonly other: string; re
   return format(form, { count: new Intl.NumberFormat(intl(locale)).format(n), ...values });
 }
 
-// Dates in the reader's language and the Chest's time zone (Europe/Paris
-// unless the tool is told otherwise — Proposal: a Chest time zone).
-export const timeZone = "Europe/Paris";
-export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
-  return new Intl.DateTimeFormat(intl(locale), { timeZone, ...options }).format(typeof value === "string" ? new Date(value) : value);
+// A date in the reader's language, in the zone given: the reader's own
+// (member.timeZone, SDK 0.3.0) for what happened, the Chest's for a
+// company's day. Always given: a server's zone is nobody's.
+export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions & { timeZone: string }): string {
+  return new Intl.DateTimeFormat(intl(locale), options).format(typeof value === "string" ? new Date(value) : value);
 }
 
 // relative says "3 minutes ago", "yesterday"… in that language.
@@ -42,8 +42,9 @@ export function relative(value: Date | string, locale: Locale, now = new Date())
 }
 
 // moment says when something happened today ("10:02"), or which day and
-// when ("12 Oct, 10:02").
-export function moment(value: Date | string, locale: Locale, now = new Date()): string {
+// when ("12 Oct, 10:02"), in the reader's zone: member.timeZone on the
+// server; in the browser, left out, the browser's own.
+export function moment(value: Date | string, locale: Locale, now = new Date(), timeZone?: string): string {
   const date = typeof value === "string" ? new Date(value) : value;
   const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const time = new Intl.DateTimeFormat(intl(locale), { timeZone, hour: "2-digit", minute: "2-digit" }).format(date);

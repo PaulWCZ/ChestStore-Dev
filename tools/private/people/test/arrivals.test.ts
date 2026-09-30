@@ -90,8 +90,8 @@ test("HR starts the arrival checklist before access; linked, the profile and the
   await assert.rejects(j.journey(sql, asMember(hugo), started.id), refused("not_found"));
   await assert.rejects(j.startJourney(sql, hr, { arrivalId: "999999", templateId: t.id, anchor: "2026-11-09" }), refused("not_found"));
   // Lucie gets the tool; the page suggests her by name; HR links.
-  const newcomer: FakeMember = { id: id("lucie"), firstName: "Lucie", lastName: "Garnier", name: "Lucie Garnier", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], locale: "fr" };
-  chest.members.push(newcomer);
+  const newcomer: FakeMember = { id: id("lucie"), firstName: "Lucie", lastName: "Garnier", name: "Lucie Garnier", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "fr" };
+  chest.members.push(asMember(newcomer));
   members.forget();
   const found = arrivals.suggestions(await arrivals.listArrivals(sql, hr), [{ id: newcomer.id, name: "lucie GARNIER" }, { id: hugo.id, name: "Hugo Bernard" }]);
   assert.deepEqual([...found.get(a!.id)!].map(p => p.id), [newcomer.id]);

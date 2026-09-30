@@ -1,6 +1,6 @@
 // Safe in the browser: dates and hours on a time zone's clock, with Intl
 // only. The closing date of a form is typed as a day and an hour on the
-// Chest's clock (chest.timeZone(), read on the server and passed down).
+// Chest's clock (chest.timeZone, read on the server and passed down).
 
 // The offset of a zone at an instant, in minutes (Paris in summer: 120).
 function offset(zone: string, at: Date): number {

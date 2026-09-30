@@ -6,7 +6,7 @@ import { AppError } from "../../../../lib/app-error.ts";
 import { balancesOf } from "../../../../lib/balances.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, formatDate, formatDays, plural, spanText } from "../../../../lib/i18n/index.ts";
-import { today } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/today.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { afterRequest } from "../../../../lib/left.ts";
 import { history, pendingOf, request, undoMinutes, type Seen, type Step } from "../../../../lib/requests.ts";
@@ -75,7 +75,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           {steps.map((s, i) => (
             <li key={i}>
               <span>{format(t.request.steps[s.kind as keyof typeof t.request.steps] ?? s.kind, { name: s.kind === "left" ? nameOf(person, locale) : actorName(s.actor) })}</span>
-              <time className="muted small" dateTime={s.at}>{formatDate(s.at, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
+              <time className="muted small" dateTime={s.at}>{formatDate(s.at, locale, member.timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
               {s.reason && <p className="step-reason">{s.reason}</p>}
             </li>
           ))}

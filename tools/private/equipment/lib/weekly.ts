@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import type { Sql } from "./db.ts";
 import { purgeDepartures } from "./departures.ts";
@@ -12,7 +12,7 @@ import { endingSoon as tellEnding, refreshBadges } from "./tell.ts";
 // complete without schedules. Idempotent: a run delivered twice sends the
 // same item under the same key.
 export async function weekly(sql: Sql, run: Run): Promise<void> {
-  const day = chest.today(new Date(run.scheduledAt), run.timeZone);
+  const day = chest.todayIn(run.timeZone, new Date(run.scheduledAt));
   const items = await endingSoon(sql, day);
   const upcoming = items.filter(i => (i.warrantyUntil !== null && i.warrantyUntil >= day) || (i.renewsOn !== null && i.renewsOn >= day));
   await tellEnding(upcoming.map(i => `${i.name} (${i.tag})`));

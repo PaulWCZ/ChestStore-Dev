@@ -1,7 +1,7 @@
 import type { Query, Sql } from "./db.ts";
 import { isDay, type Day } from "./calendar.ts";
 import { settleAfterLastDay, type Settled } from "./last-day.ts";
-import { today } from "./model.ts";
+import { today } from "./today.ts";
 import { withdraw } from "./notify.ts";
 import { afterLastDay, refreshBadges } from "./tell.ts";
 

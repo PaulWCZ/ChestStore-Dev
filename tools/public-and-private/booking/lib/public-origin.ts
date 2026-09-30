@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 
 // The public host's address, from a request on either host. The team host
 // is <tool>-chest.<chest>, the public one <tool>.<chest> (reference:
@@ -6,8 +6,8 @@ import * as chest from "@argentic/chest-sdk/chest";
 // SDK report): we derive it, and remember the last one seen for emails
 // written outside a request (a schedule), unless the Chest gives it.
 export function publicOrigin(headers: Headers, tool = process.env["CHEST_TOOL"] ?? ""): string | null {
-  // The Chest's own word first (Proposal (studio): chest.publicUrl()).
-  const given = chest.publicUrl();
+  // The Chest's own word first (Proposal (studio): chest.publicUrl).
+  const given = chest.publicUrl;
   if (given) return given;
   const host = (headers.get("x-forwarded-host") ?? headers.get("host") ?? "").split(",")[0]!.trim().toLowerCase();
   if (!/^[a-z0-9.-]{1,253}(:[0-9]{1,5})?$/u.test(host)) return null;

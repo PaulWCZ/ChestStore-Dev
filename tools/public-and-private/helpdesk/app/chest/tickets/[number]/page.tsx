@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { notFound, redirect } from "next/navigation";
 import { formsLink } from "../../../../lib/forms-in.ts";
 import { incidentReplies, openIncidents } from "../../../../lib/incidents-in.ts";
@@ -45,7 +45,7 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
   // conversation, and a saved reply that tells the customer (first).
   const [replies, tagList, s, incidents, incidentAnswers] = await Promise.all([savedReplies(sql, member), tags(sql, member), settings(sql), openIncidents(sql, member, locale), incidentReplies(sql, member, ticket.language, fill, locale)]);
   const now = new Date();
-  const minutes = ticket.waitingSince ? workMinutes(ticket.waitingSince, now, s.hours, chest.timeZone()) : 0;
+  const minutes = ticket.waitingSince ? workMinutes(ticket.waitingSince, now, s.hours, chest.timeZone) : 0;
   const wait = ticket.waitingSince ? waitedFor(minutes) : null;
   const customer = requester ?? (ticket.customerName || ticket.customerEmail);
   return (

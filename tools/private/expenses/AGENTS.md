@@ -131,3 +131,6 @@ npm ci && npm test && npm run build   # all three must pass
   recipient is appended; 64 characters in all).
 - Imported expenses (`imported_at`) are history: keep them out of pay,
   exports and the journal (`within()`).
+- **Today** is the Chest's day: `lib/today.ts` (`chest.today()`), the same
+  as the database's `current_date` (the Chest's zone). Never
+  `new Date().toISOString().slice(0, 10)` nor a zone written in the code.

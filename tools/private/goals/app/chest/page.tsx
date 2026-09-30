@@ -9,7 +9,7 @@ import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { format, formatDay, plural } from "../../lib/i18n/index.ts";
 import { daysBetween, firstCycleChoices, runsOn, type Suggestion } from "../../lib/model.ts";
-import { emailOn, mailState } from "../../lib/mail.ts";
+import { emailOn, mailPreferenceOf, mailState } from "../../lib/mail.ts";
 import { orphans } from "../../lib/orphans.ts";
 import { context, cycleWords, quarterName } from "../../lib/page-data.ts";
 import { ownedBy } from "../../lib/read.ts";
@@ -78,6 +78,9 @@ export default async function MyGoals() {
   const lost = can(member, "any.write") ? (await orphans(sql)).length : 0;
   const cw = current ? cycleWords(current, clock.today, t, locale) : null;
   const ownsAnyKr = owned.some(o => o.keyResults.some(k => k.owner === member.id));
+  // The person's email choice in the Chest (the members API; the assertion
+  // never carries it), said under the switch.
+  const preference = ownsAnyKr ? await mailPreferenceOf(member.id) : "all";
 
   return (
     <div className="narrow">
@@ -131,7 +134,7 @@ export default async function MyGoals() {
 
       {ownsAnyKr && ((await mailState()) === "off"
         ? <p className="email-note">{t.home.emailUnavailable}</p>
-        : <EmailSwitch on={await emailOn(sql, member)} note={member.mailPreference === "none" ? t.home.emailNone : member.mailPreference === "digest" ? t.home.emailDigest : null} t={{ label: t.home.email, on: t.home.emailOn, off: t.home.emailOff, errors: t.errors }} />)}
+        : <EmailSwitch on={await emailOn(sql, member)} note={preference === "none" ? t.home.emailNone : preference === "digest" ? t.home.emailDigest : null} t={{ label: t.home.email, on: t.home.emailOn, off: t.home.emailOff, errors: t.errors }} />)}
     </div>
   );
 }

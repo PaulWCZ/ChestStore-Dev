@@ -20,6 +20,7 @@ let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
   chest = await fakeChest({
+    chest: { timeZone: "Europe/Paris" },
     tool: "booking",
     members: [
       camille,
@@ -96,7 +97,7 @@ test("whether mail goes out, as the Chest says it: ready, not connected, suspend
       chest.delivery.mail = "ready";
     }
   }
-  const plain = await fakeChest({ tool: "booking", members: [camille], capabilities: ["database", "members", "notifications"] });
+  const plain = await fakeChest({ chest: { timeZone: "Europe/Paris" }, tool: "booking", members: [camille], capabilities: ["database", "members", "notifications"] });
   try {
     assert.equal(await mailer.mailState(), "not_granted");
   } finally {

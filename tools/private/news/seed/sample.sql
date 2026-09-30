@@ -2,10 +2,11 @@
 -- last month of a seven-person company. The member ids are those of the
 -- studio's dev harness (lab/chest-dev/cast.mjs): Camille and Sofia publish,
 -- the others read. Times are relative to today, at office hours on the
--- Chest's clock (pg_temp.at: N days ago, at that time in Paris), so the
--- page always looks current and nothing reads as written at 2 a.m.
+-- Chest's clock (pg_temp.at: N days ago, at that time in the Chest's zone,
+-- which the Chest makes the database session's), so the page always looks
+-- current and nothing reads as written at 2 a.m.
 create function pg_temp.at(days integer, t time) returns timestamptz language sql as $$
-  select (((now() at time zone 'Europe/Paris')::date - days) + t) at time zone 'Europe/Paris'
+  select ((current_date - days) + t)::timestamptz
 $$;
 
 insert into posts (kind, title, body, locale, author, important, pinned_at, pinned_until, publish_at, created_at, announced_at, edited_at, text_version, event_day, event_start, event_end, place, seats, welcome) values
@@ -18,7 +19,7 @@ insert into posts (kind, title, body, locale, author, important, pinned_at, pinn
   ('event', 'Team dinner at Le Petit Zinc',
    E'Let''s celebrate the quarter together! Dinner is on the company.\n\n- Vegetarian menu available\n- Partners welcome, tell Sofia by Friday\n\nSay below if you are coming, so we can book the right table.',
    'en', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', false, null, null, pg_temp.at(10, '14:20'), pg_temp.at(10, '14:20'), pg_temp.at(10, '14:20'), null, 1,
-   current_date + 12, (current_date + 12 + time '19:30') at time zone 'Europe/Paris', (current_date + 12 + time '23:00') at time zone 'Europe/Paris', 'Le Petit Zinc, 11 rue Saint-Benoît, Paris 6e', null, null),
+   current_date + 12, (current_date + 12 + time '19:30')::timestamptz, (current_date + 12 + time '23:00')::timestamptz, 'Le Petit Zinc, 11 rue Saint-Benoît, Paris 6e', null, null),
   ('announcement', 'We are moving on 2 November',
    E'After six years in rue du Faubourg, we move to **14 rue des Arts**, 3rd floor — twice the space, a real meeting room and a terrace.\n\n## What changes for you\n- Pack your desk on **Friday 30 October** (boxes arrive on Monday)\n- The office is closed on Monday 2 November: work from home\n- Your new badge is on your desk from Tuesday\n\nQuestions? Ask Camille or reply below.',
    'en', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', true, pg_temp.at(6, '10:00'), pg_temp.at(-10, '00:00'), pg_temp.at(6, '10:00'), pg_temp.at(6, '09:52'), pg_temp.at(6, '10:00'), pg_temp.at(6, '10:25'), 2, null, null, null, null, null, null),
@@ -37,7 +38,7 @@ insert into posts (kind, title, body, locale, author, important, pinned_at, pinn
   ('event', 'First-aid training: 3 places',
    E'A certified trainer teaches the basics of first aid in one morning: calling for help, the recovery position, CPR and the defibrillator.\n\nThree places: past them, you join the waiting list and hear from us if a place frees up.',
    'en', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', false, null, null, pg_temp.at(1, '15:10'), pg_temp.at(1, '15:10'), pg_temp.at(1, '15:10'), null, 1,
-   current_date + 20, (current_date + 20 + time '09:00') at time zone 'Europe/Paris', (current_date + 20 + time '12:30') at time zone 'Europe/Paris', 'The new meeting room, 3rd floor', 3, null),
+   current_date + 20, (current_date + 20 + time '09:00')::timestamptz, (current_date + 20 + time '12:30')::timestamptz, 'The new meeting room, 3rd floor', 3, null),
   ('info', 'Design review with the client on Friday',
    E'Hugo, Léa: the client comes on Friday at 14:00 to see the new screens. Bring your laptop; Nora presents.',
    'en', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', false, null, null, pg_temp.at(1, '17:50'), pg_temp.at(1, '17:50'), pg_temp.at(1, '17:50'), null, 1, null, null, null, null, null, null);

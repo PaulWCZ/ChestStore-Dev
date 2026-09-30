@@ -112,17 +112,12 @@ export function monthRange(value: string): { from: string; to: string } {
 }
 
 // An expense is spent on a day that has come (tomorrow is allowed: time
-// zones).
-export function spentOn(value: unknown, now = today()): string {
+// zones). `now` is today in the Chest's zone (chest.today(), on the server).
+export function spentOn(value: unknown, now: string): string {
   const d = day(value);
   const tomorrow = new Date(Date.parse(now + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
   if (d > tomorrow) throw new AppError("date_future");
   return d;
-}
-
-// Today in the Chest's time zone, as a day.
-export function today(now = new Date(), timeZone = "Europe/Paris"): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 // A distance typed in km ("12", "12,5", "12.5") in tenths of a km.

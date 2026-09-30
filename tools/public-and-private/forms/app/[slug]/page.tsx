@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RespondFrame, RespondNotice } from "../../components/respond-frame.tsx";
@@ -41,7 +41,7 @@ export default async function PublicForm({ params, searchParams }: Props) {
   const locale = languageFor(found.definition, wanted.locale);
   const t = catalogue(locale);
   const definition = localize(found.definition, locale);
-  const company = chest.company() || t.public.title;
+  const company = chest.organization.name;
   const offered = found.definition.language ? [found.definition.language, ...(found.definition.alt ? [found.definition.alt.language] : [])] : languages;
   const state = openState(form);
   const query = Object.fromEntries(Object.entries(await searchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
@@ -60,7 +60,7 @@ export default async function PublicForm({ params, searchParams }: Props) {
           thanks={{ title: form.thanksTitle, body: form.thanksBody }}
           redirectUrl={form.redirectUrl}
           words={{ ...t.respond, date: t.date, files: t.files }}
-          today={zonedParts(new Date(), chest.timeZone()).day}
+          today={zonedParts(new Date(), chest.timeZone).day}
           errors={t.errors}
           locale={locale}
           token={formToken()}

@@ -23,10 +23,10 @@ let chest: FakeChest;
 let paid: string, sick: string;
 const zone = "Europe/Paris";
 before(async () => {
-  database = await testDatabase();
+  database = await testDatabase({ timeZone: zone });
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
   chest = await fakeChest({
-    tool: "leave", members: everyone, groups: fakeGroups, timeZone: zone,
+    tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone },
     capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Leave", company: "Atelier Martin" },
     emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 1,
   });
@@ -190,14 +190,14 @@ test("erased: the events go, and what was told of them is forgotten", async () =
 test("a Chest without the calendar: nothing fails, the home stops promising it, asked again in the morning", async () => {
   const { sql } = database;
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, timeZone: zone, calendar: false });
+  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, calendar: false });
   const monday = quietMonday(63);
   const r = await requests.createRequest(sql, asMember(tom), { typeId: sick, start: monday, startHalf: "am", end: monday, endHalf: "pm" });
   await keepInLine(sql);
   assert.equal(await state(sql), "off");
   assert.deepEqual(await sync(sql), { put: 0, removed: 0 }, "not asked again within the hour");
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, timeZone: zone, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" } });
+  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" } });
   await sync(sql, { recheck: true });
   assert.equal(await state(sql), "on");
   assert.ok(chest.calendar.has(`leave:${r.id}`));

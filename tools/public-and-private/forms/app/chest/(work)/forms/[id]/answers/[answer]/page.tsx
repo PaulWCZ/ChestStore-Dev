@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { notFound } from "next/navigation";
 import { Back, Next, Paperclip } from "../../../../../../../components/icons.tsx";
 import { atLeast } from "../../../../../../../lib/access.ts";
@@ -35,7 +35,7 @@ export default async function AnswerPage({ params, searchParams }: Props) {
   });
   if (!found) notFound();
   const { form, answer, definition, deleted } = found;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const filter = { q: query["q"], question: query["where"]?.split(":")[0], option: query["where"]?.split(":")[1], status: query["status"], from: query["from"], to: query["to"], sort: query["sort"] };
   const near = deleted ? { newer: null, older: null } : await neighbours(sql, member, id, answer.id, filter, zone);
   const keep = new URLSearchParams(Object.entries(query).filter(([k, x]) => k !== "page" && typeof x === "string") as [string, string][]);

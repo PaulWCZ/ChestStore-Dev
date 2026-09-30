@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { notFound } from "next/navigation";
 import { can } from "../../../lib/access.ts";
@@ -23,7 +23,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const sql = db();
   const s = await settings(sql);
   const weeks = (reportWeeks as readonly number[]).includes(Number((await searchParams).weeks)) ? Number((await searchParams).weeks) : 8;
-  const r = await report(sql, member, { weeks, hours: s.hours, timeZone: chest.timeZone(), lateHours: s.lateHours });
+  const r = await report(sql, member, { weeks, hours: s.hours, timeZone: chest.timeZone, lateHours: s.lateHours });
   const who = await people(r.agents.map(a => a.id));
   const w = t.reports;
   const duration = (minutes: number | null): string => {

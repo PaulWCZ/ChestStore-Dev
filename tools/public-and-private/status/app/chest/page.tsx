@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { PageHeader } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
@@ -24,7 +24,7 @@ export default async function Overview() {
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const now = new Date();
   // A visit does what the schedule would (Chest without schedules): the
   // maintenance posts due, a few emails.

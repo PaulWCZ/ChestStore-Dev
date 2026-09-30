@@ -20,11 +20,11 @@ export function plural(forms: { readonly one: string; readonly other: string; re
   return format(form, { count: new Intl.NumberFormat(intl(locale)).format(n), ...values });
 }
 
-// Dates in the reader's language and the Chest's time zone (Europe/Paris
-// unless the tool is told otherwise — Proposal: a Chest time zone).
-export const timeZone = "Europe/Paris";
-export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
-  return new Intl.DateTimeFormat(intl(locale), { timeZone, ...options }).format(typeof value === "string" ? new Date(value) : value);
+// A date in the reader's language, in the zone given (the Chest's for the
+// company's clock, "UTC" for a day kept as "YYYY-MM-DD"). Always given: a
+// server's own zone is nobody's.
+export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions & { timeZone: string }): string {
+  return new Intl.DateTimeFormat(intl(locale), options).format(typeof value === "string" ? new Date(value) : value);
 }
 
 // relative says "3 minutes ago", "yesterday"… in that language.

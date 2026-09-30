@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -81,9 +81,9 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
     throw error;
   });
   const item = detail.item;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const today = chest.today();
-  const currency = chest.currency();
+  const currency = chest.currency;
   const now = new Date();
   const ids = [
     item.holder ?? "",
@@ -305,7 +305,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
         <aside className="item-side">
           <section className="panel" aria-labelledby="label">
             <h2 id="label">{t.item.label}</h2>
-            <LabelFace url={url} tag={item.tag} name={item.name} company={chest.company()} scan={t.labels.scan} qrLabel={url} />
+            <LabelFace url={url} tag={item.tag} name={item.name} company={chest.organization.name} scan={t.labels.scan} qrLabel={url} />
             <Link className="button quiet small" href={`/chest/labels?ids=${item.id}`}><Print />{t.item.printLabel}</Link>
           </section>
           <section className="panel" aria-labelledby="history">

@@ -297,7 +297,7 @@ export async function createDocument(sql: Sql, actor: Member | null, type: unkno
       client_id: client ? Number(client.id) : null,
       // The client's language; without a client yet, the author's own, so
       // the paper they write on speaks their language.
-      language: client?.language ?? (isLocale(actor!.locale) ? actor!.locale : defaults.locale),
+      language: client?.language ?? (isLocale(actor!.language) ? actor!.language : defaults.locale),
       currency: defaults.currency,
       valid_until: kind === "quote" ? addDays(defaults.today, c.validityDays) : null,
       payment_days: c.paymentDays,

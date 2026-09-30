@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
-import * as chest from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
 import { busyFingerprint, busyLimits, busySnapshot, type Span } from "./busy-snapshot.ts";
 import { addDays } from "./calendar.ts";
 import type { Query } from "./db.ts";
-import { today } from "./model.ts";
+import { today } from "./today.ts";
 import { instants } from "./spans.ts";
+import { zonesOf } from "./zones.ts";
 
 // Busy times, for Booking (Proposal (studio): events between tools;
 // chest.proposals.json "emits": "leave.busy"). Booking and Hiring tell each
@@ -17,8 +17,9 @@ import { instants } from "./spans.ts";
 // leave.busy is the shared snapshot, version 1 (lib/busy-snapshot.ts):
 //   { v: 1, member, at, from, to, spans: [[start, end], …] }
 // from the start of today (UTC) to 90 days later; each approved leave its
-// whole days in the Chest's time zone (noon for a half day, lib/spans.ts),
-// as UTC minutes, merged. Times only — never the kind of leave, its note,
+// whole days in the zone the member works in (lib/zones.ts: the Chest's
+// when the Chest does not say; noon for a half day, lib/spans.ts), as UTC
+// minutes, merged. Times only — never the kind of leave, its note,
 // who approved it, nor that it is leave at all. A pending request is not
 // busy: nothing is decided; nor is a kind that is not an absence (remote
 // work, training: away = false) — the person works.
@@ -35,16 +36,19 @@ import { instants } from "./spans.ts";
 type Row = { member_id: string; start: string; start_half: "am" | "pm"; end: string; end_half: "am" | "pm" };
 
 // Every member's approved leave that touches the window, as spans.
-async function spansByMember(sql: Query, now: number, timeZone: string): Promise<Map<string, Span[]>> {
-  const first = addDays(today(new Date(now), timeZone), -1);
+// The days are the Chest's (the database's current_date is its today); a
+// day's margin on each side covers any member's zone.
+async function spansByMember(sql: Query, now: number): Promise<Map<string, Span[]>> {
+  const first = addDays(today(now), -1);
   const last = addDays(first, busyLimits.days + 2);
   const rows = await sql<Row[]>`
     select r.member_id, to_char(r.start_date, 'YYYY-MM-DD') as start, r.start_half, to_char(r.end_date, 'YYYY-MM-DD') as end, r.end_half
     from requests r join leave_types t on t.id = r.type_id
     where r.status = 'approved' and r.member_id ~ '^mbr_' and t.away and r.end_date >= ${first}::date and r.start_date <= ${last}::date`;
+  const zoneOf = await zonesOf(rows.map(r => r.member_id));
   const found = new Map<string, Span[]>();
   for (const r of rows) {
-    const { start, end } = instants({ start: r.start, startHalf: r.start_half, end: r.end, endHalf: r.end_half }, timeZone);
+    const { start, end } = instants({ start: r.start, startHalf: r.start_half, end: r.end, endHalf: r.end_half }, zoneOf(r.member_id));
     found.set(r.member_id, [...(found.get(r.member_id) ?? []), { start: start.getTime(), end: end.getTime() }]);
   }
   return found;
@@ -55,7 +59,7 @@ async function spansByMember(sql: Query, now: number, timeZone: string): Promise
 export async function shareBusy(sql: Query, options: { members?: string[]; now?: number; max?: number } = {}): Promise<number> {
   const now = options.now ?? Date.now();
   const max = options.max ?? 500;
-  const spans = await spansByMember(sql, now, chest.timeZone());
+  const spans = await spansByMember(sql, now);
   const known = new Map((await sql<{ member_id: string; hash: string; empty: boolean }[]>`select member_id, hash, empty from shared_busy`).map(r => [r.member_id, r]));
   const ids = [...new Set([...spans.keys(), ...[...known].filter(([, k]) => !k.empty).map(([id]) => id)])]
     .filter(id => !options.members || options.members.includes(id))

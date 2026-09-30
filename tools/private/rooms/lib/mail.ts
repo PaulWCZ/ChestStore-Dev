@@ -1,4 +1,4 @@
-import { teamUrl } from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
@@ -32,7 +32,7 @@ export async function mailGuests(sql: Sql, actor: Member | null, kind: Mailed, b
   const first = events[0];
   if (!first || !("start" in first)) return;
   const who = await people(to);
-  const origin = teamUrl();
+  const origin = chest.teamUrl;
   const domain = origin ? new URL(origin).hostname : "rooms.invalid";
   let sent = false;
   for (const guest of to) {

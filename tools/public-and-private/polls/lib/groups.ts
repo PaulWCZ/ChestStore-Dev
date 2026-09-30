@@ -72,3 +72,33 @@ export async function groupMembers(ids: readonly string[]): Promise<Map<string, 
     throw error;
   }
 }
+
+// withAllGroups: the member with every group they are in. The Chest's
+// assertion (member(request)) and members.* name only the groups that give
+// Polls — none when Polls is open to everyone, the usual case — so a poll
+// put to Sales asks the Chest who is in Sales (members.groups.of, with the
+// "groups" permission). Without that permission, or when the Chest cannot
+// say, the groups the Chest gave with the member.
+export async function withAllGroups<M extends { id: string; groups: string[] }>(who: M): Promise<M> {
+  try {
+    const all = await members.groups.of(who.id);
+    return all ? { ...who, groups: [...new Set([...who.groups, ...all])] } : who;
+  } catch (error) {
+    if (error instanceof ChestError) return who;
+    throw error;
+  }
+}
+
+// withGroupsOf: these people with those of these groups they are in added
+// (one question per group, not per person: a poll's audience may be
+// thousands). The people unchanged when the Chest cannot say.
+export async function withGroupsOf<P extends { id: string; groups: string[] }>(people: P[], ids: readonly string[], known?: Map<string, Set<string>> | null): Promise<P[]> {
+  const wanted = [...new Set(ids)];
+  if (wanted.length === 0 || people.length === 0) return people;
+  const inGroups = known === undefined ? await groupMembers(wanted) : known;
+  if (!inGroups) return people;
+  return people.map(p => {
+    const extra = wanted.filter(g => inGroups.get(g)?.has(p.id) && !p.groups.includes(g));
+    return extra.length === 0 ? p : { ...p, groups: [...p.groups, ...extra] };
+  });
+}

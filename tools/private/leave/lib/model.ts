@@ -84,11 +84,6 @@ export function decimalDays(value: unknown, max: number, options: { signed?: boo
   return Math.round(n * 100) / 100;
 }
 
-// Today in the Chest's time zone, as a day.
-export function today(now = new Date(), timeZone = "Europe/Paris"): Day {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-}
-
 // numeric reads a PostgreSQL numeric (a string for the driver) as a number.
 export const numeric = (value: unknown): number => (value === null || value === undefined ? 0 : Number(value));
 

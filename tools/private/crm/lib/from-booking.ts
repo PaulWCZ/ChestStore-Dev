@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import * as members from "@argentic/chest-sdk/members";
@@ -236,7 +236,7 @@ export const typeName = (type: unknown, locale: Locale): string => (isObject(typ
 // meetingTime: "Tue 6 Oct, 10:00" in the reader's language and the Chest's
 // time zone.
 export const meetingTime = (start: Date | string, locale: Locale): string =>
-  formatDate(start, locale, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: chest.timeZone() });
+  formatDate(start, locale, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: chest.timeZone });
 
 // Who hears of it: the contact's owner, unless they are the host (Booking
 // told them); a new contact of nobody's, the managers. One bell item per

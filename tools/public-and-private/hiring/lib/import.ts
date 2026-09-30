@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, jobAccess } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -52,8 +53,8 @@ export async function importRows(sql: Sql, actor: Member | null, jobId: unknown,
         continue;
       }
       const applied = typeof r["appliedAt"] === "string" ? dateOf(r["appliedAt"]) : null;
-      // Never in the future.
-      const at = applied && applied <= today.toISOString().slice(0, 10) ? new Date(applied + "T12:00:00Z") : today;
+      // Never in the future (the Chest's today).
+      const at = applied && applied <= chest.today(today) ? new Date(applied + "T12:00:00Z") : today;
       if (at < oldest) {
         skipped.push({ line, reason: "old" });
         continue;

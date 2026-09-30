@@ -2,7 +2,7 @@ import { EmptyState, Segmented } from "@argentic/chest-ui/components";
 import { Link } from "../../../components/link.tsx";
 import { db } from "../../../lib/db.ts";
 import { format, formatDay, money, plural } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/zone.ts";
 import { directory } from "../../../lib/people.ts";
 import { stageConversion, teamReport, weekActivities } from "../../../lib/reports.ts";
 import { stageWords } from "../../../lib/page-data.ts";

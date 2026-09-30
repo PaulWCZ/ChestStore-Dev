@@ -41,8 +41,9 @@ Intercom): there is no chat bubble.
 
 **For customers (the public part, no account):**
 - A contact form in the company's name (name, email, subject, message), in
-  English or French with a visible switch, and the company's sentence in
-  that language (French falls back on English). Protected without a
+  English or French with a visible switch — the visitor's choice, else
+  their browser's language, else the Chest's own language —, and the
+  company's sentence in that language (French falls back on English). Protected without a
   captcha: a hidden field, 5 requests an hour per visitor and 100 in all,
   and a signed "shown at" time — a form sent in under 1.5 s is refused;
   between 1.5 and 3 s the server waits the rest in silence. The time is
@@ -365,7 +366,11 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`.
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), a packed copy in
+`vendor/`. The member's `language` (the language of `/chest`) and the
+Chest's `organization.name`, `timeZone` and `language` are the released
+0.3.0; what follows is not in it yet.
+
 - **`chest.theme()`** — **Proposal (studio)**: the look the company chose
   (README, "Looks"); without it, Support's own.
 - **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`,
@@ -383,10 +388,11 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
   **On a real Chest today there is no mail**: until the Chest ships it,
   sell Support as "a contact form and a shared inbox", not as a Zendesk
   replacement for email.
-- **`chest`** (company, time zone, language, public address) —
-  **Proposal (studio)**: the day and the working hours are the Chest's
-  time zone; email tickets take the Chest's language; links in emails use
-  `chest.publicUrl()` (else the last public address seen).
+- **`chest.publicUrl`, `chest.teamUrl`** — **Proposal (studio)**: links in
+  emails and notices use them (else the last public address seen). The
+  day and the working hours are the Chest's time zone (`chest.timeZone`,
+  0.3.0); email tickets and the public pages' last fallback take the
+  Chest's language (`chest.language`, 0.3.0).
 - **Scheduled tasks** — **Proposal (studio)**: the nightly `cleanup`.
   Without it, closed tickets are kept until an admin erases them.
 - **Public uploads** — **Proposal (studio)** (`chest.proposals.json`:

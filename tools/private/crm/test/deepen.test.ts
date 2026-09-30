@@ -17,7 +17,7 @@ import { teamReport } from "../lib/reports.ts";
 import { search } from "../lib/search.ts";
 import { listStages } from "../lib/stages.ts";
 import * as steps from "../lib/steps.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";

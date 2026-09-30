@@ -37,7 +37,7 @@ const network = { "*.icloud.com": (request: Request) => calendarAnswer(request) 
 before(async () => {
   database = await testDatabase();
   process.env["CHEST_TOOL"] = "booking";
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2, network });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2, network });
 });
 after(async () => {
   await chest.close();
@@ -211,14 +211,14 @@ test("Leave tells Booking a host is off: no time is offered those days, the agen
 
 test("without events between tools, bookings stand and nothing breaks", async () => {
   await chest.close();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   const { sql, host, type } = await inesReady();
   const made = await b.book(sql, host, type, { ...guest, start: "2026-10-06T08:00:00.000Z" }, monday);
   await share.changed(sql, "booked", made.booking, { now: monday });
   assert.equal(await share.shareBusy(sql, [ines.id], monday), 0);
   assert.equal(chest.published.length, 0);
   await chest.close();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2, network });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2, network });
 });
 
 test("one type, one name: the team reads it in their language, whatever language the guest booked in", async () => {

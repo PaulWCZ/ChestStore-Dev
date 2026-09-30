@@ -1,10 +1,12 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { Filters } from "@argentic/chest-ui/components";
 import { Link } from "../../../components/link.tsx";
 import { People } from "../../../components/icons.tsx";
 import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Contours } from "../../../components/contours.tsx";
 import { Confidence, Progress } from "../../../components/progress.tsx";
-import { can, readerOf } from "../../../lib/access.ts";
+import { can } from "../../../lib/access.ts";
+import { readerFor } from "../../../lib/groups.ts";
 import { db } from "../../../lib/db.ts";
 import { plural } from "../../../lib/i18n/index.ts";
 import { objectiveProgress, percent, worst } from "../../../lib/model.ts";
@@ -23,8 +25,8 @@ export default async function Teams({ searchParams }: { searchParams: Promise<{ 
   const sql = db();
   const ctx = await context(sql, member);
   const asked = (await searchParams).cycle;
-  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql, member.locale));
-  const objectives = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)) : [];
+  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql, localeOf(member.language)));
+  const objectives = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, await readerFor(member)) : [];
   const active = ctx.teamList.filter(x => !x.archived);
   return (
     <div className="page">

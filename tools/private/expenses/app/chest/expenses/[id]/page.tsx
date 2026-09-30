@@ -34,7 +34,8 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   const flat = allowanceWords(e, { t, locale, allowances: new Map((await allowances(sql, { archived: true })).map(a => [a.id, a])) });
   const who = await people([e.owner, ...(e.approver ? [e.approver] : []), ...history.map(h => h.actor), ...e.guests.members]);
   const name = (id: string) => (id === member.id ? t.people.youInText : id === "chest" ? t.people.accountants : nameOf(who.get(id), locale));
-  const date = (d: string) => formatDate(d.length === 10 ? d + "T12:00:00Z" : d, locale, { day: "numeric", month: "long", year: "numeric" });
+  // A day as it is; an instant on the reader's day (their zone).
+  const date = (d: string) => (d.length === 10 ? formatDate(d + "T12:00:00Z", locale, { day: "numeric", month: "long", year: "numeric" }) : formatDate(d, locale, { day: "numeric", month: "long", year: "numeric", timeZone: member.timeZone }));
 
   const facts: [string, string][] = [[t.detail.fields.date, date(e.spentOn)], [t.detail.fields.category, categoryName(category, t)]];
   if (e.trip) {

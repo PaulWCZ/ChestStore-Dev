@@ -27,7 +27,7 @@ const fixture = (name: string) => readFileSync(join(import.meta.dirname, "fixtur
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 50 }, settings: { company: "Atelier Martin", locale: "en", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 50 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();

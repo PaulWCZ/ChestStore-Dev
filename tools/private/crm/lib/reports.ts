@@ -2,7 +2,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { monthOf, today } from "./model.ts";
+import { monthOf } from "./model.ts";
+import { chestZone, today } from "./zone.ts";
 
 // The team's numbers, for the manager's weekly look (Team): each person's
 // open pipeline and the next steps that slip; won and lost per person, month
@@ -35,6 +36,7 @@ function nextMonths(now: string, n: number): string[] {
 export async function teamReport(sql: Sql, actor: Member | null, now = today(), months = 6): Promise<Report> {
   if (!can(actor, "read")) throw new AppError("forbidden");
   const shown = lastMonths(now, months);
+  const zone = chestZone();
   const since = shown[0] + "-01";
   const owners = await sql<{ owner: string | null; open: number; value: string | null; weighted: string | null; no_step: number; late: number }[]>`
     select d.owner, count(*)::int as open, sum(d.value_cents) as value, sum(round(d.value_cents * s.probability / 100.0)) as weighted,
@@ -45,9 +47,9 @@ export async function teamReport(sql: Sql, actor: Member | null, now = today(), 
     group by d.owner
     order by sum(d.value_cents) desc nulls last`;
   const results = await sql<{ owner: string | null; month: string; kind: "won" | "lost"; n: number; value: string | null }[]>`
-    select d.owner, to_char((d.closed_at at time zone 'Europe/Paris')::date, 'YYYY-MM') as month, s.kind, count(*)::int as n, sum(d.value_cents) as value
+    select d.owner, to_char((d.closed_at at time zone ${zone})::date, 'YYYY-MM') as month, s.kind, count(*)::int as n, sum(d.value_cents) as value
     from deals d join stages s on s.id = d.stage_id
-    where s.kind in ('won', 'lost') and d.closed_at is not null and (d.closed_at at time zone 'Europe/Paris')::date >= ${since}
+    where s.kind in ('won', 'lost') and d.closed_at is not null and (d.closed_at at time zone ${zone})::date >= ${since}
     group by d.owner, month, s.kind`;
   const byKey = new Map<string, MonthLine>();
   for (const r of results) {
@@ -121,10 +123,11 @@ export async function weekActivities(sql: Sql, actor: Member | null, now = today
   if (!can(actor, "read")) throw new AppError("forbidden");
   const from = weekStart(now, back);
   const to = weekStart(now, back - 1);
+  const zone = chestZone();
   const rows = await sql<{ author: string; kind: "call" | "meeting" | "email" | "note"; n: number }[]>`
     select author, kind, count(*)::int as n from activities
     where kind in ('call', 'meeting', 'email', 'note') and author like 'mbr\_%'
-      and (at at time zone 'Europe/Paris')::date >= ${from} and (at at time zone 'Europe/Paris')::date < ${to}
+      and (at at time zone ${zone})::date >= ${from} and (at at time zone ${zone})::date < ${to}
     group by author, kind`;
   const by = new Map<string, ActivityLine>();
   for (const r of rows) {

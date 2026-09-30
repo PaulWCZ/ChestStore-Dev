@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
@@ -15,7 +15,7 @@ export default async function ImportPage() {
   const { member, locale, t } = v;
   if (!can(member, "items.manage")) forbidden();
   const intune = await status(db(), member);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const when = (at: string) => formatDate(at, locale, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }, zone);
   const last = intune.last?.outcome === "ok" ? plural(t.importer.intuneLast, intune.last.devices ?? 0, locale, { date: when(intune.last.at) })
     : intune.lastGood ? format(t.importer.intuneLastGood, { date: when(intune.lastGood) }) : null;

@@ -15,7 +15,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"], settings: { company: "Atelier Martin" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"], chest: { organization: "Atelier Martin" } });
 });
 after(async () => {
   await chest.close();

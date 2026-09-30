@@ -33,27 +33,31 @@ export function can(actor: Member | null, ability: Ability): boolean {
 }
 
 // What a reader may see of confidential objectives (lib/read.ts,
-// visibleTo): their id, whether they see everything, their groups.
-export function readerOf(actor: Member): { id: string; admin: boolean; groups: readonly string[] } {
-  return { id: actor.id, admin: can(actor, "any.write"), groups: actor.groups };
+// visibleTo): their id, whether they see everything, every group of the
+// Chest they are in (lib/groups.ts, groupsOf; readerFor asks it).
+export type Reader = { id: string; admin: boolean; groups: readonly string[] };
+export function readerOf(actor: Member, groups: readonly string[]): Reader {
+  return { id: actor.id, admin: can(actor, "any.write"), groups };
 }
 
 export type TeamRef = { groupId: string | null; archived: boolean };
 
 // A member writes for a team they are in: a Chest group's members; anyone
-// for a team named in the tool (the company has no such group).
-export function inTeam(actor: Member | null, team: TeamRef): boolean {
+// for a team named in the tool (the company has no such group). `groups`:
+// every group the member is in (lib/groups.ts, groupsOf), not only those
+// that give the tool (member.groups).
+export function inTeam(actor: Member | null, team: TeamRef, groups: readonly string[]): boolean {
   if (!actor) return false;
-  return team.groupId === null || actor.groups.includes(team.groupId);
+  return team.groupId === null || groups.includes(team.groupId);
 }
 
 // Whether the actor may create an objective of that level (and team).
-export function mayCreate(actor: Member | null, level: Level, team: TeamRef | null, personalOn: boolean): boolean {
+export function mayCreate(actor: Member | null, level: Level, team: TeamRef | null, personalOn: boolean, groups: readonly string[]): boolean {
   if (!actor || !can(actor, "read")) return false;
   if (level === "company") return can(actor, "company.write");
   if (level === "personal") return personalOn && can(actor, "personal.write");
   if (!team || team.archived || !can(actor, "team.write")) return false;
-  return can(actor, "any.write") || inTeam(actor, team);
+  return can(actor, "any.write") || inTeam(actor, team, groups);
 }
 
 // An objective is changed (title, key results, owner, retrospective) by its

@@ -1,8 +1,9 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { everyone, tally } from "../../../../../lib/audience.ts";
 import { toCsv } from "../../../../../lib/csv.ts";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
-import { catalogue, intl, isLocale } from "../../../../../lib/i18n/index.ts";
+import { catalogue, intl } from "../../../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../../../lib/people.ts";
 import { confirmations } from "../../../../../lib/posts.ts";
 import { currentMember } from "../../../../../lib/session.ts";
@@ -16,7 +17,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const actor = await currentMember();
     const list = await confirmations(db(), actor, id);
-    const locale = isLocale(actor?.locale) ? actor!.locale : "en";
+    const locale = localeOf(actor?.language ?? "en");
     const t = catalogue(locale);
     const { confirmed, pending } = tally(list.post, list.confirmed, (await everyone()).people);
     const who = await people(confirmed.map(c => c.member));

@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { AppError, type ErrorCode } from "./app-error.ts";
 import { submit } from "./answers.ts";
@@ -66,7 +66,7 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
       // In the language the person read the form in: its second version
       // when it has one in their language.
       const read = isLanguage(language) ? localize(definition, language) : definition;
-      if (to) copy = (await sendCopy(to, read, answer.data, language, chest.company(), answer.id)) === "email";
+      if (to) copy = (await sendCopy(to, read, answer.data, language, chest.organization.name, answer.id)) === "email";
     }
     // Where it went, for the answer's page.
     const sent = [...routedTo, ...(hooked ? ["webhooks"] : []), ...(copy ? ["copy"] : [])];

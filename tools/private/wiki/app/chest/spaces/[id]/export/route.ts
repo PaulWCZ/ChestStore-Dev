@@ -1,7 +1,8 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
 import { attachment, exportZip } from "../../../../../lib/export.ts";
-import { catalogue, isLocale } from "../../../../../lib/i18n/index.ts";
+import { catalogue } from "../../../../../lib/i18n/index.ts";
 import { origin } from "../../../../../lib/origin.ts";
 import { currentMember } from "../../../../../lib/session.ts";
 
@@ -11,7 +12,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     const actor = await currentMember();
-    const t = catalogue(isLocale(actor?.locale) ? actor!.locale : "en");
+    const t = catalogue(localeOf(actor?.language ?? "en"));
     const out = await exportZip(db(), actor, { spaceId: id }, origin(request), { missing: t.page.missing });
     return new Response(out.data, { headers: { "Content-Type": "application/zip", "Content-Disposition": attachment(out.name), "Cache-Control": "no-store" } });
   } catch (error) {

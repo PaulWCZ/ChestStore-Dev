@@ -15,7 +15,7 @@ let chest: FakeChest;
 let calendarsAnswer: (request: Request) => Response = () => new Response("", { status: 404 });
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, schedules: [{ name: "reminders", cron: "5 * * * *" }, { name: "cleanup", cron: "40 3 * * *" }, { name: "calendars", cron: "*/15 * * * *" }], network: { "calendar.google.com": request => calendarsAnswer(request) } });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, schedules: [{ name: "reminders", cron: "5 * * * *" }, { name: "cleanup", cron: "40 3 * * *" }, { name: "calendars", cron: "*/15 * * * *" }], network: { "calendar.google.com": request => calendarsAnswer(request) } });
 });
 after(async () => {
   await chest.close();

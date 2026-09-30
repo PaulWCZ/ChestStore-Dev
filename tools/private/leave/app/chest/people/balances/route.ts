@@ -1,13 +1,14 @@
-import { member } from "@argentic/chest-sdk/member";
+import { localeOf, member } from "@argentic/chest-sdk/member";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { balancesOf } from "../../../../lib/balances.ts";
 import { toCsv } from "../../../../lib/csv.ts";
 import { db } from "../../../../lib/db.ts";
 import { everyoneOrNone } from "../../../../lib/directory.ts";
-import { catalogue, format, isLocale } from "../../../../lib/i18n/index.ts";
+import { catalogue, format } from "../../../../lib/i18n/index.ts";
 import { isDay } from "../../../../lib/calendar.ts";
-import { lastPayrollDay, today } from "../../../../lib/model.ts";
+import { lastPayrollDay } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/today.ts";
 import { people, plainName } from "../../../../lib/people.ts";
 import { types } from "../../../../lib/rules.ts";
 import { allStaff, formerIds } from "../../../../lib/staff.ts";
@@ -23,7 +24,7 @@ import { typeName } from "../../../../lib/type-name.ts";
 export async function GET(request: Request): Promise<Response> {
   const actor = member(request);
   if (!actor) return new Response(null, { status: 401 });
-  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const locale = localeOf(actor.language);
   const t = catalogue(locale);
   const text = (code: "forbidden" | "invalid", status: number) => new Response(t.errors[code], { status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   try {

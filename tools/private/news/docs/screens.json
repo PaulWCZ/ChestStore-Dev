@@ -3,99 +3,99 @@
   "name": "front",
   "path": "/chest",
   "member": "hugo",
-  "locale": "en",
+  "language": "en",
   "preview": true
  },
  {
   "name": "front-fr",
   "path": "/chest",
   "member": "ines",
-  "locale": "fr"
+  "language": "fr"
  },
  {
   "name": "important",
   "path": "/chest/posts/4",
   "member": "camille",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "important-fr",
   "path": "/chest/posts/4",
   "member": "ines",
-  "locale": "fr"
+  "language": "fr"
  },
  {
   "name": "event",
   "path": "/chest/posts/3",
   "member": "hugo",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "places",
   "path": "/chest/posts/9",
   "member": "nora",
-  "locale": "fr"
+  "language": "fr"
  },
  {
   "name": "welcome-fr",
   "path": "/chest/posts/5",
   "member": "lea",
-  "locale": "fr"
+  "language": "fr"
  },
  {
   "name": "compose",
   "path": "/chest/new",
   "member": "sofia",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "compose-event",
   "path": "/chest/new?kind=event",
   "member": "sofia",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "for-a-team",
   "path": "/chest/posts/8",
   "member": "hugo",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "for-people",
   "path": "/chest/posts/10",
   "member": "camille",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "search",
   "path": "/chest/search?q=bikes",
   "member": "hugo",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "search-fr",
   "path": "/chest/search?q=demenagement",
   "member": "lea",
-  "locale": "fr"
+  "language": "fr"
  },
  {
   "name": "transfer",
   "path": "/chest/transfer",
   "member": "camille",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "front-dark",
   "path": "/chest",
   "member": "tom",
-  "locale": "en",
+  "language": "en",
   "dark": true
  },
  {
   "name": "front-chest",
   "path": "/chest",
   "member": "hugo",
-  "locale": "en",
+  "language": "en",
   "look": {
    "all": "catalogue:chest"
   }
@@ -104,7 +104,7 @@
   "name": "article-chest",
   "path": "/chest/posts/4",
   "member": "ines",
-  "locale": "fr",
+  "language": "fr",
   "look": {
    "all": "catalogue:chest"
   },
@@ -116,7 +116,7 @@
   "name": "front-theme",
   "path": "/chest",
   "member": "hugo",
-  "locale": "en",
+  "language": "en",
   "look": {
    "all": "catalogue:workshop"
   }
@@ -125,7 +125,7 @@
   "name": "front-theme-dark",
   "path": "/chest",
   "member": "tom",
-  "locale": "fr",
+  "language": "fr",
   "dark": true,
   "look": {
    "all": "catalogue:workshop"
@@ -138,7 +138,7 @@
   "name": "compose-theme",
   "path": "/chest/new?kind=event",
   "member": "sofia",
-  "locale": "fr",
+  "language": "fr",
   "look": {
    "all": "catalogue:library"
   },
@@ -150,7 +150,7 @@
   "name": "front-brand",
   "path": "/chest",
   "member": "ines",
-  "locale": "fr",
+  "language": "fr",
   "look": {
    "all": "catalogue:workshop",
    "tool": "brand:sample"
@@ -160,7 +160,7 @@
   "name": "front-brand-dark",
   "path": "/chest",
   "member": "tom",
-  "locale": "en",
+  "language": "en",
   "dark": true,
   "look": {
    "tool": "brand:sample"
@@ -173,7 +173,7 @@
   "name": "article-brand",
   "path": "/chest/posts/3",
   "member": "camille",
-  "locale": "en",
+  "language": "en",
   "look": {
    "tool": "brand:sample"
   },
@@ -185,7 +185,7 @@
   "name": "important-undo",
   "path": "/chest/new",
   "member": "sofia",
-  "locale": "fr",
+  "language": "fr",
   "actions": [
    {
     "fill": [
@@ -211,7 +211,7 @@
   "name": "important-sent",
   "path": "/chest/new",
   "member": "sofia",
-  "locale": "en",
+  "language": "en",
   "actions": [
    {
     "fill": [
@@ -237,7 +237,7 @@
   "name": "front-port",
   "path": "/chest",
   "member": "sofia",
-  "locale": "fr",
+  "language": "fr",
   "look": {
    "tool": "brand:port"
   }
@@ -246,7 +246,7 @@
   "name": "article-port-dark",
   "path": "/chest/posts/4",
   "member": "ines",
-  "locale": "fr",
+  "language": "fr",
   "dark": true,
   "look": {
    "tool": "brand:port"
@@ -259,24 +259,24 @@
   "name": "propose",
   "path": "/chest/propose",
   "member": "hugo",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "propose-fr",
   "path": "/chest/propose",
   "member": "lea",
-  "locale": "fr"
+  "language": "fr"
  },
  {
   "name": "approve",
   "path": "/chest/proposals",
   "member": "sofia",
-  "locale": "en"
+  "language": "en"
  },
  {
   "name": "shoutout-fr",
   "path": "/chest/posts/11",
   "member": "ines",
-  "locale": "fr"
+  "language": "fr"
  }
 ]

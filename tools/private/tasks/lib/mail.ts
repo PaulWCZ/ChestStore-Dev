@@ -1,7 +1,8 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
+import * as members from "@argentic/chest-sdk/members";
 import { roleOf } from "./access.ts";
 import { purgeComments } from "./cards.ts";
 import type { Query, Sql } from "./db.ts";
@@ -60,6 +61,18 @@ export async function mailState(): Promise<MailState> {
   }
 }
 
+// How this member chose to receive email in the Chest ("all", "digest",
+// "none"; Proposal (studio.15)): the members API says it, never the
+// assertion. "all" when the Chest says nothing or does not answer.
+export async function mailPreference(memberId: string): Promise<"all" | "digest" | "none"> {
+  try {
+    return (await members.get(memberId))?.mailPreference ?? "all";
+  } catch (error) {
+    if (error instanceof ChestError) return "all";
+    throw error;
+  }
+}
+
 // The people of this list who want email.
 async function wanting(sql: Query, ids: string[]): Promise<string[]> {
   if (ids.length === 0) return [];
@@ -83,7 +96,7 @@ export function letterText(t: Catalogue, letter: Letter, path: string | null, ba
 export async function email(sql: Sql, recipients: Iterable<string>, letter: (t: Catalogue, locale: Locale) => Letter, options: { path: string; key: string }): Promise<number> {
   const ids = await wanting(sql, [...new Set(recipients)].filter(r => r.startsWith("mbr_")));
   if (ids.length === 0) return 0;
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   let sent = 0;
   for (const person of (await people(ids)).values()) {
     if (person.status !== "member") continue;
@@ -177,7 +190,7 @@ const cardPath = (_boardId: string, cardId: string) => `/chest/cards/${cardId}`;
 // letterOf writes one person's email: one thing as it always was, several
 // as one letter — who, how many of each, then each with its link.
 export function letterOf(t: Catalogue, locale: Locale, rows: Pick<Row, "kind" | "actor" | "card_id" | "card_title" | "board_id" | "step_text" | "body">[], name: (id: string) => string): { subject: string; text: string } {
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   const cut = (s: string, n: number) => ([...s].length <= n ? s : [...s].slice(0, n - 1).join("") + "…");
   const part = (r: (typeof rows)[number]): Letter => {
     const who = name(r.actor);

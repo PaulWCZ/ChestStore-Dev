@@ -27,7 +27,7 @@ before(async () => {
   // Events are named after the tool that publishes them.
   process.env["CHEST_TOOL"] = "status";
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], settings: { company: "Atelier Martin", locale: "en", publicUrl: "https://status.atelier-martin.test" }, webhooks: { max: 200, to: hooksRoute }, emits: ["status.incident"], receivers: 1 });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" }, webhooks: { max: 200, to: hooksRoute }, emits: ["status.incident"], receivers: 1 });
 });
 after(async () => {
   await chest.close();
@@ -185,7 +185,7 @@ test("keys survive a restore: an update id given again to another update still r
 
 test("a Chest without webhooks: refused in words, and the page stops offering it", async () => {
   const { sql } = database;
-  const plain = await fakeChest({ members: everyone, capabilities: ["members"] });
+  const plain = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members"] });
   try {
     await refuses("no_hooks", () => hooks.subscribeHook(sql, { kind: "slack", url: slack, language: "en", components: "all" }));
     assert.equal(await hooks.hooksState(sql), "none");

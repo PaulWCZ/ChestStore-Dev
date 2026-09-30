@@ -39,7 +39,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
   const edit = access === "edit";
   // A change the person asked (address, emergency contact), waiting for HR.
   const asked = await waitingChange(sql, member, r.id);
-  const waiting = asked ? { id: asked.id, changes: asked.changes, note: asked.note, asked: formatDate(asked.createdAt, locale, { day: "numeric", month: "long" }) } : null;
+  const waiting = asked ? { id: asked.id, changes: asked.changes, note: asked.note, asked: formatDate(asked.createdAt, locale, member.timeZone, { day: "numeric", month: "long" }) } : null;
   const askableNow = { address: r.address, emergencyName: r.emergencyName, emergencyRelation: r.emergencyRelation, emergencyPhone: r.emergencyPhone };
   const letterList = edit ? (await listLetters(sql, member)).map(l => ({ id: l.id, name: shown(l, t).name })) : [];
   const changeWords = { change: t.change, fields: t.record.fields, emergency: t.record.emergency, errors: t.errors, dialog: t.dialog };
@@ -57,7 +57,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
   const pickable = everyoneListed.map(e => ({ id: e.id, name: e.name, photo: e.photo }));
   const placed = edit && !r.memberId && !r.erased ? await placement(sql, member, r.id) : null;
   const teams = [...new Set(everyoneListed.map(e => e.team).filter(Boolean))].sort(new Intl.Collator(locale).compare);
-  const docs = r.documents.map(d => ({ id: d.id, name: d.name, kind: d.kind, size: d.size, added: formatDate(d.addedAt, locale, { day: "numeric", month: "short", year: "numeric" }), by: nameOf(names.get(d.addedBy), locale) }));
+  const docs = r.documents.map(d => ({ id: d.id, name: d.name, kind: d.kind, size: d.size, added: formatDate(d.addedAt, locale, member.timeZone, { day: "numeric", month: "short", year: "numeric" }), by: nameOf(names.get(d.addedBy), locale) }));
   const docWords = { record: t.record, errors: t.errors, files: t.files };
   return (
     <div className="page narrow">
@@ -132,7 +132,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
               {history.map(h => (
                 <li key={h.id}>
                   <span>{format(t.record.actions[h.action], { fields: h.fields.map(fieldWord).join(", ") })}</span>
-                  <span className="muted small">{nameOf(names.get(h.actor), locale)} · {formatDate(h.at, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="muted small">{nameOf(names.get(h.actor), locale)} · {formatDate(h.at, locale, member.timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                 </li>
               ))}
             </ul>

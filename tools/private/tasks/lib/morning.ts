@@ -1,13 +1,14 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import { boardAccess } from "./access.ts";
 import { membership } from "./boards.ts";
+import { withGroupsAmong } from "./groups.ts";
 import { purgeComments, urgentCounts } from "./cards.ts";
 import type { Sql } from "./db.ts";
-import { catalogue, format, isLocale, plural, type Catalogue } from "./i18n/index.ts";
+import { catalogue, format, plural, type Catalogue } from "./i18n/index.ts";
 import { email } from "./mail.ts";
 import { today } from "./model.ts";
 import { badges, cut, withdraw } from "./notify.ts";
@@ -78,10 +79,10 @@ async function remind(sql: Sql, rows: Due[], day: string): Promise<Set<string>> 
     if (error instanceof ChestError) return reminded;
     throw error;
   }
-  const who = new Map(found.map(m => [m.id, m]));
   const boardIds = [...new Set(rows.map(r => String(r.board_id)))];
   const boards = await sql<{ id: string; visibility: "team" | "private" }[]>`select id, visibility from boards where id in ${sql(boardIds)}`;
   const people = await membership(sql, boardIds);
+  const who = new Map((await withGroupsAmong(found, [...people.values()].flatMap(p => p.groups))).map(m => [m.id, m]));
   const shape = new Map(boards.map(b => [String(b.id), { visibility: b.visibility, ...people.get(String(b.id))! }]));
   const lists = new Map<string, { late: string[]; today: string[] }>();
   for (const r of rows) {
@@ -95,16 +96,17 @@ async function remind(sql: Sql, rows: Due[], day: string): Promise<Set<string>> 
   }
   for (const [id, list] of lists) {
     const m = who.get(id)!;
-    const t = catalogue(isLocale(m.locale) ? m.locale : "en");
+    const locale = localeOf(m.language);
+    const t = catalogue(locale);
     try {
-      await notifications.notify([id], { ...reminder(t, m.locale, list), path: "/chest", key: reminderKey });
+      await notifications.notify([id], { ...reminder(t, locale, list), path: "/chest", key: reminderKey });
       reminded.add(id);
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
     }
     // The email says it in full: every title, one per line.
     await email(sql, [id], words => ({
-      subject: reminder(words, m.locale, list).title,
+      subject: reminder(words, locale, list).title,
       lines: [
         ...(list.late.length > 0 ? [words.mail.lateHeading, ...list.late.map(x => "• " + x), ""] : []),
         ...(list.today.length > 0 ? [words.mail.todayHeading, ...list.today.map(x => "• " + x)] : []),

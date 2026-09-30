@@ -21,7 +21,7 @@ export function plural(forms: { readonly one: string; readonly other: string; re
 }
 
 // Dates in the reader's language. An instant is written in the Chest's
-// time zone (chest.timeZone(), given by the server: never guessed here); a
+// time zone (chest.timeZone, given by the server: never guessed here); a
 // day ("2026-09-28") is a calendar day, written as it is, whatever the zone.
 export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions & { timeZone: string }): string {
   return new Intl.DateTimeFormat(intl(locale), options).format(typeof value === "string" ? new Date(value) : value);

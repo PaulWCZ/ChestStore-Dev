@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
@@ -9,7 +10,7 @@ import { format } from "./i18n/index.ts";
 import { email } from "./mail.ts";
 import { cut, notify, withdraw } from "./notify.ts";
 import { dueUntold, markTold } from "./reviews.ts";
-import { membersOfTool } from "./groups.ts";
+import { membersOfTool, withAllGroups } from "./groups.ts";
 import { concerns, pending, type ReadAsk } from "./reads.ts";
 import { audienceOf } from "./spaces.ts";
 import { watchers } from "./watching.ts";
@@ -39,7 +40,7 @@ export async function audience(space: SpaceAudience, ids: Iterable<string>, need
   if (wanted.length === 0) return [];
   try {
     const found = await members.lookup(wanted);
-    return found.members.filter(m => {
+    return (await withAllGroups(found.members)).filter(m => {
       const access = spaceAccess(m, space);
       return needed === "write" ? access === "write" : access !== "none";
     }).map(m => m.id);
@@ -210,7 +211,8 @@ export async function moved(sql: Query, pageId: string, spaceId: string): Promis
 // (review_told), and a run delivered twice replaces the same key.
 export async function reviews(sql: Sql, run?: Run): Promise<{ told: number; reminded: number }> {
   await purgeRemoved(sql);
-  const day = (run ? new Date(run.scheduledAt) : new Date()).toISOString().slice(0, 10);
+  // The Chest's day (a run at 00:30 in Paris is not yesterday's, as in UTC).
+  const day = chest.today(run ? new Date(run.scheduledAt) : new Date());
   let count = 0;
   const spaces = new Map<string, SpaceAudience | null>();
   for (const due of await dueUntold(sql)) {

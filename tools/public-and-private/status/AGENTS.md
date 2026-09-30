@@ -9,6 +9,8 @@ what must not break.
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest (role `editor`; public part) and the proposals it uses (`mail`, the `updates` schedule, `emits` `status.incident`, `webhooks`, French tile words) |
 | `migrations/0001_status.sql` | Components, incidents (and maintenance), updates, update states, the update log, subscribers, the mail queue, form counters |
+| `vendor/` | SDK 0.3.0 + studio proposals (0.3.1-studio.1) and the UI kit, packed copies |
+| `lib/session.ts` | Who asks (`member()`), the language of `/chest` (the member's `language`) and of a public page (`visitors.language`: the switch, the browser, the Chest's `chest.language`) |
 | `lib/access.ts` | Who may do what (one role) |
 | `lib/model.ts` | States, steps, bounds, text cleaning, times typed in the Chest's zone — pure |
 | `lib/timeline.ts` | From incidents to spans, states now, 90 days and uptime — pure, tested |

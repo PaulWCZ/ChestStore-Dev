@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { AppError } from "./app-error.ts";
 import { activity, manageable, toCandidate, touch, type Candidate } from "./candidates.ts";
@@ -45,7 +45,7 @@ export type Request = {
   skipLunch: boolean;
 };
 type RequestDb = { id: string; candidate_id: string; minutes: number; first_day: string; last_day: string; day_start: number; day_end: number; place: string; note: string; created_by: string; created_at: Date; interview_id: string | null; booked_at: Date | null; cancelled_at: Date | null; people: string[] | null; skip_lunch: boolean | null };
-const zone = () => chest.timeZone();
+const zone = () => chest.timeZone;
 
 function toRequest(r: RequestDb, now: Date): Request {
   const expired = dayOf(now, zone()) > r.last_day;

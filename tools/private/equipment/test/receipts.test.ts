@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { chest as chestSettings } from "@argentic/chest-sdk/chest";
 import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { initials } from "@argentic/chest-ui/components/logic";
@@ -191,12 +192,14 @@ test("a reminder by email carries its recipient in its key (studio.16): an item'
   await items.give(sql, M, phone.id, { to: { member: hugo.id } });
   const r = await remind(sql, M, phone.id);
   await chest.close();
-  chest = await fakeChest({ members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: [] } });
+  chest = await fakeChest({ members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: [] }, chest: { timeZone: "Pacific/Kiritimati" } });
+  // The key's day is the Chest's (UTC+14 here), not UTC's.
+  const chestDay = (): string => chestSettings.today();
   try {
     assert.equal(await remindReceipt(M!, r.holder, r.item, r.givenOn), true, "sent where the Chest sends email");
     const sent = chest.outbox.at(-1)!;
     assert.equal(sent.subject, "Did you receive Pixel 8?");
-    assert.equal(sent.key, mail.idempotencyKey(`remind:${phone.id}:${hugo.id}:${r.givenOn}:${new Date().toISOString().slice(0, 10)}`));
+    assert.equal(sent.key, mail.idempotencyKey(`remind:${phone.id}:${hugo.id}:${r.givenOn}:${chestDay()}`));
   } finally {
     await chest.close();
     chest = await fakeChest({ members: everyone });

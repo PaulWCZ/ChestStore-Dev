@@ -20,7 +20,7 @@ const editor = asMember(camille);
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, settings: { company: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();

@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import * as events from "@argentic/chest-sdk/events";
 import { db } from "../../lib/db.ts";
 import { leaving, leavingCancelled } from "../../lib/departures.ts";

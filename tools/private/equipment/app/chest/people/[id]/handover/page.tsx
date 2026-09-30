@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { notFound } from "next/navigation";
 import { SheetHead, SheetPage, Signatures } from "../../../../../components/sheet.tsx";
 import { can } from "../../../../../lib/access.ts";
@@ -32,13 +32,13 @@ export default async function Handover({ params, searchParams }: { params: Promi
   // A sheet is kept as proof: the name alone, the day they left apart.
   const person = plainName(names.get(id), locale);
   const gone = await leftOnOf(db(), member, id);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "short", year: "numeric" }) : t.common.none);
   const s = t.sheet;
   const back = can(member, "items.manage") && member.id !== id ? `/chest/people/${id}` : "/chest/mine";
   return (
     <SheetPage title={s.handoverTitle} back={back} backLabel={s.back} t={s}>
-      <SheetHead title={s.handoverTitle} company={chest.company()} person={person} leftOn={gone ? formatDate(gone, locale, { day: "numeric", month: "long", year: "numeric" }, zone) : null} printed={formatDate(new Date(), locale, { day: "numeric", month: "long", year: "numeric" }, zone)} t={s} />
+      <SheetHead title={s.handoverTitle} company={chest.organization.name} person={person} leftOn={gone ? formatDate(gone, locale, { day: "numeric", month: "long", year: "numeric" }, zone) : null} printed={formatDate(new Date(), locale, { day: "numeric", month: "long", year: "numeric" }, zone)} t={s} />
       {sheet.lines.length === 0 && sheet.licences.length === 0 ? <p>{s.nothing}</p> : (
         <table className="paper-table">
           <thead>

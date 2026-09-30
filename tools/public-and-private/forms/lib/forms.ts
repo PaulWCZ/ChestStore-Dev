@@ -1,4 +1,4 @@
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { randomInt } from "node:crypto";
 import { atLeast, can, levelOn, type Level } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -207,7 +207,7 @@ export async function list(sql: Sql, actor: Member | null, search = ""): Promise
     const form = toForm(r);
     return {
       // In the reader's language when the form has a version in it.
-      id: form.id, slug: form.slug, title: readIn(form.draft, actor.locale ?? "en").title, status: form.status, audience: form.audience, anonymous: form.anonymous, owner: form.owner,
+      id: form.id, slug: form.slug, title: readIn(form.draft, localeOf(actor.language)).title, status: form.status, audience: form.audience, anonymous: form.anonymous, owner: form.owner,
       level: levelOn(actor, form, r.shared) ?? "viewer", answers: r.live, unseen: r.unseen ?? 0, updatedAt: form.updatedAt, open: openState(form), closesAt: form.closesAt, maxAnswers: form.maxAnswers,
     };
   });
@@ -220,7 +220,7 @@ export type TeamForm = { slug: string; title: string; anonymous: boolean; answer
 export async function teamForms(sql: Sql, actor: Member | null): Promise<TeamForm[]> {
   if (!actor || !can(actor, "forms.answer")) return [];
   const rows = await sql<(Row & { answered: boolean; title: string })[]>`
-    select ${sql.unsafe(columns.split(", ").map(c => "f." + c).join(", "))}, coalesce(case when v.definition->'alt'->>'language' = ${actor.locale ?? "en"} then nullif(v.definition->'alt'->'texts'->>'title', '') end, v.definition->>'title') as title,
+    select ${sql.unsafe(columns.split(", ").map(c => "f." + c).join(", "))}, coalesce(case when v.definition->'alt'->>'language' = ${localeOf(actor.language)} then nullif(v.definition->'alt'->'texts'->>'title', '') end, v.definition->>'title') as title,
       case when f.anonymous then exists (select 1 from participants p where p.form_id = f.id and p.member = ${actor.id})
            else exists (select 1 from answers x where x.form_id = f.id and x.respondent = ${actor.id} and x.deleted_at is null) end as answered
     from forms f join versions v on v.form_id = f.id and v.version = f.version

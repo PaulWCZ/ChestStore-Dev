@@ -25,7 +25,7 @@ const address = (key: string) => `${key}@atelier.test`;
 const withAddresses = everyone.map(p => ({ ...p, email: address(p.firstName.toLowerCase()), ...(p.id === tom.id ? { mailPreference: "none" as const } : {}) }));
 const chestWith = (mail: boolean) => fakeChest({
   tool: "people", members: withAddresses, capabilities: ["members", "members.email", "notifications", ...(mail ? ["mail" as const] : [])],
-  ...(mail ? { mail: { domain: "atelier.test" } } : {}), settings: { company: "Atelier Martin", locale: "en" },
+  ...(mail ? { mail: { domain: "atelier.test" } } : {}), chest: { organization: "Atelier Martin", language: "en" },
 });
 before(async () => {
   database = await testDatabase();

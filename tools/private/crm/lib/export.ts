@@ -74,7 +74,7 @@ export async function dealsCsv(sql: Sql, actor: Member | null, filter: DealFilte
 // Contacts as one .vcf file (vCard 4.0).
 export async function contactsVcf(sql: Sql, actor: Member | null, filter: ContactFilter = {}): Promise<string> {
   const { rows } = await listContacts(sql, actor, filter, { limit: all });
-  const t = catalogue(isLocale(actor?.locale) ? actor!.locale as Locale : "en");
+  const t = catalogue(isLocale(actor?.language) ? actor!.language as Locale : "en");
   return rows.map(r => toVcard({ name: r.name, email: r.email, phone: r.phone, title: r.title, company: r.company?.name ?? "", notes: r.notes, tags: r.tags.map(x => shownName("tags", x, t)), revised: r.updatedAt })).join("");
 }
 

@@ -1,9 +1,8 @@
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { hasTool } from "./audience.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { isLocale } from "./i18n/index.ts";
 import { clean, id, isCoverType, memberId } from "./model.ts";
 
 // Posts from everyone (Workvivo's feed, moderated). Any member with a role
@@ -70,7 +69,7 @@ export async function propose(sql: Sql, actor: Member | null, input: ProposalInp
   const kind = input.kind;
   const title = clean(input.title, 140);
   const body = clean(input.body ?? "", proposalLimits.body, { multiline: true, optional: true });
-  const locale = isLocale(who.locale) ? who.locale : "en";
+  const locale = localeOf(who.language);
   let colleague: string | null = null;
   if (kind === "shoutout") {
     colleague = memberId(input.colleague);

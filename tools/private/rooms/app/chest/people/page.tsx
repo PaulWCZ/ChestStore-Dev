@@ -4,7 +4,7 @@ import { DayPicker } from "../../../components/day-picker.tsx";
 import { bookableDays, context, shownDay } from "../../../lib/context.ts";
 import { deskBookingsOf } from "../../../lib/desk-bookings.ts";
 import { directory } from "../../../lib/directory.ts";
-import { chestGroups } from "../../../lib/groups.ts";
+import { chestGroups, groupsOf } from "../../../lib/groups.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { limits, nextWorkingDay, placeName, twoWeeks, type Status } from "../../../lib/model.ts";
 import { inMeetings, presenceOf } from "../../../lib/presence.ts";
@@ -21,9 +21,9 @@ export default async function WhoIsWhere({ searchParams }: { searchParams: Promi
   const day = shownDay(params["day"], { today: c.today, rules: { ...c.rules, weekdays: [1, 2, 3, 4, 5, 6, 7] } });
   const q = typeof params["q"] === "string" ? params["q"].trim().slice(0, limits.search) : "";
   // Teams: the Chest's groups that have someone here, mine first.
-  const [all, groupList] = await Promise.all([directory(q || undefined), chestGroups()]);
+  const [all, groupList, mine] = await Promise.all([directory(q || undefined), chestGroups(), groupsOf(c.member)]);
   const used = new Set(all.flatMap(p => p.groups));
-  const teams = groupList.filter(g => used.has(g.id)).sort((a, b) => Number(c.member.groups.includes(b.id)) - Number(c.member.groups.includes(a.id)) || a.name.localeCompare(b.name, locale));
+  const teams = groupList.filter(g => used.has(g.id)).sort((a, b) => Number(mine.includes(b.id)) - Number(mine.includes(a.id)) || a.name.localeCompare(b.name, locale));
   const team = typeof params["team"] === "string" ? teams.find(g => g.id === params["team"]) ?? null : null;
   const everyone = team ? all.filter(p => p.groups.includes(team.id)) : all;
   const ids = everyone.map(p => p.id);
@@ -50,7 +50,7 @@ export default async function WhoIsWhere({ searchParams }: { searchParams: Promi
         {teams.length > 0 && (
           <div className="team-chips">
             <Filters path="/chest/people" params={{ day, q: q || undefined, team: team?.id }} labels={t.filters}
-              groups={[{ key: "team", label: t.who.teams, all: true, options: teams.slice(0, 16).map(g => ({ value: g.id, label: c.member.groups.includes(g.id) ? format(t.who.myTeamName, { team: g.name }) : g.name })) }]} />
+              groups={[{ key: "team", label: t.who.teams, all: true, options: teams.slice(0, 16).map(g => ({ value: g.id, label: mine.includes(g.id) ? format(t.who.myTeamName, { team: g.name }) : g.name })) }]} />
           </div>
         )}
       </div>

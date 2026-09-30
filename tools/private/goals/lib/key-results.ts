@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, mayCheckIn, mayEdit } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -82,7 +82,7 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
       await tx`
         update key_results set kind = ${m.kind}, unit = ${m.unit}, start_value = ${m.start}, target_value = ${m.target},
           current_value = case when ${checked}::boolean or current_value <> start_value then current_value else ${m.start} end,
-          currency = case when ${m.kind} = 'money' then coalesce(currency, ${chest.currency()}) else null end
+          currency = case when ${m.kind} = 'money' then coalesce(currency, ${chest.currency}) else null end
         where id = ${k.id}`;
     }
     if (source !== k.source || feed.mine !== k.source_mine || feed.scope !== k.source_scope) await tx`update key_results set source = ${source}, source_mine = ${feed.mine}, source_scope = ${feed.scope} where id = ${k.id}`;

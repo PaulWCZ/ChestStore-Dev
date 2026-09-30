@@ -8,7 +8,7 @@ must not break.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest: roles `hr`, `manager`, `employee`; `database`, `members`, `notifications`; `receives` |
-| `chest.proposals.json` | Manifest keys of SDK proposals (`mail`, `calendar`, `emits` incl. `leave.busy`, `receives` from People, the `morning` schedule) |
+| `chest.proposals.json` | Manifest keys of SDK proposals (`mail`, `calendar`, `groups`, `emits` incl. `leave.busy`, `receives` from People, the `morning` schedule) |
 | `lib/access.ts` | **Who may do what**: abilities (`can`), what one sees of someone's leave (`sightOf`: own, approver, team), who may answer (`mayDecide`) |
 | `lib/calendar.ts` | **Pure**, browser-safe: days, French public holidays, the cost of a span (ouvrés, ouvrables, worked days, calendar — with the person's week: from the first day they would have worked to the day before they are back), overlaps, months earned |
 | `lib/rules.ts` | The company's settings and kinds of leave |
@@ -19,14 +19,14 @@ must not break.
 | `lib/last-day.ts` | A last day set: leave after it cancelled, leave across it cut, days given back (reason key `afterLastDay`) — by the Chest's leaving event and by HR |
 | `lib/setup.ts` | HR's first-run checklist |
 | `lib/routing.ts` | Who answers a person's requests, given the directory (pure) |
-| `lib/directory.ts` | The members who have the tool, from the Chest |
+| `lib/directory.ts` | The members who have the tool, from the Chest; the Chest's groups for *Who's away* (`groups.all`/`groups.members` with the groups proposal, else the groups that give Leave) |
 | `lib/import.ts`, `lib/normalize.ts`, `lib/csv.ts` | The two imports (pure plans: people and balances; approved leave), header recognition and HR's mapping, Lucca's columns; CSV read/write (formula-safe). Fixtures in `test/fixtures/` |
 | `lib/payroll.ts` | The month's approved absences for payroll (`app/chest/people/balances/route.ts`: everyone's balances on a day) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and approvers' tile numbers |
 | `lib/lifecycle.ts` | Leaving and erasure; `tools()`: the handlers of other tools' events |
 | `lib/from-people.ts` | People → Leave (events between tools): `people.record` (number, first day, week, last day), `people.leaving(_cancelled)`; checked field by field, older events ignored, a last day People set is the only one People clears (`staff.end_by`) |
-| `lib/mail.ts` | Emails beside the bell (mail proposal): `email()` in each reader's language, the person's switch (`staff.email_off`); the Chest's `mailPreference` applies in `mail.send`; only answers to one's own request are `transactional` |
-| `lib/leave-calendar.ts`, `lib/spans.ts` | Approved leave in each person's Chest calendar feed (calendar proposal): `sync()` puts what changed (`putMany`, 100 a call) and takes back what no longer stands (`calendar_events`); title "Off", private, never the kind. `spans.ts`: a leave as instants in the Chest's time zone (noon for halves) |
+| `lib/mail.ts` | Emails beside the bell (mail proposal): `email()` in each reader's language, the person's switch (`staff.email_off`); the Chest's `mailPreference` (members API, `mailPreference()` for the home) applies in `mail.send`; only answers to one's own request are `transactional` |
+| `lib/leave-calendar.ts`, `lib/spans.ts` | Approved leave in each person's Chest calendar feed (calendar proposal): `sync()` puts what changed (`putMany`, 100 a call) and takes back what no longer stands (`calendar_events`); title "Off", private, never the kind. `spans.ts`: a leave as instants in a zone (noon for halves); `lib/zones.ts`: each person's zone (members API, else the Chest's) for the hours of their days off |
 | `lib/busy.ts`, `lib/busy-snapshot.ts` | `leave.busy` for Booking/Hiring: each member's approved leave, 90 days, times only, told when it changed (`shared_busy`). `busy-snapshot.ts` is the same file as Booking's and Hiring's — keep them equal |
 | `lib/share.ts` | Events to Rooms and People (`leave.approved`/`cancelled`): `plan()` compares approved absences with what was told (`shared_leave`) and writes what differs to the outbox (`leave_outbox`), `publish()` sends it (retried at the next run); absences only (`away`), a cut is cancelled + approved. `keepInLine()`: these events, calendar and busy times after each change, event and morning |
 | `lib/morning.ts` | The weekday reminder (schedule proposal) |
@@ -34,6 +34,7 @@ must not break.
 | `app/tokens.css`, `app/globals.css` | Leave's own tokens (kinds → categorical slots, calendar shades), defined from contract tokens only; its components |
 | `components/shell.tsx` | The kit's `AppShell` with Next's `Link` and the current path |
 | `lib/status.ts` | A request's state → the kit's `StatusBadge` tone |
+| `lib/today.ts` | **Today** = `chest.today()`, the Chest's day (= the database's `current_date`; server only). Never a day from UTC or the browser |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` (dates, days, spans) for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
@@ -61,6 +62,14 @@ npm ci && npm test && npm run build   # all three must pass
   sick leave.
 - **One "days left"**: `Balance.left` (approved leave deducted, waiting days beside it). Never show `left − pending` as "left"; use `leftIfApproved`/`afterRequest` (`lib/left.ts`) and say what they count.
 - **Years are computed, never stored**: no job closes a period; `compute` classifies days by the dates. A new rule is a change there, with its test in `test/years.test.ts`.
+- **Days are the company's, hours the person's**: "today" is `today()`
+  (`lib/today.ts`, `chest.today()`), never `new Date().toISOString()`; in
+  SQL `current_date` and a `date` compared with a `timestamptz` are in the
+  Chest's zone too (the Chest sets the sessions' TimeZone; tests do the
+  same, `testDatabase({timeZone})`). An instant shown to someone, or the
+  hours of their day off (feed, busy times), are in their zone
+  (`member.timeZone`, `lib/zones.ts`). `test/zones.test.ts` runs a Chest at
+  UTC+14 with a member in Montréal.
 - **A line the tool writes itself has a `reason_key`** (`opening`, `rttYear`, `afterLastDay`), written in the reader's language (`team.reasonKeys`); never write an English sentence into `reason` from code or seed.
 - **A last day never leaves leave after it counting**: every way of setting one goes through `settleAfterLastDay` (`lib/last-day.ts`), in the same transaction.
 - **Every bell item about a request goes through `tellBoth`** (lib/tell.ts):

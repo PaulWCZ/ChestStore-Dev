@@ -323,7 +323,10 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
 
 ## Needs from the SDK
 
-Uses the working copy's **schedules** proposal (`reviews`, weekday
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`:
+`member.language` and `member.timeZone` (the interface in each member's
+language, times in their zone), `chest.today()` in the Chest's zone for
+the day of a reminder's key (0.3.0). Uses the working copy's **schedules** proposal (`reviews`, weekday
 mornings) for review reminders; on a Chest without it, reminders stay set
 and due pages still ask their editors "Still correct?" and show on the home
 page — only the bell item is missing. Bell items need `notifications`
@@ -348,7 +351,12 @@ page — only the bell item is missing. Bell items need `notifications`
 - `groups` — **Proposal (studio)**, declared (`"groups": "read"`, as
   News): `members.groups.all()` gives every group of the Chest, for "who
   reads", "who edits" and "ask to confirm" (lib/groups.ts; without it,
-  the groups that give the wiki, as before).
+  the groups that give the wiki, as before). 0.3.0's `member.groups`
+  lists only the groups that give the wiki — none for a wiki open to
+  everyone —, so whether someone is in a group is asked of the Chest:
+  `members.groups.of(id)` for the person signed in, every group's members
+  for a list of people (one call per group), kept a minute and forgotten
+  on `member.updated` (groups) and `group.*`.
 - `mail` — **Proposal (studio)**, declared (`"mail": {"send": true}`, as
   News, Tasks, Polls and Goals): read requests, reminders and review
   reminders by email (lib/mail.ts). On a Chest without mail, nothing is

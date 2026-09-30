@@ -1,14 +1,8 @@
-import { timeZone } from "@argentic/chest-sdk/schedules";
+import { chest } from "@argentic/chest-sdk/chest";
 
-// The Chest's time zone (IANA): the clock people read days and times on.
-// Proposal (studio): the Chest gives it (CHEST_TIMEZONE); Europe/Paris when
-// it says none, or names a zone this server does not know.
+// The Chest's time zone (IANA): the clock the company's days and times are
+// read on (SDK 0.3.0: CHEST_TIME_ZONE, "UTC" until the owner sets one; it
+// throws outside a Chest rather than guess).
 export function chestZone(): string {
-  const zone = timeZone();
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: zone });
-    return zone;
-  } catch {
-    return "Europe/Paris";
-  }
+  return chest.timeZone;
 }

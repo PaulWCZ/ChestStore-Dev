@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Bounce, Received } from "@argentic/chest-sdk/mail";
 import type { Sql } from "./db.ts";
 import * as mailer from "./mailer.ts";
@@ -20,7 +20,7 @@ export const confirmationsPerHour = 3;
 // tells those who answer. An automatic answer, or spam, tells no one.
 export async function received(sql: Sql, message: Received): Promise<void> {
   if (message.mailbox !== "support") return;
-  const filed = await tickets.fromEmail(sql, message, chest.locale());
+  const filed = await tickets.fromEmail(sql, message, chest.language);
   if (!filed || filed.auto || filed.spam) return;
   const [row] = await sql<{ subject: string; assignee: string | null; customer_name: string; customer_email: string; language: string }[]>`select subject, assignee, customer_name, customer_email, language from tickets where id = ${filed.id}`;
   const t = { id: filed.id, number: filed.number, subject: row!.subject, assignee: row!.assignee, customerName: row!.customer_name, customerEmail: row!.customer_email };
@@ -28,7 +28,7 @@ export async function received(sql: Sql, message: Received): Promise<void> {
     const from = message.from.address;
     if (!robotAddress(from) && (await tickets.confirmations(sql, from)) < confirmationsPerHour) {
       const s = await tickets.settings(sql);
-      const sent = await mailer.confirm({ ...t, language: row!.language }, `${publicBase(s.publicOrigin)}/t/${filed.secret}`, s.companyName || chest.company(), message.messageId);
+      const sent = await mailer.confirm({ ...t, language: row!.language }, `${publicBase(s.publicOrigin)}/t/${filed.secret}`, s.companyName || chest.organization.name, message.messageId);
       if (sent.delivery === "email") await tickets.confirmed(sql, filed.id, sent.mail);
     }
     await tell.newTicket(t, message.text, filed.assignee);

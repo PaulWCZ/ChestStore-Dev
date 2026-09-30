@@ -7,7 +7,7 @@ import { listCompanies, tagsInUse } from "../../../lib/companies.ts";
 import { db } from "../../../lib/db.ts";
 import { fieldFilterOf, listFields } from "../../../lib/fields.ts";
 import { format, money, plural, relative } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/zone.ts";
 import { directory } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
 import { team as teamOf } from "../../../lib/team.ts";

@@ -7,7 +7,8 @@ import { tellLinkedTools } from "../../lib/card-events.ts";
 import * as cards from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
-import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import { localeOf } from "@argentic/chest-sdk/member";
+import { catalogue } from "../../lib/i18n/index.ts";
 import * as dueCalendar from "../../lib/due-calendar.ts";
 import * as mail from "../../lib/mail.ts";
 import * as reminders from "../../lib/reminders.ts";
@@ -39,7 +40,7 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
 // Boards.
 export async function createBoard(input: { name: string; template: string; visibility: string; color?: string; people?: string[]; groups?: string[] }): Promise<Result<{ id: string }>> {
   return act(async actor => {
-    const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
+    const t = catalogue(localeOf(actor.language));
     const b = await boards.createBoard(db(), actor, input, t.templates.columns);
     return { id: b.id };
   });
@@ -325,7 +326,7 @@ export async function importBoard(kind: "trello" | "csv", text: string, name: st
     if (typeof text !== "string" || text.length > 10 << 20) throw new AppError("import_invalid");
     const board = kind === "trello" ? fromTrello(text) : fromCsv(text, name);
     if (kind === "trello" && typeof name === "string" && name.trim()) board.name = name.trim().slice(0, 80);
-    const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
+    const t = catalogue(localeOf(actor.language));
     return write(db(), actor, board, t.templates.columns.done, { visibility, done });
   });
 }

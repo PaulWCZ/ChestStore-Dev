@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { SearchBox } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { Globe, Inbox, Mask, Plus, Shield, Trash, Users } from "../../../components/icons.tsx";
@@ -32,7 +32,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const shared = all.filter(f => f.owner !== member.id && f.level !== "owner");
   const others = all.filter(f => f.owner !== member.id && f.level === "owner");
   const now = new Date();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const card = (f: Listed) => {
     const status = f.status === "draft" ? "draft" : f.open.open ? "open" : (f.open.reason ?? "closed");
     return (

@@ -63,6 +63,10 @@ what must not break.
   `lib/intune.ts`): do not add a field or an MDM from memory.
 - Services return data or throw `AppError(code)`; words live in
   `lib/i18n` only (`test/literals.test.ts`, `test/i18n.test.ts`).
+- **Days are the Chest's**: `chest.today()` (or `chest.today(at)` for an
+  instant), the same day as the database's `current_date` and `at::date`
+  (the Chest puts the sessions in its zone). Never
+  `toISOString().slice(0, 10)` of now, nor a zone written in the code.
 - **Defaults are keys**: a category, a field or the rules the tool proposes
   is shown in the reader's language (`categoryName`, `fieldName`,
   `charterText`) until a manager changes it; never seed an English name

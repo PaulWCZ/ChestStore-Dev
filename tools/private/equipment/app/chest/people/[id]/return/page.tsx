@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { forbidden, notFound } from "next/navigation";
 import { SheetHead, SheetPage, Signatures } from "../../../../../components/sheet.tsx";
 import { AppError } from "../../../../../lib/app-error.ts";
@@ -30,13 +30,13 @@ export default async function ReturnSheet({ params }: { params: Promise<{ id: st
   // A sheet is kept as proof: the name alone, the day they left apart.
   const person = plainName(names.get(id), locale);
   const gone = await leftOnOf(db(), member, id);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const today = chest.today();
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "short", year: "numeric" }) : t.common.none);
   const s = t.sheet;
   return (
     <SheetPage title={s.returnTitle} back={`/chest/people/${id}`} backLabel={s.back} t={s}>
-      <SheetHead title={s.returnTitle} company={chest.company()} person={person} leftOn={gone ? formatDate(gone, locale, { day: "numeric", month: "long", year: "numeric" }, zone) : null} printed={formatDate(new Date(), locale, { day: "numeric", month: "long", year: "numeric" }, zone)} t={s} />
+      <SheetHead title={s.returnTitle} company={chest.organization.name} person={person} leftOn={gone ? formatDate(gone, locale, { day: "numeric", month: "long", year: "numeric" }, zone) : null} printed={formatDate(new Date(), locale, { day: "numeric", month: "long", year: "numeric" }, zone)} t={s} />
       <h3 className="paper-section">{s.returned}</h3>
       {sheet.returned.length === 0 ? <p>{s.nothingReturned}</p> : (
         <table className="paper-table">

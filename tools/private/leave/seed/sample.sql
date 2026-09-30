@@ -44,10 +44,12 @@ declare
   sofia text := 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa';
   nora text := 'mbr_noraaaaaaaaaaaaaaaaaaaaaaa';
   paid bigint; rtt bigint; sick bigint; unpaid bigint; remote bigint;
-  today date := (now() at time zone 'Europe/Paris')::date;
-  month_start date := date_trunc('month', (now() at time zone 'Europe/Paris'))::date;
-  next_month date := (date_trunc('month', (now() at time zone 'Europe/Paris')) + interval '1 month')::date;
-  week date := date_trunc('week', (now() at time zone 'Europe/Paris'))::date;
+  -- The Chest's today: its zone is the TimeZone of the tool's database
+  -- sessions, so current_date is the day the tool's pages call today.
+  today date := current_date;
+  month_start date := date_trunc('month', current_date)::date;
+  next_month date := (date_trunc('month', current_date) + interval '1 month')::date;
+  week date := date_trunc('week', current_date)::date;
   period date;
   r record;
   k bigint;

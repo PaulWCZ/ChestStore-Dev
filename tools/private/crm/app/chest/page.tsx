@@ -7,7 +7,8 @@ import { can, canEditDeal, roleOf } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { openByStage, wonThisMonth } from "../../lib/deals.ts";
 import { format, formatDay, money, plural, relative } from "../../lib/i18n/index.ts";
-import { dueState, today } from "../../lib/model.ts";
+import { dueState } from "../../lib/model.ts";
+import { today } from "../../lib/zone.ts";
 import { dealFormProps, dueLabel, formChoices } from "../../lib/page-data.ts";
 import { directory } from "../../lib/people.ts";
 import { teamPipeline } from "../../lib/reports.ts";
@@ -41,7 +42,7 @@ export default async function MyDay() {
     sql<{ n: number }[]>`select exists (select 1 from companies) or exists (select 1 from contacts) or exists (select 1 from deals) as n`,
   ]);
   const hasRecords = Boolean(counted[0]?.n);
-  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Paris" }).format(new Date()));
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: member.timeZone }).format(new Date()));
   const hello = hour < 5 ? t.home.helloNight : hour < 12 ? t.home.hello : hour < 18 ? t.home.helloAfternoon : t.home.helloEvening;
   const reads = roleOf(member) === "viewer";
 

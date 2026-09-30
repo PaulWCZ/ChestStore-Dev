@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { atLeast } from "../../../../../lib/access.ts";
 import { db } from "../../../../../lib/db.ts";
@@ -37,7 +37,7 @@ export default async function BuildPage({ params, searchParams }: { params: Prom
       anonymous={form.anonymous}
       link={formLink(await headers(), form)}
       words={{ b: t.builder, respond: { en: { ...en.respond, date: en.date, files: en.files }, fr: { ...fr.respond, date: fr.date, files: fr.files } }, errors: { en: en.errors, fr: fr.errors }, share: t.share, dialog: t.dialog }}
-      today={zonedParts(new Date(), chest.timeZone()).day}
+      today={zonedParts(new Date(), chest.timeZone).day}
       locale={locale}
       pictures={await pictureUrls(form.draft, "team")}
       cover={await imageUrl(form.cover, "team")}

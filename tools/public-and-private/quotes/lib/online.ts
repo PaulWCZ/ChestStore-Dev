@@ -27,7 +27,7 @@ import { clean, id } from "./model.ts";
 
 // Who reads a quote for the public page: the tool itself, with the right to
 // read (the secret was checked before).
-const system = { id: "tool:online", role: "viewer", name: "", firstName: "", lastName: "", photo: null, groups: [], isAdmin: false, isBuilder: false, locale: "en" } as Member;
+const system = { id: "tool:online", role: "viewer", name: "", firstName: "", lastName: "", photo: null, groups: [], isAdmin: false, isBuilder: false, language: "en", timeZone: "UTC" } satisfies Member;
 
 const secretPattern = /^[A-Za-z0-9_-]{32}$/u;
 export const hashSecret = (secret: string) => createHash("sha256").update(secret).digest("hex");

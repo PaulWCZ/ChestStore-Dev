@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
@@ -197,7 +197,7 @@ export type NoticeTicket = { id: string; number: number; subject: string; custom
 // The words of a channel: the Chest's language (English when the tool does
 // not speak it).
 function channelWords(): { t: Catalogue; locale: Locale } {
-  const given = chest.locale();
+  const given = chest.language;
   const locale: Locale = isLocale(given) ? given : "en";
   return { t: catalogue(locale), locale };
 }
@@ -212,7 +212,7 @@ async function whoAsked(t: NoticeTicket, words: Catalogue, locale: Locale): Prom
 }
 
 const link = (number: number): string | null => {
-  const team = chest.teamUrl();
+  const team = chest.teamUrl;
   return team ? `${team}/chest/tickets/${number}` : null;
 };
 
@@ -263,7 +263,7 @@ export async function late(sql: Sql, now = new Date()): Promise<number> {
   if (!wanted?.n) return 0;
   const s = await settings(sql);
   if (s.lateHours <= 0) return 0;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   // Working minutes never outrun the clock: the clock's wait is a first sieve.
   const rows = await sql<{ id: string; number: number; subject: string; customer_email: string; customer_name: string; requester: string | null; channel: string; priority: string; status: string; waiting_since: Date }[]>`
     select id, number, subject, customer_email, customer_name, requester, channel, priority, status, waiting_since from tickets

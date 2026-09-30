@@ -14,7 +14,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], schedules: [{ name: "updates", cron: "*/15 * * * *" }], settings: { company: "Atelier Martin", locale: "fr" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], schedules: [{ name: "updates", cron: "*/15 * * * *" }], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr" } });
 });
 after(async () => {
   await chest.close();

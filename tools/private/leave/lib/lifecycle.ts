@@ -1,6 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
-import { today } from "./model.ts";
+import { today } from "./today.ts";
 import { withdraw } from "./notify.ts";
 import { settleAfterLastDay } from "./last-day.ts";
 import { afterLastDay, refreshBadges } from "./tell.ts";

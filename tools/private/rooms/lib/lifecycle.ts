@@ -3,6 +3,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
 import { dayKey, enqueue, flush, keepDays, roomKey } from "./calendar.ts";
 import type { Sql } from "./db.ts";
+import { forgetGroups } from "./groups.ts";
 import { cancelDeskBookings } from "./places.ts";
 import { cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
 import { cancelled } from "./tell.ts";
@@ -79,6 +80,8 @@ export async function erase(sql: Sql, memberId: string, tz = zone()): Promise<vo
 
 export function handlers(sql: Sql): events.Handlers {
   return {
+    // Someone moved in or out of a group: what is kept of the groups goes.
+    "member.updated": async () => { forgetGroups(); },
     "access.revoked": async event => { await leave(sql, event.data.id); },
     "member.removed": async event => { await leave(sql, event.data.id); },
     "member.erased": async event => {

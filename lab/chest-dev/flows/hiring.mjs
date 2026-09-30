@@ -321,18 +321,18 @@ await step("invite to an interview: busy times shown, .ics emailed, interviewers
   // The candidate chooses by default; the recruiter may choose the time.
   expect(await page.locator("dialog[open]").getByLabel(/Emma chooses/u).isChecked(), "they choose, by default");
   await page.locator("dialog[open]").getByText("I choose the time").click();
-  // The day of Hugo's seeded interview (seed: UTC midnight + 2 days 14:00),
-  // as Paris reads it — the same after midnight in Paris as before.
-  const utc = new Date();
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date(Date.UTC(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate() + 2, 14)));
+  // The day of Hugo's seeded interview (seed: the Chest's midnight + 2 days
+  // 14:00 — the database session is in the Chest's zone, Paris here).
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  const day = new Date(Date.parse(today + "T12:00:00Z") + 2 * 86400000).toISOString().slice(0, 10);
   // The kit's DateField: the day typed in the member's language (ISO is read too).
   await page.locator("#iv-day").fill(day);
   await page.locator("#iv-day").press("Tab");
   // The job's interviewers are ticked at first (Hugo is one): he stays on it.
   await page.locator("dialog[open] .check", { hasText: "Hugo Bernard" }).locator("input").check();
   await page.waitForTimeout(800);
-  expect((await page.locator("dialog[open]").innerText()).includes("Hugo Bernard: 16:00–17:00"), "Hugo's other interview is shown");
-  await page.locator("#iv-time").selectOption("16:00");
+  expect((await page.locator("dialog[open]").innerText()).includes("Hugo Bernard: 14:00–15:00"), "Hugo's other interview is shown");
+  await page.locator("#iv-time").selectOption("14:00");
   expect((await page.locator(".busy").getAttribute("class")).includes("clash"), "clash said");
   await page.locator("#iv-time").selectOption("10:00");
   await page.locator("#iv-place").fill("Atelier Martin, Lyon");

@@ -1,7 +1,6 @@
 // Safe in the browser: no SDK here.
 // Days and times on the Chest's clock. People type a day and a time as they
-// read them on the office wall (the Chest's time zone, Europe/Paris unless
-// the Chest says otherwise); the database keeps instants (UTC). Pure, tested
+// read them on the office wall (the Chest's time zone, chest.timeZone); the database keeps instants (UTC). Pure, tested
 // across daylight-saving changes.
 import { AppError } from "./app-error.ts";
 

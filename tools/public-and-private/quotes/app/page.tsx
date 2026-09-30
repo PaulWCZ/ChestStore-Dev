@@ -1,5 +1,5 @@
 import { PublicShell } from "../components/public-shell.tsx";
-import { company } from "../lib/company.ts";
+import { company, goesBy } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
 import { publicWords } from "../lib/session.ts";
 
@@ -11,7 +11,7 @@ export default async function PublicHome() {
   const { t, locale } = await publicWords();
   const c = await company(db());
   return (
-    <PublicShell company={c.tradeName || c.legalName || t.meta.name} locale={locale} label={t.public.language} back="/">
+    <PublicShell company={goesBy(c) || t.meta.name} locale={locale} label={t.public.language} back="/">
       <div className="answer-state off">
         <h1>{t.public.title}</h1>
         <p className="lead">{t.public.body}</p>

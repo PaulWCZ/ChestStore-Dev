@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { PageHeader } from "@argentic/chest-ui/components";
 import { checkError } from "../../../lib/check-words.ts";
 import { checkLimits, everyChoices, listWatches, statuses } from "../../../lib/checks.ts";
@@ -18,7 +18,7 @@ export default async function ChecksPage() {
   if (!v) return null;
   const { locale, t } = v;
   const sql = db();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const now = new Date();
   const [components, watches, states, state, beats] = await Promise.all([allComponents(sql, { locale }), listWatches(sql), statuses(sql), checksState(sql), listHeartbeats(sql)]);
   const everyLabel = (m: number) => (t.heartbeats as Record<string, string>)[`e${m}`] ?? String(m);

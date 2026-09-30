@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, Unavailable } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
@@ -23,7 +23,7 @@ export type Mailed = { sent: string[]; stop: "quota" | "off" | "unavailable" | n
 // link is a page of News as an address outside the Chest (null when the
 // Chest does not give the tool's address).
 export function link(path: string): string | null {
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   return base ? new URL(path, base).toString() : null;
 }
 
@@ -37,7 +37,7 @@ export function letterText(t: Catalogue, letter: Letter, path: string, why: stri
 // email sends each recipient their letter; key(person) makes a retry send
 // nothing twice (the Chest keeps a key 24 hours; the SDK sends a long one
 // as its SHA-256, so it is never cut). The Chest applies each person's
-// email preference (member.mailPreference, Proposal (studio.15)): who chose
+// email preference (members.get(id).mailPreference, Proposal (studio.15)): who chose
 // none is skipped — not counted as sent; who chose one email a day gets it
 // in the Chest's daily email — counted. Nothing News sends is
 // transactional: an announcement, its reminders and the digest are all

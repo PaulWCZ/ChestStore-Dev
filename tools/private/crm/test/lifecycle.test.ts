@@ -6,7 +6,7 @@ import * as activities from "../lib/activities.ts";
 import * as companies from "../lib/companies.ts";
 import * as contacts from "../lib/contacts.ts";
 import * as deals from "../lib/deals.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/zone.ts";
 import * as steps from "../lib/steps.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";

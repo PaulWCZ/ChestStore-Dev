@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -160,6 +160,7 @@ export async function returnSheet(sql: Query, actor: Member | null, holder: unkn
   const rows = await sql<{ item_id: string; day: string | null; at: Date; actor: string; note: string | null; status: string | null }[]>`
     select distinct on (h.item_id) h.item_id, to_char(h.day, 'YYYY-MM-DD') as day, h.at, h.actor, h.note, h.status
     from history h join items i on i.id = h.item_id
+    -- h.at::date is the Chest's day: the Chest puts the sessions in its zone.
     where h.kind = 'returned' and h.member = ${h} and coalesce(h.day, h.at::date) >= ${since} and i.deleted_at is null
       and (i.holder is distinct from ${h})
     order by h.item_id, h.id desc limit 200`;
@@ -171,7 +172,7 @@ export async function returnSheet(sql: Query, actor: Member | null, holder: unkn
       select to_char(given_on, 'YYYY-MM-DD') as given_on, given_by, condition from receipts where item_id = ${item.id} and member_id = ${h} order by id desc limit 1`;
     returned.push({
       item, fields: fieldsFor(all, item), givenOn: given?.given_on ?? null, givenBy: given?.given_by ?? null, condition: given?.condition ?? null,
-      returnedOn: r.day ?? new Date(r.at).toISOString().slice(0, 10), returnedTo: r.actor, returnCondition: r.note, status: r.status,
+      returnedOn: r.day ?? chest.today(new Date(r.at)), returnedTo: r.actor, returnCondition: r.note, status: r.status,
     });
   }
   returned.sort((a, b) => (a.returnedOn ?? "").localeCompare(b.returnedOn ?? "") || a.item.tag.localeCompare(b.item.tag));

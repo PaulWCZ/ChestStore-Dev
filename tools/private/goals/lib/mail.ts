@@ -1,7 +1,8 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
+import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -26,6 +27,19 @@ import { people } from "./people.ts";
 // offering email. The day's quota used comes back tomorrow: "on". A Chest
 // that does not answer: "unknown", never read as "off".
 export type MailState = "on" | "off" | "unknown";
+
+// The person's choice in the Chest for every tool's email (studio.15):
+// the members API says it — never the assertion member(request) reads —
+// and says nothing for "all". "all" too when the Chest cannot be asked:
+// My goals then simply says nothing under the switch.
+export async function mailPreferenceOf(memberId: string): Promise<NonNullable<Member["mailPreference"]>> {
+  try {
+    return (await members.get(memberId))?.mailPreference ?? "all";
+  } catch (error) {
+    if (error instanceof ChestError) return "all";
+    throw error;
+  }
+}
 export async function mailState(): Promise<MailState> {
   try {
     const state = await mail.available();
@@ -71,7 +85,7 @@ export function letterText(t: Catalogue, letter: Letter, path: string, base: str
 export async function email(sql: Query, recipients: Iterable<string>, letter: (t: Catalogue, locale: Locale) => Letter, options: { path: string; key: string }): Promise<number> {
   const ids = await wanting(sql, [...new Set(recipients)].filter(r => r.startsWith("mbr_")));
   if (ids.length === 0) return 0;
-  const base = chest.teamUrl();
+  const base = chest.teamUrl;
   let sent = 0;
   for (const person of (await people(ids)).values()) {
     if (person.status !== "member") continue;

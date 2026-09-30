@@ -1,5 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { can, readerOf } from "./access.ts";
+import { can } from "./access.ts";
+import { readerFor } from "./groups.ts";
 import { visibleTo } from "./read.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -24,7 +25,7 @@ export async function addComment(sql: Sql, actor: Member | null, objectiveId: un
   if (!actor || !can(actor, "comment")) throw new AppError("forbidden");
   const text = clean(body, limits.comment, { multiline: true });
   // A confidential objective's conversation is its readers' only.
-  const [o] = await sql<{ id: string; title: string; owner: string }[]>`select o.id, o.title, o.owner from objectives o where o.id = ${id(objectiveId)} and o.archived_at is null ${visibleTo(sql, readerOf(actor))}`;
+  const [o] = await sql<{ id: string; title: string; owner: string }[]>`select o.id, o.title, o.owner from objectives o where o.id = ${id(objectiveId)} and o.archived_at is null ${visibleTo(sql, await readerFor(actor))}`;
   if (!o) throw new AppError("not_found");
   const [row] = await sql<{ id: string; created_at: Date }[]>`insert into comments (objective_id, author, body) values (${o.id}, ${actor.id}, ${text}) returning id, created_at`;
   const owners = (await sql<{ owner: string }[]>`select distinct owner from key_results where objective_id = ${o.id} and archived_at is null`).map(r => r.owner);

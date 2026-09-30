@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import { bookingsByIds, hashSecret, hostOf, typesOf, type Booking } from "./booking.ts";
@@ -118,7 +118,7 @@ export async function importCalendly(sql: Query, actor: Member, text: unknown, z
       const insert = (step: Query) => step<{ id: string }[]>`
         insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_zone, guest_language, secret_hash, secret, source, booked_by, import_ref)
         values (${type?.id ?? null}, ${actor.id}, ${type?.title ?? (typeName || "Calendly")}, ${minutes}, ${kind}, ${location || type?.location || ""}, ${start}, ${end}, tstzrange(${start}, ${end}),
-          ${name}, ${address}, ${guestZone}, ${actor.locale ?? "en"}, ${hashSecret(secret)}, ${secret}, 'import', ${actor.id}, ${ref})
+          ${name}, ${address}, ${guestZone}, ${localeOf(actor.language)}, ${hashSecret(secret)}, ${secret}, 'import', ${actor.id}, ${ref})
         on conflict (member_id, import_ref) where import_ref is not null do nothing
         returning id::text as id`;
       // Each row alone: one refused leaves the others.

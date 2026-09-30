@@ -19,7 +19,7 @@ let website = "", checkout = "", secret = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 6 }, settings: { company: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 6 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();
@@ -142,7 +142,7 @@ test("emails: a confirmation in the visitor's language, then each update with it
 test("a member's email preference (studio.15): the confirmation link is transactional, update emails honour it", async () => {
   const { sql } = database;
   // Nora subscribes with her own address; in her Chest she chose "none".
-  const quiet = { ...nora, email: "nora@atelier-martin.test", mailPreference: "none" as const };
+  const quiet = { ...nora, language: "fr", timeZone: "UTC", email: "nora@atelier-martin.test", mailPreference: "none" as const };
   chest.members.push(quiet);
   chest.clearCaches();
   try {
@@ -175,7 +175,7 @@ test("the Chest's daily quota stops the queue, which goes on later; a Chest with
   const [{ count }] = (await sql`select count(*)::int as count from mail_queue`) as unknown as [{ count: number }];
   assert.equal(count, 8 - first.sent);
   // Without mail on the Chest.
-  const bare = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     const r = await subs.subscribe(sql, { email: "z@example.com", language: "en", components: "all" });
     assert.equal(await welcome(sql, r.subscriber, r.state, "https://x.test"), "none");
@@ -199,7 +199,7 @@ test("studio.16: whether the Chest sends email is asked of it (mail.available) â
   } finally {
     chest.delivery.mail = "ready";
   }
-  const bare = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     assert.deepEqual(await mailDelivery(sql), { state: "none", reason: "not_granted" });
   } finally {

@@ -1,5 +1,5 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import { parseCsv } from "./csv.ts";
@@ -341,7 +341,7 @@ async function contextFor(sql: Query, cycleId: string, chosen: unknown): Promise
     const ids = new Set(people.map(p => p.id));
     for (const [key, value] of Object.entries(chosen as Record<string, unknown>).slice(0, 500)) if (typeof value === "string" && ids.has(value)) picks[key] = value;
   }
-  return { people, teams: teamList, existing: [...existing], personal, currency: chest.currency(), chosen: picks };
+  return { people, teams: teamList, existing: [...existing], personal, currency: chest.currency, chosen: picks };
 }
 
 function admin(actor: Member | null): Member {

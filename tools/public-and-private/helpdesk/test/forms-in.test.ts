@@ -20,7 +20,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, settings: { company: "Atelier Martin", locale: "en", publicUrl: "https://support.atelier.test" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { organization: "Atelier Martin", language: "en", publicUrl: "https://support.atelier.test" } });
 });
 after(async () => {
   await chest.close();
@@ -229,7 +229,7 @@ test("the link back to the answer: Forms' address as the Chest gives it, none wh
   const path = "/chest/forms/5/answers/k3abc";
   // This fake Chest has no Forms: the ticket names the form without a link.
   assert.equal(formsLink(path), null);
-  const withForms = await fakeChest({ tools: { forms: true }, settings: { publicUrl: "https://support.atelier.test" } });
+  const withForms = await fakeChest({ tools: { forms: true }, chest: { publicUrl: "https://support.atelier.test" } });
   try {
     assert.equal(formsLink(path), "https://forms-chest.chest.test/chest/forms/5/answers/k3abc");
     assert.equal(formsLink(null), null);

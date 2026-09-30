@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { db } from "../../../../lib/db.ts";
 import { exportCsv, period } from "../../../../lib/export.ts";
 import { attachment, asker, failure, refuse } from "../../../../lib/http.ts";

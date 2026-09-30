@@ -345,9 +345,14 @@ decision, finaliser, payments, clients, items, settings — the documents
 themselves stay (a legal record; GDPR art. 17(3)(b)), then the erasure is
 acknowledged.
 
-Dates are the Chest's (`chest.today()`, its time zone); the currency of new
-documents is the Chest's (`chest.currency()`); the default language of new
-documents without a client is the Chest's (`chest.locale()`).
+Dates are the Chest's (`chest.today()`, its time zone; the database's
+sessions are in it too, so the sample data's `current_date` is the same
+day); the currency of new documents is the Chest's (`chest.currency`); the
+default language of new documents without a client is the Chest's
+(`chest.language`). Documents print the legal name the admin entered in
+Settings; pages and emails use the trade name, else the legal name, and
+only before Settings are filled in the Chest's organization name
+(`chest.organization.name`, `goesBy` in `lib/company.ts`).
 
 ## Legal (France) — what the tool does, and does not
 
@@ -424,6 +429,8 @@ schemas and schematrons).
 
 ## Needs from the SDK
 
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+
 - **mail** (studio proposal, `chest.proposals.json` `mail.send`): send the
   quote, invoice, credit note or reminder with its PDF attached. Call site:
   `lib/sending.ts` only. On a Chest without mail (`CapabilityNotGranted`)
@@ -437,20 +444,20 @@ schemas and schematrons).
   answer, what the last send taught. A quote or an invoice a member
   sends by hand is `transactional` (studio.15): it arrives even when the
   addressee is a member who chose no email from the tools; the automatic
-  reminders honour that choice (`member.mailPreference`, applied by
+  reminders honour that choice (`mailPreference` in the members API, applied by
   `mail.send`). An automatic reminder's key carries its recipient
   (`reminder-<invoice>-<step>-<address>`): after a restore, an invoice id
   may name another invoice.
 - **schedules** (studio proposal): `badges` and `followup`, daily. Without
   them, badges are set after each change, and the follow-up runs at the
   first desk visit of the day.
-- **chest** (studio proposal): `today()`, `timeZone()`, `currency()`,
-  `locale()`.
+- **chest**: `today()`, `timeZone`, `language`, `organization.name`
+  (SDK 0.3.0); `currency`, `publicUrl`, `toolLink` (studio proposals).
 - **Events between tools** (studio proposal, `chest.proposals.json`
   `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients,
   `timesheets.billable`, `timesheets.billable_cancelled` from Timesheets;
   `emits` `quotes.invoiced` — see "With the other tools". `chest.toolLink`
-  for the link back to Timesheets (SDK 0.3.0-studio.16, vendored). A
+  for the link back to Timesheets (studio proposal, vendored). A
   `quotes.invoiced` the Chest refuses when the invoice is issued is
   published by the next morning's follow-up, once (its key
   `quotes:invoiced:<handoff>`), with `occurredAt` the time the invoice was
@@ -478,7 +485,7 @@ schemas and schematrons).
   refused as a robot's), the Chest's counting (`count`, 20 answers an hour
   per visitor; a Chest that cannot count yet is tolerated — each link
   answers once), and `visitor()` (the hash of the address kept as proof).
-  Call site: `app/public-actions.ts`. And `chest.publicUrl()` for the
+  Call site: `app/public-actions.ts`. And `chest.publicUrl` for the
   link's address (`lib/public-origin.ts` derives it from the request
   otherwise). Without **mail** on a real Chest, the member copies the
   link from the quote's margin into their own email.

@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { cookies, headers } from "next/headers";
 import type { Look } from "@argentic/chest-ui/runtime";
@@ -12,23 +13,24 @@ export async function currentMember(): Promise<Member | null> {
 }
 
 // The viewer of a members' page: the member, their language — the Chest
-// gives it (member.locale), the tool has no switch of its own — and its
+// gives it (member.language), the tool has no switch of its own — and its
 // words.
 export type Viewer = { member: Member; locale: Locale; t: Catalogue };
 
 export async function viewer(): Promise<Viewer | null> {
   const who = await currentMember();
   if (!who) return null;
-  const locale: Locale = isLocale(who.locale) ? who.locale : "en";
+  const locale: Locale = isLocale(who.language) ? who.language : "en";
   return { member: who, locale, t: catalogue(locale) };
 }
 
 // The language of a public page: the one its address names (?lang=, which
 // a frame in the company's website keeps when cookies are blocked), or the
 // page's own (a request's follow-up page speaks the request's language),
-// the visitor's switch (cookie "lang"), the browser's languages, English.
+// the visitor's switch (cookie "lang"), the browser's languages, the
+// Chest's language, English.
 export async function publicWords(given?: unknown, own?: unknown): Promise<{ locale: Locale; t: Catalogue }> {
-  const locale = isLocale(given) ? given : isLocale(own) ? own : publicLocale((await cookies()).get("lang")?.value, (await headers()).get("accept-language"));
+  const locale = isLocale(given) ? given : isLocale(own) ? own : publicLocale((await cookies()).get("lang")?.value, (await headers()).get("accept-language"), chestLocale());
   return { locale, t: catalogue(locale) };
 }
 
@@ -42,4 +44,15 @@ export async function pageLook(): Promise<Look> {
 // the visitor's elsewhere.
 export async function pageLocale(): Promise<Locale> {
   return (await viewer())?.locale ?? (await publicWords()).locale;
+}
+
+// The Chest's own language when the tool speaks it, else English (and
+// English outside a Chest, where chest.language throws).
+export function chestLocale(): Locale {
+  try {
+    const given = chest.language;
+    return isLocale(given) ? given : "en";
+  } catch {
+    return "en";
+  }
 }

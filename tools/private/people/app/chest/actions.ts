@@ -1,11 +1,11 @@
 "use server";
 
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { examples } from "../../lib/examples.ts";
-import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import { catalogue } from "../../lib/i18n/index.ts";
 import * as arrivals from "../../lib/arrivals.ts";
 import { profilePhrase } from "../../lib/examples.ts";
 import * as fields from "../../lib/fields.ts";
@@ -107,7 +107,7 @@ export async function createTemplate(input: { kind: string; name: string }): Pro
 }
 
 export async function addExampleTemplates(): Promise<Result<string[]>> {
-  return act(actor => j.addExamples(db(), actor, examples(catalogue(isLocale(actor.locale) ? actor.locale : "en"))));
+  return act(actor => j.addExamples(db(), actor, examples(catalogue(localeOf(actor.language)))));
 }
 
 export async function renameTemplate(templateId: string, name: string): Promise<Result<null>> {
@@ -302,7 +302,7 @@ export async function removeArrival(arrivalId: string): Promise<Result<null>> {
 
 // Letters from templates (HR).
 export async function addLetterExamples(): Promise<Result<string[]>> {
-  return act(actor => letters.addExamples(db(), actor, catalogue(isLocale(actor.locale) ? actor.locale : "en")));
+  return act(actor => letters.addExamples(db(), actor, catalogue(localeOf(actor.language))));
 }
 
 export async function saveLetter(letterId: string | null, input: { name: string; body: string }): Promise<Result<letters.Letter>> {

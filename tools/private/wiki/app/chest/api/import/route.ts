@@ -1,8 +1,9 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { catalogue, isLocale } from "../../../../lib/i18n/index.ts";
+import { catalogue } from "../../../../lib/i18n/index.ts";
 import { importFiles } from "../../../../lib/importer.ts";
 import { limits } from "../../../../lib/model.ts";
 import { currentMember } from "../../../../lib/session.ts";
@@ -24,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
       files.push({ name: entry.name, data: new Uint8Array(await entry.arrayBuffer()) });
     }
     if (files.length === 0) return answer({ error: "import_empty" }, 400);
-    const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
+    const t = catalogue(localeOf(actor.language));
     const space = form.get("space");
     const name = form.get("name");
     const result = await importFiles(db(), actor, {

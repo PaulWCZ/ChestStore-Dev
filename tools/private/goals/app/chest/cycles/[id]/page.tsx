@@ -5,7 +5,8 @@ import { CycleChip } from "../../../../components/cycle-chip.tsx";
 import { Back, Download } from "../../../../components/icons.tsx";
 import { PersonLine } from "../../../../components/person.tsx";
 import { Confidence, Progress } from "../../../../components/progress.tsx";
-import { can, readerOf } from "../../../../lib/access.ts";
+import { can } from "../../../../lib/access.ts";
+import { readerFor } from "../../../../lib/groups.ts";
 import { db } from "../../../../lib/db.ts";
 import { format } from "../../../../lib/i18n/index.ts";
 import { percent } from "../../../../lib/model.ts";
@@ -26,7 +27,7 @@ export default async function CycleReview({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const cycle = ctx.cycles.find(c => c.id === id);
   if (!cycle) notFound();
-  const objectives = await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member));
+  const objectives = await cycleObjectives(sql, cycle.id, ctx.clock, await readerFor(member));
   const who = await ctx.people(idsOf(objectives));
   const views = objectives.map(o => objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed: cycle.closed, teams: ctx.teams }));
   const cw = cycleWords(cycle, ctx.clock.today, t, locale);

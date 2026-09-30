@@ -367,8 +367,14 @@ with `booking.confirmed` or `booking.cancelled` plays Booking
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
-  the bell in each member's language.
+Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+
+- `member.language` and `chest.timeZone` — **SDK 0.3.0**: the interface
+  and the bell in each member's language; "today", a next step's day and
+  hour, "won this month" and the team report's weeks in the Chest's zone
+  (`lib/zone.ts`; the database's sessions are in it too, and the sample
+  data's days are `current_date`); a time shown to a member in their own
+  zone (`member.timeZone`).
 - `schedules` — **Proposal (studio)**, declared in `chest.proposals.json`
   (`morning`, weekdays 07:30): the morning digest, the tiles kept true
   overnight, the purge of removed history. On a Chest without it, the tile's

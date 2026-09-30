@@ -91,7 +91,7 @@ export default async function RegisterPage() {
             {reads.map(x => (
               <li key={x.id}>
                 <span>{format(t.record.actions[x.action], { fields: "" })}</span>
-                <span className="muted small">{nameOf(names.get(x.actor), locale)} · {formatDate(x.at, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="muted small">{nameOf(names.get(x.actor), locale)} · {formatDate(x.at, locale, member.timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
               </li>
             ))}
           </ul>

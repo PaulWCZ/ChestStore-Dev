@@ -19,7 +19,7 @@ let chest: FakeChest;
 const hermione = { ...hugo, id: "mbr_hermioneaaaaaaaaaaaaaaaaaa", firstName: "Hermione", lastName: "Granger", name: "Hermione Granger", locale: "en" as const };
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: [...everyone, hermione], capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: [...everyone, hermione], capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();

@@ -1,6 +1,6 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded } from "@argentic/chest-sdk/errors";
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
 import { AppError } from "./app-error.ts";
 import { answeredData } from "./answered.ts";
@@ -201,8 +201,8 @@ export async function sendHooks(sql: Query, form: Pick<Form, "id" | "anonymous">
   if (form.anonymous) return 0;
   const rows = await sql<{ id: string }[]>`select id from form_hooks where form_id = ${form.id} and disabled_at is null order by id`;
   if (rows.length === 0) return 0;
-  const team = chest.teamUrl();
-  const { text, data } = hookMessage(form, def, answer, chest.locale() ?? "en", team ? `${team}/chest/forms/${form.id}/answers/${answer.id}` : null);
+  const team = chest.teamUrl;
+  const { text, data } = hookMessage(form, def, answer, localeOf(chest.language), team ? `${team}/chest/forms/${form.id}/answers/${answer.id}` : null);
   try {
     const sent = await webhooks.send(rows.map(r => r.id), { event: "form.answered", text, data, key: [`answer:${answer.id}`, ...rows.map(r => r.id)].join(":") });
     for (const s of sent.skipped) {

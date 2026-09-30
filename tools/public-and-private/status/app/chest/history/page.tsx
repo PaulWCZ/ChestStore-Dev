@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { phaseOf, stepOf, titleIn } from "../../../components/incident-card.tsx";
 import { db } from "../../../lib/db.ts";
@@ -15,7 +15,7 @@ export default async function TeamHistory({ searchParams }: { searchParams: Prom
   const { member, locale, t } = v;
   const before = (await searchParams).before;
   const list = await allFor(db(), member, { limit: 50, before: before && /^\d{1,18}$/u.test(before) ? before : null });
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const now = new Date();
   return (
     <div className="narrow stack-l">

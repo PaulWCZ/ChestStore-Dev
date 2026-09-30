@@ -5,6 +5,7 @@ import { conflict, span } from "./booking-rules.ts";
 import { dayKey, enqueue } from "./calendar.ts";
 import type { TransactionSql } from "postgres";
 import type { Query, Sql } from "./db.ts";
+import { groupsOf } from "./groups.ts";
 import { addDays, id, isStatus, mondayOf, partMinutes, today, weekday, type Status } from "./model.ts";
 import { presenceHorizon } from "./presence.ts";
 import { rules } from "./settings.ts";
@@ -53,13 +54,14 @@ export async function setUsualWeek(sql: Sql, actor: Member | null, input: { days
   const deskId = input.deskId === null || input.deskId === undefined || input.deskId === "" ? null : id(input.deskId);
   if (input.lendDesk !== undefined && typeof input.lendDesk !== "boolean") throw new AppError("invalid");
   const lend = input.lendDesk as boolean | undefined;
+  const mine = deskId && !can(actor, "bookings.any") ? await groupsOf(actor) : [];
   return sql.begin(async tx => {
     if (deskId) {
       const [desk] = await tx<{ assigned_to: string | null; group_id: string | null }[]>`
         select d.assigned_to, a.group_id from desks d join areas a on a.id = d.area_id where d.id = ${deskId} and d.archived_at is null`;
       if (!desk) throw new AppError("not_found");
       if (desk.assigned_to !== null && desk.assigned_to !== actor.id) throw new AppError("assigned");
-      if (desk.group_id !== null && !can(actor, "bookings.any") && !actor.groups.includes(desk.group_id)) throw new AppError("group_only");
+      if (desk.group_id !== null && !can(actor, "bookings.any") && !mine.includes(desk.group_id)) throw new AppError("group_only");
     }
     await tx`delete from usual_week where member_id = ${actor.id}`;
     for (const [w, status] of days) await tx`insert into usual_week (member_id, weekday, status) values (${actor.id}, ${w}, ${status})`;

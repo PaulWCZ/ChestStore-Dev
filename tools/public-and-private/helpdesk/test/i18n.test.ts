@@ -26,11 +26,15 @@ test("every language has every word of English, none empty, with the same placeh
   }
 });
 
-test("the public part's language: the visitor's choice, then the browser's, then English", () => {
+test("the public part's language: the visitor's choice, then the browser's, then the Chest's, then English", () => {
   assert.equal(publicLocale("fr", "en-GB"), "fr");
   assert.equal(publicLocale(undefined, "de-DE,fr;q=0.8,en;q=0.5"), "fr");
   assert.equal(publicLocale("xx", "de"), "en");
   assert.equal(publicLocale(undefined, null), "en");
+  assert.equal(publicLocale(undefined, null, "fr"), "fr");
+  assert.equal(publicLocale(undefined, "de-DE", "fr"), "fr");
+  assert.equal(publicLocale(undefined, "en-GB", "fr"), "en");
+  assert.equal(publicLocale("en", "fr", "fr"), "en");
 });
 
 test("plurals and placeholders follow the language", () => {

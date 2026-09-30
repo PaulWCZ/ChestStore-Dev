@@ -1,4 +1,4 @@
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can, inAudience, roleOf, type Grouped } from "./access.ts";
 import { hasTool, haveTool } from "./audience.ts";
 import { chestGroups } from "./groups.ts";
@@ -199,7 +199,7 @@ export async function front(sql: Sql, actor: Member | null, options: { kind?: un
     where p.important and p.deleted_at is null and p.publish_at <= ${now} and p.publish_at > ${now}::timestamptz - make_interval(days => ${limits.confirmDays})
       and p.author <> ${who.id} and ${forPerson(sql, who)} and not ${confirmedBy(sql, who.id)}
     order by p.publish_at desc limit 20`;
-  const shown = (r: Row) => summary(r, now, who.locale);
+  const shown = (r: Row) => summary(r, now, localeOf(who.language));
   return {
     posts: rows.slice(0, limits.page).map(shown),
     more: rows.length > limits.page,
@@ -241,9 +241,9 @@ export async function post(sql: Sql, actor: Member | null, postId: unknown, opti
   const answers = await sql<{ member: string; answer: "yes" | "no" | "wait" }[]>`select member, answer from rsvps where post_id = ${key} order by at, member`;
   const [mine] = await sql<{ at: Date; version: number }[]>`select at, version from confirmations where post_id = ${key} and member = ${who.id}`;
   const cover = fileRows.find(f => f.role === "cover");
-  const shown = pick(row, who.locale);
+  const shown = pick(row, localeOf(who.language));
   return {
-    ...summary(row, now, who.locale),
+    ...summary(row, now, localeOf(who.language)),
     body: shown.body,
     own: { locale: row.locale, title: row.title, body: row.body },
     versions: row.versions,
@@ -330,7 +330,7 @@ async function read(input: PostInput, author: Member, zone: string, now: Date, k
   const kind = input.kind;
   const title = clean(input.title, limits.title);
   const body = clean(input.body ?? "", limits.body, { multiline: true, optional: true });
-  const locale = blank(input.locale) ? author.locale : input.locale;
+  const locale = blank(input.locale) ? localeOf(author.language) : input.locale;
   if (!isLocale(locale)) throw new AppError("invalid");
   const versions = readVersions(input.versions, locale);
   let publishAt: Date | null = null;
@@ -706,7 +706,7 @@ export async function confirmations(sql: Sql, actor: Member | null, postId: unkn
   const list = await sql<{ member: string; at: Date; version: number }[]>`select member, at, version from confirmations where post_id = ${row.id} order by at, member`;
   const shape = (c: (typeof list)[number]) => ({ member: c.member, at: c.at.toISOString(), version: c.version });
   return {
-    post: { id: String(row.id), title: pick(row, actor.locale).title, author: row.author, publishAt: row.publish_at.toISOString(), remindedAt: extra?.reminded_at?.toISOString() ?? null, groups: row.groups, people: row.people, textVersion: row.text_version, confirmFrom: row.confirm_from },
+    post: { id: String(row.id), title: pick(row, localeOf(actor.language)).title, author: row.author, publishAt: row.publish_at.toISOString(), remindedAt: extra?.reminded_at?.toISOString() ?? null, groups: row.groups, people: row.people, textVersion: row.text_version, confirmFrom: row.confirm_from },
     confirmed: list.filter(c => c.version >= row.confirm_from).map(shape),
     earlier: list.filter(c => c.version < row.confirm_from).map(shape),
   };
@@ -799,7 +799,7 @@ export async function eventFor(sql: Sql, actor: Member | null, postId: unknown):
   const who = reader(actor);
   const row = await visible(sql, who, postId);
   if (row.kind !== "event" || !row.event_day) throw new AppError("not_found");
-  const shown = pick(row, who.locale);
+  const shown = pick(row, localeOf(who.language));
   return { id: String(row.id), title: shown.title, body: shown.body, own: { locale: row.locale, title: row.title, body: row.body }, versions: row.versions, createdAt: row.created_at, event: { day: row.event_day, lastDay: row.event_last_day, start: row.event_start, end: row.event_end, place: row.place } };
 }
 

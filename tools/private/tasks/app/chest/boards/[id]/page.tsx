@@ -6,7 +6,7 @@ import { grid, monthOf, shift, timelineDays, timelineStart, timelineStep } from 
 import { boardCards, cardDetail } from "../../../../lib/cards.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { chestToday, zone } from "../../../../lib/clock.ts";
+import { chestToday } from "../../../../lib/clock.ts";
 import { format, formatDate, intl, plural, relative, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
 import { addDays, nextDue, type Repeat } from "../../../../lib/repeat.ts";
 import type { Member } from "@argentic/chest-sdk/member";
@@ -64,7 +64,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
     createdWhen: relative(detail.createdAt, locale, now),
     dueLabel: detail.due ? longDay(detail.due) + (detail.dueTime ? " · " + detail.dueTime : "") : null,
     startLabel: detail.start ? longDay(detail.start) : null,
-    thread: detail.thread.map(c => ({ ...c, when: relative(c.at, locale, now), date: formatDate(c.at, locale, { dateStyle: "long", timeStyle: "short", timeZone: zone() }) })),
+    thread: detail.thread.map(c => ({ ...c, when: relative(c.at, locale, now), date: formatDate(c.at, locale, { dateStyle: "long", timeStyle: "short", timeZone: member.timeZone }) })),
     // Dates in the history are written here, in the reader's language.
     history: detail.history.map(h => ({ ...h, when: relative(h.at, locale, now), data: { ...h.data, ...(typeof h.data["due"] === "string" ? { due: longDay(h.data["due"]) + (typeof h.data["time"] === "string" ? " · " + h.data["time"] : "") } : {}), ...(typeof h.data["start"] === "string" ? { start: longDay(h.data["start"]) } : {}) } })),
     files: detail.files.map(f => ({ ...f, when: relative(f.at, locale, now) })),

@@ -1,5 +1,5 @@
 import { PageHeader } from "@argentic/chest-ui/components";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { notFound } from "next/navigation";
 import { can } from "../../../../lib/access.ts";
 import { countryNames } from "../../../../lib/countries.ts";
@@ -20,7 +20,7 @@ export default async function NewJob({ searchParams }: { searchParams: Promise<R
   return (
     <div className="narrow">
       <PageHeader title={t.jobForm.newTitle} />
-      <JobForm job={null} {...(start ? { start: { title: start.title, team: start.team, description: start.description } } : {})} defaultLanguage={locale} defaultCountry={(await settings(db())).country} countryNames={countryNames(locale)} today={dayOf(new Date(), chest.timeZone())} t={{ jobForm: t.jobForm, facts: t.facts, errors: t.errors, date: t.dates }} />
+      <JobForm job={null} {...(start ? { start: { title: start.title, team: start.team, description: start.description } } : {})} defaultLanguage={locale} defaultCountry={(await settings(db())).country} countryNames={countryNames(locale)} today={dayOf(new Date(), chest.timeZone)} t={{ jobForm: t.jobForm, facts: t.facts, errors: t.errors, date: t.dates }} />
     </div>
   );
 }

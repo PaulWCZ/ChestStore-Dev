@@ -9,7 +9,8 @@ import { AppError } from "../lib/errors.ts";
 import * as fields from "../lib/fields.ts";
 import { en } from "../lib/i18n/en.ts";
 import { importTable, importVcards, recentImports, undoImport, unknownOwners } from "../lib/importers.ts";
-import { addDays, today } from "../lib/model.ts";
+import { addDays } from "../lib/model.ts";
+import { today } from "../lib/zone.ts";
 import { guessMapping, ownersIn, readTable } from "../lib/parse-import.ts";
 import * as steps from "../lib/steps.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -30,7 +31,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();

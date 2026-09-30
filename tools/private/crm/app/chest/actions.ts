@@ -285,7 +285,7 @@ type ImportOptions = { fileName?: string; ownerFallback?: string; fillEmpty?: bo
 export async function importTable(kind: string, text: string, mapping: string[], options: ImportOptions = {}): Promise<Result<ImportReport>> {
   return act(async actor => {
     const { importTable: run } = await import("../../lib/importers.ts");
-    const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
+    const t = catalogue(isLocale(actor.language) ? actor.language : "en");
     const report = await run(db(), actor, kind, text, mapping, t.stages, options);
     await reconcile(db());
     return report;

@@ -1,11 +1,11 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Query } from "./db.ts";
 
 // What the tool remembers about its Chest: the public address seen last
 // (for links in emails sent outside a request, when the Chest does not
-// say it — chest.publicUrl()), and whether the Chest could send email the
+// say it — chest.publicUrl), and whether the Chest could send email the
 // last time it tried.
 
 async function read<T>(sql: Query, key: string): Promise<T | null> {
@@ -17,17 +17,17 @@ async function write(sql: Query, key: string, value: unknown): Promise<void> {
   await sql`insert into settings (key, value) values (${key}, ${sql.json(value as never)}) on conflict (key) do update set value = excluded.value`;
 }
 
-// The company's name, as the Chest gives it ("" when it has none).
+// The company's name, as the Chest gives it (chest.organization.name).
 export function company(): string {
-  return chest.company();
+  return chest.organization.name;
 }
 
 export async function publicOrigin(sql: Query): Promise<string> {
-  return chest.publicUrl() ?? (await read<string>(sql, "public_origin")) ?? "";
+  return chest.publicUrl ?? (await read<string>(sql, "public_origin")) ?? "";
 }
 
 export async function rememberPublicOrigin(sql: Query, origin: string | null): Promise<void> {
-  if (!origin || chest.publicUrl()) return;
+  if (!origin || chest.publicUrl) return;
   if ((await read<string>(sql, "public_origin")) !== origin) await write(sql, "public_origin", origin);
 }
 

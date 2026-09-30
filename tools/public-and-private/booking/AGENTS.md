@@ -8,6 +8,8 @@ what must not break.
 | Path | What it is |
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `host`; public part) and the proposals it uses (`mail`, `schedules`, `calendar`, `emits`, `receives`) |
+| `vendor/` | SDK 0.3.0 + studio proposals (0.3.1-studio.1) and the UI kit, packed copies |
+| `lib/session.ts` | Who asks (`member()`), the language of `/chest` (the member's `language`) and of a public page (the visitor's, else the Chest's `chest.language`, else English; a host's page then keeps to the host's languages) |
 | `lib/access.ts` | Who may do what |
 | `lib/model.ts` | Bounds, slugs, email and phone checks, colours, kinds — pure |
 | `lib/zone.ts` | Wall-clock time in a time zone and back (DST gaps and overlaps) — pure, tested |

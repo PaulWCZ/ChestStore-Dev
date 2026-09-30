@@ -407,7 +407,7 @@ export const fr: Catalogue = {
     addPerson: "Ajouter quelqu’un",
     removePerson: "Retirer {name}",
     groups: "Groupes",
-    noGroups: "Aucun groupe ne donne accès à Tâches.",
+    noGroups: "Votre Chest n’a pas encore de groupe.",
     labels: "Étiquettes",
     addLabel: "Ajouter une étiquette",
     removeLabel: "Supprimer l’étiquette",

@@ -1,11 +1,11 @@
-import * as chest from "@argentic/chest-sdk/chest";
-import { member } from "@argentic/chest-sdk/member";
+import { chest } from "@argentic/chest-sdk/chest";
+import { localeOf, member } from "@argentic/chest-sdk/member";
 import { allAnswers, anonymousTexts } from "../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../lib/db.ts";
 import { exportRows, textRows } from "../../../../../../lib/export.ts";
 import { toCsv } from "../../../../../../lib/csv.ts";
-import { catalogue, isLocale } from "../../../../../../lib/i18n/index.ts";
+import { catalogue } from "../../../../../../lib/i18n/index.ts";
 import { people } from "../../../../../../lib/people.ts";
 
 // The answers as CSV, for a spreadsheet: in the member's language (headers,
@@ -15,14 +15,14 @@ import { people } from "../../../../../../lib/people.ts";
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const who = member(request);
   if (!who) return new Response(null, { status: 401 });
-  const locale = isLocale(who.locale) ? who.locale : "en";
+  const locale = localeOf(who.language);
   try {
     const sql = db();
     const id = (await params).id;
     const { form, answers, versions } = await allAnswers(sql, who, id, 100000);
     const names = await people(answers.flatMap(a => (a.respondent ? [a.respondent] : [])));
     const t = catalogue(locale);
-    const rows = exportRows({ form, answers, versions, t, locale, zone: chest.timeZone(), names });
+    const rows = exportRows({ form, answers, versions, t, locale, zone: chest.timeZone, names });
     if (form.anonymous) rows.push(...textRows((await anonymousTexts(sql, who, id)).texts));
     return new Response(toCsv(rows, t.csv.separator === ";" ? ";" : ","), {
       headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${fileName(form.draft.title)}.csv"`, "Cache-Control": "no-store" },

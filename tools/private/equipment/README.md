@@ -358,9 +358,11 @@ member may not see at all (someone else's item or sheet) is "not found".
 
 ## Needs from the SDK
 
-All in `vendor/` (the studio's working copy, `0.3.0-studio.15`):
+All in `vendor/` (the studio's working copy: SDK 0.3.0 + studio proposals
+(0.3.1-studio.1)):
 
-- `member.locale` — the interface and the bell in each member's language.
+- `member.language` (0.3.0) — the interface and the bell in each member's
+  language.
 - `schedules` — the Monday "ending soon" word, the nightly Intune read,
   and `returns` (People told again what the Chest could not take yet)
   (`chest.proposals.json`, `app/chest-jobs/[name]/route.ts`). Without it,
@@ -374,9 +376,12 @@ All in `vendor/` (the studio's working copy, `0.3.0-studio.15`):
   only (`test/intune.test.ts`).
 - `members.matchEmails` (studio.15) — which member each Intune device's
   address is, without `members.email`.
-- `chest` — `today()` and `timeZone()` for "ends within 60 days",
-  `currency()` for prices, `company()` on the labels, `teamUrl()` for the QR
-  codes' links (without it, the host the request came to).
+- `chest` — `chest.today()` and `chest.timeZone` (0.3.0) for "ends within
+  60 days" and every day the tool writes; the database's `current_date`
+  (the seed's too) is the same day, since the Chest puts the sessions in
+  its zone. `chest.organization.name` (0.3.0) on the labels and sheets;
+  `chest.currency` for prices and `chest.teamUrl` for the QR codes' links
+  (studio proposals; without the latter, the host the request came to).
 - `translations` in `chest.proposals.json` — the tile's French title.
 - **Events between tools** — receives `people.leaving`,
   `people.leaving_cancelled`; emits `equipment.returned` (see "With the

@@ -7,7 +7,9 @@ import type { Query, Sql } from "./db.ts";
 import { expensesByIds, type Decision } from "./expenses.ts";
 import { catalogue, format, type Locale } from "./i18n/index.ts";
 import { needsAddress, sepaCountry } from "./iban.ts";
-import { day, today } from "./model.ts";
+import { chest } from "@argentic/chest-sdk/chest";
+import { day } from "./model.ts";
+import { today } from "./today.ts";
 import { nameOf, people } from "./people.ts";
 import { pain001 } from "./sepa.ts";
 import { settings } from "./settings.ts";
@@ -191,7 +193,7 @@ export async function runFile(sql: Query, actor: Member | null, runValue: unknow
       text: remittance(bankLocale, refs),
     };
   });
-  const xml = pain001({ messageId: row.message_id, createdAt: row.created_at, payer: { name: file.payer.name, iban: openIban(file.payer.iban, "company"), bic: file.payer.bic, address: file.payer.address ?? null }, executionDate: row.execution_date, transfers });
+  const xml = pain001({ messageId: row.message_id, createdAt: row.created_at, payer: { name: file.payer.name, iban: openIban(file.payer.iban, "company"), bic: file.payer.bic, address: file.payer.address ?? null }, executionDate: row.execution_date, transfers }, chest.timeZone);
   return { xml, fileName: `${row.message_id}.xml` };
 }
 

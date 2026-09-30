@@ -10,7 +10,7 @@ import { addDays, addMonths } from "../lib/calendar.ts";
 import { en } from "../lib/i18n/en.ts";
 import { fr } from "../lib/i18n/fr.ts";
 import { planImport, planLeave, type KindNames } from "../lib/import.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import * as requests from "../lib/requests.ts";
 import { saveType, types } from "../lib/rules.ts";
 import { setupSteps } from "../lib/setup.ts";

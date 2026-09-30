@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -64,6 +65,21 @@ export async function company(sql: Query): Promise<Company> {
   // company comes back (every page asks for it), as on the first day.
   if (!row) [row] = await sql<Row[]>`insert into company (id) values (1) on conflict (id) do update set id = 1 returning *`;
   return toCompany(row!);
+}
+
+// The name the company goes by on a page or in an email's greeting: the
+// one its admin entered here (trade name, else legal name), else — before
+// the settings are filled in — the Chest's organization as its owner wrote
+// it (chest.organization.name), else "". A document prints the seller it
+// was numbered with (its legal name, lib/pdf/document.ts, Factur-X), never
+// this fallback: numbering needs the legal details (missing(), below).
+export function goesBy(c: Pick<Company, "tradeName" | "legalName">): string {
+  if (c.tradeName || c.legalName) return c.tradeName || c.legalName;
+  try {
+    return chest.organization.name;
+  } catch {
+    return "";
+  }
 }
 
 // What must be filled in before a document can carry the company's name:

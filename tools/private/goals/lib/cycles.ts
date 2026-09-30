@@ -1,4 +1,4 @@
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -19,7 +19,7 @@ function manage(actor: Member | null): Member {
 // language).
 export async function readCycle(sql: Query, actor: Member | null, cycleId: unknown): Promise<Cycle> {
   if (!can(actor, "read")) throw new AppError("forbidden");
-  const cycle = await cycleById(sql, id(cycleId), actor?.locale ?? null);
+  const cycle = await cycleById(sql, id(cycleId), actor ? localeOf(actor.language) : null);
   if (!cycle) throw new AppError("not_found");
   return cycle;
 }

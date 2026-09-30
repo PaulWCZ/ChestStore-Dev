@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { categoryCounts } from "../../../lib/categories.ts";
@@ -33,7 +33,7 @@ export default async function Settings() {
         t={{ settings: t.settings, icons: t.icons, errors: t.errors, common: t.common }}
         locale={locale}
       />
-      <p className="small muted">{format(t.settings.currency, { currency: chest.currency() })}</p>
+      <p className="small muted">{format(t.settings.currency, { currency: chest.currency })}</p>
       <RulesView body={charter ? charterText(charter, t) : ""} t={{ settings: t.settings, errors: t.errors, common: t.common }} />
     </div>
   );

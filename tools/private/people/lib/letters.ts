@@ -1,5 +1,5 @@
-import * as chest from "@argentic/chest-sdk/chest";
-import type { Member } from "@argentic/chest-sdk/member";
+import { chest } from "@argentic/chest-sdk/chest";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can, recordAccess } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -140,7 +140,7 @@ export async function printLetter(sql: Query, actor: Member | null, recordId: un
   const found = await record(sql, who, recordId);
   if (recordAccess(who, { memberId: found.record.memberId }) !== "edit") throw new AppError("not_found");
   const l = await letter(sql, who, letterId);
-  const locale = who.locale === "fr" ? "fr" : "en";
+  const locale = localeOf(who.language);
   const t = catalogue(locale);
   const r = found.record;
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" }) : "");
@@ -148,7 +148,7 @@ export async function printLetter(sql: Query, actor: Member | null, recordId: un
   const values: Partial<Record<MergeField, string>> = {
     name: r.legalName, employeeNumber: r.employeeNumber, birthDate: day(r.birthDate), nationality: r.nationality, job: r.job, qualification: r.qualification,
     contract: t.record.contracts[r.contract], workingTime: t.record.workingTimes[r.workingTime].toLocaleLowerCase(locale), firstDay: day(r.startDate), lastDay: day(r.endDate),
-    address: r.address, company: chest.company(), today: day(today), signer: who.name,
+    address: r.address, company: chest.organization.name, today: day(today), signer: who.name,
   };
   const done = fill(words.body, values);
   await note(sql, who, "letter_printed", { recordId: r.id, fields: [words.name] });

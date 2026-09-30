@@ -1,11 +1,11 @@
 import * as calendar from "@argentic/chest-sdk/calendar";
-import * as chest from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import { addDays } from "./calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, locales } from "./i18n/index.ts";
-import { today } from "./model.ts";
+import { today } from "./today.ts";
 import { instants, wholeDays } from "./spans.ts";
+import { zonesOf, type ZoneOf } from "./zones.ts";
 
 // My approved leave in my calendar (Proposal (studio): the Chest's calendar
 // bridge, chest.proposals.json "calendar"). Each approved absence — asked
@@ -19,7 +19,7 @@ import { instants, wholeDays } from "./spans.ts";
 // colleagues, or shown on a screen — and the event is CLASS:PRIVATE, so a
 // calendar shared with colleagues shows the time as busy without its word.
 // Whole days are whole days; a half day is noon to midnight or midnight to
-// noon, in the Chest's time zone (lib/spans.ts). The event opens the
+// noon, in the zone the person works in (lib/zones.ts, lib/spans.ts). The event opens the
 // request (/chest/requests/<id>), which only the person, their approvers
 // and HR may read.
 //
@@ -40,7 +40,12 @@ export const feedPage = calendar.page;
 const eventKey = (id: string) => `leave:${id}`;
 
 export type Row = { id: string; member_id: string; start: string; start_half: "am" | "pm"; end: string; end_half: "am" | "pm" };
-const raw = (r: Row) => [r.member_id, r.start, r.start_half, r.end, r.end_half].join("|");
+// What was put: a half day's hours also depend on the person's zone, so a
+// new zone puts it again; whole days are the same everywhere.
+const raw = (r: Row, zone: string) => {
+  const span = [r.member_id, r.start, r.start_half, r.end, r.end_half];
+  return (wholeDays({ start: r.start, startHalf: r.start_half, end: r.end, endHalf: r.end_half }) ? span : [...span, zone]).join("|");
+};
 
 export type State = "unknown" | "on" | "off";
 export async function state(sql: Query): Promise<State> {
@@ -56,7 +61,7 @@ async function remember(sql: Query, value: "on" | "off"): Promise<void> {
 // two years ahead. Only absences: a kind that is not one (remote work,
 // training: away = false) is not "Off".
 async function eligible(sql: Query, now: Date): Promise<Row[]> {
-  const day = today(now, chest.timeZone());
+  const day = today(now);
   return sql<Row[]>`
     select r.id::text, r.member_id, to_char(r.start_date, 'YYYY-MM-DD') as start, r.start_half, to_char(r.end_date, 'YYYY-MM-DD') as end, r.end_half
     from requests r join leave_types t on t.id = r.type_id
@@ -84,23 +89,25 @@ async function refused(sql: Query, error: unknown): Promise<"skip"> {
   throw new Stop();
 }
 
-async function kept(sql: Query, r: Row): Promise<void> {
-  await sql`insert into calendar_events (key, raw) values (${eventKey(r.id)}, ${raw(r)})
+async function kept(sql: Query, r: Row, zone: string): Promise<void> {
+  await sql`insert into calendar_events (key, raw) values (${eventKey(r.id)}, ${raw(r, zone)})
     on conflict (key) do update set raw = excluded.raw, put_at = now()`;
 }
 
 // putAll puts the rows, 100 a call, and records each event the Chest took.
 // The Chest answers each event (studio.16): one it refuses (a wrong date,
 // a new key past its 5,000 events) is never recorded as put — it is tried
-// again at the next run — while the others of its batch are. Exported for
-// its test.
-export async function putAll(sql: Query, rows: Row[], timeZone: string): Promise<number> {
+// again at the next run — while the others of its batch are. Each person's
+// half days in their own zone (a zone for all: a test). Exported for its
+// test.
+export async function putAll(sql: Query, rows: Row[], zones: ZoneOf | string): Promise<number> {
+  const zoneOf: ZoneOf = typeof zones === "string" ? () => zones : zones;
   let count = 0;
   for (let i = 0; i < rows.length; i += calendar.limits.perBatch) {
     const batch = rows.slice(i, i + calendar.limits.perBatch);
     let results: calendar.PutResult[];
     try {
-      results = await calendar.putMany(batch.map(r => eventOf(r, timeZone)));
+      results = await calendar.putMany(batch.map(r => eventOf(r, zoneOf(r.member_id))));
     } catch (error) {
       // About the call, not an event: no calendar, slow down, unreachable.
       await refused(sql, error);
@@ -113,7 +120,7 @@ export async function putAll(sql: Query, rows: Row[], timeZone: string): Promise
         console.warn(`calendar: an event not put: ${result.reason}`);
         continue;
       }
-      await kept(sql, r);
+      await kept(sql, r, zoneOf(r.member_id));
       count++;
     }
     await remember(sql, "on");
@@ -146,8 +153,9 @@ export async function sync(sql: Sql, options: { max?: number; recheck?: boolean;
       await sql`delete from calendar_events where key = ${key}`;
       done.removed++;
     }
-    const todo = (s?.calendar === "on" ? rows.filter(r => known.get(eventKey(r.id)) !== raw(r)) : rows).slice(0, Math.max(0, max - done.removed));
-    done.put = await putAll(sql, todo, chest.timeZone());
+    const zoneOf = await zonesOf(rows.map(r => r.member_id));
+    const todo = (s?.calendar === "on" ? rows.filter(r => known.get(eventKey(r.id)) !== raw(r, zoneOf(r.member_id))) : rows).slice(0, Math.max(0, max - done.removed));
+    done.put = await putAll(sql, todo, zoneOf);
   } catch (error) {
     if (!(error instanceof Stop)) console.error("calendar: not in line", error instanceof Error ? error.name : "error");
   }

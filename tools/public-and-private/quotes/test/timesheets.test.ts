@@ -20,7 +20,7 @@ let chest: FakeChest;
 // The Chest this tool runs on; `emits: []` plays one that refuses the
 // event (not approved yet, or down), as the SDK's publish then throws.
 const chestWith = (emits: string[]) => fakeChest({
-  tool: "quotes", members: everyone, emits, tools: { timesheets: true }, settings: { company: "Atelier Martin", currency: "EUR", locale: "fr" },
+  tool: "quotes", members: everyone, emits, tools: { timesheets: true }, chest: { organization: "Atelier Martin", currency: "EUR", language: "fr" },
   schedules: [{ name: "followup", cron: "10 7 * * *" }],
 });
 before(async () => {

@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
 import { FollowBadge } from "../../../../../components/state-badge.tsx";
@@ -25,7 +25,7 @@ export default async function SentPage({ params }: { params: Promise<{ answer: s
   const { answer, slug } = found;
   const def = isLanguage(answer.language) ? localize(found.definition, answer.language) : found.definition;
   const words = { yes: t.respond.yes, no: t.respond.no, other: t.respond.other };
-  const when = answer.createdAt ? formatDate(answer.createdAt, locale, chest.timeZone(), { dateStyle: "full", timeStyle: "short" }) : "";
+  const when = answer.createdAt ? formatDate(answer.createdAt, locale, chest.timeZone, { dateStyle: "full", timeStyle: "short" }) : "";
   return (
     <div className="answer-page">
       <a className="back-link" href="/chest"><Back />{t.shell.home}</a>

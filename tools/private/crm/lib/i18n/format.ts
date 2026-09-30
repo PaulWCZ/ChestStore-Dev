@@ -20,11 +20,12 @@ export function plural(forms: { readonly one: string; readonly other: string; re
   return format(form, { count: new Intl.NumberFormat(intl(locale)).format(n), ...values });
 }
 
-// Dates in the reader's language and the Chest's time zone (Europe/Paris
-// unless the tool is told otherwise — Proposal: a Chest time zone).
-export const timeZone = "Europe/Paris";
-export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
-  return new Intl.DateTimeFormat(intl(locale), { timeZone, ...options }).format(typeof value === "string" ? new Date(value) : value);
+// An instant in the reader's language and in a zone the caller names: the
+// reader's (member.timeZone) for what is shown to them, the Chest's
+// (lib/zone.ts) for what is the company's.
+export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions & { timeZone: string }): string {
+  const shape: Intl.DateTimeFormatOptions = Object.keys(options).some(k => k !== "timeZone") ? {} : { day: "numeric", month: "short", year: "numeric" };
+  return new Intl.DateTimeFormat(intl(locale), { ...shape, ...options }).format(typeof value === "string" ? new Date(value) : value);
 }
 
 // relative says "3 minutes ago", "yesterday"… in that language.

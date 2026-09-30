@@ -19,18 +19,18 @@ test("who may create what: company for admins; a team's for its group's members 
   const sales = { groupId: groups.sales, archived: false };
   const workshop = { groupId: null, archived: false };
   const old = { groupId: null, archived: true };
-  assert.equal(mayCreate(asMember(camille), "company", null, false), true);
-  assert.equal(mayCreate(asMember(hugo), "company", null, false), false);
-  assert.equal(mayCreate(asMember(hugo), "team", sales, false), true);
-  assert.equal(mayCreate(asMember(sofia), "team", sales, false), false);
-  assert.equal(mayCreate(asMember(camille), "team", sales, false), true);
-  assert.equal(mayCreate(asMember(sofia), "team", workshop, false), true);
-  assert.equal(mayCreate(asMember(sofia), "team", old, false), false);
-  assert.equal(mayCreate(asMember(hugo), "team", null, false), false);
-  assert.equal(mayCreate(asMember(hugo), "personal", null, false), false);
-  assert.equal(mayCreate(asMember(hugo), "personal", null, true), true);
-  assert.equal(mayCreate(asMember(nora), "team", workshop, true), false);
-  assert.equal(mayCreate(null, "team", workshop, true), false);
+  assert.equal(mayCreate(asMember(camille), "company", null, false, camille.groups ?? []), true);
+  assert.equal(mayCreate(asMember(hugo), "company", null, false, hugo.groups ?? []), false);
+  assert.equal(mayCreate(asMember(hugo), "team", sales, false, hugo.groups ?? []), true);
+  assert.equal(mayCreate(asMember(sofia), "team", sales, false, sofia.groups ?? []), false);
+  assert.equal(mayCreate(asMember(camille), "team", sales, false, camille.groups ?? []), true);
+  assert.equal(mayCreate(asMember(sofia), "team", workshop, false, sofia.groups ?? []), true);
+  assert.equal(mayCreate(asMember(sofia), "team", old, false, sofia.groups ?? []), false);
+  assert.equal(mayCreate(asMember(hugo), "team", null, false, hugo.groups ?? []), false);
+  assert.equal(mayCreate(asMember(hugo), "personal", null, false, hugo.groups ?? []), false);
+  assert.equal(mayCreate(asMember(hugo), "personal", null, true, hugo.groups ?? []), true);
+  assert.equal(mayCreate(asMember(nora), "team", workshop, true, nora.groups ?? []), false);
+  assert.equal(mayCreate(null, "team", workshop, true, []), false);
 });
 
 test("an objective is changed by its owner or an admin; a key result checked in by its owner or an admin", () => {

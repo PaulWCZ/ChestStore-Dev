@@ -20,7 +20,7 @@ import { matchable } from "../../lib/directory.ts";
 import * as imports from "../../lib/import.ts";
 import * as example from "../../lib/example.ts";
 import * as calendarImport from "../../lib/calendar-import.ts";
-import { locale as chestLocale } from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
@@ -207,8 +207,8 @@ export async function setAreaGroup(areaId: string, groupId: string | null): Prom
 // reader their own).
 export async function addExample(): Promise<Result<{ id: string }>> {
   return act(actor => {
-    const mine = catalogue(isLocale(actor.locale) ? actor.locale : "en");
-    const given = chestLocale();
+    const mine = catalogue(isLocale(actor.language) ? actor.language : "en");
+    const given = chest.language;
     const company = catalogue(isLocale(given) ? given : "en");
     return example.addExample(db(), actor, { office: mine.places.example.office, presets: company.presets });
   });

@@ -1,6 +1,6 @@
 "use server";
 
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -47,8 +47,8 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
 }
 
 const defaults = (): documents.Defaults => {
-  const locale = chest.locale();
-  return { today: chest.today(), locale: isLocale(locale) ? (locale as Locale) : "en", currency: chest.currency() };
+  const locale = chest.language;
+  return { today: chest.today(), locale: isLocale(locale) ? (locale as Locale) : "en", currency: chest.currency };
 };
 
 // --- Documents ----------------------------------------------------------------
@@ -165,7 +165,7 @@ export async function messageFor(id: string, kind: sending.Kind): Promise<Result
     const c = await company.company(sql);
     const upcoming = full.number === null ? await documents.upcomingNumber(sql, full.type, today) : undefined;
     const before = full.type === "quote" && full.version > 1 ? (await versions.versionsOf(sql, actor, full.id))[0] ?? null : null;
-    const message = sending.draftMessage(full, kind, { company: c.tradeName || c.legalName, sender: actor?.name ?? "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "", replaces: before?.issueDate ?? null, ...(upcoming ? { upcoming } : {}) });
+    const message = sending.draftMessage(full, kind, { company: company.goesBy(c), sender: actor?.name ?? "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "", replaces: before?.issueDate ?? null, ...(upcoming ? { upcoming } : {}) });
     let line: string | undefined;
     if (full.type === "quote" && kind === "send") {
       const link = await online.liveLink(sql, full.id);
@@ -227,7 +227,7 @@ export async function restorePayment(paymentId: string): Promise<Result> {
 // readBank reads the statement's text (the columns chosen) against the
 // invoices still to collect: each payment received with its match.
 export async function readBank(text: string, mapping: string[]): Promise<Result<bank.Reading>> {
-  return attempt(async () => bank.readBank(db(), await currentMember(), text, mapping, chest.today(), chest.currency()));
+  return attempt(async () => bank.readBank(db(), await currentMember(), text, mapping, chest.today(), chest.currency));
 }
 
 // recordBank records a line of the statement as the payment of an invoice.
@@ -261,11 +261,11 @@ export async function archiveClient(id: string, archived: boolean): Promise<Resu
 }
 
 export async function addItem(input: items.ItemInput): Promise<Result<items.Item>> {
-  return act(async actor => items.addItem(db(), actor, input, chest.currency()));
+  return act(async actor => items.addItem(db(), actor, input, chest.currency));
 }
 
 export async function updateItem(id: string, input: items.ItemInput): Promise<Result<items.Item>> {
-  return act(async actor => items.updateItem(db(), actor, id, input, chest.currency()));
+  return act(async actor => items.updateItem(db(), actor, id, input, chest.currency));
 }
 
 export async function archiveItem(id: string, archived: boolean): Promise<Result> {
@@ -276,8 +276,8 @@ export async function archiveItem(id: string, archived: boolean): Promise<Result
 // catalogue; the file is read again on the server.
 export async function importFile(kind: string, text: string, mapping: (string | null)[]): Promise<Result<importers.ImportReport>> {
   return act(async actor => {
-    const locale = chest.locale();
-    const report = await importers.importTable(db(), actor, kind, text, mapping, { currency: chest.currency(), defaultLanguage: isLocale(locale) ? locale : "en", today: chest.today() });
+    const locale = chest.language;
+    const report = await importers.importTable(db(), actor, kind, text, mapping, { currency: chest.currency, defaultLanguage: isLocale(locale) ? locale : "en", today: chest.today() });
     // Imported invoices may be overdue already: billing's count follows.
     if (kind === "invoices" && report.created > 0) await refreshBadges(db(), chest.today());
     return report;

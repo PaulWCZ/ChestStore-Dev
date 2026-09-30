@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as visitors from "@argentic/chest-sdk/visitors";
 import type { Metadata } from "next";
@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Check, Close, Download, Alert } from "../../../components/icons.tsx";
 import { PublicShell } from "../../../components/public-shell.tsx";
 import { QuoteSheet } from "../../../components/quote-sheet.tsx";
-import { company } from "../../../lib/company.ts";
+import { company, goesBy } from "../../../lib/company.ts";
 import { db } from "../../../lib/db.ts";
 import { catalogue, format, formatDate, formatDay } from "../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../lib/money.ts";
@@ -34,7 +34,7 @@ export default async function QuoteLinkPage({ params, searchParams }: { params: 
   const self = `/q/${secret}`;
   const opened = await openLink(sql, secret, today);
   const c = await company(sql);
-  const companyName = opened?.full.seller ? opened.full.seller.tradeName || opened.full.seller.legalName : c.tradeName || c.legalName;
+  const companyName = opened?.full.seller ? opened.full.seller.tradeName || opened.full.seller.legalName : goesBy(c);
   const o = t.online;
   const notice = (title: string, body: string, more?: ReactNode) => (
     <PublicShell company={companyName} locale={locale} label={t.public.language} back={self}>
@@ -60,7 +60,7 @@ export default async function QuoteLinkPage({ params, searchParams }: { params: 
 
   const money = (minor: number) => formatMoney(minor, full.currency, locale);
   const longDay = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   // The PDF of this version, kept: its fingerprint goes with the answer.
   let shown: string | null = null;
   try {

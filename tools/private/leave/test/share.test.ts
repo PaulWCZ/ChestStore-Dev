@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
 import { addDays } from "../lib/calendar.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import * as requests from "../lib/requests.ts";
 import { types } from "../lib/rules.ts";
 import * as share from "../lib/share.ts";

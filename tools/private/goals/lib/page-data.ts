@@ -1,4 +1,4 @@
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { cycles as allCycles, type Cycle } from "./read.ts";
 import type { Query } from "./db.ts";
 import { format, formatDay, plural, type Catalogue, type Locale } from "./i18n/index.ts";
@@ -12,7 +12,7 @@ import { zone } from "./time.ts";
 // Chest's zone), the cycles, the teams' names, and a way to name people.
 export async function context(sql: Query, actor: Member) {
   const clock = clockAt(new Date());
-  const [cycleList, teamList] = await Promise.all([allCycles(sql, actor.locale), teams(sql, { archived: true })]);
+  const [cycleList, teamList] = await Promise.all([allCycles(sql, localeOf(actor.language)), teams(sql, { archived: true })]);
   return {
     clock,
     zone: zone(),

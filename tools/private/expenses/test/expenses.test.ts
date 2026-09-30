@@ -3,7 +3,7 @@ import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError, type ErrorCode } from "../lib/app-error.ts";
 import * as expenses from "../lib/expenses.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/today.ts";
 import { grant } from "../lib/receipts.ts";
 import * as settings from "../lib/settings.ts";
 import * as tell from "../lib/tell.ts";

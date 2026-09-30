@@ -18,7 +18,7 @@ let website = "", shop = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], checks: { max: 10 } });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"], checks: { max: 10 } });
 });
 after(async () => {
   await chest.close();
@@ -67,7 +67,7 @@ test("addresses and settings are bounded; only editors may set them", async () =
 
 test("a Chest that cannot run checks: the addresses are kept, the tool says so and works on", async () => {
   const { sql } = database;
-  const bare = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     await saveWatches(sql, editor, [{ componentId: website, url: "https://atelier-martin.fr/" }]);
     assert.equal(await syncChest(sql), "unavailable");

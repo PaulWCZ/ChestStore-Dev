@@ -29,7 +29,7 @@ export default async function Home() {
   const d = dates(locale, zone);
   // How many each poll I asked asks: the Chest's members, read once.
   const mineSent = data.mine.filter(c => c.status !== "draft");
-  const team = mineSent.length > 0 ? (await everyone()).people : [];
+  const team = mineSent.length > 0 ? (await everyone(mineSent.flatMap(c => c.groups))).people : [];
   const total = (c: Card) => team.filter(p => inAudience(p, c)).length;
   const rules = await policy(sql);
   // Whoever may start a poll: "New poll" at the top of the page (the

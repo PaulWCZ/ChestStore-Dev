@@ -29,7 +29,7 @@ beforeEach(() => {
   chest.held.length = 0;
 });
 
-const as = (...people: typeof tom[]) => people.map(p => ({ id: p.id, locale: p.locale ?? "en" }));
+const as = (...people: typeof tom[]) => people.map(p => ({ id: p.id, language: p.language ?? "en" }));
 const letter = () => ({ letter: { subject: "Please read: Fire drill", lines: ["Fire drill"] }, path: "/chest/pages/8", why: "why" });
 
 test("a person who turned Chest email off is not emailed; one on a daily digest waits for it", async () => {

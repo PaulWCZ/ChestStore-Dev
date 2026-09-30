@@ -1,8 +1,8 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
+import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { asked } from "./access.ts";
-import { chestGroups } from "./groups.ts";
+import { chestGroups, groupMembers, withGroupsOf } from "./groups.ts";
 
 // Who a poll is put to: the members who have Polls with a role — all of
 // them, or those of the poll's groups. Read from the Chest when needed,
@@ -18,15 +18,23 @@ export const maxPages = 20;
 export type Page = { people: Person[]; next: string | null };
 
 // page reads one page of members after a cursor (null: from the start),
-// keeping those the poll asks.
-export async function page(audience: Audience, after: string | null): Promise<Page> {
+// keeping those the poll asks. A member's groups are all of theirs among
+// the poll's (the Chest names only those that give Polls): `known` is who
+// is in each of them, read once for many pages (lib/groups.ts).
+export async function page(audience: Audience, after: string | null, known?: Map<string, Set<string>> | null): Promise<Page> {
   const answer = await members.list({ limit: pageSize, ...(after ? { after } : {}) });
+  const listed = answer.members.map(m => ({ id: m.id, name: m.name, locale: localeOf(m.language), role: m.role, groups: [...m.groups] }));
+  const withGroups = audience.everyone ? listed : await withGroupsOf(listed, audience.groups, known);
   return {
-    people: answer.members
-      .map(m => ({ id: m.id, name: m.name, locale: m.locale, role: m.role, groups: m.groups }))
-      .filter(p => asked({ ...p, isAdmin: false }, audience)),
+    people: withGroups.filter(p => asked({ ...p, isAdmin: false }, audience)),
     next: answer.next,
   };
+}
+
+// audienceGroups: who is in each of the poll's groups, read once before
+// reading its members page after page (null: the Chest cannot say).
+export async function audienceGroups(audience: Audience): Promise<Map<string, Set<string>> | null> {
+  return audience.everyone || audience.groups.length === 0 ? new Map() : groupMembers(audience.groups);
 }
 
 // all reads every page; complete is false when the Chest could not be asked
@@ -35,8 +43,9 @@ export async function all(audience: Audience): Promise<{ people: Person[]; compl
   const people: Person[] = [];
   let after: string | null = null;
   try {
+    const known = await audienceGroups(audience);
     for (let i = 0; i < maxPages; i++) {
-      const p: Page = await page(audience, after);
+      const p: Page = await page(audience, after, known);
       people.push(...p.people);
       if (!p.next) return { people, complete: true };
       after = p.next;
@@ -49,9 +58,11 @@ export async function all(audience: Audience): Promise<{ people: Person[]; compl
 }
 
 // everyone: all who have the tool with a role, once, for a page that counts
-// several polls' audiences.
-export async function everyone(): Promise<{ people: Person[]; complete: boolean }> {
-  return all({ everyone: true, groups: [], people: [] });
+// several polls' audiences — with their groups among `groups` (those of the
+// polls counted).
+export async function everyone(groups: readonly string[] = []): Promise<{ people: Person[]; complete: boolean }> {
+  const found = await all({ everyone: true, groups: [], people: [] });
+  return { ...found, people: await withGroupsOf(found.people, groups) };
 }
 
 export const inAudience = (p: Person, audience: Audience): boolean => asked({ ...p, isAdmin: false }, audience);

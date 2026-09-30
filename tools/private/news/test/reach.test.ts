@@ -42,7 +42,7 @@ const withWorkshop = (m: FakeMember, into: boolean) => ({ ...m, groups: into ? [
 async function open(options: { members?: FakeMember[]; mail?: boolean; calendar?: boolean; groupsRead?: boolean; perDay?: number } = {}) {
   const { mail = true, calendar = true, groupsRead = true } = options;
   const members = options.members ?? everyone;
-  chest = await fakeChest({
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" },
     members,
     groups: [...fakeGroups, { ...workshop, members: members.filter(m => m.groups.includes(groups.workshop)).map(m => m.id) }],
     capabilities: ["members", "files", "notifications", ...(mail ? ["mail"] : []), ...(calendar ? ["calendar"] : []), ...(groupsRead ? ["groups"] : [])],

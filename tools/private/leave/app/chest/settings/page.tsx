@@ -3,7 +3,7 @@ import { can } from "../../../lib/access.ts";
 import { holidays } from "../../../lib/calendar.ts";
 import { db } from "../../../lib/db.ts";
 import { formatDay } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/today.ts";
 import { colors } from "../../../lib/model.ts";
 import { settings, types } from "../../../lib/rules.ts";
 import { viewer } from "../../../lib/session.ts";

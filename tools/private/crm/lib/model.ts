@@ -155,8 +155,9 @@ export function day(value: unknown, options: { required?: boolean } = {}): strin
   return value;
 }
 
-// Today in the Chest's time zone, as a day.
-export function today(now = new Date(), timeZone = "Europe/Paris"): string {
+// The day (YYYY-MM-DD) it is in a time zone. The Chest's today is
+// lib/zone.ts (server only: it reads the Chest's zone).
+export function dayIn(timeZone: string, now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
@@ -183,7 +184,7 @@ export function monthOf(from: string): { first: string; last: string } {
 
 // When a day stands, seen from today.
 export type DueState = "late" | "today" | "soon" | "later";
-export function dueState(due: string, now = today()): DueState {
+export function dueState(due: string, now: string): DueState {
   if (due < now) return "late";
   if (due === now) return "today";
   return due <= addDays(now, 7) ? "soon" : "later";
@@ -236,9 +237,10 @@ export function phoneDigits(value: string): string {
   return digits;
 }
 
-// A day and a time of day in the Chest's time zone, as an instant
-// ("2026-03-02", "14:30" in Paris → 13:30 UTC).
-export function zoned(day: string, clock: string, timeZone = "Europe/Paris"): Date {
+// A day and a time of day in a time zone, as an instant
+// ("2026-03-02", "14:30" in Europe/Paris → 13:30 UTC). In the Chest's
+// zone: lib/zone.ts.
+export function zonedIn(day: string, clock: string, timeZone: string): Date {
   const guess = Date.parse(`${day}T${clock}:00Z`);
   const offset = (at: number) => {
     const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(at)).map(p => [p.type, p.value]));

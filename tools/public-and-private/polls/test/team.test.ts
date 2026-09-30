@@ -51,7 +51,7 @@ test("a poll put to people picked by name: only they are asked and see it", asyn
 });
 
 test("people picked by name are told a page at a time (the Chest broadcasts to roles and groups only)", async () => {
-  const chest = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], timeZone: zone });
+  const chest = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], chest: { timeZone: zone } });
   try {
     const made = await polls.createPoll(database.sql, asMember(sofia), { kind: "choice", title: "Who takes the keys?", options: ["Me", "Not me"], audience: { everyone: false, people: [lea.id, hugo.id] }, open: true }, ctx);
     await tell.runTellings(database.sql, now);
@@ -117,7 +117,7 @@ test("comments: named polls only, by those asked or managing; removed by their a
 
 test("the organiser reminds those who have not answered — bell and email, at most every 12 hours", async () => {
   const withMail = everyone.map(m => (m.id === hugo.id ? m : { ...m, email: `${m.firstName.toLowerCase()}@atelier.test` }));
-  const chest = await fakeChest({ members: withMail, groups: chestGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, timeZone: zone });
+  const chest = await fakeChest({ members: withMail, groups: chestGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: zone } });
   try {
     const { sql } = database;
     const made = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Lunch?", options: ["Pizza", "Sushi"], closes: { day: "2026-10-09", time: "12:00" }, open: true }, ctx);
@@ -146,7 +146,7 @@ test("the organiser reminds those who have not answered — bell and email, at m
 test("reminders by email follow each member's email preference; the bell still reminds everyone", async () => {
   const withMail = everyone.map(m => (m.id === hugo.id ? m : { ...m, email: `${m.firstName.toLowerCase()}@atelier.test` }));
   const prefs = withMail.map(m => (m.id === tom.id ? { ...m, mailPreference: "none" as const } : m.id === lea.id ? { ...m, mailPreference: "digest" as const } : m));
-  const chest = await fakeChest({ members: prefs, groups: chestGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, timeZone: zone });
+  const chest = await fakeChest({ members: prefs, groups: chestGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: zone } });
   try {
     const { sql } = database;
     const made = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Offsite?", options: ["Yes", "No"], closes: { day: "2026-10-09", time: "12:00" }, open: true }, ctx);

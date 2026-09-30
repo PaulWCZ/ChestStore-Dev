@@ -321,8 +321,9 @@ explicit to its admin.
 
 ## Needs from the SDK
 
-All exist as proposals in the studio's working copy (0.3.0-studio.12); the
-tool calls them as if shipped and keeps working without them:
+The tool is built on SDK 0.3.0 + studio proposals (0.3.1-studio.1). The
+needs below are proposals of the studio's working copy; the tool calls
+them as if shipped and keeps working without them:
 
 - **Public uploads and public files** (`files.uploadUrl(name, { public: true })`,
   `files.publicUrl`): without public uploads the form asks for a link to
@@ -345,10 +346,11 @@ tool calls them as if shipped and keeps working without them:
 - **Events between tools** (`events.publish`, `receives`): without them,
   People is not told of hires, Booking does not see interviews, and free
   times come from Hiring's interviews only (no Booking, no days off).
-- **Chest settings** (`chest.company()`, `chest.publicUrl()`,
-  `chest.timeZone()`, `chest.locale()`): the company name by default, the
-  careers page's address, the zone of interview times, the language the
-  intro of before was written in.
+- **Chest settings** (`chest.publicUrl`, `chest.teamUrl`; official in
+  0.3.0: `chest.organization.name`, `chest.timeZone`, `chest.language`):
+  the company name by default, the careers page's address, the zone of
+  interview times and of the day (the database's `current_date` is the
+  Chest's too), the language the intro of before was written in.
 
 Still missing (see the SDK report): an iTIP invitation (`METHOD:REQUEST`
 with ORGANIZER and ATTENDEE, so Gmail shows Yes/No buttons) in

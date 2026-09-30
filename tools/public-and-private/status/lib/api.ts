@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { db, type Query } from "./db.ts";
 import { catalogue } from "./i18n/index.ts";
 import { latestIncidents, upcomingMaintenance, type Incident, type Update } from "./incidents.ts";
@@ -55,9 +55,9 @@ function pageIdOf(origin: string): string {
 
 function pageOf(c: Context) {
   const t = catalogue(chestLanguage());
-  const company = chest.company();
+  const company = chest.organization.name;
   const latest = [c.view.updatedAt?.getTime() ?? 0, ...[...c.created.values()].map(d => d.getTime())].reduce((a, b) => Math.max(a, b), 0);
-  return { id: c.pageId, name: company ? company : t.meta.publicPlain, url: c.origin, time_zone: chest.timeZone(), updated_at: iso(latest || c.now) };
+  return { id: c.pageId, name: company ? company : t.meta.publicPlain, url: c.origin, time_zone: chest.timeZone, updated_at: iso(latest || c.now) };
 }
 
 // Every visible service and group, in the page's order, flat, as
@@ -169,7 +169,7 @@ function maintenanceStep(u: Update, i: Incident): string {
 }
 
 async function context(sql: Query, now: Date, origin: string): Promise<Context> {
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const [view, rows, touches] = await Promise.all([
     statusView(sql, zone, now),
     sql<{ id: string; created_at: Date }[]>`select id, created_at from components`,

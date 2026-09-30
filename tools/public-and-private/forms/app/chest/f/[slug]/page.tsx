@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RespondFrame, RespondNotice } from "../../../../components/respond-frame.tsx";
@@ -48,7 +48,7 @@ export default async function TeamForm({ params, searchParams }: Props) {
     already = Boolean(row);
   }
   const query = Object.fromEntries(Object.entries(await searchParams).map(([k, val]) => [k, Array.isArray(val) ? val[0] : val]));
-  const company = chest.company() || t.meta.name;
+  const company = chest.organization.name;
   const home = <a className="button quiet" href="/chest">{t.respond.thanks.home}</a>;
   const back = <a className="respond-back" href="/chest"><Back />{t.meta.name}</a>;
   return (
@@ -68,7 +68,7 @@ export default async function TeamForm({ params, searchParams }: Props) {
           thanks={{ title: form.thanksTitle, body: form.thanksBody }}
           redirectUrl={form.redirectUrl}
           words={{ ...t.respond, date: t.date, files: t.files }}
-          today={zonedParts(new Date(), chest.timeZone()).day}
+          today={zonedParts(new Date(), chest.timeZone).day}
           errors={t.errors}
           locale={locale}
           grantUrl="/chest/api/upload"

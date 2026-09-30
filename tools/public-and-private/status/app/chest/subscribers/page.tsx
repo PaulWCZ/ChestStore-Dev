@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { Back } from "../../../components/icons.tsx";
 import { allComponents } from "../../../lib/components.ts";
@@ -20,7 +20,7 @@ export default async function SubscribersPage() {
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const [list, names, mailing, waiting, chats, chatsWaiting, delivering] = await Promise.all([listSubscribers(sql, member), allComponents(sql, { locale }), mailDelivery(sql), queued(sql), listHooks(sql, member), hooksQueued(sql), hooksDelivery(sql)]);
   const nameOf = new Map(names.map(c => [c.id, c.name]));
   const confirmed = list.filter(s => s.confirmedAt);

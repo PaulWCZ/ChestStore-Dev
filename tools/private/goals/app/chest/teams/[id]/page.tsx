@@ -1,3 +1,4 @@
+import { localeOf } from "@argentic/chest-sdk/member";
 import { Filters } from "@argentic/chest-ui/components";
 import { Link } from "../../../../components/link.tsx";
 import { notFound } from "next/navigation";
@@ -5,7 +6,8 @@ import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Back, Plus } from "../../../../components/icons.tsx";
 import { MapEmpty } from "../../../../components/map-empty.tsx";
 import { ObjectiveCard } from "../../../../components/objective-card.tsx";
-import { mayCreate, readerOf } from "../../../../lib/access.ts";
+import { mayCreate } from "../../../../lib/access.ts";
+import { groupsOf, readerFor } from "../../../../lib/groups.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, plural } from "../../../../lib/i18n/index.ts";
 import { context } from "../../../../lib/page-data.ts";
@@ -28,14 +30,14 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   if (!team) notFound();
   const ctx = await context(sql, member);
   const asked = (await searchParams).cycle;
-  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql, member.locale));
-  const all = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)) : [];
+  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql, localeOf(member.language)));
+  const all = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, await readerFor(member)) : [];
   const ours = all.filter(o => o.level === "team" && o.teamId === team.id);
   const ourIds = new Set(ours.map(o => o.id));
   const personal = all.filter(o => o.level === "personal" && o.parentId && ourIds.has(o.parentId));
   const who = await ctx.people(idsOf([...ours, ...personal]));
   const vctx = { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed: cycle?.closed ?? true, teams: ctx.teams };
-  const canWrite = cycle && !cycle.closed && mayCreate(member, "team", team, (await settings(sql)).personal);
+  const canWrite = cycle && !cycle.closed && mayCreate(member, "team", team, (await settings(sql)).personal, await groupsOf(member));
   const cardWords = { progress: t.progress, confidence: t.confidence, objective: t.objective, checkIn: t.checkIn, levels: t.levels };
   const parentTitle = new Map(all.map(o => [o.id, o.title]));
   return (

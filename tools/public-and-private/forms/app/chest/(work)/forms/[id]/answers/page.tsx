@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, Filters, SearchBox } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../../../../../components/auto-refresh.tsx";
 import { Down, Download, Zip } from "../../../../../../components/icons.tsx";
@@ -40,7 +40,7 @@ export default async function AnswersPage({ params, searchParams }: Props) {
   const { form } = await formOr404(member, id);
   await seen(sql, form.id, member.id);
   const base = `/chest/forms/${form.id}`;
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const exports = (
     <span className="exports">
       <a className="button quiet small" href={`${base}/export`} download><Download />{form.anonymous ? t.answers.exportSummary : t.answers.export}</a>

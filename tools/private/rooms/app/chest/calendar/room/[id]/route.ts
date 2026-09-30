@@ -1,4 +1,4 @@
-import { teamUrl } from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
 import { bookingIcs, calendarHeaders, origin } from "../../../../../lib/mine.ts";
@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!v) return new Response(null, { status: 401 });
   const bookingId = (await params).id;
   try {
-    const file = await bookingIcs(db(), v.member, bookingId, v.locale, origin(teamUrl()));
+    const file = await bookingIcs(db(), v.member, bookingId, v.locale, origin(chest.teamUrl));
     return new Response(file, { headers: calendarHeaders(`${v.t.mail.file}-${bookingId}.ics`) });
   } catch (error) {
     if (error instanceof AppError) return new Response(null, { status: error.code === "forbidden" ? 403 : 404 });

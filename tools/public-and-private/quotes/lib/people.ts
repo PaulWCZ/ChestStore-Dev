@@ -1,7 +1,6 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import { catalogue, format } from "./i18n/index.ts";
+import { catalogue, format, isLocale, type Locale } from "./i18n/index.ts";
 
 // The people a page shows, from the member ids the tool stores: names and
 // photos come from the Chest when rendering, never from the tool's data.
@@ -16,7 +15,7 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   if (wanted.length === 0) return found;
   try {
     const answer = await members.lookup(wanted);
-    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale });
+    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: isLocale(m.language) ? m.language : "en" });
     for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en" });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
@@ -44,7 +43,7 @@ export async function holders(options: { role?: string } = {}): Promise<Holder[]
     let after: string | undefined;
     do {
       const page = await members.list({ limit: 500, ...(after ? { after } : {}), ...(options.role ? { role: options.role } : {}) });
-      for (const m of page.members) found.push({ id: m.id, name: m.name, role: m.role, locale: m.locale });
+      for (const m of page.members) found.push({ id: m.id, name: m.name, role: m.role, locale: isLocale(m.language) ? m.language : "en" });
       after = page.next ?? undefined;
     } while (after && found.length < 5000);
   } catch (error) {

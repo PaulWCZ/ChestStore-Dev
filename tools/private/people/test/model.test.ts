@@ -68,13 +68,22 @@ test("newcomers, arrivals, this month's birthdays and anniversaries", () => {
   assert.deepEqual(tenure("2026-09-22", "2026-09-28"), { years: 0, months: 0, days: 6 });
 });
 
-test("zones (studio.16): a member's own day, the Chest's when they have none", async () => {
+test("zones: a member's own day, the Chest's when they have none", async () => {
   const { todayOf, zoneOf } = await import("../lib/zone.ts");
-  const chestZone = zoneOf(null);
-  assert.equal(zoneOf({ timeZone: "America/Montreal" }), "America/Montreal");
-  assert.equal(zoneOf({}), chestZone);
-  // 03:30 UTC on 1 October: still 30 September in Montreal.
-  const at = Date.parse("2026-10-01T03:30:00Z");
-  assert.equal(todayOf({ timeZone: "America/Montreal" }, at), "2026-09-30");
-  assert.equal(todayOf({ timeZone: "Europe/Paris" }, at), "2026-10-01");
+  const { fakeChest } = await import("@argentic/chest-sdk/testing");
+  const chest = await fakeChest({ chest: { timeZone: "Europe/Paris" } });
+  try {
+    assert.equal(zoneOf(null), "Europe/Paris");
+    assert.equal(zoneOf({ timeZone: "America/Montreal" }), "America/Montreal");
+    assert.equal(zoneOf({}), "Europe/Paris");
+    // 03:30 UTC on 1 October: still 30 September in Montreal.
+    const at = Date.parse("2026-10-01T03:30:00Z");
+    assert.equal(todayOf({ timeZone: "America/Montreal" }, at), "2026-09-30");
+    assert.equal(todayOf({ timeZone: "Europe/Paris" }, at), "2026-10-01");
+    assert.equal(todayOf(null, at), "2026-10-01");
+  } finally {
+    await chest.close();
+  }
+  // Outside a Chest, no zone is guessed.
+  assert.throws(() => zoneOf(null), (e: unknown) => (e as { code?: string }).code === "not_in_chest");
 });

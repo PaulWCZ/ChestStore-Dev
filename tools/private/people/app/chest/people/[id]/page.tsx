@@ -187,7 +187,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
               {history.map(h => (
                 <li key={h.id}>
                   <span>{format(t.record.actions[h.action], { fields: h.fields.map(jobWord).join(", ") })}</span>
-                  <span className="muted small">{nameOf(historyNames.get(h.actor), locale)} · {formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric" })}</span>
+                  <span className="muted small">{nameOf(historyNames.get(h.actor), locale)} · {formatDate(h.at, locale, member.timeZone, { day: "numeric", month: "short", year: "numeric" })}</span>
                 </li>
               ))}
             </ul>

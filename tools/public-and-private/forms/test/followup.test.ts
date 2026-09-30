@@ -31,7 +31,7 @@ before(async () => {
     receivers: 1,
     storage: { publicUploads: true, publicFiles: true },
     mail: { domain: "atelier.test" },
-    settings: { company: "Atelier Martin" },
+    chest: { organization: "Atelier Martin" },
   });
 });
 after(async () => {

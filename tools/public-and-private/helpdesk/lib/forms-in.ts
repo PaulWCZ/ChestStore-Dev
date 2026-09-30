@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "./i18n/index.ts";
@@ -167,7 +167,7 @@ function shorten(text: string, max: number): string {
 // to), refresh the tiles. A colleague gets no email: Support keeps no
 // address of theirs. Nothing is done twice for one answer.
 export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">): Promise<void> {
-  const fallback = chest.locale();
+  const fallback = chest.language;
   const request = readRequest(event, isLocale(fallback) ? fallback : "en");
   if (!request) {
     // Never the event's content in the log: it is a person's answer.
@@ -178,7 +178,7 @@ export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">):
   if (!t.created) return;
   if (request.email && t.secret && !robotAddress(request.email) && (await tickets.confirmations(sql, request.email)) < confirmationsPerHour) {
     const s = await tickets.settings(sql);
-    const sent = await mailer.confirm({ number: t.number, subject: request.subject, customerEmail: request.email, customerName: request.name, language: request.language }, `${publicBase(s.publicOrigin)}/t/${t.secret}`, s.companyName || chest.company());
+    const sent = await mailer.confirm({ number: t.number, subject: request.subject, customerEmail: request.email, customerName: request.name, language: request.language }, `${publicBase(s.publicOrigin)}/t/${t.secret}`, s.companyName || chest.organization.name);
     if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
   }
   await tell.newTicket({ id: t.id, number: t.number, subject: request.subject, customerName: request.name, customerEmail: request.email ?? "", requester: request.member }, request.body, t.assignee);

@@ -1,7 +1,7 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 
 // The tool's two addresses, for the links people share. The Chest gives
-// them (Proposal (studio): chest.publicUrl(), chest.teamUrl()); without
+// them (Proposal (studio): chest.publicUrl, chest.teamUrl); without
 // them, they are derived from the request: the team host is
 // <tool>-chest.<chest>, the public one <tool>.<chest>.
 function host(headers: Headers): { proto: string; host: string } | null {
@@ -11,7 +11,7 @@ function host(headers: Headers): { proto: string; host: string } | null {
 }
 
 export function publicOrigin(headers: Headers, tool = process.env["CHEST_TOOL"] ?? ""): string | null {
-  const given = chest.publicUrl();
+  const given = chest.publicUrl;
   if (given) return given;
   const found = host(headers);
   if (!found) return null;
@@ -20,7 +20,7 @@ export function publicOrigin(headers: Headers, tool = process.env["CHEST_TOOL"] 
 }
 
 export function teamOrigin(headers: Headers): string | null {
-  const given = chest.teamUrl();
+  const given = chest.teamUrl;
   if (given) return given;
   const found = host(headers);
   return found ? `${found.proto}://${found.host}` : null;

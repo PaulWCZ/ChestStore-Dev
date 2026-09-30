@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { memberIdPattern, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -108,12 +108,12 @@ const newSecret = () => randomBytes(24).toString("base64url");
 // for a Chest that does not give it yet.
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
-  const s: Settings = { companyName: chest.company(), retentionMonths: 24, defaultZone: chest.timeZone(), publicOrigin: chest.publicUrl(), mailWorks: null, embedOrigins: [], calendarWorks: null };
+  const s: Settings = { companyName: chest.organization.name, retentionMonths: 24, defaultZone: chest.timeZone, publicOrigin: chest.publicUrl, mailWorks: null, embedOrigins: [], calendarWorks: null };
   for (const { key, value } of rows) {
     if (key === "company_name" && typeof value === "string" && value !== "") s.companyName = value;
     if (key === "retention_months" && typeof value === "number") s.retentionMonths = value;
     if (key === "default_zone" && isZone(value)) s.defaultZone = value;
-    if (key === "public_origin" && typeof value === "string" && !chest.publicUrl()) s.publicOrigin = value;
+    if (key === "public_origin" && typeof value === "string" && !chest.publicUrl) s.publicOrigin = value;
     if (key === "mail_works" && typeof value === "boolean") s.mailWorks = value;
     if (key === "calendar_works" && typeof value === "boolean") s.calendarWorks = value;
     if (key === "embed_origins" && Array.isArray(value)) s.embedOrigins = value.filter((o): o is string => typeof o === "string" && isOrigin(o));
@@ -205,7 +205,7 @@ export async function hostOf(sql: Query, memberId: string): Promise<Host | null>
 // in the other languages too (alt), ready for a second language.
 export async function ensureHost(sql: Query, actor: Member, first: { title: string; slug: string; others?: Partial<Record<Locale, string>> }): Promise<Host> {
   if (!can(actor, "host")) throw new AppError("forbidden");
-  const own: Locale = isLocale(actor.locale) ? actor.locale : "en";
+  const own: Locale = isLocale(actor.language) ? actor.language : "en";
   const existing = await hostOf(sql, actor.id);
   if (existing) {
     if (existing.away) await sql`update hosts set away = false where member_id = ${actor.id}`;

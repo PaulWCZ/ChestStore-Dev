@@ -6,7 +6,7 @@ import { can, canEditDeal } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { boardClosedDays, boardDeals, listDeals, type DealFilter } from "../../../lib/deals.ts";
 import { formatDay, money, plural } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/zone.ts";
 import { fieldFilterOf } from "../../../lib/fields.ts";
 import { dealFormProps, dueLabel, formChoices } from "../../../lib/page-data.ts";
 import { directory } from "../../../lib/people.ts";

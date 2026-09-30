@@ -19,7 +19,7 @@ import { meetingTime } from "../lib/i18n/format.ts";
 import { people as peopleOf } from "../lib/people.ts";
 import * as selfSchedule from "../lib/self-schedule.ts";
 import * as share from "../lib/share.ts";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 
 // The careers page's action: anyone on the Internet may call it. It holds
 // no member; it checks the form's guard, bounds everything, and reveals
@@ -88,7 +88,7 @@ export async function chooseInterviewTime(token: string, day: string, time: stri
     await outbox.sendNow(sql, done.message);
     await interviews.flushCalendars(sql);
     await share.shareBusy(sql, done.interview.people);
-    const zone = chest.timeZone();
+    const zone = chest.timeZone;
     await tell.chosen([...new Set([...done.request.people, done.request.createdBy])].filter(id => id.startsWith("mbr_")), done.candidate, done.interview, (start, locale) => meetingTime(start, zone, locale === "fr" ? "fr" : "en"));
     return { ok: true };
   } catch (error) {

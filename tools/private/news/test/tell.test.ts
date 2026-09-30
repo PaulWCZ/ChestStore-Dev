@@ -20,7 +20,7 @@ beforeEach(async () => {
   await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ members, capabilities: ["members", "files", "notifications"], schedules: [{ name: "publish", cron: "*/15 * * * *" }] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, capabilities: ["members", "files", "notifications"], schedules: [{ name: "publish", cron: "*/15 * * * *" }] });
   return chest;
 };
 const zone = "Europe/Paris";

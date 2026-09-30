@@ -21,7 +21,7 @@ export function plural(forms: { readonly one: string; readonly other: string; re
 }
 
 // Moments in the reader's language, in the zone the page gives (the
-// Chest's: chest.timeZone(), read on the server). A day ("2026-10-15") is
+// Chest's: chest.timeZone, read on the server). A day ("2026-10-15") is
 // a day wherever one reads it: formatDay never shifts it.
 // dayOne is how the language writes the first of a month beside a month's
 // name (the catalogue's dates.dayOne: "1er" in French).

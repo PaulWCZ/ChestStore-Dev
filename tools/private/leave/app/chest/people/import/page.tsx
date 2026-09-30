@@ -5,7 +5,7 @@ import { Back } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { leaveFields, personFields } from "../../../../lib/import.ts";
-import { today } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/today.ts";
 import { types } from "../../../../lib/rules.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { typeName } from "../../../../lib/type-name.ts";

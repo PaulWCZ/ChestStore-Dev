@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import * as schedules from "@argentic/chest-sdk/schedules";
 import { db } from "../../../lib/db.ts";
 import { archiveLocale, followUp } from "../../../lib/followup.ts";

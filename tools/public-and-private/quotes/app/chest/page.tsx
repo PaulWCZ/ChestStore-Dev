@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { DocTable } from "../../components/doc-table.tsx";
 import { Alert, BlankSheet, Plus, Zip } from "../../components/icons.tsx";
@@ -32,10 +32,10 @@ export default async function DeskPage() {
   const archive = (await waitingArchives(sql, member))[0] ?? null;
   const c = await company(sql);
   const gaps = missing(c);
-  const currency = d.currency ?? chest.currency();
+  const currency = d.currency ?? chest.currency;
   const money = (minor: number) => formatMoney(minor, currency, locale);
   // Revenue, for whoever reads the books (lib/revenue.ts).
-  const sales = d.empty ? null : await revenue(sql, member, today, chest.currency());
+  const sales = d.empty ? null : await revenue(sql, member, today, chest.currency);
   const who = await people([...d.needs.map(n => n.row.createdBy), ...(sales?.bySeller.map(s => s.id) ?? [])]);
   const monthName = (key: string) => formatDay(key + "-01", locale, { month: "long", year: "numeric" });
   const versus = (before: number, key: string, now: number) => {

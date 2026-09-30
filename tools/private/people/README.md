@@ -448,8 +448,19 @@ records: see "On a Chest").
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
-  the bell in each member's language.
+People runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in
+`vendor/`. From 0.3.0: `member(request)` with the member's `language` (the
+interface and the bell in each member's language) and `timeZone`;
+`chest.organization.name` (the company's name in the welcome email and
+the letters); `chest.timeZone` and `chest.today()`: "today", due days and
+anniversaries — the database's `current_date` is the same day, since the
+Chest makes its zone the TimeZone of the tool's database sessions. The
+member's own zone (`lib/zone.ts` `todayOf`, `chest.todayIn`, a studio
+addition): "today" and "late" on a person's own *My to-dos*, and every
+time shown to them (the day a step was ticked, a record's history); the
+Chest's zone stays for what concerns everyone (checklists' due days,
+records, the morning run).
+
 - **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`:
   `morning`, weekdays 07:40): one bell item per person with steps due today
   or late, tiles' numbers kept true overnight, and the 30-day purge of
@@ -459,8 +470,8 @@ records: see "On a Chest").
 - `mail` — **Proposal (studio)**: `mail.send` of the welcome email (to a
   member by id, or to an arrival's work address; `replyTo` the HR person's
   Chest address, `members.email`). The person's own email choice
-  (`member.mailPreference`, studio.15) is applied by `mail.send`. The
-  start form asks `mail.available()` (studio.16, `lib/mailing.ts`) before
+  (`mailPreference`, in the members API) is applied by `mail.send`. The
+  start form asks `mail.available()` (`lib/mailing.ts`) before
   it promises the email: "{name} gets a short welcome email" only when the
   Chest would send it; otherwise it says why none will leave (mail not
   connected, mail paused or the day's emails used, no work email for an
@@ -474,14 +485,7 @@ records: see "On a Chest").
   `people.record` (see "With the other tools"). Without it, HR starts checklists for
   members only, nobody reads "Away", and Equipment is not told of
   departures.
-- **The Chest's time zone** — **Proposal (studio)** (`chest.timeZone()`,
-  `chest.today()`): "today", due days and anniversaries. **The member's own
-  zone** (studio.16, `chest.timeZone(member)`, `lib/zone.ts` `todayOf`):
-  "today" and "late" on a person's own *My to-dos*, and the day a step was
-  ticked as its reader sees it; the Chest's zone stays for what concerns
-  everyone (checklists' due days, records, the morning run).
-- **The company's look** — **Proposal (studio)** (`chest.theme()`, SDK
-  0.3.0-studio.12): the theme or brand the company chose. Without it (a
+- **The company's look** — **Proposal (studio)** (`chest.theme()`): the theme or brand the company chose. Without it (a
   real Chest today) People wears its own identity.
 - **Files** (`files`, 0.2.0): the records' documents, uploaded by the
   browser straight to the Chest (`uploadUrl`), opened through `files.url`.

@@ -1,11 +1,12 @@
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited } from "@argentic/chest-sdk/errors";
-import type { Locale, Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Locale, type Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { inAudience, type Audience, type Grouped } from "./access.ts";
 import { everyone, page, publisherIds, type Reader, maxPages } from "./audience.ts";
 import type { Sql } from "./db.ts";
 import { continueDigest, seenDigest } from "./digest.ts";
+import { withGroups } from "./groups.ts";
 import { catalogue, format, plural } from "./i18n/index.ts";
 import { email, type Recipient } from "./mailer.ts";
 import { excerpt, plain } from "./markdown.ts";
@@ -295,7 +296,7 @@ export async function reconcile(sql: Sql, only?: { group?: string; member?: stri
       for (const p of open) await withdraw(importantKey(String(p.id)), [only.member]);
       return;
     }
-    people = [{ id: one.id, name: one.name, photo: one.photo, locale: one.locale, role: one.role, groups: one.groups }];
+    people = [await withGroups({ id: one.id, name: one.name, photo: one.photo, locale: localeOf(one.language), role: one.role, groups: one.groups })];
   } else {
     const all = await everyone();
     if (!all.complete && all.people.length === 0) return;

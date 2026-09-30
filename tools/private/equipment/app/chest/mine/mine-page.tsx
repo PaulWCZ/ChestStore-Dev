@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { AskButton } from "../../../components/ask-button.tsx";
@@ -33,7 +33,7 @@ export async function MinePage() {
   const waiting = held.items.filter(i => { const r = held.receipts.get(i.id); return r !== undefined && !r.confirmedAt; });
   const charter = pending.length > 0 ? await currentCharter(sql) : null;
   const givers = await people([...held.receipts.values()].map(r => r.givenBy));
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   const now = new Date();
   const words = { report: t.report, errors: t.errors, common: t.common, dialog: t.dialog };
   const problemsOf = (itemId: string) => held.problems.filter(p => p.itemId === itemId);

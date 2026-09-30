@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { readerOf } from "../lib/access.ts";
+
+import { readerFor } from "../lib/groups.ts";
 import { AppError } from "../lib/app-error.ts";
 import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { emailOn, mailState, setEmail } from "../lib/mail.ts";
+import { emailOn, mailPreferenceOf, mailState, setEmail } from "../lib/mail.ts";
 import { addComment } from "../lib/comments.ts";
 import { createObjective, readObjective, updateObjective } from "../lib/objectives.ts";
 import { cycleObjectives, keyResultChanges, viewersOf } from "../lib/read.ts";
@@ -119,6 +120,8 @@ test("the Friday reminder follows each person's email choice in the Chest: none 
   for (const m of people) m.mailPreference = chosen[m.id as keyof typeof chosen];
   w.chest.clearCaches();
   try {
+    // What My goals says under the switch: the members API's answer.
+    assert.deepEqual([await mailPreferenceOf(hugo.id), await mailPreferenceOf(ines.id), await mailPreferenceOf(sofia.id)], ["none", "digest", "all"]);
     const before = w.chest.outbox.length, held = w.chest.held.length;
     // Another day of the quarter than today: today's reminder was sent to
     // Inès above, and its key would answer this one with it.
@@ -141,7 +144,7 @@ test("a confidential objective: seen by its owner, its key results' owners, the 
   const clock = clockAt();
   const secret = await createObjective(sql, admin, { cycleId: cycle.id, level: "company", title: "Reduce headcount cost 10%", visibility: "people", viewers: [sofia.id, camille.id], keyResults: [{ title: "Cost", kind: "money", start: "100", target: "90", owner: ines.id }] });
   assert.deepEqual(await viewersOf(sql, secret.id), [sofia.id]);
-  const titles = async (who: typeof admin) => (await cycleObjectives(sql, cycle.id, clock, readerOf(who))).map(o => o.title);
+  const titles = async (who: typeof admin) => (await cycleObjectives(sql, cycle.id, clock, await readerFor(who))).map(o => o.title);
   assert.deepEqual(await titles(admin), ["Reduce headcount cost 10%"]);
   assert.deepEqual(await titles(sofiaM), ["Reduce headcount cost 10%"]);
   assert.deepEqual(await titles(inesM), ["Reduce headcount cost 10%"]); // owns a key result

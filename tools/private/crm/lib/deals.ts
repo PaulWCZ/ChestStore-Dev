@@ -7,7 +7,8 @@ import { customValues, type Custom } from "./custom.ts";
 import { fieldClause, listFields, type FieldFilter } from "./fields.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { clean, day, id, limits, monthOf, optionalId, owner as ownerOf, today, type Stage } from "./model.ts";
+import { clean, day, id, limits, monthOf, optionalId, owner as ownerOf, type Stage } from "./model.ts";
+import { chestZone, today } from "./zone.ts";
 import { between } from "./position.ts";
 import { listStages, stage as stageOf } from "./stages.ts";
 import { stepColumns, toStep, type Step } from "./steps.ts";
@@ -277,9 +278,10 @@ export async function openByStage(sql: Sql, actor: Member | null, owner: string)
 export async function wonThisMonth(sql: Sql, actor: Member | null, now = today()): Promise<{ mine: number; team: number }> {
   reader(actor);
   const month = monthOf(now);
+  const zone = chestZone();
   const [row] = await sql<{ mine: string | null; team: string | null }[]>`
     select sum(d.value_cents) filter (where d.owner = ${actor!.id}) as mine, sum(d.value_cents) as team
     from deals d join stages s on s.id = d.stage_id
-    where s.kind = 'won' and (d.closed_at at time zone 'Europe/Paris')::date between ${month.first} and ${month.last}`;
+    where s.kind = 'won' and (d.closed_at at time zone ${zone})::date between ${month.first} and ${month.last}`;
   return { mine: Number(row?.mine ?? 0), team: Number(row?.team ?? 0) };
 }

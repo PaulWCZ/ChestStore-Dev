@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { forgetMemberGroups } from "./groups.ts";
 import { forgetGroups } from "./teams.ts";
 import { tellAdminsOfOrphans } from "./tell.ts";
 
@@ -54,9 +55,12 @@ export function handlers(sql: Sql): events.Handlers {
       await tellAdminsOfOrphans(sql);
     },
     // The Chest's groups changed (Proposal (studio): "groups": "read"):
-    // their names and members are read again.
-    "group.changed": async () => { forgetGroups(); },
-    "group.removed": async () => { forgetGroups(); },
+    // their names and members, and each member's groups, are read again.
+    "group.changed": async () => { forgetGroups(); forgetMemberGroups(); },
+    "group.removed": async () => { forgetGroups(); forgetMemberGroups(); },
+    // Someone moved in or out of a group (changed: ["groups"]), or their
+    // role changed: their groups are read again.
+    "member.updated": async () => { forgetGroups(); forgetMemberGroups(); },
     "member.erased": async event => {
       await erase(sql, event.data.id);
       await events.acknowledgeErasure(event.data.erasure);

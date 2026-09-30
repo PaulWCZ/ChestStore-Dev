@@ -1,5 +1,5 @@
-import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
+import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
+import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 
 // The people who have the tool, as the Chest says now: the rows of the team
@@ -13,7 +13,7 @@ export async function everyone(): Promise<DirectoryPerson[]> {
   let after: string | undefined;
   for (let page = 0; page < 4; page++) {
     const answer = await members.list({ limit: 500, ...(after ? { after } : {}) });
-    for (const m of answer.members) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: m.photo, role: m.role, groups: m.groups, locale: m.locale });
+    for (const m of answer.members) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: m.photo, role: m.role, groups: m.groups, locale: localeOf(m.language) });
     if (!answer.next) break;
     after = answer.next;
   }
@@ -50,11 +50,48 @@ export async function roleNow(memberId: string): Promise<string | null> {
   return (await members.get(memberId))?.role ?? null;
 }
 
-export async function groups(): Promise<{ id: string; name: string; members: string[] }[]> {
+// The Chest's groups the team calendar is filtered by. With the "groups"
+// permission (Proposal (studio): "groups": "read") every group of the
+// Chest — Sales, Tech, the workshop — even when Leave is open to everyone,
+// which gives it no group; without it, only the groups that give Leave.
+// None when the Chest does not answer (the page still renders).
+export async function groups(): Promise<{ id: string; name: string }[]> {
   try {
-    return (await members.groups.list()).map(g => ({ id: g.id, name: g.name, members: g.members }));
+    return (await members.groups.all()).map(g => ({ id: g.id, name: g.name }));
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    if (!(error instanceof CapabilityNotGranted)) return [];
+  }
+  try {
+    return (await members.groups.list()).map(g => ({ id: g.id, name: g.name }));
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     return [];
+  }
+}
+
+// Who is in a group, among those who have Leave (up to 2,000 people);
+// null for a group the Chest does not have, or when it does not answer.
+export async function groupMembers(id: string): Promise<string[] | null> {
+  try {
+    const found: string[] = [];
+    let after: string | undefined;
+    for (let page = 0; page < 2; page++) {
+      const answer = await members.groups.members(id, { limit: 1000, ...(after ? { after } : {}) });
+      if (!answer) return null;
+      found.push(...answer.members);
+      if (!answer.next) break;
+      after = answer.next;
+    }
+    return found;
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    if (!(error instanceof CapabilityNotGranted)) return null;
+  }
+  try {
+    return (await members.groups.list()).find(g => g.id === id)?.members ?? null;
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return null;
   }
 }

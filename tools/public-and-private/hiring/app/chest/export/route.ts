@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import { AppError } from "../../../lib/app-error.ts";
 import { db } from "../../../lib/db.ts";
 import { everything } from "../../../lib/export-all.ts";
@@ -17,7 +18,7 @@ export async function GET(): Promise<Response> {
       if (!first.done) yield first.value;
       yield* entries;
     })();
-    const name = `${v.t.exportAll.file}-${new Date().toISOString().slice(0, 10)}.zip`;
+    const name = `${v.t.exportAll.file}-${chest.today()}.zip`;
     return new Response(zipStream(rest), { headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof AppError) return new Response(null, { status: 404 });

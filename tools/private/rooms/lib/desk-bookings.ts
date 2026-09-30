@@ -5,6 +5,7 @@ import { AppError } from "./app-error.ts";
 import { checkWhen, conflict, moment, span } from "./booking-rules.ts";
 import { dayKey, enqueue } from "./calendar.ts";
 import type { Query, Sql } from "./db.ts";
+import { groupsOf } from "./groups.ts";
 import { addDays, day, id, isPart, memberId, mondayOf, partMinutes, type Part } from "./model.ts";
 
 // Desks booked for a day or half a day. PostgreSQL refuses two live
@@ -45,7 +46,7 @@ export async function bookDesk(sql: Sql, actor: Member | null, input: { deskId?:
       select d.assigned_to, f.office_id, a.group_id from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
       where d.id = ${deskId} and d.archived_at is null`;
     if (!desk) throw new AppError("not_found");
-    if (desk.group_id !== null && !m.exempt && !actor.groups.includes(desk.group_id)) throw new AppError("group_only");
+    if (desk.group_id !== null && !m.exempt && !who.groups.includes(desk.group_id)) throw new AppError("group_only");
     let lent = false;
     if (desk.assigned_to !== null && desk.assigned_to !== who.id) {
       const [away] = await tx<{ lends: boolean }[]>`
@@ -90,13 +91,14 @@ export async function bookDesk(sql: Sql, actor: Member | null, input: { deskId?:
 
 // Whom a booking is for: the actor, or — for an admin — a member who has
 // the tool (someone unknown to the Chest, or without a role here, is not
-// found). Their groups come with them (areas and rooms kept for a group).
+// found). Their groups come with them — every group they are in, not only
+// those that give Rooms (groupsOf) — for areas and rooms kept for a group.
 export async function bookedFor(actor: Member, value: unknown): Promise<{ id: string; groups: string[] }> {
-  if (value === undefined || value === null || value === "" || value === actor.id) return { id: actor.id, groups: actor.groups };
+  if (value === undefined || value === null || value === "" || value === actor.id) return { id: actor.id, groups: await groupsOf(actor) };
   if (!can(actor, "bookings.any")) throw new AppError("forbidden");
   const target = await members.get(memberId(value));
   if (!target || roleOf(target) === null) throw new AppError("not_found");
-  return { id: target.id, groups: target.groups };
+  return { id: target.id, groups: await groupsOf(target) };
 }
 
 // Cancels a desk booking: its holder or an admin, until it is over.

@@ -8,6 +8,8 @@ what must not break.
 | Path | What it is |
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `agent`, `viewer`; public part) and the proposals it uses (`mail`, public uploads, `schedules` `cleanup` and `late`, `receives` `forms.request` and `status.incident`, `webhooks`) |
+| `vendor/` | SDK 0.3.0 + studio proposals (0.3.1-studio.1) and the UI kit, packed copies |
+| `lib/session.ts` | Who asks (`member()`), the language of `/chest` (the member's `language`) and of a public page (the visitor's, else the Chest's `chest.language`, else English) |
 | `lib/access.ts` | Who may do what |
 | `lib/model.ts` | Bounds, statuses, folders, priorities, sorts, file types and limits, "waiting since" and the threshold, email check, `[#number]` in subjects — pure |
 | `lib/tickets.ts` | The service: public form, follow-up link (and its files, following merges), email filing (`fromEmail`: thread, headers, then same vouched-for sender), bounces, inbox (filters, sorts), answers, notes, assignment, priority, tags, merge/unmerge, bulk/unbulk, customer's address, rating, saved replies, settings (per-language sentence, hours, frame origins, help URL), erasure (and its log), cleanup, `exportAll` |

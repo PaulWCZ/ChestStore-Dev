@@ -6,13 +6,13 @@ const id = (name: string): string => "mbr_" + name + "a".repeat(26 - name.length
 export const groups = { office: "grp_officeaaaaaaaaaaaaaaaaaaaa", sales: "grp_salesaaaaaaaaaaaaaaaaaaaaa" } as const;
 
 const person = (key: string, firstName: string, lastName: string, role: string | null, extra: Partial<FakeMember> = {}): FakeMember => ({
-  id: id(key), firstName, lastName, name: `${firstName} ${lastName}`, photo: null, role, isAdmin: false, isBuilder: false, groups: [], locale: "en", ...extra,
+  id: id(key), firstName, lastName, name: `${firstName} ${lastName}`, photo: null, role, isAdmin: false, isBuilder: false, groups: [], language: "en", ...extra,
 });
 
-export const camille = person("camille", "Camille", "Martin", "accountant", { isAdmin: true, locale: "fr", groups: [groups.office] });
-export const ines = person("ines", "Inès", "Moreau", "approver", { locale: "fr", groups: [groups.sales] });
+export const camille = person("camille", "Camille", "Martin", "accountant", { isAdmin: true, language: "fr", groups: [groups.office] });
+export const ines = person("ines", "Inès", "Moreau", "approver", { language: "fr", groups: [groups.sales] });
 export const hugo = person("hugo", "Hugo", "Bernard", "employee", { groups: [groups.sales] });
-export const lea = person("lea", "Léa", "Dubois", "employee", { locale: "fr", groups: [groups.office] });
+export const lea = person("lea", "Léa", "Dubois", "employee", { language: "fr", groups: [groups.office] });
 export const tom = person("tom", "Tom", "Walker", "approver");
 export const nora = person("nora", "Nora", "Petit", null);
 export const everyone = [camille, ines, hugo, lea, tom, nora];

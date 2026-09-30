@@ -28,7 +28,7 @@ export async function search(sql: Sql, actor: Member | null, query: unknown): Pr
   const phoneMatch = (alias: string) => (digits ? sql`or ${sql(alias + ".phone_digits")} like ${"%" + digits + "%"}` : sql``);
   const match = (alias: string) => sql`(${tsq ? sql`${sql(alias + ".search")} @@ to_tsquery('crm', ${tsq}) or` : sql``} ${sql(alias + ".folded")} like '%' || crm_fold(${plain}) || '%' or word_similarity(crm_fold(${plain}), ${sql(alias + ".folded")}) > 0.5)`;
   const rank = (alias: string) => sql`(${tsq ? sql`ts_rank(${sql(alias + ".search")}, to_tsquery('crm', ${tsq})) +` : sql``} word_similarity(crm_fold(${plain}), ${sql(alias + ".folded")}))`;
-  const t = catalogue(isLocale(actor!.locale) ? actor!.locale : "en");
+  const t = catalogue(isLocale(actor!.language) ? actor!.language : "en");
   const companies = await sql<{ id: string; name: string; industry: string; website: string }[]>`
     select o.id, o.name, o.industry, o.website from companies o
     where ${match("o")} or o.website ilike ${like} or o.phone ilike ${like} ${phoneMatch("o")}

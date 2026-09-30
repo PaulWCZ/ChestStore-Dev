@@ -13,7 +13,8 @@ import { db } from "../../../../lib/db.ts";
 import { listDeals } from "../../../../lib/deals.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { format, money, relative } from "../../../../lib/i18n/index.ts";
-import { phoneHref, today, websiteHref } from "../../../../lib/model.ts";
+import { phoneHref, websiteHref } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/zone.ts";
 import { dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen } from "../../../../lib/page-data.ts";
 import { directory } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -94,7 +95,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
           <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, day, locale, t) }))} on={{ contact: c.id }} team={choices.team} people={names} me={member.id} canEdit={can(member, "records.write")} canAssign={choices.canAssign} today={day} calendar={(await calendarWorks(sql)) === true} t={t} />
           {can(member, "activities.log") ? <Composer on={{ contact: c.id }} t={t} /> : <p className="muted">{t.log.readOnly}</p>}
           <h2 className="label-mono section-gap">{t.timeline.title}</h2>
-          <Timeline items={withWhen(items, locale)} people={names} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="contact" locale={locale} t={t} />
+          <Timeline items={withWhen(items, locale, new Date(), member.timeZone)} people={names} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="contact" locale={locale} t={t} />
         </div>
         <aside className="record-side">
           <section className="panel" aria-labelledby="deals-title">

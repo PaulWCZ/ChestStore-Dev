@@ -22,7 +22,7 @@ must not break.
 | `lib/transfer.ts`, `lib/zip.ts` | Download all posts (ZIP); import a Slack channel export |
 | `lib/editor-doc.ts` | The post's text ↔ the editor's document (pure, tested round trip) |
 | `lib/audience.ts` | Who has News (`members.list`, 500 a page, with their groups); `tally`: confirmations counted on a post's audience |
-| `lib/groups.ts` | The Chest's groups (all of them with `groups: read`, else those that give News); a post's audience in words |
+| `lib/groups.ts` | The Chest's groups (all of them with `groups: read`, else those that give News); each person's groups asked of the Chest (`withGroups`: `members.groups.of`, for `currentMember()`; `withAllGroups`: the groups' members, for the readers' list), since `member.groups` lists only the groups that give News; a post's audience in words |
 | `lib/search.ts`, `lib/highlight.ts` | Search (PostgreSQL `news` text search + trigrams) over what the actor sees; the words found marked (pure) |
 | `lib/digest.ts` | The weekly digest: who has not seen what, one keyed item per person, resumable past the quota |
 | `lib/markdown.ts` | The text of a post → a small tree (never HTML); excerpts — pure, used in the browser too |

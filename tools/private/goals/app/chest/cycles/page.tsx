@@ -2,7 +2,8 @@ import { noCycleWords } from "../../../lib/people.ts";
 import Link from "next/link";
 import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Progress } from "../../../components/progress.tsx";
-import { can, readerOf } from "../../../lib/access.ts";
+import { can } from "../../../lib/access.ts";
+import { readerFor } from "../../../lib/groups.ts";
 import { db } from "../../../lib/db.ts";
 import { format, plural } from "../../../lib/i18n/index.ts";
 import { firstCycleChoices, nextQuarter, objectiveProgress, percent } from "../../../lib/model.ts";
@@ -22,10 +23,10 @@ export default async function Cycles() {
   const ctx = await context(sql, member);
   const admin = can(member, "cycles.manage");
   const stats = new Map((await sql<{ cycle_id: string; n: string; retro: string }[]>`
-    select o.cycle_id, count(*) as n, count(*) filter (where o.score is not null or o.learned <> '') as retro from objectives o where o.archived_at is null ${visibleTo(sql, readerOf(member))} group by o.cycle_id`).map(r => [String(r.cycle_id), { n: Number(r.n), retro: Number(r.retro) }]));
+    select o.cycle_id, count(*) as n, count(*) filter (where o.score is not null or o.learned <> '') as retro from objectives o where o.archived_at is null ${visibleTo(sql, await readerFor(member))} group by o.cycle_id`).map(r => [String(r.cycle_id), { n: Number(r.n), retro: Number(r.retro) }]));
   const progressRows = await sql<{ cycle_id: string; start_value: string; target_value: string; current_value: string; weight: number; objective_id: string }[]>`
     select o.cycle_id, o.id as objective_id, k.start_value, k.target_value, k.current_value, k.weight from key_results k join objectives o on o.id = k.objective_id
-    where k.archived_at is null and o.archived_at is null and o.level = 'company' ${visibleTo(sql, readerOf(member))}`;
+    where k.archived_at is null and o.archived_at is null and o.level = 'company' ${visibleTo(sql, await readerFor(member))}`;
   const progressOf = (cycleId: string) => {
     const byObjective = new Map<string, { progress: number; weight: number }[]>();
     for (const r of progressRows.filter(r => String(r.cycle_id) === cycleId)) {

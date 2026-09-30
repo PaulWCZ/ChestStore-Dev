@@ -11,7 +11,7 @@ import { deal as readDeal } from "../../../../lib/deals.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { format, formatDate, formatDay, money } from "../../../../lib/i18n/index.ts";
 import { amountInput } from "../../../../lib/amount.ts";
-import { today } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/zone.ts";
 import { listFiles } from "../../../../lib/attachments.ts";
 import { dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen } from "../../../../lib/page-data.ts";
 import { openSteps } from "../../../../lib/steps.ts";
@@ -53,7 +53,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         <p className="value-big num">{money(d.value, locale, { cents: d.value % 100 !== 0 })}</p>
         {stage.kind !== "open" && d.closedAt && (
           <p className={`closed-note ${stage.kind}`}>
-            {format(stage.kind === "won" ? t.deal.wonOn : t.deal.lostOn, { date: formatDate(d.closedAt, locale) })}{d.reason ? ` — ${d.reason}` : ""}
+            {format(stage.kind === "won" ? t.deal.wonOn : t.deal.lostOn, { date: formatDate(d.closedAt, locale, { timeZone: member.timeZone }) })}{d.reason ? ` — ${d.reason}` : ""}
           </p>
         )}
       </div>
@@ -74,7 +74,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, now, locale, t) }))} on={{ deal: d.id }} team={choices.team} people={people} me={member.id} canEdit={editable} canAssign={choices.canAssign} today={now} calendar={(await calendarWorks(sql)) === true} t={t} />
           {can(member, "activities.log") ? <Composer on={{ deal: d.id }} t={t} /> : <p className="muted">{t.log.readOnly}</p>}
           <h2 className="label-mono section-gap">{t.timeline.title}</h2>
-          <Timeline items={withWhen(items, locale)} people={people} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="deal" locale={locale} t={t} />
+          <Timeline items={withWhen(items, locale, new Date(), member.timeZone)} people={people} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="deal" locale={locale} t={t} />
         </div>
         <aside className="record-side">
           <dl className="facts">

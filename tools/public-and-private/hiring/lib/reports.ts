@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -47,10 +48,14 @@ export async function report(sql: Sql, actor: Member | null, jobId?: unknown, no
     from candidates c join stages s on s.id = c.stage_id where ${scope} and c.status = 'active' and s.hired`;
   const days = hires.map(h => h.days).sort((a, b) => a - b);
   const median = days.length === 0 ? null : Math.round(days.length % 2 ? days[(days.length - 1) / 2]! : (days[days.length / 2 - 1]! + days[days.length / 2]!) / 2);
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+  // Months are the company's: an application at 23:30 on 31 October in
+  // the Chest's zone counts for October, whatever UTC says.
+  const zone = chest.timeZone;
+  const [year, month] = chest.today(now).split("-").map(Number) as [number, number];
+  const start = new Date(Date.UTC(year, month - 1 - 5, 1));
   const monthly = await sql<{ month: string; count: number }[]>`
-    select to_char(date_trunc('month', c.created_at at time zone 'UTC'), 'YYYY-MM') as month, count(*)::int as count
-    from candidates c where ${scope} and c.created_at >= ${start} group by 1`;
+    select to_char(date_trunc('month', c.created_at at time zone ${zone}), 'YYYY-MM') as month, count(*)::int as count
+    from candidates c where ${scope} and c.created_at >= (${start.toISOString().slice(0, 10)}::date::timestamp at time zone ${zone}) group by 1`;
   const months = Array.from({ length: 6 }, (_, i) => {
     const m = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1)).toISOString().slice(0, 7);
     return { month: m, count: monthly.find(x => x.month === m)?.count ?? 0 };

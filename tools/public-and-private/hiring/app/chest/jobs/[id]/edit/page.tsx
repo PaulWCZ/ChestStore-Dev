@@ -1,5 +1,5 @@
 import { PageHeader } from "@argentic/chest-ui/components";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { notFound } from "next/navigation";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
@@ -25,7 +25,7 @@ export default async function EditJob({ params }: { params: Promise<{ id: string
   return (
     <div className="narrow">
       <PageHeader title={t.jobForm.editTitle} />
-      <JobForm job={detail.job} defaultLanguage={locale} defaultCountry={(await settings(db())).country} countryNames={countryNames(locale)} today={dayOf(new Date(), chest.timeZone())} t={{ jobForm: t.jobForm, facts: t.facts, errors: t.errors, date: t.dates }} />
+      <JobForm job={detail.job} defaultLanguage={locale} defaultCountry={(await settings(db())).country} countryNames={countryNames(locale)} today={dayOf(new Date(), chest.timeZone)} t={{ jobForm: t.jobForm, facts: t.facts, errors: t.errors, date: t.dates }} />
     </div>
   );
 }

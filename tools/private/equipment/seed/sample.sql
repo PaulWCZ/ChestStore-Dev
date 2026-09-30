@@ -98,9 +98,10 @@ select item_id, created_at, reported_by, 'reported', body from problems;
 
 -- Told by People (events between tools): Léa's last day is in about twelve
 -- days — a working day (a Saturday or Sunday moves to the Monday).
+-- current_date is the Chest's day (its zone is the sessions').
 insert into departures (member_id, last_day, told_at)
 select 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', d + case extract(isodow from d) when 6 then 2 when 7 then 1 else 0 end, now()
-from (select (now() at time zone 'Europe/Paris')::date + 12 as d) x;
+from (select current_date + 12 as d) x;
 
 -- ---- After the critique (migration 0003) --------------------------------------
 

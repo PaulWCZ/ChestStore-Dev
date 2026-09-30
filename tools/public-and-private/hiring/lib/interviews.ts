@@ -1,5 +1,5 @@
 import * as calendar from "@argentic/chest-sdk/calendar";
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import { roleOf } from "./access.ts";
@@ -45,7 +45,7 @@ const select = (sql: Query) => sql`
     coalesce((select array_agg(p.member_id order by p.member_id) from interview_people p where p.interview_id = i.id), '{}') as people from interviews i`;
 
 export const keyOf = (interviewId: string) => `interview:${interviewId}`;
-const zone = () => chest.timeZone();
+const zone = () => chest.timeZone;
 
 export type InterviewInput = { day: unknown; time: unknown; minutes: unknown; place?: unknown; note?: unknown; people: unknown; tell?: unknown };
 
@@ -169,7 +169,7 @@ export async function busy(sql: Sql, actor: Member | null, people: unknown, onDa
 // ---- The invitation ---------------------------------------------------------
 
 const domain = () => {
-  const url = chest.teamUrl();
+  const url = chest.teamUrl;
   try {
     return url ? new URL(url).hostname : "hiring.chest";
   } catch {

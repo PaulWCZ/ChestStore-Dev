@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Query, Sql } from "./db.ts";
@@ -112,7 +112,7 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
     order by q.id limit ${Math.min(Math.max(options.limit ?? 50, 1), 500)}`;
   if (batch.length === 0) return { sent: 0, stopped: null };
   const origin = await publicOrigin(sql);
-  const zone = chest.timeZone();
+  const zone = chest.timeZone;
   // Services named in each subscriber's language when written in it.
   const services = new Map((await allComponents(sql)).map(c => [c.id, c]));
   const nameIn = (id: string, language: string) => { const c = services.get(id); return c ? inLocale(c, language).name : undefined; };

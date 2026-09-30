@@ -488,6 +488,8 @@ await step("a day off typed so it cannot be read is refused out loud: the day ch
   await page.locator("#holiday").fill(`${year}-03-12`);
   await page.locator(".add-day").getByRole("button", { name: "Add", exact: true }).click();
   await page.locator(".holiday", { hasText: `12 March ${year}` }).waitFor();
+  // Shown at once, saved just after: the reload waits for the save.
+  await page.waitForLoadState("networkidle");
   await page.reload();
   expect(await page.locator(".holiday").count() === before + 1, "one day more");
   expect(await page.locator(".holiday", { hasText: `12 March ${year}` }).count() === 1 && await page.locator(".holiday", { hasText: `10 March ${year}` }).count() === 0, "the day typed, only");
@@ -753,6 +755,17 @@ await step("phone: reports fit — the period as one choice, tables as cards", a
   await page.locator("#period").selectOption("4");
   await page.waitForURL(/weeks=4/u);
   expect((await page.locator("main").innerText()).length > 100, "reports shown");
+});
+
+await step("the public form speaks the visitor's language, else the Chest's (English here)", async () => {
+  const lang = async (headers) => {
+    // A visitor without the harness's cookies.
+    const html = await (await fetch(origin + "/", { headers })).text();
+    return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
+  };
+  expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");
+  expect((await lang({ "accept-language": "de-DE,de;q=0.9" })) === "en", "a German browser reads the Chest's language");
+  expect((await lang({ "accept-language": "de-DE", cookie: "lang=fr" })) === "fr", "the switch wins");
 });
 
 await step("phone width: public form, inbox and ticket fit", async () => {

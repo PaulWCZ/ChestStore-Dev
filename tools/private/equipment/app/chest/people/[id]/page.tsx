@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { Avatar } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";

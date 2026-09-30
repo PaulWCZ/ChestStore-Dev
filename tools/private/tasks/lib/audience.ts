@@ -1,6 +1,7 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as members from "@argentic/chest-sdk/members";
 import { boardAccess } from "./access.ts";
+import { sharingGroups, withGroupsAmong } from "./groups.ts";
 import type { Board } from "./boards.ts";
 import { format, intl, type Catalogue, type Locale } from "./i18n/index.ts";
 
@@ -16,7 +17,7 @@ export async function boardAudience(b: Pick<Board, "visibility" | "people" | "gr
     let after: string | undefined;
     for (let page = 0; page < 4; page++) {
       const answer = await members.list({ limit: 500, ...(after ? { after } : {}) });
-      for (const m of answer.members) if (boardAccess(m, b) !== "none") found.push({ id: m.id, name: m.name, photo: m.photo });
+      for (const m of await withGroupsAmong(answer.members, b.groups)) if (boardAccess(m, b) !== "none") found.push({ id: m.id, name: m.name, photo: m.photo });
       if (!answer.next) break;
       after = answer.next;
     }
@@ -26,18 +27,11 @@ export async function boardAudience(b: Pick<Board, "visibility" | "people" | "gr
   return found;
 }
 
-// The groups that give Tasks, for a private board's settings.
-export async function groupsOfTool(): Promise<{ id: string; name: string }[]> {
-  try {
-    return (await members.groups.list()).map(g => ({ id: g.id, name: g.name }));
-  } catch (error) {
-    if (!(error instanceof ChestError)) throw error;
-    return [];
-  }
-}
+// The groups a private board may be shared with (lib/groups.ts).
+export const groupsOfTool = sharingGroups;
 
 // Whom a new private board may be shared with: everyone who has Tasks but
-// the creator, and the groups that give it.
+// the creator, and the Chest's groups.
 export async function sharingFor(memberId: string): Promise<{ people: Person[]; groups: { id: string; name: string }[] }> {
   const [people, groups] = await Promise.all([boardAudience({ visibility: "team", people: [], groups: [] }), groupsOfTool()]);
   return { people: people.filter(p => p.id !== memberId), groups };

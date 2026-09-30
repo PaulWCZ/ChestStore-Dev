@@ -68,9 +68,9 @@ test("the CSV: the month's approved and paid expenses, in the accountant's langu
   // Fuel: 80 % of the VAT.
   assert.equal(lines[4]!.split(";").slice(7, 9).join(";"), "1,65;1,32");
   // English: commas and dots.
-  const english = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...lea, locale: "en" }))).status;
+  const english = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...lea, language: "en" }))).status;
   assert.equal(english, 403);
-  const en = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...camille, locale: "en" }))).text();
+  const en = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...camille, language: "en" }))).text();
   assert.equal(en.trim().split("\r\n")[1], `2026-09-15,Léa Dubois,Fuel,606100,Station,,8.25,1.65,1.32,9.90,EUR,,9.90,Own money,Approved,Camille Martin,,2026-09-15_Lea-Dubois_9-90EUR_E${ids["pens"]}.pdf,E${ids["pens"]},`);
 });
 

@@ -2,7 +2,7 @@
 // (the harness runs the tool with --reset: the sample company is there).
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
-import { as, done, expect, id, open, step } from "./lib.mjs";
+import { as, control, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4400);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(approvals|settings|people)$/u });
@@ -241,8 +241,13 @@ await step("Booking is told Hugo's busy times: his week as UTC minutes, times on
   const busy = await busyOf(id("hugo"));
   expect(busy && busy.v === 1, "leave.busy published for Hugo");
   expect(Object.keys(busy).sort().join(",") === "at,from,member,spans,to,v", "times only: " + Object.keys(busy).join(","));
-  const week = busy.spans.find(([start]) => start.startsWith(day(plus(monday, -1))));
-  expect(week && /T2[23]:00Z$/u.test(week[0]) && week[1].startsWith(day(plus(monday, 4))) && /T2[23]:00Z$/u.test(week[1]), "Monday 00:00 to Saturday 00:00 in Paris: " + JSON.stringify(busy.spans));
+  // Monday 00:00 to Saturday 00:00 where Hugo works — the Chest's zone in
+  // the harness, which is the database sessions' too (Paris: 22:00 or 23:00
+  // UTC the day before).
+  const [edges] = await db`select ${day(monday)}::date::timestamptz as a, (${day(monday)}::date + 5)::timestamptz as b`;
+  const minute = d => d.toISOString().slice(0, 16) + "Z";
+  const week = busy.spans.find(([start]) => start === minute(edges.a));
+  expect(week && week[1] === minute(edges.b), `Monday 00:00 to Saturday 00:00 in the Chest's zone (${minute(edges.a)} → ${minute(edges.b)}): ` + JSON.stringify(busy.spans));
 });
 
 await step("Rooms and People are told Hugo's approved week: who and which days — never the kind nor the note", async () => {
@@ -357,6 +362,15 @@ await step("a colleague sees who is away, not why; she cannot open HR's pages", 
     const response = await page.goto(origin + path);
     expect(response.status() === 404, path + " → " + response.status());
   }
+});
+
+await step("who is away, by team: the Chest's groups are offered though none gives Leave, and Sales shows its two people", async () => {
+  await page.goto(origin + "/chest/calendar");
+  const text = await page.locator("main").innerText();
+  expect(["Office", "Sales", "Tech"].every(g => text.includes(g)), "the Chest's groups offered");
+  await page.goto(origin + "/chest/calendar?show=" + "grp_sales" + "a".repeat(21));
+  const names = await page.locator(".grid tbody tr th").allInnerTexts();
+  expect(names.length === 2 && names.some(n => n.includes("Inès Moreau")) && names.some(n => n.includes("Hugo Bernard")), "Sales: " + names.join(" | "));
 });
 
 await step("HR: sets an approver, adds a day with a reason, sees it in the history", async () => {
@@ -498,7 +512,24 @@ await step("email is offered as the Chest can send it (mail.available): the swit
   await as(context, origin, "tom");
   await page.goto(origin + "/chest");
   expect(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).count() === 1, "the switch");
-  expect(await page.getByText("Emails are not sent for now").count() === 0 && await page.getByText("Today’s emails are used up").count() === 0, "no sentence: this Chest sends");
+  expect(await page.getByText("Emails are not sent for now").count() === 0 && await page.getByText("Today's emails are used up").count() === 0, "no sentence: this Chest sends");
+});
+
+await step("what Tom chose in the Chest (one email a day) and a pause of the Chest's email: his home says each, in plain words", async () => {
+  await control(page, origin, "member", { member: id("tom"), mailPreference: "digest" });
+  try {
+    await page.goto(origin + "/chest");
+    expect(await page.getByText("In your Chest settings you chose one email a day").count() === 1, "one a day, said");
+    await control(page, origin, "delivery", { mail: "suspended" });
+    await page.goto(origin + "/chest");
+    expect(await page.getByText("Emails are not sent for now").count() === 1, "paused, said");
+    expect(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).count() === 1, "his own switch stays");
+  } finally {
+    await control(page, origin, "delivery", { mail: "ready" });
+    await control(page, origin, "member", { member: id("tom"), mailPreference: "all" });
+  }
+  await page.goto(origin + "/chest");
+  expect(await page.getByText("In your Chest settings you chose").count() === 0, "all: nothing to say");
 });
 
 await step("Tom turns his emails off: the next answer reaches his bell only", async () => {
@@ -544,8 +575,11 @@ await step("someone leaves: their last day is set; HR finds them under Former, w
 });
 
 await step("payroll's balances file on the last day of next month: a projection, named so; later is refused", async () => {
-  const now = new Date();
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0));
+  // The Chest's today: its database's current_date (the sessions are in
+  // its zone), not UTC's day.
+  const [{ today }] = await db`select current_date::text as today`;
+  const [y, m] = today.split("-").map(Number);
+  const end = new Date(Date.UTC(y, m + 1, 0));
   const ok = await page.request.get(origin + "/chest/people/balances?on=" + day(end));
   expect(ok.status() === 200 && (ok.headers()["content-disposition"] ?? "").includes("-projected.csv"), "projected: " + ok.status() + " " + ok.headers()["content-disposition"]);
   const late = await page.request.get(origin + "/chest/people/balances?on=" + day(plus(end, 1)));

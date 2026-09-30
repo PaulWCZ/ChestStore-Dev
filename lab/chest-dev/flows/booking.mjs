@@ -698,7 +698,8 @@ await step("on a phone Inès's agenda shows her meetings; « Afficher les créne
   await page.locator(".free-toggle label").click();
   expect(await page.locator(".meeting.free").first().isVisible(), "free rows back");
   await page.reload();
-  expect(await page.locator(".meeting.free").first().isVisible(), "remembered on this phone");
+  // The choice is read from this phone's storage once the page hydrates.
+  expect(await page.locator(".meeting.free").first().waitFor({ timeout: 5000 }).then(() => true, () => false), "remembered on this phone");
   await page.locator(".free-toggle label").click();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(!wide, "no sideways scroll");
@@ -722,6 +723,17 @@ await step("email is promised only because this Chest sends it (SDK studio.16, m
   await page.goto(origin + "/chest/settings");
   const text = await page.locator("main").innerText();
   expect(!/cannot send email|not connected email|paused email|all of today/u.test(text), "Settings warns of nothing: " + text.slice(0, 200));
+});
+
+await step("the company's page speaks the visitor's language, else the Chest's (English here)", async () => {
+  const lang = async (headers) => {
+    // A visitor without the harness's cookies.
+    const html = await (await fetch(origin + "/", { headers })).text();
+    return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
+  };
+  expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");
+  expect((await lang({ "accept-language": "de-DE,de;q=0.9" })) === "en", "a German browser reads the Chest's language");
+  expect((await lang({ "accept-language": "de-DE", cookie: "lang=fr" })) === "fr", "the switch wins");
 });
 
 await browser.close();

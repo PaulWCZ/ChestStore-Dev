@@ -1,4 +1,4 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
@@ -85,8 +85,8 @@ export function alertText(b: Batch, count: number, language: Locale, link: strin
 export async function send(sql: Sql, formId: string, recipients: { member: string; count: number }[]): Promise<number> {
   if (recipients.length === 0) return 0;
   const names = await people(recipients.map(r => r.member));
-  const zone = chest.timeZone();
-  const base = chest.teamUrl();
+  const zone = chest.timeZone;
+  const base = chest.teamUrl;
   const link = base ? `${base}/chest/forms/${formId}/answers` : null;
   let sent = 0;
   let ids: string[] = [];

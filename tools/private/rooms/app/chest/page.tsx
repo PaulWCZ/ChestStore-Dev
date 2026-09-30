@@ -12,6 +12,7 @@ import { deskBookingsOf, deskBookingsOn, usualDesk } from "../../lib/desk-bookin
 import { formatDay, formatSpan, formatTime } from "../../lib/i18n/index.ts";
 import { addDays, minutesNow, mondayOf, overlaps, twoWeeks, placeName } from "../../lib/model.ts";
 import { checkInOpens } from "../../lib/check-in.ts";
+import { groupsOf } from "../../lib/groups.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { atOffice, presenceOf } from "../../lib/presence.ts";
 import { myRoomBookings } from "../../lib/room-bookings.ts";
@@ -55,9 +56,9 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
   const onUsual = usual ? await deskBookingsOn(sql, usual.id, from, to) : [];
   // My own desk, lent to someone on a day I am away.
   const lentTo = usual?.assigned ? onUsual.filter(b => b.memberId !== member.id) : [];
-  const who = await people([...[...present.values()].flat(), ...myRooms.map(r => r.memberId), ...lentTo.map(b => b.memberId)]);
+  const [who, myGroups] = await Promise.all([people([...[...present.values()].flat(), ...myRooms.map(r => r.memberId), ...lentTo.map(b => b.memberId)]), groupsOf(member)]);
   // My teams first: those who share a group with me, then everyone else.
-  const shared = (id: string) => (who.get(id)?.groups ?? []).some(g => member.groups.includes(g));
+  const shared = (id: string) => (who.get(id)?.groups ?? []).some(g => myGroups.includes(g));
   const mine = said.get(member.id);
   const now = minutesNow(c.zone);
   const rows: WeekDay[] = days.map(d => {
@@ -97,7 +98,7 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
   const focus = typeof params["day"] === "string" && days.includes(params["day"]) ? params["day"] : null;
   // The desks one may choose for the usual week: free ones and my own.
   const choices = (office?.floors ?? []).flatMap(f => f.areas.flatMap(a => a.desks
-    .filter(d => (d.assignedTo === null || d.assignedTo === member.id) && (a.groupId === null || can(member, "bookings.any") || member.groups.includes(a.groupId)))
+    .filter(d => (d.assignedTo === null || d.assignedTo === member.id) && (a.groupId === null || can(member, "bookings.any") || myGroups.includes(a.groupId)))
     .map(d => ({ id: d.id, name: `${d.name} · ${a.name}`, mine: d.assignedTo === member.id }))));
   return (
     <div className="narrow">
