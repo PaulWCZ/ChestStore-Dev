@@ -19,7 +19,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, storage: { publicUploads: true } });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, storage: { publicUploads: true } });
 });
 after(async () => {
   await chest.close();

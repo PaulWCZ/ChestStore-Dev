@@ -18,7 +18,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { organization: "Atelier Martin", language: "en" }, webhooks: { max: 10, to: hooks } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" }, webhooks: { max: 10, to: hooks } });
 });
 after(async () => {
   await chest.close();
@@ -131,7 +131,7 @@ test("a channel that keeps failing is stopped by the Chest: Settings says so, th
 
 test("on a Chest without webhooks, Settings says so and adding is refused in words", async () => {
   const { sql } = database;
-  const plain = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
+  const plain = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     assert.equal((await notices.targets(sql, asMember(camille))).available, false);
     assert.equal((await notices.targets(sql, asMember(camille))).delivery, "not_granted");

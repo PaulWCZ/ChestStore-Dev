@@ -20,10 +20,10 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
-const chestWith = (emits: string[]) => fakeChest({
+const chestWith = (emits: string[]) => fakeChest({ chest: { timeZone: "Europe/Paris" }, 
   tool: "helpdesk", members: everyone, emits, capabilities: ["members", "files", "notifications"],
   schedules: [{ name: "cleanup", cron: "15 3 * * *" }, { name: "late", cron: "*/15 * * * *" }],
-  chest: { organization: "Atelier Martin", language: "en" },
+  chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" },
 });
 before(async () => {
   database = await testDatabase();

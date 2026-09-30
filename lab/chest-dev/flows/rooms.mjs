@@ -723,19 +723,20 @@ await step("a leave shortened in Leave: its remaining days stay Off in Sofia's w
 
 await step("told in reverse at the same moment: the approval of the remaining days, then the cancellation — the remaining days stay Off", async () => {
   await as(context, origin, "sofia");
-  const days = [14, 15, 16, 17].map(n => iso(new Date(monday.getTime() + n * 864e5)));
-  const leave = { member: id("sofia"), from: days[0], to: days[3], fromHalf: "day", toHalf: "day", request: "flow-cut-2" };
+  // Next week's Thursday and Friday: the week the home page shows.
+  const days = [10, 11].map(n => iso(new Date(monday.getTime() + n * 864e5)));
+  const leave = { member: id("sofia"), from: days[0], to: days[1], fromHalf: "day", toHalf: "day", request: "flow-cut-2" };
   const at = new Date(Date.now() - 60_000).toISOString();
   const deliver = async (type, data, occurredAt) => {
     const r = await page.request.post(origin + "/_dev/deliver", { form: { type, data: JSON.stringify(data), occurredAt }, maxRedirects: 0 });
     expect(r.status() === 303, `${type} delivered: ${r.status()}`);
   };
   await deliver("leave.approved", leave, new Date(Date.now() - 120_000).toISOString());
-  await deliver("leave.approved", { ...leave, to: days[1] }, at);
+  await deliver("leave.approved", { ...leave, to: days[0] }, at);
   await deliver("leave.cancelled", leave, at);
   await page.goto(origin + `/chest?day=${days[0]}`);
   const off = (await Promise.all(days.map(async d => (await page.locator("#day-" + d).getAttribute("class")) ?? ""))).map(c => c.split(" ").includes("is-off"));
-  expect(off.join(",") === "true,true,false,false", "the first two days still Off, the last two open: " + off.join(","));
+  expect(off.join(",") === "true,false", "Thursday still Off, Friday open: " + off.join(","));
 });
 
 await step("a room kept for Sales, a group that does not give Rooms: Hugo (Sales) may book it, Léa (Tech) may not", async () => {
@@ -750,7 +751,7 @@ await step("a room kept for Sales, a group that does not give Rooms: Hugo (Sales
   await page.waitForSelector(".ck-toast");
   const bookable = async who => {
     await as(context, origin, who);
-    await page.goto(origin + `/chest/rooms?day=${far}`);
+    await page.goto(origin + `/chest/rooms?day=${friday}`);
     await page.getByRole("button", { name: "Book a room" }).click();
     const form = page.locator("dialog[open]");
     const option = form.locator("option", { hasText: /^Bora/u });
