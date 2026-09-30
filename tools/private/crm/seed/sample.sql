@@ -182,3 +182,5 @@ insert into activities (kind, data, contact_id, company_id, author, at, created_
     c.id, c.company_id, 'chest', now() - interval '2 hours', now() - interval '2 hours'
   from booked_meetings m join contacts c on c.name = case m.booking when '901' then 'Marc Durand' else 'Antoine Vidal' end;
 update booked_meetings m set activity_id = a.id from activities a where a.kind = 'booking' and a.data->>'booking' = m.booking;
+-- Booking a meeting is being in touch (the prospects' three-year rule).
+update contacts set last_contact_at = greatest(last_contact_at, now() - interval '2 hours') where name in ('Marc Durand', 'Antoine Vidal');

@@ -109,6 +109,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lede { color: var(--ink-2); }
 .notice { display: flex; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-3); margin: var(--space-3) 0; background: var(--surface-2); border: var(--border-width) solid var(--line); border-left: 3px solid var(--accent-line); border-radius: var(--radius-s); font-size: var(--text-s); color: var(--ink-2); }
 .notice.warn { border-left-color: var(--today); background: var(--today-soft); color: var(--today-ink); }
+.notice.warn a { color: var(--today-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .panel { background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .panel h2 { font-size: var(--text-m); }

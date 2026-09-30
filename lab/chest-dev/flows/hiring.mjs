@@ -652,7 +652,7 @@ await step("the morning schedule: each interviewer gets the day's interviews by 
   // Every interviewer on it gets theirs in their own language: Inès, a
   // job's interviewer ticked by default, reads French.
   const ines = again.split("<li>").find(item => item.includes("<b>Vos entretiens aujourd’hui</b>"));
-X
+  expect(Boolean(ines) && ines.includes("ines@example.test") && ines.includes("Bonjour Inès"), "Inès's, in French");
 });
 
 await step("a candidate applies from a phone with a photo of her CV; the team sees it on her page", async () => {

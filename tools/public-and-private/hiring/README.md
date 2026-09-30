@@ -105,7 +105,9 @@ decides together.
   times they are already busy that day — an interview, or Booking's
   "(Booking)" —, and a warning on a clash), a place or video link, a note; the candidate gets an email with
   an `.ics` (and a CANCEL one if called off), the interviewers get it in
-  their Chest calendar feed, and a reminder on the morning of it.
+  their Chest calendar feed, and a reminder on the morning of it: an item
+  in the bell and one email with the whole day ("08:00 — Bastien Leroy,
+  Sales", with each candidate's link), in their language.
   **Reject** with a reason (none chosen for you; "they withdrew" and "they
   stopped answering" close the application without a rejection email) and
   an email in their language that **leaves only once the Undo is over**
@@ -139,8 +141,28 @@ decides together.
   files 2 years (or 1 year, 6 months: *Settings*) after their last news
   (an answer by email is news), every night (Proposal *schedules*); CVs
   sent but never claimed go after a day; a recruiter erases a candidate
-  on request, or gives them their data; the form and each job page say
-  it. Each job's candidates export as CSV.
+  on request, or gives them their data (a ZIP: what they sent, what the
+  team wrote, the emails, and the files of those emails both ways — the
+  offer letter sent, what they attached — under `emails/<email>/`, named
+  in `data.json`); the form and each job page say it. Each job's
+  candidates export as CSV; *Export everything* holds those files too,
+  named in `emails.csv`.
+- **Email and people's choices** (SDK studio.15): each member chooses
+  once in their Chest how tools may email them (all, one a day, none);
+  the Chest applies it, so Hiring keeps no email switch. **Every email to
+  a candidate is transactional** — the confirmation of their application,
+  an interview's time, its cancellation, the link to choose a time, a
+  recruiter's message, the answer: each answers their own application.
+  A candidate is usually an outside address, which no preference
+  touches, so the flag changes nothing for them; it matters when an
+  employee applies to an internal job with their work address and chose
+  "none" — without it, their interview's confirmation would be held back.
+  The **interviewers' morning email** is a reminder, not transactional:
+  "none" gets the bell item only, "one a day" finds it in the Chest's
+  daily email. Keys are whole (`message:<id>:<address>`,
+  `morning:<day>:<member>`; the SDK hashes a long one): one email per
+  message and recipient, one morning email per person and day, whatever
+  the retries.
 
 ## Looks
 
@@ -352,8 +374,7 @@ upload one.
 - **Templates are plain text** (their files aside); no e-signature of
   the offer letter. On a Chest without email, the recruiter's own mail
   app opens with the text: the files are kept on the page, to attach
-  there by hand. Files a candidate's data export (ZIP) or the full export
-  do not include sent files yet.
+  there by hand.
 - A HEIC photo of a CV is kept and downloaded; browsers other than Safari
   cannot show it on the page.
 - **Emails to file** are filed one by one; an attachment a candidate sends
