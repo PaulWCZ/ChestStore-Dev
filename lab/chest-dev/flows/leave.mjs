@@ -260,16 +260,22 @@ await step("he asks to cancel the approved week; she confirms; the days come bac
 });
 
 await step("cancelled: the week leaves Hugo's feed, and Booking hears he is free again", async () => {
+  // The week the step before cancelled (the first approved week of his list).
+  const [gone] = await db`select id, to_char(start_date, 'YYYY-MM-DD') as start from requests r
+    where member_id = ${id("hugo")} and status = 'cancelled' and exists (select 1 from request_events e where e.request_id = r.id and e.kind = 'cancelled')
+    order by (select max(e.at) from request_events e where e.request_id = r.id) desc limit 1`;
+  expect(gone, "a cancelled week");
+  const first = new Date(gone.start + "T00:00:00Z");
   await page.goto(origin + "/chest");
   let ics = "";
   for (let i = 0; i < 10; i++) {
     ics = await feedOf();
-    if (!ics.includes(`DTSTART;VALUE=DATE:${compact(monday)}`)) break;
+    if (!ics.includes(`DTSTART;VALUE=DATE:${compact(first)}`)) break;
     await page.waitForTimeout(500);
   }
-  expect(!ics.includes(`DTSTART;VALUE=DATE:${compact(monday)}`), "the week is gone from the feed");
+  expect(!ics.includes(`DTSTART;VALUE=DATE:${compact(first)}`) && !ics.includes(`/chest/requests/${gone.id}\r\n`), "the week of " + gone.start + " is gone from the feed");
   const busy = await busyOf(id("hugo"));
-  expect(busy && !busy.spans.some(([start]) => start.startsWith(day(plus(monday, -1)))), "no longer busy that week: " + JSON.stringify(busy?.spans));
+  expect(busy && !busy.spans.some(([start]) => start.startsWith(day(plus(first, -1)))), "no longer busy that week: " + JSON.stringify(busy?.spans));
 });
 
 await step("sick leave is recorded at once, without a note", async () => {
