@@ -70,6 +70,10 @@ TEST_DATABASE_URL=postgres://… npm test   # also plays two people booking the 
 - **Addresses** (`members.email`) are read by `matchable()` for importers
   only; never pass them to a client component (`directory()` has none).
 - **Identity only from `member()`** (`lib/session.ts`); store `mbr_…` ids.
+- **A member's groups come from `lib/groups.ts`** (`groupsOf` for one,
+  `membership` for many), never from `member.groups`, which lists only the
+  groups that give Rooms (none when it is open to everyone). Ask them
+  before a transaction, not inside it.
 - **Never check availability in code and then insert**: insert, and let the
   constraint refuse (`conflict()` turns SQLSTATE 23P01 into `taken` /
   `already_booked`). Insert inside a savepoint when the transaction must go on.
