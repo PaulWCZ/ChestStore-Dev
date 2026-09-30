@@ -7,6 +7,7 @@ import { brandOf, retentionWords } from "../../../lib/careers.ts";
 import { db } from "../../../lib/db.ts";
 import { format } from "../../../lib/i18n/index.ts";
 import { meetingTime } from "../../../lib/i18n/format.ts";
+import { mailState } from "../../../lib/mail-state.ts";
 import { settings } from "../../../lib/jobs.ts";
 import { offer } from "../../../lib/self-schedule.ts";
 import { publicWords } from "../../../lib/session.ts";
@@ -32,6 +33,8 @@ export default async function ChooseTime({ params }: { params: Promise<{ token: 
   const w = t.pick;
   const foot = <><span>{format(t.careers.footer, { company })}</span><span>{format(t.careers.privacy, { period: retentionWords(t, s.retentionMonths) })}</span></>;
   const { request } = found;
+  // Once booked, the confirmation is promised only when mail will go.
+  const mailing = request.status === "booked" ? await mailState() : "unknown";
   const intl = locale === "fr" ? "fr" : "en-GB";
   const dayLabel = (d: string) => new Intl.DateTimeFormat(intl, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(d + "T12:00:00Z"));
   const zoneName = (zone.split("/").at(-1) ?? zone).replace(/_/gu, " ");
@@ -43,7 +46,7 @@ export default async function ChooseTime({ params }: { params: Promise<{ token: 
           <h1 className="display">{w.bookedTitle}</h1>
           <p className="lede">{format(w.bookedBody, { when: meetingTime(found.interview.start, zone, locale), job: found.job })}</p>
           {found.interview.place && <p>{format(w.where, { place: found.interview.place })}</p>}
-          <p>{w.bookedNext}</p>
+          <p>{mailing === "off" ? w.bookedNoMail : mailing === "later" ? w.bookedLater : w.bookedNext}</p>
         </section>
       ) : request.status !== "open" ? (
         <section className="thanks">

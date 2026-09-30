@@ -72,6 +72,12 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
+  // The id of the cards' keyboard instructions (their aria-describedby):
+  // the same on the server and in the browser. Left to dnd-kit, it comes
+  // from a counter that keeps growing in the server's process, so from the
+  // second page served on, every card pointed at instructions that do not
+  // exist ("DndDescribedBy-7" for a "DndDescribedBy-0" in the page).
+  const dndId = useId();
   const [, start] = useTransition();
   const writable = (board.access === "write" || board.access === "own") && !board.archived;
   const byId = useMemo(() => new Map(cards.map(c => [c.id, c])), [cards]);
@@ -271,7 +277,7 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
       ) : view === "timeline" && timeline ? (
         <TimelineView timeline={timeline} columns={columns} cards={cards.filter(matches)} people={people} writable={writable} locale={locale} query={query} onError={fail} t={t} />
       ) : (
-        <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setLanes(lanesOf(columns, cards)); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
+        <DndContext id={dndId} sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setLanes(lanesOf(columns, cards)); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
           {columns.length > 1 && (
             <nav className="lane-jump" aria-label={t.board.columns}>
               {columns.map((c, i) => (

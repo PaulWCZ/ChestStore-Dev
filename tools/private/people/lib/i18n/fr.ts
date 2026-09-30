@@ -296,6 +296,9 @@ export const fr: Catalogue = {
     weekend: "C’est un {day} : est-ce bien le bon jour ?",
   },
   start: {
+    noMail: "Votre Chest ne peut pas encore envoyer d’e-mails : {name} ne recevra pas d’e-mail de bienvenue.",
+    mailPaused: "Votre Chest n’envoie pas d’e-mails en ce moment : {name} ne recevra pas d’e-mail de bienvenue.",
+    noAddress: "{name} ne recevra pas d’e-mail de bienvenue : ajoutez d’abord son e-mail professionnel à son arrivée.",
     title: "Démarrer une check-list",
     person: "Pour qui ?",
     template: "Check-list",

@@ -10,6 +10,7 @@ import { catalogue, fileSize, format, formatDate, languageNames, locales, type C
 import { meetingTime } from "../../../../lib/i18n/format.ts";
 import { ofCandidate } from "../../../../lib/interviews.ts";
 import { interviewersOf, settings } from "../../../../lib/jobs.ts";
+import { mailState } from "../../../../lib/mail-state.ts";
 import { rejectionDraft, values as mailValues } from "../../../../lib/mailer.ts";
 import { conversation, templates as companyTemplates } from "../../../../lib/messages.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
@@ -49,6 +50,9 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   }
   const s = await settings(sql);
   const onJob = await interviewersOf(sql, c.jobId);
+  // Whether an email to the candidate would leave: the forms say so
+  // before a recruiter counts on one.
+  const mailing = manage ? await mailState() : "unknown";
   const [mails, meetings, own, requests] = await Promise.all([
     manage ? conversation(sql, member, c.id) : Promise.resolve([]),
     ofCandidate(sql, member, c.id),
@@ -124,6 +128,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             // recruiter silently (the button then names who is on it).
             interview={{ people: eligible.map(m => ({ id: m.id, name: m.name })), preselected: eligible.filter(m => onJob.includes(m.id)).map(m => m.id), today, zone: zone.split("/").at(-1)?.replace(/_/gu, " ") ?? zone, zoneId: zone }}
             jobs={otherJobs.map(j => ({ id: String(j.id), title: j.title }))}
+            mailing={mailing}
             t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board, hire: t.hire, write: t.write, interview: t.interview, dialog: t.dialog, date: t.dates, files: t.files }}
           />
         )}
@@ -220,6 +225,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
                 list={meetings.map(m => ({ id: m.id, when: meetingTime(m.start, zone, locale), past: new Date(m.end).getTime() < Date.now(), place: m.place, people: m.people.map(p => name(p)).join(", "), cancelled: m.cancelled, ics: m.calendar === "off" }))}
                 links={waiting.map(r => ({ id: r.id, from: shortDay(r.firstDay), to: shortDay(r.lastDay), people: r.people.map(p => name(p)).join(", ") }))}
                 manage={manage}
+                mailing={mailing}
                 t={{ interview: t.interview, errors: t.errors, common: t.common }}
               />
             </section>

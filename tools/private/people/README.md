@@ -281,8 +281,8 @@ ones Rooms receives; unchanged).
   come at least once, not always in order) cannot bring the badge back.
 
 **Equipment → People** — everything is back (`receives`). The contract,
-v1, which **Equipment does not publish yet** (it declares no `emits`
-today): Equipment receives `people.leaving` and lists what the person
+v1, which Equipment publishes (`tools/private/equipment/lib/returned.ts`,
+its `emits`): Equipment receives `people.leaving` and lists what the person
 holds; once everything they held is back, it publishes
 
 - `equipment.returned` `{member: "mbr_…"}` (key
@@ -293,8 +293,11 @@ holds; once everything they held is back, it publishes
   example step does (its words' key `offboarding.equipment`, kept until HR
   rewords it): a step HR wrote itself stays HR's to tick. Another shape,
   another tool, a stopped checklist: nothing; told twice, nothing more.
-  People's side is built and tested (`lib/returns.ts`,
-  `test/returns.test.ts`, the harness's *Deliver*).
+  Built and tested on both sides (`lib/returns.ts`,
+  `test/returns.test.ts`, the harness's *Deliver*; Equipment's
+  `lib/returned.ts`, which tells it again every quarter of an hour while
+  the Chest cannot take it). Until an admin links Equipment to People for
+  it, HR ticks the step by hand.
 
 **People → other tools** — departures and records (`chest.proposals.json` `emits`):
 
@@ -452,18 +455,27 @@ records: see "On a Chest").
 - `mail` — **Proposal (studio)**: `mail.send` of the welcome email (to a
   member by id, or to an arrival's work address; `replyTo` the HR person's
   Chest address, `members.email`). The person's own email choice
-  (`member.mailPreference`, studio.15) is applied by `mail.send`. On a
+  (`member.mailPreference`, studio.15) is applied by `mail.send`. The
+  start form asks `mail.available()` (studio.16, `lib/mailing.ts`) before
+  it promises the email: "{name} gets a short welcome email" only when the
+  Chest would send it; otherwise it says why none will leave (mail not
+  connected, mail paused or the day's emails used, no work email for an
+  arrival). The key names the checklist and the recipient (`people:welcome:<checklist>:<member or address>`),
+  so a restored database never reuses one person's key for another. On a
   Chest without mail, nothing is sent, nothing fails, and the page does
   not say it was sent.
 - **Events between tools** — **Proposal (studio)**: receives
   `hiring.hired`, `hiring.hire_cancelled`, `leave.approved`,
-  `leave.cancelled`, `equipment.returned` (Equipment does not publish it
-  yet); emits `people.leaving`, `people.leaving_cancelled`,
+  `leave.cancelled`, `equipment.returned`; emits `people.leaving`, `people.leaving_cancelled`,
   `people.record` (see "With the other tools"). Without it, HR starts checklists for
   members only, nobody reads "Away", and Equipment is not told of
   departures.
 - **The Chest's time zone** — **Proposal (studio)** (`chest.timeZone()`,
-  `chest.today()`): "today", due days and anniversaries.
+  `chest.today()`): "today", due days and anniversaries. **The member's own
+  zone** (studio.16, `chest.timeZone(member)`, `lib/zone.ts` `todayOf`):
+  "today" and "late" on a person's own *My to-dos*, and the day a step was
+  ticked as its reader sees it; the Chest's zone stays for what concerns
+  everyone (checklists' due days, records, the morning run).
 - **The company's look** — **Proposal (studio)** (`chest.theme()`, SDK
   0.3.0-studio.12): the theme or brand the company chose. Without it (a
   real Chest today) People wears its own identity.
@@ -518,8 +530,7 @@ field visibility has two levels (everyone, or HR and the person) — no
 calendar); public holidays in the "back on" day; teams as Chest groups;
 drag-and-drop in the org chart; reminders by email; the welcome email's
 words are the tool's (HR cannot reword it yet) and it goes when the
-checklist starts, not on a day HR picks; ticking "return the laptop" waits
-for Equipment to publish `equipment.returned` (People's side is built); an
+checklist starts, not on a day HR picks; an
 export of checklists and their history; changing a
 choice field's list or a date field's reminder after it was added (remove
 it and add it again: Undo keeps its values meanwhile); a field's kind never

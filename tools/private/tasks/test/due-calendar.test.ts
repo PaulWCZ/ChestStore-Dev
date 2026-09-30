@@ -151,3 +151,67 @@ test("a first sync of many due dates goes 100 a call (putMany) and puts each one
   assert.deepEqual(chest.calendar.get(`card:${ids[149]}`)!.members, [ines.id]);
   assert.deepEqual(await sync(sql, { max: 200 }), { put: 0, removed: 0 });
 });
+
+// The Chest answers each event of a batch (studio.16). It checks again what
+// the SDK checked — its clock, its rules — so it may refuse one the tool
+// sent: here one event is spoilt on its way (as a Chest whose rules moved
+// would refuse it). The others are put and remembered; the refused one is
+// not remembered as put, and the next run tries it again.
+test("one event the Chest refuses in a batch: the others are put, that one is not remembered and is tried again", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup();
+  const made = [];
+  for (const title of ["Van", "Boxes", "Keys"]) {
+    const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, title);
+    await cards.updateCard(sql, asMember(hugo), c.id, { due: soon() });
+    await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id]);
+    made.push(c);
+  }
+  const spoilt = `card:${made[1]!.id}`;
+  const real = globalThis.fetch;
+  let batches = 0;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (init?.method === "PUT" && url.pathname.endsWith("/calendar/events") && typeof init.body === "string") {
+      batches++;
+      const body = JSON.parse(init.body) as { events: Record<string, unknown>[] };
+      for (const e of body.events) if (e["key"] === spoilt) e["days"] = { first: "2026-13-40", last: "2026-13-40" };
+      return real(input, { ...init, body: JSON.stringify(body) });
+    }
+    return real(input, init);
+  }) as typeof fetch;
+  try {
+    assert.deepEqual(await sync(sql), { put: 2, removed: 0 });
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.equal(batches, 1, "one call for the three, no event-by-event fallback");
+  assert.ok(chest.calendar.has(`card:${made[0]!.id}`));
+  assert.ok(chest.calendar.has(`card:${made[2]!.id}`));
+  assert.equal(chest.calendar.has(spoilt), false);
+  const kept = (await sql<{ key: string }[]>`select key from calendar_events order by key`).map(r => r.key);
+  assert.equal(kept.includes(spoilt), false, "a refused event is never remembered as put");
+  assert.equal(kept.length, 2);
+  assert.equal(await calendarWorks(sql), true, "one refused event does not turn the calendar off");
+  // The next run tries it again, and only it.
+  assert.deepEqual(await sync(sql), { put: 1, removed: 0 });
+  assert.ok(chest.calendar.has(spoilt));
+});
+
+test("the Chest full (5,000 events): new ones refused one by one are not remembered, and go once there is room", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup();
+  for (let i = 0; i < 4999; i++) chest.calendar.set(`other:${i}`, { key: `other:${i}`, members: [ines.id], title: { en: "x" }, days: { first: soon(), last: soon() }, busy: false, private: false, updated: new Date().toISOString(), sequence: 0 } as never);
+  const made = [];
+  for (const title of ["Van", "Boxes", "Keys"]) {
+    const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, title);
+    await cards.updateCard(sql, asMember(hugo), c.id, { due: soon() });
+    await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id]);
+    made.push(c);
+  }
+  assert.deepEqual(await sync(sql), { put: 1, removed: 0 });
+  assert.equal((await sql`select 1 from calendar_events`).length, 1);
+  for (let i = 0; i < 10; i++) chest.calendar.delete(`other:${i}`);
+  assert.deepEqual(await sync(sql), { put: 2, removed: 0 });
+  for (const c of made) assert.ok(chest.calendar.has(`card:${c.id}`));
+});

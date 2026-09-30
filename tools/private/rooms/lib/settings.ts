@@ -61,4 +61,5 @@ export async function purge(sql: Sql, zone: string): Promise<void> {
   await sql`delete from room_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from visits where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from usual_applied where day < (now() at time zone ${zone})::date`;
+  await purgeLeaveWords(sql, zone);
 }

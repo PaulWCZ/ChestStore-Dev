@@ -23,13 +23,14 @@ import { Dialog, useToast } from "@argentic/chest-ui/components";
 import type { DateWords, DialogWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
 import { HireDialog } from "../../../../components/hire-dialog.tsx";
 import { Ban, Bell, Clock, File, Select, Star } from "../../../../components/icons.tsx";
 import type { CandidateCard } from "../../../../lib/candidates.ts";
 import { format, intl, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import type { Stage } from "../../../../lib/jobs.ts";
+import type { MailState } from "../../../../lib/mail-state.ts";
 import { candidateReasons, companyReasons, isCandidateReason, type RejectReason } from "../../../../lib/model.ts";
 import { bulkMove, bulkMoveBack, bulkReject, moveCandidate, rejectionsLeft, undoReject } from "../../actions.ts";
 
@@ -49,8 +50,14 @@ const raw = (key: UniqueIdentifier) => String(key).replace(/^(cand|stage):/u, ""
 type Places = Record<string, string>;
 const placesOf = (cards: CandidateCard[]): Places => Object.fromEntries(cards.map(c => [c.id, c.stageId]));
 
-export function BoardView({ stages, cards, manage, locale, today, t }: { stages: Lane[]; cards: CandidateCard[]; manage: boolean; locale: Locale; today: string; t: Words }) {
+export function BoardView({ stages, cards, manage, locale, today, mailing = "unknown", t }: { stages: Lane[]; cards: CandidateCard[]; manage: boolean; locale: Locale; today: string; mailing?: MailState; t: Words }) {
   const router = useRouter();
+  // The id of the cards' keyboard instructions (their aria-describedby):
+  // the same on the server and in the browser. Left to dnd-kit, it comes
+  // from a counter that keeps growing in the server's process, so from the
+  // second page served on, every card pointed at instructions that do not
+  // exist ("DndDescribedBy-7" for a "DndDescribedBy-0" in the page).
+  const dndId = useId();
   const toast = useToast();
   const [, start] = useTransition();
   const active = useMemo(() => cards.filter(c => c.status === "active"), [cards]);
@@ -211,7 +218,7 @@ export function BoardView({ stages, cards, manage, locale, today, t }: { stages:
           </button>
         ))}
       </nav>
-      <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
+      <DndContext id={dndId} sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
         <div className="lanes one-on-phone">
           {stages.map(stage => {
             const here = active.filter(c => places[c.id] === stage.id);
@@ -240,7 +247,7 @@ export function BoardView({ stages, cards, manage, locale, today, t }: { stages:
         </div>
       )}
       <Dialog open={bulk === "reject"} title={plural(t.board.rejectTitle, chosen.size, locale)} onClose={() => setBulk(null)} labels={t.dialog}>
-        <BulkReject count={chosen.size} locale={locale} t={t} onCancel={() => setBulk(null)} onConfirm={(reason, send) => {
+        <BulkReject count={chosen.size} locale={locale} mailing={mailing} t={t} onCancel={() => setBulk(null)} onConfirm={(reason, send) => {
           const ids = [...chosen];
           setBulk(null);
           stopSelecting();
@@ -301,19 +308,23 @@ export function BoardView({ stages, cards, manage, locale, today, t }: { stages:
 
 // Rejecting several: a reason (none chosen for you), and the rejection
 // email in each candidate's language — off when they stepped back.
-function BulkReject({ count, locale, t, onCancel, onConfirm }: { count: number; locale: Locale; t: Words; onCancel: () => void; onConfirm: (reason: RejectReason, send: boolean) => void }) {
+function BulkReject({ count, locale, mailing, t, onCancel, onConfirm }: { count: number; locale: Locale; mailing: MailState; t: Words; onCancel: () => void; onConfirm: (reason: RejectReason, send: boolean) => void }) {
   const [reason, setReason] = useState<RejectReason | null>(null);
-  const [send, setSend] = useState(true);
+  // No mail on this Chest: nothing is offered that would not leave.
+  const off = mailing === "off";
+  const [send, setSend] = useState(!off);
   const theirs = reason !== null && isCandidateReason(reason);
   return (
     <form className="stack" onSubmit={e => { e.preventDefault(); if (reason) onConfirm(reason, send && !theirs); }}>
       <ReasonPicker reason={reason} onChange={setReason} t={t.reject} />
-      {!theirs && (
+      {!theirs && off && <p className="hint" data-mail="off">{t.board.rejectNoMail}</p>}
+      {!theirs && !off && (
         <label className="check">
           <input type="checkbox" checked={send} onChange={e => setSend(e.target.checked)} />
           <span>{plural(t.board.rejectEmails, count, locale)}</span>
         </label>
       )}
+      {!theirs && send && mailing === "later" && <p className="hint">{t.board.mailLater}</p>}
       <div className="form-actions">
         <button type="submit" className="button danger" disabled={!reason}>{t.reject.confirm}</button>
         <button type="button" className="button quiet" onClick={onCancel}>{t.common.cancel}</button>

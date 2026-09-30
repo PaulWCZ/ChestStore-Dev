@@ -91,6 +91,9 @@ export const en = {
     email: "Also send me these by email: tasks given to me, mentions, the morning reminder",
     // The person's own choice in the Chest (member.mailPreference), which
     // every email follows: said under the switch, changed only there.
+    // The Chest does not send email for Tasks now (mail.available).
+    emailOff: "Your Chest does not send email yet: for now these come only as notifications in your Chest. Your Chest’s owner can turn email on.",
+    emailQuota: "Your Chest has sent all its emails for today: until tomorrow, these come only as notifications in your Chest.",
     emailDigest: "You chose one email a day from your Chest: these come in it. Change it in your Chest settings.",
     emailNone: "You chose no email from your Chest: none is sent. Change it in your Chest settings.",
     nothingShared: {

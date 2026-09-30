@@ -567,6 +567,10 @@ await step("Hiring tells of a hire: HR sees the arrival and prepares it before h
   await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
   await page.getByRole("option", { name: "Inès Moreau" }).click();
   expect((await page.getByLabel("First day").inputValue()) === "02/11/2026", "first day from Hiring: " + await page.getByLabel("First day").inputValue());
+  // Hiring's personal address is never kept: the form says, before
+  // starting, that no welcome email will leave (and why).
+  const noWelcome = await page.locator("[data-welcome]").innerText();
+  expect(noWelcome === "Marc Lefort gets no welcome email: add their work email to their arrival first.", "no welcome promised: " + noWelcome);
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.waitForURL(/\/chest\/checklists\/\d+$/u);
   const text = await page.locator("main").innerText();
@@ -627,6 +631,9 @@ await step("pass 4: HR starts Marc's welcome checklist: he gets a short welcome 
   await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
   await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
   await page.getByRole("option", { name: "Inès Moreau" }).click();
+  // Mail is on (mail.available(), SDK studio.16): the form promises the
+  // welcome before starting, and only then.
+  expect(await page.locator("[data-welcome=yes]", { hasText: "Marc Lefèvre gets a short welcome email." }).count() === 1, "welcome promised: " + await page.locator("[data-welcome]").allInnerTexts());
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.waitForURL(/\/chest\/checklists\/\d+$/u);
   await page.locator(".ck-toast", { hasText: "Started. Marc Lefèvre gets a short welcome email." }).waitFor();

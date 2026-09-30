@@ -55,3 +55,22 @@ test("one long key for several people: each gets their own email (the key is nev
   assert.equal(sent, 2);
   assert.deepEqual(chest.outbox.map(m => m.to).sort(), [[`${hugo.id.slice(4, 10)}@atelier.test`], [`${camille.id.slice(4, 10)}@atelier.test`]].sort());
 });
+
+// studio.16: the switch says what the Chest will do (mail.available) before
+// anyone counts on an email: sent, not sent at all (not connected, paused,
+// not granted), or spent for today.
+test("the email switch tells the truth: the Chest sends, does not send yet, or has spent its day", async () => {
+  assert.equal(await mail.mailState(), "ok");
+  chest.delivery.mail = "not_connected";
+  assert.equal(await mail.mailState(), "off");
+  chest.delivery.mail = "suspended";
+  assert.equal(await mail.mailState(), "off");
+  chest.delivery.mail = "ready";
+  const bare = await fakeChest({ tool: "tasks", members: everyone, capabilities: ["members", "files", "notifications"] });
+  try {
+    assert.equal(await mail.mailState(), "off", "mail not granted to Tasks");
+  } finally {
+    await bare.close();
+  }
+  assert.equal(en.home.emailOff.includes("owner"), true);
+});

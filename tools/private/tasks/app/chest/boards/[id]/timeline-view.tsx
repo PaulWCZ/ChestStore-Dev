@@ -3,7 +3,7 @@
 import { DndContext, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useSensor, useSensors, type Announcements, type DragEndEvent, type KeyboardCoordinateGetter, type Modifier } from "@dnd-kit/core";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition, type CSSProperties, type KeyboardEvent } from "react";
 import { Alert, Arrow, Back, Blocked } from "../../../../components/icons.tsx";
 import type { Column } from "../../../../lib/boards.ts";
 import { daysBetween, shifted, span } from "../../../../lib/calendar.ts";
@@ -41,6 +41,12 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
   onError: (e: keyof Catalogue["errors"], v?: Record<string, string | number>) => void;
   t: Words;
 }) {
+  // The id of the cards' keyboard instructions (their aria-describedby):
+  // the same on the server and in the browser. Left to dnd-kit, it comes
+  // from a counter that keeps growing in the server's process, so from the
+  // second page served on, every card pointed at instructions that do not
+  // exist ("DndDescribedBy-7" for a "DndDescribedBy-0" in the page).
+  const dndId = useId();
   const w = t.board.timeline;
   const path = usePathname();
   const search = useSearchParams();
@@ -189,7 +195,7 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
       )}
       {groups.length > 0 && (
         <div className="tl-scroll" tabIndex={0} role="region" aria-label={timeline.title}>
-          <DndContext sensors={sensors} modifiers={[alongRow]} onDragStart={() => { delta.current = 0; }} onDragMove={e => { delta.current = e.delta.x; }} onDragEnd={onDragEnd} accessibility={{ announcements, screenReaderInstructions: { draggable: w.hint } }}>
+          <DndContext id={dndId} sensors={sensors} modifiers={[alongRow]} onDragStart={() => { delta.current = 0; }} onDragMove={e => { delta.current = e.delta.x; }} onDragEnd={onDragEnd} accessibility={{ announcements, screenReaderInstructions: { draggable: w.hint } }}>
             <div className="tl-grid" style={{ "--day": `${day}px`, "--days": timeline.days.length, "--today": todayIndex } as CSSProperties}>
               <div className="tl-row tl-scale" aria-hidden="true">
                 <div className="tl-name" />

@@ -6,7 +6,7 @@ import * as members from "@argentic/chest-sdk/members";
 import type { Query } from "./db.ts";
 import { catalogue, isLocale } from "./i18n/index.ts";
 import { format, formatDay } from "./i18n/format.ts";
-import { daysBetween } from "./model.ts";
+import { daysBetween, welcomeLateDays } from "./model.ts";
 import { today } from "./zone.ts";
 
 // The welcome email (Proposal (studio): "mail", chest.proposals.json).
@@ -23,11 +23,13 @@ import { today } from "./zone.ts";
 // Not transactional: the person's own choice in the Chest (every email,
 // one a day, none) is applied by mail.send. Not sent for a first day more
 // than two weeks past (HR catching up on a checklist is not a welcome).
-// The key names the checklist: a retry never sends it twice. A Chest
+// The key names the checklist and the recipient (SDK studio.16: after a
+// restore, a checklist id may name someone else's): a retry never sends
+// it twice, and never keeps one person's welcome from another. A Chest
 // without mail, or a refusal (the day's quota, an address that bounced):
 // nothing fails, the checklist stands.
 
-export const welcomeLateDays = 14;
+export { welcomeLateDays };
 
 type Newcomer = { to: string | { member: string }; name: string; locale: Locale; linked: boolean };
 
@@ -98,7 +100,7 @@ export async function welcome(sql: Query, actor: Member, journeyId: string): Pro
     const sent = await mail.send({
       to: who.to, subject: letter.subject, text: letter.text, fromName: actor.name,
       ...(actor.email && mail.isAddress(actor.email) ? { replyTo: actor.email } : {}),
-      key: `people:welcome:${journeyId}`,
+      key: `people:welcome:${journeyId}:${typeof who.to === "string" ? who.to : who.to.member}`,
     });
     return sent.status === "queued" || sent.digest.length > 0;
   } catch (error) {

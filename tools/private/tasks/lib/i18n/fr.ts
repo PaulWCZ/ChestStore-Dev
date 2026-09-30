@@ -88,6 +88,8 @@ export const fr: Catalogue = {
     stepDone: "Étape cochée.",
     stepOf: "Étape de « {card} »",
     email: "M’envoyer aussi tout cela par e-mail : tâches confiées, mentions, rappel du matin",
+    emailOff: "Votre Chest n’envoie pas encore d’e-mails : pour l’instant, tout cela arrive seulement en notification dans votre Chest. Le propriétaire de votre Chest peut activer les e-mails.",
+    emailQuota: "Votre Chest a envoyé tous ses e-mails du jour : jusqu’à demain, tout cela arrive seulement en notification dans votre Chest.",
     emailDigest: "Vous avez choisi un seul e-mail par jour de votre Chest : ils y sont regroupés. Changez-le dans les réglages de votre Chest.",
     emailNone: "Vous avez choisi de ne recevoir aucun e-mail de votre Chest : rien n’est envoyé. Changez-le dans les réglages de votre Chest.",
     nothingShared: {

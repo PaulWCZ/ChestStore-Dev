@@ -10,7 +10,7 @@ import { mySteps, myTasks } from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { calendarPage, calendarWorks, sync as syncCalendar } from "../../lib/due-calendar.ts";
 import { intl, plural } from "../../lib/i18n/index.ts";
-import { emailOn } from "../../lib/mail.ts";
+import { emailOn, mailState } from "../../lib/mail.ts";
 import { chestToday } from "../../lib/clock.ts";
 import { dueState, type DueState } from "../../lib/model.ts";
 import { reminderOn } from "../../lib/reminders.ts";
@@ -29,7 +29,7 @@ export default async function Home() {
   const { member, locale, t } = v;
   const sql = db();
   const creates = can(member, "boards.create");
-  const [boards, tasks, steps, reminder, emails, sharing, feed] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), emailOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] }), calendarWorks(sql)]);
+  const [boards, tasks, steps, reminder, emails, sharing, feed, delivery] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), emailOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] }), calendarWorks(sql), mailState()]);
   // The tile's number may have gone stale overnight (nothing runs in the
   // background): set it right whenever its owner comes home.
   await refreshBadges(sql, [member.id]);
@@ -116,8 +116,12 @@ export default async function Home() {
           <div className="switches">
             <ReminderSwitch on={reminder} t={{ label: t.home.reminder, errors: t.errors }} />
             <EmailSwitch on={emails} t={{ label: t.home.email, errors: t.errors }} />
-            {member.mailPreference === "digest" && <p className="hint">{t.home.emailDigest}</p>}
-            {member.mailPreference === "none" && <p className="hint">{t.home.emailNone}</p>}
+            {/* What the Chest will do with them (mail.available): said
+                before the person counts on an email that will not come. */}
+            {emails && delivery === "off" && <p className="hint">{t.home.emailOff}</p>}
+            {emails && delivery === "quota" && <p className="hint">{t.home.emailQuota}</p>}
+            {delivery !== "off" && member.mailPreference === "digest" && <p className="hint">{t.home.emailDigest}</p>}
+            {delivery !== "off" && member.mailPreference === "none" && <p className="hint">{t.home.emailNone}</p>}
           </div>
           {/* The Chest's calendar holds my due dates (lib/due-calendar.ts):
               said only once the Chest took one. */}

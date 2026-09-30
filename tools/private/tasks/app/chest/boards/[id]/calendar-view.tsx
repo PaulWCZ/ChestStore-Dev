@@ -3,7 +3,7 @@
 import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type Announcements, type DragEndEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { Alert, Back, Arrow } from "../../../../components/icons.tsx";
 import type { Label } from "../../../../lib/boards.ts";
 import type { CardSummary } from "../../../../lib/cards.ts";
@@ -27,6 +27,12 @@ export function CalendarView({ calendar, cards, labels, writable, locale, query,
   onError: (e: keyof Catalogue["errors"], v?: Record<string, string | number>) => void;
   t: Words;
 }) {
+  // The id of the cards' keyboard instructions (their aria-describedby):
+  // the same on the server and in the browser. Left to dnd-kit, it comes
+  // from a counter that keeps growing in the server's process, so from the
+  // second page served on, every card pointed at instructions that do not
+  // exist ("DndDescribedBy-7" for a "DndDescribedBy-0" in the page).
+  const dndId = useId();
   const [, start] = useTransition();
   // Dates moved here before the server says so.
   const [moved, setMoved] = useState<Record<string, string>>({});
@@ -72,7 +78,7 @@ export function CalendarView({ calendar, cards, labels, writable, locale, query,
         <span className="spacer" />
         {undated > 0 && <span className="small muted">{plural(t.board.undated, undated, locale)}</span>}
       </div>
-      <DndContext sensors={sensors} onDragEnd={onDragEnd} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.calendarHint } }}>
+      <DndContext id={dndId} sensors={sensors} onDragEnd={onDragEnd} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.calendarHint } }}>
         <div className="month" role="table" aria-label={calendar.title}>
           <div className="month-row weekdays-row" role="row">
             {calendar.weekdays.map(d => <div key={d.long} role="columnheader" className="weekday-name"><abbr title={d.long}>{d.short}</abbr></div>)}

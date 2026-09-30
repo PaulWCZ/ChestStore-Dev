@@ -65,7 +65,8 @@ decides together.
   until someone renames them; renamed, added, reordered, removed when
   empty). Candidate cards show the average rating, the days in the stage,
   "not opened". Drag with the mouse, a finger or the keyboard (space,
-  arrows, space) — with *Undo*. *Select* several to move or reject them
+  arrows, space) — with *Undo*; each card's keyboard instructions are
+  named with an id stable between the server and the browser. *Select* several to move or reject them
   together (one *Undo*). On a phone, stage tabs with their counts. The
   rejected are folded below.
 - **A candidate's page**: contact, the CV shown inline (PDF) or downloaded,
@@ -164,6 +165,17 @@ decides together.
   `morning:<day>:<member>`; the SDK hashes a long one): one email per
   message and recipient, one morning email per person and day, whatever
   the retries.
+- **No email promised that cannot leave** (SDK studio.16,
+  `mail.available()`, `lib/mail-state.ts`): the reject form (one or
+  several), *Write*, the interview invitation (a time or a link) and its
+  cancellation ask the Chest first. Mail not connected or absent: no email
+  is offered — each form says so in one line ("tell {name} yourself"; the
+  link is given to send by hand; *Write* opens the recruiter's own mail
+  app). Mail paused or the day's emails used: the email is kept and the
+  form says it will leave as soon as the Chest sends again. A candidate
+  who chose a time reads "We sent you the confirmation" only when the
+  Chest sends. The toasts after each action still say what really
+  happened.
 
 ## Looks
 

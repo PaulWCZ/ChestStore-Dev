@@ -99,6 +99,8 @@ export const en = {
     uploading: "Sending your CV…",
   },
   pick: {
+    bookedLater: "The confirmation will follow by email, with a file for your calendar.",
+    bookedNoMail: "Note this time: no email will follow.",
     title: "{firstName}, choose a time for your interview",
     lede: "{minutes} minutes. The times below are those when everyone who meets you is free.",
     where: "Where: {place}",
@@ -424,6 +426,8 @@ export const en = {
     back: "Back",
   },
   board: {
+    rejectNoMail: "Your Chest cannot send emails yet: no rejection email will leave.",
+    mailLater: "Your Chest is not sending emails right now: they will leave as soon as it can.",
     back: "All jobs",
     publish: "Publish",
     publishHint: "Publishing puts it on your careers page.",
@@ -661,6 +665,8 @@ export const en = {
     startsOn: "Starts on {date}",
   },
   reject: {
+    noMail: "Your Chest cannot send emails yet: tell {name} yourself.",
+    mailLater: "Your Chest is not sending emails right now: this one will leave as soon as it can.",
     title: "Reject {name}",
     reasonOurs: "Our decision",
     reasonTheirs: "They stepped back",
@@ -687,6 +693,8 @@ export const en = {
     undoLate: "{name} is back, but the rejection email had already left.",
   },
   write: {
+    noMail: "Your Chest cannot send emails yet: your own mail app will open with this text.",
+    mailLater: "Your Chest is not sending emails right now: this one will leave as soon as it can.",
     action: "Write",
     title: "Write to {name}",
     template: "Start from",
@@ -716,6 +724,10 @@ export const en = {
     },
   },
   interview: {
+    tellNoMail: "Your Chest cannot send emails yet: tell {name} the time yourself.",
+    linkNoMailAhead: "Your Chest cannot send emails yet: you will get the link to send to {name} yourself.",
+    cancelNoMail: "Your Chest cannot send emails yet: tell the candidate yourself.",
+    mailLater: "Your Chest is not sending emails right now: the email will leave as soon as it can.",
     how: "How to find the time",
     theyChoose: "{name} chooses",
     iChoose: "I choose the time",

@@ -97,6 +97,8 @@ export const fr: Catalogue = {
     uploading: "Envoi de votre CV…",
   },
   pick: {
+    bookedLater: "La confirmation suivra par e-mail, avec un fichier pour votre agenda.",
+    bookedNoMail: "Notez cet horaire : aucun e-mail ne suivra.",
     title: "{firstName}, choisissez l’heure de votre entretien",
     lede: "{minutes} minutes. Les moments ci-dessous sont ceux où toutes les personnes qui vous rencontrent sont libres.",
     where: "Lieu : {place}",
@@ -420,6 +422,8 @@ export const fr: Catalogue = {
     back: "Retour",
   },
   board: {
+    rejectNoMail: "Votre Chest ne peut pas encore envoyer d’e-mails : aucun e-mail de refus ne partira.",
+    mailLater: "Votre Chest n’envoie pas d’e-mails en ce moment : ils partiront dès que possible.",
     back: "Toutes les offres",
     publish: "Publier",
     publishHint: "Publier la met sur votre page carrières.",
@@ -657,6 +661,8 @@ export const fr: Catalogue = {
     startsOn: "Arrive le {date}",
   },
   reject: {
+    noMail: "Votre Chest ne peut pas encore envoyer d’e-mails : prévenez {name} vous-même.",
+    mailLater: "Votre Chest n’envoie pas d’e-mails en ce moment : celui-ci partira dès que possible.",
     title: "Refuser {name}",
     reasonOurs: "Notre décision",
     reasonTheirs: "Le candidat s’est retiré",
@@ -683,6 +689,8 @@ export const fr: Catalogue = {
     undoLate: "{name} est de retour, mais l’e-mail de refus était déjà parti.",
   },
   write: {
+    noMail: "Votre Chest ne peut pas encore envoyer d’e-mails : votre propre messagerie s’ouvrira avec ce texte.",
+    mailLater: "Votre Chest n’envoie pas d’e-mails en ce moment : celui-ci partira dès que possible.",
     action: "Écrire",
     title: "Écrire à {name}",
     template: "Partir de",
@@ -712,6 +720,10 @@ export const fr: Catalogue = {
     },
   },
   interview: {
+    tellNoMail: "Votre Chest ne peut pas encore envoyer d’e-mails : donnez l’horaire à {name} vous-même.",
+    linkNoMailAhead: "Votre Chest ne peut pas encore envoyer d’e-mails : vous recevrez le lien à envoyer vous-même à {name}.",
+    cancelNoMail: "Votre Chest ne peut pas encore envoyer d’e-mails : prévenez la personne vous-même.",
+    mailLater: "Votre Chest n’envoie pas d’e-mails en ce moment : l’e-mail partira dès que possible.",
     how: "Comment trouver le moment",
     theyChoose: "{name} choisit",
     iChoose: "Je choisis l’heure",

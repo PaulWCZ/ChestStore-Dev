@@ -10,6 +10,7 @@ import { Arrow, Ban, Bell, Bin, Calendar, Close, Copy, Dots, Download, Mail, Pen
 import type { Feedback } from "../../../../lib/candidates.ts";
 import { fileSize, format, intl, languageNames, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
+import type { MailState } from "../../../../lib/mail-state.ts";
 import type { Message } from "../../../../lib/messages.ts";
 import { isCandidateReason, languages, limits, recommendations, type Language, type RejectReason } from "../../../../lib/model.ts";
 import { durations, startTimes } from "../../../../lib/time.ts";
@@ -33,7 +34,7 @@ type Template = { id: string; name: string; language: string; subject: string; b
 // A template's file, shown in the picker as already there (kept, never sent again by the browser).
 const storedFile = (a: TemplateFile): PickedFile => ({ key: a.file, name: a.name, size: a.size, type: a.type, file: null, status: "ready", progress: 1, ref: a.file, error: null, stored: true });
 
-export function CandidateActions({ jobId, candidate, stages, next, askable, draft, languageName, locale, write, interview, jobs, t }: {
+export function CandidateActions({ jobId, candidate, stages, next, askable, draft, languageName, locale, write, interview, jobs, mailing, t }: {
   jobId: string;
   candidate: { id: string; name: string; status: "active" | "rejected"; stageId: string; email: string; phone: string; link: string; language: Language; inPool: boolean };
   stages: { id: string; name: string; hired: boolean }[];
@@ -45,6 +46,9 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
   write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> };
   interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string };
   jobs: { id: string; title: string }[];
+  // Whether an email to them would leave (lib/mail-state.ts): the forms
+  // never promise one the Chest cannot send.
+  mailing: MailState;
   t: ActionWords;
 }) {
   const router = useRouter();
@@ -148,13 +152,13 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
 
       <HireDialog name={hiring ? candidate.name : null} today={interview.today} onCancel={() => setHiring(null)} onConfirm={day => { const to = hiring; setHiring(null); if (to) move(to, true, day); }} t={{ hire: t.hire, common: t.common, dialog: t.dialog, date: t.date }} />
       <Dialog open={dialog === "reject"} dirty={dirty} title={format(t.reject.title, { name: candidate.name })} onClose={shut} labels={t.dialog}>
-        <RejectForm candidate={candidate} onTyped={typed} draft={draft} languageName={languageName} t={t} onDone={shut} />
+        <RejectForm candidate={candidate} mailing={mailing} onTyped={typed} draft={draft} languageName={languageName} t={t} onDone={shut} />
       </Dialog>
       <Dialog open={dialog === "write"} dirty={dirty} size="l" title={format(t.write.title, { name: candidate.name })} onClose={shut} labels={t.dialog}>
-        <WriteForm candidate={candidate} onTyped={typed} write={write} t={t} onDone={shut} />
+        <WriteForm candidate={candidate} mailing={mailing} onTyped={typed} write={write} t={t} onDone={shut} />
       </Dialog>
       <Dialog open={dialog === "interview"} dirty={dirty} size="l" title={format(t.interview.dialogTitle, { name: candidate.name })} onClose={shut} labels={t.dialog}>
-        <InterviewForm candidate={candidate} onTyped={typed} interview={interview} t={t} onDone={shut} />
+        <InterviewForm candidate={candidate} mailing={mailing} onTyped={typed} interview={interview} t={t} onDone={shut} />
       </Dialog>
       <Dialog open={dialog === "move"} title={w.moveTo} onClose={shut} labels={t.dialog}>
         <ul className="pick-list stage-picks">
@@ -197,11 +201,12 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
 // Rejecting: a reason (nothing chosen for the recruiter: the reasons are
 // data the company answers for), a note, and the email in the candidate's
 // language — which waits until the Undo is over, so Undo is true.
-function RejectForm({ candidate, draft, languageName, t, onDone, onTyped }: { candidate: { id: string; name: string }; draft: string; languageName: string; t: ActionWords; onDone: () => void; onTyped: () => void }) {
+function RejectForm({ candidate, mailing, draft, languageName, t, onDone, onTyped }: { candidate: { id: string; name: string }; mailing: MailState; draft: string; languageName: string; t: ActionWords; onDone: () => void; onTyped: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [reason, setReason] = useState<RejectReason | null>(null);
-  const [send, setSend] = useState(true);
+  const off = mailing === "off";
+  const [send, setSend] = useState(!off);
   const [error, setError] = useState<string | null>(null);
   const w = t.reject;
   const theirs = reason !== null && isCandidateReason(reason);
@@ -247,7 +252,8 @@ function RejectForm({ candidate, draft, languageName, t, onDone, onTyped }: { ca
         <label className="label" htmlFor="reject-note">{w.note} <span className="optional">{t.apply.optional}</span></label>
         <input id="reject-note" name="note" className="field" maxLength={limits.rejectNote} />
       </div>
-      {!theirs && (
+      {!theirs && off && <p className="hint" data-mail="off">{format(w.noMail, { name: candidate.name })}</p>}
+      {!theirs && !off && (
         <label className="check">
           <input type="checkbox" checked={send} onChange={e => setSend(e.target.checked)} />
           <span>{w.email}</span>
@@ -257,7 +263,7 @@ function RejectForm({ candidate, draft, languageName, t, onDone, onTyped }: { ca
         <div className="field-block">
           <label className="visually-hidden" htmlFor="reject-text">{w.email}</label>
           <textarea id="reject-text" name="text" className="field" rows={9} maxLength={limits.emailText} defaultValue={draft} aria-describedby="reject-hint" />
-          <p className="hint" id="reject-hint">{format(w.emailHint, { language: languageName })}</p>
+          <p className="hint" id="reject-hint">{format(w.emailHint, { language: languageName })}{mailing === "later" && <> {w.mailLater}</>}</p>
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}
@@ -275,7 +281,7 @@ function RejectForm({ candidate, draft, languageName, t, onDone, onTyped }: { ca
 // the jobs mailbox; their answer comes back to their page, and the files
 // stay in the conversation. Without email on this Chest, the recruiter's
 // own mail app opens with the text (the files are kept here).
-function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: string; name: string; email: string; language: Language }; write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> }; t: ActionWords; onDone: () => void; onTyped: () => void }) {
+function WriteForm({ candidate, mailing, write, t, onDone, onTyped }: { candidate: { id: string; name: string; email: string; language: Language }; mailing: MailState; write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> }; t: ActionWords; onDone: () => void; onTyped: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [chosen, setChosen] = useState("");
@@ -337,7 +343,7 @@ function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: 
       <div className="field-block">
         <label className="label" htmlFor="write-text">{w.text}</label>
         <textarea id="write-text" className="field" rows={10} required maxLength={limits.emailText} value={text} onChange={e => setText(e.target.value)} aria-describedby="write-hint" />
-        <p className="hint" id="write-hint">{format(w.hint, { email: candidate.email })}</p>
+        <p className="hint" id="write-hint" {...(mailing === "off" ? { "data-mail": "off" } : {})}>{mailing === "off" ? w.noMail : format(w.hint, { email: candidate.email })}{mailing === "later" && <> {w.mailLater}</>}</p>
       </div>
       <div className="field-block">
         <span className="label">{w.files} <span className="optional">{t.apply.optional}</span></span>
@@ -364,7 +370,7 @@ function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: 
 // people are already in an interview that day. Either way the candidate
 // gets an email with an .ics; the interviewers see it in their Chest
 // calendar.
-function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate: { id: string; name: string }; onTyped: () => void; interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string }; t: ActionWords; onDone: () => void }) {
+function InterviewForm({ candidate, mailing, interview, t, onDone, onTyped }: { candidate: { id: string; name: string }; mailing: MailState; onTyped: () => void; interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string }; t: ActionWords; onDone: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [mode, setMode] = useState<"link" | "time">("link");
@@ -373,7 +379,8 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   const [minutes, setMinutes] = useState(60);
   const [people, setPeople] = useState<Set<string>>(new Set(interview.preselected.filter(p => interview.people.some(x => x.id === p))));
   const [busy, setBusy] = useState<{ member: string; start: string; end: string; source?: string }[]>([]);
-  const [tell, setTell] = useState(true);
+  const off = mailing === "off";
+  const [tell, setTell] = useState(!off);
   const [skipLunch, setSkipLunch] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // The link's days (tomorrow to a week later) and hours (09:00–18:00).
@@ -482,6 +489,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
       {mode === "link" ? (
         <>
           <p className="hint">{w.linkHint}</p>
+          {off && <p className="hint" data-mail="off">{format(w.linkNoMailAhead, { name: candidate.name })}</p>}
           <div className="three">
             <div className="field-block iv-day">
               <WatchedDateField id="iv-from" onProblem={dates.watch("iv-from")} label={w.fromDay} value={firstDay} onChange={d => { setFirstDay(d); if (d && lastDay && lastDay < d) setLastDay(addIsoDays(d, 7)); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
@@ -535,12 +543,14 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
         <label className="label" htmlFor="iv-note">{w.note} <span className="optional">{t.apply.optional}</span></label>
         <textarea id="iv-note" name="note" className="field" rows={3} maxLength={limits.interviewNote} placeholder={w.notePlaceholder} />
       </div>
-      {mode === "time" && (
+      {mode === "time" && off && <p className="hint" data-mail="off">{format(w.tellNoMail, { name: candidate.name })}</p>}
+      {mode === "time" && !off && (
         <label className="check">
           <input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} />
           <span>{format(w.tell, { name: candidate.name })}</span>
         </label>
       )}
+      {mailing === "later" && (mode === "link" || tell) && <p className="hint">{w.mailLater}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
         {/* The button says who meets them: nobody is on it without being chosen. */}
@@ -631,12 +641,12 @@ export function Conversation({ messages, candidate, locale, t }: { messages: Sho
 
 // ---- Interviews -------------------------------------------------------------
 
-export function Interviews({ list, links = [], manage, t }: { list: { id: string; when: string; past: boolean; place: string; people: string; cancelled: boolean; ics: boolean }[]; links?: { id: string; from: string; to: string; people: string }[]; manage: boolean; t: { interview: Catalogue["interview"]; errors: Errors; common: Catalogue["common"] } }) {
+export function Interviews({ list, links = [], manage, mailing = "unknown", t }: { list: { id: string; when: string; past: boolean; place: string; people: string; cancelled: boolean; ics: boolean }[]; links?: { id: string; from: string; to: string; people: string }[]; manage: boolean; mailing?: MailState; t: { interview: Catalogue["interview"]; errors: Errors; common: Catalogue["common"] } }) {
   const toast = useToast();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const [tell, setTell] = useState(true);
+  const [tell, setTell] = useState(mailing !== "off");
   const w = t.interview;
   if (list.length === 0 && links.length === 0) return <p className="muted">{w.none}</p>;
   return (
@@ -693,7 +703,9 @@ export function Interviews({ list, links = [], manage, t }: { list: { id: string
           });
         }}
       >
-        <label className="check"><input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} /><span>{w.tellCancel}</span></label>
+        {mailing === "off"
+          ? <p className="hint" data-mail="off">{w.cancelNoMail}</p>
+          : <label className="check"><input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} /><span>{w.tellCancel}</span></label>}
       </Confirm>
     </>
   );

@@ -67,3 +67,14 @@ test("newcomers, arrivals, this month's birthdays and anniversaries", () => {
   assert.deepEqual(tenure("2021-09-15", "2026-09-28"), { years: 5, months: 0, days: 1839 });
   assert.deepEqual(tenure("2026-09-22", "2026-09-28"), { years: 0, months: 0, days: 6 });
 });
+
+test("zones (studio.16): a member's own day, the Chest's when they have none", async () => {
+  const { todayOf, zoneOf } = await import("../lib/zone.ts");
+  const chestZone = zoneOf(null);
+  assert.equal(zoneOf({ timeZone: "America/Montreal" }), "America/Montreal");
+  assert.equal(zoneOf({}), chestZone);
+  // 03:30 UTC on 1 October: still 30 September in Montreal.
+  const at = Date.parse("2026-10-01T03:30:00Z");
+  assert.equal(todayOf({ timeZone: "America/Montreal" }, at), "2026-09-30");
+  assert.equal(todayOf({ timeZone: "Europe/Paris" }, at), "2026-10-01");
+});

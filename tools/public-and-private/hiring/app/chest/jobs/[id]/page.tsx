@@ -8,6 +8,7 @@ import { board as readBoard } from "../../../../lib/candidates.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { job as readJob, type JobDetail } from "../../../../lib/jobs.ts";
+import { mailState } from "../../../../lib/mail-state.ts";
 import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { stageLabel } from "../../../../lib/stages.ts";
@@ -61,6 +62,7 @@ export default async function JobBoard({ params }: { params: Promise<{ id: strin
         manage={manage}
         locale={locale}
         today={dayOf(new Date(), chest.timeZone())}
+        mailing={manage ? await mailState() : "unknown"}
         t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, reject: t.reject, common: t.common, hire: t.hire, dialog: t.dialog, date: t.dates }}
       />
     </div>

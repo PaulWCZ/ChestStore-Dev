@@ -105,7 +105,7 @@ async function allowed(sql: Sql, rows: Eligible[]): Promise<Map<string, string[]
 }
 
 // What stops a run: the Chest has no calendar (or not for this tool), or
-// asks to slow down. A day refused alone (invalid_event) does not.
+// asks to slow down. An event refused alone does not.
 class Stop extends Error {}
 
 function eventOf(r: Eligible, people: string[]): calendar.CalendarEvent {
@@ -120,11 +120,10 @@ function eventOf(r: Eligible, people: string[]): calendar.CalendarEvent {
   return { key: r.key, members: people, title, description, ...when, path: `/chest/cards/${r.card_id}`, busy: false, private: r.visibility === "private" };
 }
 
-// What a refusal means: a day refused alone (invalid_event) is skipped;
-// busy for now, the next run goes on; anything else, no calendar here.
-async function refused(sql: Sql, error: unknown): Promise<"skip"> {
+// What stops a run: busy for now (the next run goes on); anything else
+// thrown by the call (not granted, not connected), no calendar here.
+async function refused(sql: Sql, error: unknown): Promise<never> {
   if (!(error instanceof ChestError)) throw error;
-  if (error.code === "invalid_event") return "skip";
   if (!(error instanceof RateLimited) && !(error instanceof Unavailable)) await remember(sql, false);
   throw new Stop();
 }
@@ -137,31 +136,26 @@ async function kept(sql: Sql, r: Eligible, people: string[]): Promise<void> {
 // putAll puts these events 100 a call (calendar.putMany, Proposal
 // (studio.15)): the first sync of a board full of due dates is a few
 // writes, not one per card against the Chest's 600 a minute. The Chest
-// takes a batch whole or not at all; a batch refused for one wrong event
-// (invalid_event) is put again one by one, so that one alone is skipped.
+// answers each event (studio.16): only those it took are remembered as
+// put; one it refuses (a wrong date, the quota) is not, so the next run
+// tries it again, and the rest of the batch is put all the same.
 async function putAll(sql: Sql, items: { r: Eligible; people: string[] }[]): Promise<number> {
   let count = 0;
   for (let i = 0; i < items.length; i += calendar.limits.perBatch) {
     const batch = items.slice(i, i + calendar.limits.perBatch);
+    let results: calendar.PutResult[];
     try {
-      await calendar.putMany(batch.map(({ r, people }) => eventOf(r, people)));
+      results = await calendar.putMany(batch.map(({ r, people }) => eventOf(r, people)));
     } catch (error) {
       await refused(sql, error);
-      for (const { r, people } of batch) {
-        try {
-          await calendar.put(eventOf(r, people));
-        } catch (one) {
-          await refused(sql, one);
-          continue;
-        }
-        await kept(sql, r, people);
-        count++;
-      }
-      await remember(sql, true);
-      continue;
+      return count;
     }
-    for (const { r, people } of batch) await kept(sql, r, people);
-    count += batch.length;
+    for (const result of results) {
+      if (!result.ok) continue;
+      const { r, people } = batch[result.index]!;
+      await kept(sql, r, people);
+      count++;
+    }
     await remember(sql, true);
   }
   return count;

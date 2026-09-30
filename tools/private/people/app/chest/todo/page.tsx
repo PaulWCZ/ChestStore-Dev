@@ -6,7 +6,7 @@ import { db } from "../../../lib/db.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { myItems } from "../../../lib/journeys.ts";
 import { dueState } from "../../../lib/model.ts";
-import { today } from "../../../lib/zone.ts";
+import { todayOf } from "../../../lib/zone.ts";
 import { people, subjectOf } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
 import { refreshBadges } from "../../../lib/tell.ts";
@@ -25,7 +25,8 @@ export default async function TodoPage() {
   // runs in the background without schedules): set it right here.
   await refreshBadges(sql, [member.id]);
   const who = await people(groups.flatMap(g => (g.journey.personId ? [g.journey.personId] : [])));
-  const now = today();
+  // "Today" and "late" as the reader lives them: their own zone.
+  const now = todayOf(member);
   const shown: Group[] = groups.map(g => {
     const person = subjectOf(g.journey, who, locale);
     const mine = g.journey.personId === member.id;

@@ -95,6 +95,11 @@ export function addDays(value: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+// The welcome email goes for a first day at most this many days past (HR
+// catching up on a checklist is not a welcome): lib/welcome.ts, and the
+// start form, which promises it only then.
+export const welcomeLateDays = 14;
+
 export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86400000);
 }

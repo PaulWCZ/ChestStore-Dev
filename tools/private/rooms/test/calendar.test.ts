@@ -169,7 +169,7 @@ test("a leave approved in Leave takes the office day out of the calendar; cancel
   assert.equal((await sql`select count(*)::int as n from usual_applied where member_id = ${lea.id} and day = ${d}`)[0]!.n, 0);
 });
 
-test("what changed goes to the calendars in one write (putMany); an event the Chest refuses for good is dropped alone, the others still go", async () => {
+test("what changed goes to the calendars in one write (putMany); an event the Chest refuses for good is dropped alone, the others still go; the Chest full, they wait", async () => {
   const { sql } = database;
   await cal.flush(sql, zone, 200);
   const writes: string[] = [];
@@ -189,15 +189,37 @@ test("what changed goes to the calendars in one write (putMany); an event the Ch
     for (const d of days) assert.ok(chest.calendar.has(cal.dayKey(sofia.id, d)));
 
     // A day three years ahead (the Chest keeps two years) queued with one
-    // it takes: the batch is refused, each goes alone, the far one dropped.
+    // it takes: the answer is per event (studio.16) — still one write, the
+    // near one put and remembered, the far one dropped and never
+    // remembered as sent.
     writes.length = 0;
     const far = addDays(today(zone), 3 * 366), near = workday(13);
     for (const d of [far, near]) await sql`insert into presence (member_id, day, status, office_id) values (${sofia.id}, ${d}, 'office', ${o.office}) on conflict do nothing`;
     await cal.enqueue(sql, [cal.dayKey(sofia.id, far), cal.dayKey(sofia.id, near)]);
     await cal.flush(sql, zone);
+    assert.deepEqual(writes, ["PUT /calendar/events"], "one write, no event-by-event fallback");
     assert.ok(chest.calendar.has(cal.dayKey(sofia.id, near)));
     assert.equal(chest.calendar.has(cal.dayKey(sofia.id, far)), false);
+    const sentKeys = (await sql<{ key: string }[]>`select key from calendar_sent where key like ${"day:" + sofia.id + ":%"}`).map(r => r.key);
+    assert.ok(sentKeys.includes(cal.dayKey(sofia.id, near)));
+    assert.equal(sentKeys.includes(cal.dayKey(sofia.id, far)), false, "a refused event is never remembered as sent");
     assert.equal((await sql`select count(*)::int as n from calendar_queue`)[0]!.n, 0, "the refused one is not retried for ever");
+
+    // The Chest full (5,000 events): the new ones wait in the queue, not
+    // remembered as sent, and go once there is room.
+    const filler = [...Array(5000 - chest.calendar.size).keys()].map(i => `other:${i}`);
+    for (const k of filler) chest.calendar.set(k, { key: k, members: [sofia.id], title: { en: "x" }, days: { first: near, last: near }, busy: false, private: false, updated: new Date().toISOString(), sequence: 0 } as never);
+    const later = [14, 15].map(workday);
+    for (const d of later) await sql`insert into presence (member_id, day, status, office_id) values (${sofia.id}, ${d}, 'office', ${o.office}) on conflict do nothing`;
+    await cal.enqueue(sql, later.map(d => cal.dayKey(sofia.id, d)));
+    await cal.flush(sql, zone);
+    for (const d of later) assert.equal(chest.calendar.has(cal.dayKey(sofia.id, d)), false);
+    assert.equal((await sql`select count(*)::int as n from calendar_sent where key = any(${later.map(d => cal.dayKey(sofia.id, d))}::text[])`)[0]!.n, 0);
+    assert.equal((await sql`select count(*)::int as n from calendar_queue`)[0]!.n, 2, "they wait");
+    for (const k of filler) chest.calendar.delete(k);
+    await cal.flush(sql, zone);
+    for (const d of later) assert.ok(chest.calendar.has(cal.dayKey(sofia.id, d)));
+    assert.equal((await sql`select count(*)::int as n from calendar_queue`)[0]!.n, 0);
   } finally {
     globalThis.fetch = real;
   }

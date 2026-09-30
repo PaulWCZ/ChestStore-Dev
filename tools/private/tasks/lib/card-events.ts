@@ -32,6 +32,17 @@ type Row = { id: string; type: Type; card: string; board: string; at: Date; boar
 export const cardEventKey = (row: Pick<Row, "type" | "card" | "at">): string =>
   `tasks:${row.card}:${row.type === "tasks.card.done" ? "done" : "reopened"}:${row.at.getTime()}`;
 
+// When it happened, told to the Chest (events.publish's occurredAt,
+// studio.16): Goals counts a card done at 23:55 on a cycle's last day in
+// that cycle even when the Chest took it at 00:10. The Chest takes a time
+// at most 24 hours back; an event older than that (a Chest down for a
+// night) goes without it — its time stays in the key, and the receiver
+// reads the Chest's. Five minutes of margin for the two clocks.
+export const occurredMarginMs = 5 * 60_000;
+export function occurredAtFor(at: Date, now = Date.now()): Date | undefined {
+  return now - at.getTime() < events.occurredLimits.behindMs - occurredMarginMs ? at : undefined;
+}
+
 export const cardEventData = (row: Pick<Row, "type" | "card" | "board" | "board_name" | "assignees">): Record<string, unknown> =>
   row.type === "tasks.card.done"
     ? { card: row.card, board: row.board, boardName: [...(row.board_name ?? "")].slice(0, 80).join(""), assignees: [...(row.assignees ?? [])].sort().slice(0, cardEventLimits.assignees) }
@@ -55,7 +66,8 @@ export async function publishCardEvents(sql: Query): Promise<number> {
       continue;
     }
     try {
-      await events.publish(row.type, cardEventData(row), { key: cardEventKey(row) });
+      const occurredAt = occurredAtFor(row.at);
+      await events.publish(row.type, cardEventData(row), { key: cardEventKey(row), ...(occurredAt ? { occurredAt } : {}) });
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
       // A key the Chest already holds for something else would be refused
@@ -71,6 +83,11 @@ export async function publishCardEvents(sql: Query): Promise<number> {
   }
   return told;
 }
+
+// A retry within the day gives the same time (the Chest would refuse
+// another under the key); one that crosses the 24 hours drops it, and the
+// Chest, which then may still hold the key, answers key_conflict: the
+// event was taken the first time, and is marked told.
 
 // tellLinkedTools is publishCardEvents that never fails the action it
 // follows: a card moved is moved whatever the Chest answers.

@@ -593,6 +593,29 @@ await step("timeline: bars from start to due, a line to what a card waits for; m
   await page.waitForURL(/card=/u);
 });
 
+// dnd-kit names each draggable's keyboard instructions (aria-describedby)
+// from a counter; left to it, the server's counter kept growing, so from
+// the second page served every card pointed at instructions that were not
+// in the page. Each view is loaded twice: every draggable (what dnd-kit
+// marks aria-disabled and aria-describedby) must point at instructions
+// that exist and say something.
+await step("a screen reader finds every draggable's instructions, on the board, the calendar and the timeline, page after page", async () => {
+  for (const view of ["board", "calendar", "timeline"]) {
+    for (let load = 1; load <= 2; load++) {
+      await page.goto(origin + `/chest/boards/1?view=${view}`);
+      const ready = await page.waitForFunction(() => {
+        const items = [...document.querySelectorAll("[aria-describedby][aria-disabled]")];
+        return items.length > 0 && items.every(el => {
+          const hint = document.getElementById(el.getAttribute("aria-describedby") ?? "");
+          return Boolean(hint && hint.textContent.trim());
+        });
+      }, null, { timeout: 15_000 }).then(() => true, () => false);
+      const report = await page.evaluate(() => [...document.querySelectorAll("[aria-describedby][aria-disabled]")].map(el => `${el.getAttribute("aria-describedby")}→${document.getElementById(el.getAttribute("aria-describedby") ?? "") ? "found" : "missing"}`).slice(0, 3).join(", "));
+      expect(ready, `${view}, load ${load}: every draggable's aria-describedby names instructions in the page (${report || "no draggable"})`);
+    }
+  }
+});
+
 await step("columns speak the reader's language: Inès reads the sample board in French", async () => {
   await as(context, origin, "ines");
   await page.goto(origin + "/chest/boards/1");

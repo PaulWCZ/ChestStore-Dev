@@ -301,6 +301,9 @@ export const en = {
     weekend: "That is a {day}: is it right?",
   },
   start: {
+    noMail: "Your Chest cannot send emails yet: {name} gets no welcome email.",
+    mailPaused: "Your Chest is not sending emails right now: {name} gets no welcome email.",
+    noAddress: "{name} gets no welcome email: add their work email to their arrival first.",
     title: "Start a checklist",
     person: "Who is it for?",
     template: "Checklist",

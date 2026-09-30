@@ -44,6 +44,22 @@ export async function setEmail(sql: Sql, actor: Member | null, on: unknown): Pro
   await sql`insert into reminders (member_id, email_off) values (${actor.id}, ${!on}) on conflict (member_id) do update set email_off = excluded.email_off`;
 }
 
+// Whether the Chest sends email for Tasks now (mail.available, studio.16),
+// so the switch never promises what will not leave: "off" (not granted,
+// not connected by the owner, paused), "quota" (the day's emails are
+// spent: the bell still tells), "ok", or null when the Chest did not
+// answer (the page then says nothing rather than guess).
+export type MailState = "ok" | "off" | "quota" | null;
+export async function mailState(): Promise<MailState> {
+  try {
+    const a = await mail.available();
+    return a.ok ? "ok" : a.reason === "quota" ? "quota" : "off";
+  } catch (error) {
+    if (error instanceof ChestError) return null;
+    throw error;
+  }
+}
+
 // The people of this list who want email.
 async function wanting(sql: Query, ids: string[]): Promise<string[]> {
   if (ids.length === 0) return [];

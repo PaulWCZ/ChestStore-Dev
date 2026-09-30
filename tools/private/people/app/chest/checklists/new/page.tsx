@@ -8,9 +8,11 @@ import { db } from "../../../../lib/db.ts";
 import { directory } from "../../../../lib/directory.ts";
 import { listArrivals } from "../../../../lib/arrivals.ts";
 import { listTemplates } from "../../../../lib/journeys.ts";
+import { mailState } from "../../../../lib/mailing.ts";
 import { isKind, memberPattern } from "../../../../lib/model.ts";
 import { today } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { isAddress } from "@argentic/chest-sdk/mail";
 import { StartForm } from "./start-form.tsx";
 import { formatDay } from "../../../../lib/i18n/index.ts";
 
@@ -23,7 +25,7 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
   const weekdays = Array.from({ length: 7 }, (_, i) => formatDay(`2024-01-${String(7 + i).padStart(2, "0")}`, locale, { weekday: "long" }));
   if (!can(member, "checklists.manage")) notFound();
   const sql = db();
-  const [{ entries }, templates, told] = await Promise.all([directory(sql, member), listTemplates(sql, member), listArrivals(sql, member)]);
+  const [{ entries }, templates, told, mailing] = await Promise.all([directory(sql, member), listTemplates(sql, member), listArrivals(sql, member), mailState()]);
   const arrivals = told.filter(a => a.status === "expected");
   const query = await searchParams;
   const asked = typeof query["arrival"] === "string" ? arrivals.find(a => a.id === query["arrival"]) : undefined;
@@ -39,12 +41,13 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
       ) : (
         <StartForm
           people={entries.map(e => ({ id: e.id, name: e.name, startDate: e.startDate }))}
-          arrivals={arrivals.map(a => ({ id: "arrival:" + a.id, name: a.name, startDate: a.startDate, managerId: a.managerId }))}
+          arrivals={arrivals.map(a => ({ id: "arrival:" + a.id, name: a.name, startDate: a.startDate, managerId: a.managerId, mailable: a.workEmail !== "" && isAddress(a.workEmail) }))}
           templates={templates.map(x => ({ id: x.id, name: listName(x, t), kind: x.kind, steps: x.items.length }))}
           initial={{ person, kind, template }}
           today={today()}
           weekdays={weekdays}
           lang={locale}
+          mailing={mailing}
           t={{ start: t.start, kinds: t.checklists.kinds, group: t.arrivals.group, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
         />
       )}

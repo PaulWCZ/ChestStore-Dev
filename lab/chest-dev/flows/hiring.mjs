@@ -144,6 +144,24 @@ await step("move a candidate with the keyboard: one toast, no second announcemen
   expect((await page.locator(".lane").nth(2).innerText()).includes("Mathis Laurent"), "in Interview");
 });
 
+await step("every card's keyboard instructions exist, on the second page served too (a stable id, not the server's counter)", async () => {
+  // dnd-kit's own id comes from a counter that grows in the server's
+  // process: from the second page on, each card's aria-describedby named
+  // instructions that were not in the page. Two loads, then each card.
+  for (let load = 0; load < 2; load++) {
+    await page.goto(origin + "/chest/jobs/1");
+    await page.waitForFunction(() => {
+      const cards = [...document.querySelectorAll(".cand[aria-describedby]")];
+      return cards.length > 0 && cards.every(c => document.getElementById(c.getAttribute("aria-describedby"))?.textContent.trim());
+    }, null, { timeout: 15_000 }).catch(async () => {
+      const found = await page.evaluate(() => [...document.querySelectorAll(".cand[aria-describedby]")].map(c => c.getAttribute("aria-describedby") + (document.getElementById(c.getAttribute("aria-describedby")) ? "" : " (missing)")));
+      throw new Error(`load ${load + 1}: cards' instructions: ${found.join(", ") || "no card with aria-describedby"}`);
+    });
+  }
+  const ids = await page.evaluate(() => [...new Set([...document.querySelectorAll(".cand[aria-describedby]")].map(c => c.getAttribute("aria-describedby")))]);
+  expect(ids.length === 1 && !/^DndDescribedBy-\d+$/u.test(ids[0]), "one stable id: " + ids.join(", "));
+});
+
 await step("ask Inès for feedback; she sees it waiting, gives hers, then sees the others'", async () => {
   await page.locator(".cand", { hasText: "Nina Rousseau" }).click();
   await page.waitForURL(/\/chest\/candidates\/\d+$/u);
@@ -188,6 +206,9 @@ await step("reject: no reason chosen for you; Undo keeps the email from ever lea
   expect(await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).isDisabled(), "Reject waits for a reason");
   await page.locator("dialog[open] .pill", { hasText: "Not enough experience" }).click();
   expect((await page.locator("#reject-text").inputValue()).startsWith("Hello Jonas Weber,"), "draft in English");
+  // Mail is on in the harness: the email is offered, never the sentence
+  // for a Chest without mail (mail.available(), SDK studio.16).
+  expect(await page.locator("dialog[open] [data-mail=off]").count() === 0, "no « cannot send » with mail on");
   await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).click();
   await page.waitForSelector(".ck-toast");
   expect((await page.locator(".ck-toast").innerText()).includes("Undo keeps it"), "toast says it waits");

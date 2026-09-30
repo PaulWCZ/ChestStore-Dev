@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
+import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as arrivals from "../lib/arrivals.ts";
 import * as j from "../lib/journeys.ts";
 import { addDays } from "../lib/model.ts";
+import { mailState, stateOf } from "../lib/mailing.ts";
 import { welcome, welcomeLetter } from "../lib/welcome.ts";
 import { today } from "../lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -68,6 +70,9 @@ test("a member's welcome checklist: a short email in their language, signed by H
   // Sent again (a retry): the key names the checklist, nothing twice.
   assert.equal(await welcome(sql, hr, started.id), true);
   assert.equal(chest.outbox.length, 1);
+  // The key carries the recipient (SDK studio.16): after a restore, the
+  // same checklist id for someone else is another key.
+  assert.equal(letter.key, idempotencyKey(`people:welcome:${started.id}:${nora.id}`));
 });
 
 test("an arrival with a work address: in the Chest's language, with their manager; without one (Hiring's), nothing", async () => {
@@ -81,6 +86,7 @@ test("an arrival with a work address: in the Chest's language, with their manage
   assert.equal(letter.subject, "Welcome to Atelier Martin, Lucie");
   assert.match(letter.text, /Hugo Bernard will be your manager\./u);
   assert.match(letter.text, /You will get access to the company’s Chest/u);
+  assert.equal(letter.key, idempotencyKey(`people:welcome:${started.id}:lucie.garnier@atelier.test`));
 
   const noAddress = await arrivals.addArrival(sql, hr, { name: "Marc Roux", startDate: addDays(today(), 3) });
   const other = await j.startJourney(sql, hr, { arrivalId: noAddress.id, templateId: welcomeList.id, anchor: addDays(today(), 3) });
@@ -127,4 +133,27 @@ test("the letter: English, with the link to the first steps once the newcomer ha
     "Hello Nora,", "", "Welcome to the team! Your first day is Monday 5 October 2026.", "",
     "Your first steps are ready in People, in the company’s Chest:", "https://team.atelier.test/chest/todo", "", "See you soon,", "Camille Martin",
   ].join("\n"));
+});
+
+test("the start form's promise: mail ready, not connected, suspended (mail.available(), studio.16)", async () => {
+  chest.delivery.mail = "ready";
+  assert.equal(await mailState(), "ready");
+  chest.delivery.mail = "not_connected";
+  assert.equal(await mailState(), "off");
+  chest.delivery.mail = "suspended";
+  assert.equal(await mailState(), "later");
+  chest.delivery.mail = "ready";
+  assert.equal(stateOf({ ok: false, reason: "quota", remainingToday: 0 }), "later");
+  assert.equal(stateOf({ ok: false, reason: "not_granted", remainingToday: null }), "off");
+});
+
+test("a Chest without mail: the form says no welcome email will leave", async () => {
+  await chest.close();
+  chest = await chestWith(false);
+  try {
+    assert.equal(await mailState(), "off");
+  } finally {
+    await chest.close();
+    chest = await chestWith(true);
+  }
 });

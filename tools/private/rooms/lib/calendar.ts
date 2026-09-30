@@ -174,40 +174,34 @@ export async function flush(sql: Sql, zone: string, limit = 40): Promise<void> {
     } else removals.push(q);
   }
   // The events to put go together (calendar.putMany, studio.15: one write
-  // of the minute for up to 100). One the Chest refuses refuses the whole
-  // batch: then they go one by one, and only that one is dropped.
+  // of the minute for up to 100). The Chest answers each (studio.16): one
+  // it took is remembered as sent; one it refuses for good (too far ahead,
+  // long past) leaves the queue without being remembered as sent; one
+  // refused because the Chest is full waits in the queue.
   let stop = false;
   if (puts.length > 0) {
+    let results: calendar.PutResult[] = [];
     try {
-      await calendar.putMany(puts.map(p => p.event));
-      for (const p of puts) {
-        await sent(p.q.key, p.lastDay);
-        await done(p.q);
-      }
-      worked = true;
+      results = await calendar.putMany(puts.map(p => p.event));
     } catch (error) {
       if (error instanceof CapabilityNotGranted) {
         await sql`update settings set calendar = 'off', calendar_tried = now()`;
         return;
       }
       if (!(error instanceof ChestError)) throw error;
-      if (refusedForGood(error)) {
-        for (const p of puts) {
-          try {
-            await calendar.put(p.event);
-            await sent(p.q.key, p.lastDay);
-            worked = true;
-          } catch (one) {
-            if (!refusedForGood(one)) {
-              if (one instanceof ChestError && one.code === "quota_exceeded") continue;
-              if (one instanceof ChestError) { stop = true; break; }
-              throw one;
-            }
-          }
-          await done(p.q);
-        }
-      } else if (error.code !== "quota_exceeded") stop = true; // unreachable, rate limited: later
-      // Full: the puts wait; the removals below still go.
+      stop = true; // unreachable, rate limited: later
+    }
+    for (const r of results) {
+      const p = puts[r.index]!;
+      if (r.ok) {
+        await sent(p.q.key, p.lastDay);
+        await done(p.q);
+        worked = true;
+      } else if (r.reason !== "quota_exceeded") {
+        // Full: it waits (the removals below still go). Anything else is
+        // refused for good: nothing to retry.
+        await done(p.q);
+      }
     }
   }
   for (const q of stop ? [] : removals) {

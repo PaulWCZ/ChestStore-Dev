@@ -13,7 +13,7 @@ import { everyone, nameOf, people, subjectOf } from "../../../../lib/people.ts";
 import { format, formatDate, formatDay } from "../../../../lib/i18n/index.ts";
 import { journey as loadJourney, type Journey } from "../../../../lib/journeys.ts";
 import { dueState, id as rowId } from "../../../../lib/model.ts";
-import { today, zone } from "../../../../lib/zone.ts";
+import { today, zoneOf } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { JourneyView, type StepView } from "./journey-view.tsx";
 import { KindBadge } from "../../../../components/kind.tsx";
@@ -54,7 +54,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     waiting: waiting(i.role, i.assignee),
     assigneePhoto: i.assignee ? who.get(i.assignee)?.photo ?? null : null,
     role: waiting(i.role, i.assignee) ? "" : roleWord(i.role),
-    doneBy: i.done && i.doneBy && i.doneAt ? format(i.doneBy === tickedByEquipment ? t.journey.doneByEquipment : i.doneBy === member.id ? t.journey.doneByYou : t.journey.doneBy, { name: nameOf(who.get(i.doneBy), locale), date: formatDate(i.doneAt, locale, { day: "numeric", month: "short", timeZone: zone() }) }) : null,
+    doneBy: i.done && i.doneBy && i.doneAt ? format(i.doneBy === tickedByEquipment ? t.journey.doneByEquipment : i.doneBy === member.id ? t.journey.doneByYou : t.journey.doneBy, { name: nameOf(who.get(i.doneBy), locale), date: formatDate(i.doneAt, locale, { day: "numeric", month: "short", timeZone: zoneOf(member) }) }) : null,
     mine: ticks(member, i),
   }));
   const pickable = hr ? (await everyone()).people.map(p => ({ id: p.id, name: p.name, photo: p.photo })) : [];

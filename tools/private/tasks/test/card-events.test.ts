@@ -5,7 +5,7 @@ import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
 import * as boards from "../lib/boards.ts";
-import { cardEventTypes, forgetCardEvents, publishCardEvents } from "../lib/card-events.ts";
+import { cardEventTypes, forgetCardEvents, occurredAtFor, publishCardEvents } from "../lib/card-events.ts";
 import * as cards from "../lib/cards.ts";
 import { en } from "../lib/i18n/en.ts";
 import { importBoard } from "../lib/importers.ts";
@@ -208,4 +208,39 @@ test("what was told a day ago, or refused for a week, is forgotten", async () =>
   await forgetCardEvents(sql, new Date(Date.now() + 2 * 86_400_000));
   const [left] = await sql<{ n: number }[]>`select count(*)::int as n from card_events`;
   assert.equal(left!.n, 0);
+});
+
+// studio.16: the Chest keeps when it happened (occurredAt), so Goals counts
+// a card done late on a cycle's last day in that cycle even when it is told
+// after midnight. Within 24 hours the true time goes with it; older (a
+// Chest down for a night), it goes without — the Chest refuses older times.
+test("a late event carries when the card was done; one older than a day goes without it", async () => {
+  const { sql } = database;
+  const { b, todo, done } = await setup();
+  const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Pay the deposit");
+  await chest.close();
+  chest = await chestWith([]);
+  await cards.moveCard(sql, asMember(hugo), c.id, done.id, null, null);
+  assert.equal(await publishCardEvents(sql), 0);
+  // Done 40 minutes ago, told now by the quarter-hour schedule.
+  const doneAt = new Date(Date.now() - 40 * 60_000);
+  doneAt.setMilliseconds(0);
+  await sql`update card_events set at = ${doneAt} where card = ${c.id}`;
+  // And another, done 30 hours ago, never told (a Chest down that long).
+  const c2 = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Old one");
+  await sql`insert into card_events (type, card, board, at) values ('tasks.card.done', ${c2.id}, ${b.id}, now() - interval '30 hours')`;
+  await chest.close();
+  chest = await chestWith([...cardEventTypes]);
+  assert.equal(await chest.run("mail", JOB), 204);
+  const late = chest.published.find(e => e.data["card"] === c.id)!;
+  assert.equal(late.occurredAt, doneAt.toISOString(), "the real time of the change");
+  assert.match(late.key!, new RegExp(`:${doneAt.getTime()}$`, "u"));
+  const old = chest.published.find(e => e.data["card"] === c2.id)!;
+  assert.ok(old, "an event older than a day is still told");
+  assert.ok(Date.now() - new Date(old.occurredAt).getTime() < 60_000, "without its time: the Chest's own");
+  // The helper, at its edges.
+  const now = Date.parse("2026-09-30T12:00:00Z");
+  assert.ok(occurredAtFor(new Date(now - 23 * 3_600_000), now));
+  assert.equal(occurredAtFor(new Date(now - 24 * 3_600_000), now), undefined);
+  assert.equal(occurredAtFor(new Date(now - 23 * 3_600_000 - 56 * 60_000), now), undefined, "five minutes of margin for the clocks");
 });
