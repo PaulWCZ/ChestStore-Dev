@@ -83,6 +83,9 @@ export async function importBoard(sql: Sql, actor: Member | null, source: Import
   const matched = await matchPeople(names);
   let count = 0;
   const id = await sql.begin(async tx => {
+    // Cards imported into a "done" column are history, not work done
+    // today: the linked tools are not told (migrations/0006_card_events.sql).
+    await tx`select set_config('tasks.importing', 'on', true)`;
     const [b] = await tx<{ id: string }[]>`insert into boards (name, color, visibility, created_by) values (${imported.name}, ${colors[0]}, ${visibility}, ${actor.id}) returning id`;
     const boardId = String(b!.id);
     await tx`insert into board_people (board_id, member_id, owner) values (${boardId}, ${actor.id}, true)`;

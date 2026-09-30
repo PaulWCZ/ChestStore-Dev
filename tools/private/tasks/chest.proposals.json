@@ -13,6 +13,10 @@
       "cron": "*/15 * * * *"
     }
   ],
+  "emits": [
+    "tasks.card.done",
+    "tasks.card.reopened"
+  ],
   "translations": {
     "fr": {
       "title": "Tâches",

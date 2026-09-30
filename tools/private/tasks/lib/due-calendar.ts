@@ -108,7 +108,7 @@ async function allowed(sql: Sql, rows: Eligible[]): Promise<Map<string, string[]
 // asks to slow down. A day refused alone (invalid_event) does not.
 class Stop extends Error {}
 
-async function put(sql: Sql, r: Eligible, people: string[]): Promise<void> {
+function eventOf(r: Eligible, people: string[]): calendar.CalendarEvent {
   const title = Object.fromEntries(locales.map(l => {
     const t = catalogue(l).calendar;
     return [l, (r.card_title === null ? format(t.card, { title: r.title }) : format(t.step, { title: r.title, card: r.card_title })).slice(0, 120)];
@@ -117,18 +117,54 @@ async function put(sql: Sql, r: Eligible, people: string[]): Promise<void> {
   const when = r.due_time
     ? (() => { const start = zoned(r.due_on, r.due_time!, zone()); return { start, end: new Date(start.getTime() + 30 * 60_000) }; })()
     : { days: { first: r.due_on, last: r.due_on } };
-  try {
-    await calendar.put({ key: r.key, members: people, title, description, ...when, path: `/chest/cards/${r.card_id}`, busy: false, private: r.visibility === "private" });
-  } catch (error) {
-    if (!(error instanceof ChestError)) throw error;
-    if (error.code === "invalid_event") return;
-    // Busy for now: the next run goes on. Anything else: no calendar here.
-    if (!(error instanceof RateLimited) && !(error instanceof Unavailable)) await remember(sql, false);
-    throw new Stop();
-  }
+  return { key: r.key, members: people, title, description, ...when, path: `/chest/cards/${r.card_id}`, busy: false, private: r.visibility === "private" };
+}
+
+// What a refusal means: a day refused alone (invalid_event) is skipped;
+// busy for now, the next run goes on; anything else, no calendar here.
+async function refused(sql: Sql, error: unknown): Promise<"skip"> {
+  if (!(error instanceof ChestError)) throw error;
+  if (error.code === "invalid_event") return "skip";
+  if (!(error instanceof RateLimited) && !(error instanceof Unavailable)) await remember(sql, false);
+  throw new Stop();
+}
+
+async function kept(sql: Sql, r: Eligible, people: string[]): Promise<void> {
   await sql`insert into calendar_events (key, raw, members) values (${r.key}, ${r.raw}, ${people.join(",")})
     on conflict (key) do update set raw = excluded.raw, members = excluded.members, put_at = now()`;
-  await remember(sql, true);
+}
+
+// putAll puts these events 100 a call (calendar.putMany, Proposal
+// (studio.15)): the first sync of a board full of due dates is a few
+// writes, not one per card against the Chest's 600 a minute. The Chest
+// takes a batch whole or not at all; a batch refused for one wrong event
+// (invalid_event) is put again one by one, so that one alone is skipped.
+async function putAll(sql: Sql, items: { r: Eligible; people: string[] }[]): Promise<number> {
+  let count = 0;
+  for (let i = 0; i < items.length; i += calendar.limits.perBatch) {
+    const batch = items.slice(i, i + calendar.limits.perBatch);
+    try {
+      await calendar.putMany(batch.map(({ r, people }) => eventOf(r, people)));
+    } catch (error) {
+      await refused(sql, error);
+      for (const { r, people } of batch) {
+        try {
+          await calendar.put(eventOf(r, people));
+        } catch (one) {
+          await refused(sql, one);
+          continue;
+        }
+        await kept(sql, r, people);
+        count++;
+      }
+      await remember(sql, true);
+      continue;
+    }
+    for (const { r, people } of batch) await kept(sql, r, people);
+    count += batch.length;
+    await remember(sql, true);
+  }
+  return count;
 }
 
 async function take(sql: Sql, key: string, wasPut = true): Promise<void> {
@@ -167,8 +203,9 @@ export async function sync(sql: Sql, options: { max?: number; recheck?: boolean 
     const todo = options.recheck ? now : now.filter(r => known.get(r.key)?.raw !== r.raw);
     if (todo.length === 0) return done;
     const who = await allowed(sql, todo.slice(0, max));
+    const going: { r: Eligible; people: string[] }[] = [];
     for (const r of todo.slice(0, max)) {
-      if (done.put + done.removed >= max) break;
+      if (done.put + done.removed + going.length >= max) break;
       const people = who.get(r.key) ?? [];
       const before = known.get(r.key);
       if (people.length === 0) {
@@ -182,9 +219,9 @@ export async function sync(sql: Sql, options: { max?: number; recheck?: boolean 
         continue;
       }
       if (before && before.raw === r.raw && before.members === people.join(",")) continue;
-      await put(sql, r, people);
-      done.put++;
+      going.push({ r, people });
     }
+    done.put += await putAll(sql, going);
   } catch (error) {
     if (!(error instanceof Stop)) console.error("calendar: not in line", error instanceof Error ? error.name : "error");
   }

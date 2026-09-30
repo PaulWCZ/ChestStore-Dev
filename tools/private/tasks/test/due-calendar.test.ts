@@ -136,3 +136,18 @@ test("a Chest without the calendar: nothing breaks, the tool stops promising it"
     await bare.close();
   }
 });
+
+test("a first sync of many due dates goes 100 a call (putMany) and puts each one", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup();
+  const due = soon();
+  const ids = (await sql<{ id: string }[]>`
+    insert into cards (board_id, column_id, title, position, due_on, created_by)
+    select ${b.id}, ${todo.id}, 'Box ' || n, lpad(n::text, 4, '0'), ${due}::date, ${hugo.id} from generate_series(1, 150) n
+    returning id::text as id`).map(r => r.id);
+  await sql`insert into card_assignees (card_id, member_id) select unnest(${ids}::bigint[]), ${ines.id}`;
+  assert.deepEqual(await sync(sql, { max: 200 }), { put: 150, removed: 0 });
+  assert.equal(chest.calendar.size, 150);
+  assert.deepEqual(chest.calendar.get(`card:${ids[149]}`)!.members, [ines.id]);
+  assert.deepEqual(await sync(sql, { max: 200 }), { put: 0, removed: 0 });
+});

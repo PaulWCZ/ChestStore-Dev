@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import * as boards from "../../lib/boards.ts";
+import { tellLinkedTools } from "../../lib/card-events.ts";
 import * as cards from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
@@ -29,6 +30,9 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
   // members' calendars follow what changed (due dates, people, done).
   after(() => mail.flushMail(db()).then(() => undefined, error => console.error("mail queue", error instanceof Error ? error.name : "error")));
   after(() => dueCalendar.sync(db()).then(() => undefined));
+  // The tools linked to Tasks hear of the cards done or reopened
+  // (lib/card-events.ts); what the Chest cannot take waits for the next.
+  after(() => tellLinkedTools(db()));
   return result;
 }
 

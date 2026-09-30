@@ -89,6 +89,10 @@ export const en = {
     stepDone: "Step ticked.",
     stepOf: "Step of “{card}”",
     email: "Also send me these by email: tasks given to me, mentions, the morning reminder",
+    // The person's own choice in the Chest (member.mailPreference), which
+    // every email follows: said under the switch, changed only there.
+    emailDigest: "You chose one email a day from your Chest: these come in it. Change it in your Chest settings.",
+    emailNone: "You chose no email from your Chest: none is sent. Change it in your Chest settings.",
     nothingShared: {
       title: "No board is shared with you yet",
       body: "Ask {names} to add you to a board.",

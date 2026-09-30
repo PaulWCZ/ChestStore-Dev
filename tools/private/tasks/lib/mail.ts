@@ -82,8 +82,11 @@ export async function email(sql: Sql, recipients: Iterable<string>, letter: (t: 
 
 async function send(member: string, subject: string, text: string, key: string): Promise<"sent" | "skipped" | "off"> {
   try {
-    await mail.send({ to: { member }, subject: subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text, key: key.slice(0, 64) });
-    return "sent";
+    // The whole key (the SDK hashes a long one); the person's own choice in
+    // the Chest (all, one a day, none) is applied by mail.send: nothing
+    // here is transactional.
+    const result = await mail.send({ to: { member }, subject: subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text, key });
+    return result.status === "held" ? "skipped" : "sent";
   } catch (error) {
     // Not granted yet: nothing more can leave. The day's quota, an address
     // that bounced: the bell already told them.

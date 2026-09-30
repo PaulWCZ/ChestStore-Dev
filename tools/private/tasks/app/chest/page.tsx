@@ -116,6 +116,8 @@ export default async function Home() {
           <div className="switches">
             <ReminderSwitch on={reminder} t={{ label: t.home.reminder, errors: t.errors }} />
             <EmailSwitch on={emails} t={{ label: t.home.email, errors: t.errors }} />
+            {member.mailPreference === "digest" && <p className="hint">{t.home.emailDigest}</p>}
+            {member.mailPreference === "none" && <p className="hint">{t.home.emailNone}</p>}
           </div>
           {/* The Chest's calendar holds my due dates (lib/due-calendar.ts):
               said only once the Chest took one. */}
