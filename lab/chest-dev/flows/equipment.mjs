@@ -308,6 +308,13 @@ await step("the overview: remind the holder of a receipt nobody confirmed (bell,
   expect(/asks: did you receive|vous demande[\u202f\u00a0 ]?: avez-vous reçu/u.test(await dev()), "the holder's bell, in their language");
 });
 
+await step("the reminder also went by email, where this Chest sends it: one message to the holder's own address, which Equipment never knows (its key carries the holder, SDK studio.16)", async () => {
+  const board = await dev();
+  const mail = board.slice(board.indexOf("Mail (proposal)"));
+  const sent = mail.match(/<b>Did you receive [^<]+\?<\/b><br><small>[^<]*→ [a-z]+@example\.test/gu) ?? mail.match(/<b>Avez-vous reçu [^<]+<\/b><br><small>[^<]*→ [a-z]+@example\.test/gu) ?? [];
+  expect(sent.length === 1, "one reminder email, to the holder: " + sent.join(" | ").slice(0, 300));
+});
+
 await step("Hugo asks for a privacy filter; Sofia gives one from the stock from the overview; Inès's request is refused with a reason", async () => {
   await as(context, origin, "hugo");
   await english();

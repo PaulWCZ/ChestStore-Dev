@@ -88,6 +88,9 @@ await step("a publisher writes an Important post with a picture and a file", asy
   await page.locator("label", { hasText: "Attach a file" }).locator("input").setInputFiles(tmp + "/badge-rules.txt");
   await page.waitForSelector(".file-list li:has-text('badge-rules.txt')", { timeout: 8000 });
   await page.getByLabel("Important").check();
+  // Studio.16: asked of the Chest before the first send (mail.available), the
+  // composer promises email only when it would go.
+  expect((await page.locator("main").innerText()).includes("told in their bell and by email"), "the Chest sends email: the hint says so");
   await page.getByRole("button", { name: "Publish and tell 6 people by bell and email" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   expect(await page.locator(".ck-toast", { hasText: "Telling 6 people in 10 seconds" }).locator(".ck-toast-undo").isVisible(), "the Undo toast");
@@ -495,6 +498,7 @@ await step("import a Slack channel, take it back; download all posts", async () 
 await step("the weekly digest email can be turned off", async () => {
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest");
+  expect((await page.locator(".digest-switch").innerText()).includes("come in your bell and by email"), "a Chest that sends email: the switch is offered");
   await page.getByRole("button", { name: "Stop the email" }).click();
   await page.waitForSelector(".ck-toast:has-text('No more weekly email')");
   await page.reload();

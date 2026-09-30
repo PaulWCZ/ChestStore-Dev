@@ -178,14 +178,29 @@ test("remind them: the holder hears it in the bell, and by email where the Chest
   assert.equal(bell?.path, "/chest/mine");
   // Mail is a proposal: sent where the Chest grants it, the bell alone otherwise.
   assert.equal(mailed, chest.outbox.some(m => m.subject === "Did you receive Pixel 7?"));
-  // The recipient in the key (studio.16): an item's id can name another
-  // thing after a restore from a backup.
-  if (mailed) assert.equal(chest.outbox.at(-1)!.key, mail.idempotencyKey(`remind:${phone.id}:${hugo.id}:${r.givenOn}:${new Date().toISOString().slice(0, 10)}`));
   await refused(remind(sql, M, phone.id), "reminded_today");
   assert.equal((await unconfirmedReceipts(sql, M, "2999-01-01")).find(u => u.item.id === phone.id)?.remindedToday, true);
   await confirm(sql, H, phone.id);
   await sql`update receipts set reminded_at = null where item_id = ${phone.id}`;
   await refused(remind(sql, M, phone.id), "already_confirmed");
+});
+
+test("a reminder by email carries its recipient in its key (studio.16): an item's id can name another thing after a restore from a backup", async () => {
+  const { sql } = database;
+  const phone = await items.createItem(sql, M, { categoryId: phones, name: "Pixel 8" });
+  await items.give(sql, M, phone.id, { to: { member: hugo.id } });
+  const r = await remind(sql, M, phone.id);
+  await chest.close();
+  chest = await fakeChest({ members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: [] } });
+  try {
+    assert.equal(await remindReceipt(M!, r.holder, r.item, r.givenOn), true, "sent where the Chest sends email");
+    const sent = chest.outbox.at(-1)!;
+    assert.equal(sent.subject, "Did you receive Pixel 8?");
+    assert.equal(sent.key, mail.idempotencyKey(`remind:${phone.id}:${hugo.id}:${r.givenOn}:${new Date().toISOString().slice(0, 10)}`));
+  } finally {
+    await chest.close();
+    chest = await fakeChest({ members: everyone });
+  }
 });
 
 test("a sheet writes a person who left by their name, with the day they left apart", async () => {

@@ -105,7 +105,8 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
   row without a line means "nothing comes back" (a cancellation first, a
   contact deleted).
 - Calendar events in bulk go through `reconcile()` (`calendar.putMany`,
-  100 a call), never a loop of `calendar.put`.
+  100 a call), never a loop of `calendar.put`. It answers each event
+  (SDK studio.16): record only the results with `ok`, never the batch.
 - Contacts are personal data: anything new that stores text about a person
   must be deleted by `forget()` (lib/contacts.ts: delete, bulk delete,
   undoing an import) and included in `exportContact`.

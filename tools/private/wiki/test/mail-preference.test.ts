@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { email } from "../lib/mail.ts";
+import { email, mailNow } from "../lib/mail.ts";
 import { camille, hugo, lea, tom } from "./support/members.ts";
 
 // SDK studio.15: the wiki's letters honour each person's Chest email
@@ -54,4 +54,22 @@ test("a key longer than the Chest keeps is sent whole: each person still gets th
   // The same keys again: a retry sends nothing twice.
   await email(as(tom, camille), letter, p => long + p.id);
   assert.equal(chest.outbox.length, 2);
+});
+
+test("studio.16: the dialogs ask the Chest whether email would go now (mail.available)", async () => {
+  assert.equal(await mailNow(), true);
+  try {
+    chest.delivery.mail = "not_connected";
+    assert.equal(await mailNow(), false, "its owner has not connected it: the bell only");
+    chest.delivery.mail = "suspended";
+    assert.equal(await mailNow(), false, "paused: the bell only");
+  } finally {
+    chest.delivery.mail = "ready";
+  }
+  const bare = await fakeChest({ tool: "wiki", members: [tom], capabilities: ["members", "notifications"] });
+  try {
+    assert.equal(await mailNow(), false, "a Chest without email");
+  } finally {
+    await bare.close();
+  }
 });

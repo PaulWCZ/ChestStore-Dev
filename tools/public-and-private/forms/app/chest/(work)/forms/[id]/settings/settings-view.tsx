@@ -38,7 +38,8 @@ type Props = {
   people: { id: string; name: string }[];
   zoneNote: string;
   locale: string;
-  mailWorks: boolean | null;
+  // Whether the Chest would send email now (lib/linked.ts, mailState).
+  mail: "ready" | "off" | "not_connected" | "paused" | "quota" | "unknown";
   cover: string | null;
   // Today on the Chest's clock (the earliest closing day).
   today: string;
@@ -46,9 +47,10 @@ type Props = {
   own: boolean;
   routeChoices: RouteChoices;
   // The first guess of each piece when a link is turned on (lib/routes.ts
-  // guessRoutes), and which receiving tools this Chest has (lib/linked.ts).
+  // guessRoutes), and whether each receiving tool is installed and linked
+  // to Forms by an admin (lib/linked.ts, events.receivers).
   routeGuess: Routes;
-  installed: { contact: boolean; request: boolean };
+  links: { contact: "linked" | "not_linked" | "not_installed"; request: "linked" | "not_linked" | "not_installed" };
   // The form's web addresses (hooks-box.tsx), placed after the links.
   hooks?: ReactNode;
   t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"]; date: Catalogue["date"] };
@@ -58,6 +60,8 @@ type SaveState = "saved" | "saving" | "error" | "held";
 export function SettingsView(p: Props) {
   const { s, b } = p.t;
   const [v, setV] = useState<Values>(p.initial);
+  // What the Chest says of email now; "unknown" says nothing false.
+  const mailNotice = p.mail === "off" ? s.mailOff : p.mail === "not_connected" ? s.mailNotConnected : p.mail === "paused" ? s.mailPaused : p.mail === "quota" ? s.mailQuota : null;
   const [save, setSave] = useState<SaveState>("saved");
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -281,7 +285,8 @@ export function SettingsView(p: Props) {
           <input className="field" type="url" inputMode="url" value={v.redirectUrl} maxLength={2000} placeholder={s.redirectPlaceholder} onChange={e => set("redirectUrl", e.target.value)} />
         </label>
         {v.anonymous ? <p className="hint">{s.sendCopyAnonymous}</p> : (
-          <Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.routes.request && p.installed.request ? s.supportConfirms : v.audience === "public" ? s.sendCopyHint : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
+          <><Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.routes.request && p.links.request === "linked" ? s.supportConfirms : v.audience === "public" ? s.sendCopyHint : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
+            {v.sendCopy && mailNotice && !(v.routes.request && p.links.request === "linked") && <p className="notice">{s.copyOff}</p>}</>
         )}
       </fieldset>
 
@@ -297,7 +302,7 @@ export function SettingsView(p: Props) {
           ))}
         </div>
         <Switch label={s.notifyEmail} hint={v.anonymous ? s.notifyEmailAnonymous : s.notifyEmailHint} checked={v.notifyEmail} onChange={on => set("notifyEmail", on)} />
-        {v.notifyEmail && p.mailWorks === false && <p className="notice">{s.mailOff}</p>}
+        {v.notifyEmail && mailNotice && <p className="notice">{mailNotice}</p>}
       </fieldset>
 
       <fieldset className="panel" disabled={ro}>
@@ -306,16 +311,17 @@ export function SettingsView(p: Props) {
           <>
             {/* A contact in Clients: the form's author says which question
                 gives what (lib/routes.ts, README "With the other tools"). */}
-            {/* Greyed while Clients is not installed (chest.toolUrl), unless
+            {/* Greyed while Clients is not installed (chest.toolUrl) or not
+                linked to Forms by an admin (events.receivers), unless
                 already on: it can always be turned off. */}
-            <Switch label={s.contactSwitch} hint={p.installed.contact ? s.contactHint : s.contactMissing} checked={v.routes.contact !== null} disabled={ro || (!p.installed.contact && v.routes.contact === null)}
+            <Switch label={s.contactSwitch} hint={p.links.contact === "linked" ? s.contactHint : p.links.contact === "not_linked" ? s.contactNotLinked : s.contactMissing} checked={v.routes.contact !== null} disabled={ro || (p.links.contact !== "linked" && v.routes.contact === null)}
               onChange={on => set("routes", { ...v.routes, contact: on ? { ...emptyContact, ...p.routeGuess.contact } : null })} />
             {v.routes.contact && (
               <RouteFields slots={["name", "email", "phone", "company", "message"] as const} route={v.routes.contact} choices={p.routeChoices.contact} s={s}
                 onChange={contact => set("routes", { ...v.routes, contact })} />
             )}
             {v.routes.contact && p.routeChoices.contact.email.length + p.routeChoices.contact.phone.length === 0 && <p className="notice">{s.noQuestions}</p>}
-            <Switch label={s.requestSwitch} hint={p.installed.request ? s.requestHint : s.requestMissing} checked={v.routes.request !== null} disabled={ro || (!p.installed.request && v.routes.request === null)}
+            <Switch label={s.requestSwitch} hint={p.links.request === "linked" ? s.requestHint : p.links.request === "not_linked" ? s.requestNotLinked : s.requestMissing} checked={v.routes.request !== null} disabled={ro || (p.links.request !== "linked" && v.routes.request === null)}
               onChange={on => set("routes", { ...v.routes, request: on ? { ...emptyRequest, ...p.routeGuess.request } : null })} />
             {v.routes.request && (
               <RouteFields slots={v.audience === "team" ? (["subject", "details"] as const) : (["subject", "details", "email", "name"] as const)} route={v.routes.request} choices={p.routeChoices.request} s={s}

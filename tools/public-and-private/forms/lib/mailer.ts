@@ -32,7 +32,7 @@ export function copyText(def: Definition, answers: Answers, language: string, co
 export async function sendCopy(to: string | { member: string }, def: Definition, answers: Answers, language: string, company: string, answerId: string): Promise<Delivery> {
   const { subject, text } = copyText(def, answers, language, company);
   try {
-    await mail.send({ to: typeof to === "string" ? to : { member: to.member }, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}`, transactional: true });
+    await mail.send({ to: typeof to === "string" ? to : { member: to.member }, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}:${typeof to === "string" ? to : to.member}`, transactional: true });
     return "email";
   } catch (error) {
     if (error instanceof ChestError) return "none";

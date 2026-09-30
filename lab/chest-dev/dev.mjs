@@ -1,6 +1,6 @@
 // The studio's `chest dev`: runs one tool as a Chest would, on this machine.
 //
-//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--seed] [--reset] [--empty] [--tools crm,helpdesk]
+//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--seed] [--reset] [--empty] [--tools crm,helpdesk] [--linked]
 //
 // - a fake Chest (the SDK working copy's fakeChest: members, groups, files,
 //   notifications, events, and every proposal it fakes), with a cast of
@@ -21,7 +21,8 @@
 //   received mail, the calendar feeds, the Chest's groups, webhooks);
 // - the tools whose events it receives, installed beside it (CHEST_TOOL_URLS),
 //   and those named by --tools (a sender that checks its receivers are
-//   installed: Forms asks for Clients and Support).
+//   installed: Forms asks for Clients and Support); with --linked, an
+//   admin linked them to this tool for the events they receive.
 //
 // Environment: DEV_DATABASE_URL (a PostgreSQL superuser URL, default
 // postgres://postgres:postgres@127.0.0.1:5432/postgres).
@@ -171,6 +172,24 @@ const chest = await testing.fakeChest({
   theme: {},
   themeFiles,
 });
+// --linked (opt-in; Proposal (studio.16): events.receivers): an admin
+// linked each tool installed beside this one to it, for every type this
+// tool emits that the other declares in its `receives` (read from its
+// manifests in tools/). Without it, nothing is linked: receivers answers
+// [] and publish counts `receivers` (0), as on a Chest where no admin
+// linked the tools yet.
+if (flag("linked")) {
+  const receivesOf = name => {
+    for (const kind of ["private", "public-and-private"]) {
+      const dir = join(root, "tools", kind, name);
+      if (!existsSync(join(dir, "chest.json"))) continue;
+      const read = file => (existsSync(join(dir, file)) ? JSON.parse(readFileSync(join(dir, file), "utf8")).receives ?? [] : []);
+      return [...read("chest.json"), ...read("chest.proposals.json")];
+    }
+    return [];
+  };
+  for (const type of proposals.emits ?? []) chest.linked[type] = Object.keys(chest.tools).filter(name => name !== manifest.name && receivesOf(name).includes(type)).sort();
+}
 
 // The tool, with the Chest's environment.
 const env = {

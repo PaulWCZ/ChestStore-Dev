@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
+import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { formToken } from "@argentic/chest-sdk/visitors";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../lib/answers.ts";
 import { AppError } from "../lib/app-error.ts";
-import { emailGuests, eventKey, learned, syncFinal } from "../lib/agenda.ts";
+import { emailGuests, eventKey, guestMailOffered, learned, notInCalendar, syncFinal } from "../lib/agenda.ts";
 import { checkForm, count } from "../lib/guard.ts";
 import * as guests from "../lib/guests.ts";
+import { erase } from "../lib/lifecycle.ts";
 import { limits } from "../lib/model.ts";
 import * as polls from "../lib/polls.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -211,6 +213,35 @@ test("the chosen date goes to the calendars of those asked (not those who said n
   assert.equal(chest.calendar.has(eventKey(id)), false);
 });
 
+test("the guests' form offers email only when the Chest would send it (mail.available(), SDK studio.16)", async () => {
+  assert.equal(await guestMailOffered(), true, "ready");
+  chest.delivery.mail = "not_connected";
+  assert.equal(await guestMailOffered(), false, "the company's mail not connected");
+  chest.delivery.mail = "suspended";
+  assert.equal(await guestMailOffered(), false, "sending suspended");
+  chest.delivery.mail = "ready";
+  const bare = await fakeChest({ members: everyone, capabilities: ["members"] });
+  try {
+    assert.equal(await guestMailOffered(), false, "no mail on this Chest");
+  } finally {
+    await bare.close();
+  }
+});
+
+test("a guest's email key carries their address (SDK studio.16: keys built from ids name the recipient)", async () => {
+  const { sql } = database;
+  const { id, first } = await openDinner();
+  const link = await guests.setGuestLink(sql, asMember(sofia), id, true, now);
+  await guests.answerAsGuest(sql, link, { name: "Jean", email: "jean@client.example", dates: { [first]: 2 }, locale: "fr" }, now);
+  await polls.closePoll(sql, asMember(sofia), id, now);
+  await polls.chooseFinal(sql, asMember(sofia), id, first, now);
+  assert.equal(await emailGuests(sql, id, null), 1);
+  const [jean] = await sql<{ id: string }[]>`select id::text as id from participants where poll_id = ${id} and guest_email = 'jean@client.example'`;
+  const finalAt = new Date((await polls.load(sql, id)).finalAt!).getTime();
+  // Longer than the Chest keeps: sent as its hash, never cut.
+  assert.equal(chest.outbox.at(-1)!.key, idempotencyKey(`final:${id}:${jean!.id}:${finalAt}:jean@client.example`));
+});
+
 test("a Chest without the calendar: Polls learns it and keeps its file", async () => {
   const { sql } = database;
   const bare = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], calendar: false });
@@ -251,6 +282,89 @@ test("a date chosen for more than 1,000 people goes to their calendars in parts 
     await polls.chooseFinal(sql, asMember(sofia), id, null, now);
     await syncFinal(sql, id);
     assert.equal(big.calendar.size, 0);
+  } finally {
+    await big.close();
+  }
+});
+
+test("the Chest answers each part (calendar.putMany, SDK studio.16): a refused part is not taken for put, the others are", async () => {
+  const { sql } = database;
+  const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
+  const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
+  const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
+  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, timeZone: "Europe/Paris" });
+  try {
+    // The tool's 5,000 events nearly all used (other polls' dates): room
+    // for two new parts, not three.
+    const filler = { title: { en: "Other" }, days: { first: "2026-10-01", last: "2026-10-01" }, members: [tom.id], updated: now.toISOString(), sequence: 0 };
+    for (let i = 0; i < 4998; i++) big.calendar.set(`other:${i}`, { ...filler, key: `other:${i}` } as never);
+    const { id, first } = await openDinner();
+    await polls.closePoll(sql, asMember(sofia), id, now);
+    await polls.chooseFinal(sql, asMember(sofia), id, first, now);
+    await syncFinal(sql, id);
+    // 2,351 people in 3 parts: the first two put, the third refused (quota).
+    assert.equal(big.calendar.get(eventKey(id))?.members.length, 1000);
+    assert.equal(big.calendar.get(eventKey(id, 2))?.members.length, 1000);
+    assert.equal(big.calendar.has(eventKey(id, 3)), false, "the refused part is not there");
+    assert.equal(await learned(sql), "on", "the Chest has a calendar");
+    const missing = await notInCalendar(sql, id);
+    assert.equal(missing.size, 351, "its 351 people are not told it is in their calendar");
+    const inFirst = big.calendar.get(eventKey(id))!.members[0]!;
+    assert.equal(missing.has(inFirst), false, "the others are");
+    // An erased member is taken out of that list.
+    const someone = [...missing][0]!;
+    await erase(sql, someone);
+    assert.equal((await notInCalendar(sql, id)).has(someone), false);
+    // Room again: the next sync puts the third part and forgets the refusal.
+    for (let i = 0; i < 10; i++) big.calendar.delete(`other:${i}`);
+    await syncFinal(sql, id);
+    assert.equal(big.calendar.get(eventKey(id, 3))?.members.length, 351);
+    assert.equal((await notInCalendar(sql, id)).size, 0);
+    // Taken back: every part leaves every calendar.
+    await polls.chooseFinal(sql, asMember(sofia), id, null, now);
+    await syncFinal(sql, id);
+    assert.equal([...big.calendar.keys()].filter(k => k.startsWith("poll:")).length, 0);
+  } finally {
+    await big.close();
+  }
+});
+
+test("a part refused in the middle leaves a hole: taking the date back still removes every part", async () => {
+  const { sql } = database;
+  const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
+  const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
+  const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
+  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, timeZone: "Europe/Paris" });
+  try {
+    const { id, first } = await openDinner();
+    await polls.closePoll(sql, asMember(sofia), id, now);
+    await polls.chooseFinal(sql, asMember(sofia), id, first, now);
+    // The Chest refuses the second part alone (as a later Chest may, for a
+    // reason of its own): its answer for that event rewritten.
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const response = await real(input, init);
+      const request = new Request(input, init);
+      if (request.method !== "PUT" || new URL(request.url).pathname !== "/calendar/events") return response;
+      const answer = await response.json() as { results: { key: string; error?: string }[] };
+      answer.results = answer.results.map(r => (r.key === eventKey(id, 2) ? { key: r.key, error: "invalid_event", message: "refused" } : r));
+      return new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    try {
+      await syncFinal(sql, id);
+    } finally {
+      globalThis.fetch = real;
+    }
+    // The fake kept what it was sent; the tool took the refusal: it removed
+    // part 2 (as a Chest that refused it would not hold it).
+    assert.equal(big.calendar.has(eventKey(id)), true);
+    assert.equal(big.calendar.has(eventKey(id, 2)), false);
+    assert.equal(big.calendar.has(eventKey(id, 3)), true);
+    assert.equal((await notInCalendar(sql, id)).size, 1000);
+    await polls.chooseFinal(sql, asMember(sofia), id, null, now);
+    await syncFinal(sql, id);
+    assert.equal(big.calendar.has(eventKey(id, 3)), false, "part 3, after the hole, is removed too");
+    assert.equal((await notInCalendar(sql, id)).size, 0);
   } finally {
     await big.close();
   }

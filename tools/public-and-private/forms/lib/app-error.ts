@@ -53,6 +53,7 @@ export const errorCodes = [
   "webhook_address",
   "webhook_no_answer",
   "webhooks_unavailable",
+  "webhooks_suspended",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];
 

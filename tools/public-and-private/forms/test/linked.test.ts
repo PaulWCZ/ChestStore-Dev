@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
+import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST as webhookEvents } from "../app/chest-webhooks/route.ts";
 import { AppError } from "../lib/app-error.ts";
@@ -7,7 +8,7 @@ import * as answers from "../lib/answers.ts";
 import * as forms from "../lib/forms.ts";
 import * as hooks from "../lib/hooks.ts";
 import { catalogue } from "../lib/i18n/index.ts";
-import { installed, startOf } from "../lib/linked.ts";
+import { installed, links, mailState, startOf } from "../lib/linked.ts";
 import { take } from "../lib/respond.ts";
 import { guessRoutes } from "../lib/routes.ts";
 import { putSetting } from "../lib/settings.ts";
@@ -44,6 +45,7 @@ after(async () => {
 beforeEach(() => {
   chest.removeTool("crm");
   chest.removeTool("helpdesk");
+  for (const type of Object.keys(chest.linked)) delete chest.linked[type];
 });
 
 const refused = (code: string) => (e: unknown) => e instanceof AppError && e.code === code;
@@ -69,22 +71,42 @@ test("the first guess reads the kinds of the questions, never their words: the C
   assert.deepEqual(guessRoutes(form([only])).request, { subject: null, details: null, email: only.id, name: null });
 });
 
-test("a new Contact form starts linked to Clients when Clients is installed, and with the owner's alerts by email on (a public form, mail not known missing)", async () => {
+test("a new Contact form starts linked to Clients when an admin linked Clients to Forms, and with the owner's alerts by email on (a public form, mail not missing)", async () => {
   const { sql } = database;
   const made = template("contact", catalogue("en"));
   assert.deepEqual(installed(), { contact: false, request: false });
+  assert.deepEqual(await links(), { contact: "not_installed", request: "not_installed" });
   const alone = await forms.create(sql, asMember(ines), await startOf(sql, made));
   assert.equal(alone.routes.contact, null, "nothing would receive it");
   assert.equal(alone.notifyEmail, true);
   chest.installTool("crm");
   assert.deepEqual(installed(), { contact: true, request: false });
+  // Installed is not enough (studio.16, events.receivers): until an admin
+  // links the two tools, every contact would publish into nothing.
+  assert.deepEqual(await links(), { contact: "not_linked", request: "not_installed" });
+  assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).routes.contact, null, "installed, not linked: off");
+  chest.linked["forms.contact"] = ["crm"];
+  assert.deepEqual(await links(), { contact: "linked", request: "not_installed" });
   const linked = await forms.create(sql, asMember(ines), await startOf(sql, made));
   assert.deepEqual(linked.routes.contact, guessRoutes(made.definition).contact);
   assert.equal(linked.routes.request, null, "Support stays the author's choice");
   // A team form: no alert by email by default; a Chest known without mail: none.
   assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, template("it", catalogue("en"))))).notifyEmail, false);
+  // The Chest says whether it sends email (studio.16, mail.available):
+  // not connected, alerts start off; paused, they start on (it passes).
+  chest.delivery.mail = "not_connected";
+  try {
+    assert.equal(await mailState(sql), "not_connected");
+    assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).notifyEmail, false);
+    chest.delivery.mail = "suspended";
+    assert.equal(await mailState(sql), "paused");
+    assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).notifyEmail, true);
+  } finally {
+    chest.delivery.mail = "ready";
+  }
+  // What the last email taught no longer overrules the Chest's own word.
   await putSetting(sql, "mail_works", false);
-  assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).notifyEmail, false);
+  assert.equal(await mailState(sql), "ready");
   await putSetting(sql, "mail_works", true);
 });
 
@@ -110,6 +132,8 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   const { sql } = database;
   chest.installTool("crm");
   chest.installTool("helpdesk");
+  chest.linked["forms.contact"] = ["crm"];
+  chest.linked["forms.request"] = ["helpdesk"];
   const f = await published(def, { sendCopy: true, routes });
   const before = chest.outbox.length;
   const r = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
@@ -118,6 +142,16 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   const a = await lastAnswer(f.id);
   assert.deepEqual(a.sent, ["forms.contact", "forms.request"]);
   assert.deepEqual((await answers.oneAnswer(sql, asMember(ines), f.id, a.id)).answer.sent, ["forms.contact", "forms.request"]);
+  // Support installed but not linked (studio.16): no ticket, nobody
+  // confirms, so the copy goes; the answer does not claim a ticket.
+  chest.linked["forms.request"] = [];
+  const unlinked = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
+  assert.deepEqual(unlinked, { ok: true, copy: true });
+  const unlinkedAnswer = await lastAnswer(f.id);
+  assert.deepEqual(unlinkedAnswer.sent, ["forms.contact", "copy"]);
+  // The recipient in the copy's key (studio.16).
+  assert.equal(chest.outbox.at(-1)!.key, idempotencyKey(`copy:${unlinkedAnswer.id}:nina@example.com`));
+  chest.linked["forms.request"] = ["helpdesk"];
   // Support not installed: nobody confirms, so the copy goes.
   chest.removeTool("helpdesk");
   const again = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
@@ -198,6 +232,24 @@ test("an address that keeps failing is stopped by the Chest: Settings says so, t
   await assert.rejects(hooks.removeHook(sql, asMember(ines), f.id, s.hook.id), refused("not_found"));
 });
 
+// studio.16: Settings asks the Chest before offering the form to add an
+// address (webhooks.available), rather than learning it from a failure.
+test("a Chest that paused Forms' sending: Settings says so, adding is refused in words, the addresses are kept", async () => {
+  const { sql } = database;
+  const f = await published(def, {});
+  const kept = await hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: "Paused channel" });
+  assert.equal((await hooks.hooksOf(sql, asMember(ines), f.id)).delivery, "ready");
+  chest.delivery.webhooks = "suspended";
+  try {
+    const listed = await hooks.hooksOf(sql, asMember(ines), f.id);
+    assert.deepEqual({ available: listed.available, delivery: listed.delivery }, { available: false, delivery: "suspended" });
+    assert.ok(listed.hooks.some(h => h.id === kept.hook.id), "kept");
+    await assert.rejects(hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: "Another" }), refused("webhooks_suspended"));
+  } finally {
+    chest.delivery.webhooks = "ready";
+  }
+});
+
 test("a Chest without webhooks yet: Settings says so; answers are kept all the same", async () => {
   const { sql } = database;
   const plain = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
@@ -205,6 +257,7 @@ test("a Chest without webhooks yet: Settings says so; answers are kept all the s
     const f = await published(def, {});
     const listed = await hooks.hooksOf(sql, asMember(ines), f.id);
     assert.equal(listed.available, false);
+    assert.equal(listed.delivery, "not_granted");
     await assert.rejects(hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: "Sales" }), refused("webhooks_unavailable"));
     assert.equal((await take(sql, f, { version: f.version, answers: reply() }, null, "en")).ok, true);
   } finally {

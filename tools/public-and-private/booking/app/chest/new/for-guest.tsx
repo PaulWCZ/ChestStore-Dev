@@ -17,7 +17,7 @@ type TypeChoice = { id: string; label: string; phone: boolean };
 // Booking for a guest: the kind of meeting, a free time (the host's own
 // hours, the notice aside), then who — the guest gets their confirmation
 // and link as if they had booked themselves.
-export function ForGuest({ types, typeId, hostZone, locale, zones, t }: { types: TypeChoice[]; typeId: string; hostZone: string; locale: string; zones: ZoneGroup[]; t: Words }) {
+export function ForGuest({ mailing, types, typeId, hostZone, locale, zones, t }: { mailing: boolean; types: TypeChoice[]; typeId: string; hostZone: string; locale: string; zones: ZoneGroup[]; t: Words }) {
   const f = t.forGuest;
   const router = useRouter();
   const type = types.find(x => x.id === typeId) ?? types[0]!;
@@ -30,12 +30,12 @@ export function ForGuest({ types, typeId, hostZone, locale, zones, t }: { types:
         </select>
       </div>
       <Picker key={type.id} hostName="" hostZone={hostZone} first={null} locale={locale} zones={zones} t={t} source={`/chest/api/slots?type=${type.id}`}
-        chosen={(start, when, zone, reset) => <Who key={start} typeId={type.id} phone={type.phone} start={start} when={when} zone={zone} locale={locale} zones={zones} t={t} onTaken={reset} />} />
+        chosen={(start, when, zone, reset) => <Who key={start} mailing={mailing} typeId={type.id} phone={type.phone} start={start} when={when} zone={zone} locale={locale} zones={zones} t={t} onTaken={reset} />} />
     </section>
   );
 }
 
-function Who({ typeId, phone, start, when, zone: initialZone, locale, zones, t, onTaken }: { typeId: string; phone: boolean; start: string; when: string; zone: string; locale: string; zones: ZoneGroup[]; t: Words; onTaken: () => void }) {
+function Who({ mailing, typeId, phone, start, when, zone: initialZone, locale, zones, t, onTaken }: { mailing: boolean; typeId: string; phone: boolean; start: string; when: string; zone: string; locale: string; zones: ZoneGroup[]; t: Words; onTaken: () => void }) {
   const f = t.forGuest;
   const [pending, run] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ function Who({ typeId, phone, start, when, zone: initialZone, locale, zones, t, 
     }}>
       <p style={{ margin: 0 }}><span className="tag free" style={{ fontSize: "var(--text-m)", padding: "6px 14px" }}><Clock />{when}</span></p>
       <div><label className="label" htmlFor="g-name">{f.name}</label><input id="g-name" name="name" className="field" maxLength={120} required autoFocus autoComplete="off" /></div>
-      <div><label className="label" htmlFor="g-email">{f.email}</label><input id="g-email" name="email" type="email" className="field" maxLength={254} required autoComplete="off" aria-describedby="g-email-hint" /><p id="g-email-hint" className="hint">{f.emailHint}</p></div>
+      <div><label className="label" htmlFor="g-email">{f.email}</label><input id="g-email" name="email" type="email" className="field" maxLength={254} required autoComplete="off" aria-describedby="g-email-hint" /><p id="g-email-hint" className="hint">{mailing ? f.emailHint : f.emailHintNoMail}</p></div>
       {phone && <div><label className="label" htmlFor="g-phone">{f.phone}</label><input id="g-phone" name="phone" type="tel" className="field" maxLength={40} autoComplete="off" /></div>}
       <div><label className="label" htmlFor="g-note">{f.note}</label><textarea id="g-note" name="note" className="field" rows={2} maxLength={2000} /></div>
       <div className="grid-2">

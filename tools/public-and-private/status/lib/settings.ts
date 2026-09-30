@@ -1,4 +1,6 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { Unavailable } from "@argentic/chest-sdk/errors";
+import * as mail from "@argentic/chest-sdk/mail";
 import type { Query } from "./db.ts";
 
 // What the tool remembers about its Chest: the public address seen last
@@ -29,10 +31,10 @@ export async function rememberPublicOrigin(sql: Query, origin: string | null): P
   if ((await read<string>(sql, "public_origin")) !== origin) await write(sql, "public_origin", origin);
 }
 
-// Mail (Proposal (studio)). The SDK cannot say beforehand whether the Chest
-// sends email (see README, "Needs from the SDK"): the tool learns it from
-// its sends. "none" is tried again after a day, so a Chest that gains
-// email shows the form again by itself.
+// Mail (Proposal (studio)). What the last send taught: "none" is tried
+// again after a day, so a Chest that gains email shows the form again by
+// itself. Pages ask the Chest first (mailDelivery, below); this is what
+// they fall back on when the Chest does not answer.
 export type MailState = "ok" | "none" | "unknown";
 const retryAfter = 86400000;
 
@@ -47,6 +49,25 @@ export async function setMailState(sql: Query, state: "ok" | "none", now = new D
   const saved = await read<{ state: MailState; at: string }>(sql, "mail_state");
   if (saved?.state === state && state === "ok") return;
   await write(sql, "mail_state", { state, at: now.toISOString() });
+}
+
+// Whether the Chest would send email now (mail.available(), studio.16),
+// asked before a page offers it: "ok"; "none" — no mail on this Chest, or
+// its owner has not connected it (reason says which); "paused" — the Chest
+// stopped sending for now, or the day's messages are used ("suspended",
+// "quota"); "unknown" when the Chest does not answer and no send has told.
+// A snapshot: a send can still fail, and says so.
+export type MailDelivery = { state: MailState | "paused"; reason: "not_granted" | "not_connected" | "suspended" | "quota" | null };
+
+export async function mailDelivery(sql: Query, now = new Date()): Promise<MailDelivery> {
+  try {
+    const answer = await mail.available();
+    if (answer.ok) return { state: "ok", reason: null };
+    return { state: answer.reason === "suspended" || answer.reason === "quota" ? "paused" : "none", reason: answer.reason };
+  } catch (error) {
+    if (!(error instanceof Unavailable)) throw error;
+    return { state: await mailState(sql, now), reason: null };
+  }
 }
 
 // Checks (Proposal (studio)): whether the Chest took the list the last time

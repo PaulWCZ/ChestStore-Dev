@@ -428,11 +428,19 @@ schemas and schematrons).
   quote, invoice, credit note or reminder with its PDF attached. Call site:
   `lib/sending.ts` only. On a Chest without mail (`CapabilityNotGranted`)
   nothing is sent, the tool remembers it (`company.mail_works`) and offers
-  "Download the PDF" + "Mark as sent". A quote or an invoice a member
+  "Download the PDF" + "Mark as sent". Before offering, it asks the Chest
+  (`mail.available()`, studio.16; `lib/mailing.ts`): the send dialog opens
+  on "Send it yourself" and says why (not connected, paused, the day's
+  emails used) when the Chest would not send; Settings says the same under
+  "Email the client"; the morning's reminders go to the bell alone when the
+  Chest has no mail or it is not connected. When the Chest does not
+  answer, what the last send taught. A quote or an invoice a member
   sends by hand is `transactional` (studio.15): it arrives even when the
   addressee is a member who chose no email from the tools; the automatic
   reminders honour that choice (`member.mailPreference`, applied by
-  `mail.send`).
+  `mail.send`). An automatic reminder's key carries its recipient
+  (`reminder-<invoice>-<step>-<address>`): after a restore, an invoice id
+  may name another invoice.
 - **schedules** (studio proposal): `badges` and `followup`, daily. Without
   them, badges are set after each change, and the follow-up runs at the
   first desk visit of the day.
@@ -442,10 +450,12 @@ schemas and schematrons).
   `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients,
   `timesheets.billable`, `timesheets.billable_cancelled` from Timesheets;
   `emits` `quotes.invoiced` — see "With the other tools". `chest.toolLink`
-  for the link back to Timesheets (SDK 0.3.0-studio.15, vendored). A
+  for the link back to Timesheets (SDK 0.3.0-studio.16, vendored). A
   `quotes.invoiced` the Chest refuses when the invoice is issued is
   published by the next morning's follow-up, once (its key
-  `quotes:invoiced:<handoff>`).
+  `quotes:invoiced:<handoff>`), with `occurredAt` the time the invoice was
+  issued (studio.16) when that is less than 24 hours back (five minutes of
+  margin); older, without it — the Chest then stamps the publish.
 - **Sending to the company's PA — not built, needs the SDK.** The
   Factur-X is ready; transmitting it needs a primitive the Chest does not
   have: *declared outbound HTTPS to a partner, with a per-company secret the

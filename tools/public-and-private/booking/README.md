@@ -238,8 +238,8 @@ carries `v: 1`; a receiver ignores a version it does not know.
 | Event | When | Key (the Chest's 24-hour de-duplication) |
 |---|---|---|
 | `booking.busy` | A host's busy times changed: a booking made, moved, cancelled or erased, a time blocked or freed, a calendar connected, disconnected or read (schedule `calendars`, every 15 minutes: only what changed), and once a day as the window moves on | `busy:<member>:<ms>:<hash>` |
-| `booking.confirmed` | A booking made (by a visitor or a host for them) or moved (the same booking, told again) | `booking:<id>:confirmed:<moves>` (its data is the same each time it is told: `at` is when it was made or last moved, as recorded) |
-| `booking.cancelled` | A booking cancelled by its guest or host, or because its host was erased | `booking:<id>:cancelled` (`at`: when it was cancelled) |
+| `booking.confirmed` | A booking made (by a visitor or a host for them) or moved (the same booking, told again) | `booking:<id>:<guest email>:confirmed:<moves>` (its data is the same each time it is told: `at` is when it was made or last moved, as recorded) |
+| `booking.cancelled` | A booking cancelled by its guest or host, or because its host was erased | `booking:<id>:<guest email>:cancelled` (`at`: when it was cancelled) |
 
 `booking.busy` — for Hiring (its candidates never pick a time a host
 already gave away); the same shape as Hiring's `hiring.busy`
@@ -337,7 +337,14 @@ does).
 - `member.locale` — **Proposal (studio)**, in `vendor/`.
 - **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`).
   Without it the tool works: the guest keeps their page's link (shown
-  after booking), and Settings says guests get no email.
+  after booking), and Settings says guests get no email. The pages ask
+  the Chest first (`mail.available()`, studio.16): the booking form's email
+  field, *New booking* and Settings promise an email only when the Chest
+  would send it now, and Settings says why not in the owner's terms (no
+  mail on this Chest, email not connected, paused, the day's emails used).
+  Every email's key carries its recipient, and each event's key the guest
+  (studio.16): after a restore from a backup, a booking's id can name
+  another guest's meeting.
 - **Scheduled tasks** — **Proposal (studio)**: `reminders` (hourly) and
   `cleanup` (nightly). Without them, no reminder is sent and bookings are
   kept until an administrator erases them.

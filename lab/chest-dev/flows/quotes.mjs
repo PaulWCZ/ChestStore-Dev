@@ -592,6 +592,11 @@ await step("Camille continues the numbering of her previous tool, and turns remi
   await page.getByText("Avec l’année", { exact: true }).click();
   await page.waitForSelector("text=Les numéros seront de la forme F-");
   await page.getByText("Relancer automatiquement les retards de paiement").click();
+  // Studio.16: the page asks the Chest whether it would send email now
+  // (mail.available); here it would, so the email choice carries no warning.
+  await page.getByText("Envoyer un e-mail au client, avec la facture").waitFor();
+  const warning = page.locator("section[aria-labelledby=s-reminders] .callout");
+  expect(await warning.count() === 0, "no false warning while the Chest sends email: " + (await warning.allInnerTexts()).join(" | "));
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForSelector("text=Enregistré.");
   await page.request.post(origin + "/_dev/schedule", { form: { name: "followup" } });

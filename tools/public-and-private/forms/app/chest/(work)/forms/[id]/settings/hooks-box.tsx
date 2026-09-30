@@ -18,8 +18,9 @@ const kinds: Kind[] = ["slack", "teams", "generic"];
 // Slack, Teams, or another service. A generic receiver's secret key is
 // shown once, in a dialog. Removing asks first: the Chest forgets the
 // address, so it cannot be undone.
-export function HooksBox({ formId, available, hooks, anonymous, canEdit, t }: { formId: string; available: boolean; hooks: FormHook[]; anonymous: boolean; canEdit: boolean; t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; dialog: Catalogue["dialog"] } }) {
+export function HooksBox({ formId, delivery, hooks, anonymous, canEdit, t }: { formId: string; delivery: "ready" | "not_granted" | "suspended" | "unknown"; hooks: FormHook[]; anonymous: boolean; canEdit: boolean; t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; dialog: Catalogue["dialog"] } }) {
   const s = t.s;
+  const available = delivery === "ready";
   const toast = useToast();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -58,7 +59,7 @@ export function HooksBox({ formId, available, hooks, anonymous, canEdit, t }: { 
       {anonymous ? <p className="hint">{s.hooksAnonymous}</p> : (
         <>
           <p className="hint">{s.hooksHint}</p>
-          {!available && <p className="notice">{s.hooksUnavailable}</p>}
+          {!available && <p className="notice">{delivery === "suspended" ? s.hooksPaused : delivery === "unknown" ? s.hooksUnknown : s.hooksUnavailable}</p>}
           {hooks.length > 0 && (
             <ul className="hook-list">
               {hooks.map(hook => (

@@ -451,6 +451,7 @@ export const en = {
     menuSeen: "Who has read it",
     title: "Ask readers to confirm",
     intro: "Each person asked is told in the bell and by email, and sees “I have read it” on “{title}”. You will see who confirmed.",
+    introBell: "Each person asked is told in the bell, and sees “I have read it” on “{title}”. You will see who confirmed. (Your Chest is not sending email for now.)",
     everyone: "Everyone who reads this space",
     groups: "Only some groups",
     submit: "Ask",
@@ -480,6 +481,7 @@ export const en = {
     csv: { person: "Person", status: "Status", version: "Version read", at: "Confirmed at", page: "Page", asked: "Asked about version" },
     remind: "Remind those who have not confirmed",
     reminded: { zero: "Everyone has confirmed: nobody to remind.", one: "1 person reminded, in the bell and by email.", other: "{count} people reminded, in the bell and by email." },
+    remindedBell: { zero: "Everyone has confirmed: nobody to remind.", one: "1 person reminded, in the bell.", other: "{count} people reminded, in the bell." },
   },
   bell: {
     commented: "{name} commented on “{title}”",

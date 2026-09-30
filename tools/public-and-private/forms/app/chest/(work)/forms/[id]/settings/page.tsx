@@ -9,11 +9,10 @@ import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { zonedParts } from "../../../../../../lib/zone.ts";
 import { imageUrl } from "../../../../../../lib/images.ts";
-import { getSetting } from "../../../../../../lib/settings.ts";
 import { ownLook, publicLook, teamLook } from "../../../../../../lib/theme.ts";
 import { contactSlots, guessRoutes, requestSlots } from "../../../../../../lib/routes.ts";
 import { hooksOf } from "../../../../../../lib/hooks.ts";
-import { installed } from "../../../../../../lib/linked.ts";
+import { links, mailState } from "../../../../../../lib/linked.ts";
 import { HooksBox } from "./hooks-box.tsx";
 import { SettingsView, type RouteChoices } from "./settings-view.tsx";
 
@@ -45,12 +44,12 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   return (
     <SettingsView
       routeGuess={guessRoutes(form.draft)}
-      installed={installed()}
-      hooks={<HooksBox formId={form.id} available={addresses.available} hooks={addresses.hooks} anonymous={form.anonymous} canEdit={atLeast(level, "editor")} t={{ s: t.settings, errors: t.errors, dialog: t.dialog }} />}
+      links={await links()}
+      hooks={<HooksBox formId={form.id} delivery={addresses.delivery} hooks={addresses.hooks} anonymous={form.anonymous} canEdit={atLeast(level, "editor")} t={{ s: t.settings, errors: t.errors, dialog: t.dialog }} />}
       formId={form.id}
       canEdit={atLeast(level, "editor")}
       canDelete={atLeast(level, "owner")}
-      mailWorks={(await getSetting<boolean>(sql, "mail_works")) ?? null}
+      mail={await mailState(sql)}
       cover={await imageUrl(form.cover, "team")}
       initial={{
         audience: form.audience, anonymous: form.anonymous, once: form.once, tellTeam: form.tellTeam, layout: form.layout, accent: form.accent,

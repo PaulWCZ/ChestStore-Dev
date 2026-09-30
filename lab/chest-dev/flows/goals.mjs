@@ -301,10 +301,37 @@ await step("Camille sees who has not checked in and reminds Tom: the bell and an
   await page.locator(".chase summary").click();
   const row = page.locator(".chase-rows > li", { hasText: "Tom Walker" });
   await row.getByRole("button", { name: "Remind Tom Walker" }).click();
-  await page.waitForSelector(".ck-toast >> text=Tom Walker is reminded");
+  await page.waitForSelector(".ck-toast >> text=Tom Walker is reminded, in the bell and by email.");
   expect((await row.innerText()).includes("Reminded today"), "marked");
   const bell = await dev();
   expect(bell.includes("Camille Martin asks for your weekly update"), "bell and outbox");
+});
+
+await step("someone who turned the reminders' email off is reminded in the bell only, and the toast says so", async () => {
+  // Another person still waiting for a check-in.
+  const next = page.locator(".chase-rows > li", { has: page.getByRole("button", { name: /^Remind / }) }).first();
+  const name = (await next.getByRole("button", { name: /^Remind / }).getAttribute("aria-label")).replace(/^Remind /u, "");
+  const handle = name.split(" ")[0].normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  await english(handle);
+  await page.goto(origin + "/chest");
+  await page.getByRole("switch", { name: /Also email me/u }).uncheck();
+  await page.waitForSelector(".ck-toast >> text=Reminders stay in the bell only.");
+  await english("camille");
+  await page.goto(origin + "/chest/company");
+  await page.locator(".chase summary").click();
+  // The newest message of the harness's outbox, before and after.
+  const newest = async () => ((await dev()).split("<p>Outbox:</p><ul>")[1] ?? "").split("</li>")[0];
+  const emailsBefore = await newest();
+  const row = page.locator(".chase-rows > li", { hasText: name });
+  await row.getByRole("button", { name: `Remind ${name}` }).click();
+  await page.waitForSelector(`.ck-toast >> text=${name} is reminded in the bell.`);
+  expect((await newest()) === emailsBefore, `no email to ${name}`);
+  // Back on, as they had it.
+  await english(handle);
+  await page.goto(origin + "/chest");
+  await page.getByRole("switch", { name: /Also email me/u }).check();
+  await page.waitForSelector(".ck-toast >> text=Reminders will also come by email.");
+  await english("camille");
 });
 
 await step("Camille imports Lattice's goals file: columns guessed, an unknown owner given to Sofia, then Undo", async () => {

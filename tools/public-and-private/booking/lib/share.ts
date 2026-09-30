@@ -106,9 +106,11 @@ async function bookingData(sql: Query, b: Booking, status: "confirmed" | "cancel
 // booking's event (told again, the same one: taken as the same event).
 export async function changed(sql: Query, kind: "booked" | "moved" | "cancelled", b: Booking, options: { previousHost?: string; now?: number } = {}): Promise<boolean> {
   const now = options.now ?? Date.now();
+  // The guest in the key (studio.16): after a restore from a backup, a
+  // booking's id can name another guest's meeting.
   const taken = kind === "cancelled"
-    ? await publish("booking.cancelled", await bookingData(sql, b, "cancelled"), `booking:${b.id}:cancelled`)
-    : await publish("booking.confirmed", await bookingData(sql, b, "confirmed"), `booking:${b.id}:confirmed:${b.moves}`);
+    ? await publish("booking.cancelled", await bookingData(sql, b, "cancelled"), `booking:${b.id}:${b.guestEmail}:cancelled`)
+    : await publish("booking.confirmed", await bookingData(sql, b, "confirmed"), `booking:${b.id}:${b.guestEmail}:confirmed:${b.moves}`);
   await shareBusy(sql, [b.memberId, ...(options.previousHost ? [options.previousHost] : [])], now);
   return taken;
 }

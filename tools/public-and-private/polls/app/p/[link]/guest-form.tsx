@@ -16,12 +16,15 @@ type Section<T> = { [K in keyof T]: T[K] extends string ? string : Plural };
 type Words = { guest: Section<typeof en.guest>; poll: Section<typeof en.poll>; errors: Record<keyof typeof en.errors, string> };
 export type GuestOption = { id: string; month: string; day: string; weekday: string; text: string; hours: string; left: number | null };
 
-export function GuestForm({ link, pollId, token, options, signup, mine, sent, locale, t }: {
+export function GuestForm({ link, pollId, token, options, signup, mailOn, mine, sent, locale, t }: {
   link: string;
   pollId: string;
   token: string;
   options: GuestOption[];
   signup: boolean;
+  // Whether the Chest can email the chosen date (mail.available()): off,
+  // the form does not ask for an address it could not use.
+  mailOn: boolean;
   mine: { name: string; email: string; dates: Record<string, number> } | null;
   sent: "1" | "2" | null;
   locale: string;
@@ -43,7 +46,7 @@ export function GuestForm({ link, pollId, token, options, signup, mine, sent, lo
         {said.length > 0 ? (
           <div className="said" aria-label={t.poll.youSaid}>{said.map((s, i) => <span key={i} className="chip">{s}</span>)}</div>
         ) : <p>{t.guest.noneSuits}</p>}
-        <p>{mine.email ? format(t.guest.willMail, { email: mine.email }) : t.guest.changeHint}</p>
+        <p>{mine.email && mailOn ? format(t.guest.willMail, { email: mine.email }) : t.guest.changeHint}</p>
         <button type="button" className="button small" onClick={() => setEditing(true)}>{t.poll.change}</button>
       </div>
     );
@@ -61,9 +64,13 @@ export function GuestForm({ link, pollId, token, options, signup, mine, sent, lo
       <div className="guest-fields">
         <label className="lbl" htmlFor="guest-name">{t.guest.name}</label>
         <input id="guest-name" name="name" className="field" type="text" required maxLength={80} autoComplete="name" value={name} onChange={e => setName(e.target.value)} />
-        <label className="lbl" htmlFor="guest-email">{t.guest.email}</label>
-        <input id="guest-email" name="email" className="field" type="email" maxLength={254} autoComplete="email" aria-describedby="guest-email-hint" value={email} onChange={e => setEmail(e.target.value)} />
-        <p id="guest-email-hint" className="hint">{t.guest.emailHint}</p>
+        {mailOn && <>
+          <label className="lbl" htmlFor="guest-email">{t.guest.email}</label>
+          <input id="guest-email" name="email" className="field" type="email" maxLength={254} autoComplete="email" aria-describedby="guest-email-hint" value={email} onChange={e => setEmail(e.target.value)} />
+          <p id="guest-email-hint" className="hint">{t.guest.emailHint}</p>
+        </>}
+        {/* Mail off for now: an address given earlier is kept, not asked. */}
+        {!mailOn && email !== "" && <input type="hidden" name="email" value={email} />}
       </div>
       <fieldset className="q">
         <legend className="visually-hidden">{t.guest.dates}</legend>

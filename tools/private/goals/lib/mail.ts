@@ -19,6 +19,23 @@ import { people } from "./people.ts";
 // Reminders are never transactional. On a Chest without mail yet, nothing
 // is sent and nothing fails: the bell says it.
 
+// mailState: whether the Chest would send an email now (Proposal
+// (studio.16): mail.available(), asked without sending) — "off" when it
+// cannot (mail not granted, the company's mail not connected, sending
+// suspended): My goals then says reminders stay in the bell rather than
+// offering email. The day's quota used comes back tomorrow: "on". A Chest
+// that does not answer: "unknown", never read as "off".
+export type MailState = "on" | "off" | "unknown";
+export async function mailState(): Promise<MailState> {
+  try {
+    const state = await mail.available();
+    return state.ok || state.reason === "quota" ? "on" : "off";
+  } catch (error) {
+    if (error instanceof ChestError) return "unknown";
+    throw error;
+  }
+}
+
 export async function emailOn(sql: Query, actor: Member | null): Promise<boolean> {
   if (!actor || !can(actor, "read")) throw new AppError("forbidden");
   const [row] = await sql<{ email_off: boolean }[]>`select email_off from preferences where member_id = ${actor.id}`;

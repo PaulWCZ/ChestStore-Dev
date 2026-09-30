@@ -45,6 +45,8 @@ const isKind = (value: unknown): value is HookKind => typeof value === "string" 
 
 // Remembered like mail's: "none" once the Chest said it cannot, tried again
 // after a day (a Chest that gains webhooks offers them again by itself).
+// Pages ask the Chest first (hooksDelivery, below); this is what they fall
+// back on when the Chest does not answer.
 type HooksState = "ok" | "none" | "unknown";
 export async function hooksState(sql: Query, now = new Date()): Promise<HooksState> {
   const [row] = await sql<{ value: { state: HooksState; at: string } }[]>`select value from settings where key = 'hooks_state'`;
@@ -54,6 +56,25 @@ export async function hooksState(sql: Query, now = new Date()): Promise<HooksSta
 }
 async function setHooksState(sql: Query, state: "ok" | "none", now = new Date()): Promise<void> {
   await sql`insert into settings (key, value) values ('hooks_state', ${sql.json({ state, at: now.toISOString() } as never)}) on conflict (key) do update set value = excluded.value`;
+}
+
+// Whether the Chest would deliver to a chat now (webhooks.available(),
+// studio.16), asked before a page offers it: "ok" (with the addresses
+// used, "3 of 200"); "paused" — the Chest's owner paused this tool's
+// notices (nothing goes, the channels are kept); "none" — no webhooks on
+// this Chest; "unknown" when the Chest does not answer and nothing was
+// learnt. A snapshot: a delivery can still fail, and its page says so.
+export type HooksDelivery = { state: HooksState | "paused"; targets: number | null; max: number | null };
+
+export async function hooksDelivery(sql: Query, now = new Date()): Promise<HooksDelivery> {
+  try {
+    const answer = await webhooks.available();
+    if (answer.ok) return { state: "ok", targets: answer.targets, max: answer.max };
+    return { state: answer.reason === "suspended" ? "paused" : "none", targets: null, max: null };
+  } catch (error) {
+    if (!(error instanceof Unavailable)) throw error;
+    return { state: await hooksState(sql, now), targets: null, max: null };
+  }
 }
 
 // ---- Subscribing (public: no member) ---------------------------------------
@@ -81,6 +102,7 @@ export async function subscribeHook(sql: Sql, input: { kind: unknown; url: unkno
       throw new AppError("no_hooks");
     }
     if (error instanceof QuotaExceeded) throw new AppError("too_many", { max: hookLimits.subscribers });
+    if (error instanceof ChestError && error.code === "suspended") throw new AppError("hooks_paused");
     if (error instanceof ChestError && error.code === "verification_failed") throw new AppError("hook_no_answer");
     if (error instanceof ChestError && (error.code === "invalid_target" || error.code === "address_refused")) throw new AppError(kind === "slack" ? "hook_slack" : kind === "teams" ? "hook_teams" : "hook_address");
     throw error;
@@ -145,6 +167,7 @@ export async function retryHook(sql: Sql, token: unknown): Promise<void> {
     await webhooks.enable(h.target);
   } catch (error) {
     if (error instanceof CapabilityNotGranted) throw new AppError("no_hooks");
+    if (error instanceof ChestError && error.code === "suspended") throw new AppError("hooks_paused");
     if (error instanceof ChestError && (error.code === "target_not_found" || error.code === "not_found")) {
       await sql`delete from hook_subscribers where id = ${h.id}`;
       throw new AppError("not_found");
@@ -282,8 +305,12 @@ export async function flushHooks(sql: Sql, options: { limit?: number; now?: Date
       return [{ id: c.id, name: inLocale(c, q.language).name, state: q.status === "resolved" || q.status === "completed" ? "operational" : r.state }];
     });
     const message = hookMessage(q, components, origin, zone);
+    // The key names the Chest's target (whk_…), not our row's id, and the
+    // update's time: after a restore, an id may name another channel or
+    // another update, which the Chest would take for one it already has
+    // (sdk/README, "Put the recipient in the key").
     try {
-      const done = await webhooks.send([q.target], { event: q.kind === "maintenance" ? "maintenance.update" : "incident.update", ...message, key: `update:${q.update_id}:${q.hook_id}` });
+      const done = await webhooks.send([q.target], { event: q.kind === "maintenance" ? "maintenance.update" : "incident.update", ...message, key: `update:${q.update_id}:${new Date(q.posted_at).getTime()}:${q.target}` });
       for (const s of done.skipped) {
         if (s.reason === "not_found") await sql`delete from hook_subscribers where target = ${s.target}`;
         else await sql`update hook_subscribers set disabled_at = coalesce(disabled_at, now()) where target = ${s.target}`;
@@ -293,7 +320,9 @@ export async function flushHooks(sql: Sql, options: { limit?: number; now?: Date
         await setHooksState(sql, "none");
         return { sent, stopped: "none" };
       }
-      if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof Unavailable) {
+      // Paused by the Chest's owner (studio.16): kept, like a busy Chest —
+      // the queue waits a day at most.
+      if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof Unavailable || (error instanceof ChestError && error.code === "suspended")) {
         await sql`update hook_queue set attempts = attempts + 1 where id = ${q.id}`;
         return { sent, stopped: "later" };
       }

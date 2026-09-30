@@ -8,11 +8,13 @@ import type { Catalogue } from "../../lib/i18n/index.ts";
 import { digestByEmail } from "./actions.ts";
 
 // The weekly digest by email too, or only in the bell: one switch, at the
-// foot of the front page (and named in every digest email).
-export function DigestSwitch({ on, t, errors }: { on: boolean; t: Catalogue["front"]; errors: Catalogue["errors"] }) {
+// foot of the front page (and named in every digest email). No switch on a
+// Chest that sends no email (mail.available(), studio.16): the line says so.
+export function DigestSwitch({ on, mail, t, errors }: { on: boolean; mail: boolean; t: Catalogue["front"]; errors: Catalogue["errors"] }) {
   const toast = useToast();
   const [, start] = useTransition();
   const [shown, set] = useOptimistic(on);
+  if (!mail) return <p className="digest-switch"><Mail /><span>{t.digestNoMail}</span></p>;
   return (
     <p className="digest-switch">
       <Mail />

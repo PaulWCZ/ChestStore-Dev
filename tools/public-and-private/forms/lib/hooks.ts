@@ -48,22 +48,37 @@ const hookId = (value: unknown): string => {
   return value;
 };
 
+// Whether the Chest delivers to web addresses now (webhooks.available,
+// studio.16), asked before Settings offers the form to add one:
+// "not_granted" (a Chest without webhooks, or not approved), "suspended"
+// (the owner paused Forms' sending: addresses are kept, nothing goes),
+// "unknown" (the Chest did not answer).
+export type HookDelivery = "ready" | "not_granted" | "suspended" | "unknown";
+
 // hooksOf: a form's addresses, with what the Chest says of each, and
-// whether this Chest sends to web addresses at all (without it, Settings
-// says so and hides the form to add one). Its editors only.
-export async function hooksOf(sql: Query, actor: Member | null, formId: unknown): Promise<{ available: boolean; hooks: Hook[] }> {
+// whether this Chest sends to web addresses now (otherwise Settings says
+// why and hides the form to add one). Its editors only.
+export async function hooksOf(sql: Query, actor: Member | null, formId: unknown): Promise<{ available: boolean; delivery: HookDelivery; hooks: Hook[] }> {
   const { form } = await open(sql, actor, formId, "editor");
   const rows = await sql<Row[]>`select id, kind, label, shown, disabled_at, last_error from form_hooks where form_id = ${form.id} order by created_at, id`;
-  let remote = new Map<string, webhooks.WebhookTarget>();
-  let available = true;
+  let delivery: HookDelivery = "unknown";
   try {
-    remote = new Map((await webhooks.list()).map(w => [w.id, w]));
+    const state = await webhooks.available();
+    delivery = state.ok ? "ready" : state.reason === "suspended" ? "suspended" : "not_granted";
   } catch (error) {
-    if (error instanceof CapabilityNotGranted) available = false;
-    else if (!(error instanceof ChestError)) throw error;
+    if (!(error instanceof ChestError)) throw error;
+  }
+  let remote = new Map<string, webhooks.WebhookTarget>();
+  if (delivery !== "not_granted" && rows.length > 0) {
+    try {
+      remote = new Map((await webhooks.list()).map(w => [w.id, w]));
+    } catch (error) {
+      if (!(error instanceof ChestError)) throw error;
+    }
   }
   return {
-    available,
+    available: delivery === "ready",
+    delivery,
     hooks: rows.map(r => {
       const w = remote.get(r.id);
       return { id: r.id, kind: r.kind, label: r.label, shown: w?.url ?? r.shown, disabled: w ? w.state === "disabled" : r.disabled_at !== null, lastError: w ? w.lastError : r.last_error, status: w?.status ?? null };
@@ -91,6 +106,7 @@ export async function addHook(sql: Sql, actor: Member | null, formId: unknown, i
     added = await webhooks.add({ url, kind, label, owner: actor!.id });
   } catch (error) {
     if (error instanceof CapabilityNotGranted) throw new AppError("webhooks_unavailable");
+    if (error instanceof ChestError && error.code === "suspended") throw new AppError("webhooks_suspended");
     if (error instanceof QuotaExceeded) throw new AppError("too_many", { max: hookLimits.perForm });
     if (error instanceof ChestError && error.code === "verification_failed") throw new AppError("webhook_no_answer");
     if (error instanceof ChestError && (error.code === "invalid_target" || error.code === "address_refused")) throw wrong();
@@ -188,7 +204,7 @@ export async function sendHooks(sql: Query, form: Pick<Form, "id" | "anonymous">
   const team = chest.teamUrl();
   const { text, data } = hookMessage(form, def, answer, chest.locale() ?? "en", team ? `${team}/chest/forms/${form.id}/answers/${answer.id}` : null);
   try {
-    const sent = await webhooks.send(rows.map(r => r.id), { event: "form.answered", text, data, key: `answer:${answer.id}` });
+    const sent = await webhooks.send(rows.map(r => r.id), { event: "form.answered", text, data, key: [`answer:${answer.id}`, ...rows.map(r => r.id)].join(":") });
     for (const s of sent.skipped) {
       if (s.reason === "not_found") await sql`delete from form_hooks where id = ${s.target}`;
       else await sql`update form_hooks set disabled_at = coalesce(disabled_at, now()) where id = ${s.target}`;

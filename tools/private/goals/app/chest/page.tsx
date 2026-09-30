@@ -9,7 +9,7 @@ import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { format, formatDay, plural } from "../../lib/i18n/index.ts";
 import { daysBetween, firstCycleChoices, runsOn, type Suggestion } from "../../lib/model.ts";
-import { emailOn } from "../../lib/mail.ts";
+import { emailOn, mailState } from "../../lib/mail.ts";
 import { orphans } from "../../lib/orphans.ts";
 import { context, cycleWords, quarterName } from "../../lib/page-data.ts";
 import { ownedBy } from "../../lib/read.ts";
@@ -129,7 +129,9 @@ export default async function MyGoals() {
         )}
       </section>
 
-      {ownsAnyKr && <EmailSwitch on={await emailOn(sql, member)} note={member.mailPreference === "none" ? t.home.emailNone : member.mailPreference === "digest" ? t.home.emailDigest : null} t={{ label: t.home.email, on: t.home.emailOn, off: t.home.emailOff, errors: t.errors }} />}
+      {ownsAnyKr && ((await mailState()) === "off"
+        ? <p className="email-note">{t.home.emailUnavailable}</p>
+        : <EmailSwitch on={await emailOn(sql, member)} note={member.mailPreference === "none" ? t.home.emailNone : member.mailPreference === "digest" ? t.home.emailDigest : null} t={{ label: t.home.email, on: t.home.emailOn, off: t.home.emailOff, errors: t.errors }} />)}
     </div>
   );
 }

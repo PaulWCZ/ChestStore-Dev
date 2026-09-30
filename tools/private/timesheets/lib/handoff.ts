@@ -98,6 +98,19 @@ export async function preview(sql: Query, actor: Member | null, projectId: unkno
   return { entries: rows.length, minutes: rows.reduce((n, r) => n + r.minutes, 0), lines: linesOf(rows, project.name).length };
 }
 
+// A hand-off's key: its id and the moment it was made (milliseconds).
+export const handoffKey = (handoff: string, at: Date): string => `timesheets:billable:${handoff}:${at.getTime()}`;
+
+// occurredAt (events.publish, studio.16): the moment the database wrote,
+// when the Chest would take it — 24 hours back at most, less five minutes
+// for the clocks. A moment ahead of this server's clock (the database's
+// running fast) goes without it rather than risk a refusal. Published
+// right after the change today, so given; kept exact for a retry.
+export function occurred(at: Date, now = Date.now()): { occurredAt?: Date } {
+  const age = now - at.getTime();
+  return age >= 0 && age < events.occurredLimits.behindMs - 5 * 60_000 ? { occurredAt: at } : {};
+}
+
 // sendBillable makes the hand-off and publishes it. Nothing is kept when
 // the Chest does not take the event (no events between tools yet, or not
 // linked): the time stays "billable, not invoiced", and the answer says so.
@@ -116,9 +129,9 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
     const minutes = rows.reduce((n, r) => n + r.minutes, 0);
     const amount = lines.every(l => l.amount !== null) ? lines.reduce((n, l) => n + (l.amount ?? 0), 0) : null;
     const code = currency();
-    const [h] = await tx<{ id: string }[]>`
+    const [h] = await tx<{ id: string; sent_at: Date }[]>`
       insert into handoffs (project_id, from_day, to_day, minutes, cents, currency, entries, sent_by)
-      values (${pid}, ${p.from}, ${p.to}, ${minutes}, ${amount}, ${code}, ${rows.length}, ${actor.id}) returning id::text`;
+      values (${pid}, ${p.from}, ${p.to}, ${minutes}, ${amount}, ${code}, ${rows.length}, ${actor.id}) returning id::text, sent_at`;
     await tx`update entries set handoff_id = ${h!.id} where id = any(${rows.map(r => r.id)}::bigint[])`;
     const data: Billable = {
       version: eventVersion, handoff: h!.id,
@@ -127,11 +140,16 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
       period: p, currency: code, minutes, amount, entries: rows.length, lines,
       source: { tool: "timesheets", path: `/chest/projects/${pid}` },
     };
-    return { handoff: h!.id, data, entries: rows.length, minutes };
+    return { handoff: h!.id, at: new Date(h!.sent_at), data, entries: rows.length, minutes };
   });
   let receivers = 0;
   try {
-    receivers = (await events.publish("timesheets.billable", made.data as unknown as Record<string, unknown>, { key: `timesheets:billable:${made.handoff}` })).receivers;
+    // The key carries the moment it was made: after a restore from a
+    // backup, a hand-off id may be given again to other time (sdk/README,
+    // "Put the recipient in the key" — what the event is about), which the
+    // Chest would refuse as another event under the same key.
+    // occurredAt (studio.16): when it was made, as the row says.
+    receivers = (await events.publish("timesheets.billable", made.data as unknown as Record<string, unknown>, { key: handoffKey(made.handoff, made.at), ...occurred(made.at) })).receivers;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     // Not taken: the hand-off never happened.
@@ -153,16 +171,17 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
 export async function cancelHandoff(sql: Sql, actor: Member | null, handoffValue: unknown): Promise<void> {
   if (!actor || !can(actor, "invoice")) throw new AppError("forbidden");
   const hid = id(handoffValue);
-  await transaction(sql, async tx => {
-    const [h] = await tx<{ cancelled: boolean; invoiced: boolean }[]>`
-      select cancelled_at is not null as cancelled, invoiced_at is not null as invoiced from handoffs where id = ${hid} for update`;
+  const done = await transaction(sql, async tx => {
+    const [h] = await tx<{ cancelled: boolean; invoiced: boolean; sent_at: Date }[]>`
+      select cancelled_at is not null as cancelled, invoiced_at is not null as invoiced, sent_at from handoffs where id = ${hid} for update`;
     if (!h) throw new AppError("not_found");
     if (h.cancelled || h.invoiced) throw new AppError("handoff_state");
     await tx`update entries set handoff_id = null where handoff_id = ${hid} and invoiced_at is null`;
-    await tx`update handoffs set cancelled_at = now(), cancelled_by = ${actor.id} where id = ${hid}`;
+    const [c] = await tx<{ cancelled_at: Date }[]>`update handoffs set cancelled_at = now(), cancelled_by = ${actor.id} where id = ${hid} returning cancelled_at`;
+    return { sent: new Date(h.sent_at), cancelled: new Date(c!.cancelled_at) };
   });
   try {
-    await events.publish("timesheets.billable_cancelled", { version: eventVersion, handoff: hid }, { key: `timesheets:billable:${hid}:cancelled` });
+    await events.publish("timesheets.billable_cancelled", { version: eventVersion, handoff: hid }, { key: `${handoffKey(hid, done.sent)}:cancelled`, ...occurred(done.cancelled) });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }

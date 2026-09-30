@@ -10,7 +10,7 @@ import { chestGroups, forgetGroups } from "../lib/groups.ts";
 import { setDigestEmail } from "../lib/preferences.ts";
 import * as posts from "../lib/posts.ts";
 import { search } from "../lib/search.ts";
-import { learned } from "../lib/state.ts";
+import { learned, mailConnected, mailNow } from "../lib/state.ts";
 import * as tell from "../lib/tell.ts";
 import { startDigest } from "../lib/digest.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -112,6 +112,32 @@ test("the day's email quota or a Chest without email never stops the bell; the c
     assert.equal(chest.outbox.length, 0);
     assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5);
     assert.equal(await learned(database.sql, "mail"), "off");
+  } finally {
+    await chest.close();
+  }
+});
+
+test("studio.16: the composer asks the Chest whether email would go now — ready, spent for today, not connected, paused, none", async () => {
+  await open({ perDay: 1 });
+  try {
+    assert.equal(await mailNow(database.sql), "on");
+    await posts.createPost(database.sql, pub, { kind: "announcement", title: "Spent", important: true }, { zone });
+    await tell.announce(database.sql);
+    assert.equal(await mailNow(database.sql), "off", "the day's email is used");
+    assert.equal(await mailConnected(database.sql), true, "the weekly digest still offers email");
+    chest.delivery.mail = "not_connected";
+    assert.equal(await mailNow(database.sql), "off");
+    assert.equal(await mailConnected(database.sql), false, "no email switch on the front page");
+    chest.delivery.mail = "suspended";
+    assert.equal(await mailNow(database.sql), "off");
+    assert.equal(await mailConnected(database.sql), true);
+  } finally {
+    await chest.close();
+  }
+  await open({ mail: false });
+  try {
+    assert.equal(await mailNow(database.sql), "off");
+    assert.equal(await mailConnected(database.sql), false);
   } finally {
     await chest.close();
   }

@@ -126,16 +126,21 @@ built again from the studio's template to stand next to Tally and Typeform.
   guessed by the kinds of the questions: the first choice or list is the
   subject, the first long text the details or the message, the second
   short text the company) — and *The other tools of your Chest* for every
-  answer as it is. A switch is **greyed, with a sentence** ("Clients is
-  not installed in your Chest…") while the receiving tool is not
-  installed (`chest.toolUrl`, SDK studio.14); it can always be turned
-  off. **The Contact template starts linked to Clients** when Clients is
-  installed, its mapping made; it has a *Your company* question. Each
+  answer as it is. A switch is **greyed, with a sentence** while nothing
+  would receive it: "Clients is not installed in your Chest…"
+  (`chest.toolUrl`, SDK studio.14), or "Clients is installed but not
+  linked to Forms yet: ask an admin…" (`events.receivers`, studio.16 —
+  installed alone, every contact would publish into nothing); it can
+  always be turned off. **The Contact template starts linked to Clients**
+  when Clients is linked to Forms, its mapping made; it has a *Your company* question. Each
   answer's page says **where it went** ("Also sent to: Clients (a
   contact) · Support (a ticket) · your web addresses · a copy to the
   person", Clients and Support as links); an answer Support took shows
   no *New / In progress / Done* of its own — Support's ticket follows it
-  up. See **With the other tools** below. Never for an anonymous form.
+  up — and only when Support is linked to receive it: installed but not
+  linked, the copy goes. An answer lists a tool only when one received it
+  (`publish`'s `receivers`). See **With the other tools** below. Never for
+  an anonymous form.
 - **Each answer to a web address** (Settings → *Send each answer to a web
   address*, Proposal *webhooks*): a Slack or Microsoft Teams channel is
   told of each new answer (the form, its questions and answers as text,
@@ -447,14 +452,28 @@ if shipped and keeps working without them:
   "forms.contact" | "forms.request")`): without them, the switches are
   harmless — nothing leaves, the answer is kept.
 - **The other tools' addresses** (`chest.toolUrl`, `toolLink`, studio.14):
-  whether Clients (`crm`) and Support (`helpdesk`) are installed — the
-  switches are greyed otherwise — and the links from an answer to them.
+  whether Clients (`crm`) and Support (`helpdesk`) are installed, and the
+  links from an answer to them; **who listens** (`events.receivers`,
+  studio.16): whether an admin linked them to Forms' `forms.contact` and
+  `forms.request` — the switches are greyed otherwise, each with its
+  reason. Asked once per Settings page, never cached. In the harness,
+  `node lab/chest-dev/dev.mjs … --tools crm,helpdesk --linked` installs
+  and links them.
+- **Whether mail goes out** (`mail.available`, studio.16): Settings says
+  why the owner's alerts and the person's copy do not go (no mail, not
+  connected, paused, the day's emails used) before anyone relies on them;
+  a new public form starts with alerts on unless the Chest has no mail.
+  When the Chest does not answer, what the last email taught
+  (`mail_works`). Each copy's key carries its recipient, and each web
+  address delivery's key its addresses (studio.16).
 - **Webhooks** (`webhooks.add`, `send`, `list`, `enable`, `remove`,
   `handle` on `POST /chest-webhooks`; `chest.proposals.json`
   `"webhooks": {"max": 200}`, studio.13+): each answer to Slack, Teams or
-  a signed JSON receiver. Without them, Settings says the Chest cannot
-  send answers to other services yet and hides the form to add one;
-  answers are kept. In the harness, `/_dev` lists the addresses and the
+  a signed JSON receiver. Settings asks the Chest first
+  (`webhooks.available`, studio.16): without webhooks, when the owner
+  paused Forms' sending (the addresses are kept), or when the Chest did
+  not answer, it says which and hides the form to add one; answers are
+  kept. In the harness, `/_dev` lists the addresses and the
   deliveries (bodies and signatures) and can make one fail.
 
 Not in the working copy yet (see the SDK report):

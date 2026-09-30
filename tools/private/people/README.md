@@ -279,6 +279,10 @@ ones Rooms receives; unchanged).
   field; another shape changes nothing. A cancelled leave keeps its
   reference and time for a week, so an approval delivered late (events
   come at least once, not always in order) cannot bring the badge back.
+  Each request keeps Leave's latest word by the time Leave gives
+  (`occurredAt`); at the same time an approval wins over a cancellation,
+  as in Rooms — the pair Leave tells for a shortened leave keeps its
+  remaining days whichever arrives last.
 
 **Equipment → People** — everything is back (`receives`). The contract,
 v1, which Equipment publishes (`tools/private/equipment/lib/returned.ts`,

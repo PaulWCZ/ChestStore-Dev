@@ -149,6 +149,40 @@ test("a channel the Chest stops is marked on its page; Try again; stop forgets i
   assert.equal((await hooks.listHooks(sql, editor)).length, 0);
 });
 
+test("studio.16: whether the Chest delivers is asked of it — paused by its owner, nothing is added or lost; ready again, it says how many", async () => {
+  const { sql } = database;
+  const h = await hooks.subscribeHook(sql, { kind: "slack", url: slack, language: "en", components: "all" });
+  assert.deepEqual(await hooks.hooksDelivery(sql), { state: "ok", targets: chest.webhooks.targets.length, max: 200 });
+  chest.delivery.webhooks = "suspended";
+  try {
+    assert.deepEqual(await hooks.hooksDelivery(sql), { state: "paused", targets: null, max: null });
+    await refuses("hooks_paused", () => hooks.subscribeHook(sql, { kind: "slack", url: slack.replace("B0001", "B0003"), language: "en", components: "all" }));
+    await open({ [payments]: "major" });
+    const before = chest.webhooks.deliveries.length;
+    assert.deepEqual(await hooks.flushHooks(sql), { sent: 0, stopped: "later" });
+    assert.equal(await hooks.hooksQueued(sql), 1, "kept for when the Chest delivers again");
+    assert.equal(chest.webhooks.deliveries.length, before);
+  } finally {
+    chest.delivery.webhooks = "ready";
+  }
+  assert.equal((await hooks.flushHooks(sql)).sent, 1);
+  assert.ok(chest.webhooks.deliveries.some(d => d.target === h.target));
+});
+
+test("keys survive a restore: an update id given again to another update still reaches the channel", async () => {
+  const { sql } = database;
+  const h = await hooks.subscribeHook(sql, { kind: "slack", url: slack, language: "en", components: "all" });
+  await open({ [payments]: "major" }, "Première panne");
+  assert.equal((await hooks.flushHooks(sql)).sent, 1);
+  // A restore from a backup taken before that incident: its ids are given again, to another one.
+  await sql`truncate incidents restart identity cascade`;
+  await open({ [payments]: "major" }, "Deuxième panne");
+  assert.equal((await hooks.flushHooks(sql)).sent, 1);
+  const told = chest.webhooks.deliveries.filter(d => d.target === h.target);
+  assert.equal(told.length, 2, "delivered, not taken for the first update");
+  assert.match(told[1]!.text, /Deuxième panne|Payments failing/u);
+});
+
 test("a Chest without webhooks: refused in words, and the page stops offering it", async () => {
   const { sql } = database;
   const plain = await fakeChest({ members: everyone, capabilities: ["members"] });

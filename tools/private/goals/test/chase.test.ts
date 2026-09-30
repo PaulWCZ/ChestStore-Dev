@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { readerOf } from "../lib/access.ts";
 import { AppError } from "../lib/app-error.ts";
 import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { emailOn, setEmail } from "../lib/mail.ts";
+import { emailOn, mailState, setEmail } from "../lib/mail.ts";
 import { addComment } from "../lib/comments.ts";
 import { createObjective, readObjective, updateObjective } from "../lib/objectives.ts";
 import { cycleObjectives, keyResultChanges, viewersOf } from "../lib/read.ts";
@@ -40,7 +40,7 @@ test("the admins see who has not checked in this week, an objective's owner sees
   assert.deepEqual((await waitingFor(sql, inesM, clock)).map(r => r.title), ["Shops signed"]);
   assert.deepEqual(await waitingFor(sql, sofiaM, clock), []);
   await assert.rejects(remind(sql, sofiaM, hugo.id, clock), refused("not_found"));
-  await remind(sql, inesM, hugo.id, clock);
+  assert.deepEqual(await remind(sql, inesM, hugo.id, clock), { emailed: true }, "the page may say: by email");
   assert.ok(w.chest.notifications.some(n => n.member === hugo.id && n.title === "Inès Moreau asks for your weekly update" && n.key === "checkin"));
   const mail = w.chest.outbox.find(m => m.to.includes("hugo@atelier-martin.test"))!;
   assert.equal(mail.subject, "Inès Moreau asks for your weekly update");
@@ -54,6 +54,34 @@ test("the admins see who has not checked in this week, an objective's owner sees
   await checkIn(sql, hugoM, team.keyResults[0]!.id, { value: "2", confidence: "on_track" });
   assert.ok(!(await waitingFor(sql, admin, clock)).some(r => r.title === "Shops signed"));
   void company;
+  await sql`delete from cycles`;
+  await sql`delete from teams`;
+  await sql`delete from nudges`;
+});
+
+test("Remind says the truth about email: bell only when the person turned email off, or the Chest cannot send (mail.available(), SDK studio.16)", async () => {
+  const { sql } = w.database;
+  const { cycle, sales } = await running(w);
+  await createObjective(sql, inesM, { cycleId: cycle.id, level: "team", teamId: sales.id, title: "Open 12 shops", keyResults: [{ title: "Shops signed", kind: "number", start: "0", target: "12", owner: hugo.id }] });
+  await sql`update key_results set created_at = now() - interval '10 days'`;
+  const clock = clockAt();
+  assert.equal(await mailState(), "on");
+  await setEmail(sql, hugoM, false);
+  const before = w.chest.outbox.length;
+  assert.deepEqual(await remind(sql, inesM, hugo.id, clock), { emailed: false }, "his switch is off: the bell only");
+  assert.equal(w.chest.outbox.length, before);
+  await setEmail(sql, hugoM, true);
+  // The company's mail not connected, or suspended: My goals says reminders
+  // stay in the bell rather than offering email.
+  w.chest.delivery.mail = "not_connected";
+  try {
+    assert.equal(await mailState(), "off");
+    w.chest.delivery.mail = "suspended";
+    assert.equal(await mailState(), "off");
+  } finally {
+    w.chest.delivery.mail = "ready";
+  }
+  assert.equal(await mailState(), "on");
   await sql`delete from cycles`;
   await sql`delete from teams`;
   await sql`delete from nudges`;

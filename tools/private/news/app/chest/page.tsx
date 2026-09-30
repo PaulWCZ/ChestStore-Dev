@@ -10,6 +10,7 @@ import { format, orList, plural } from "../../lib/i18n/index.ts";
 import { kinds } from "../../lib/model.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { digestEmail } from "../../lib/preferences.ts";
+import { mailConnected } from "../../lib/state.ts";
 import { front, visit } from "../../lib/posts.ts";
 import { waitingCount } from "../../lib/proposals.ts";
 import { viewer } from "../../lib/session.ts";
@@ -154,7 +155,7 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
           {f.more && <a className="button quiet" href={link({ page: String(page + 1) })}>{t.front.older}</a>}
         </nav>
       )}
-      <DigestSwitch on={digestOn} t={t.front} errors={t.errors} />
+      <DigestSwitch on={digestOn} mail={await mailConnected(sql)} t={t.front} errors={t.errors} />
       {/* On an empty front page, the empty state already offers the import. */}
       {publisher && !empty && <p className="foot-link"><a href="/chest/transfer">{t.transfer.link}</a></p>}
     </div>

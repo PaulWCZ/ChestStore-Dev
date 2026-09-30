@@ -253,6 +253,12 @@ tools"; its `lib/returns.ts` reads it):
   (something given back since, a departure cancelled in People or an
   erasure: dropped). Told a day ago, it is forgotten; refused for a week,
   too. The same key twice is one event.
+- **When it happened** (`occurredAt`, studio.16): the word carries the
+  time the last thing came back, even when the schedule tells it later.
+  The Chest takes a time at most 24 hours back (five minutes of margin are
+  kept for the clocks); an older word — a Chest down for a night — goes
+  without it and is dated when the Chest took it (its key keeps the real
+  time).
 - **What it does not do**: an *Undo* after the word left does not take it
   back (the contract has no "not returned" event; People keeps the step
   ticked, HR unticks it). Given again then back again, it is told again
@@ -382,7 +388,9 @@ All in `vendor/` (the studio's working copy, `0.3.0-studio.15`):
 - `mail` (**Proposal (studio)**, `chest.proposals.json`) — *Remind them*
   also emails the holder, through the Chest, to their address the tool
   never knows. On a Chest without mail the bell alone reminds them, and
-  nothing fails (`lib/tell.ts`, `remindReceipt`).
+  nothing fails (`lib/tell.ts`, `remindReceipt`). Its key carries the
+  holder (studio.16): after a restore from a backup, an item's id can name
+  another thing given to someone else.
 
 Not in the SDK, and not faked here: a **signature** a person draws or a
 qualified electronic signature (the receipt is a confirmation in the

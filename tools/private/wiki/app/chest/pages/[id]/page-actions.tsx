@@ -13,7 +13,7 @@ import { askRead, confirmRead, deletePage, setPinned, discardDraft, keepDraft, m
 export type TemplateWords = { tag: string; mark: string; unmark: string; marked: string; unmarked: string };
 type Words = NewPageWords & { page: Catalogue["page"]; move: Catalogue["move"]; shell: Catalogue["shell"]; watch: Catalogue["watch"]; review: Omit<Catalogue["review"], "due">; reads: Catalogue["reads"]; marks: TemplateWords; spaceName: string; locale: string };
 // What the page's reader has set on it: watching, a template, a reminder.
-export type PageState = { watching: boolean; template: boolean; review: { months: number | null; ownerName: string | null; mine: boolean }; readAsked: boolean; pinned: boolean; private?: boolean };
+export type PageState = { watching: boolean; template: boolean; review: { months: number | null; ownerName: string | null; mine: boolean }; readAsked: boolean; pinned: boolean; private?: boolean; mail?: boolean };
 const reviewChoices = [3, 6, 12] as const;
 export type MovePlace = { spaces: { id: string; name: string }[]; nodes: { id: string; spaceId: string; parentId: string | null; title: string }[] };
 
@@ -106,7 +106,7 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
         ...(writer ? [{ label: t.page.delete, icon: <Trash />, tone: "danger" as const, disabled: pending, onSelect: remove }] : []),
       ] satisfies MenuItem[]} />
       {places && <MoveDialog open={moving} onClose={() => setMoving(false)} page={page} places={places} t={t} />}
-      {writer && <AskReadDialog open={asking} onClose={() => setAsking(false)} page={page} groups={groups} t={t} />}
+      {writer && <AskReadDialog open={asking} onClose={() => setAsking(false)} page={page} groups={groups} mail={state.mail !== false} t={t} />}
       {writer && <ReviewDialog open={reviewing} onClose={() => setReviewing(false)} page={page} review={state.review} t={t} />}
       <NewPageDialog target={child} onClose={() => setChild(null)} t={t} />
     </div>
@@ -285,7 +285,7 @@ export function DraftNotice({ pageId, editHref, t }: { pageId: string; editHref:
 
 // Asking the page's readers to confirm they read it: everyone who reads
 // the space, or some groups.
-function AskReadDialog({ open, onClose, page, groups, t }: { open: boolean; onClose: () => void; page: { id: string; title: string }; groups: { id: string; name: string }[]; t: Words }) {
+function AskReadDialog({ open, onClose, page, groups, mail, t }: { open: boolean; onClose: () => void; page: { id: string; title: string }; groups: { id: string; name: string }[]; mail: boolean; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const [some, setSome] = useState(false);
@@ -305,7 +305,7 @@ function AskReadDialog({ open, onClose, page, groups, t }: { open: boolean; onCl
   return (
     <Dialog open={open} title={t.reads.title} labels={t.dialog} onClose={onClose}>
       <form className="stack" onSubmit={e => { e.preventDefault(); submit(); }}>
-        <p className="where">{format(t.reads.intro, { title: page.title })}</p>
+        <p className="where">{format(mail ? t.reads.intro : t.reads.introBell, { title: page.title })}</p>
         <fieldset className="plain">
           <legend className="visually-hidden">{t.reads.title}</legend>
           <div className="choices">

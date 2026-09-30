@@ -125,6 +125,7 @@ export const fr: Catalogue = {
     emailOff: "Les rappels restent dans la cloche.",
     emailDigest: "Dans les réglages de votre Chest, vous avez choisi un e-mail par jour : ils l’attendent.",
     emailNone: "Dans les réglages de votre Chest, vous avez choisi de ne recevoir aucun e-mail : les rappels restent dans la cloche.",
+    emailUnavailable: "Votre Chest n’envoie pas encore d’e-mails : les rappels restent dans la cloche.",
   },
   checkIn: {
     open: "Faire le point",
@@ -541,6 +542,7 @@ export const fr: Catalogue = {
     remindName: "Relancer {name}",
     reminded: "Relancé aujourd’hui",
     remindedToast: "{name} est relancé·e, dans la cloche et par e-mail.",
+    remindedBell: "{name} est relancé·e dans la cloche.",
     remindAll: { one: "Relancer {count} personne", other: "Relancer les {count} personnes" },
     remindedAll: { zero: "Personne d’autre à relancer aujourd’hui.", one: "{count} personne relancée.", other: "{count} personnes relancées." },
     people: { one: "{count} personne en attente", other: "{count} personnes en attente" },

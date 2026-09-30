@@ -126,8 +126,11 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
     const components = [...new Set(touched.filter(r => String(r.incident_id) === String(q.incident_id)).map(r => nameIn(String(r.component_id), q.language)).filter((n): n is string => Boolean(n)))];
     const { subject, text } = updateEmail(q, components, origin, zone);
     let outcome: Outcome;
+    // The key carries the address and the update's time: after a restore,
+    // an id may name another subscriber or another update (sdk/README, "Put
+    // the recipient in the key").
     try {
-      outcome = await send(sql, { to: q.email, subject, text, fromName: company() || wordsFor(q.language).mail.team, key: `update:${q.update_id}:${q.subscriber_id}:${q.email.toLowerCase()}` });
+      outcome = await send(sql, { to: q.email, subject, text, fromName: company() || wordsFor(q.language).mail.team, key: `update:${q.update_id}:${new Date(q.posted_at).getTime()}:${q.subscriber_id}:${q.email.toLowerCase()}` });
     } catch (error) {
       // An address the Chest refuses (bounced, complained, invalid): this
       // message is dropped, the next ones are tried.

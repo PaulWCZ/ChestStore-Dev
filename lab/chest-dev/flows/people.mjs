@@ -623,6 +623,24 @@ await step("Leave tells of an approved leave: the card and the profile say “Aw
   expect((await page.locator(".wall li", { hasText: "Tom Walker" }).locator(".away").innerText()).trim().startsWith("Away this afternoon"), "half day");
 });
 
+await step("Leave shortens Hugo's leave (cancelled, then approved for fewer days): the card keeps him away, back sooner", async () => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+  const whole = { member: id("hugo"), from: day(0), to: day(6), fromHalf: "am", toHalf: "pm", request: "904" };
+  const badge = async () => {
+    await page.goto(origin + "/chest");
+    const away = page.locator(".wall li", { hasText: "Hugo Bernard" }).locator(".away");
+    return (await away.count()) === 0 ? "" : (await away.innerText()).trim();
+  };
+  await deliver("leave.approved", whole);
+  const before = await badge();
+  expect(before.startsWith("Away · back on"), "away for the week: " + before);
+  await deliver("leave.cancelled", whole);
+  await deliver("leave.approved", { ...whole, to: day(1) });
+  const after = await badge();
+  expect(after.startsWith("Away") && after !== before, `still away, back sooner: ${before} → ${after}`);
+});
+
 await step("pass 4: HR starts Marc's welcome checklist: he gets a short welcome email at his work address, signed by HR, who is the reply address", async () => {
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/checklists");

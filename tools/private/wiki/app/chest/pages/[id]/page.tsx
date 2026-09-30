@@ -18,6 +18,7 @@ import { listSpaces } from "../../../../lib/spaces.ts";
 import { isWatching } from "../../../../lib/watching.ts";
 import { companyGroups, membersOfTool } from "../../../../lib/groups.ts";
 import { isPinned } from "../../../../lib/pins.ts";
+import { mailNow } from "../../../../lib/mail.ts";
 import { readState } from "../../../../lib/reads.ts";
 import { Comments } from "./comments.tsx";
 import { DraftNotice, PageActions, ReadRequest, ReviewAsk, type MovePlace } from "./page-actions.tsx";
@@ -101,7 +102,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
                 writer={writer}
                 editHref={`/chest/pages/${p.id}/edit`}
                 t={{ ...newPageWords(t), page: t.page, move: t.move, shell: t.shell, watch: t.watch, review: t.review, reads: t.reads, marks: { tag: t.templates.tag, mark: t.templates.mark, unmark: t.templates.unmark, marked: t.templates.marked, unmarked: t.templates.unmarked }, spaceName: p.space.name, locale }}
-                state={{ watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id }, readAsked: read.asked !== null, pinned: pin, private: p.space.visibility === "private" }}
+                state={{ watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id }, readAsked: read.asked !== null, pinned: pin, private: p.space.visibility === "private", mail: writer ? await mailNow() : true }}
                 groups={groups}
                 {...(places ? { places } : {})}
               />

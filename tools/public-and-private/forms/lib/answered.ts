@@ -59,7 +59,8 @@ export async function answered(form: Pick<Form, "id" | "anonymous" | "shareEvent
 // tools"): a contact in Clients, a ticket in Support, as the form's author
 // mapped them. Each answer at most once each (the key); an answer that
 // gives nothing to reach the person sends neither. A courtesy too: when
-// the Chest cannot take them, the answer is still kept. The types sent.
+// the Chest cannot take them, the answer is still kept. The types some
+// tool received.
 export async function routed(form: Pick<Form, "id" | "anonymous" | "routes">, def: Definition, answer: Answer): Promise<string[]> {
   if (form.anonymous) return [];
   const sent: string[] = [];
@@ -70,8 +71,10 @@ export async function routed(form: Pick<Form, "id" | "anonymous" | "routes">, de
   for (const [type, data] of outgoing) {
     if (!data) continue;
     try {
-      await events.publish(type, data as Record<string, unknown>, { key: `forms:${answer.id}:${type.slice(6)}` });
-      sent.push(type);
+      const told = await events.publish(type, data as Record<string, unknown>, { key: `forms:${answer.id}:${type.slice(6)}` });
+      // Where it went: only when a tool received it (an admin may have
+      // unlinked the tools since the form was set).
+      if (told.receivers > 0) sent.push(type);
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
     }

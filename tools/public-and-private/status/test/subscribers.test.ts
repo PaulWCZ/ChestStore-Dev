@@ -6,7 +6,7 @@ import { addComponent, updateComponent } from "../lib/components.ts";
 import { admit, checkForm, formToken } from "../lib/guard.ts";
 import * as incidents from "../lib/incidents.ts";
 import { flush, updateEmail, welcome } from "../lib/mailer.ts";
-import { mailState, setMailState } from "../lib/settings.ts";
+import { mailDelivery, mailState, setMailState } from "../lib/settings.ts";
 import * as subs from "../lib/subscribers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -182,6 +182,26 @@ test("the Chest's daily quota stops the queue, which goes on later; a Chest with
     assert.equal(await mailState(sql), "none");
     assert.equal(await mailState(sql, new Date(Date.now() + 2 * 86400000)), "unknown", "tried again after a day");
     await setMailState(sql, "ok");
+  } finally {
+    await bare.close();
+  }
+});
+
+test("studio.16: whether the Chest sends email is asked of it (mail.available) — spent for today, not connected, paused, or none at all", async () => {
+  const { sql } = database;
+  // The previous test used the day's six messages.
+  assert.deepEqual(await mailDelivery(sql), { state: "paused", reason: "quota" });
+  chest.delivery.mail = "not_connected";
+  try {
+    assert.deepEqual(await mailDelivery(sql), { state: "none", reason: "not_connected" });
+    chest.delivery.mail = "suspended";
+    assert.deepEqual(await mailDelivery(sql), { state: "paused", reason: "suspended" });
+  } finally {
+    chest.delivery.mail = "ready";
+  }
+  const bare = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
+  try {
+    assert.deepEqual(await mailDelivery(sql), { state: "none", reason: "not_granted" });
   } finally {
     await bare.close();
   }

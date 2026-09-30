@@ -4,7 +4,6 @@ import { Back, Chat, Mail, Rss } from "../../components/icons.tsx";
 import { PublicShell } from "../../components/public-shell.tsx";
 import { errorCodes, type ErrorCode } from "../../lib/app-error.ts";
 import { formToken } from "../../lib/guard.ts";
-import { hooksState } from "../../lib/hooks.ts";
 import { format } from "../../lib/i18n/index.ts";
 import { followOptions } from "../../lib/options.ts";
 import { publicContext } from "../../lib/public-page.ts";
@@ -22,14 +21,14 @@ export async function generateMetadata(): Promise<Metadata> {
 // feeds instead.
 export default async function SubscribePage({ searchParams }: { searchParams: Promise<{ sent?: string; error?: string }> }) {
   const query = await searchParams;
-  const { t, locale, sql, zone, company, offerMail } = await publicContext();
+  const { t, locale, sql, zone, company, offerMail, offerChat } = await publicContext();
   const error = (errorCodes as readonly string[]).includes(query.error ?? "") ? (query.error as ErrorCode) : null;
   const origin = publicOrigin(await headers()) ?? "";
   const w = t.subscribe;
   const noMail = !offerMail || error === "no_mail";
-  // Slack, Teams or a web address, beside email — unless the Chest said it
-  // cannot deliver them.
-  const chat = (await hooksState(sql)) !== "none" ? <p className="links"><a href="/subscribe/chat"><Chat />{t.hooks.chatLink}</a></p> : null;
+  // Slack, Teams or a web address, beside email — only when the Chest would
+  // deliver them now (webhooks.available()).
+  const chat = offerChat ? <p className="links"><a href="/subscribe/chat"><Chat />{t.hooks.chatLink}</a></p> : null;
   return (
     <PublicShell company={company} locale={locale} zone={zone} t={t} path="/subscribe" offerMail={false}>
       <p className="crumb"><a href="/"><Back />{w.backToStatus}</a></p>

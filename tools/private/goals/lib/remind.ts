@@ -31,25 +31,31 @@ export async function remindedToday(sql: Sql, clock: Clock): Promise<Set<string>
   return new Set((await sql<{ member_id: string }[]>`select member_id from nudges where day = ${clock.today}`).map(r => r.member_id));
 }
 
-async function send(sql: Sql, actor: Member, owner: string, items: Waiting[], clock: Clock): Promise<boolean> {
+// Says whether the person was reminded (false: someone did today), and
+// whether an email left now (their switch, their Chest preference and the
+// Chest's mail allowing).
+async function send(sql: Sql, actor: Member, owner: string, items: Waiting[], clock: Clock): Promise<{ reminded: boolean; emailed: boolean }> {
   const [row] = await sql`insert into nudges (member_id, day, sent_by) values (${owner}, ${clock.today}, ${actor.id}) on conflict do nothing returning member_id`;
-  if (!row) return false;
+  if (!row) return { reminded: false, emailed: false };
   const titles = items.map(i => i.title);
   await notify([owner], (t, locale) => ({ title: format(t.bell.nudge, { name: actor.name }), body: cut(`${plural(t.bell.reminder, items.length, locale)}: ${titles.join(" · ")}`, 280) }), { path: "/chest", key: "checkin" });
-  await email(sql, [owner], (t, locale) => ({
+  const emailed = await email(sql, [owner], (t, locale) => ({
     subject: format(t.mail.nudgeSubject, { name: actor.name }),
     lines: [format(t.mail.nudgeIntro, { name: actor.name }), "", plural(t.bell.reminder, items.length, locale) + ":", ...titles.map(x => `- ${x}`)],
   }), { path: "/chest", key: `nudge:${clock.today}` });
-  return true;
+  return { reminded: true, emailed: emailed > 0 };
 }
 
 // One person reminded. Refused when there is nothing of theirs this actor
-// may chase; "already_reminded" when someone did today.
-export async function remind(sql: Sql, actor: Member | null, owner: unknown, clock: Clock): Promise<void> {
+// may chase; "already_reminded" when someone did today. Says whether an
+// email left too (the page says "in the bell" only otherwise).
+export async function remind(sql: Sql, actor: Member | null, owner: unknown, clock: Clock): Promise<{ emailed: boolean }> {
   const who = memberId(owner);
   const items = (await waitingFor(sql, actor, clock)).filter(i => i.owner === who);
   if (items.length === 0) throw new AppError("not_found");
-  if (!(await send(sql, actor!, who, items, clock))) throw new AppError("already_reminded");
+  const done = await send(sql, actor!, who, items, clock);
+  if (!done.reminded) throw new AppError("already_reminded");
+  return { emailed: done.emailed };
 }
 
 // Everyone waiting, at once (admins): those reminded today are skipped.
@@ -59,6 +65,6 @@ export async function remindAll(sql: Sql, actor: Member | null, clock: Clock): P
   const byOwner = new Map<string, Waiting[]>();
   for (const i of items) byOwner.set(i.owner, [...(byOwner.get(i.owner) ?? []), i]);
   let sent = 0;
-  for (const [owner, list] of byOwner) if (await send(sql, actor, owner, list, clock)) sent++;
+  for (const [owner, list] of byOwner) if ((await send(sql, actor, owner, list, clock)).reminded) sent++;
   return sent;
 }

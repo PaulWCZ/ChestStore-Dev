@@ -352,7 +352,11 @@ page — only the bell item is missing. Bell items need `notifications`
 - `mail` — **Proposal (studio)**, declared (`"mail": {"send": true}`, as
   News, Tasks, Polls and Goals): read requests, reminders and review
   reminders by email (lib/mail.ts). On a Chest without mail, nothing is
-  sent and nothing fails: the bell has told them.
+  sent and nothing fails: the bell has told them. "Ask readers to confirm"
+  and "Remind those who have not confirmed" ask the Chest first
+  (`mail.available()`, studio.16; `mailNow`) and say "in the bell" only
+  when it would not send now (no mail, not connected, paused, the day's
+  emails used). Keys carry the member (`read:<page>:<version>:<at>:<member>`).
 - **`access.granted` / `member.added` events**: someone who gets the wiki
   after a page asked for read confirmations is asked only when it is asked
   again.

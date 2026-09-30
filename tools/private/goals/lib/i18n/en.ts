@@ -127,6 +127,7 @@ export const en = {
     emailOff: "Reminders stay in the bell only.",
     emailDigest: "In your Chest settings you chose one email a day: they wait for it.",
     emailNone: "In your Chest settings you chose no email: reminders stay in the bell.",
+    emailUnavailable: "Your Chest does not send email yet: reminders stay in the bell.",
   },
   checkIn: {
     open: "Update",
@@ -543,6 +544,7 @@ export const en = {
     remindName: "Remind {name}",
     reminded: "Reminded today",
     remindedToast: "{name} is reminded, in the bell and by email.",
+    remindedBell: "{name} is reminded in the bell.",
     remindAll: { one: "Remind {count} person", other: "Remind all {count} people" },
     remindedAll: { zero: "Nobody left to remind today.", one: "{count} person reminded.", other: "{count} people reminded." },
     people: { one: "{count} person waiting", other: "{count} people waiting" },

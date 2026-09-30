@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { can } from "../../../lib/access.ts";
 import * as b from "../../../lib/booking.ts";
 import { db } from "../../../lib/db.ts";
+import { mailState } from "../../../lib/mailer.ts";
 import { myPage } from "../../../lib/my-page.ts";
 import { publicOrigin } from "../../../lib/public-origin.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -24,10 +25,15 @@ export default async function SettingsPage() {
   const origin = publicOrigin(await headers()) ?? "";
   const admin = can(member, "settings");
   const zones = zoneGroups(t.zones, Date.now(), [s.defaultZone, host?.zone ?? s.defaultZone]);
+  // Asked of the Chest (studio.16); when it does not answer, what the last
+  // email taught.
+  const mailing = await mailState();
+  const noMail = mailing === "not_connected" ? t.settings.noMailConnect : mailing === "suspended" ? t.settings.noMailSuspended : mailing === "quota" ? t.settings.noMailQuota
+    : mailing === "not_granted" || (mailing === "unknown" && s.mailWorks === false) ? t.settings.noMail : null;
   return (
     <>
       <PageHeader size="m" title={t.settings.title} />
-      {s.mailWorks === false && <p className="notice spaced">{t.settings.noMail}</p>}
+      {noMail && <p className="notice spaced">{noMail}</p>}
       {host && <PageSettings host={{ slug: host.slug, welcome: host.welcome, listed: host.listed, hasFeed: host.hasFeed, emailMe: host.emailMe, dailyMax: host.dailyMax, language: host.language ?? locale, second: host.second ?? "", welcomeAlt: host.welcomeAlt }} chestCalendar={s.calendarWorks === false ? null : calendar.page} origin={origin} t={{ settings: t.settings, errors: t.errors, files: t.files, languages: t.languages }} />}
       {host && <ImportCalendly zone={host.zone} zones={zones} locale={locale} t={{ settings: t.settings, errors: t.errors, files: t.files }} />}
       <CompanySettings admin={admin} settings={{ companyName: s.companyName, retentionMonths: s.retentionMonths, defaultZone: s.defaultZone }} zones={zones} locale={locale} t={{ settings: t.settings, errors: t.errors, files: t.files }} />

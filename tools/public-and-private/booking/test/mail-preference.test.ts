@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as b from "../lib/booking.ts";
 import * as mailer from "../lib/mailer.ts";
@@ -57,6 +58,9 @@ test("a colleague who turned email off still gets their booking's confirmation, 
   assert.equal(chest.outbox.length, 3);
   assert.ok(chest.outbox.every(m => m.to.map(a => a.toLowerCase()).includes("nora@atelier.test")));
   assert.equal(chest.held.length, 0);
+  // Each key carries its recipient (studio.16): after a restore from a
+  // backup, a booking's id can name another guest's meeting.
+  assert.deepEqual(chest.outbox.map(m => m.key), [`booked:${booking.id}:${booking.guestEmail}`, `moved:${booking.id}:1:${booking.guestEmail}`, `cancelled:${booking.id}:${booking.guestEmail}`].map(k => mail.idempotencyKey(k)));
 
   // A reminder is not transactional: her choice holds it back.
   await mailer.reminder(booking, context);
@@ -78,4 +82,24 @@ test("the host's own notice honours their email choice: none is not sent, a dige
   await mailer.toHost("booked", { ...made, memberId: hugo.id }, { locale: "en", zone: "Europe/Paris", link: "https://booking-chest.atelier.test/chest/bookings/1" });
   assert.equal(chest.outbox.length, 0);
   assert.deepEqual(chest.held.at(-1)?.reason, "digest");
+});
+
+// studio.16: the pages ask the Chest before promising an email
+// (mail.available), and say why not in the owner's terms.
+test("whether mail goes out, as the Chest says it: ready, not connected, suspended, a Chest without mail", async () => {
+  assert.equal(await mailer.mailState(), "ready");
+  for (const state of ["not_connected", "suspended"] as const) {
+    chest.delivery.mail = state;
+    try {
+      assert.equal(await mailer.mailState(), state);
+    } finally {
+      chest.delivery.mail = "ready";
+    }
+  }
+  const plain = await fakeChest({ tool: "booking", members: [camille], capabilities: ["database", "members", "notifications"] });
+  try {
+    assert.equal(await mailer.mailState(), "not_granted");
+  } finally {
+    await plain.close();
+  }
 });

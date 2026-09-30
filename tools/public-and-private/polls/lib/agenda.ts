@@ -19,9 +19,12 @@ import { chestZone } from "./zone.ts";
 // Chest takes 1,000 members an event: a poll that asks more (Polls reads up
 // to 10,000 people) puts the same date as several events of 1,000, keys
 // poll:<id>, poll:<id>:2, poll:<id>:3…, in one `calendar.putMany` (Proposal
-// (studio.15): checked whole, one write of the minute per 100 events), put
-// again at every change; parts no longer needed are removed. On a Chest
-// without the calendar, the poll keeps its "Add to my calendar" file.
+// (studio.15): one write of the minute per 100 events; one result per
+// event since studio.16), put again at every change; parts no longer
+// needed are removed, and the members of a part the Chest refused are
+// remembered (polls.calendar_missing) so that their page does not promise
+// the date in their calendar. On a Chest without the calendar, the poll
+// keeps its "Add to my calendar" file.
 //
 // Guests (lib/guests.ts) have no Chest calendar: those who gave an email
 // get the date by email (Proposal (studio): mail), with the link back to
@@ -31,9 +34,10 @@ const perEvent = calendar.limits.members;
 const maxParts = Math.ceil((maxPages * pageSize) / perEvent);
 
 // removeParts removes the parts from `from` on: they were put one after the
-// other from the first, so the first missing one ends them.
-async function removeParts(pollId: string, from: number): Promise<void> {
-  for (let part = from; part <= maxParts; part++) if (!(await calendar.remove(eventKey(pollId, part)))) return;
+// other from the first, so the first missing one ends them — unless a part
+// was refused (`holes`), when every possible part is tried.
+async function removeParts(pollId: string, from: number, holes = false): Promise<void> {
+  for (let part = from; part <= maxParts; part++) if (!(await calendar.remove(eventKey(pollId, part))) && !holes) return;
 }
 
 export type Learned = "on" | "off" | "unknown";
@@ -62,23 +66,23 @@ export async function inCalendar(sql: Query, poll: Poll): Promise<string[]> {
 export async function syncFinal(sql: Sql, pollId: string): Promise<void> {
   const poll = await load(sql, pollId);
   const option = poll.questions[0]?.options.find(o => o.id === poll.finalOption);
+  // A part refused at the last sync left a hole among the parts.
+  const holes = (await notInCalendar(sql, poll.id)).size > 0;
+  const none = async () => {
+    await removeParts(poll.id, 1, holes);
+    if (holes) await sql`update polls set calendar_missing = '{}' where id = ${poll.id}`;
+  };
   try {
-    if (poll.deleted || poll.kind !== "date" || poll.status !== "closed" || !option?.day) {
-      await removeParts(poll.id, 1);
-      return;
-    }
+    if (poll.deleted || poll.kind !== "date" || poll.status !== "closed" || !option?.day) return void (await none());
     const members = await inCalendar(sql, poll);
-    if (members.length === 0) {
-      await removeParts(poll.id, 1);
-      return;
-    }
+    if (members.length === 0) return void (await none());
     const zone = chestZone();
     const when = option.start
       ? { start: zoned(option.day, option.start, zone), end: option.end ? zoned(option.day, option.end, zone) : new Date(zoned(option.day, option.start, zone).getTime() + 3_600_000) }
       : { days: { first: option.day, last: option.day } };
     const parts: string[][] = [];
     for (let i = 0; i < members.length && parts.length < maxParts; i += perEvent) parts.push(members.slice(i, i + perEvent));
-    await calendar.putMany(parts.map((part, i) => ({
+    const results = await calendar.putMany(parts.map((part, i) => ({
       key: eventKey(poll.id, i + 1),
       members: part,
       title: [...poll.title].slice(0, 120).join(""),
@@ -86,21 +90,56 @@ export async function syncFinal(sql: Sql, pollId: string): Promise<void> {
       ...when,
       path: `/chest/polls/${poll.id}`,
     })));
-    await removeParts(poll.id, parts.length + 1);
+    // The Chest answers each part (studio.16): a refused one is not in those
+    // people's calendars — its earlier event (an older date) is taken out,
+    // and the page does not tell them it is there.
+    const missing: string[] = [];
+    for (const r of results) {
+      if (r.ok) continue;
+      console.error(`calendar: ${eventKey(poll.id, r.index + 1)} not put (${r.reason})`);
+      missing.push(...(parts[r.index] ?? []));
+      await calendar.remove(eventKey(poll.id, r.index + 1));
+    }
+    await sql`update polls set calendar_missing = ${missing} where id = ${poll.id}`;
+    await removeParts(poll.id, parts.length + 1, holes || missing.length > 0);
     await learn(sql, "on");
   } catch (error) {
     if (error instanceof CapabilityNotGranted) return void (await learn(sql, "off"));
-    // A date long past, or too far ahead for the calendar: the poll's own
-    // file still works.
+    // The Chest not reached, or its minute's writes used: tried again at
+    // the next change; the poll's own file still works.
     if (error instanceof ChestError) return;
+    throw error;
+  }
+}
+
+// notInCalendar: the members of the parts the Chest refused at the last
+// sync (none when every part went).
+export async function notInCalendar(sql: Query, pollId: string): Promise<Set<string>> {
+  const [row] = await sql<{ calendar_missing: string[] }[]>`select calendar_missing from polls where id = ${pollId}`;
+  return new Set(row?.calendar_missing ?? []);
+}
+
+// guestMailOffered: whether the guests' form offers to email the chosen
+// date (Proposal (studio.16): mail.available(), asked without sending). A
+// Chest that cannot send (mail not granted, the company's mail not
+// connected, sending suspended) does not get the address at all; the day's
+// quota used comes back tomorrow, before a date is chosen, so the field
+// stays. A Chest that does not answer: unknown, not off — the field stays,
+// and emailGuests says nothing when it cannot send.
+export async function guestMailOffered(): Promise<boolean> {
+  try {
+    const state = await mail.available();
+    return state.ok || state.reason === "quota";
+  } catch (error) {
+    if (error instanceof ChestError) return true;
     throw error;
   }
 }
 
 // emailGuests: the guests who gave an email hear the chosen date, each in
 // the language they answered in. One email per guest and choice (the key
-// holds the time of the choice: a changed date is sent again; taken whole,
-// the SDK hashes a long one). Guests are not members: no Chest email
+// holds the time of the choice: a changed date is sent again; and the
+// guest's address; taken whole, the SDK hashes a long one). Guests are not members: no Chest email
 // preference applies to them (the Chest applies `mailPreference` to members
 // only), so `transactional` would change nothing and is not set — they gave
 // their address on the poll's page for this one message.
@@ -119,7 +158,9 @@ export async function emailGuests(sql: Sql, pollId: string, origin: string | nul
         to: guest.email,
         subject: format(t.guestMail.subject, { title: poll.title }),
         text: format(link ? t.guestMail.bodyLink : t.guestMail.body, { name: guest.name, title: poll.title, date, link: link ?? "" }),
-        key: `final:${poll.id}:${guest.id}:${new Date(poll.finalAt).getTime()}`,
+        // The address in the key (SDK studio.16): after a restore, guest ids
+        // may name other people than those the Chest remembers.
+        key: `final:${poll.id}:${guest.id}:${new Date(poll.finalAt).getTime()}:${guest.email}`,
       });
       sent++;
     } catch (error) {

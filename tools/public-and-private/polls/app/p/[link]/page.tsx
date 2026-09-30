@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { CalendarPlus, Clock, Info, Party } from "../../../components/icons.tsx";
 import { Mark } from "../../../components/mark.tsx";
+import { guestMailOffered } from "../../../lib/agenda.ts";
 import { AppError } from "../../../lib/app-error.ts";
 import { dates, optionText } from "../../../lib/dates.ts";
 import { db } from "../../../lib/db.ts";
@@ -53,6 +54,7 @@ export default async function GuestPage({ params, searchParams }: { params: Prom
     left: poll.slots === null || taken === null ? null : Math.max(0, poll.slots - (taken[o.id] ?? 0) + (me?.dates[o.id] === 2 ? 1 : 0)),
   }));
   const back = `/p/${link}`;
+  const mailOn = poll.status === "open" ? await guestMailOffered() : false;
 
   return (
     <main className="page public guest">
@@ -87,6 +89,7 @@ export default async function GuestPage({ params, searchParams }: { params: Prom
           token={formToken()}
           options={options}
           signup={poll.slots !== null}
+          mailOn={mailOn}
           mine={me ? { name: me.name, email: me.email, dates: me.dates } : null}
           sent={sent === "1" || sent === "2" ? sent : null}
           locale={locale}

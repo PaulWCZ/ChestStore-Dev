@@ -97,6 +97,7 @@ async function toldOf(request, until = told => told.length > 0) {
   }
   return told;
 }
+let noraWeek = null;
 const leaveKeys = "from,fromHalf,member,request,to,toHalf";
 
 async function send(label = "Send the request") {
@@ -493,6 +494,13 @@ await step("paid leave never goes below zero by default: Tom asking far more tha
   expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "cannot be sent");
 });
 
+await step("email is offered as the Chest can send it (mail.available): the switch, and no sentence saying none leaves", async () => {
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest");
+  expect(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).count() === 1, "the switch");
+  expect(await page.getByText("Emails are not sent for now").count() === 0 && await page.getByText("Today’s emails are used up").count() === 0, "no sentence: this Chest sends");
+});
+
 await step("Tom turns his emails off: the next answer reaches his bell only", async () => {
   await page.goto(origin + "/chest");
   await flip(page, "Also send me these by email: requests to answer, answers, cancellations", false);
@@ -580,12 +588,23 @@ await step("a last day People sets in the middle of Nora's approved week: told a
   const [week] = await db`select r.id, to_char(r.start_date, 'YYYY-MM-DD') as start, to_char(r.end_date, 'YYYY-MM-DD') as end from requests r join leave_types t on t.id = r.type_id
     where r.member_id = ${id("nora")} and r.status = 'approved' and t.away and r.start_date > current_date + 2 and r.end_date - r.start_date = 4 order by r.start_date limit 1`;
   expect(week, "Nora's approved week");
+  noraWeek = week.id;
   const last = day(plus(new Date(week.start + "T00:00:00Z"), 2));
   await deliver("people.leaving", { member: id("nora"), lastDay: last });
   const told = await toldOf(week.id, t => t.length >= 2 && t[0].type === "leave.approved" && t[0].data.to === last);
   expect(told[0]?.type === "leave.approved" && told[0].data.from === week.start && told[0].data.to === last && told[0].data.toHalf === "pm", "approved up to the last day: " + JSON.stringify(told[0]));
   expect(told[1]?.type === "leave.cancelled" && told[1].data.to === week.end, "the whole week taken back first: " + JSON.stringify(told[1]));
   await deliver("people.leaving_cancelled", { member: id("nora") });
+});
+
+await step("the shortened week's approval is told with the time of the change, strictly after its cancellation (occurredAt, SDK studio.16)", async () => {
+  const words = await db`select type, at, published_at from leave_outbox where data->>'request' = ${String(noraWeek)} order by id`;
+  const cut = words.findLastIndex(w => w.type === "leave.cancelled");
+  const [cancelled, approved] = [words[cut], words[cut + 1]];
+  expect(cancelled && approved?.type === "leave.approved", "a cancellation then an approval: " + words.map(w => w.type).join(","));
+  expect(approved.at.getTime() > cancelled.at.getTime(), `the approval after the cancellation: ${cancelled.at.toISOString()} < ${approved.at.toISOString()}`);
+  expect(cancelled.published_at && approved.published_at, "both published");
+  expect(Date.now() - cancelled.at.getTime() < 3_600_000, "both of the last hour: well within the Chest's 24 hours");
 });
 
 await step("a family event for Tom (off on Fridays), Monday to Friday, counts only the 4 days he works", async () => {

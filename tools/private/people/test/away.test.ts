@@ -118,3 +118,37 @@ test("only members of the Chest, only Leave, only well-formed events; past leave
   assert.equal(await chest.emit({ type: "member.erased", data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
   assert.equal((await sql`select 1 from away where member_id = ${ines.id}`).length, 0);
 });
+
+test("a shortened leave (cancelled, then approved for fewer days): the approval stands in either delivery order, at the same time or later", async () => {
+  const { sql } = database;
+  const now = today();
+  const whole = { member: hugo.id, from: now, to: addDays(now, 4), fromHalf: "am", toHalf: "pm" };
+  const short = { ...whole, to: addDays(now, 1) };
+  const kept = async (request: string) => (await sql<{ d: string | null; cancelled: boolean }[]>`select to_char(to_day, 'YYYY-MM-DD') as d, cancelled from away where request = ${request}`)[0];
+  const cases = [
+    { request: "90", same: true, cancelFirst: true },
+    { request: "91", same: true, cancelFirst: false },
+    { request: "92", same: false, cancelFirst: true },
+    { request: "93", same: false, cancelFirst: false },
+  ];
+  for (const c of cases) {
+    const base = Date.now() - 120_000;
+    assert.equal(await told("leave.approved", { ...whole, request: c.request }, { occurredAt: new Date(base).toISOString() }), 204);
+    const cancelAt = new Date(base + 60_000).toISOString();
+    const approveAt = new Date(base + 60_000 + (c.same ? 0 : 1)).toISOString();
+    const cancel = () => told("leave.cancelled", { ...whole, request: c.request }, { occurredAt: cancelAt });
+    const approve = () => told("leave.approved", { ...short, request: c.request }, { occurredAt: approveAt });
+    if (c.cancelFirst) { assert.equal(await cancel(), 204); assert.equal(await approve(), 204); }
+    else { assert.equal(await approve(), 204); assert.equal(await cancel(), 204); }
+    assert.deepEqual(await kept(c.request), { d: addDays(now, 1), cancelled: false }, `request ${c.request}: ${c.same ? "same time" : "a millisecond later"}, ${c.cancelFirst ? "cancellation" : "approval"} delivered first`);
+  }
+  assert.equal((await awayOf(sql, [hugo.id], now)).size, 1);
+  // A cancellation at the same time as a cancellation already kept: still cancelled (harmless).
+  const at = new Date(Date.now() - 10_000).toISOString();
+  assert.equal(await told("leave.cancelled", { ...whole, request: "94" }, { occurredAt: at }), 204);
+  assert.equal(await told("leave.cancelled", { ...whole, request: "94" }, { occurredAt: at }), 204);
+  assert.equal((await kept("94"))?.cancelled, true);
+  // A later cancellation still takes an approval back.
+  assert.equal(await told("leave.cancelled", { ...whole, request: "93" }, { occurredAt: new Date().toISOString() }), 204);
+  assert.equal((await kept("93"))?.cancelled, true);
+});

@@ -517,6 +517,10 @@ await step("a customer's team gets updates in Slack: connected on “Get updates
   await page.goto(origin + "/chest/subscribers");
   const subs = await page.locator("main").innerText();
   expect(/in a chat or at a web address/iu.test(subs) && subs.includes("hooks.slack.com") && !subs.includes("customerSecret0123456789"), "on Subscribers");
+  // Studio.16: the page asks the Chest whether it delivers (webhooks.available,
+  // mail.available) and says so, with the addresses used of its maximum.
+  expect(/Your Chest delivers these updates: 1 of \d+ addresses used\./u.test(subs), "chats: the Chest delivers, 1 address used: " + subs);
+  expect(subs.includes("Emails are sent through your Chest."), "email: the Chest sends");
   // Stopped from its own page: the Chest forgets it.
   await context.clearCookies();
   await english();

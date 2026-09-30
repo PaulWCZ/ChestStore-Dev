@@ -55,3 +55,18 @@ export async function email(people: Recipient[], write: (t: Catalogue) => { lett
   }
   return { sent, stop: null };
 }
+
+// mailNow: whether the Chest would send email now (mail.available(),
+// studio.16), for a dialog that says before acting whether people are
+// told "in the bell and by email" or in the bell only: not when the Chest
+// has no mail, its owner has not connected it, it paused sending or the
+// day's emails are used. A snapshot: a send can still fail. When the Chest
+// does not answer, email is assumed, as before.
+export async function mailNow(): Promise<boolean> {
+  try {
+    return (await mail.available()).ok;
+  } catch (error) {
+    if (!(error instanceof Unavailable)) throw error;
+    return true;
+  }
+}

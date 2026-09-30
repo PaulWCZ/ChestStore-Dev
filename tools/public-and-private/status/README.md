@@ -387,12 +387,12 @@ public page never shows who posted.
 
 | Proposal | Used for | Without it |
 |---|---|---|
-| `mail` | Confirmation and update emails | The form is hidden; the page offers the feeds |
+| `mail` | Confirmation and update emails; `mail.available()` (studio.16) before the form is offered and on *Subscribers* | The form is hidden; the page offers the feeds |
 | `schedules` | Automatic maintenance posts, sending queued emails | An editor's visit does it; the page switches on time anyway |
 | `notifications.broadcast` | The bell of every editor in one call | The tool pages through its members and notifies each language's group |
 | `visitors` | The form's signed time and the Chest's visitor counts | The tool's own counters (`form_counts`) |
 | `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
-| `webhooks` | Updates delivered to Slack, Teams and web addresses (SDK report §4.17) | "Or in Slack, Teams…" disappears after the first refusal (tried again after a day) |
+| `webhooks` | Updates delivered to Slack, Teams and web addresses (SDK report §4.17); `webhooks.available()` (studio.16) before the chat option is offered and on *Subscribers* ("3 of 200 addresses used", or paused by the Chest's owner) | "Or in Slack, Teams…" is not offered |
 | events between tools | `status.incident` to Support | Support shows no incident; nothing else changes |
 | `chest` | Company name, time zone, language, public address; `theme()` for the look the company chose (a catalogue theme or its brand) | — (the SDK's defaults; the tool's own look) |
 
@@ -402,10 +402,13 @@ What it would need next (in the final report of the studio):
   report §4.15 — the Chest maps the hostname and its certificate, and
   `chest.publicUrl()` already carries the address, so no tool change.
   Until then the page lives at the Chest's own address; *Settings* says so.
-- **`webhooks.available()`** (or the granted proposals in the
-  environment): the tool learns that the Chest has no webhooks from a
-  refused `add`, so the "Or in Slack, Teams…" link shows once on such a
-  Chest.
+- **`webhooks.available()`** — built (studio.16), used: the public page
+  offers a chat only when the Chest would deliver now, and says "paused"
+  when its owner paused the notices (nothing is lost: queued updates wait
+  a day, as for a busy Chest). The answer and mail's are kept 30 seconds
+  per process (`lib/public-page.ts`): a status page is read most when
+  something is down. When the Chest does not answer, what the last call
+  taught.
 - **A label the owner reads, per webhook target, without personal data**:
   a public subscriber has no name; the tool labels it "Status subscriber
   (slack) 3f9a1c" (a digest of the address).
@@ -414,16 +417,19 @@ What it would need next (in the final report of the studio):
   public pages as static files to a second origin on every change.
 - **Certificate expiry and keyword checks** from `checks` (a
   `certExpiresAt` in each result).
-- **`mail.available()`** (see below).
 
 - **Checks** are now a proposal (`checks`, above). Next wishes: a
   heartbeat URL a job could call (silence = down), checks of a keyword in
   the page, and the Chest's own history of results so a new tool starts
   with data.
-- **Knowing whether mail works before sending**: `mail.available()`
-  (or the granted proposals in the environment), so the form is hidden
-  from the first visit on a Chest without mail — today the tool learns it
-  from a failed send.
+- **Knowing whether mail works before sending**: `mail.available()` —
+  built (studio.16), used: the form is hidden from the first visit on a
+  Chest without mail, with its mail not connected, paused, or its day's
+  emails used (a confirmation that cannot go now would never be sent);
+  *Subscribers* says which. Keys of update emails and chat deliveries
+  carry the recipient (the address; the Chest's target `whk_…`) and the
+  update's time: after a restore, an id may name another subscriber or
+  another update (SDK README, "Put the recipient in the key").
 - **A shared cache per language**: Next.js replaces the `Vary` header of a
   page, so the public page cannot be kept by shared caches without
   mixing languages; either the Chest's front caches public pages keyed

@@ -677,6 +677,16 @@ await step("an admin sends new requests to a Slack channel; the channel gets the
   expect(!posted.includes("left leg"), "never the message");
 });
 
+await step("Slack and Teams says the truth before anything is sent (SDK studio.16, webhooks.available): this Chest delivers, so the form is offered and no sentence says it cannot, or is paused", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/settings#notices");
+  const box = await page.locator("#notices").innerText();
+  expect(!box.includes("cannot send notices") && !box.includes("paused notices") && !box.includes("did not answer"), "no false warning: " + box.slice(0, 300));
+  expect(await page.getByRole("button", { name: "Add a channel" }).count() > 0, "the form is offered");
+  expect(box.includes("Support channel"), "the channel added before is listed");
+});
+
 await step("Status says an incident is in progress: a banner above the inbox and a saved reply with the public page; gone once resolved (critique 3, N3)", async () => {
   await as(context, origin, "hugo");
   const incident = (action, at) => ({ v: 1, action, incident: { id: "77", title: "Payments unavailable", language: "en", titles: { en: "Payments unavailable", fr: "Paiement indisponible" },

@@ -5,7 +5,7 @@ import { db } from "../../../lib/db.ts";
 import { chestGroups } from "../../../lib/groups.ts";
 import { isKind } from "../../../lib/model.ts";
 import { viewer } from "../../../lib/session.ts";
-import { learned } from "../../../lib/state.ts";
+import { mailNow } from "../../../lib/state.ts";
 import { local, today } from "../../../lib/time.ts";
 import { Composer } from "../composer.tsx";
 import { composerLanguages } from "./languages.ts";
@@ -30,7 +30,7 @@ export default async function NewPost({ searchParams }: { searchParams: Promise<
         people={people}
         groups={groups === "unavailable" ? [] : groups.map(g => ({ id: g.id, name: g.name }))}
         languages={composerLanguages(locale)}
-        mail={await learned(db(), "mail")}
+        mail={await mailNow(db())}
         defaults={{ day: tomorrow.day, time: "09:00", today: today(zone) }}
         locale={locale}
         t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, toast: t.toast, date: t.date, peoplePicker: t.peoplePicker }}

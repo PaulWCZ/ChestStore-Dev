@@ -451,6 +451,7 @@ export const fr: Catalogue = {
     menuSeen: "Qui l’a lue",
     title: "Demander une confirmation de lecture",
     intro: "Chaque personne concernée est prévenue dans la cloche et par e-mail, et voit « Je l’ai lue » sur « {title} ». Vous verrez qui a confirmé.",
+    introBell: "Chaque personne concernée est prévenue dans la cloche, et voit « Je l’ai lue » sur « {title} ». Vous verrez qui a confirmé. (Votre Chest n’envoie pas d’e-mails pour l’instant.)",
     everyone: "Toutes les personnes qui lisent cet espace",
     groups: "Seulement certains groupes",
     submit: "Demander",
@@ -480,6 +481,7 @@ export const fr: Catalogue = {
     csv: { person: "Personne", status: "État", version: "Version lue", at: "Confirmé le", page: "Page", asked: "Demandé pour la version" },
     remind: "Relancer ceux qui n’ont pas confirmé",
     reminded: { zero: "Tout le monde a confirmé : personne à relancer.", one: "1 personne relancée, dans la cloche et par e-mail.", other: "{count} personnes relancées, dans la cloche et par e-mail." },
+    remindedBell: { zero: "Tout le monde a confirmé : personne à relancer.", one: "1 personne relancée, dans la cloche.", other: "{count} personnes relancées, dans la cloche." },
   },
   bell: {
     commented: "{name} a commenté « {title} »",

@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Back, CalendarPlus, Clock, Eye, Info, KindIcon, Mask, Pencil, People, Repeat } from "../../../../components/icons.tsx";
-import { calendarPage, inCalendar, learned } from "../../../../lib/agenda.ts";
+import { calendarPage, inCalendar, learned, notInCalendar } from "../../../../lib/agenda.ts";
 import { all, groups as chestGroups } from "../../../../lib/audience.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { canComment, list as listComments } from "../../../../lib/comments.ts";
@@ -96,7 +96,7 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
     const writers = await people([...talks.values()].flat().map(r => r.author));
     threads = new Map([...talks].map(([at, list]) => [at, list.map(r => ({ id: r.id, name: r.author === "anonymous" ? null : r.author === member.id ? t.people.you : nameOf(writers.get(r.author), locale), body: r.body }))]));
   }
-  const inMine = poll.finalOption !== null && (await learned(sql)) === "on" && (await inCalendar(sql, poll)).includes(member.id);
+  const inMine = poll.finalOption !== null && (await learned(sql)) === "on" && (await inCalendar(sql, poll)).includes(member.id) && !(await notInCalendar(sql, poll.id)).has(member.id);
 
   const dateLabels = new Map<string, DateLabel>();
   for (const q of poll.questions) for (const o of q.options) {

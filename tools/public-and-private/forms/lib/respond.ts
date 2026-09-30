@@ -10,7 +10,7 @@ import { answered, routed } from "./answered.ts";
 import { sendCopy } from "./mailer.ts";
 import { isLanguage, localize } from "./model.ts";
 import { sendHooks } from "./hooks.ts";
-import { installed } from "./linked.ts";
+import { linkOf } from "./linked.ts";
 import { afterAnswer } from "./tell.ts";
 import * as uploads from "./uploads.ts";
 
@@ -57,7 +57,9 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
     // Support confirms the request itself (its "we received your request"
     // email), and one message must not bring two emails (README, "With the
     // other tools").
-    const supportConfirms = routedTo.includes("forms.request") && installed().request;
+    // Support confirms only when it is linked to receive the request
+    // (events.receivers, studio.16): installed alone, nobody would.
+    const supportConfirms = routedTo.includes("forms.request") && (await linkOf("request")) === "linked";
     let copy = false;
     if (form.sendCopy && !form.anonymous && !supportConfirms) {
       const to = form.audience === "team" && respondent ? { member: respondent.id } : answer.email;

@@ -388,8 +388,10 @@ with `booking.confirmed` or `booking.cancelled` plays Booking
   concerned"): timed next steps in their owner's calendar
   (`lib/step-calendar.ts`: `publishStep` after each change of a step,
   `reconcile` after bulk changes and each morning — in batches of 100
-  with `calendar.putMany`, Proposal (studio.15); a batch holding an event
-  the Chest refuses goes one by one). On a Chest without it,
+  with `calendar.putMany`, Proposal (studio.15), which answers each event
+  (studio.16): only the events the Chest took are remembered as put, a
+  refused one — a day more than two years ahead — is tried again at the
+  next run and never holds the others back). On a Chest without it,
   the steps stand and the form stops promising the calendar
   (`tool_state`).
 - **Needed, not built: received mail for the tool** — to log emails by

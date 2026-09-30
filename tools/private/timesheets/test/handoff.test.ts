@@ -46,7 +46,9 @@ test("a project's billable time of a period goes to Quotes once, as lines per ta
   assert.deepEqual([sent.entries, sent.minutes, sent.receivers], [3, 240, 1]);
   const event = chest.published.at(-1)!;
   assert.equal(event.type, "timesheets.billable");
-  assert.equal(event.key, `timesheets:billable:${sent.handoff}`);
+  const [made] = await sql<{ sent_at: Date }[]>`select sent_at from handoffs where id = ${sent.handoff}`;
+  assert.equal(event.key, `timesheets:billable:${sent.handoff}:${made!.sent_at.getTime()}`, "the key carries when it was made");
+  assert.equal(event.occurredAt, made!.sent_at.toISOString(), "occurredAt: when it was made (studio.16)");
   const data = event.data as unknown as handoff.Billable;
   assert.equal(data.version, 1);
   assert.deepEqual(data.project, { id: site.id, name: "Site vitrine" });
@@ -64,6 +66,9 @@ test("a project's billable time of a period goes to Quotes once, as lines per ta
   await assert.rejects(handoff.cancelHandoff(sql, asMember(hugo), sent.handoff), refused("forbidden"));
   await handoff.cancelHandoff(sql, m, sent.handoff);
   assert.deepEqual(chest.published.at(-1)!.type, "timesheets.billable_cancelled");
+  const [gone] = await sql<{ cancelled_at: Date }[]>`select cancelled_at from handoffs where id = ${sent.handoff}`;
+  assert.equal(chest.published.at(-1)!.key, `timesheets:billable:${sent.handoff}:${made!.sent_at.getTime()}:cancelled`);
+  assert.equal(chest.published.at(-1)!.occurredAt, gone!.cancelled_at.toISOString());
   await assert.rejects(handoff.cancelHandoff(sql, m, sent.handoff), refused("handoff_state"));
   await entries.updateEntry(sql, asMember(hugo), a.id, { projectId: site.id, taskId: design!.id, day: from, minutes: 60, note: "Maquettes" });
   const again = await handoff.sendBillable(sql, m, { projectId: site.id, from, to });
@@ -98,4 +103,29 @@ test("the notes' search: the report, the entries found and the CSV follow it; a 
   assert.deepEqual((await foundEntries(sql, asMember(hugo), q)).map(f => f.note), ["Repérage au parc Montsouris"]);
   assert.equal((await report(sql, asMember(camille), { ...q, q: "100%" })).minutes, 0);
   assert.deepEqual(await foundEntries(sql, asMember(camille), { ...q, q: "r" }), []);
+});
+
+test("after a restore, a hand-off id given again to other time still reaches Quotes (the key carries when it was made)", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const shop = await projects.createProject(sql, m, { newClient: "Fleurs Martin", name: "Boutique", rateCents: 8000 });
+  await entries.addEntry(sql, asMember(hugo), { projectId: shop.id, day: from, minutes: 60 });
+  const first = await handoff.sendBillable(sql, m, { projectId: shop.id, from, to });
+  // The backup was taken before that hand-off: its id is given again, to other time.
+  await sql`update entries set handoff_id = null where handoff_id = ${first.handoff}`;
+  await sql`delete from handoffs where id = ${first.handoff}`;
+  await sql`select setval(pg_get_serial_sequence('handoffs', 'id'), ${Number(first.handoff) - 1}, ${Number(first.handoff) > 1})`;
+  await entries.addEntry(sql, asMember(ines), { projectId: shop.id, day: addDays(from, 1), minutes: 30 });
+  const again = await handoff.sendBillable(sql, m, { projectId: shop.id, from, to });
+  assert.equal(again.handoff, first.handoff, "the same id, other time");
+  assert.equal(again.minutes, 90);
+  assert.equal(chest.published.filter(e => e.type === "timesheets.billable" && (e.data as { handoff: string }).handoff === first.handoff).length, 2, "published, not refused as the first one's key");
+});
+
+test("occurredAt is given when the Chest would take it: not ahead of this clock, not older than 24 hours less five minutes", () => {
+  const now = Date.parse("2026-10-01T10:00:00Z");
+  assert.deepEqual(handoff.occurred(new Date(now - 1000), now), { occurredAt: new Date(now - 1000) });
+  assert.deepEqual(handoff.occurred(new Date(now + 1000), now), {}, "the database's clock ahead: without it");
+  assert.deepEqual(handoff.occurred(new Date(now - 24 * 3600_000 + 60_000), now), {}, "within the margin");
+  assert.deepEqual(handoff.occurred(new Date(now - 23 * 3600_000), now), { occurredAt: new Date(now - 23 * 3600_000) });
 });

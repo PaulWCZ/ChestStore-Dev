@@ -248,8 +248,14 @@ Wiki's spaces kept to groups).
   of an event's email are signed with a key News makes once at random and
   keeps in its database (`chest_state`), never shown. On a Chest
   that cannot send email yet, nothing fails; News remembers it
-  (`chest_state`) and the composer then says *Publish and tell 6 people in
-  their bell*. (Until News has tried once, it assumes email works.)
+  (`chest_state`), and a post's page says who was emailed. Before
+  publishing, the composer asks the Chest (`mail.available()`, studio.16;
+  `lib/state.ts`, `mailNow`): when it would not send now (no mail, not
+  connected, paused, the day's emails used) it says *Publish and tell 6
+  people in their bell*. The front page offers the digest's *By email too*
+  only on a Chest that sends email at all (`mailConnected`). When the
+  Chest does not answer, what the last send taught. Keys carry the member
+  (`news:<post>:<round>:<member>`, `digest:<week>:<member>`).
 - **Calendar** (Proposal (studio): `"calendar": true`): an event is put in
   the Chest's feed of each person coming (`calendar.put`, key
   `event:<id>`, in their language), again at each answer or change, and

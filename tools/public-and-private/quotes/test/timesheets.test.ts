@@ -170,7 +170,7 @@ test("told late, quotes.invoiced keeps the time the invoice was issued; past 24 
   await told("timesheets.billable", billable("60"));
   const id = String(await draftOf("60"));
   await finalise(sql, asMember(sofia), id, today);
-  const [{ finalised_at: issuedAt }] = await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${id}`;
+  const issuedAt = (await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${id}`)[0]!.finalised_at;
   const later = issuedAt.getTime() + 3 * 3600_000;
   assert.equal(await invoicedHandoff(sql, id, null, later), true);
   const [late] = chest.published.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "60");
@@ -180,7 +180,7 @@ test("told late, quotes.invoiced keeps the time the invoice was issued; past 24 
   await told("timesheets.billable", billable("61"));
   const old = String(await draftOf("61"));
   await finalise(sql, asMember(sofia), old, today);
-  const [{ finalised_at: oldAt }] = await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${old}`;
+  const oldAt = (await sql<{ finalised_at: Date }[]>`select finalised_at from documents where id = ${old}`)[0]!.finalised_at;
   const before = Date.now();
   assert.equal(await publishPending(sql, oldAt.getTime() + 30 * 3600_000), 1);
   const [older] = chest.published.filter(e => e.type === "quotes.invoiced" && (e.data as { handoff: string }).handoff === "61");

@@ -7,7 +7,7 @@ import { AppError } from "../../../../../lib/errors.ts";
 import { nameOf, people as lookup } from "../../../../../lib/people.ts";
 import { draftOf, type Draft } from "../../../../../lib/posts.ts";
 import { viewer } from "../../../../../lib/session.ts";
-import { learned } from "../../../../../lib/state.ts";
+import { mailNow } from "../../../../../lib/state.ts";
 import { local, today } from "../../../../../lib/time.ts";
 import { Composer } from "../../../composer.tsx";
 import { composerLanguages } from "../../../new/languages.ts";
@@ -42,7 +42,7 @@ export default async function EditPost({ params }: { params: Promise<{ id: strin
   for (const g of draft.groups) if (!groups.some(x => x.id === g)) groups.push({ id: g, name: v.t.front.formerGroup });
   return (
     <div className="desk">
-      <Composer postId={id} initial={draft} author={draft.author} people={people} groups={groups} languages={composerLanguages(locale)} mail={await learned(sql, "mail")} defaults={{ day: tomorrow.day, time: "09:00", today: today(zone) }} locale={locale} t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, toast: t.toast, date: t.date, peoplePicker: t.peoplePicker }} />
+      <Composer postId={id} initial={draft} author={draft.author} people={people} groups={groups} languages={composerLanguages(locale)} mail={await mailNow(sql)} defaults={{ day: tomorrow.day, time: "09:00", today: today(zone) }} locale={locale} t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, toast: t.toast, date: t.date, peoplePicker: t.peoplePicker }} />
     </div>
   );
 }

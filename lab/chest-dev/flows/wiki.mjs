@@ -578,6 +578,9 @@ await step("read and acknowledged: Hugo is asked, confirms in one click; Camille
   await page.goto(origin + "/chest/pages/13");
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: "Ask readers to confirm" }).click();
+  // Studio.16: the dialog asks the Chest whether email would go now
+  // (mail.available) before promising it.
+  expect((await page.locator("dialog[open] .where").innerText()).includes("told in the bell and by email"), "the Chest sends email: the dialog says so");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   await page.waitForSelector(".ck-toast:has-text('people asked')");
   expect((await bell()).includes("Tom Walker vous demande de lire"), "Léa is told, in French");

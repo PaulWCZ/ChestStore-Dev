@@ -30,6 +30,25 @@ async function send(message: mail.Message): Promise<Delivery> {
   }
 }
 
+// Whether the Chest would send email now (mail.available, studio.16),
+// asked before a page promises one: "not_granted" (a Chest without mail),
+// "not_connected" (the owner has not connected the company's email),
+// "suspended", "quota" (the day's emails are used), "unknown" (the Chest
+// did not answer: the pages promise nothing, and say nothing false).
+export type MailState = "ready" | "not_granted" | "not_connected" | "suspended" | "quota" | "unknown";
+export async function mailState(): Promise<MailState> {
+  try {
+    const state = await mail.available();
+    return state.ok ? "ready" : state.reason ?? "suspended";
+  } catch (error) {
+    if (error instanceof ChestError) return "unknown";
+    throw error;
+  }
+}
+
+// Every key carries its recipient (studio.16): after a restore from a
+// backup, a booking's id can name another guest's meeting.
+
 function where(b: Booking, hostName: string, t: ReturnType<typeof wordsFor>["mail"]): string {
   if (b.locationKind === "phone") return format(t.wherePhone, { host: hostName, phone: b.guestPhone });
   const place = meetingPlace(b);
@@ -86,26 +105,26 @@ function answersBlock(b: Booking): string {
 export async function confirmed(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = { ...values(b, c), answers: answersBlock(b) + (b.paymentLink && !b.paid ? "\n\n" + format(t.payLine, { link: b.paymentLink }) : "") };
-  return send({ to: b.guestEmail, subject: format(t.confirmedSubject, v), text: format(t.confirmedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `booked:${b.id}`, transactional: true });
+  return send({ to: b.guestEmail, subject: format(t.confirmedSubject, v), text: format(t.confirmedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `booked:${b.id}:${b.guestEmail}`, transactional: true });
 }
 
 export async function moved(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = values(b, c);
-  return send({ to: b.guestEmail, subject: format(t.movedSubject, v), text: format(t.movedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `moved:${b.id}:${b.moves}`, transactional: true });
+  return send({ to: b.guestEmail, subject: format(t.movedSubject, v), text: format(t.movedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `moved:${b.id}:${b.moves}:${b.guestEmail}`, transactional: true });
 }
 
 export async function cancelled(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = { ...values(b, c), link: c.bookAgain, reason: b.cancelReason ? format(t.reasonLine, { reason: b.cancelReason }) : "" };
   const body = b.cancelledBy === "host" ? t.cancelledByHost : t.cancelledByGuest;
-  return send({ to: b.guestEmail, subject: format(t.cancelledSubject, v), text: format(body, v), fromName: from(c), attachments: [attachment(b, c, true)], key: `cancelled:${b.id}`, transactional: true });
+  return send({ to: b.guestEmail, subject: format(t.cancelledSubject, v), text: format(body, v), fromName: from(c), attachments: [attachment(b, c, true)], key: `cancelled:${b.id}:${b.guestEmail}`, transactional: true });
 }
 
 export async function reminder(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = values(b, c);
-  return send({ to: b.guestEmail, subject: format(t.reminderSubject, v), text: format(t.reminderBody, v), fromName: from(c), key: `reminder:${b.id}:${b.moves}` });
+  return send({ to: b.guestEmail, subject: format(t.reminderSubject, v), text: format(t.reminderBody, v), fromName: from(c), key: `reminder:${b.id}:${b.moves}:${b.guestEmail}` });
 }
 
 // The host's copy: an email with the booking's calendar file, which their

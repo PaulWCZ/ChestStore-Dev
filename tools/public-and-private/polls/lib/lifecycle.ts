@@ -33,6 +33,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update comments set author = 'erased' where author = ${memberId}`;
     await tx`update replies set author = 'erased' where author = ${memberId}`;
     await tx`update polls set people = array_replace(people, ${memberId}, 'erased') where ${memberId} = any(people)`;
+    await tx`update polls set calendar_missing = array_remove(calendar_missing, ${memberId}) where ${memberId} = any(calendar_missing)`;
   });
 }
 

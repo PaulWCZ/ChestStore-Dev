@@ -46,8 +46,9 @@ export function ChaseList({ people, all, locale, t }: { people: ChasePerson[]; a
                   const r = await remind(p.person.id);
                   if (!r.ok && r.error !== "already_reminded") return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
                   setDone(d => [...d, p.person.id]);
-                  // The bell item and the email left: never an Undo.
-                  toast({ id: `remind-${p.person.id}`, text: r.ok ? format(c.remindedToast, { name: p.person.name }) : t.errors.already_reminded, sent: true });
+                  // The bell item and the email left: never an Undo. "By email"
+                  // only when one left.
+                  toast({ id: `remind-${p.person.id}`, text: r.ok ? format(r.value.emailed ? c.remindedToast : c.remindedBell, { name: p.person.name }) : t.errors.already_reminded, sent: true });
                 })}><Bell />{c.remind}</button>
               )}
             </li>

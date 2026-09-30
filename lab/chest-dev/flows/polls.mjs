@@ -485,6 +485,33 @@ await step("a guest's answer removed after a confirmation; a member sees no gues
   expect((await page.locator(".grid-table").innerText()).includes("Claire Leroy"), "but the guests' answers, marked, in the results");
 });
 
+await step("the date chosen for a poll with guests: in the team's Chest calendars (putMany, answered per part), and by email to the guest who gave an address (its key names them)", async () => {
+  await who("sofia", "en");
+  await page.goto(origin + "/chest/polls/11");
+  const link = await page.locator("#guest-url").inputValue();
+  await page.getByRole("button", { name: "Close now" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Poll closed.')");
+  await page.reload();
+  await page.getByRole("button", { name: "Tell everyone" }).click();
+  await page.waitForSelector(".final-card");
+  const board = await dev();
+  expect(board.includes("poll:11"), "the calendar event, in the harness");
+  expect(board.split("<li>").some(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("jean@client.example")), "the guest's email, to their address");
+  // Told again (the page reloaded, the choice the same): no second email.
+  await page.reload();
+  const toJean = (await dev()).split("<li>").filter(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("jean@client.example")).length;
+  expect(toJean === 1, "one email for one choice: " + toJean);
+  // The guest's page shows the date and its calendar file.
+  const guest = await fresh(null, "en", { width: 390, height: 844 });
+  await guest.p.goto(link);
+  expect(await guest.p.locator(".final-card").isVisible(), "the chosen date on the guest's page");
+  await guest.c.close();
+  // Hugo, asked, has it in his Chest calendar: the Chest took the date.
+  await who("hugo", "en");
+  await page.goto(origin + "/chest/polls/11");
+  expect(await page.getByRole("link", { name: "In your calendar" }).isVisible(), "Hugo's link to his Chest calendar");
+});
+
 await step("anonymous two-way feedback: the organiser replies under a free text; only the author's browser reads it and answers back", async () => {
   expect(pulseUrl !== "", "the new pulse of the step above");
   const authors = {};

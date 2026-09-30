@@ -250,8 +250,8 @@ export async function reassign(input: { kind: "objective" | "key_result" | "all"
 }
 
 // Reminding who has not checked in this week (bell and email, once a day).
-export async function remind(owner: string): Promise<Result<null>> {
-  return act(async actor => { await reminders.remind(db(), actor, owner, tell.clockAt()); return null; });
+export async function remind(owner: string): Promise<Result<{ emailed: boolean }>> {
+  return act(actor => reminders.remind(db(), actor, owner, tell.clockAt()));
 }
 
 export async function remindAll(): Promise<Result<number>> {

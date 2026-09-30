@@ -456,9 +456,10 @@ once, in People's HR record:
   emails are used. Without it, the bell and the tile only.
 - **Events from People** — **Proposal (studio)**: receives
   `people.record`, `people.leaving`, `people.leaving_cancelled`.
-- Wished, not built: a **member's own time zone** (the Chest gives one
-  for the whole company, `chest.timeZone()`: someone working from Montréal
-  is off from midnight in Paris in the feed and the busy times); a
+- Wished, not built: a **member's own time zone** — Leave still uses the
+  company's, `chest.timeZone()`: someone working from Montréal is off from
+  midnight in Paris in the feed and the busy times; the SDK now offers
+  `chest.timeZone(member)` (studio.16), not adopted here yet; a
   **shared feed** of a team's absences ("Away", never the kind) for
   managers — the calendar proposal is personal feeds only; a member's
   **manager** known by the Chest (HR sets approvers here instead). The

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
+import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
 import { AppError } from "../lib/app-error.ts";
@@ -15,6 +16,10 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
+
+// The key as the Chest receives it: the guest's address in it (studio.16)
+// makes it long or unusual, and the SDK sends it as its SHA-256.
+const wire = (key: string): string => mail.idempotencyKey(key)!;
 
 // Booking and the other tools of the Chest (Proposal (studio): events
 // between tools): a host's busy times told (booking.busy) and heard
@@ -91,7 +96,7 @@ test("a booking tells Clients who booked, which type in every language, when —
   const made = await b.book(sql, host, type, { ...guest, start: "2026-10-06T08:00:00.000Z" }, monday);
   await share.changed(sql, "booked", made.booking, { now: monday });
   const confirmed = chest.published.find(p => p.type === "booking.confirmed")!;
-  assert.equal(confirmed.key, `booking:${made.booking.id}:confirmed:0`);
+  assert.equal(confirmed.key, wire(`booking:${made.booking.id}:${made.booking.guestEmail}:confirmed:0`));
   assert.deepEqual(confirmed.data, {
     v: 1, booking: made.booking.id, status: "confirmed", at: made.booking.createdAt.toISOString(), host: ines.id,
     start: "2026-10-06T08:00:00.000Z", end: "2026-10-06T09:00:00.000Z",
@@ -109,14 +114,14 @@ test("a booking tells Clients who booked, which type in every language, when —
   const moved = await b.moveByHost(sql, asMember(ines), made.booking.id, "2026-10-07T08:00:00.000Z", monday);
   await share.changed(sql, "moved", moved.booking, { previousHost: moved.from, now: monday + 120000 });
   const again = chest.published.filter(p => p.type === "booking.confirmed");
-  assert.deepEqual(again.map(p => [p.key, p.data["start"], p.data["moves"]]), [[`booking:${made.booking.id}:confirmed:0`, "2026-10-06T08:00:00.000Z", 0], [`booking:${made.booking.id}:confirmed:1`, "2026-10-07T08:00:00.000Z", 1]]);
+  assert.deepEqual(again.map(p => [p.key, p.data["start"], p.data["moves"]]), [[wire(`booking:${made.booking.id}:${made.booking.guestEmail}:confirmed:0`), "2026-10-06T08:00:00.000Z", 0], [wire(`booking:${made.booking.id}:${made.booking.guestEmail}:confirmed:1`), "2026-10-07T08:00:00.000Z", 1]]);
   assert.deepEqual(busyOf(ines.id).at(-1)!.data["spans"], [["2026-10-07T08:00Z", "2026-10-07T09:00Z"]]);
   // at: when it moved, as recorded — not when it was told.
   assert.equal(again[1]!.data["at"], new Date(monday).toISOString());
   const gone = await b.cancelByHost(sql, asMember(ines), made.booking.id, "", monday);
   await share.changed(sql, "cancelled", gone, { now: monday + 180000 });
   const cancelled = chest.published.find(p => p.type === "booking.cancelled")!;
-  assert.equal(cancelled.key, `booking:${made.booking.id}:cancelled`);
+  assert.equal(cancelled.key, wire(`booking:${made.booking.id}:${made.booking.guestEmail}:cancelled`));
   assert.equal(cancelled.data["at"], gone.cancelledAt!.toISOString());
   assert.equal(cancelled.data["status"], "cancelled");
   assert.equal(cancelled.data["cancelledBy"], "host");
@@ -163,8 +168,8 @@ test("told again, a booking is the same event: its data does not change with the
   assert.equal(await share.changed(sql, "moved", reread, { now: monday + 900000 }), true, "the move told again is the same event");
   const confirmed = chest.published.filter(p => p.type === "booking.confirmed" && p.data["booking"] === made.booking.id);
   assert.deepEqual(confirmed.map(p => [p.key, p.data["at"]]), [
-    [`booking:${made.booking.id}:confirmed:0`, made.booking.createdAt.toISOString()],
-    [`booking:${made.booking.id}:confirmed:1`, new Date(monday + 60000).toISOString()],
+    [wire(`booking:${made.booking.id}:${made.booking.guestEmail}:confirmed:0`), made.booking.createdAt.toISOString()],
+    [wire(`booking:${made.booking.id}:${made.booking.guestEmail}:confirmed:1`), new Date(monday + 60000).toISOString()],
   ]);
   const gone = await b.cancelByHost(sql, asMember(ines), made.booking.id, "", monday + 120000);
   assert.equal(await share.changed(sql, "cancelled", gone, { now: monday + 1000000 }), true);

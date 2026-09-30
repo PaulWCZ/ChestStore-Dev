@@ -104,6 +104,13 @@ function nextWeekday(day: string): { day: string; half: Half } {
   return { day: d, half: "am" };
 }
 
+// Each request keeps Leave's latest word, by the event's occurredAt (the
+// time of the change, as Leave gives it): an older word changes nothing.
+// At the same moment an approval wins over a cancellation — as in Rooms
+// (tools/private/rooms/lib/away.ts): that pair is a leave shortened (Leave
+// tells leave.cancelled, then leave.approved for the days that remain),
+// and the remaining days must stay whichever of the two is delivered last.
+
 // A leave approved: kept for a member of the Chest, if not already taken
 // back by a later word. The same request told again (new dates) replaces
 // the old ones.
@@ -135,7 +142,8 @@ export async function leaveCancelled(sql: Sql, event: ToolEvent): Promise<boolea
     insert into away (request, member_id, from_day, to_day, from_half, to_half, told_at, cancelled)
     values (${request}, ${member}, null, null, 'day', 'day', ${at}, true)
     on conflict (request) do update set from_day = null, to_day = null, from_half = 'day', to_half = 'day', told_at = excluded.told_at, cancelled = true
-    where away.told_at <= excluded.told_at and away.member_id = excluded.member_id`;
+    where away.member_id = excluded.member_id
+      and (away.told_at < excluded.told_at or (away.told_at = excluded.told_at and away.cancelled))`;
   return done.count > 0;
 }
 

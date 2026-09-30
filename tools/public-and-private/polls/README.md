@@ -45,7 +45,9 @@ them to everyone, organiser included, only once it closes.
   counters (20 answers a visitor an hour, 600 for everyone; Polls' own
   counters without them), 300 guests a poll. Once the date is chosen, the
   guest's page shows it with a calendar file, and guests who gave an email
-  get it by email (where the Chest sends email).
+  get it by email. The form asks for an email only when the Chest can send
+  one (`mail.available()`: mail granted, the company's mail connected, not
+  suspended); otherwise it asks for a name only.
 - **Anyone asks.** Every member of the tool can start a poll (as in Slack
   or Teams); an admin can keep that to organisers (*Settings* on the home
   page). A member's own poll is theirs to edit, close and delete.
@@ -342,7 +344,8 @@ closed poll is seen by those asked, its organiser and admins.
   erasure**: their named answers stay counted but read "Former member", so
   do their comments; polls they organised are authored `erased`; their
   repeating surveys stop; their id leaves the lists of people picked by
-  name; their drafts are deleted; the erasure is acknowledged.
+  name and of those a calendar refused (`calendar_missing`); their drafts
+  are deleted; the erasure is acknowledged.
 - No WebSocket: an open poll re-reads itself every 20 s, the home page every
   30 s, while visible.
 
@@ -361,7 +364,10 @@ closed poll is seen by those asked, its organiser and admins.
   member's `mailPreference` (studio.15, applied by `mail.send`; not
   transactional). The chosen date emailed to guests goes to outside
   addresses, which have no Chest preference, so the `transactional` flag
-  would change nothing there and is not set.
+  would change nothing there and is not set. Keys made from database ids
+  carry the recipient (studio.16): a guest's email key ends with their
+  address. `mail.available()` (studio.16) decides whether the guest form
+  asks for an email.
 - `groups: "read"` — **Proposal (studio)**, in `vendor/` (`members.groups.all`,
   `members.groups.members`, `group.*` events): any group of the Chest as an
   audience; results per team (`lib/groups.ts`, adapted from News).
@@ -369,6 +375,10 @@ closed poll is seen by those asked, its organiser and admins.
   Chest calendar (`calendar.putMany`, studio.15: keys `poll:<id>`, then
   `poll:<id>:2`… for each further 1,000 people); without it, the .ics
   file (Polls remembers the Chest's answer in `settings.calendar`).
+  `putMany` answers each part (studio.16): a part the Chest refuses (its
+  5,000 events full, a date out of its range) is taken out of calendars
+  and its people are remembered (`polls.calendar_missing`), so their page
+  offers the .ics file rather than saying "In your calendar".
 - `visitors` — **Proposal (studio)**: the guest form's token and the
   Chest's counters of visitors; without them, Polls counts in its own
   table (`guest_counts`).
