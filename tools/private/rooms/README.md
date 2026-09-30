@@ -267,21 +267,38 @@ leaves them to the person's usual week again. A freed desk is not booked
 again by itself; the days leave the person's calendar feed; a given desk
 is lent to others on those days (`lib/away.ts`).
 
+Leave shortens a leave by telling `leave.cancelled`, then `leave.approved`
+for the days that remain (the same request, the same moment). Events come
+at least once and not always in order, so Rooms keeps each request's
+**latest word** (`leave_words`: the request, the member id, the event's
+`occurredAt`, whether it stands, its last day): a word older than the one
+kept changes nothing, and at the same moment an approval wins over a
+cancellation — delivered in either order, the remaining days stay "Off"
+and the days cut open again. An approval told again with fewer days opens
+the others (days already past stay as they were). A cancellation is
+remembered a week (an approval delivered that late cannot bring the leave
+back), an approval until its last day is past; an erasure forgets them.
+
 ## Needs from the SDK
 
-All in the SDK working copy packed in `vendor/` (0.3.0-studio.15):
+All in the SDK working copy packed in `vendor/` (0.3.0-studio.16):
 
 - `member.locale`, `schedules.timeZone()` / `chest.teamUrl()` — **Proposal (studio)**.
 - `calendar` (`putMany`, `put`, `remove`, `ics`, `uidOf`, `page`) — **Proposal (studio)**:
   the members' calendar feeds, the `.ics` files. What changed goes in one
-  `putMany` (studio.15: up to 100 events, one write of the minute); when
-  the Chest refuses the batch for one event, each goes alone and only that
-  one is dropped.
+  `putMany` (studio.15: up to 100 events, one write of the minute); the
+  Chest answers each event (studio.16): one it took is remembered as sent,
+  one it refuses for good (too far ahead, long past) leaves the queue
+  without being remembered as sent, one refused because the Chest holds
+  its 5,000 events waits in the queue.
 - `mail.send` to `{member}` with attachments — **Proposal (studio)**: guests' emails,
   keyed by booking, revision and guest, passed whole (studio.15 hashes a key
   past 64 characters; before, one refused key stopped every later guest's
   email). Each guest's email preference in the Chest applies (none are
   marked transactional: an invitation is not the answer to their request).
+  `mail.available()` (studio.16): the booking form says "They get an
+  email" only while the Chest sends (granted, connected, not paused, the
+  day's emails not spent) — not merely because an email once went.
 - `members.groups.all`, all of `member.groups` — **Proposal (studio)** (`"groups": "read"`).
 - `schedules` — **Proposal (studio)**: the quarter-hour reminders and check-in.
 - Events between tools — **Proposal (studio)**: Leave's `leave.approved` / `leave.cancelled`.

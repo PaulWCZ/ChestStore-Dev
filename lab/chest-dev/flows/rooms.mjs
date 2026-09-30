@@ -1,6 +1,6 @@
 // Rooms, as people use it, in a real browser: node lab/chest-dev/flows/rooms.mjs [port]
 // (the harness runs the tool with --reset: the sample office and week are there).
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5000);
 // With --empty (a harness run with --empty: a new company, no office), only
@@ -692,6 +692,33 @@ await step("French words: a desk is a « poste » everywhere, the office stays �
   await page.goto(origin + "/chest/rooms");
   expect((await page.locator("h1").innerText()) === "Salles de réunion", "the title is not the button's words");
   await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+});
+
+// Leave shortens a leave by telling leave.cancelled, then leave.approved
+// for the days that remain (tools/private/leave/README.md, "With the other
+// tools"). Rooms keeps each request's latest word by occurredAt, an
+// approval winning at the same moment; delivered in reverse, the remaining
+// days stay too (test/away.test.ts — the harness's /_dev/deliver carries
+// no occurredAt of its own). Here, as the Chest delivers it, through the
+// tool's event route.
+await step("a leave shortened in Leave: its remaining days stay Off in Sofia's week, the days cut open again", async () => {
+  await as(context, origin, "sofia");
+  const days = [7, 8, 9, 10].map(n => iso(new Date(monday.getTime() + n * 864e5)));
+  const leave = { member: id("sofia"), from: days[0], to: days[3], fromHalf: "day", toHalf: "day", request: "flow-cut-1" };
+  const deliver = async (type, data) => {
+    const r = await page.request.post(origin + "/_dev/deliver", { form: { type, data: JSON.stringify(data) }, maxRedirects: 0 });
+    expect(r.status() === 303, `${type} delivered: ${r.status()}`);
+  };
+  const off = async () => {
+    await page.goto(origin + `/chest?day=${days[0]}`);
+    return (await Promise.all(days.map(async d => (await page.locator("#day-" + d).getAttribute("class")) ?? ""))).map(c => c.split(" ").includes("is-off"));
+  };
+  await deliver("leave.approved", leave);
+  expect((await off()).every(Boolean), "four days Off: " + (await off()).join(","));
+  await deliver("leave.cancelled", leave);
+  await deliver("leave.approved", { ...leave, to: days[1] });
+  const after = await off();
+  expect(after.join(",") === "true,true,false,false", "Monday and Tuesday still Off, Wednesday and Thursday open: " + after.join(","));
 });
 
 await step("a phone says to tap, not to drag", async () => {

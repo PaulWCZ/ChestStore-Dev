@@ -11,8 +11,9 @@ import { people } from "./people.ts";
 // {"send": true}), as a calendar invitation would: in their own language,
 // with the booking as an .ics file to add to any calendar. The Chest knows
 // their address ({member}); Rooms never does. On a Chest that cannot send
-// email yet, the bell and the calendar feed still tell them, and the tool
-// remembers it (settings.mail = 'off') so the booking form says so.
+// email yet, the bell and the calendar feed still tell them; the tool
+// remembers it (settings.mail = 'off', asked again an hour later), and the
+// booking form asks the Chest before promising an email (told(), below).
 //
 // Once per booking and version: the key (the booking, its revision and the
 // guest) makes a retry send nothing twice. It is passed whole, however long:
@@ -78,3 +79,20 @@ const whenOf = (start: Date, end: Date, locale: Locale, zone: string) =>
   formatDate(start, locale, zone, { weekday: "long", day: "numeric", month: "long" }) + ", " +
   formatDate(start, locale, zone, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) + "–" +
   formatDate(end, locale, zone, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+// How the people of a booking hear of it, as far as this Chest can tell.
+// Email is promised only when the Chest says it sends now
+// (mail.available, studio.16: granted, connected, not paused, the day's
+// emails not spent); when the Chest does not answer, what the last email
+// taught the tool (settings.mail).
+export async function told(sql: Sql): Promise<{ told: "bell" | "calendar" | "mail"; calendarOn: boolean }> {
+  const [s] = await sql<{ calendar: string; mail: string }[]>`select calendar, mail from settings`;
+  const calendarOn = s?.calendar === "on";
+  let mailOn = s?.mail === "on";
+  try {
+    mailOn = (await mail.available()).ok;
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+  }
+  return { told: mailOn ? "mail" : calendarOn ? "calendar" : "bell", calendarOn };
+}

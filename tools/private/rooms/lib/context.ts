@@ -83,10 +83,3 @@ export function formDays(c: Pick<Context, "today" | "rules">, exempt: boolean): 
   }
   return days;
 }
-
-// How the people of a booking hear of it, as far as this Chest can tell.
-export async function told(sql: Sql): Promise<{ told: "bell" | "calendar" | "mail"; calendarOn: boolean }> {
-  const [s] = await sql<{ calendar: string; mail: string }[]>`select calendar, mail from settings`;
-  const calendarOn = s?.calendar === "on";
-  return { told: s?.mail === "on" ? "mail" : calendarOn ? "calendar" : "bell", calendarOn };
-}

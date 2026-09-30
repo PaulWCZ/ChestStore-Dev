@@ -24,7 +24,8 @@ must not break.
 | `lib/calendar.ts` | The members' calendar feeds (Proposal: calendar): `enqueue` keys in the transaction that changes them, `flush` puts/removes from the database's state, `icsFile` for downloads |
 | `lib/usual.ts` | "My usual week": saved per weekday, applied once per (member, day) within the booking window when pages are read (`usual_applied`) |
 | `lib/check-in.ts`, `app/chest-jobs/[name]/route.ts` | The `quarter` schedule: reminders, check-in, freeing unclaimed rooms |
-| `lib/mail.ts` | Guests' emails with the `.ics` (Proposal: mail) |
+| `lib/mail.ts` | Guests' emails with the `.ics` (Proposal: mail); `told()`, how a booking's people hear of it (`mail.available()` before promising an email) |
+| `lib/away.ts`, `migrations/0007_leave_words.sql` | Leave's events: whole days "Off"; each request keeps Leave's latest word by `occurredAt` (an approval wins a tie: a shortened leave is cancelled + approved at the same moment), tested in both delivery orders |
 | `lib/groups.ts` | The Chest's groups (teams in Who's where, rooms/areas kept for a group) |
 | `lib/import.ts` | Moving in: Google Workspace resources CSV, desk owners CSV (tolerant headers) |
 | `lib/calendar-import.ts`, `lib/ical.ts`, `lib/wall-clock.ts`, `lib/windows-zones.ts` | Bookings already made: a room calendar's `.ics` read (the reader copied from Booking, THIRD_PARTY), weekly series kept, conflicts from the exclusion constraint itself; the preview is the same work rolled back; `source` (UID + start) makes a second import add nothing; `import_batch` is its Undo |

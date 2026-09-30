@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { weekdayLoad } from "../lib/export.ts";
+import { told } from "../lib/mail.ts";
 import * as rooms from "../lib/room-bookings.ts";
 import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -85,4 +86,21 @@ test("the office, day by day: the average since the first day anyone came, count
   // The same weekday a week ago (1 person) and today (2): 1.5 on average, over 2 days — not over 8.
   assert.equal(todays.people, 1.5);
   assert.equal(after.loads.reduce((sum, l) => sum + l.days, 0), 8);
+});
+
+// studio.16: the booking form promises an email only when the Chest says it
+// sends now (mail.available) — not once an email happened to go.
+test("the booking form promises an email only while the Chest sends: not connected or paused, the bell (or the calendar) instead", async () => {
+  const { sql } = database;
+  await sql`update settings set mail = 'unknown', calendar = 'unknown'`;
+  assert.equal((await told(sql)).told, "mail", "ready: promised before any email went");
+  chest.delivery.mail = "not_connected";
+  await sql`update settings set mail = 'on'`;
+  assert.equal((await told(sql)).told, "bell", "an email went once, but the owner disconnected mail since");
+  await sql`update settings set calendar = 'on'`;
+  assert.equal((await told(sql)).told, "calendar");
+  chest.delivery.mail = "suspended";
+  assert.equal((await told(sql)).told, "calendar");
+  chest.delivery.mail = "ready";
+  assert.equal((await told(sql)).told, "mail");
 });

@@ -71,7 +71,8 @@ await step("keyboard: Enter on a focused card opens it; Escape closes; Space sti
   expect(await page.locator(".panel").isVisible(), "panel open");
   await page.keyboard.press("Escape");
   await page.waitForURL(u => !/card=/u.test(String(u)));
-  const hint = await page.locator("[id^=DndDescribedBy]").first().textContent();
+  // The instructions the card itself points at (its aria-describedby).
+  const hint = await handle.evaluate(el => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? null);
   expect(/Press Enter to open a card/u.test(hint ?? ""), "the instructions say so: " + hint);
 });
 

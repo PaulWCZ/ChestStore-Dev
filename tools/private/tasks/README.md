@@ -251,7 +251,11 @@ README, "With the other tools"), v1:
 | `tasks.card.reopened` | `{card}` | `tasks:<card>:reopened:<time>` |
 
 `<time>` is when it happened (milliseconds): a card done again is told
-again, and Goals keeps the latest. **Reliable**: a trigger
+again, and Goals keeps the latest. The same time goes as the event's
+`occurredAt` (studio.16) when it is less than a day old, so Goals counts a
+card done at 23:55 on a cycle's last day in that cycle even when it is
+told at 00:10; older (a Chest down for a night), the Chest refuses a time
+that far back and the event goes without it (its time still in the key). **Reliable**: a trigger
 (`migrations/0006_card_events.sql`) writes each change in the same
 transaction as the card, whatever made it; `lib/card-events.ts` publishes
 after the action (Next's `after()`), and the `mail` schedule every quarter
@@ -283,9 +287,14 @@ another.
   `after()`) and by a `mail` schedule every 15 minutes; with no schedule
   and nobody using the tool, a waiting email leaves at the next visit. On a Chest without mail,
   `CapabilityNotGranted`: nothing is sent, nothing fails, the bell says it.
+  `mail.available()` (studio.16): under the email switch, *My tasks* says
+  when the Chest does not send email yet (not granted, not connected,
+  paused) or has spent its day's emails, instead of promising them.
 - `calendar` — **Proposal (studio)**: `calendar.putMany` (studio.15:
   100 events a call, so the first sync of a board full of due dates is a
-  few writes; a batch refused for one wrong event is put again one by one)
+  few writes; studio.16 answers each event: one the Chest refuses — a
+  wrong date, its 5,000 events full — is not remembered as put and is
+  tried again at the next run, the rest of the batch is put)
   / `remove` of each person's due dates (keys `card:<id>`, `step:<id>`;
   `lib/due-calendar.ts`),
   after each change (Next's `after()`), at each visit of *My tasks* and

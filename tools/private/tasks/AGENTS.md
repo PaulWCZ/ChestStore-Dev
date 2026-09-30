@@ -30,7 +30,7 @@ must not break.
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
-| `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit (Enter opens, Space picks up), keyboard moves, filters, the archive-column dialog |
+| `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit (Enter opens, Space picks up), keyboard moves, filters, the archive-column dialog. Its `DndContext` — and the calendar's and the timeline's — takes a `useId()` id: dnd-kit's own counter grows in the server's process, and from the second page served the cards' keyboard instructions (`aria-describedby`) would point at nothing (the flow checks it) |
 | `app/chest/boards/[id]/list-view.tsx`, `calendar-view.tsx` | The list (sort, group, done hidden; stacked cards on a phone) and the calendar (drag a card to a day) |
 | `app/chest/boards/[id]/timeline-view.tsx` | The timeline: bars start → due by column or person, lines to blockers (sizes shared with `globals.css`: scale 48, group 36, row 44), drag / keyboard moves both dates or the due date |
 | `app/chest/boards/[id]/card-panel.tsx` | A card (client): Mark done (refused while blocked, "Mark done anyway"), dates, "Blocked by", fields, checklists, Move or copy |
