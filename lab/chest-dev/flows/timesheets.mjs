@@ -356,7 +356,8 @@ await step("Hugo reads why his week came back and sends it again", async () => {
 });
 
 await step("his week sent again reaches both managers by email, each their own (keys given whole, SDK studio.15)", async () => {
-  const dev = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&amp;", "&");
+  // The harness's outbox (its Mail section; the bell's items are elsewhere).
+  const dev = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&amp;", "&").split("<h2>Mail (proposal)</h2>")[1] ?? "";
   const sent = dev.split("<li>").filter(li => /Hugo Bernard (sent their week|a envoyé sa semaine)/u.test(li)).slice(0, 2);
   const to = sent.map(li => /→ ([^<\s]+@[^<\s]+)/u.exec(li)?.[1]).sort();
   expect(to.join(",") === "camille@example.test,sofia@example.test", "the latest two: " + to.join(","));
