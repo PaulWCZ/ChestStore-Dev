@@ -144,8 +144,30 @@ acceptance, in a later round.
   Clients and Support adopting it (running).
 - **Showcase:** "Looks, side by side" and a whole-store look switch
   (committed); the missing brand shots on compared pages being added.
-- **Next:** critique round 3 on all 18 tools; update
-  `reports/05-critique.md`; PR description.
+- **Critique round 3 done** (`reports/05-critique.md` §Round 3,
+  `reports/05-critique/round-3/`): self-approval, privacy leaks, a
+  mis-filed form contact (the lead's own match rule), a switching-day
+  import bug, and "platform gaps" that were buildable. **Round-3 fixes:
+  all 18 tools verified by the lead** (2026-09-30).
+- **SDK studio.15** (106 tests): mail/event/webhook keys hashed not cut —
+  a cut key could drop one recipient's email silently; key conflicts
+  refused; fakeChest tool/clearCaches/network; matchEmails, putMany,
+  leftAt, mailPreference. **Kit 0.2.6** (164): toasts never stuck, above
+  phone bars; DayStrip one Tab stop; Chest theme headings.
+- **Pass 4 (studio.15 + 0.2.6 + each tool's open items):** verified —
+  Quotes, Support, Rooms, Equipment, Expenses, News, Forms, Status,
+  Clients, Booking, Wiki. Queued — Hiring, Tasks, People. Building —
+  Leave (+ calendar feed, leave.busy for Booking), Timesheets, Polls,
+  Goals (+ Tasks/Support feeds checked).
+- **Suite links now:** Forms → Clients/Support; Booking ⇄ Hiring (busy
+  times); Booking → Clients; Status → Support; Timesheets ⇄ Quotes;
+  People → Leave; Tasks/Support/Hiring → Goals; Equipment → People
+  (People side only).
+- **Open (scratchpad kit-next.md):** harness time zone for seeds (flows
+  can fail 22:00–00:00 UTC), harness egress fake for the tool process,
+  mailPreference/held in /_dev, leftAt for the harness's former member;
+  Clients board step flaky under load; Booking stable `at`; Equipment
+  sends `equipment.returned`; Booking receives `leave.busy`.
 - **Noted:** News search still matches raw mention tokens in its index
   (needs a migration).
 - **The lead's verify script** now waits for free ports and a live
