@@ -13,31 +13,16 @@ import type { IncomingMessage } from "node:http";
 //   (/_chest/members/{id}/photo?v=<rev>), role one of the roles chest.json
 //   declares: null when there is none.
 // - isBuilder says they build this tool; groups are the groups that give them
-//   this tool ("grp_…") — all their groups, 64 at most, for a tool that
-//   holds "groups": "read" (Proposal (studio)).
+//   this tool ("grp_…").
+// - language is the language the Chest speaks to this member (their own,
+//   else the Chest's default): a BCP 47 primary tag the product speaks
+//   ("en", "fr"…). The tool's private part (/chest) speaks it to them; a
+//   notification or an email to them is written in it.
+// - timeZone is the IANA zone the member works in ("America/New_York"):
+//   the one they chose in their profile, else their browser's, else the
+//   Chest's. Show them times in it; remind them at their hour in it. The
+//   company's day and business rules are the Chest's (chest.timeZone).
 // - email is there only when the tool holds "members.email".
-// - locale is the language the member reads the Chest in, among the
-//   languages of the store (locales): English when the Chest says none, or
-//   one the store does not speak yet. A tool shows its members' part in it
-//   and writes the notifications it sends that member in it.
-//   Proposal (studio): the "locale" claim of the assertion, and of the
-//   members API.
-// - mailPreference (Proposal (studio.15)) is how the member chose, once in
-//   the Chest, to receive the email of every tool: "all", "digest" (one
-//   email a day from the Chest gathering the others) or "none". Read-only:
-//   the Chest applies it in mail.send (transactional mail goes whatever
-//   it says); a tool reads it to say so ("You chose a daily email"). A
-//   tool may keep its own switch too ("no reminders from Tasks"): both
-//   apply — the tool's decides whether it sends, the Chest's whether and
-//   how the person receives. Absent when the Chest says nothing (a Chest
-//   before it): read it as "all".
-// - timeZone (Proposal (studio.16)) is the member's own time zone, an IANA
-//   name ("America/Montreal") the member chose in the Chest, for a person
-//   who works away from the company's zone: the day a leave starts for
-//   them, the hour their reminder comes. Absent when they chose none, or
-//   when the Chest says a zone this runtime does not know: read it with
-//   chest.timeZone(member), which falls back on the Chest's zone.
-export type MailPreference = "all" | "digest" | "none";
 export type Member = {
   id: string;
   firstName: string;
@@ -48,25 +33,41 @@ export type Member = {
   isAdmin: boolean;
   isBuilder: boolean;
   groups: string[];
-  locale: Locale;
+  language: string;
+  timeZone: string;
   email?: string;
+  // Proposal (studio.15): how the member chose to receive the email of
+  // every tool (below); absent when the Chest says nothing.
   mailPreference?: MailPreference;
-  timeZone?: string;
 };
+// What is the same for every member — the organization, the company's time
+// zone — is the Chest's: the chest module.
 
-// readTimeZone reads the Chest's word for a member's time zone: an IANA
-// name this runtime knows (64 characters at most), or undefined for
-// anything else — a zone the runtime lacks is not a reason to refuse the
-// member (Proposal (studio.16)).
-export function readTimeZone(value: unknown): string | undefined {
-  if (typeof value !== "string" || value === "" || value.length > 64 || !/^[A-Za-z0-9_+\-/]+$/u.test(value)) return undefined;
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: value });
-    return value;
-  } catch {
-    return undefined;
-  }
-}
+// The grammars of the identifiers the Chest mints: a tool may check with them
+// the identifiers it stores.
+export const memberIdPattern = /^mbr_[a-z2-7]{26}$/u;
+export const groupIdPattern = /^grp_[a-z2-7]{26}$/u;
+// The grammar of a language the Chest gives: a primary tag, whichever the
+// product speaks (a language added to the Chest needs no change here); of a
+// zone: UTC, or an area and a location ("Europe/Paris",
+// "America/Argentina/Buenos_Aires").
+export const languagePattern = /^[a-z]{2,3}$/u;
+export const timeZonePattern = /^(?:UTC|[A-Z][A-Za-z_]{1,31}(?:\/[A-Za-z0-9_+-]{1,31}){1,2})$/u;
+
+// ---- Studio proposals (not in 0.3.0) ---------------------------------------
+//
+// mailPreference (Proposal (studio.15)) is how the member chose, once in the
+// Chest, to receive the email of every tool: "all", "digest" (one email a
+// day from the Chest gathering the others) or "none". Read-only: the Chest
+// applies it in mail.send (transactional mail goes whatever it says); a tool
+// reads it to say so ("You chose a daily email"). A tool may keep its own
+// switch too ("no reminders from Tasks"): both apply — the tool's decides
+// whether it sends, the Chest's whether and how the person receives. The
+// Chest sends it as the claim mail_pref of the assertion, and mail_pref in
+// the members API; absent when the Chest says nothing (a Chest before it,
+// such as 0.3.0): read it as "all". An unknown value is left out, never a
+// reason to refuse the member.
+export type MailPreference = "all" | "digest" | "none";
 
 // mailPreferenceOf reads the Chest's word for a member's email preference:
 // one of the three, or undefined for anything else (a later Chest's value
@@ -75,34 +76,35 @@ export function mailPreferenceOf(value: unknown): MailPreference | undefined {
   return value === "all" || value === "digest" || value === "none" ? value : undefined;
 }
 
-// The languages of the store, the first one the default and fallback.
+// The languages the store's tools speak today, the first one the default and
+// fallback (Proposal (studio)). member.language is any language the Chest
+// speaks — a tool narrows it to one of its catalogues with localeOf, so that
+// a language added to the Chest before the tool translates it reads as
+// English rather than as nothing.
 export const locales = ["en", "fr"] as const;
 export type Locale = (typeof locales)[number];
 
-// localeOf is the store's language for a language tag of the Chest ("fr",
-// "fr-FR", "FR"): its primary subtag when the store speaks it, English
-// otherwise — also for anything that is not a tag.
+// localeOf is the store's language for a language tag ("fr", "fr-FR", "FR"):
+// its primary subtag when the store speaks it, English otherwise — also for
+// anything that is not a tag.
+//
+//   const t = catalogue[localeOf(who.language)];
 export function localeOf(tag: unknown): Locale {
   if (typeof tag !== "string" || tag.length > 35) return locales[0];
   const primary = tag.split(/[-_]/u)[0]!.toLowerCase();
   return (locales as readonly string[]).includes(primary) ? primary as Locale : locales[0];
 }
 
-// The grammars of the identifiers the Chest mints: a tool may check with them
-// the identifiers it stores.
-export const memberIdPattern = /^mbr_[a-z2-7]{26}$/u;
-export const groupIdPattern = /^grp_[a-z2-7]{26}$/u;
-
 // The key of the assertions is HMAC-SHA256 of this label under the text of
 // CHEST_TOKEN, exactly as the Chest derives it (chest/toolfront). Its version
-// is the shape of the claims: an assertion of another shape is refused. This
-// module stands alone (node:* only), so that it can be copied by itself.
+// changes when a claim changes meaning or goes, so that an assertion of
+// another shape is refused rather than misread; a claim added keeps it, as a
+// reader of the former claims still reads them. This module stands alone
+// (node:* only), so that it can be copied by itself.
 const label = "Chest-Member v2";
 // The claims every assertion carries; email only for a tool that holds
-// members.email, locale when the member chose a language (English
-// otherwise), mail_pref and zoneinfo (the OpenID Connect claim of a
-// person's time zone; studio.16) when the member chose them.
-const claims = ["iss", "aud", "iat", "exp", "sub", "given_name", "family_name", "name", "picture", "role", "admin", "builder", "groups"] as const;
+// members.email.
+const claims = ["iss", "aud", "iat", "exp", "sub", "given_name", "family_name", "name", "picture", "role", "admin", "builder", "groups", "language", "time_zone"] as const;
 // Clocks of the Chest and of the container may differ by this much, in seconds.
 const skew = 5;
 // An assertion is a few hundred bytes; anything longer is not one.
@@ -149,12 +151,13 @@ export function member(request: IncomingMessage | Request): Member | null {
   if (signature.length !== expected.length || !timingSafeEqual(signature, expected)) return null;
   const payload = json(encodedPayload);
   if (!payload || !claims.every(name => Object.hasOwn(payload, name))) return null;
-  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups, locale, mail_pref, zoneinfo } = payload;
+  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups, language, time_zone, mail_pref } = payload;
   if (typeof iss !== "string" || iss === "" || aud !== tool || typeof sub !== "string" || !memberIdPattern.test(sub)) return null;
   if (typeof iat !== "number" || !Number.isSafeInteger(iat) || typeof exp !== "number" || !Number.isSafeInteger(exp) || exp <= iat) return null;
   const now = Math.floor(Date.now() / 1000);
   if (iat > now + skew || exp <= now - skew) return null;
   if (typeof given_name !== "string" || typeof family_name !== "string" || typeof name !== "string" || typeof picture !== "string" || typeof role !== "string" || typeof admin !== "boolean" || typeof builder !== "boolean") return null;
-  if (!Array.isArray(groups) || groups.length > 64 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string") || (locale !== undefined && typeof locale !== "string")) return null;
-  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], locale: localeOf(locale), ...(email === undefined ? {} : { email }), ...(mailPreferenceOf(mail_pref) ? { mailPreference: mailPreferenceOf(mail_pref)! } : {}), ...(readTimeZone(zoneinfo) ? { timeZone: readTimeZone(zoneinfo)! } : {}) };
+  if (!Array.isArray(groups) || groups.length > 16 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string")) return null;
+  if (typeof language !== "string" || !languagePattern.test(language) || typeof time_zone !== "string" || !timeZonePattern.test(time_zone)) return null;
+  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], language, timeZone: time_zone, ...(email === undefined ? {} : { email }), ...(mailPreferenceOf(mail_pref) ? { mailPreference: mailPreferenceOf(mail_pref)! } : {}) };
 }

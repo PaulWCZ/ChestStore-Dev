@@ -1,6 +1,8 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import type { Alias, Provider } from "./ai.js";
+import type { AiUnavailableReason } from "./errors.js";
 import { occurredAtOf, type ChestEvent } from "./events.js";
 import { groupIdPattern, member as memberOf, memberIdPattern, type Member } from "./member.js";
 import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calendarKeyPattern, limits as calendarLimits, type CalendarEvent, type KeptEvent } from "./calendar.js";
@@ -13,9 +15,17 @@ import { checkInput as checkWebhookInput, checkMessage as checkWebhookMessage, d
 // For a tool's own tests, never imported by its production code: a member's
 // assertion signed as the Chest signs it, and a Chest's API in the test's
 // process that answers members, groups, files (stat, move, links; an upload
-// it authorises but does not receive), badges, notifications and the
-// acknowledgment of an erasure with the Chest's bounds, quotas and errors;
-// and that delivers an event to the tool, signed as the Chest signs it.
+// it authorises but does not receive), badges, notifications, AI (chat,
+// streamed or not, embeddings, models, usage: deterministic answers, no
+// provider) and the acknowledgment of an erasure with the Chest's bounds,
+// quotas and errors; and that delivers an event to the tool, signed as the
+// Chest signs it.
+//
+// 0.3.1-studio: the official fakeChest of 0.3.0, and the fakes of the
+// studio's proposals (Proposal (studio)): its front (uploads, links,
+// photos, public files, the look's files, calendar feeds), schedules, mail,
+// the calendar, webhooks, visitors, checks, events between tools, the
+// declared network, the tools installed beside this one, the look.
 //
 //   import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 //   const chest = await fakeChest({ members: [camille], capabilities: ["members", "files", "notifications"] });
@@ -24,9 +34,12 @@ import { checkInput as checkWebhookInput, checkMessage as checkWebhookMessage, d
 //   assert.equal(await chest.emit({ type: "access.revoked", data: { id: camille.id } }, request => app(request)), 204);
 //   await chest.close();
 
-// A member as a test names them: a Member, whose locale may be left out
-// (the Chest then says none, and the tool reads English).
-export type FakeMember = Omit<Member, "locale"> & { locale?: string };
+// A member as a test names them (Proposal (studio)): a Member whose
+// language and time zone may be left out — the fake Chest then gives the
+// Chest's own (options.chest: "en" and "UTC" unless said), as a real Chest
+// gives its default to a member who chose none. A value given is signed as
+// given: one the Chest never sends makes member() refuse it.
+export type FakeMember = Omit<Member, "language" | "timeZone"> & { language?: string; timeZone?: string };
 
 // A group as a fake Chest keeps it: its identifier, its name, and the
 // identifiers of its members. grants (true by default) says it gives the
@@ -42,15 +55,36 @@ export type FakeFile = { data: Uint8Array; type: string; updated: string };
 // key.
 export type FakeNotification = { member: string; title: string; body?: string; path: string; key?: string };
 
+// An alias a fake Chest maps: the model behind it, its provider (openrouter
+// by default) and its prices in US dollars per million tokens (1 and 2 by
+// default).
+export type FakeAiModel = { alias: Alias; model: string; provider?: Provider; input?: number; output?: number };
+// What a fake model answers: text, or text and tool calls (an id of call_…
+// by default; arguments are JSON text).
+export type FakeAiReply = string | { text?: string; toolCalls?: { name: string; arguments: string; id?: string }[] };
+// The AI of a fake Chest: the aliases the tool declared, each mapped (all
+// four by default: fake-default, fake-fast, fake-smart, fake-embedding); what
+// its models answer to a chat, given the request as the tool sent it (the
+// last user message's text, echoed, by default); the tool's monthly cap in
+// euros (5 by default; a call is refused cap_reached once the spending
+// reaches it, 0 refuses at once); and a reason that makes chat and
+// embeddings unavailable.
+export type FakeAi = { models?: FakeAiModel[]; reply?: (request: Record<string, unknown>) => FakeAiReply; cap?: number; unavailable?: AiUnavailableReason };
+// A call of the tool to the AI of a fake Chest: its path and its body as
+// sent (null for a GET).
+export type FakeAiCall = { path: string; body: unknown };
+
 // What a fake Chest is given: the members who have the tool, those who left
 // it (erased: their data was erased, the name gone), its groups, the
 // capabilities its version holds (a capability left out answers 403;
-// members, files and notifications by default, members.email to read the
+// members, files, notifications and ai by default, members.email to read the
 // addresses), the events it receives (["member.*"] by default, [] to answer
-// an acknowledgment 403), the files it keeps, and the origin of the team
-// host its links and uploads point to (https://<tool>-chest.chest.test by
-// default; a harness gives its own, http://localhost:<port>, and relays
-// /_chest/ to the fake Chest's address).
+// an acknowledgment 403), the files it keeps, its AI, and what the Chest is
+// (the chest module: "Test organization", UTC and English by default).
+// Proposal (studio): the origin of the team host its links and uploads point
+// to (https://<tool>-chest.chest.test by default; a harness gives its own,
+// http://localhost:<port>, and relays /_chest/ to the fake Chest's address),
+// and the options of the studio's proposals below.
 export type FakeChestOptions = {
   // studio.15: the tool's name (chest.json "name"), set as CHEST_TOOL while
   // the fake runs — what events.publish, member() and the signatures read.
@@ -63,19 +97,22 @@ export type FakeChestOptions = {
   capabilities?: string[];
   receives?: string[];
   files?: Record<string, { data: Uint8Array | string; type?: string }>;
+  ai?: FakeAi;
+  // What the Chest is (CHEST_ORGANIZATION, CHEST_TIME_ZONE, CHEST_LANGUAGE).
+  // Proposal (studio): its currency (CHEST_CURRENCY, unset unless named:
+  // chest.currency then reads EUR) and this tool's public host
+  // (CHEST_PUBLIC_URL, set only when named: a tool with a public part); the
+  // team host (CHEST_TEAM_URL) is the fake's origin.
+  chest?: { organization?: string; timeZone?: string; language?: string; currency?: string; publicUrl?: string };
+  // ---- Proposal (studio) ----
   origin?: string;
   schedules?: { name: string; cron: string }[];
-  timeZone?: string;
-  // Proposal (studio): the Chest's settings (chest.ts), set in the
-  // environment while the fake runs. The team URL is the fake's origin;
-  // the public URL is set only when named (a tool with a public part).
-  settings?: { company?: string; currency?: string; locale?: string; publicUrl?: string };
   // Proposal (studio): the other tools installed on this Chest, by name,
   // and their addresses (chest.toolUrl, CHEST_TOOL_URLS): true for a tool
   // with its team host only, at https://<name>-chest.chest.test; or its
   // team and public origins as a test names them (public: an open public
   // part). This tool is always there, at the fake's origin (and its
-  // settings.publicUrl).
+  // chest.publicUrl).
   tools?: Record<string, FakeToolAddresses | true>;
   // Proposal (studio): the Chest's ceiling per visitor's address across
   // the tools, an hour (visitors.count).
@@ -105,7 +142,8 @@ export type FakeChestOptions = {
   // Proposal (studio): the calendar bridge (with "calendar" in
   // capabilities): the Chest's domain in UIDs, the tool's title in each
   // event's category, the name of the feed ("Atelier Martin" gives "Chest
-  // — Atelier Martin"), and a Chest without it (false: 404).
+  // — Atelier Martin"; the Chest's organization when left out), and a Chest
+  // without it (false: 404).
   calendar?: { domain?: string; toolTitle?: string; company?: string } | false;
   // Proposal (studio): the look the company chose (chest.theme()): for all
   // its tools, and per tool (by name) — the tool receives its own override,
@@ -217,7 +255,7 @@ export type FakeChest = {
   api: string;
   token: string;
   tool: string;
-  members: FakeMember[];
+  members: Member[];
   // Those who left (or were erased): what members.lookup answers "former"
   // for. A test or a harness that removes a member moves them here (and
   // calls clearCaches()).
@@ -227,6 +265,7 @@ export type FakeChest = {
   notifications: FakeNotification[];
   badges: Map<string, number>;
   acknowledged: string[];
+  ai: FakeAiCall[];
   emit(event: FakeEvent, to: string | ((request: Request) => Response | Promise<Response>)): Promise<number>;
   upload(url: string, data: Uint8Array | string, type: string): Promise<Response>;
   // Proposal (studio): the tool's schedules, the runs delivered, and run(),
@@ -295,10 +334,26 @@ export type FakeChest = {
 
 const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString("base64url");
 
+// What an assertion is signed with and says besides the member: the token
+// (CHEST_TOKEN by default) and the tool (CHEST_TOOL by default) it is for,
+// and when it is issued (now by default). The member is signed as given: a
+// language or a zone the Chest would never send makes member() refuse the
+// assertion, as it refuses the Chest's. Proposal (studio): a language or a
+// zone left out is the Chest's (CHEST_LANGUAGE, CHEST_TIME_ZONE; "en" and
+// "UTC" outside a fake Chest).
+export type AssertionOptions = { token?: string; tool?: string; now?: Date };
+
+// completed is a test's member as the Chest would send them: the Chest's
+// language and zone for those left out (Proposal (studio)).
+function completed(member: FakeMember): Member {
+  return { ...member, language: member.language ?? process.env["CHEST_LANGUAGE"] ?? "en", timeZone: member.timeZone ?? process.env["CHEST_TIME_ZONE"] ?? "UTC" } as Member;
+}
+
 // signAssertion is the Chest-Member value the Chest's front would send for
-// that member: HS256 under the key of the token (CHEST_TOKEN by default), for
-// the tool (CHEST_TOOL by default), valid 60 seconds from now.
-export function signAssertion(member: FakeMember, options: { token?: string; tool?: string; now?: Date } = {}): string {
+// that member: HS256 under the key of the token, for the tool, valid 60
+// seconds from when it is issued.
+export function signAssertion(given: FakeMember, options: AssertionOptions = {}): string {
+  const member = completed(given);
   const token = options.token ?? process.env["CHEST_TOKEN"];
   const tool = options.tool ?? process.env["CHEST_TOOL"];
   if (!token || !tool) throw new Error("signAssertion needs a token and a tool: start a fakeChest, or name them");
@@ -307,7 +362,10 @@ export function signAssertion(member: FakeMember, options: { token?: string; too
   const body = encode({ alg: "HS256", typ: "JWT" }) + "." + encode({
     iss: `https://${tool}-chest.chest.test`, aud: tool, iat, exp: iat + 60, sub: member.id,
     given_name: member.firstName, family_name: member.lastName, name: member.name, picture: member.photo ?? "", role: member.role ?? "",
-    admin: member.isAdmin, builder: member.isBuilder, groups: member.groups, ...(member.email === undefined ? {} : { email: member.email }), ...(member.locale === undefined ? {} : { locale: member.locale }), ...(member.mailPreference === undefined ? {} : { mail_pref: member.mailPreference }), ...(member.timeZone === undefined ? {} : { zoneinfo: member.timeZone }),
+    admin: member.isAdmin, builder: member.isBuilder, groups: member.groups, time_zone: member.timeZone, ...(member.email === undefined ? {} : { email: member.email }),
+    language: member.language,
+    // Proposal (studio.15): the member's email preference.
+    ...(member.mailPreference === undefined ? {} : { mail_pref: member.mailPreference }),
   });
   // The key as the Chest derives it, and member() reads it: HMAC-SHA256 of
   // the label of the assertion's shape under the text of the token.
@@ -325,9 +383,10 @@ function signEvent(id: string, body: string, options: { token: string; tool: str
   return signed + "." + createHmac("sha256", key).update(signed).digest("base64url");
 }
 
-// withMember is the request carrying that member's assertion: a new Web
-// Request, or the same Node request with its header set.
-export function withMember<R extends Request | IncomingMessage>(request: R, member: FakeMember, options: { token?: string; tool?: string; now?: Date } = {}): R {
+// withMember is the request carrying that member's assertion, signed with
+// the options of signAssertion: a new Web Request, or the same Node request
+// with its header set.
+export function withMember<R extends Request | IncomingMessage>(request: R, member: FakeMember, options: AssertionOptions = {}): R {
   const assertion = signAssertion(member, options);
   if (request instanceof Request) {
     const headers = new Headers(request.headers);
@@ -350,6 +409,22 @@ const reordering = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
 const cleanTitle = (s: string): string => s.replace(/[\t\r\n]/gu, " ").replace(/\p{Cc}/gu, "").replace(reordering, "").trim();
 const cleanText = (s: string): string => s.replace(/\r\n?/gu, "\n").replace(/\t/gu, " ").replace(/[^\P{Cc}\n]/gu, "").replace(reordering, "").trim();
 const isPath = (p: unknown): boolean => typeof p === "string" && p.length <= maxPath && /^\/chest([/?#][\x21-\x5b\x5d-\x7e]*)?$/u.test(p) && !p.includes("//") && !p.split(/[?#]/u)[0]!.split("/").some(x => /^(\.|%2e){1,2}$/iu.test(x));
+
+// Its AI: aliases in order, bounds of a request, requests a minute.
+const aliasOrder: readonly Alias[] = ["default", "fast", "smart", "embedding"];
+const chatKeys = ["model", "messages", "max_tokens", "stream", "temperature", "top_p", "stop", "tools", "tool_choice", "response_format", "parallel_tool_calls", "seed", "reasoning_effort", "member"];
+const maxAiBody = 10 << 20, maxAiOutput = 128000, maxInputs = 256, aiPerMinute = 60, fakeDimensions = 8;
+// A fake count of tokens: one per 4 characters.
+const tokensOf = (text: string): number => Math.ceil(text.length / 4);
+// A vector of a text, the same for the same text: unit length.
+function vectorOf(text: string, dimensions: number): number[] {
+  const values: number[] = [];
+  for (let block = 0; values.length < dimensions; block++) {
+    for (const b of createHash("sha256").update(block + ":" + text).digest()) values.push(b / 127.5 - 1);
+  }
+  const kept = values.slice(0, dimensions), norm = Math.hypot(...kept) || 1;
+  return kept.map(x => x / norm);
+}
 
 const fold = (s: string): string => s.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
 
@@ -505,7 +580,7 @@ function routeNetwork(network: Record<string, FakeNetworkHandler>, log: FakeEgre
 // environment names one). What member() and the modules of the SDK read is
 // then this Chest's.
 export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChest> {
-  const capabilities = new Set(options.capabilities ?? ["members", "files", "notifications"]);
+  const capabilities = new Set(options.capabilities ?? ["members", "files", "notifications", "ai"]);
   const email = capabilities.has("members.email");
   if (options.tool !== undefined && (!toolNamePattern.test(options.tool) || options.tool.length > 63)) throw new Error(`fakeChest: ${JSON.stringify(options.tool)} is not a tool's name (chest.json "name")`);
   const tool = options.tool ?? (process.env["CHEST_TOOL"] || "tool");
@@ -534,7 +609,11 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], linked: Object.fromEntries(Object.entries(options.linked ?? {}).map(([t, l]) => [t, [...l]])), delivery: { mail: options.delivery?.mail ?? "ready", webhooks: options.delivery?.webhooks ?? "ready" }, deliver: async () => 0, checks: [], check: async () => 0, outbox: [], held: [], egress: [], clearCaches: () => {}, receive: async () => 0, calendar: new Map(), feed: () => "", feedUrl: () => "", newFeedUrl: () => "", bounce: async () => 0, schedules: [...(options.schedules ?? [])], theme: { all: options.theme?.all ?? null, tools: { ...options.theme?.tools } }, themeFiles: new Map(Object.entries(options.themeFiles ?? {}).map(([path, f]) => [path, { data: typeof f.data === "string" ? new TextEncoder().encode(f.data) : f.data, type: f.type ?? "application/octet-stream" }])), runs: [], run: async () => 0, webhooks: { targets: [], deliveries: [], events: [], to: options.webhooks?.to ?? null, respond: () => {}, retry: async () => 0 }, tools: {}, installTool: () => {}, removeTool: () => {}, close: async () => {} };
+  // What the Chest is, and a member as it gives them (their language and
+  // zone, else the Chest's).
+  const chestLanguage = options.chest?.language ?? "en", chestZone = options.chest?.timeZone ?? "UTC";
+  const full = (m: FakeMember): Member => ({ ...m, language: m.language ?? chestLanguage, timeZone: m.timeZone ?? chestZone } as Member);
+  const chest: FakeChest = { api: "", token, tool, members: (options.members ?? []).map(full), ai: [], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], linked: Object.fromEntries(Object.entries(options.linked ?? {}).map(([t, l]) => [t, [...l]])), delivery: { mail: options.delivery?.mail ?? "ready", webhooks: options.delivery?.webhooks ?? "ready" }, deliver: async () => 0, checks: [], check: async () => 0, outbox: [], held: [], egress: [], clearCaches: () => {}, receive: async () => 0, calendar: new Map(), feed: () => "", feedUrl: () => "", newFeedUrl: () => "", bounce: async () => 0, schedules: [...(options.schedules ?? [])], theme: { all: options.theme?.all ?? null, tools: { ...options.theme?.tools } }, themeFiles: new Map(Object.entries(options.themeFiles ?? {}).map(([path, f]) => [path, { data: typeof f.data === "string" ? new TextEncoder().encode(f.data) : f.data, type: f.type ?? "application/octet-stream" }])), runs: [], run: async () => 0, webhooks: { targets: [], deliveries: [], events: [], to: options.webhooks?.to ?? null, respond: () => {}, retry: async () => 0 }, tools: {}, installTool: () => {}, removeTool: () => {}, close: async () => {} };
   const former = chest.former;
   let window = 0, calls = 0;
   // matchEmails' day (Proposal (studio.15)): the distinct addresses asked.
@@ -542,8 +621,13 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   // A member's groups as the tool sees them: all with "groups" (Proposal
   // (studio)), else only those that give the tool.
   const seenGroups = (ids: string[]) => capabilities.has("groups") ? ids : ids.filter(g => chest.groups.find(x => x.id === g)?.grants !== false);
-  const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: seenGroups(m.groups), ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}), ...(m.mailPreference === undefined ? {} : { mail_pref: m.mailPreference }), ...(m.timeZone === undefined ? {} : { time_zone: m.timeZone }) });
-  const key = (m: FakeMember) => fold(m.name) + "\u0000" + m.id;
+  const shown = (given: Member) => {
+    // A member a test pushed without a language or a zone reads as the Chest
+    // gives them (Proposal (studio)).
+    const m = full(given);
+    return { id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: seenGroups(m.groups), language: m.language, time_zone: m.timeZone, ...(email && m.email !== undefined ? { email: m.email } : {}), ...(m.mailPreference === undefined ? {} : { mail_pref: m.mailPreference }) };
+  };
+  const key = (m: Member) => fold(m.name) + "\u0000" + m.id;
   const described = (name: string, f: FakeFile) => ({ name, type: f.type, size: f.data.byteLength, updated: f.updated });
 
   async function members(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
@@ -808,7 +892,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
         if (w && live(w, 86_400_000, now) && w.count >= itemsPerDay) continue;
         if (!days.has(m.id)) days.set(m.id, { start: 0, count: 0 });
         count(days.get(m.id)!, 86_400_000, now, 1);
-        const words = messages[m.locale ?? "en"] ?? messages["en"]!;
+        const words = messages[m.language] ?? messages["en"]!;
         if (key !== undefined) drop(n => n.member === m.id && n.key === key);
         const text = typeof words.body === "string" ? cleanText(words.body) : "";
         chest.notifications.push({ member: m.id, title: cleanTitle(words.title as string), ...(text ? { body: text } : {}), path: (path as string | undefined) ?? "/chest", ...(key !== undefined ? { key: key as string } : {}) });
@@ -1173,9 +1257,9 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const first = typeof key === "string" ? sentKeys.get(key) : undefined;
     if (first && Date.now() - first.at < 86_400_000) return first.recipients === fingerprint ? send(response, 200, first.answer) : send(response, 409, { error: "key_conflict" });
     // Each recipient's address and, when it is a member's, the member.
-    const resolve = (list: unknown): { address: string; member: FakeMember | undefined }[] | null => {
+    const resolve = (list: unknown): { address: string; member: Member | undefined }[] | null => {
       if (!Array.isArray(list)) return null;
-      const out: { address: string; member: FakeMember | undefined }[] = [];
+      const out: { address: string; member: Member | undefined }[] = [];
       for (const r of list) {
         if (typeof r === "string") out.push({ address: r, member: chest.members.find(x => x.email !== undefined && x.email.toLowerCase() === r.toLowerCase()) });
         else if (r && typeof r === "object" && typeof (r as { member?: unknown }).member === "string") {
@@ -1197,7 +1281,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       const preference = r.member?.mailPreference ?? "all";
       if (!transactional && preference !== "all") held.set(r.member!.id, preference);
     }
-    const heldBack = (r: { member: FakeMember | undefined }) => r.member !== undefined && held.has(r.member.id);
+    const heldBack = (r: { member: Member | undefined }) => r.member !== undefined && held.has(r.member.id);
     const to = toAll.filter(r => !heldBack(r)).map(r => r.address), cc = ccAll.filter(r => !heldBack(r)).map(r => r.address);
     const allowed = [...to, ...cc].filter(a => !suppressed.has(a.toLowerCase()));
     if (allowed.length === 0 && held.size === 0) return send(response, 422, { error: "suppressed" });
@@ -1310,12 +1394,106 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   // Chest; here in the clear, by member.
   const feeds = new Map<string, string>();
   const secret = () => randomBytes(32).toString("base64url");
-  const feedName = () => `Chest — ${calendarOptions?.company ?? options.settings?.company ?? "your company"}`;
+  const feedName = () => `Chest — ${calendarOptions?.company ?? options.chest?.organization ?? "Test organization"}`;
   const writeFeed = (id: string, locale?: string, now?: Date): string => {
     const who = chest.members.find(m => m.id === id);
     const events = who ? [...chest.calendar.values()].filter(e => e.members.includes(id)) : [];
-    return calendarFeed(events.map(e => ({ ...e, tool, origin, ...(calendarOptions?.toolTitle ? { toolTitle: calendarOptions.toolTitle } : {}) })), { locale: locale ?? who?.locale ?? "en", domain: calendarDomain, name: feedName(), ...(now ? { now } : {}) });
+    return calendarFeed(events.map(e => ({ ...e, tool, origin, ...(calendarOptions?.toolTitle ? { toolTitle: calendarOptions.toolTitle } : {}) })), { locale: locale ?? who?.language ?? "en", domain: calendarDomain, name: feedName(), ...(now ? { now } : {}) });
   };
+
+  // Its AI: the declared aliases, the spending this month, the requests this
+  // minute.
+  const mapped = (options.ai?.models ?? aliasOrder.map((alias): FakeAiModel => ({ alias, model: "fake-" + alias }))).map(m => ({ alias: m.alias, model: m.model, provider: m.provider ?? "openrouter", input: m.input ?? 1, output: m.output ?? 2 }));
+  const cap = options.ai?.cap ?? 5;
+  const aiMinute: Window = { start: 0, count: 0 };
+  let spent = 0;
+  const month = () => new Date().toISOString().slice(0, 7);
+  const resets = () => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString().replace(".000Z", "Z");
+  };
+  const spend = (m: { input: number; output: number }, input: number, output: number): number => {
+    const cost = Math.round((input * m.input + output * m.output) / 1e6 * 1e6) / 1e6;
+    spent = Math.round((spent + cost) * 1e6) / 1e6;
+    return cost;
+  };
+  // echo is the text of the last user message: its text, or its text parts.
+  const echo = (request: Record<string, unknown>): string => {
+    const last = [...request["messages"] as { role?: unknown; content?: unknown }[]].reverse().find(m => m?.role === "user")?.content;
+    return typeof last === "string" ? last : Array.isArray(last) ? last.map(p => (p as { text?: unknown })?.text).filter(t => typeof t === "string").join("") : "";
+  };
+
+  async function aiRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+    const raw = request.method === "POST" ? await body(request, maxAiBody) : null;
+    let command: Record<string, unknown> | null = null;
+    try {
+      const value = JSON.parse(raw?.toString() ?? "") as unknown;
+      if (value !== null && typeof value === "object" && !Array.isArray(value)) command = value as Record<string, unknown>;
+    } catch {
+      command = null;
+    }
+    chest.ai.push({ path: url.pathname, body: command });
+    if (!capabilities.has("ai")) return send(response, 403, { error: "capability_not_granted" });
+    if (request.method === "GET" && url.pathname === "/ai/models") return send(response, 200, { models: [...mapped].sort((a, b) => aliasOrder.indexOf(a.alias) - aliasOrder.indexOf(b.alias)) });
+    if (request.method === "GET" && url.pathname === "/ai/usage") return send(response, 200, { month: month(), spent, cap, resets: resets() });
+    if (request.method !== "POST" || (url.pathname !== "/ai/chat" && url.pathname !== "/ai/embeddings")) return send(response, 404, { error: "not_found" });
+    if (raw === null) return send(response, 413, { error: "too_large" });
+    const chat = url.pathname === "/ai/chat";
+    if (!command || !Object.keys(command).every(k => chat ? chatKeys.includes(k) : ["model", "input", "dimensions", "member"].includes(k))) return send(response, 400, { error: "invalid_body" });
+    const model = mapped.find(m => m.alias === command!["model"]);
+    if (!model) return send(response, 403, { error: "model_not_allowed" });
+    const member = command["member"];
+    if (member !== undefined && (typeof member !== "string" || !memberIdPattern.test(member))) return send(response, 400, { error: "invalid_body" });
+    const now = Date.now();
+    // refused says the refusal of a valid request, if any: the rate, the
+    // provider, the cap.
+    const refused = (): boolean => {
+      const busy = live(aiMinute, 60_000, now) && aiMinute.count >= aiPerMinute;
+      if (busy) send(response, 429, { error: "rate_limited" }, wait(aiMinute, 60_000, now));
+      else {
+        count(aiMinute, 60_000, now, 1);
+        if (options.ai?.unavailable) send(response, options.ai.unavailable === "provider_key_invalid" ? 502 : 503, { error: options.ai.unavailable });
+        else if (spent >= cap) send(response, 402, { error: "cap_reached", scope: "tool", resets: resets() });
+      }
+      return response.headersSent;
+    };
+    if (!chat) {
+      const input = command["input"], texts = typeof input === "string" ? [input] : input, dimensions = command["dimensions"] ?? fakeDimensions;
+      if (!Array.isArray(texts) || texts.length < 1 || texts.length > maxInputs || !texts.every(t => typeof t === "string") || typeof dimensions !== "number" || !Number.isInteger(dimensions) || dimensions < 1 || dimensions > 4096) return send(response, 400, { error: "invalid_body" });
+      if (refused()) return;
+      const used = texts.reduce((sum: number, t: string) => sum + tokensOf(t), 0);
+      const cost = spend(model, used, 0);
+      return send(response, 200, { object: "list", data: texts.map((t: string, index) => ({ object: "embedding", index, embedding: vectorOf(t, dimensions) })), model: model.model, usage: { prompt_tokens: used, total_tokens: used, cost } });
+    }
+    const messages = command["messages"], limit = command["max_tokens"] ?? 4096;
+    if (!Array.isArray(messages) || messages.length < 1 || !messages.every(m => m !== null && typeof m === "object" && typeof (m as { role?: unknown }).role === "string") || typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > maxAiOutput || !(command["stream"] === undefined || typeof command["stream"] === "boolean")) return send(response, 400, { error: "invalid_body" });
+    if (refused()) return;
+    const given = options.ai?.reply ? options.ai.reply(command) : echo(command);
+    const text = typeof given === "string" ? given : given.text ?? "";
+    const calls = (typeof given === "string" ? [] : given.toolCalls ?? []).map((c, i) => ({ id: c.id ?? `call_${i + 1}`, type: "function" as const, function: { name: c.name, arguments: c.arguments } }));
+    const input = tokensOf(JSON.stringify(messages)), output = tokensOf(text + calls.map(c => c.function.name + c.function.arguments).join(""));
+    const usage = { prompt_tokens: input, completion_tokens: output, total_tokens: input + output, prompt_tokens_details: { cached_tokens: 0 }, cost: spend(model, input, output) };
+    const finish = calls.length ? "tool_calls" : "stop";
+    const head = { id: "chatcmpl-fake", created: Math.floor(now / 1000), model: model.model };
+    if (command["stream"] !== true) {
+      return send(response, 200, { ...head, object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content: calls.length && !text ? null : text, ...(calls.length ? { tool_calls: calls } : {}) }, finish_reason: finish }], usage });
+    }
+    // Streamed: the role, the text word by word, each call's name then its
+    // arguments in two halves, the finish reason, the usage, [DONE].
+    const chunk = (choices: unknown[], extra: Record<string, unknown> = {}) => `data: ${JSON.stringify({ ...head, object: "chat.completion.chunk", choices, ...extra })}\n\n`;
+    const delta = (d: Record<string, unknown>, finishReason: string | null = null) => chunk([{ index: 0, delta: d, finish_reason: finishReason }]);
+    const parts = [delta({ role: "assistant", content: "" })];
+    for (const word of text.match(/\S+\s*|\s+/gu) ?? []) parts.push(delta({ content: word }));
+    calls.forEach((c, index) => {
+      const half = Math.ceil(c.function.arguments.length / 2);
+      parts.push(delta({ tool_calls: [{ index, id: c.id, type: "function", function: { name: c.function.name, arguments: "" } }] }));
+      for (const piece of [c.function.arguments.slice(0, half), c.function.arguments.slice(half)]) if (piece) parts.push(delta({ tool_calls: [{ index, function: { arguments: piece } }] }));
+    });
+    parts.push(delta({}, finish), chunk([], { usage }), "data: [DONE]\n\n");
+    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+    for (const part of parts) response.write(part);
+    response.end();
+  }
 
   // The acknowledgment of an erasure the tool was told of (emit).
   async function erasuresRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
@@ -1408,7 +1586,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
         return void response.writeHead(303, { Location: "/_chest/calendar" }).end();
       }
       const address = chest.feedUrl(who.id);
-      const fr = who.locale === "fr";
+      const fr = who.language === "fr";
       const esc = (v: string) => v.replace(/[&<>"']/gu, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
       const html = `<!doctype html><html lang="${fr ? "fr" : "en"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${fr ? "Votre calendrier Chest" : "Your Chest calendar"}</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;color:#1b1f24;background:#fff}input{width:100%;font:inherit;padding:.5rem;border:1px solid #8a9199;border-radius:6px}button,a.b{font:inherit;padding:.5rem 1rem;border-radius:6px;border:1px solid #1b1f24;background:#fff;color:#1b1f24;text-decoration:none;display:inline-block;margin:.5rem .5rem 0 0}@media (prefers-color-scheme:dark){body{background:#15181c;color:#e8ebee}button,a.b{background:#15181c;color:#e8ebee;border-color:#e8ebee}input{background:#0e1013;color:inherit}}</style></head><body><h1>${fr ? "Ajoutez votre calendrier Chest" : "Add your Chest calendar"}</h1><p>${fr ? "Vos réservations, absences et rendez-vous de tous les outils, dans l'agenda que vous utilisez déjà. Copiez l'adresse et ajoutez-la une fois." : "Your bookings, time off and meetings from every tool, in the calendar you already use. Copy the address and add it once."}</p><label for="feed">${fr ? "Adresse de votre calendrier (secrète)" : "Your calendar's address (keep it secret)"}</label><input id="feed" readonly value="${esc(address)}"><p><a class="b" href="${esc(address.replace(/^https?:/u, "webcal:"))}">${fr ? "Ouvrir dans Apple Calendar ou Outlook" : "Open in Apple Calendar or Outlook"}</a></p><p>${fr ? "Google Agenda : Autres agendas › + › À partir de l'URL, puis collez l'adresse. Google l'actualise à son rythme (souvent quelques heures)." : "Google Calendar: Other calendars › + › From URL, then paste the address. Google refreshes it at its own pace (often a few hours)."}</p><form method="post" action="/_chest/calendar/new"><p>${fr ? "Quelqu'un d'autre a l'adresse ? Remplacez-la : l'ancienne cesse de fonctionner." : "Someone else has the address? Replace it: the old one stops working."}</p><button>${fr ? "Nouvelle adresse" : "New address"}</button></form></body></html>`;
       return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": String(Buffer.byteLength(html)), "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" }).end(html);
@@ -1430,6 +1608,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const route = url.pathname.startsWith("/_chest/") ? frontRoute
       : url.pathname.startsWith("/erasures/") ? erasuresRoute
+      : url.pathname.startsWith("/ai/") ? aiRoute
       : url.pathname.startsWith("/mail/") ? mailRoute
       : url.pathname === "/calendar/events" || url.pathname.startsWith("/calendar/events/") ? calendarRoute
       : url.pathname === "/events" || url.pathname === "/events/receivers" ? eventsRoute
@@ -1444,12 +1623,12 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     route(request, response, url).catch(() => { if (!response.headersSent) send(response, 503, { error: "unavailable" }); else response.destroy(); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL", "CHEST_TIMEZONE", "CHEST_COMPANY", "CHEST_CURRENCY", "CHEST_LOCALE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].map(name => [name, process.env[name]]));
+  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL", "CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE", "CHEST_CURRENCY", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].map(name => [name, process.env[name]]));
   chest.api = "http://127.0.0.1:" + (server.address() as AddressInfo).port;
-  const zone = options.timeZone ?? "Europe/Paris";
-  Object.assign(process.env, { CHEST_API: chest.api, CHEST_TOKEN: token, CHEST_TOOL: tool, CHEST_TIMEZONE: zone, CHEST_TEAM_URL: origin });
-  const settings = options.settings ?? {};
-  for (const [name, value] of [["CHEST_COMPANY", settings.company], ["CHEST_CURRENCY", settings.currency], ["CHEST_LOCALE", settings.locale], ["CHEST_PUBLIC_URL", settings.publicUrl]] as const) {
+  const zone = chestZone;
+  Object.assign(process.env, { CHEST_API: chest.api, CHEST_TOKEN: token, CHEST_TOOL: tool, CHEST_ORGANIZATION: options.chest?.organization ?? "Test organization", CHEST_TIME_ZONE: zone, CHEST_LANGUAGE: chestLanguage, CHEST_TEAM_URL: origin });
+  const settings = { currency: options.chest?.currency, publicUrl: options.chest?.publicUrl };
+  for (const [name, value] of [["CHEST_CURRENCY", settings.currency], ["CHEST_PUBLIC_URL", settings.publicUrl]] as const) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
@@ -1466,7 +1645,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   chest.tools = { [tool]: { team: origin, public: settings.publicUrl ?? null } };
   for (const [name, given] of Object.entries(options.tools ?? {})) if (name !== tool) chest.tools[name] = addresses(name, given);
   chest.installTool = (name, given) => {
-    if (name === tool) throw new Error("fakeChest.installTool: this tool is already installed (its addresses are the fake's origin and settings.publicUrl)");
+    if (name === tool) throw new Error("fakeChest.installTool: this tool is already installed (its addresses are the fake's origin and chest.publicUrl)");
     chest.tools[name] = addresses(name, given);
     writeTools();
   };

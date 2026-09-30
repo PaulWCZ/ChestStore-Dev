@@ -7,7 +7,7 @@ import { member, type Member } from "../src/member.js";
 import * as members from "../src/members.js";
 import { fakeChest, withMember } from "../src/testing.js";
 
-const camille: Member = { id: "mbr_camilleaaaaaaaaaaaaaaaaaaa", firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: "agent", isAdmin: false, isBuilder: false, groups: [], locale: "fr", email: "camille@company.test" };
+const camille: Member = { id: "mbr_camilleaaaaaaaaaaaaaaaaaaa", firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: "agent", isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "Europe/Paris", email: "camille@company.test" };
 const code = (c: string) => (e: unknown) => e instanceof ChestError && e.code === c;
 
 test("send: to addresses or members (their address stays the Chest's), from a mailbox, once per key", async () => {

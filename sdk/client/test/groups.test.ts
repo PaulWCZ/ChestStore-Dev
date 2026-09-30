@@ -8,7 +8,7 @@ import { fakeChest, withMember } from "../src/testing.js";
 
 const gid = (name: string) => "grp_" + name + "a".repeat(26 - name.length);
 const mid = (name: string) => "mbr_" + name + "a".repeat(26 - name.length);
-const person = (name: string, groups: string[]): Member => ({ id: mid(name), firstName: name, lastName: "X", name: name + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups, locale: "en" });
+const person = (name: string, groups: string[]): Member => ({ id: mid(name), firstName: name, lastName: "X", name: name + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups, language: "en", timeZone: "Europe/Paris" });
 // A tool open to everyone: no group gives it, as News or Polls usually are.
 const sales = { id: gid("sales"), name: "Sales", members: [mid("ines"), mid("hugo"), mid("gone")], grants: false };
 const tech = { id: gid("tech"), name: "Tech", members: [mid("lea")], grants: false };
@@ -44,9 +44,12 @@ test("with \"groups\": every group of the Chest, who is in one among those who h
     await assert.rejects(members.groups.members("sales"), (e: unknown) => e instanceof ChestError && e.code === "invalid_id");
     assert.deepEqual((await members.get(ines.id))?.groups, [sales.id], "all of a member's groups");
     assert.deepEqual((await members.list({ group: sales.id })).members.map(m => m.id), [hugo.id, ines.id]);
-    // The assertion carries what the Chest gives: up to 64 groups.
-    const many = person("many", Array.from({ length: 40 }, (_, i) => gid("g" + "abcdefghijklmnopqrstuvwxyz"[i % 26]! + "bc"[Math.floor(i / 26)]!)));
-    assert.equal(member(withMember(new Request("http://tool.test/chest"), many))?.groups.length, 40);
+    // The assertion carries what the Chest gives, within the 16 groups that
+    // 0.3.0's member() reads (the proposal asked 64; 0.3.1-studio keeps the
+    // official bound, and members(id) is the complete answer).
+    const groupsOf = (n: number) => Array.from({ length: n }, (_, i) => gid("g" + "abcdefghijklmnopqrstuvwxyz"[i % 26]! + "bc"[Math.floor(i / 26)]!));
+    assert.equal(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(16))))?.groups.length, 16);
+    assert.equal(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(17)))), null);
   } finally {
     await chest.close();
   }

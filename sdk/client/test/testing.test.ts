@@ -2,18 +2,20 @@ import assert from "node:assert/strict";
 import { IncomingMessage } from "node:http";
 import { Socket } from "node:net";
 import { mock, test } from "node:test";
-import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, TooLarge } from "../src/errors.js";
+import * as ai from "../src/ai.js";
+import { AiCapReached, AiModelNotAllowed, AiUnavailable, CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, TooLarge } from "../src/errors.js";
 import * as files from "../src/files.js";
 import { member, type Member } from "../src/member.js";
 import * as members from "../src/members.js";
 import * as notifications from "../src/notifications.js";
 import { fakeChest, signAssertion, withMember } from "../src/testing.js";
+import { chest as theChest } from "../src/chest.js";
 
 const id = (name: string): string => "mbr_" + name + "a".repeat(26 - name.length);
 const nord = "grp_nordaaaaaaaaaaaaaaaaaaaaaa";
-const camille: Member = { id: id("camille"), firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: "editor", isAdmin: false, isBuilder: false, groups: [nord], locale: "fr", email: "camille@example.test" };
-const emile: Member = { id: id("emile"), firstName: "Émile", lastName: "Durand", name: "Émile Durand", photo: null, role: "reader", isAdmin: true, isBuilder: false, groups: [], locale: "en" };
-const zoe: Member = { id: id("zoe"), firstName: "Zoé", lastName: "Petit", name: "Zoé Petit", photo: null, role: "reader", isAdmin: false, isBuilder: true, groups: [], locale: "en" };
+const camille: Member = { id: id("camille"), firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: "editor", isAdmin: false, isBuilder: false, groups: [nord], language: "en", timeZone: "Europe/Paris", email: "camille@example.test" };
+const emile: Member = { id: id("emile"), firstName: "Émile", lastName: "Durand", name: "Émile Durand", photo: null, role: "reader", isAdmin: true, isBuilder: false, groups: [], language: "fr", timeZone: "America/New_York" };
+const zoe: Member = { id: id("zoe"), firstName: "Zoé", lastName: "Petit", name: "Zoé Petit", photo: null, role: "reader", isAdmin: false, isBuilder: true, groups: [], language: "en", timeZone: "UTC" };
 
 test("a fake Chest points the environment at itself, and restores it when closed", async () => {
   process.env["CHEST_TOOL"] = "notes";
@@ -25,21 +27,26 @@ test("a fake Chest points the environment at itself, and restores it when closed
     assert.match(chest.api, /^http:\/\/127\.0\.0\.1:[0-9]+$/u);
     assert.equal(process.env["CHEST_TOKEN"], chest.token);
     assert.equal(chest.tool, "notes");
+    assert.deepEqual([theChest.organization.name, theChest.timeZone, theChest.language], ["Test organization", "UTC", "en"]);
   } finally {
     await chest.close();
   }
   assert.equal(process.env["CHEST_API"], undefined);
   assert.equal(process.env["CHEST_TOKEN"], undefined);
+  assert.throws(() => theChest.timeZone, (e: unknown) => e instanceof ChestError && e.code === "not_in_chest");
   assert.equal(process.env["CHEST_TOOL"], "notes");
   delete process.env["CHEST_TOOL"];
 });
 
-test("an assertion signed for a member reads as that member, on a Web Request and a Node request", async () => {
+test("an assertion signed for a member reads as that member, in its language, on a Web Request and a Node request", async () => {
   const chest = await fakeChest();
   try {
     assert.deepEqual(member(withMember(new Request("http://tool.test/chest"), camille)), camille);
     const request = withMember(new IncomingMessage(new Socket()), emile);
     assert.deepEqual(member(request), emile);
+    // Signed as given: a language or a zone the Chest would never send is nobody.
+    assert.equal(member(withMember(new Request("http://tool.test/chest"), { ...camille, language: "French" })), null);
+    assert.equal(member(withMember(new Request("http://tool.test/chest"), { ...camille, timeZone: "CET" })), null);
     // Signed for another tool, or long ago, it is nobody.
     assert.equal(member(withMember(new Request("http://tool.test/chest"), camille, { tool: "other" })), null);
     assert.equal(member(withMember(new Request("http://tool.test/chest"), camille, { now: new Date(Date.now() - 120_000) })), null);
@@ -61,9 +68,9 @@ test("its members answer as a Chest's: order, pages, search, lookup, groups, add
     assert.deepEqual((await members.list({ group: nord })).members.map(m => m.id), [camille.id]);
     assert.equal(await members.get(id("mallory")), null);
     const found = await members.lookup([id("dan"), zoe.id, id("mallory")]);
-    assert.deepEqual([found.members.map(m => m.id), found.former, found.unknown], [[zoe.id], [{ id: id("dan"), name: "Dan", status: "former", leftAt: null }], [id("mallory")]]);
+    assert.deepEqual([found.members.map(m => m.id), found.former, found.unknown], [[zoe.id], [{ id: id("dan"), name: "Dan", status: "former" }], [id("mallory")]]);
     // Erased, a former member has no name any more.
-    assert.deepEqual((await members.lookup([id("eve")])).former, [{ id: id("eve"), name: null, status: "erased", leftAt: null }]);
+    assert.deepEqual((await members.lookup([id("eve")])).former, [{ id: id("eve"), name: null, status: "erased" }]);
     assert.deepEqual(await members.groups.list(), [{ id: nord, name: "Nord", members: [camille.id] }]);
     await assert.rejects(files.get("a.txt"), CapabilityNotGranted);
   } finally {
@@ -197,104 +204,105 @@ test("its notification quotas are a Chest's, and a refused call changes nothing"
   }
 });
 
-test("its front receives a member's upload once, within its bounds, and serves links and photos (origin for a harness)", async () => {
-  const chest = await fakeChest({ members: [camille], origin: "http://localhost:4000" });
+test("its AI answers deterministically, streamed or not, and keeps the calls", async () => {
+  const chest = await fakeChest();
   try {
-    const up = await files.uploadUrl("photos/", { maxSize: 8, types: ["image/*"] });
-    assert.match(up.url, /^http:\/\/localhost:4000\/_chest\/files\/upload\/[A-Za-z0-9_-]+\.up$/u);
-    assert.equal((await chest.upload(up.url, "not an image", "text/plain")).status, 415);
-    // A token serves once, even refused.
-    assert.equal((await chest.upload(up.url, "x", "image/png")).status, 403);
-    const again = await files.uploadUrl("photos/", { maxSize: 8, types: ["image/*"] });
-    assert.equal((await chest.upload(again.url, "123456789", "image/png")).status, 413);
-    const third = await files.uploadUrl("photos/", { maxSize: 8, types: ["image/*"] });
-    const sent = await chest.upload(third.url, "1234", "image/png");
-    assert.equal(sent.status, 201);
-    const { name, size } = await sent.json() as { name: string; size: number };
-    assert.match(name, /^photos\/[0-9a-f]{20}\.png$/u);
-    assert.equal(size, 4);
-    assert.equal((await files.stat(name))?.type, "image/png");
-    const link = await files.url(name);
-    assert.match(link.url, /^http:\/\/localhost:4000\/_chest\/files\//u);
-    const served = await fetch(chest.api + new URL(link.url).pathname);
-    assert.equal(await served.text(), "1234");
-    const photo = await fetch(chest.api + "/_chest/members/" + camille.id + "/photo");
-    assert.equal(photo.headers.get("content-type"), "image/svg+xml");
-    assert.match(await photo.text(), />CM</u);
+    const messages: ai.ChatMessage[] = [{ role: "system", content: "Be brief." }, { role: "user", content: "Hello there, Chest" }];
+    const r = await ai.chat({ model: "default", messages, member: camille.id });
+    assert.deepEqual([r.text, r.model, r.finishReason, r.toolCalls], ["Hello there, Chest", "fake-default", "stop", []]);
+    assert.ok(r.usage.input > 0 && r.usage.output > 0 && r.usage.cost > 0);
+    const pieces: ai.ChatChunk[] = [];
+    for await (const piece of ai.chat({ model: "fast", messages, stream: true })) pieces.push(piece);
+    assert.equal(pieces.map(p => p.text).join(""), "Hello there, Chest");
+    assert.equal(pieces.at(-2)?.finishReason, "stop");
+    assert.deepEqual(pieces.at(-1)?.usage, r.usage);
+    assert.deepEqual(chest.ai.map(c => c.path), ["/ai/chat", "/ai/chat"]);
+    assert.deepEqual(chest.ai[0]?.body, { model: "default", messages, member: camille.id });
+
+    const one = await ai.embed({ model: "embedding", input: ["a", "b", "a"] });
+    assert.equal(one.model, "fake-embedding");
+    assert.equal(one.embeddings[0]?.length, 8);
+    assert.deepEqual(one.embeddings[0], one.embeddings[2]);
+    assert.notDeepEqual(one.embeddings[0], one.embeddings[1]);
+    assert.ok(Math.abs(Math.hypot(...one.embeddings[1]!) - 1) < 1e-9);
+    assert.equal((await ai.embed({ model: "embedding", input: "a", dimensions: 100 })).embeddings[0]?.length, 100);
+
+    assert.deepEqual((await ai.models()).map(m => [m.alias, m.model, m.provider]), [["default", "fake-default", "openrouter"], ["fast", "fake-fast", "openrouter"], ["smart", "fake-smart", "openrouter"], ["embedding", "fake-embedding", "openrouter"]]);
+    const month = await ai.usage();
+    assert.equal(month.cap, 5);
+    assert.equal(month.month, new Date().toISOString().slice(0, 7));
+    assert.ok(month.spent > 0 && month.resetsAt > new Date());
+    const raw = await fetch(chest.api + "/ai/chat", { method: "POST", body: JSON.stringify({ model: "default", messages, n: 2 }) });
+    assert.deepEqual([raw.status, await raw.json()], [400, { error: "invalid_body" }]);
   } finally {
     await chest.close();
   }
 });
 
-test("public uploads (proposal): a visitor sends to the public host, 10 MiB at most, under uploads/public/; public files are served", async () => {
-  const chest = await fakeChest({ members: [camille], origin: "http://localhost:4000", storage: { publicUploads: true, publicFiles: true } });
+test("its AI answers what reply says, tool calls too, streamed in pieces", async () => {
+  const asked: unknown[] = [];
+  const chest = await fakeChest({ ai: { reply: request => { asked.push(request["tools"]); return { toolCalls: [{ name: "lookup", arguments: "{\"id\":\"42\"}" }] }; } } });
   try {
-    await assert.rejects(files.uploadUrl("cv/", { public: true }), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
-    await assert.rejects(files.uploadUrl("uploads/public/", { public: true, maxSize: 11 << 20 }), TooLarge);
-    const up = await files.uploadUrl("uploads/public/", { public: true, types: ["application/pdf"] });
-    assert.match(up.url, /^http:\/\/localhost:4000\/_chest\/upload\/[A-Za-z0-9_-]+\.up$/u);
-    // A public token does not work on the team host's route.
-    assert.equal((await chest.upload(up.url.replace("/_chest/upload/", "/_chest/files/upload/"), "%PDF", "application/pdf")).status, 403);
-    const again = await files.uploadUrl("uploads/public/", { public: true, types: ["application/pdf"] });
-    const sent = await chest.upload(again.url, "%PDF-1.7", "application/pdf");
-    assert.equal(sent.status, 201);
-    // The visitor gets a claim, never the object's name; the tool trades it once.
-    const answer = (await sent.json()) as { name?: string; claim: string; size: number };
-    assert.equal(answer.name, undefined);
-    assert.equal(answer.size, 8);
-    const claimed = await files.claim(answer.claim);
-    assert.match(claimed.name, /^uploads\/public\/[0-9a-f]{20}\.pdf$/u);
-    await assert.rejects(files.claim(answer.claim), (e: unknown) => e instanceof ChestError && e.code === "not_found");
-    await assert.rejects(files.claim("guessed" + "x".repeat(20) + ".claim"), (e: unknown) => e instanceof ChestError && e.code === "not_found");
-    // Unclaimed within its time, the Chest deletes it by itself.
-    await assert.rejects(files.uploadUrl("uploads/public/", { public: true, expiresUnclaimedAfter: 5 }), (e: unknown) => e instanceof ChestError);
-    const short = await files.uploadUrl("uploads/public/", { public: true, expiresUnclaimedAfter: 60 });
-    const left = (await (await chest.upload(short.url, "%PDF-1.7", "application/pdf")).json()) as { claim: string };
-    assert.ok(left.claim);
-    await files.put("public/logo.svg", "<svg/>", "image/svg+xml");
-    assert.equal(files.publicUrl("public/logo.svg", { version: "3" }), "/_chest/public/logo.svg?v=3");
-    assert.throws(() => files.publicUrl("private/logo.svg"), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
-    const served = await fetch(chest.api + "/_chest/public/logo.svg");
-    assert.equal(served.headers.get("cache-control"), "public, max-age=3600");
-    assert.equal(await served.text(), "<svg/>");
+    const tools: ai.ChatTool[] = [{ type: "function", function: { name: "lookup", parameters: { type: "object" } } }];
+    const r = await ai.chat({ model: "smart", messages: [{ role: "user", content: "Task 42?" }], tools });
+    assert.deepEqual([r.text, r.finishReason, r.toolCalls], ["", "tool_calls", [{ id: "call_1", name: "lookup", arguments: "{\"id\":\"42\"}" }]]);
+    assert.deepEqual(r.message, { role: "assistant", content: null, tool_calls: [{ id: "call_1", type: "function", function: { name: "lookup", arguments: "{\"id\":\"42\"}" } }] });
+    assert.deepEqual(asked, [tools]);
+    const calls: { id?: string; name?: string; arguments: string }[] = [];
+    for await (const piece of ai.chat({ model: "smart", messages: [{ role: "user", content: "Task 42?" }], stream: true })) {
+      for (const d of piece.toolCalls ?? []) {
+        const call = calls[d.index] ??= { arguments: "" };
+        if (d.id) call.id = d.id;
+        if (d.name) call.name = d.name;
+        call.arguments += d.arguments ?? "";
+      }
+    }
+    assert.deepEqual(calls, [{ id: "call_1", name: "lookup", arguments: "{\"id\":\"42\"}" }]);
   } finally {
     await chest.close();
-  }
-  const closed = await fakeChest({ members: [camille] });
-  try {
-    await assert.rejects(files.uploadUrl("uploads/public/", { public: true }), CapabilityNotGranted);
-  } finally {
-    await closed.close();
   }
 });
 
-// Proposal (studio.15): Equipment matches Intune's users to members without
-// reading every member's address.
-test("members.matchEmails: addresses → member ids, only for members who have the tool, without members.email", async () => {
-  const lea: Member = { ...zoe, id: id("lea"), firstName: "Léa", name: "Léa Petit", email: "Lea.Petit@Example.test" };
-  const chest = await fakeChest({ members: [camille, lea, emile], former: [{ id: id("dan"), name: "Dan" }], capabilities: ["members"] });
+test("its AI refuses as the Chest's: undeclared model, cap, connector, capability, rate", async () => {
+  const chest = await fakeChest({ ai: { models: [{ alias: "default", model: "m", input: 1_000_000, output: 1_000_000 }], cap: 1 } });
   try {
-    const found = await members.matchEmails([" camille@EXAMPLE.test", "lea.petit@example.test", "Lea.Petit@example.test", "dan@example.test", "nobody@example.test", "not an address", ""]);
-    // Each address as given; the case and spaces around do not matter.
-    assert.deepEqual(found, { " camille@EXAMPLE.test": camille.id, "lea.petit@example.test": lea.id, "Lea.Petit@example.test": lea.id });
-    // The tool learnt ids, not addresses: members.* still hide them.
-    assert.equal((await members.get(lea.id))?.email, undefined);
-    assert.deepEqual(await members.matchEmails([]), {});
-    // Any number: 200 a call.
-    const many = Array.from({ length: 450 }, (_, n) => `guess${n}@example.test`).concat("camille@example.test");
-    assert.deepEqual(await members.matchEmails(many), { "camille@example.test": camille.id });
-    // 5,000 distinct addresses a day: the same ones again are free, new ones beyond are refused.
-    await members.matchEmails(Array.from({ length: 4546 }, (_, n) => `more${n}@example.test`));
-    assert.deepEqual(await members.matchEmails(["camille@example.test", "guess1@example.test"]), { "camille@example.test": camille.id });
-    await assert.rejects(members.matchEmails(["one-more@example.test"]), QuotaExceeded);
-    await assert.rejects(members.matchEmails([42 as unknown as string]), (e: unknown) => e instanceof ChestError && e.code === "invalid_query");
+    await assert.rejects(ai.chat({ model: "fast", messages: [{ role: "user", content: "a" }] }), AiModelNotAllowed);
+    assert.deepEqual((await ai.models()).map(m => m.alias), ["default"]);
+    // Each call costs a euro a token: the first spends the cap, the next is refused.
+    await ai.chat({ model: "default", messages: [{ role: "user", content: "a" }] });
+    await assert.rejects(ai.chat({ model: "default", messages: [{ role: "user", content: "a" }] }), (e: unknown) => e instanceof AiCapReached && e.scope === "tool" && e.resetsAt > new Date());
+    const month = await ai.usage();
+    assert.ok(month.spent >= month.cap);
   } finally {
     await chest.close();
   }
-  const bare = await fakeChest({ capabilities: [] });
+  for (const reason of ["no_connector", "provider_key_invalid", "provider_unavailable"] as const) {
+    const down = await fakeChest({ ai: { unavailable: reason } });
+    try {
+      await assert.rejects(ai.chat({ model: "default", messages: [{ role: "user", content: "a" }] }), (e: unknown) => e instanceof AiUnavailable && e.reason === reason);
+      await assert.rejects(ai.embed({ model: "embedding", input: "a" }), AiUnavailable);
+    } finally {
+      await down.close();
+    }
+  }
+  const spent = await fakeChest({ ai: { cap: 0 } });
   try {
-    await assert.rejects(members.matchEmails(["a@example.test"]), CapabilityNotGranted);
+    await assert.rejects(ai.embed({ model: "embedding", input: "a" }), AiCapReached);
   } finally {
-    await bare.close();
+    await spent.close();
+  }
+  const without = await fakeChest({ capabilities: ["members"] });
+  try {
+    await assert.rejects(ai.chat({ model: "default", messages: [{ role: "user", content: "a" }] }), CapabilityNotGranted);
+    assert.equal(without.ai.length, 1);
+  } finally {
+    await without.close();
+  }
+  const busy = await fakeChest();
+  try {
+    for (let i = 0; i < 60; i++) await ai.embed({ model: "embedding", input: "a" });
+    await assert.rejects(ai.embed({ model: "embedding", input: "a" }), RateLimited);
+  } finally {
+    await busy.close();
   }
 });

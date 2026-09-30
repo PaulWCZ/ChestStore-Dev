@@ -5,7 +5,7 @@ import { CapabilityNotGranted, ChestError } from "../src/errors.js";
 import type { Member } from "../src/member.js";
 import { fakeChest, withMember } from "../src/testing.js";
 
-const person = (key: string, locale: "en" | "fr"): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], locale });
+const person = (key: string, locale: "en" | "fr"): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: locale, timeZone: "Europe/Paris" });
 const camille = person("camille", "fr"), hugo = person("hugo", "en"), nora = person("nora", "en");
 const code = (c: string) => (e: unknown) => e instanceof ChestError && e.code === c;
 const octets = (line: string) => Buffer.byteLength(line);

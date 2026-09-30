@@ -16,7 +16,7 @@ import * as webhooks from "../src/webhooks.js";
 // long as it lives (calendar, notifications) are refused beyond 64, never
 // cut — and the Chest refuses a retry key reused for something else.
 
-const person = (key: string): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], locale: "en" });
+const person = (key: string): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" });
 const camille = person("camille"), hugo = person("hugo");
 const code = (c: string) => (e: unknown) => e instanceof ChestError && e.code === c;
 // A key of 70 characters whose last part tells two things apart.

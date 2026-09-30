@@ -53,15 +53,15 @@ test("counting: per visitor, per hour for everyone, and the Chest's ceiling per 
 });
 
 test("the visitor's language: the switch, the browser, then the Chest's", () => {
-  const saved = process.env["CHEST_LOCALE"];
+  const saved = process.env["CHEST_LANGUAGE"];
   try {
-    process.env["CHEST_LOCALE"] = "fr";
+    process.env["CHEST_LANGUAGE"] = "fr";
     assert.equal(visitors.language(new Headers({ cookie: "a=1; lang=en" , "accept-language": "fr" })), "en");
     assert.equal(visitors.language(new Headers({ "accept-language": "de-DE, en;q=0.8, fr;q=0.9" })), "fr");
     assert.equal(visitors.language(new Headers({ "accept-language": "de" })), "fr");
     assert.equal(visitors.language(new Headers({ cookie: "lang=xx" })), "fr");
   } finally {
-    if (saved === undefined) delete process.env["CHEST_LOCALE"];
-    else process.env["CHEST_LOCALE"] = saved;
+    if (saved === undefined) delete process.env["CHEST_LANGUAGE"];
+    else process.env["CHEST_LANGUAGE"] = saved;
   }
 });

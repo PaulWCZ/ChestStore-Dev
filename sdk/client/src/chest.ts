@@ -1,73 +1,102 @@
-// Proposal (studio): the Chest's own settings, which every tool needs and
-// none should ask its admin for again — the company's name, its time zone,
-// its currency and language, and the addresses the tool is served at. The
-// Chest gives them to each tool in its environment (read at call time: a
-// change by the owner reaches the tool at its next start):
+import { ask, json } from "./api.js";
+import { ChestError } from "./errors.js";
+import { languagePattern, timeZonePattern } from "./member.js";
+
+// The Chest the tool runs in, the same for every member and every request:
+// the organization it is of, its time zone and its language. The Chest sets
+// them in the tool's environment at each start (CHEST_ORGANIZATION,
+// CHEST_TIME_ZONE, CHEST_LANGUAGE) and starts the tool again when its owner
+// changes one, so they are there outside any request too: in a scheduled
+// job, at start-up, in a migration script. The Chest also sets its time zone
+// as the zone of the tool's database sessions: there, current_date and
+// now()::date are the Chest's day too.
 //
-//   CHEST_COMPANY     the company's name, as the owner wrote it ("Atelier Martin")
-//   CHEST_TIMEZONE    an IANA zone ("Europe/Paris")
+// - organization.name is the organization's name as its owner wrote it
+//   ("Acme SAS"), plain text of 2 to 80 characters: for a header, a document,
+//   an email.
+// - timeZone is an IANA zone ("Europe/Paris"; "UTC" until the owner sets
+//   one): the day of "due today", the hour of a reminder.
+// - language is the Chest's own language, a primary tag ("en", "fr"): the
+//   language of what the tool writes for no one in particular (a public page
+//   before the visitor chooses, an export). A member's is member.language.
+// - today() is the date ("YYYY-MM-DD") in the Chest's zone, now or at the
+//   instant given.
+//
+// Reading one outside a Chest (no fakeChest in a test, a development server
+// without the variables) throws a ChestError "not_in_chest": a wrong zone
+// read silently is the bug this module is for.
+export type Chest = {
+  readonly organization: { readonly name: string };
+  readonly timeZone: string;
+  readonly language: string;
+  today(at?: Date | number): string;
+};
+
+// The shapes the Chest gives: the organization's (2 to 80 characters,
+// counted as code points, without control characters), a zone's
+// (timeZonePattern, and one this runtime knows), a language's.
+const organizationPattern = /^[^\u0000-\u001f\u007f-\u009f]{2,80}$/u;
+
+function read(name: string, valid: (value: string) => boolean): string {
+  const value = process.env[name];
+  if (typeof value !== "string" || !valid(value)) throw new ChestError("not_in_chest", 500, `not running in a Chest: ${name} is missing or invalid`);
+  return value;
+}
+
+function knownZone(zone: string): boolean {
+  if (!timeZonePattern.test(zone)) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const zone = (): string => read("CHEST_TIME_ZONE", knownZone);
+
+// dateIn is the date at that instant in a zone, as YYYY-MM-DD.
+function dateIn(at: Date, zone: string): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at).map(p => [p.type, p.value]));
+  return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
+}
+
+
+// ---- Studio proposals (not in 0.3.0) ---------------------------------------
+//
+// What the studio's tools need of the Chest beyond 0.3.0, attached to the
+// same object — chest.currency, chest.teamUrl, chest.publicUrl,
+// chest.toolUrl(), chest.toolLink(), chest.theme(), chest.todayIn() — so a
+// tool reads everything about its Chest in one place (below). They never
+// throw for a missing setting, unlike the official members: a Chest that
+// does not give them yet (0.3.0) answers the documented default (EUR, null,
+// the tool's own look), so the tool keeps working. The helpers a test or the
+// Chest itself needs (forgetTheme, readThemeChoice, readToolUrls and the
+// grammars) are named exports of this module.
+//
+// Proposal (studio): the company's currency and the tool's own addresses.
+// The Chest gives them to each tool in its environment, beside the official
+// three (read at each access: a change by the owner reaches the tool at its
+// next start):
+//
 //   CHEST_CURRENCY    an ISO 4217 code ("EUR")
-//   CHEST_LOCALE      the Chest's default language ("fr")
 //   CHEST_TEAM_URL    the tool's team host ("https://tasks-chest.atelier-martin.fr")
 //   CHEST_PUBLIC_URL  its public host, for a tool with a public part
 //                     ("https://booking.atelier-martin.fr"); absent otherwise
 //
-// Before: every tool hard-coded Europe/Paris, derived its public address
-// from X-Forwarded-Host (and remembered it in its database for emails sent
-// by a schedule), and asked its admin for the company's name in its own
-// settings.
-import { ask, json } from "./api.js";
-import { localeOf, readTimeZone, type Locale } from "./member.js";
+// Before: every tool derived its public address from X-Forwarded-Host (and
+// remembered it in its database for emails sent by a schedule), and asked
+// its admin for the company's currency in its own settings.
 
-const env = (name: string): string | undefined => {
+const setting = (name: string): string | undefined => {
   const value = process.env[name];
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 };
 
-// company is the company's name ("" when the Chest has none).
-export function company(): string {
-  const value = env("CHEST_COMPANY");
-  return value && value.length <= 120 && !/[\u0000-\u001f]/u.test(value) ? value : "";
-}
-
-// timeZone is the Chest's time zone: the day of "due today", the hour of a
-// reminder. Europe/Paris when the Chest says none, or one this runtime does
-// not know.
-//
-// Proposal (studio.16): given a member (member(request), members.lookup),
-// it is that member's own zone when they chose one in the Chest
-// (member.timeZone), the Chest's otherwise — the zone of what concerns one
-// person: the whole days of their leave, the hour of their reminder, "today"
-// on their own page. What concerns everyone (a room's opening hours, a
-// company-wide cycle, a schedule's hour) keeps the Chest's zone.
-//
-//   const zone = chest.timeZone(who);            // "America/Montreal", or the Chest's
-//   const day = chest.today(Date.now(), zone);
-export function timeZone(member?: { timeZone?: string | undefined } | null): string {
-  const own = member ? readTimeZone(member.timeZone) : undefined;
-  if (own) return own;
-  const value = env("CHEST_TIMEZONE");
-  return readTimeZone(value) ?? "Europe/Paris";
-}
-
-// today is the date ("YYYY-MM-DD") at that instant in the Chest's zone (or
-// the one given).
-export function today(at: Date | number = Date.now(), zone: string = timeZone()): string {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(typeof at === "number" ? new Date(at) : at).map(p => [p.type, p.value]));
-  return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
-}
-
-// currency is the company's currency (ISO 4217), EUR by default.
-export function currency(): string {
-  const value = env("CHEST_CURRENCY");
+// currencyOf is the company's currency (ISO 4217), EUR by default.
+function currencyOf(): string {
+  const value = setting("CHEST_CURRENCY");
   return value && /^[A-Z]{3}$/u.test(value) ? value : "EUR";
-}
-
-// locale is the Chest's default language: the language of what a tool
-// writes for no one in particular (a public page before the visitor
-// chooses, an export's default).
-export function locale(): Locale {
-  return localeOf(env("CHEST_LOCALE"));
 }
 
 const origin = (value: string | undefined): string | null => {
@@ -82,17 +111,23 @@ const origin = (value: string | undefined): string | null => {
   }
 };
 
-// teamUrl is the origin of the tool's team host (links in an export, in a
-// notification's email, in a calendar feed); null outside a Chest.
-export function teamUrl(): string | null {
-  return origin(env("CHEST_TEAM_URL"));
-}
+// teamOrigin is the origin of the tool's team host (links in an export, in
+// an email, in a calendar feed); null outside a Chest.
+const teamOrigin = (): string | null => origin(setting("CHEST_TEAM_URL"));
+// publicOrigin is the origin of the tool's public host (a customer's link in
+// an email sent by a schedule, a feed's address); null for a tool without a
+// public part, or outside a Chest.
+const publicOrigin = (): string | null => origin(setting("CHEST_PUBLIC_URL"));
 
-// publicUrl is the origin of the tool's public host (a customer's link in
-// an email sent by a schedule, a feed's address); null for a tool without
-// a public part, or outside a Chest.
-export function publicUrl(): string | null {
-  return origin(env("CHEST_PUBLIC_URL"));
+// todayIn is the date ("YYYY-MM-DD") now, or at the instant given, in a
+// zone: a member's own (member.timeZone), for what concerns that one person
+// — the whole days of their leave, "today" on their own page. A zone this
+// runtime does not know reads as the Chest's (a member's zone must never
+// break their page). What concerns everyone stays chest.today().
+function todayIn(zoneName: string, at: Date | number = Date.now()): string {
+  const instant = typeof at === "number" ? new Date(at) : at;
+  if (Number.isNaN(instant.getTime())) throw new RangeError("todayIn() needs a valid date");
+  return dateIn(instant, typeof zoneName === "string" && knownZone(zoneName) ? zoneName : zone());
 }
 
 // Proposal (studio): the addresses of the other tools installed on this
@@ -177,13 +212,13 @@ const installed = (): ReadonlyMap<string, ToolAddresses> => {
 // (by default) or its public host; null when no such tool is installed,
 // when it has no such surface (no public part, or one the owner has not
 // opened), outside a Chest, or for a name that is not a tool's. This
-// tool's own name answers teamUrl() / publicUrl().
-export function toolUrl(name: string, options: { surface?: ToolSurface } = {}): string | null {
+// tool's own name answers chest.teamUrl / chest.publicUrl.
+function toolUrl(name: string, options: { surface?: ToolSurface } = {}): string | null {
   const surface = options.surface ?? "team";
   if (typeof name !== "string" || name.length > maxToolName || !toolNamePattern.test(name) || (surface !== "team" && surface !== "public")) return null;
   const entry = installed().get(name);
   if (entry) return entry[surface];
-  if (name === (process.env["CHEST_TOOL"] ?? "")) return surface === "team" ? teamUrl() : publicUrl();
+  if (name === (process.env["CHEST_TOOL"] ?? "")) return surface === "team" ? teamOrigin() : publicOrigin();
   return null;
 }
 
@@ -203,7 +238,7 @@ const linkPath = (path: string): boolean =>
 // under it; a public link is never under /chest (the Chest would send it to
 // the team host). null when the tool has no such address (toolUrl) or the
 // path is not one of these.
-export function toolLink(name: string, path: string, options: { surface?: ToolSurface } = {}): string | null {
+function toolLink(name: string, path: string, options: { surface?: ToolSurface } = {}): string | null {
   const surface = options.surface ?? "team";
   if (typeof path !== "string" || !linkPath(path)) return null;
   const underChest = /^\/chest([/?#]|$)/iu.test(path);
@@ -337,7 +372,7 @@ let kept: { api: string; value: ThemeChoice; until: number } | null = null;
 let pending: { api: string; answer: Promise<ThemeChoice> } | null = null;
 
 // theme is the look the company chose for this tool (see above).
-export async function theme(): Promise<ThemeChoice> {
+async function theme(): Promise<ThemeChoice> {
   const api = process.env["CHEST_API"] ?? "";
   if (!api) return defaultTheme;
   if (kept && kept.api === api && kept.until > Date.now()) return kept.value;
@@ -372,3 +407,55 @@ export function forgetTheme(): void {
   kept = null;
   pending = null;
 }
+
+// The members the studio adds to chest (see "Studio proposals" above).
+export type StudioChest = {
+  // Proposal (studio): the company's currency, ISO 4217 ("EUR" when the
+  // Chest says none).
+  readonly currency: string;
+  // Proposal (studio): the origins of this tool's team and public hosts;
+  // null outside a Chest, or without a public part.
+  readonly teamUrl: string | null;
+  readonly publicUrl: string | null;
+  // Proposal (studio): the addresses of the other tools of the Chest.
+  toolUrl(name: string, options?: { surface?: ToolSurface }): string | null;
+  toolLink(name: string, path: string, options?: { surface?: ToolSurface }): string | null;
+  // Proposal (studio): the look the company chose for this tool.
+  theme(): Promise<ThemeChoice>;
+  // Proposal (studio): the date in another zone than the Chest's.
+  todayIn(zone: string, at?: Date | number): string;
+};
+
+// chest reads the environment at each access: what a test's fakeChest sets
+// is what it answers. Its first four members are the official 0.3.0 ones;
+// the others are the studio's proposals (StudioChest).
+export const chest: Chest & StudioChest = {
+  get organization() {
+    return { name: read("CHEST_ORGANIZATION", value => organizationPattern.test(value)) };
+  },
+  get timeZone() {
+    return zone();
+  },
+  get language() {
+    return read("CHEST_LANGUAGE", value => languagePattern.test(value));
+  },
+  today(at: Date | number = Date.now()): string {
+    const instant = typeof at === "number" ? new Date(at) : at;
+    if (Number.isNaN(instant.getTime())) throw new RangeError("today() needs a valid date");
+    return dateIn(instant, zone());
+  },
+  // ---- Studio proposals (not in 0.3.0) ----
+  get currency() {
+    return currencyOf();
+  },
+  get teamUrl() {
+    return teamOrigin();
+  },
+  get publicUrl() {
+    return publicOrigin();
+  },
+  toolUrl,
+  toolLink,
+  theme,
+  todayIn,
+};

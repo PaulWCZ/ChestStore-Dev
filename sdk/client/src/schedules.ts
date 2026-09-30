@@ -55,10 +55,9 @@ export const runIdPattern = /^run_[a-z2-7]{26}$/u;
 export const schedulePattern = /^[a-z][a-z0-9-]{0,31}$/u;
 export const limits = { schedules: 8, minimumMinutes: 15, attempts: 4 } as const;
 
-// timeZone is the Chest's time zone (chest.timeZone(), kept here for the
-// tools that import it from schedules).
-import { timeZone } from "./chest.js";
-export { timeZone };
+// The Chest's time zone, in which a cron line is read, is the official
+// chest.timeZone (0.3.0); schedules.timeZone() of 0.3.0-studio is gone.
+import { chest } from "./chest.js";
 
 // ---- Cron lines: minute hour day-of-month month day-of-week ----------------
 
@@ -106,7 +105,7 @@ function matches(fields: Field[], w: ReturnType<typeof wall>): boolean {
 
 // nextRun is the first time after `after` that the cron line gives, read in
 // the time zone; null when there is none in the next 400 days.
-export function nextRun(line: string, after: Date = new Date(), zone: string = timeZone()): Date | null {
+export function nextRun(line: string, after: Date = new Date(), zone: string = chest.timeZone): Date | null {
   const fields = parseCron(line);
   if (!fields) return null;
   let t = Math.floor(after.getTime() / 60000) * 60000 + 60000;

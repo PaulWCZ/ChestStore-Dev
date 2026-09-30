@@ -1,6 +1,6 @@
 import { ask, json, refusal } from "./api.js";
 import { ChestError, Unavailable } from "./errors.js";
-import { groupIdPattern, localeOf, mailPreferenceOf, memberIdPattern, readTimeZone, type Member } from "./member.js";
+import { groupIdPattern, languagePattern, mailPreferenceOf, memberIdPattern, timeZonePattern, type Member } from "./member.js";
 
 // Who has the tool, for a server tool whose chest.json declares
 // "capabilities": ["members"] (and "members.email" for their addresses):
@@ -24,10 +24,10 @@ export type MemberPage = { members: Member[]; next: string | null };
 // A member who left the Chest after having the tool: "former" with the name
 // they had, or "erased" without any once the owner had their data erased —
 // render “Former member”. leftAt (Proposal (studio.15)) is when they left
-// the Chest (an ISO 8601 instant; null from a Chest before it): a final
-// pay, a last day on a receipt — "Camille Martin (left on 30 Sept.)". Kept
-// after an erasure too: a date alone names nobody.
-export type FormerMember = { id: string; name: string | null; status: "former" | "erased"; leftAt: string | null };
+// the Chest, an ISO 8601 instant, only when the Chest says it (0.3.0 does
+// not): a final pay, a last day on a receipt — "Camille Martin (left on 30
+// Sept.)". Kept after an erasure too: a date alone names nobody.
+export type FormerMember = { id: string; name: string | null; status: "former" | "erased"; leftAt?: string };
 // What a lookup found: members who have the tool, former members, and
 // identifiers the tool does not know.
 export type Lookup = { members: Member[]; former: FormerMember[]; unknown: string[] };
@@ -35,9 +35,6 @@ export type Lookup = { members: Member[]; former: FormerMember[]; unknown: strin
 export type Group = { id: string; name: string; members: string[] };
 
 const maxLimit = 500;
-// The groups a member may carry: those that give the tool, or all of the
-// member's groups for a tool that holds "groups": "read" (Proposal (studio)).
-const maxGroups = 64;
 const lookupBatch = 200;
 const cacheTime = 60_000;
 const cacheSize = 5000;
@@ -53,8 +50,8 @@ const text = (value: unknown, max: number): value is string => typeof value === 
 // Chest's answer.
 function shown(value: unknown): Member {
   const m = value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-  if (!m || typeof m["id"] !== "string" || !memberIdPattern.test(m["id"]) || !text(m["first_name"], 256) || !text(m["last_name"], 256) || !text(m["name"], 520) || !(m["photo"] === null || text(m["photo"], 200)) || !(m["role"] === null || text(m["role"], 48)) || typeof m["admin"] !== "boolean" || typeof m["builder"] !== "boolean" || !Array.isArray(m["groups"]) || m["groups"].length > maxGroups || !m["groups"].every(g => typeof g === "string" && groupIdPattern.test(g)) || !(m["email"] === undefined || text(m["email"], 254)) || !(m["locale"] === undefined || typeof m["locale"] === "string")) throw new Unavailable();
-  return { id: m["id"], firstName: m["first_name"], lastName: m["last_name"], name: m["name"], photo: m["photo"], role: m["role"], isAdmin: m["admin"], isBuilder: m["builder"], groups: [...m["groups"]] as string[], locale: localeOf(m["locale"]), ...(m["email"] === undefined ? {} : { email: m["email"] }), ...(mailPreferenceOf(m["mail_pref"]) ? { mailPreference: mailPreferenceOf(m["mail_pref"])! } : {}), ...(readTimeZone(m["time_zone"]) ? { timeZone: readTimeZone(m["time_zone"])! } : {}) };
+  if (!m || typeof m["id"] !== "string" || !memberIdPattern.test(m["id"]) || !text(m["first_name"], 256) || !text(m["last_name"], 256) || !text(m["name"], 520) || !(m["photo"] === null || text(m["photo"], 200)) || !(m["role"] === null || text(m["role"], 48)) || typeof m["admin"] !== "boolean" || typeof m["builder"] !== "boolean" || !Array.isArray(m["groups"]) || m["groups"].length > 16 || !m["groups"].every(g => typeof g === "string" && groupIdPattern.test(g)) || typeof m["language"] !== "string" || !languagePattern.test(m["language"]) || typeof m["time_zone"] !== "string" || !timeZonePattern.test(m["time_zone"]) || !(m["email"] === undefined || text(m["email"], 254))) throw new Unavailable();
+  return { id: m["id"], firstName: m["first_name"], lastName: m["last_name"], name: m["name"], photo: m["photo"], role: m["role"], isAdmin: m["admin"], isBuilder: m["builder"], groups: [...m["groups"]] as string[], language: m["language"], timeZone: m["time_zone"], ...(m["email"] === undefined ? {} : { email: m["email"] }), ...(mailPreferenceOf(m["mail_pref"]) ? { mailPreference: mailPreferenceOf(m["mail_pref"])! } : {}) };
 }
 
 // list says the members who have the tool, by name then identifier, limit
@@ -136,8 +133,9 @@ export async function lookup(ids: Iterable<string>): Promise<Lookup> {
     for (const value of answer.former) {
       const f = value as { id?: unknown; name?: unknown; status?: unknown; left_at?: unknown } | null;
       if (!f || typeof f.id !== "string" || !memberIdPattern.test(f.id) || !(f.status === "former" ? f.name === undefined || text(f.name, 520) : f.status === "erased" && f.name === undefined)) throw new Unavailable();
+      // Proposal (studio.15): when they left, only when the Chest says it.
       if (!(f.left_at === undefined || f.left_at === null || (typeof f.left_at === "string" && f.left_at.length <= 40 && !Number.isNaN(Date.parse(f.left_at))))) throw new Unavailable();
-      keep(f.id, { former: { id: f.id, name: (f.name as string | undefined) ?? null, status: f.status as FormerMember["status"], leftAt: typeof f.left_at === "string" ? new Date(f.left_at).toISOString() : null } });
+      keep(f.id, { former: { id: f.id, name: (f.name as string | undefined) ?? null, status: f.status as FormerMember["status"], ...(typeof f.left_at === "string" ? { leftAt: new Date(f.left_at).toISOString() } : {}) } });
       told.add(f.id);
     }
     for (const id of answer.unknown) {
@@ -156,6 +154,8 @@ export async function lookup(ids: Iterable<string>): Promise<Lookup> {
   }
   return result;
 }
+
+// ---- Studio proposals (not in 0.3.0) ---------------------------------------
 
 // ---- Matching email addresses (Proposal (studio.15)) -----------------------
 //
@@ -224,26 +224,27 @@ function checkGroup(id: unknown): string {
   return id;
 }
 
-// groups: the groups of the Chest. list() says those that give the tool,
-// each with the identifiers of its members — nothing of the others.
+// groups are the groups of the Chest that give the tool, each with the
+// identifiers of its members; nothing of the others.
 //
 // Proposal (studio) — the "groups" capability. A tool open to everyone
 // (News, Polls, Wiki) has no group that gives it, so list() is empty and
 // it cannot offer "the Sales team". With "groups": "read" in chest.json
 // (approved: “Sees your Chest's groups and who is in them”), all() says
-// every group of the Chest, members(id) who is in one (among the members
-// who have the tool: a member without access stays unknown), and
-// member(request).groups and members.* carry all of a member's groups,
-// not only those that give the tool. With "receives": ["group.*"], the
-// Chest tells the tool when a group is renamed, changes members or is
-// deleted (events.ts). Errors: CapabilityNotGranted (403: not declared or
-// not approved), RateLimited, Unavailable.
+// every group of the Chest and members(id) who is in one (among the members
+// who have the tool: a member without access stays unknown); the Chest may
+// then put a member's other groups in member(request).groups and members.*
+// too, within the 16 that 0.3.0 reads — members(id) is the complete answer.
+// With "receives": ["group.*"], the Chest tells the tool when a group is
+// renamed, changes members or is deleted (events.ts). Errors:
+// CapabilityNotGranted (403: not declared or not approved), RateLimited,
+// Unavailable.
 export const groups = {
   async list(): Promise<Group[]> {
     const response = await ask("members", "GET", "/groups");
     if (response.status !== 200) throw await refusal(response, "members");
     const answer = (await json(response)) as { groups?: unknown } | null;
-    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > maxGroups) throw new Unavailable();
+    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > 16) throw new Unavailable();
     return answer.groups.map(value => {
       const g = value as { id?: unknown; name?: unknown; members?: unknown } | null;
       if (!g || typeof g.id !== "string" || !groupIdPattern.test(g.id) || !text(g.name, 256) || !Array.isArray(g.members) || g.members.length > 128 || !g.members.every(m => typeof m === "string" && memberIdPattern.test(m))) throw new Unavailable();

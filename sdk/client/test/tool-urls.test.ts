@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import * as chest from "../src/chest.js";
+import { chest, readToolUrls } from "../src/chest.js";
 import { fakeChest } from "../src/testing.js";
 
 const names = ["CHEST_TOOL", "CHEST_TOOL_URLS", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL"];
@@ -75,7 +75,7 @@ test("an address that is not an origin is ignored, entry by entry", () => {
   for (const raw of ["not json", "[]", "null", "\"https://forms-chest.x\"", JSON.stringify({ forms: map.forms, pad: "x".repeat(70 * 1024) })]) {
     withEnv({ CHEST_TOOL_URLS: raw }, () => assert.equal(chest.toolUrl("forms"), null, raw.slice(0, 20)));
   }
-  assert.deepEqual([...chest.readToolUrls(JSON.stringify(map)).keys()], ["forms", "crm", "time-sheets"]);
+  assert.deepEqual([...readToolUrls(JSON.stringify(map)).keys()], ["forms", "crm", "time-sheets"]);
 });
 
 test("the tool's own name answers its own addresses", () => {
@@ -121,7 +121,7 @@ test("the map is read again when the Chest rewrites it", () => {
 
 test("fakeChest installs the tools a test names, and plays installs and removals", async () => {
   const before = process.env["CHEST_TOOL_URLS"];
-  const fake = await fakeChest({ settings: { publicUrl: "https://tool.chest.test" }, tools: { forms: { public: "https://forms.chest.test" }, crm: true, wiki: { team: "http://localhost:4100" } } });
+  const fake = await fakeChest({ chest: { publicUrl: "https://tool.chest.test" }, tools: { forms: { public: "https://forms.chest.test" }, crm: true, wiki: { team: "http://localhost:4100" } } });
   try {
     assert.equal(chest.toolUrl("forms"), "https://forms-chest.chest.test");
     assert.equal(chest.toolUrl("forms", { surface: "public" }), "https://forms.chest.test");

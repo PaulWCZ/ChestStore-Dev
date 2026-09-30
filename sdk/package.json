@@ -1,7 +1,7 @@
 {
   "name": "@argentic/chest-sdk",
-  "version": "0.3.0-studio.16",
-  "description": "The client a Chest server tool embeds: the member the Chest asserts on a request, who else has the tool, the tool's own database, its private files, badges and notifications inside the Chest, the events of its members' lifecycle, and a fake Chest for its tests.",
+  "version": "0.3.1-studio.1",
+  "description": "The client a Chest server tool embeds: the member the Chest asserts on a request, the Chest itself (its organization, time zone and language), who else has the tool, the tool's own database, its private files, badges and notifications inside the Chest, the events of its members' lifecycle, AI models through the Chest, and a fake Chest for its tests — with the studio's proposals: schedules, mail, calendar, webhooks, visitors, checks, events between tools.",
   "keywords": [
     "chest",
     "argentic",
@@ -13,6 +13,10 @@
     "members",
     "notifications",
     "events",
+    "ai",
+    "llm",
+    "schedules",
+    "mail",
     "calendar",
     "webhooks"
   ],
@@ -48,14 +52,6 @@
       "types": "./dist/src/chest.d.ts",
       "default": "./dist/src/chest.js"
     },
-    "./visitors": {
-      "types": "./dist/src/visitors.d.ts",
-      "default": "./dist/src/visitors.js"
-    },
-    "./checks": {
-      "types": "./dist/src/checks.d.ts",
-      "default": "./dist/src/checks.js"
-    },
     "./database": {
       "types": "./dist/src/database.d.ts",
       "default": "./dist/src/database.js"
@@ -76,6 +72,10 @@
       "types": "./dist/src/events.d.ts",
       "default": "./dist/src/events.js"
     },
+    "./ai": {
+      "types": "./dist/src/ai.d.ts",
+      "default": "./dist/src/ai.js"
+    },
     "./schedules": {
       "types": "./dist/src/schedules.d.ts",
       "default": "./dist/src/schedules.js"
@@ -92,6 +92,14 @@
       "types": "./dist/src/webhooks.d.ts",
       "default": "./dist/src/webhooks.js"
     },
+    "./visitors": {
+      "types": "./dist/src/visitors.d.ts",
+      "default": "./dist/src/visitors.js"
+    },
+    "./checks": {
+      "types": "./dist/src/checks.d.ts",
+      "default": "./dist/src/checks.js"
+    },
     "./testing": {
       "types": "./dist/src/testing.d.ts",
       "default": "./dist/src/testing.js"
@@ -104,19 +112,20 @@
     "client/src/api.ts",
     "client/src/errors.ts",
     "client/src/member.ts",
+    "client/src/chest.ts",
     "client/src/members.ts",
     "client/src/database.ts",
     "client/src/files.ts",
     "client/src/notifications.ts",
     "client/src/events.ts",
+    "client/src/ai.ts",
     "client/src/schedules.ts",
     "client/src/mail.ts",
-    "client/src/chest.ts",
     "client/src/calendar.ts",
-    "client/src/testing.ts",
+    "client/src/webhooks.ts",
     "client/src/visitors.ts",
     "client/src/checks.ts",
-    "client/src/webhooks.ts"
+    "client/src/testing.ts"
   ],
   "publishConfig": {
     "access": "public",

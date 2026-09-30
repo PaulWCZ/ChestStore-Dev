@@ -32,7 +32,7 @@ test("a manifest's schedules: names, lines, at most eight, not more often than e
 });
 
 test("a run is delivered signed, to its own path, once per call; others are refused", async () => {
-  const chest = await fakeChest({ schedules: [{ name: "morning", cron: "30 7 * * 1-5" }], timeZone: "Europe/Paris" });
+  const chest = await fakeChest({ schedules: [{ name: "morning", cron: "30 7 * * 1-5" }], chest: { timeZone: "Europe/Paris" } });
   try {
     const seen: string[] = [];
     const app = async (request: Request) => new Response(null, { status: await handle(request, { morning: run => { seen.push(`${run.name}:${run.attempt}:${run.timeZone}`); } }) });

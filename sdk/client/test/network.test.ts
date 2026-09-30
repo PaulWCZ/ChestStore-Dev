@@ -7,7 +7,7 @@ import type { Member } from "../src/member.js";
 import * as members from "../src/members.js";
 import { fakeChest } from "../src/testing.js";
 
-const person = (key: string): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], locale: "en" });
+const person = (key: string): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" });
 
 // What a tool's code does, unchanged from production: plain fetch() to the
 // hosts its chest.json "network" declares (Equipment reads Intune).

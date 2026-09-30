@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { ask as chest, json, refusal } from "./api.js";
-import { locale as chestLocale } from "./chest.js";
+import { chest as theChest } from "./chest.js";
 import { ChestError, Unavailable } from "./errors.js";
 import { locales, localeOf, type Locale } from "./member.js";
 
@@ -96,5 +96,15 @@ export function language(request: Request | Headers_, cookieName = "lang"): Loca
     return { language: tag.toLowerCase().split("-")[0] ?? "", weight: Number.isFinite(weight) ? weight : 0, index };
   }).filter(r => r.weight > 0).sort((a, b) => b.weight - a.weight || a.index - b.index);
   const found = ranked.map(r => r.language).find(l => (locales as readonly string[]).includes(l));
-  return found ? localeOf(found) : chestLocale();
+  return found ? localeOf(found) : chestLanguage();
+}
+
+// chestLanguage is the Chest's own language (chest.language) among the
+// store's; English outside a Chest, where a public page must still answer.
+function chestLanguage(): Locale {
+  try {
+    return localeOf(theChest.language);
+  } catch {
+    return locales[0];
+  }
 }

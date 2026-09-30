@@ -1,55 +1,67 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import * as chest from "../src/chest.js";
+import { afterEach, test } from "node:test";
+import { chest } from "../src/chest.js";
+import { ChestError } from "../src/errors.js";
 import { fakeChest } from "../src/testing.js";
 
-test("the Chest's settings come from the environment, with safe defaults", () => {
-  const saved = { ...process.env };
-  try {
-    for (const name of ["CHEST_COMPANY", "CHEST_TIMEZONE", "CHEST_CURRENCY", "CHEST_LOCALE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL"]) delete process.env[name];
-    assert.equal(chest.company(), "");
-    assert.equal(chest.timeZone(), "Europe/Paris");
-    assert.equal(chest.currency(), "EUR");
-    assert.equal(chest.locale(), "en");
-    assert.equal(chest.teamUrl(), null);
-    assert.equal(chest.publicUrl(), null);
-    Object.assign(process.env, { CHEST_COMPANY: "Atelier Martin", CHEST_TIMEZONE: "America/Montreal", CHEST_CURRENCY: "CAD", CHEST_LOCALE: "fr", CHEST_TEAM_URL: "https://booking-chest.atelier.fr/", CHEST_PUBLIC_URL: "https://booking.atelier.fr" });
-    assert.equal(chest.company(), "Atelier Martin");
-    assert.equal(chest.timeZone(), "America/Montreal");
-    assert.equal(chest.currency(), "CAD");
-    assert.equal(chest.locale(), "fr");
-    assert.equal(chest.teamUrl(), "https://booking-chest.atelier.fr");
-    assert.equal(chest.publicUrl(), "https://booking.atelier.fr");
-    Object.assign(process.env, { CHEST_TIMEZONE: "Mars/Olympus", CHEST_CURRENCY: "euro", CHEST_PUBLIC_URL: "http://evil.example", CHEST_LOCALE: "xx" });
-    assert.equal(chest.timeZone(), "Europe/Paris");
-    assert.equal(chest.currency(), "EUR");
-    assert.equal(chest.publicUrl(), null);
-    assert.equal(chest.locale(), "en");
-  } finally {
-    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
-    Object.assign(process.env, saved);
+const names = ["CHEST_ORGANIZATION", "CHEST_TIME_ZONE", "CHEST_LANGUAGE"];
+const set = (values: Record<string, string>): void => void Object.assign(process.env, values);
+const notInChest = (e: unknown): boolean => e instanceof ChestError && e.code === "not_in_chest";
+
+afterEach(() => { for (const name of names) delete process.env[name]; });
+
+test("the Chest is what its environment says: organization, time zone, language", () => {
+  set({ CHEST_ORGANIZATION: "Société Générale d'Étude", CHEST_TIME_ZONE: "America/Argentina/Buenos_Aires", CHEST_LANGUAGE: "fr" });
+  assert.deepEqual(chest.organization, { name: "Société Générale d'Étude" });
+  assert.equal(chest.timeZone, "America/Argentina/Buenos_Aires");
+  assert.equal(chest.language, "fr");
+  // Read at each access: a Chest started again with other values says them.
+  set({ CHEST_ORGANIZATION: "\u{1F3E2}".repeat(80), CHEST_TIME_ZONE: "UTC", CHEST_LANGUAGE: "haw" });
+  assert.equal(chest.organization.name, "\u{1F3E2}".repeat(80));
+  assert.equal(chest.timeZone, "UTC");
+  assert.equal(chest.language, "haw");
+});
+
+test("today is the Chest's day, not the server's: after 22:00 UTC it is already tomorrow in Paris", () => {
+  set({ CHEST_ORGANIZATION: "Acme SAS", CHEST_TIME_ZONE: "Europe/Paris", CHEST_LANGUAGE: "en" });
+  const lateInUtc = Date.UTC(2026, 8, 29, 22, 30);
+  assert.equal(chest.today(lateInUtc), "2026-09-30");
+  assert.equal(chest.today(new Date(lateInUtc)), "2026-09-30");
+  set({ CHEST_TIME_ZONE: "America/Los_Angeles" });
+  assert.equal(chest.today(lateInUtc), "2026-09-29");
+  set({ CHEST_TIME_ZONE: "UTC" });
+  assert.match(chest.today(), /^\d{4}-\d{2}-\d{2}$/u);
+  // Taken apart from the object, it still reads the Chest.
+  const { today } = chest;
+  assert.equal(today(lateInUtc), "2026-09-29");
+  assert.throws(() => chest.today(Number.NaN), RangeError);
+});
+
+test("outside a Chest, or with a value the Chest never gives, reading it throws not_in_chest", () => {
+  assert.throws(() => chest.organization, notInChest);
+  assert.throws(() => chest.timeZone, notInChest);
+  assert.throws(() => chest.language, notInChest);
+  assert.throws(() => chest.today(), notInChest);
+  for (const [name, value] of [
+    ["CHEST_ORGANIZATION", "A"], ["CHEST_ORGANIZATION", "A".repeat(81)], ["CHEST_ORGANIZATION", "Acme\nSAS"], ["CHEST_ORGANIZATION", "Acme\u0085SAS"],
+    ["CHEST_TIME_ZONE", ""], ["CHEST_TIME_ZONE", "Europe/Atlantis"], ["CHEST_TIME_ZONE", "CET"], ["CHEST_TIME_ZONE", "../etc/localtime"], ["CHEST_TIME_ZONE", "+02:00"],
+    ["CHEST_LANGUAGE", "fr-FR"], ["CHEST_LANGUAGE", "French"], ["CHEST_LANGUAGE", "EN"],
+  ] as const) {
+    set({ CHEST_ORGANIZATION: "Acme SAS", CHEST_TIME_ZONE: "UTC", CHEST_LANGUAGE: "en", [name]: value });
+    const read = { CHEST_ORGANIZATION: () => chest.organization, CHEST_TIME_ZONE: () => chest.timeZone, CHEST_LANGUAGE: () => chest.language }[name];
+    assert.throws(read, notInChest, `${name}=${JSON.stringify(value)}`);
   }
 });
 
-test("today is the date in the Chest's zone", () => {
-  // 23:30 UTC on 31 December is already 1 January in Paris, still 31 in Montreal.
-  const at = Date.parse("2026-12-31T23:30:00Z");
-  assert.equal(chest.today(at, "Europe/Paris"), "2027-01-01");
-  assert.equal(chest.today(at, "America/Montreal"), "2026-12-31");
-});
-
-test("fakeChest sets the Chest's settings a test names, and restores them", async () => {
-  const before = process.env["CHEST_COMPANY"];
-  const fake = await fakeChest({ settings: { company: "Atelier Martin", currency: "CHF", locale: "fr", publicUrl: "https://booking.chest.test" }, timeZone: "Europe/Zurich" });
+test("a fake Chest is the Chest a test names, and restores the environment when closed", async () => {
+  process.env["CHEST_TIME_ZONE"] = "Asia/Tokyo";
+  const fake = await fakeChest({ chest: { organization: "Atelier SAS", timeZone: "Europe/Paris", language: "fr" } });
   try {
-    assert.equal(chest.company(), "Atelier Martin");
-    assert.equal(chest.currency(), "CHF");
-    assert.equal(chest.locale(), "fr");
-    assert.equal(chest.timeZone(), "Europe/Zurich");
-    assert.equal(chest.publicUrl(), "https://booking.chest.test");
-    assert.equal(chest.teamUrl(), "https://tool-chest.chest.test");
+    assert.deepEqual([chest.organization.name, chest.timeZone, chest.language], ["Atelier SAS", "Europe/Paris", "fr"]);
+    assert.equal(chest.today(Date.UTC(2026, 8, 29, 22, 30)), "2026-09-30");
   } finally {
     await fake.close();
   }
-  assert.equal(process.env["CHEST_COMPANY"], before);
+  assert.equal(process.env["CHEST_TIME_ZONE"], "Asia/Tokyo");
+  assert.throws(() => chest.organization, notInChest);
 });
