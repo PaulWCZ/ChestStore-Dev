@@ -23,7 +23,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { Avatar, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { Lost, Trophy } from "../../../components/icons.tsx";
 import type { Deal } from "../../../lib/deals.ts";
 import { format, money, plural } from "../../../lib/i18n/format.ts";
@@ -52,6 +52,12 @@ const lanesOf = (stages: Stage[], deals: BoardDeal[]): Lanes => Object.fromEntri
 export function DealBoard({ stages, deals, people, me, today, closedDays, locale, t }: Props) {
   const router = useRouter();
   const toast = useToast();
+  // The id of the cards' keyboard instructions (their aria-describedby):
+  // the same on the server and in the browser. Left to dnd-kit, it comes
+  // from a counter that keeps growing in the server's process, so from the
+  // second page served on, every card pointed at instructions that do not
+  // exist ("DndDescribedBy-7" for a "DndDescribedBy-0" in the page).
+  const dndId = useId();
   const [, start] = useTransition();
   const byId = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
   const [lanes, setLanes] = useState<Lanes>(() => lanesOf(stages, deals));
@@ -174,7 +180,7 @@ export function DealBoard({ stages, deals, people, me, today, closedDays, locale
   const open = (id: string) => router.push(`/chest/deals/${id}`);
   return (
     <>
-      <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); reset(); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.deals.moveHint } }}>
+      <DndContext id={dndId} sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); reset(); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.deals.moveHint } }}>
         <div className="board" role="list">
           {stages.map(stage => (
             <Lane key={stage.id} stage={stage} ids={lanes[stage.id] ?? []} byId={byId} people={people} me={me} today={today} closedDays={closedDays} locale={locale} onOpen={open} t={t} />

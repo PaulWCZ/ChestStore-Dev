@@ -34,7 +34,7 @@ no import outside it. Read `README.md` first.
 | `app/tokens.css`, `app/globals.css` | Tool tokens defined from contract tokens; the tool's components (contract tokens only, a few `ck-` classes restyled) |
 | `components/shell.tsx` | The kit's AppShell: sections, SearchBox ("/"), the "More" Menu |
 | `app/chest/actions.ts` | Server actions: thin, re-read the member |
-| `app/chest/**/page.tsx` | Server pages; `app/chest/ui/*` shared client views (`combobox.tsx` + `pickers.tsx` search records as one types — the kit's keys, list classes and `useFloat`, `owner-select.tsx` the kit's PeoplePicker for owners (`clearable` when nobody is allowed), `bulk.tsx`, `step-box.tsx`, `files-box.tsx`, `custom-fields.tsx`, `merge-dialog.tsx`, `pager.tsx`); `app/chest/deals/board.tsx` the dnd-kit board |
+| `app/chest/**/page.tsx` | Server pages; `app/chest/ui/*` shared client views (`combobox.tsx` + `pickers.tsx` search records as one types — the kit's keys, list classes and `useFloat`, `owner-select.tsx` the kit's PeoplePicker for owners (`clearable` when nobody is allowed), `bulk.tsx`, `step-box.tsx`, `files-box.tsx`, `custom-fields.tsx`, `merge-dialog.tsx`, `pager.tsx`); `app/chest/deals/board.tsx` the dnd-kit board (its `DndContext` takes a `useId()` id: dnd-kit's own counter differs between the server and the browser, and the cards' keyboard instructions would point at nothing) |
 | `app/chest-events`, `app/chest-jobs/[name]` | Signed routes of the Chest |
 | `test/` | `node:test` with `fakeChest`; PGlite or `TEST_DATABASE_URL` |
 

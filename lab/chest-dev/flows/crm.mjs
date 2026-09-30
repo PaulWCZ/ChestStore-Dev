@@ -8,7 +8,32 @@ const { browser, context, page, origin, problems } = await open(port, "hugo", { 
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 let companyUrl = "", dealUrl = "";
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
+// What the harness page says, read again until it says it (or 15 s pass):
+// on a busy machine the page can be read before the action it follows is
+// over.
+const devSays = async (test, message) => {
+  const until = Date.now() + 15_000;
+  for (;;) {
+    if (test(await dev())) return;
+    if (Date.now() > until) throw new Error(message);
+    await page.waitForTimeout(250);
+  }
+};
 const boardLane = name => page.locator(".lane", { has: page.locator("h2", { hasText: name }) });
+// The board is ready to be used once its drag and drop is live: each card's
+// keyboard instructions (its aria-describedby) are rendered by the page's
+// script, not by the server — before that, a key or a drag does nothing.
+const boardReady = () => page.waitForFunction(() => {
+  const handle = document.querySelector(".deal-handle[aria-describedby]");
+  const hint = handle && document.getElementById(handle.getAttribute("aria-describedby"));
+  return Boolean(hint && hint.textContent.trim());
+}).catch(error => { throw new Error("the board's drag and drop never came alive: " + error.message); });
+// A move is saved when the server answered its action (a POST to the board
+// with Next.js's action header): only then may the page be read again.
+const moveSaved = () => page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/chest/deals" && r.request().headers()["next-action"] !== undefined, { timeout: 60_000 });
+// A dragged card has landed when the copy that follows the pointer is gone
+// (the drop animation is over and the drag has let go of the page).
+const landed = () => page.locator(".deal-card.overlay").waitFor({ state: "detached" });
 
 await step("My day: Hugo sees his late and today's next steps first", async () => {
   await page.goto(origin + "/chest");
@@ -96,14 +121,16 @@ await step("several next steps on one deal, one with a time", async () => {
   // In Hugo's Chest calendar, titled with the deal; done, it leaves it.
   const events = await dev();
   expect(/<b>Send fabric samples · [^<]+<\/b> <code>step:\d+<\/code>/u.test(events), "in the calendar");
-  await page.locator(".step-item", { hasText: "Send fabric samples" }).getByRole("button", { name: "Done" }).click();
+  const samples = page.locator(".step-item", { hasText: "Send fabric samples" });
+  await samples.getByRole("button", { name: "Done" }).click();
   await page.waitForSelector(".ck-toast:has-text('Done and logged.')");
-  await page.waitForTimeout(500);
-  expect(!(await dev()).includes("<b>Send fabric samples"), "out of the calendar once done");
+  // Done: the step leaves the list (the page shows the saved state) — only
+  // then does its coming back mean the Undo was saved.
+  await samples.waitFor({ state: "detached" });
+  await devSays(text => !text.includes("<b>Send fabric samples"), "out of the calendar once done");
   await page.locator(".ck-toast-undo").click();
-  await page.waitForSelector(".step-item:has-text('Send fabric samples')");
-  await page.waitForTimeout(500);
-  expect((await dev()).includes("<b>Send fabric samples"), "back with Undo");
+  await samples.waitFor();
+  await devSays(text => text.includes("<b>Send fabric samples"), "back with Undo");
 });
 
 await step("a closing day that cannot be read is refused as typed: the deal keeps its day, nothing is sent; corrected, it is saved in one move", async () => {
@@ -258,8 +285,7 @@ await step("the manager: 'not a lead' with Undo, 'give to' someone who is told; 
   await page.locator(".ck-option", { hasText: "Inès Moreau" }).click();
   await page.getByRole("button", { name: "Give", exact: true }).click();
   await page.waitForSelector(".ck-toast:has-text('Paul Lemaire given to Inès Moreau.')");
-  await page.waitForTimeout(800);
-  expect((await dev()).includes("Camille Martin vous a confié un nouveau contact venu d’un formulaire"), "Inès told in French");
+  await devSays(text => text.includes("Camille Martin vous a confié un nouveau contact venu d’un formulaire"), "Inès told in French");
   // Nina's first contact (example.com, the step before) is a lead with no
   // mark; Nina of gmail is marked: Camille keeps them apart.
   await page.goto(origin + "/chest/contacts?q=nina.roux%40gmail.com");
@@ -319,29 +345,35 @@ await step("a phone number pasted from a caller ID finds the company", async () 
 
 await step("the board: drag a deal to the next stage with the mouse", async () => {
   await page.goto(origin + "/chest/deals");
+  await boardReady();
   const card = page.locator(".deal-card", { hasText: "Dispensary counter" });
   const target = boardLane("Qualified").locator(".lane-deals");
   const a = await card.boundingBox(), b = await target.boundingBox();
+  const saved = moveSaved();
   await page.mouse.move(a.x + 20, a.y + 10);
   await page.mouse.down();
   await page.mouse.move(a.x + 40, a.y + 20, { steps: 5 });
   await page.mouse.move(b.x + 40, b.y + 20, { steps: 15 });
   await page.mouse.up();
-  await page.waitForTimeout(1500);
+  expect((await saved).ok(), "the move is saved");
   await page.reload();
   expect((await boardLane("Qualified").innerText()).includes("Dispensary counter"), "moved to Qualified");
 });
 
 await step("the board: move a deal with the keyboard, then to Won with a reason", async () => {
+  // Under load (a busy machine), each wait is on what the page says, never
+  // on time: the board live, the move saved, the card landed, the words in.
+  await boardReady();
   await boardLane("Qualified").locator(".deal-handle", { hasText: "Dispensary counter" }).focus();
   await page.keyboard.press("Space");
   await page.waitForTimeout(200);
   await page.keyboard.press("ArrowRight");
   await page.waitForTimeout(200);
+  const saved = moveSaved();
   await page.keyboard.press("Space");
-  await page.waitForTimeout(1500);
+  expect((await saved).ok(), "the move is saved");
   await page.reload();
-  await page.waitForLoadState("networkidle");
+  await boardReady();
   expect((await boardLane("Proposal").innerText()).includes("Dispensary counter"), "moved to Proposal");
   const card = page.locator(".deal-card", { hasText: "Dispensary counter" });
   const target = boardLane("Won").locator(".lane-deals");
@@ -352,8 +384,14 @@ await step("the board: move a deal with the keyboard, then to Won with a reason"
   await page.mouse.move(b.x + 40, b.y + 20, { steps: 20 });
   await page.mouse.up();
   await page.waitForSelector("dialog[open]");
+  // Typing before the card landed would be undone: while a drag lasts (and
+  // 50 ms after), dnd-kit clears any text selection, the one a fill makes
+  // too. A person is never that fast; the dialog's field has the focus.
+  await landed();
+  expect(await page.evaluate(() => document.activeElement?.id === "reason"), "the dialog opens on its field");
   await page.getByLabel("A few words help the team next time.").fill("Fast delivery promised");
-  await page.waitForFunction(() => document.querySelector("dialog[open] #reason")?.value === "Fast delivery promised");
+  await page.waitForFunction(() => document.querySelector("dialog[open] #reason")?.value === "Fast delivery promised")
+    .catch(async error => { throw new Error(`the reason typed is not in its field (${JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("#reason")].map(r => r.value)))}): ` + error.message); });
   await page.locator("dialog[open]").getByRole("button", { name: "Won" }).click();
   await page.waitForSelector(".ck-toast:has-text('Won! Well done.')");
   await page.reload();
@@ -383,8 +421,7 @@ await step("the manager gives Inès a deal: she is told in French", async () => 
   // The owner is the kit's people picker: type, choose, saved at once.
   await page.locator("#deal-owner").fill("Inès");
   await page.locator(".ck-option", { hasText: "Inès Moreau" }).click();
-  await page.waitForTimeout(1500);
-  expect((await dev()).includes("Camille Martin vous a confié une affaire"), "French bell item");
+  await devSays(text => text.includes("Camille Martin vous a confié une affaire"), "French bell item");
 });
 
 await step("search with the / key, accents and case aside", async () => {
