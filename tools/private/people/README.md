@@ -21,6 +21,16 @@ see "What it does not do yet".
   Search as you type on name, job, team, office, topics, work email and
   HR's extra fields (accents and case aside); filter by team and office;
   the search stays in the address.
+- **Staff without the Chest** (a warehouse worker, an intern: an HR record
+  not linked to any member) are in the directory and the org chart too,
+  marked **"Not in the Chest"**: their name, job, team and manager — what
+  the directory shows of anyone, and nothing else of the record (no
+  contract, no dates, no address). Everyone who reads the directory sees
+  them; their card opens nothing (HR's opens the record). They are listed
+  from their first day (or at once without one) until their last; HR
+  places them from the record (*In the directory*: team, manager) or takes
+  them off. Once the record is linked to a member who got the Chest, their
+  profile takes over (its empty team and manager are filled from there).
 - **Work email** — the Chest's address of each member (`members.email`),
   on their profile with a *Write* button beside *Call*; in the export; used
   by the import to match people.
@@ -71,6 +81,18 @@ see "What it does not do yet".
   its day, adds or deletes steps, stops a checklist (with *Undo*) or
   deletes a stopped one (asked first: it is for good). The person who started it is told when it is
   complete.
+- **A welcome email** (Proposal (studio) `mail`): starting a welcome
+  checklist sends the newcomer a short email in their language — welcome
+  to the company, their first day, their manager, where their first steps
+  are (a link to *My to-dos* once they have the Chest) — signed by the HR
+  person who started it, whose address is the reply address. A member
+  gets it at their Chest address (People never types it); an arrival not
+  in the Chest yet at the **work address** HR gave (Hiring's personal
+  address is never kept, so an arrival from Hiring without one gets
+  nothing); an arrival reads the Chest's language. Once per checklist; not
+  for a first day more than two weeks past; the person's own email choice
+  in the Chest is followed (not transactional). The page says "Started.
+  Nora gets a short welcome email." only when it left.
 - **Import** a CSV (a shared spreadsheet, BambooHR's reports, a Google
   Workspace users export, Lucca's export): columns recognised from their
   names in English and French — BambooHR's "Employee #" (left out), "First
@@ -258,6 +280,22 @@ ones Rooms receives; unchanged).
   reference and time for a week, so an approval delivered late (events
   come at least once, not always in order) cannot bring the badge back.
 
+**Equipment → People** — everything is back (`receives`). The contract,
+v1, which **Equipment does not publish yet** (it declares no `emits`
+today): Equipment receives `people.leaving` and lists what the person
+holds; once everything they held is back, it publishes
+
+- `equipment.returned` `{member: "mbr_…"}` (key
+  `equipment:<member>:returned:<time>`), and People ticks the running
+  leaving checklist's **"Return the laptop, badge and keys"** step for
+  that person, marked "Ticked by Equipment: everything is back"; its
+  person's to-do and HR's "complete" follow, as for a tick. Only the
+  example step does (its words' key `offboarding.equipment`, kept until HR
+  rewords it): a step HR wrote itself stays HR's to tick. Another shape,
+  another tool, a stopped checklist: nothing; told twice, nothing more.
+  People's side is built and tested (`lib/returns.ts`,
+  `test/returns.test.ts`, the harness's *Deliver*).
+
 **People → other tools** — departures and records (`chest.proposals.json` `emits`):
 
 - When HR **starts a leaving checklist** for a member, its last day is
@@ -365,12 +403,15 @@ records: see "On a Chest").
   itself), `members.email` (the work address on profiles, the import's
   matching), `files` (the records' documents, 20 MB each), `notifications`
   (the bell and the tile's number: open to-dos); `receives: ["member.*"]`.
-  No network.
+  No network. Proposal (studio), in `chest.proposals.json`: `mail:
+  {send: true}` (the welcome email), `emits`, `receives` (Hiring, Leave,
+  Equipment), `schedules`.
 - **Who is HR**: the owner, the admins and the tool's builders enter with
   the first role, `hr` — so they read HR records. Give the tool's building
   to someone who may read them, or see "Needs from the SDK".
-- **The directory is the Chest's members who have the tool.** Give People
-  to everyone (open to all) so the directory is the whole company.
+- **The directory is the Chest's members who have the tool**, and the
+  staff without the Chest HR keeps a record of. Give People to everyone
+  (open to all) so the directory is the whole company.
 - **Someone leaves** (or loses access): they leave the directory at once;
   their profile is kept 30 days in case they come back, then purged. The
   people they managed no longer have a manager, their open steps go to
@@ -408,9 +449,16 @@ records: see "On a Chest").
   departed profiles. **Without it** the tool is fully usable: the tile's
   number is set whenever a step changes and when its owner opens *My
   to-dos*, and the purge runs whenever the directory is read.
+- `mail` — **Proposal (studio)**: `mail.send` of the welcome email (to a
+  member by id, or to an arrival's work address; `replyTo` the HR person's
+  Chest address, `members.email`). The person's own email choice
+  (`member.mailPreference`, studio.15) is applied by `mail.send`. On a
+  Chest without mail, nothing is sent, nothing fails, and the page does
+  not say it was sent.
 - **Events between tools** — **Proposal (studio)**: receives
   `hiring.hired`, `hiring.hire_cancelled`, `leave.approved`,
-  `leave.cancelled`; emits `people.leaving`, `people.leaving_cancelled`,
+  `leave.cancelled`, `equipment.returned` (Equipment does not publish it
+  yet); emits `people.leaving`, `people.leaving_cancelled`,
   `people.record` (see "With the other tools"). Without it, HR starts checklists for
   members only, nobody reads "Away", and Equipment is not told of
   departures.
@@ -428,9 +476,7 @@ records: see "On a Chest").
   (the manifest marking `hr` as "never given by default"), so building the
   tool does not mean reading records; a **Chest-wide audit journal** the
   tool writes to and the owner reads (People keeps its own meanwhile);
-  **events from Equipment** ("everything taken back" for a person) to tick
-  the leaving checklist's return step; **email** would let HR send a welcome message
-  before day 1 (the newcomer often has no Chest access yet); the Chest's
+  the Chest's
   **working week and public holidays** (the "back on" day skips Saturdays
   and Sundays only); Equipment's items as steps of the leaving checklist
   (a request/answer between tools, not an event).
@@ -461,18 +507,20 @@ knowledge, not verified first-hand); the dates of an administrative
 authorisation of hiring or dismissal in the register (rare cases); the
 register's "indelible" history as a legal PDF signed and timestamped (the
 journal names changes, never values: no dated history of job and contract
-values yet); encryption at rest of records (needs the SDK); **the directory
-and org chart leave out people without the Chest** (they have HR records
-and are in the register and Numbers, not on the wall); "Request a change"
+values yet); encryption at rest of records (needs the SDK); people without
+the Chest have no profile page, photo or "Ask me about" (the directory
+shows their name, job, team and manager from their record, and they are
+not in the directory's export or HR's table); "Request a change"
 covers the home address and the emergency contact only (the rest of the
 record comes from documents; the work phone is the person's own to edit);
 field visibility has two levels (everyone, or HR and the person) — no
 "team only"; vCard export; "away" from other sources than Leave (a
 calendar); public holidays in the "back on" day; teams as Chest groups;
-drag-and-drop in the org chart; reminders by email; emailing the newcomer
-before day 1 (the `mail` proposal exists, People does not use it yet);
-ticking "return the laptop" when Equipment has everything back (needs an
-Equipment event); an export of checklists and their history; changing a
+drag-and-drop in the org chart; reminders by email; the welcome email's
+words are the tool's (HR cannot reword it yet) and it goes when the
+checklist starts, not on a day HR picks; ticking "return the laptop" waits
+for Equipment to publish `equipment.returned` (People's side is built); an
+export of checklists and their history; changing a
 choice field's list or a date field's reminder after it was added (remove
 it and add it again: Undo keeps its values meanwhile); a field's kind never
 changes. The sample company's job titles, teams and fields are the

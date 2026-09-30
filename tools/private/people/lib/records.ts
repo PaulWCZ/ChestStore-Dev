@@ -298,6 +298,16 @@ export async function linkRecord(sql: Sql, actor: Member | null, recordId: unkno
     const done = await tx`update records set member_id = ${target}, told = null, updated_at = now() where id = ${key} and erased_at is null`;
     if (done.count === 0) throw new AppError("not_found");
     await note(tx, who, "linked", { recordId: key, fields: ["memberId"] });
+    // Someone without the Chest who now has it: where the directory showed
+    // them fills their profile's empty team and manager (lib/offline.ts).
+    if (target) {
+      await tx`
+        insert into profiles (member_id, team, manager_id)
+        select ${target}, team, case when manager_id = ${target} then null else manager_id end from records where id = ${key}
+        on conflict (member_id) do update set
+          team = case when profiles.team = '' then excluded.team else profiles.team end,
+          manager_id = coalesce(profiles.manager_id, excluded.manager_id)`;
+    }
   });
   await tellRecords(sql, [key]);
 }
@@ -439,6 +449,7 @@ export async function eraseRecords(sql: Query, member: string, now: string): Pro
     for (const o of personal) await dropFile(o.object);
   }
   await sql`update records set tutor_id = null where tutor_id = ${member}`;
+  await sql`update records set manager_id = null where manager_id = ${member}`;
   await sql`update records set created_by = 'erased' where created_by = ${member}`;
   await sql`update record_documents set added_by = 'erased' where added_by = ${member}`;
 }

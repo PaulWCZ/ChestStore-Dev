@@ -15,7 +15,7 @@ import { useDateProblems, WatchedDateField } from "../../../../components/date-p
 // Someone a checklist can be for: a member, or an expected arrival.
 type Pickable = { id: string; name: string; startDate: string | null; managerId?: string | null; detail?: string };
 type Words = {
-  start: { person: string; template: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; manager: string; weekend: string };
+  start: { person: string; template: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; welcomed: string; manager: string; weekend: string };
   // "Arriving (not in the Chest yet)": said beside an expected arrival.
   group: string;
   date: DateWords;
@@ -76,7 +76,7 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
         setError(format(t.errors[result.error], result.values ?? {}));
         return;
       }
-      toast(t.start.told);
+      toast(result.value.welcomed ? format(t.start.welcomed, { name: picked[0]?.name ?? "" }) : t.start.told);
       router.push(`/chest/checklists/${result.value.id}`);
     });
   };

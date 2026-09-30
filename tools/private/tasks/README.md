@@ -90,7 +90,9 @@ for the work of a small company's teams — the 80 % they use every day.
   mentioned, and the morning reminder also come by email, in each person's
   language, with the link to the card; the Chest sends it to their address
   (the tool never knows it). One switch at the bottom of *My tasks* turns
-  email off for oneself. **What one person does in one go leaves as one
+  email off for oneself, and each person's own choice in the Chest (every
+  email, one a day, or none) is followed too: *My tasks* says so under the
+  switch when it is "one a day" or "none". **What one person does in one go leaves as one
   email**: the emails wait until the person has had nothing new for a
   minute (ten at most), then "Hugo Bernard: 1 task given to you, 1 step
   and 1 mention", each with its link. What an email names is read again
@@ -127,6 +129,15 @@ for the work of a small company's teams — the 80 % they use every day.
   archived, deleted or taken from them, it leaves their calendar. Only
   people who see the board get it. *My tasks* links to the Chest's page
   for adding the calendar once the Chest has taken the first event.
+- **Goals hears of the work done** (Proposal (studio): events between
+  tools): once an admin links Tasks to Goals, a card that becomes done —
+  by its *Mark done* button, a move into a "done" column (drag, keyboard,
+  the card's column menu, *Move to board*), the tick of *My tasks*, a
+  column made "done", a column archived into Done, a card added or copied
+  into Done — is told to Goals with its board and its people, and a card
+  that leaves done (every *Undo* included) is taken back. Goals' key
+  results "Cards done" count them. Cards an import brings in already done
+  are history, not told. See *With the other tools*.
 - **Links that follow the card**: bell items, emails and calendar events
   open `/chest/cards/<id>`, which finds the card's board when clicked; an
   older link to the previous board opens the card where it is now, and a
@@ -185,7 +196,7 @@ the tool's builders come in with the first role, `manager`.
 | `/chest/files/<id>` (`?download`) | who sees the card | a 15-minute link to the file, signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
 | `/chest-jobs/morning` | the Chest only (signed, Proposal (studio)) | the weekday morning |
-| `/chest-jobs/mail` | the Chest only (signed, Proposal (studio)) | every 15 minutes: the emails that waited (also sent after each action and page) |
+| `/chest-jobs/mail` | the Chest only (signed, Proposal (studio)) | every 15 minutes: the emails that waited (also sent after each action and page), and the cards done or reopened the Chest could not take yet |
 | `/` | anyone | "Tasks lives in your Chest" |
 
 ## On a Chest
@@ -194,8 +205,9 @@ the tool's builders come in with the first role, `manager`.
   browser → Chest uploads); `members` (names, photos, who sees a board);
   `notifications` (the bell and the tile's number); `receives: ["member.*"]`;
   and, Proposal (studio) in `chest.proposals.json`, `mail: {send: true}`
-  (email to members, by their id) and `calendar: true` (each person's due
-  dates in their Chest calendar feed).
+  (email to members, by their id), `calendar: true` (each person's due
+  dates in their Chest calendar feed) and `emits: ["tasks.card.done",
+  "tasks.card.reopened"]` (Goals' "Cards done").
 - **Someone leaves** (or loses access): their open cards and steps are
   unassigned (the history says so), they leave the boards' people; done
   cards keep them. A board whose last owner left is managed by the
@@ -227,6 +239,32 @@ one already late. Archiving a repeating card stops its series; choosing
 "Does not repeat" stops it too.
 - No WebSocket: an open board re-reads itself every 15 s while visible.
 
+## With the other tools
+
+Tasks publishes two events (Proposal (studio): events between tools; an
+admin links the tools in the Chest). The contract is **Goals'** (its
+README, "With the other tools"), v1:
+
+| Event | Data | Key |
+|---|---|---|
+| `tasks.card.done` | `{card, board, boardName, assignees}`: ids as text, the board's name (1–80 characters), the card's people (member ids, 20 at most) when the event leaves | `tasks:<card>:done:<time>` |
+| `tasks.card.reopened` | `{card}` | `tasks:<card>:reopened:<time>` |
+
+`<time>` is when it happened (milliseconds): a card done again is told
+again, and Goals keeps the latest. **Reliable**: a trigger
+(`migrations/0006_card_events.sql`) writes each change in the same
+transaction as the card, whatever made it; `lib/card-events.ts` publishes
+after the action (Next's `after()`), and the `mail` schedule every quarter
+of an hour again while the Chest cannot take them (a Chest without events
+between tools, before an admin approved them); a key the Chest already
+holds is one event, never two. What waits a week is forgotten (Goals
+cannot count what happened before the tools were linked). Only the card
+and board ids wait there: the board's name and the people are read when
+the event leaves, so an erasure has nothing to change in it. Not told:
+cards an import brings in already done (history), a done card archived or
+deleted (the work was done), a card moved from one "done" column to
+another.
+
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
@@ -236,17 +274,26 @@ one already late. Archiving a repeating card stops its series; choosing
 - `chest` — **Proposal (studio)**: the Chest's time zone, for "today";
   its address (`teamUrl`), for the link in an email.
 - `mail` — **Proposal (studio)**: `mail.send({to: {member}})` for the
-  emails of assignment, mention and the morning. The grouping and the
+  emails of assignment, mention and the morning. Keys are passed whole
+  (studio.15 hashes a long one: before, `slice(0, 64)` could give two
+  people one key); the person's own choice in the Chest
+  (`member.mailPreference`) is applied by `mail.send` — none of these
+  emails is transactional. The grouping and the
   hold are the tool's own (`mail_queue`), sent after each request (Next's
   `after()`) and by a `mail` schedule every 15 minutes; with no schedule
   and nobody using the tool, a waiting email leaves at the next visit. On a Chest without mail,
   `CapabilityNotGranted`: nothing is sent, nothing fails, the bell says it.
-- `calendar` — **Proposal (studio)**: `calendar.put` / `remove` of each
-  person's due dates (keys `card:<id>`, `step:<id>`; `lib/due-calendar.ts`),
+- `calendar` — **Proposal (studio)**: `calendar.putMany` (studio.15:
+  100 events a call, so the first sync of a board full of due dates is a
+  few writes; a batch refused for one wrong event is put again one by one)
+  / `remove` of each person's due dates (keys `card:<id>`, `step:<id>`;
+  `lib/due-calendar.ts`),
   after each change (Next's `after()`), at each visit of *My tasks* and
   each morning (who sees a private board asked again). On a Chest without
   it, `CapabilityNotGranted`: remembered (`tool_state`), nothing fails, the
   link on *My tasks* is not shown.
+- **Events between tools** — **Proposal (studio)**: `events.publish` of
+  `tasks.card.done` / `tasks.card.reopened` (*With the other tools*).
 - Without schedules on a real Chest today, recurring cards still work (the
   next card is made at the moment one is done); the reminder does not come
   and the tile's number is refreshed by use only.

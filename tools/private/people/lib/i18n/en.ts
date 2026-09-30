@@ -65,6 +65,9 @@ export const en = {
     },
     askMe: "Ask me about",
     new: "New",
+    // Staff without the Chest (a warehouse worker, an intern): listed from
+    // their HR record, their card opens nothing.
+    offline: "Not in the Chest",
     newcomers: "New colleagues",
     sayHello: "Say hello to {name}",
     started: "Started {when}",
@@ -178,6 +181,7 @@ export const en = {
     aloneMember: "Their manager has not been set yet.",
     left: "Has left",
     leftHr: "Choose a new manager",
+    offline: "Not in the Chest",
     formerManager: "Former manager",
     empty: {
       title: "No org chart yet",
@@ -305,6 +309,8 @@ export const en = {
     submit: "Start",
     starting: "Starting…",
     told: "Everyone with a step is told in their bell.",
+    welcome: "{name} gets a short welcome email.",
+    welcomed: "Started. {name} gets a short welcome email.",
     noTemplates: "Create a template first.",
     newTemplate: "Create a template",
     manager: "Their manager",
@@ -326,6 +332,8 @@ export const en = {
     },
     doneBy: "Done by {name}, {date}",
     doneByYou: "Done by you, {date}",
+    // Ticked when Equipment said everything the person held is back.
+    doneByEquipment: "Ticked by Equipment: everything is back, {date}",
     mark: "Done",
     give: "Give to",
     due: "Due",
@@ -713,6 +721,19 @@ export const en = {
     to: "Asked:",
     empty: "(empty)",
   },
+  // Someone without the Chest, placed in the directory from their record
+  // (lib/offline.ts).
+  placement: {
+    title: "In the directory",
+    body: "Not in the Chest: the directory and the org chart show their name, job, team and manager — nothing else of this record.",
+    listed: "Show them in the directory and the org chart",
+    team: "Team",
+    manager: "Manager",
+    save: "Update the directory",
+    saving: "Saving…",
+    saved: "Saved.",
+    fields: { listed: "shown in the directory", team: "team", managerId: "manager" },
+  },
   record: {
     back: "HR records",
     mine: "My HR record",
@@ -962,5 +983,18 @@ export const en = {
       cancelledGone: "Nothing had been started for them.",
     },
     digest: { one: "1 checklist to-do for today", other: "{count} checklist to-dos for today" },
+  },
+  // The short welcome a newcomer gets by email when HR starts their
+  // welcome checklist (lib/welcome.ts), in the newcomer's language.
+  welcome: {
+    subject: "Welcome to {company}, {name}",
+    subjectNoCompany: "Welcome, {name}",
+    hello: "Hello {name},",
+    firstDay: "Welcome to {company}! Your first day is {day}.",
+    firstDayNoCompany: "Welcome to the team! Your first day is {day}.",
+    manager: "{manager} will be your manager.",
+    steps: "Your first steps are ready in People, in the company’s Chest:",
+    stepsLater: "You will get access to the company’s Chest; your first steps will be waiting for you in People.",
+    bye: "See you soon,",
   },
 } as const;

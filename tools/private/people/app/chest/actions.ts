@@ -16,7 +16,9 @@ import { today } from "../../lib/zone.ts";
 import * as importer from "../../lib/importer.ts";
 import * as recordImport from "../../lib/record-import.ts";
 import * as j from "../../lib/journeys.ts";
+import * as offline from "../../lib/offline.ts";
 import * as profiles from "../../lib/profiles.ts";
+import { welcome } from "../../lib/welcome.ts";
 import * as share from "../../lib/share.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
@@ -129,14 +131,17 @@ export async function removeTemplateItem(itemId: string): Promise<Result<j.Templ
 }
 
 // Checklists.
-export async function startChecklist(input: { personId?: string; arrivalId?: string; managerId?: string | null; templateId: string; anchor: string }): Promise<Result<{ id: string }>> {
+export async function startChecklist(input: { personId?: string; arrivalId?: string; managerId?: string | null; templateId: string; anchor: string }): Promise<Result<{ id: string; welcomed: boolean }>> {
   return act(async actor => {
     const sql = db();
     // A leaving checklist sets the person's last day: other tools are told.
     const person = typeof input?.personId === "string" && !input.arrivalId ? input.personId : null;
     const started = await share.around(sql, person, () => j.startJourney(sql, actor, input));
     await tell.todo(sql, actor, started, started.assignees.keys());
-    return { id: started.id };
+    // A welcome checklist: the newcomer gets a short welcome email
+    // (lib/welcome.ts), and the page says so once it left.
+    const welcomed = started.kind === "onboarding" ? await welcome(sql, actor, started.id) : false;
+    return { id: started.id, welcomed };
   });
 }
 
@@ -231,6 +236,11 @@ export async function createAllRecords(): Promise<Result<number>> {
 
 export async function saveRecord(recordId: string, input: Record<string, unknown>): Promise<Result<{ changed: string[] }>> {
   return act(actor => records.updateRecord(db(), actor, recordId, input));
+}
+
+// Someone without the Chest in the directory and the org chart.
+export async function savePlacement(recordId: string, input: { listed: boolean; team: string; managerId: string | null }): Promise<Result<null>> {
+  return act(async actor => { await offline.setPlacement(db(), actor, recordId, input); return null; });
 }
 
 export async function linkRecord(recordId: string, memberId: string | null): Promise<Result<null>> {

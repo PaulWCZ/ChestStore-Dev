@@ -1,7 +1,7 @@
 // Tasks, as a person uses it, in a real browser: node lab/chest-dev/flows/tasks.mjs [port]
 // (the harness runs the tool with --reset: the sample boards are there).
 import { writeFileSync } from "node:fs";
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4000);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { allow404: /\/chest\/boards\/\d+$/u });
@@ -20,6 +20,8 @@ await step("create a board: the dialog opens on its name field, typing names it"
   expect((await page.locator(".lane h2").allTextContents()).join("|").includes("Ideas"), "template columns");
 });
 const boardUrl = page.url();
+const boardId = boardUrl.match(/\/boards\/(\d+)$/u)?.[1];
+let standId = null;
 let mentionedAt = Date.now();
 
 await step("quick-add three cards; they appear at once", async () => {
@@ -76,6 +78,7 @@ await step("keyboard: Enter on a focused card opens it; Escape closes; Space sti
 await step("open a card; set a date, a checklist, give it to Inès, mention her", async () => {
   await page.locator(".card", { hasText: "Book the stand" }).click();
   await page.waitForURL(/card=/u);
+  standId = new URL(page.url()).searchParams.get("card");
   // The kit's date field reads what is typed (ISO too) when Enter is pressed.
   await page.locator("#card-due").fill("2026-10-15");
   await page.keyboard.press("Enter");
@@ -92,8 +95,12 @@ await step("open a card; set a date, a checklist, give it to Inès, mention her"
   await page.locator("#comment").fill("Can you check the price @In");
   await page.waitForSelector(".suggestions");
   await page.keyboard.press("Enter");
-  // The mention is in the text before typing on.
-  await page.waitForFunction(() => (document.querySelector("#comment")?.value ?? "").includes("@Inès Moreau"));
+  // The mention is in the text, and the caret after it, before typing on
+  // (the caret once came a frame late and moved the letters typed).
+  await page.waitForFunction(() => {
+    const box = document.querySelector("#comment");
+    return !!box && box.value.includes("@Inès Moreau ") && document.activeElement === box && box.selectionStart === box.value.length;
+  });
   await page.locator("#comment").type("please");
   await page.getByRole("button", { name: "Comment", exact: true }).click();
   await page.locator(".panel").getByText("@Inès Moreau please").first().waitFor();
@@ -206,6 +213,14 @@ await step("tick it done from My tasks, then undo", async () => {
   await page.waitForTimeout(1500);
   await page.reload();
   expect(await page.locator(".task", { hasText: "Book the stand" }).count() === 1, "back after undo");
+  // Goals' "Cards done": done (with its board and Inès), then taken back
+  // by the Undo — each published once (the harness's Events panel).
+  const published = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&quot;", '"');
+  const doneEvent = `<code>tasks.card.done</code> <small>{"card":"${standId}","board":"${boardId}","boardName":"Trade show","assignees":["${id("ines")}"]}</small>`;
+  const reopened = `<code>tasks.card.reopened</code> <small>{"card":"${standId}"}</small>`;
+  expect(published.split(doneEvent).length === 2, "tasks.card.done published once, with its board and people");
+  expect(published.split(reopened).length === 2, "tasks.card.reopened published once by the Undo");
+  expect(published.indexOf(reopened) < published.indexOf(doneEvent), "reopened after done (the panel lists the latest first)");
 });
 
 await step("the morning: Inès finds one reminder in French; run again, still one; switched off, it goes", async () => {

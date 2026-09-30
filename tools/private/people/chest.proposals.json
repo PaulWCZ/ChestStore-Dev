@@ -1,4 +1,7 @@
 {
+  "mail": {
+    "send": true
+  },
   "emits": [
     "people.leaving",
     "people.leaving_cancelled",
@@ -14,7 +17,8 @@
     "hiring.hired",
     "hiring.hire_cancelled",
     "leave.approved",
-    "leave.cancelled"
+    "leave.cancelled",
+    "equipment.returned"
   ],
   "translations": {
     "fr": {

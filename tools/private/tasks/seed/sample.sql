@@ -111,3 +111,7 @@ begin
     select a.id, b.id, camille from cards a join cards b on b.board_id = a.board_id
     where (a.title, b.title) in (('Tell our clients about the new address', 'Book the moving truck for the 14th'), ('Plan the housewarming drinks', 'Floor plan: who sits where'), ('Contact form sends to Support', 'Homepage mockup'));
 end $$;
+
+-- The sample's done cards are history, like an import's: nothing waits to
+-- be told to the linked tools (migrations/0006_card_events.sql).
+delete from card_events;

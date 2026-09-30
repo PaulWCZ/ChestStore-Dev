@@ -11,8 +11,10 @@ import { format, plural } from "../../../lib/i18n/format.ts";
 // company starts folded below the second level.
 // left: a manager who left, kept above their reports until HR names
 // someone else (no profile to open).
-export type ChartNode = { id: string; name: string; photo: string | null; title: string; team: string; size: number; left: boolean; reports: ChartNode[] };
-type Words = { reports: { one: string; other: string }; hide: string; show: string; left: string; leftHr: string };
+// offline: someone without the Chest (an HR record), marked; href is
+// where their card leads (their record for HR, nothing for anyone else).
+export type ChartNode = { id: string; name: string; photo: string | null; title: string; team: string; size: number; left: boolean; href: string | null; offline: boolean; reports: ChartNode[] };
+type Words = { reports: { one: string; other: string }; hide: string; show: string; left: string; leftHr: string; offline: string };
 
 export function OrgChart({ roots, me, hr, locale, t }: { roots: ChartNode[]; me: string; hr: boolean; locale: string; t: Words }) {
   const total = roots.reduce((n, r) => n + r.size, 0);
@@ -37,7 +39,7 @@ export function OrgChart({ roots, me, hr, locale, t }: { roots: ChartNode[]; me:
     const open = !closed.has(n.id);
     return (
       <li key={n.id} className="node">
-        <div className={n.left ? "node-card left" : n.id === me ? "node-card me" : "node-card"}>
+        <div className={n.left ? "node-card left" : n.offline ? "node-card offline" : n.id === me ? "node-card me" : "node-card"}>
           {n.left ? (
             <div className="node-link">
               <Portrait name={n.name} photo={null} size={56} />
@@ -45,12 +47,20 @@ export function OrgChart({ roots, me, hr, locale, t }: { roots: ChartNode[]; me:
               <span className="node-title left-tag">{t.left}</span>
               {hr && <Link className="node-fix" href={`/chest/table`}>{t.leftHr}</Link>}
             </div>
-          ) : (
-            <Link href={`/chest/people/${n.id}`} className="node-link">
+          ) : n.href ? (
+            <Link href={n.href} className="node-link">
               <Portrait name={n.name} photo={n.photo} size={56} team={n.team} />
               <span className="node-name">{n.name}</span>
               {n.title && <span className="node-title">{n.title}</span>}
+              {n.offline && <span className="offline-tag">{t.offline}</span>}
             </Link>
+          ) : (
+            <div className="node-link">
+              <Portrait name={n.name} photo={n.photo} size={56} team={n.team} />
+              <span className="node-name">{n.name}</span>
+              {n.title && <span className="node-title">{n.title}</span>}
+              {n.offline && <span className="offline-tag">{t.offline}</span>}
+            </div>
           )}
           {n.reports.length > 0 && (
             <button type="button" className="node-toggle" aria-expanded={open} aria-controls={"team-" + n.id} onClick={() => toggle(n.id)} aria-label={format(open ? t.hide : t.show, { name: n.name })}>

@@ -4,6 +4,8 @@ import { Tree, Upload } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { departedManagers, directory } from "../../../lib/directory.ts";
+import { offlineStaff } from "../../../lib/offline.ts";
+import { today } from "../../../lib/zone.ts";
 import { viewer } from "../../../lib/session.ts";
 import { orgChart, type OrgNode } from "../../../lib/tree.ts";
 import { OrgChart, type ChartNode } from "./org-chart.tsx";
@@ -19,14 +21,18 @@ export default async function ChartPage() {
   const { entries } = await directory(sql, member);
   // Managers who left keep their place above their reports, marked, until
   // HR names someone else.
-  type Place = { id: string; name: string; photo: string | null; title: string; team: string; managerId: string | null; left: boolean };
+  // Staff without the Chest have their place from their HR record (team,
+  // manager), marked; HR's card opens the record, anyone else's nothing.
+  type Place = { id: string; name: string; photo: string | null; title: string; team: string; managerId: string | null; left: boolean; href: string | null; offline: boolean };
+  const records = can(member, "records.manage");
   const places: Place[] = [
-    ...entries.map(e => ({ id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, managerId: e.managerId, left: false })),
-    ...(await departedManagers(sql, entries)).map(d => ({ id: d.id, name: d.name || t.people.erased, photo: null, title: "", team: "", managerId: d.managerId, left: true })),
+    ...entries.map(e => ({ id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, managerId: e.managerId, left: false, href: `/chest/people/${e.id}`, offline: false })),
+    ...(await departedManagers(sql, entries)).map(d => ({ id: d.id, name: d.name || t.people.erased, photo: null, title: "", team: "", managerId: d.managerId, left: true, href: null, offline: false })),
+    ...(await offlineStaff(sql, member, today())).map(o => ({ id: o.id, name: o.name, photo: null, title: o.title, team: o.team, managerId: o.managerId, left: false, href: records ? `/chest/records/${o.recordId}` : null, offline: true })),
   ];
   const { roots, alone } = orgChart(places);
   const shape = (n: OrgNode<Place>): ChartNode => ({
-    id: n.person.id, name: n.person.name, photo: n.person.photo, title: n.person.title, team: n.person.team, size: n.size, left: n.person.left, reports: n.reports.map(shape),
+    id: n.person.id, name: n.person.name, photo: n.person.photo, title: n.person.title, team: n.person.team, size: n.size, left: n.person.left, href: n.person.href, offline: n.person.offline, reports: n.reports.map(shape),
   });
   const hr = can(member, "profile.job");
   return (
@@ -49,10 +55,24 @@ export default async function ChartPage() {
           <ul className="minis inline">
             {alone.map(p => (
               <li key={p.id}>
-                <Link className="mini" href={hr ? `/chest/people/${p.id}/edit` : `/chest/people/${p.id}`}>
-                  <Avatar name={p.name} photo={p.photo} size="l" />
-                  <span><strong>{p.name}</strong>{p.title && <span className="muted">{p.title}</span>}</span>
-                </Link>
+                {p.offline ? (
+                  p.href ? (
+                    <Link className="mini" href={p.href}>
+                      <Avatar name={p.name} photo={null} size="l" />
+                      <span><strong>{p.name}</strong><span className="offline-tag">{t.chart.offline}</span>{p.title && <span className="muted">{p.title}</span>}</span>
+                    </Link>
+                  ) : (
+                    <div className="mini">
+                      <Avatar name={p.name} photo={null} size="l" />
+                      <span><strong>{p.name}</strong><span className="offline-tag">{t.chart.offline}</span>{p.title && <span className="muted">{p.title}</span>}</span>
+                    </div>
+                  )
+                ) : (
+                  <Link className="mini" href={hr ? `/chest/people/${p.id}/edit` : `/chest/people/${p.id}`}>
+                    <Avatar name={p.name} photo={p.photo} size="l" />
+                    <span><strong>{p.name}</strong>{p.title && <span className="muted">{p.title}</span>}</span>
+                  </Link>
+                )}
               </li>
             ))}
           </ul>

@@ -619,6 +619,72 @@ await step("Leave tells of an approved leave: the card and the profile say “Aw
   expect((await page.locator(".wall li", { hasText: "Tom Walker" }).locator(".away").innerText()).trim().startsWith("Away this afternoon"), "half day");
 });
 
+await step("pass 4: HR starts Marc's welcome checklist: he gets a short welcome email at his work address, signed by HR, who is the reply address", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/checklists");
+  const arrival = page.locator(".arrival", { hasText: "Marc Lefèvre" });
+  await arrival.getByRole("link", { name: "Start the arrival checklist" }).click();
+  await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
+  await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
+  await page.getByRole("option", { name: "Inès Moreau" }).click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.waitForURL(/\/chest\/checklists\/\d+$/u);
+  await page.locator(".ck-toast", { hasText: "Started. Marc Lefèvre gets a short welcome email." }).waitFor();
+  await page.goto(origin + "/_dev");
+  const letter = page.locator("li", { has: page.locator("b", { hasText: "Welcome to Atelier Martin, Marc" }) });
+  expect(await letter.count() === 1, "one welcome email");
+  const text = await letter.innerText();
+  expect(text.includes("marc.lefevre@example.test") && text.includes("replies to camille@example.test") && text.includes("Camille Martin"), "to his work address, from HR: " + text.slice(0, 300));
+  await letter.locator("summary").click();
+  const body = await letter.locator("pre").innerText();
+  expect(body.startsWith("Hello Marc,") && body.includes("Your first day is") && body.includes("Inès Moreau will be your manager.") && body.includes("You will get access to the company’s Chest") && body.trim().endsWith("Camille Martin"), "the letter: " + body);
+});
+
+await step("pass 4: staff without the Chest are in the directory and the org chart, marked; a colleague's card opens nothing; HR places them from the record", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  await page.getByPlaceholder("A name, a job, a topic…").fill("aminata");
+  expect((await cards()).join("|") === "DIALLO Aminata", "found: " + (await cards()).join("|"));
+  const card = page.locator(".wall li", { hasText: "DIALLO Aminata" });
+  const words = (await card.innerText()).split("\n").map(w => w.trim()).filter(Boolean);
+  expect(words.join("|") === "D|Not in the Chest|DIALLO Aminata|Warehouse operator|Office" || (words.includes("Not in the Chest") && words.includes("Warehouse operator") && words.includes("Office") && words.length <= 5), "name, job, team, marked — nothing else: " + words.join("|"));
+  expect(await card.locator("a").count() === 0, "a colleague's card opens nothing");
+  await page.goto(origin + "/chest/chart");
+  const underCamille = page.locator(".node", { has: page.locator(".node-card", { hasText: "Camille Martin" }) }).first();
+  expect(await underCamille.locator(".node-card.offline", { hasText: "DIALLO Aminata" }).count() === 1, "in the chart under Camille");
+  expect((await page.locator(".node-card.offline", { hasText: "NGUYEN Linh" }).innerText()).includes("Not in the Chest"), "Linh marked");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest");
+  await page.locator(".wall a.person", { hasText: "DIALLO Aminata" }).click();
+  await page.waitForURL(/\/chest\/records\/\d+$/u);
+  const place = page.locator("section", { has: page.getByRole("heading", { name: "In the directory" }) });
+  await place.getByLabel("Team").fill("Warehouse");
+  await place.getByRole("button", { name: "Update the directory" }).click();
+  await page.locator(".ck-toast", { hasText: "Saved." }).waitFor();
+  await page.goto(origin + "/chest?team=Warehouse");
+  expect((await cards()).join("|") === "DIALLO Aminata", "placed in Warehouse: " + (await cards()).join("|"));
+});
+
+await step("pass 4: Equipment tells that everything is back: the leaving checklist's return step ticks itself, marked", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/checklists/new");
+  await page.getByRole("combobox", { name: "Who is it for?" }).fill("Sofia");
+  await page.getByRole("option", { name: "Sofia Rossi" }).click();
+  await page.locator(".choice", { hasText: "Leaving" }).click();
+  await page.getByLabel("Last day").fill("15/01/2027");
+  await page.getByLabel("Last day").press("Tab");
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.waitForURL(/\/chest\/checklists\/\d+$/u);
+  const journey = page.url();
+  const step = () => page.locator(".step", { hasText: "Return the laptop, badge and keys" });
+  expect(!(await step().innerText()).includes("Ticked by Equipment"), "open before");
+  await deliver("equipment.returned", { member: id("sofia") });
+  await page.goto(journey);
+  const text = await step().innerText();
+  expect(text.includes("Ticked by Equipment: everything is back"), "ticked by Equipment: " + text);
+  expect((await page.locator("main").innerText()).includes("1 of 5 done"), "one step done");
+});
+
 await step("in French: the directory and a checklist speak French", async () => {
   const fr = await open(port, "lea", { locale: "fr" });
   await fr.page.goto(fr.origin + "/chest");

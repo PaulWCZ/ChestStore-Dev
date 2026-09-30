@@ -135,6 +135,10 @@ update records set employee_number = n from (values
   ('WALKER Thomas', '0019'), ('ROSSI Sofia', '0021'), ('PETIT Nora', '0024'), ('NGUYEN Linh', '0026')) as v(name, n) where legal_name = v.name;
 update records set permit_end = current_date + 50, work_days = '{1,2,3}' where legal_name = 'DIALLO Aminata';
 update records set working_time = 'part', hours = 28, work_days = '{1,2,3,4}' where legal_name = 'WALKER Thomas';
+-- Aminata and Linh have no Chest account: the directory and the org chart
+-- show them from their records, placed by HR (lib/offline.ts).
+update records set team = 'Office', manager_id = 'mbr_camilleaaaaaaaaaaaaaaaaaaa' where legal_name = 'DIALLO Aminata';
+update records set team = 'Sales', manager_id = 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa' where legal_name = 'NGUYEN Linh';
 
 insert into journal (at, actor, action, record_id, fields) values
   (now() - interval '6 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'created', 9, '{}'),

@@ -22,12 +22,16 @@ export type Card = { id: string; name: string; photo: string | null; title: stri
   away: string | null;
   // More words the search finds (work address, extra fields).
   also: string;
+  // Staff without the Chest: marked, and their card opens nothing (HR's
+  // opens their record).
+  offline: boolean;
+  href: string | null;
 };
 
 type Words = {
   directory: {
     team: string; allTeams: string; office: string; allOffices: string; clear: string;
-    shown: { zero?: string; one: string; other: string }; noResults: { title: string; body: string }; askMe: string; new: string;
+    shown: { zero?: string; one: string; other: string }; noResults: { title: string; body: string }; askMe: string; new: string; offline: string;
   };
   you: string;
   search: SearchWords;
@@ -100,11 +104,11 @@ export function DirectoryView({ cards, locale, initial, welcome, t }: { cards: C
         />
       ) : (
         <ul className="wall">
-          {shown.map(c => (
-            <li key={c.id}>
-              <Link className="person" href={`/chest/people/${c.id}`}>
+          {shown.map(c => {
+            const inside = <>
                 <Portrait name={c.name} photo={c.photo} size={104} team={c.team} />
                 {(c.isNew || c.me) && <span className={c.me ? "badge me" : "badge"}>{c.me ? t.you : t.directory.new}</span>}
+                {c.offline && <span className="badge offline">{t.directory.offline}</span>}
                 <span className="person-name">{c.name}</span>
                 {c.title && <span className="person-title">{c.title}</span>}
                 {(c.team || c.office) && (
@@ -119,9 +123,13 @@ export function DirectoryView({ cards, locale, initial, welcome, t }: { cards: C
                     {c.skills.slice(0, 3).map(s => <span key={s} className="topic">{s}</span>)}
                   </span>
                 )}
-              </Link>
-            </li>
-          ))}
+            </>;
+            return (
+              <li key={c.id}>
+                {c.href ? <Link className="person" href={c.href}>{inside}</Link> : <div className="person offline">{inside}</div>}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

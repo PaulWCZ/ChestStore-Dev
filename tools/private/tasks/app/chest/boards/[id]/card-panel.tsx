@@ -3,7 +3,7 @@
 import { Avatar, Confirm, DateField, Dialog, FilePicker, PeoplePicker, TimeSelect, useToast, type PickedFile, type Upload } from "@argentic/chest-ui/components";
 import { localSearch, parseTime, putWithProgress, searchChoices, timeText, type Choice } from "@argentic/chest-ui/components/logic";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { Archive, Blocked, Chat, Check, CheckList, Clip, Clock, Close, Copy, Dots, Download, Fields, File, MoveTo, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
 import { Markdown } from "../../../../components/markdown.tsx";
@@ -728,6 +728,19 @@ function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmi
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const field = useRef<HTMLTextAreaElement>(null);
+  // Where the caret goes once a chosen name is written in: set as the new
+  // text is committed (a layout effect), before any next key — a caret put
+  // on the next frame came after the first letters typed on, and moved
+  // them ("@Inès Moreau seplea").
+  const caretAfter = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = field.current;
+    const at = caretAfter.current;
+    if (at === null || !el) return;
+    el.focus();
+    el.setSelectionRange(at, at);
+    caretAfter.current = null;
+  }, [text]);
   const suggestions = query === null ? [] : searchChoices(people, query, { limit: 6 });
   function onChange(value: string, caret: number) {
     setText(value);
@@ -744,7 +757,7 @@ function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmi
     setText(next);
     setChosen(c => (c.some(x => x.id === p.id) ? c : [...c, p]));
     setQuery(null);
-    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(before.length, before.length); });
+    caretAfter.current = before.length;
   }
   function submit() {
     const body = text.trim();

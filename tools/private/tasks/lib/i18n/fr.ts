@@ -88,6 +88,8 @@ export const fr: Catalogue = {
     stepDone: "Étape cochée.",
     stepOf: "Étape de « {card} »",
     email: "M’envoyer aussi tout cela par e-mail : tâches confiées, mentions, rappel du matin",
+    emailDigest: "Vous avez choisi un seul e-mail par jour de votre Chest : ils y sont regroupés. Changez-le dans les réglages de votre Chest.",
+    emailNone: "Vous avez choisi de ne recevoir aucun e-mail de votre Chest : rien n’est envoyé. Changez-le dans les réglages de votre Chest.",
     nothingShared: {
       title: "Aucun tableau n’est encore partagé avec vous",
       body: "Demandez à {names} de vous ajouter à un tableau.",

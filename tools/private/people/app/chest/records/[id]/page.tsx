@@ -14,6 +14,8 @@ import { viewer } from "../../../../lib/session.ts";
 import { today } from "../../../../lib/zone.ts";
 import { Documents } from "./documents.tsx";
 import { RecordForm } from "./record-form.tsx";
+import { PlacementForm } from "./placement-form.tsx";
+import { placement } from "../../../../lib/offline.ts";
 import { AnswerChange, AskChange } from "./change-request.tsx";
 import { waitingChange } from "../../../../lib/changes.ts";
 import { listLetters, shown } from "../../../../lib/letters.ts";
@@ -48,7 +50,13 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
   const photo = r.memberId ? names.get(r.memberId)?.photo ?? null : null;
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" }) : "");
   const gaps = missing(r);
-  const fieldWord = (f: string) => (f in t.record.fields ? t.record.fields[f as Field] : f in t.record.kinds ? t.record.kinds[f as keyof typeof t.record.kinds] : f);
+  const fieldWord = (f: string) => (f in t.record.fields ? t.record.fields[f as Field] : f in t.record.kinds ? t.record.kinds[f as keyof typeof t.record.kinds] : f in t.placement.fields ? t.placement.fields[f as keyof typeof t.placement.fields] : f);
+  // HR's pickers: the members of the directory. Someone without the Chest
+  // is placed in the directory from here (lib/offline.ts).
+  const everyoneListed = edit ? (await directory(sql, member)).entries : [];
+  const pickable = everyoneListed.map(e => ({ id: e.id, name: e.name, photo: e.photo }));
+  const placed = edit && !r.memberId && !r.erased ? await placement(sql, member, r.id) : null;
+  const teams = [...new Set(everyoneListed.map(e => e.team).filter(Boolean))].sort(new Intl.Collator(locale).compare);
   const docs = r.documents.map(d => ({ id: d.id, name: d.name, kind: d.kind, size: d.size, added: formatDate(d.addedAt, locale, { day: "numeric", month: "short", year: "numeric" }), by: nameOf(names.get(d.addedBy), locale) }));
   const docWords = { record: t.record, errors: t.errors, files: t.files };
   return (
@@ -76,7 +84,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
           initial={toForm(r)}
           linked={r.memberId}
           erased={r.erased}
-          members={(await directory(sql, member)).entries.map(e => ({ id: e.id, name: e.name, photo: e.photo }))}
+          members={pickable}
           today={today()}
           lang={locale}
           t={{ record: t.record, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
@@ -86,6 +94,18 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
           <ReadOnly r={r} day={day} tutor={r.tutorId ? plainName(names.get(r.tutorId), locale) : ""} locale={locale} t={t.record} />
           {!r.erased && <div className="section"><AskChange recordId={r.id} current={askableNow} waiting={waiting} t={changeWords} /></div>}
         </>
+      )}
+
+      {placed && (
+        <PlacementForm
+          key={r.updatedAt}
+          id={r.id}
+          initial={{ listed: placed.listed, team: placed.team, managerId: placed.managerId }}
+          members={pickable}
+          teams={teams}
+          lang={locale}
+          t={{ placement: t.placement, errors: t.errors, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
+        />
       )}
 
       {edit && (

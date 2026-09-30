@@ -471,6 +471,23 @@ export async function openIn(sql: Query, journeyId: string, assignee: string): P
     order by due_on, position`;
 }
 
+// A leaving checklist's step ticked by another tool: "Return the laptop,
+// badge and keys" once Equipment says everything is back (lib/returns.ts).
+// Every open step of that phrase in the running leaving checklists about
+// this person, whoever it is given to; `by` names the tool ("equipment").
+export async function tickAbout(sql: Sql, person: string, phrase: string, by: string): Promise<Ticked[]> {
+  return sql.begin(async tx => {
+    const rows = await tx<{ journey_id: string; assignee: string | null }[]>`
+      update journey_items i set done_at = now(), done_by = ${by}
+      from journeys j where j.id = i.journey_id and j.stopped_at is null and j.kind = 'offboarding' and j.person_id = ${person}
+        and i.phrase = ${phrase} and i.done_at is null and i.removed_at is null
+      returning i.journey_id, i.assignee`;
+    const ticked: Ticked[] = [];
+    for (const r of rows) ticked.push(await settle(tx, String(r.journey_id), r.assignee));
+    return ticked;
+  });
+}
+
 // A step that ticks itself: the newcomer's "fill in your profile" once they
 // did. Says what changed, for the bell, like a tick.
 export async function autoTick(sql: Sql, member: string, phrase: string): Promise<Ticked[]> {

@@ -7,6 +7,7 @@ import { can } from "../../lib/access.ts";
 import { arriving, newcomers, thisMonth } from "../../lib/calendar.ts";
 import { db } from "../../lib/db.ts";
 import { directory } from "../../lib/directory.ts";
+import { offlineStaff } from "../../lib/offline.ts";
 import { membersWithRecord } from "../../lib/records.ts";
 import { format, formatDay, plural, relativeDays } from "../../lib/i18n/index.ts";
 import { openCounts } from "../../lib/journeys.ts";
@@ -60,11 +61,23 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
     const a = away.get(id);
     return a ? awayText(a, now, t.away, d => formatDay(d, locale, { weekday: "short", day: "numeric", month: "short" }), format) : null;
   };
-  const cards: Card[] = entries.map(e => ({
-    id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, office: e.office, skills: e.skills, isNew: freshIds.has(e.id), me: e.id === member.id, away: awayWords(e.id),
-    // Found by the search too: the work address and HR's extra fields.
-    also: [e.email, ...Object.values(e.extras)].filter(Boolean).join(" "),
-  }));
+  // Staff without the Chest (HR records not linked to a member): their
+  // name, job and team, marked; HR's card opens the record, anyone else's
+  // opens nothing (lib/offline.ts).
+  const offline = await offlineStaff(sql, member, now);
+  const byName = new Intl.Collator(locale, { sensitivity: "base" });
+  const cards: Card[] = [
+    ...entries.map(e => ({
+      id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, office: e.office, skills: e.skills, isNew: freshIds.has(e.id), me: e.id === member.id, away: awayWords(e.id),
+      // Found by the search too: the work address and HR's extra fields.
+      also: [e.email, ...Object.values(e.extras)].filter(Boolean).join(" "),
+      href: `/chest/people/${e.id}`, offline: false,
+    })),
+    ...offline.map(o => ({
+      id: o.id, name: o.name, photo: null, title: o.title, team: o.team, office: "", skills: [], isNew: false, me: false, away: null, also: "",
+      href: can(member, "records.manage") ? `/chest/records/${o.recordId}` : null, offline: true,
+    })),
+  ].sort((a, b) => byName.compare(a.name, b.name) || (a.id < b.id ? -1 : 1));
   const welcome = (
     <>
       {fresh.length > 0 && (
@@ -129,7 +142,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
       )}
       <PageHeader
         title={t.directory.title}
-        intro={plural(t.directory.count, entries.length, locale)}
+        intro={plural(t.directory.count, entries.length + offline.length, locale)}
         secondary={(can(member, "directory.import") || can(member, "directory.export")) && (
           <>
             {can(member, "profile.job") && <Link className="button quiet small" href="/chest/table"><Table />{t.directory.table}</Link>}
