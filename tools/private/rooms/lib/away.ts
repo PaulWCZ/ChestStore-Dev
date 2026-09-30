@@ -113,11 +113,3 @@ export async function leaveCancelled(sql: Sql, event: ToolEvent): Promise<number
     return takeBack(tx, member, request, []);
   });
 }
-
-// Leave's words are kept while they can still matter: a cancellation a
-// week (an approval delivered that late cannot bring it back), an approval
-// until its last day is past and a week old.
-export async function purgeLeaveWords(sql: Query, zone: string): Promise<void> {
-  await sql`delete from leave_words where told_at < now() - interval '7 days'
-    and (cancelled or to_day is null or to_day < (now() at time zone ${zone})::date)`;
-}

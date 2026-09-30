@@ -61,5 +61,9 @@ export async function purge(sql: Sql, zone: string): Promise<void> {
   await sql`delete from room_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from visits where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from usual_applied where day < (now() at time zone ${zone})::date`;
-  await purgeLeaveWords(sql, zone);
+  // Leave's words (lib/away.ts), while they can still matter: a
+  // cancellation a week (an approval delivered that late cannot bring it
+  // back), an approval until its last day is past and a week old.
+  await sql`delete from leave_words where told_at < now() - interval '7 days'
+    and (cancelled or to_day is null or to_day < (now() at time zone ${zone})::date)`;
 }

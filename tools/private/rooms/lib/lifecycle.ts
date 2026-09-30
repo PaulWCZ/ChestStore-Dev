@@ -53,6 +53,7 @@ export async function erase(sql: Sql, memberId: string, tz = zone()): Promise<vo
     const attended = await tx<{ booking_id: string }[]>`delete from room_attendees where member_id = ${memberId} returning booking_id`;
     await enqueue(tx, attended.map(r => roomKey(String(r.booking_id))));
     await tx`delete from presence where member_id = ${memberId}`;
+    await tx`delete from leave_words where member_id = ${memberId}`;
     await tx`delete from member_prefs where member_id = ${memberId}`;
     await tx`update visits set host = 'erased' where host = ${memberId}`;
     await tx`update visits set created_by = 'erased' where created_by = ${memberId}`;
