@@ -252,8 +252,13 @@ there is a project" (a member reads that a manager opens projects).
 
 **Timesheets → Quotes: `timesheets.billable`, version 1.** Published when a
 manager presses *Draft invoice in Quotes*, one per project and period, under
-the key `timesheets:billable:<handoff>` (the same hand-off is never two
-events). `data`:
+the key `timesheets:billable:<handoff>:<made>` (`<made>`: when the hand-off
+was made, in milliseconds — the same hand-off is never two events, and a
+hand-off id given again after a restore from a backup is not taken for an
+earlier one: sdk/README, "Put the recipient in the key"), with
+`occurredAt` the moment it was made (studio.16). Taken back:
+`timesheets.billable_cancelled` under `<that key>:cancelled`, `occurredAt`
+the moment it was taken back. `data`:
 
 ```jsonc
 {

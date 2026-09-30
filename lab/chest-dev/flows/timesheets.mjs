@@ -444,6 +444,29 @@ await step("billable time to Quotes: a draft invoice per project, sent once; Quo
   expect(after.includes("Facturé : F2026-014"), "invoiced by Quotes' answer: " + after);
 });
 
+await step("taken back and sent again, the same project's time reaches Quotes each time: Quotes is told of the take-back, and the new hand-off is not refused as the old one", async () => {
+  await page.goto(origin + "/chest/reports?preset=month&kind=uninvoiced");
+  const panel = page.locator(".quotes");
+  const offered = panel.locator("ul.quotes-list:not(.recent) li").filter({ has: page.getByRole("button", { name: /^Brouillon de facture dans Devis/u }) }).first();
+  expect(await offered.count() === 1, "another project's time to send");
+  const project = await offered.locator(".quotes-what strong").innerText();
+  const published = async (type) => ((await (await page.request.get(origin + "/_dev")).text()).match(new RegExp(`${type.replace(".", "\\.")}</code>`, "gu")) ?? []).length;
+  const billable = await published("timesheets.billable");
+  await offered.getByRole("button", { name: `Brouillon de facture dans Devis : ${project}` }).click();
+  await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
+  await page.reload();
+  await panel.locator(".recent li", { hasText: project }).first().getByRole("button", { name: /^Reprendre/u }).click();
+  await page.locator(".ck-toast", { hasText: "Devis a été prévenu" }).waitFor();
+  expect(await published("timesheets.billable_cancelled") >= 1, "Quotes told of the take-back");
+  await page.reload();
+  await panel.locator("ul.quotes-list:not(.recent) li", { hasText: project }).getByRole("button", { name: `Brouillon de facture dans Devis : ${project}` }).click();
+  await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
+  expect(await published("timesheets.billable") >= Math.min(billable + 2, 8), "both hand-offs published");
+  await page.reload();
+  const recent = await panel.locator(".recent").innerText();
+  expect(recent.includes(project) && recent.includes("Repris") && recent.includes("En attente de sa facture"), "one taken back, one waiting: " + recent);
+});
+
 await step("on a phone, in French: the day replaces the grid; add time there", async () => {
   await as(context, origin, "ines");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);

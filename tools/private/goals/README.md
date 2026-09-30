@@ -69,7 +69,11 @@ Weekdone, 15Five OKRs — or the OKR spreadsheet** — for a company of 10 to
   unless the person unticks *Also email me…* at the bottom of *My goals*,
   and as they chose in their Chest settings for every tool (all, one a
   day, none: `mailPreference`, studio.15, applied by the Chest; *My goals*
-  says so under the switch when it holds emails back).
+  says so under the switch when it holds emails back). When the Chest
+  cannot send email (`mail.available()`, studio.16: mail not granted, the
+  company's mail not connected, sending suspended), *My goals* says
+  reminders stay in the bell instead of showing the switch, and *Remind*'s
+  message says "in the bell" unless an email actually left.
   Admins hear when goals need a new owner.
 - **Import** (admins): a CSV file — a spreadsheet, Goals' own export, or
   Lattice's goals file. The page guesses which column is which (one select
@@ -290,7 +294,9 @@ form from then on) — both need a query between tools (below).
 - `mail` — **Proposal (studio)**: the Friday reminder and *Remind* by email.
   Keys `reminder:<day>:<member>` / `nudge:<day>:<member>`, passed whole
   (studio.15); not transactional: the member's `mailPreference` applies.
-  Without it, nothing fails: the bell still says it.
+  Without it, nothing fails: the bell still says it. `mail.available()`
+  (studio.16) says beforehand whether email can go, so the page never
+  promises one the Chest cannot send.
 - **Events between tools** — **Proposal (studio)**: the events of Clients,
   Tasks, Support and Hiring feed key results (*With the other tools*).
 - `groups: "read"` — **Proposal (studio)**: every group of the Chest may
