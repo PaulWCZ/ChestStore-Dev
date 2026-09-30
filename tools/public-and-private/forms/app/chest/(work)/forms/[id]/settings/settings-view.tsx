@@ -328,7 +328,8 @@ export function SettingsView(p: Props) {
                 special={{ subject: s.routeTitle }} member={v.audience === "team" ? s.routeMember : null}
                 onChange={request => set("routes", { ...v.routes, request })} />
             )}
-            {(v.routes.contact || v.routes.request) && <p className="hint">{s.routeLinked}</p>}
+            {/* Said only while a link that is on has no receiver yet. */}
+            {((v.routes.contact && p.links.contact !== "linked") || (v.routes.request && p.links.request !== "linked")) && <p className="hint">{s.routeLinked}</p>}
             <Switch label={s.toolsSwitch} hint={s.toolsHint} checked={v.shareEvents} onChange={on => set("shareEvents", on)} />
           </>
         )}

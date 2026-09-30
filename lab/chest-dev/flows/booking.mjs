@@ -706,5 +706,23 @@ await step("on a phone Inès's agenda shows her meetings; « Afficher les créne
   expect(!(await page.locator(".free-toggle").isVisible()) && await page.locator(".meeting.free").first().isVisible(), "a computer shows them all");
 });
 
+await step("email is promised only because this Chest sends it (SDK studio.16, mail.available): the public form, New booking and Settings say so, and no page says it cannot", async () => {
+  await context.clearCookies();
+  await page.goto(origin + "/ines-moreau/project-call");
+  await page.waitForSelector(".calendar button.open");
+  await pickFirstTime();
+  expect((await page.locator("#email-hint").innerText()).trim() === "We send the confirmation there.", "the public form promises the confirmation");
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest/new");
+  expect((await page.locator("main").innerText()).includes("they get the confirmation and their link"), "New booking promises it");
+  await page.waitForSelector(".calendar button.open");
+  await pickFirstTime();
+  expect((await page.locator("#g-email-hint").innerText()).includes("The confirmation goes there"), "the guest's email field too");
+  await page.goto(origin + "/chest/settings");
+  const text = await page.locator("main").innerText();
+  expect(!/cannot send email|not connected email|paused email|all of today/u.test(text), "Settings warns of nothing: " + text.slice(0, 200));
+});
+
 await browser.close();
 done(problems);

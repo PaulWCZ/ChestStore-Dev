@@ -452,6 +452,20 @@ await step("an answered date retyped as a date that cannot be read is refused: t
   expect(text.includes("Refused Then Right") && /15 Mar(ch)? 2031|2031-03-15|15\/03\/2031/u.test(text), "the corrected day is the one answered: " + text.slice(0, 400));
 });
 
+await step("Settings says the truth about where answers can go (SDK studio.16): Clients and Support are installed and linked to Forms by an admin (events.receivers), so both switches work, with no “not installed” or “not linked” sentence; this Chest sends to web addresses and email, so their forms and alerts are offered with no warning", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest/forms/5/settings");
+  const text = await page.locator("main").innerText();
+  expect(!text.includes("not installed in your Chest") && !text.includes("not linked to Forms yet"), "no false sentence about the links");
+  expect(text.includes("becomes a contact in Clients") && text.includes("opens a ticket in Support"), "both links say what they do");
+  expect(!(await page.getByRole("switch", { name: "Also create a contact in Clients" }).isDisabled()) && !(await page.getByRole("switch", { name: "Also open a ticket in Support" }).isDisabled()), "both switches usable");
+  const hooks = await page.locator("fieldset.hooks").innerText();
+  expect(!/cannot send answers|paused sending|did not answer/u.test(hooks), "no false warning about web addresses: " + hooks.slice(0, 200));
+  expect(await page.locator("fieldset.hooks").getByLabel("Its address").count() === 1, "the form to add an address is offered");
+  expect(!/cannot send emails|not connected email|paused email|all of today/u.test(text), "no warning about email");
+});
+
 await step("a contact form also makes a contact in Clients and opens a ticket in Support: the author maps the questions, each answer is published typed", async () => {
   await as(context, origin, "ines");
   await english();
