@@ -756,7 +756,7 @@ await step("a room kept for Sales, a group that does not give Rooms: Hugo (Sales
     const form = page.locator("dialog[open]");
     const option = form.locator("option", { hasText: /^Bora/u });
     expect((await option.innerText()).includes("Sales only"), "the room says whom it is kept for");
-    const enabled = !(await option.isDisabled());
+    const enabled = await option.evaluate(o => !o.disabled);
     await page.keyboard.press("Escape");
     await form.getByRole("button", { name: "Discard" }).click().catch(() => {});
     return enabled;

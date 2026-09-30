@@ -483,7 +483,10 @@ await step("on a phone, in French: the day replaces the grid; add time there", a
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.locator(".ck-toast", { hasText: "2:30 ajoutées." }).waitFor();
   // Change and delete say so in words on a phone, not only with an icon.
-  const entry = page.locator(".entry", { hasText: "Site vitrine" }).last();
+  // The entry just added (today's other Site vitrine time was handed to
+  // Quotes this month: locked, without these buttons).
+  const entry = page.locator(".entry", { hasText: "Site vitrine" }).filter({ hasText: "2:30" });
+  await entry.waitFor();
   expect(await entry.getByRole("button", { name: /^Modifier/u }).isVisible() && (await entry.locator(".entry-actions").innerText()).includes("Modifier") && (await entry.locator(".entry-actions").innerText()).includes("Supprimer"), "labelled buttons");
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 390, "no horizontal scroll: " + width);
