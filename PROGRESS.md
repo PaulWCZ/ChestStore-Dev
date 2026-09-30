@@ -144,6 +144,21 @@ acceptance, in a later round.
   Clients and Support adopting it (running).
 - **Showcase:** "Looks, side by side" and a whole-store look switch
   (committed); the missing brand shots on compared pages being added.
+- **Released Chest SDK 0.3.0 adopted (2026-09-30).** `sdk/` rebuilt as the
+  official 0.3.0 (modules and tests as released) + the studio's proposals
+  on top: `0.3.1-studio.1` (133 tests). No tool can run on plain 0.3.0
+  (all use `schedules` and the look), so all 18 use 0.3.1-studio.1. The
+  SDK report (`reports/03-sdk-report.md`) is rewritten against 0.3.0.
+  The lab harness follows the official contract (CHEST_ORGANIZATION /
+  CHEST_TIME_ZONE / CHEST_LANGUAGE, database sessions in the Chest's zone —
+  the end of the 22:00–00:00 UTC date failures) and gained /_dev controls
+  (email preference, mail/webhooks delivery, occurredAt, leftAt).
+  **All 18 tools migrated and verified by the lead** (tests PGlite + PG,
+  builds, manifests, flows, audits 0, lint 0). The migration found real
+  bugs: groups that do not give a tool were invisible to Polls, Goals,
+  Tasks, Wiki, News, Leave and Rooms (audiences and group-kept rooms
+  reached nobody); "today" fixed to Paris or UTC in Leave, Expenses and
+  Clients; Wiki's once-a-day keys off by one around midnight.
 - **Critique round 3 done** (`reports/05-critique.md` §Round 3,
   `reports/05-critique/round-3/`): self-approval, privacy leaks, a
   mis-filed form contact (the lead's own match rule), a switching-day
