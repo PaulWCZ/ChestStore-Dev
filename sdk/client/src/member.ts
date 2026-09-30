@@ -37,7 +37,9 @@ export type Member = {
   timeZone: string;
   email?: string;
   // Proposal (studio.15): how the member chose to receive the email of
-  // every tool (below); absent when the Chest says nothing.
+  // every tool (below). Only the members API answers it (members.get,
+  // list, lookup); member(request) never does — its claims are exactly
+  // 0.3.0's. Absent when the Chest says nothing.
   mailPreference?: MailPreference;
 };
 // What is the same for every member — the organization, the company's time
@@ -63,10 +65,10 @@ export const timeZonePattern = /^(?:UTC|[A-Z][A-Za-z_]{1,31}(?:\/[A-Za-z0-9_+-]{
 // reads it to say so ("You chose a daily email"). A tool may keep its own
 // switch too ("no reminders from Tasks"): both apply — the tool's decides
 // whether it sends, the Chest's whether and how the person receives. The
-// Chest sends it as the claim mail_pref of the assertion, and mail_pref in
-// the members API; absent when the Chest says nothing (a Chest before it,
-// such as 0.3.0): read it as "all". An unknown value is left out, never a
-// reason to refuse the member.
+// Chest answers it as mail_pref in the members API only — never in the
+// assertion, whose claims stay exactly 0.3.0's; absent when the Chest says
+// nothing (a Chest before it, such as 0.3.0): read it as "all". An unknown
+// value is left out, never a reason to refuse the member.
 export type MailPreference = "all" | "digest" | "none";
 
 // mailPreferenceOf reads the Chest's word for a member's email preference:
@@ -151,7 +153,7 @@ export function member(request: IncomingMessage | Request): Member | null {
   if (signature.length !== expected.length || !timingSafeEqual(signature, expected)) return null;
   const payload = json(encodedPayload);
   if (!payload || !claims.every(name => Object.hasOwn(payload, name))) return null;
-  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups, language, time_zone, mail_pref } = payload;
+  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups, language, time_zone } = payload;
   if (typeof iss !== "string" || iss === "" || aud !== tool || typeof sub !== "string" || !memberIdPattern.test(sub)) return null;
   if (typeof iat !== "number" || !Number.isSafeInteger(iat) || typeof exp !== "number" || !Number.isSafeInteger(exp) || exp <= iat) return null;
   const now = Math.floor(Date.now() / 1000);
@@ -159,5 +161,5 @@ export function member(request: IncomingMessage | Request): Member | null {
   if (typeof given_name !== "string" || typeof family_name !== "string" || typeof name !== "string" || typeof picture !== "string" || typeof role !== "string" || typeof admin !== "boolean" || typeof builder !== "boolean") return null;
   if (!Array.isArray(groups) || groups.length > 16 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string")) return null;
   if (typeof language !== "string" || !languagePattern.test(language) || typeof time_zone !== "string" || !timeZonePattern.test(time_zone)) return null;
-  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], language, timeZone: time_zone, ...(email === undefined ? {} : { email }), ...(mailPreferenceOf(mail_pref) ? { mailPreference: mailPreferenceOf(mail_pref)! } : {}) };
+  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], language, timeZone: time_zone, ...(email === undefined ? {} : { email }) };
 }

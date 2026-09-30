@@ -23,12 +23,13 @@ test("without \"groups\", a tool sees only the groups that give it (and a member
     assert.deepEqual((await members.get(camille.id))?.groups, [office.id]);
     await assert.rejects(members.groups.all(), CapabilityNotGranted);
     await assert.rejects(members.groups.members(sales.id), CapabilityNotGranted);
+    await assert.rejects(members.groups.of(ines.id), CapabilityNotGranted);
   } finally {
     await chest.close();
   }
 });
 
-test("with \"groups\": every group of the Chest, who is in one among those who have the tool, all of a member's groups", async () => {
+test("with \"groups\": every group of the Chest, who is in one among those who have the tool, every group of a member (by a call)", async () => {
   const chest = await fakeChest({ members: [ines, hugo, lea, camille], groups: [sales, tech, office], capabilities: ["members", "groups"] });
   try {
     assert.deepEqual(await members.groups.all(), [
@@ -42,7 +43,13 @@ test("with \"groups\": every group of the Chest, who is in one among those who h
     assert.deepEqual(await members.groups.members(sales.id, { after: paged!.next!, limit: 1 }), { members: [ines.id], next: null });
     assert.equal(await members.groups.members(gid("nothing")), null, "a group the Chest does not have");
     await assert.rejects(members.groups.members("sales"), (e: unknown) => e instanceof ChestError && e.code === "invalid_id");
-    assert.deepEqual((await members.get(ines.id))?.groups, [sales.id], "all of a member's groups");
+    // A member's groups in the members API keep 0.3.0's meaning (those that
+    // give the tool); every group of a member is a call.
+    assert.deepEqual((await members.get(ines.id))?.groups, [], "0.3.0's meaning, whatever \"groups\" says");
+    assert.deepEqual(await members.groups.of(ines.id), [sales.id]);
+    assert.deepEqual(await members.groups.of(camille.id), [office.id]);
+    assert.equal(await members.groups.of(mid("gone")), null, "not a member who has the tool");
+    await assert.rejects(members.groups.of("ines"), (e: unknown) => e instanceof ChestError && e.code === "invalid_id");
     assert.deepEqual((await members.list({ group: sales.id })).members.map(m => m.id), [hugo.id, ines.id]);
     // The assertion carries what the Chest gives, within the 16 groups that
     // 0.3.0's member() reads (the proposal asked 64; 0.3.1-studio keeps the

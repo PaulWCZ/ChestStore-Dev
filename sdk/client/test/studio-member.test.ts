@@ -16,19 +16,22 @@ test("mailPreference (Proposal (studio.15)): one of all, digest, none; anything 
   assert.deepEqual(["all", "digest", "none", "weekly", "", 1, undefined].map(mailPreferenceOf), ["all", "digest", "none", undefined, undefined, undefined, undefined]);
 });
 
-test("mailPreference is read from the assertion and the members API when the Chest says it, absent otherwise", async () => {
+test("mailPreference is read from the members API when the Chest says it, never from the assertion", async () => {
   const lea: Member = { ...base, id: "mbr_" + "lea".padEnd(26, "a"), mailPreference: "digest" };
   const hugo: Member = { ...base, id: "mbr_" + "hugo".padEnd(26, "a"), name: "Hugo" };
   const fake = await fakeChest({ members: [lea, hugo], capabilities: ["members"] });
   try {
-    assert.equal(member(withMember(new Request("http://tool.test/chest"), lea))?.mailPreference, "digest");
-    const plain = member(withMember(new Request("http://tool.test/chest"), hugo));
-    assert.ok(plain);
-    assert.equal(Object.hasOwn(plain, "mailPreference"), false, "not said: read it as all");
-    assert.deepEqual((await members.lookup([lea.id, hugo.id])).members.map(m => m.mailPreference), ["digest", undefined]);
+    // The assertion carries 0.3.0's claims only: the fake never signs mail_pref.
+    const signed = member(withMember(new Request("http://tool.test/chest"), lea));
+    assert.ok(signed);
+    assert.equal(Object.hasOwn(signed, "mailPreference"), false);
+    assert.deepEqual((await members.lookup([lea.id, hugo.id])).members.map(m => m.mailPreference), ["digest", undefined], "not said: read it as all");
+    assert.equal((await members.get(lea.id))?.mailPreference, "digest");
     // A value of a later Chest is left out, never a reason to refuse.
-    const later = member(withMember(new Request("http://tool.test/chest"), { ...lea, mailPreference: "weekly" as never }));
-    assert.equal(later?.id, lea.id);
+    fake.members[1] = { ...hugo, language: "fr", timeZone: "America/Montreal", mailPreference: "weekly" as never };
+    members.forget();
+    const later = await members.get(hugo.id);
+    assert.equal(later?.id, hugo.id);
     assert.equal(later?.mailPreference, undefined);
   } finally {
     await fake.close();

@@ -194,8 +194,10 @@ test("email preference: none is skipped, digest waits for the Chest's daily emai
   const nora: Member = { ...camille, id: "mbr_" + "nora".padEnd(26, "a"), firstName: "Nora", name: "Nora Martin", email: "nora@company.test", mailPreference: "digest" };
   const chest = await fakeChest({ members: [camille, hugo, nora], capabilities: ["mail", "members"] });
   try {
-    // Read-only, where the tool already reads its members.
-    assert.equal(member(withMember(new Request("http://tool.test/chest"), hugo))?.mailPreference, "none");
+    // Read-only, where the tool already reads its members — the members API,
+    // never the assertion (its claims are 0.3.0's).
+    assert.equal(member(withMember(new Request("http://tool.test/chest"), hugo))?.mailPreference, undefined);
+    assert.equal((await members.get(hugo.id))?.mailPreference, "none");
     assert.equal((await members.get(nora.id))?.mailPreference, "digest");
     assert.equal((await members.get(camille.id))?.mailPreference, undefined, "not said: read it as all");
     const all = await mail.send({ to: [{ member: camille.id }, { member: hugo.id }, { member: nora.id }], subject: "A task was assigned", text: "…", key: "assigned:1" });

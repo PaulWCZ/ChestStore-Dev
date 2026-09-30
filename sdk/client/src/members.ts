@@ -231,10 +231,12 @@ function checkGroup(id: unknown): string {
 // (News, Polls, Wiki) has no group that gives it, so list() is empty and
 // it cannot offer "the Sales team". With "groups": "read" in chest.json
 // (approved: “Sees your Chest's groups and who is in them”), all() says
-// every group of the Chest and members(id) who is in one (among the members
-// who have the tool: a member without access stays unknown); the Chest may
-// then put a member's other groups in member(request).groups and members.*
-// too, within the 16 that 0.3.0 reads — members(id) is the complete answer.
+// every group of the Chest, members(id) who is in one (among the members
+// who have the tool: a member without access stays unknown) and of(id) every
+// group a member is in. member(request).groups and members.* keep 0.3.0's
+// meaning — the groups that give the tool, 16 at most — whatever "groups"
+// says: a tool that asks "is this member in Sales?" of a group that does
+// not give it asks of(id).
 // With "receives": ["group.*"], the Chest tells the tool when a group is
 // renamed, changes members or is deleted (events.ts). Errors:
 // CapabilityNotGranted (403: not declared or not approved), RateLimited,
@@ -285,5 +287,21 @@ export const groups = {
     const answer = (await json(response)) as { members?: unknown; next?: unknown } | null;
     if (!answer || !Array.isArray(answer.members) || answer.members.length > 1000 || !answer.members.every(m => typeof m === "string" && memberIdPattern.test(m)) || !(answer.next === null || (typeof answer.next === "string" && memberIdPattern.test(answer.next)))) throw new Unavailable();
     return { members: [...answer.members] as string[], next: answer.next };
+  },
+  // of says every group of the Chest a member who has the tool is in (64 at
+  // most), by identifier — those that give the tool and the others; null for
+  // a member the tool does not have (never was, left, or without access).
+  async of(id: string): Promise<string[] | null> {
+    checkId(id);
+    const response = await ask("groups", "GET", `/groups/of/${id}`);
+    if (response.status === 404) {
+      const code = ((await json(response).catch(() => null)) as { error?: unknown } | null)?.error;
+      if (code === "member_not_found") return null;
+      throw new Unavailable();
+    }
+    if (response.status !== 200) throw await refusal(response, "groups");
+    const answer = (await json(response)) as { groups?: unknown } | null;
+    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > 64 || !answer.groups.every(g => typeof g === "string" && groupIdPattern.test(g))) throw new Unavailable();
+    return [...answer.groups] as string[];
   },
 };

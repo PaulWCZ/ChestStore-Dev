@@ -364,8 +364,6 @@ export function signAssertion(given: FakeMember, options: AssertionOptions = {})
     given_name: member.firstName, family_name: member.lastName, name: member.name, picture: member.photo ?? "", role: member.role ?? "",
     admin: member.isAdmin, builder: member.isBuilder, groups: member.groups, time_zone: member.timeZone, ...(member.email === undefined ? {} : { email: member.email }),
     language: member.language,
-    // Proposal (studio.15): the member's email preference.
-    ...(member.mailPreference === undefined ? {} : { mail_pref: member.mailPreference }),
   });
   // The key as the Chest derives it, and member() reads it: HMAC-SHA256 of
   // the label of the assertion's shape under the text of the token.
@@ -618,9 +616,10 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   let window = 0, calls = 0;
   // matchEmails' day (Proposal (studio.15)): the distinct addresses asked.
   const matchDay = { start: 0, count: 0 }, matchedToday = new Set<string>();
-  // A member's groups as the tool sees them: all with "groups" (Proposal
-  // (studio)), else only those that give the tool.
-  const seenGroups = (ids: string[]) => capabilities.has("groups") ? ids : ids.filter(g => chest.groups.find(x => x.id === g)?.grants !== false);
+  // A member's groups as the tool sees them in the members API: those that
+  // give the tool (0.3.0's meaning). All of a member's groups are answered
+  // by groups.of, with "groups" (Proposal (studio)).
+  const seenGroups = (ids: string[]) => ids.filter(g => chest.groups.find(x => x.id === g)?.grants !== false);
   const shown = (given: Member) => {
     // A member a test pushed without a language or a zone reads as the Chest
     // gives them (Proposal (studio)).
@@ -695,9 +694,19 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     if (request.method === "GET" && url.pathname === "/groups") return send(response, 200, { groups: chest.groups.filter(g => g.grants !== false).map(g => ({ id: g.id, name: g.name, members: g.members })) });
     // Proposal (studio): every group of the Chest, and who is in one, for
     // a tool that holds "groups" — among the members who have the tool.
-    if (request.method === "GET" && (url.pathname === "/groups/all" || /^\/groups\/[^/]+\/members$/u.test(url.pathname))) {
+    if (request.method === "GET" && (url.pathname === "/groups/all" || /^\/groups\/[^/]+\/members$/u.test(url.pathname) || url.pathname.startsWith("/groups/of/"))) {
       if (!capabilities.has("groups")) return send(response, 403, { error: "capability_not_granted" });
       const has = new Set(chest.members.map(m => m.id));
+      if (url.pathname.startsWith("/groups/of/")) {
+        const id = url.pathname.slice("/groups/of/".length);
+        if (!memberIdPattern.test(id)) return send(response, 400, { error: "invalid_id" });
+        const m = chest.members.find(x => x.id === id);
+        if (!m) return send(response, 404, { error: "member_not_found" });
+        // Every group of the Chest the member is in: those the test gave
+        // them, and those that name them among their members.
+        const ids = new Set([...m.groups, ...chest.groups.filter(g => g.members.includes(id)).map(g => g.id)]);
+        return send(response, 200, { groups: [...ids].filter(g => groupIdPattern.test(g)).sort() });
+      }
       if (url.pathname === "/groups/all") {
         const all = [...chest.groups].sort((a, b) => fold(a.name) < fold(b.name) ? -1 : fold(a.name) > fold(b.name) ? 1 : a.id < b.id ? -1 : 1);
         return send(response, 200, { groups: all.map(g => ({ id: g.id, name: g.name, size: g.members.filter(id => has.has(id)).length })) });

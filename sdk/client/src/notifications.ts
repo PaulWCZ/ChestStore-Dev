@@ -115,8 +115,8 @@ export async function notify(memberIds: Iterable<string>, notice: Notice): Promi
 
 // Proposal (studio): broadcast — one item for everyone who has the tool (or
 // those of some roles or groups), each in their language, in one call. The
-// Chest resolves the members, picks each one's message by their locale
-// (English when theirs is missing), and delivers in the background. Before:
+// Chest resolves the members, picks each one's message by their language
+// (member.language; English when the tool wrote none in it), and delivers in the background. Before:
 // a tool listed its members page by page, grouped them by language, and hit
 // the 1,000 recipients an hour after a thousand people (News, Polls).
 //
