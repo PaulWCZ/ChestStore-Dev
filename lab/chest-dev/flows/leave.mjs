@@ -83,6 +83,22 @@ async function busyOf(member) {
 }
 const compact = d => day(d).replaceAll("-", "");
 
+// What Rooms and People were told of a request (leave.approved /
+// leave.cancelled in the harness's Events panel, latest first); asked again
+// for a few seconds, as actions publish once their answer is sent.
+async function toldOf(request, until = told => told.length > 0) {
+  const read = text => { try { return JSON.parse(text); } catch { return null; } };
+  let told = [];
+  for (let i = 0; i < 12; i++) {
+    told = [...(await devPage()).matchAll(/<code>(leave\.(?:approved|cancelled))<\/code> <small>([^<]*)<\/small>/gu)]
+      .map(m => ({ type: m[1], data: read(m[2]) })).filter(e => e.data && e.data.request === String(request));
+    if (until(told)) break;
+    await page.waitForTimeout(500);
+  }
+  return told;
+}
+const leaveKeys = "from,fromHalf,member,request,to,toHalf";
+
 async function send(label = "Send the request") {
   await page.getByRole("button", { name: label }).click();
   await page.waitForURL(/\/chest\?done=/u);
@@ -228,6 +244,15 @@ await step("Booking is told Hugo's busy times: his week as UTC minutes, times on
   expect(week && /T2[23]:00Z$/u.test(week[0]) && week[1].startsWith(day(plus(monday, 4))) && /T2[23]:00Z$/u.test(week[1]), "Monday 00:00 to Saturday 00:00 in Paris: " + JSON.stringify(busy.spans));
 });
 
+await step("Rooms and People are told Hugo's approved week: who and which days — never the kind nor the note", async () => {
+  const [r] = await db`select id from requests where member_id = ${id("hugo")} and start_date = ${day(monday)} and status = 'approved'`;
+  expect(r, "the approved week");
+  const [latest] = await toldOf(r.id);
+  expect(latest?.type === "leave.approved", "leave.approved published: " + JSON.stringify(latest));
+  expect(Object.keys(latest.data).sort().join(",") === leaveKeys, "who and which days only: " + Object.keys(latest.data).join(","));
+  expect(latest.data.member === id("hugo") && latest.data.from === day(monday) && latest.data.to === day(plus(monday, 4)) && latest.data.fromHalf === "am" && latest.data.toHalf === "pm", "the week: " + JSON.stringify(latest.data));
+});
+
 await step("a last day before the first day: the field refuses it, and the form shows no day and counts nothing until it is fixed", async () => {
   await page.goto(origin + "/chest/new");
   const first = day(plus(monday, 9));
@@ -278,6 +303,14 @@ await step("cancelled: the week leaves Hugo's feed, and Booking hears he is free
   expect(busy && !busy.spans.some(([start]) => start.startsWith(day(plus(first, -1)))), "no longer busy that week: " + JSON.stringify(busy?.spans));
 });
 
+await step("the cancelled week is told to Rooms and People as cancelled", async () => {
+  const [gone] = await db`select id, to_char(start_date, 'YYYY-MM-DD') as start from requests r
+    where member_id = ${id("hugo")} and status = 'cancelled' and exists (select 1 from request_events e where e.request_id = r.id and e.kind = 'cancelled')
+    order by (select max(e.at) from request_events e where e.request_id = r.id) desc limit 1`;
+  const [latest] = await toldOf(gone.id, told => told[0]?.type === "leave.cancelled");
+  expect(latest?.type === "leave.cancelled" && latest.data.member === id("hugo") && latest.data.from === gone.start, "leave.cancelled published: " + JSON.stringify(latest));
+});
+
 await step("sick leave is recorded at once, without a note", async () => {
   await as(context, origin, "sofia");
   const wednesday = day(plus(monday, 16));
@@ -288,6 +321,29 @@ await step("sick leave is recorded at once, without a note", async () => {
   await typeDay("#end", day(plus(monday, 17)));
   await send("Record it");
   expect((await page.locator(".request", { hasText: "Sick leave" }).first().innerText()).includes("Recorded"), "recorded");
+});
+
+await step("sick leave is told to Rooms and People as an absence (never as sick); remote work is not an absence and is not told", async () => {
+  const wednesday = day(plus(monday, 16));
+  const [sick] = await db`select id from requests where member_id = ${id("sofia")} and start_date = ${wednesday} and status = 'approved'`;
+  const [told] = await toldOf(sick.id);
+  expect(told?.type === "leave.approved" && Object.keys(told.data).sort().join(",") === leaveKeys && told.data.to === day(plus(monday, 17)), "sick leave told as days only: " + JSON.stringify(told));
+  // A working day that is not a public holiday, beside her sick leave.
+  let homeDay = "", cost = "";
+  for (const n of [15, 22, 24, 29, 31]) {
+    homeDay = day(plus(monday, n));
+    cost = await ask(homeDay, homeDay, { kind: "Remote work" });
+    if (cost === "1 day") break;
+  }
+  expect(cost === "1 day", "remote work: " + cost + " on " + homeDay);
+  await send("Record it");
+  const [home] = await db`select r.id, r.status from requests r join leave_types t on t.id = r.type_id where r.member_id = ${id("sofia")} and r.start_date = ${homeDay} and t.key = 'remote'`;
+  expect(home?.status === "approved", "remote work recorded: " + JSON.stringify(home));
+  // Wait for what the action publishes (her busy times do not change): the
+  // Events panel settles, then nothing of that day was told.
+  await page.waitForTimeout(2000);
+  expect((await toldOf(home.id, () => false)).length === 0, "remote work is not told as leave");
+  expect((await toldOf(sick.id))[0]?.type === "leave.approved", "the sick leave still stands");
 });
 
 await step("a colleague sees who is away, not why; she cannot open HR's pages", async () => {
@@ -510,6 +566,28 @@ await step("People tells Leave that Hugo leaves: his last day is set, the leave 
   expect(!(await page.locator("main").innerText()).includes("Last day:"), "cleared");
 });
 
+await step("the leave People's last day cancelled is told to Rooms and People as cancelled", async () => {
+  const gone = await db`select distinct r.id from requests r join request_events e on e.request_id = r.id
+    where r.member_id = ${id("hugo")} and e.kind = 'after_last_day' and r.decided_at is not null`;
+  expect(gone.length >= 1, "leave cancelled by the last day");
+  for (const r of gone) {
+    const [latest] = await toldOf(r.id, told => told[0]?.type === "leave.cancelled");
+    expect(latest?.type === "leave.cancelled" && latest.data.member === id("hugo"), "leave.cancelled for " + r.id + ": " + JSON.stringify(latest));
+  }
+});
+
+await step("a last day People sets in the middle of Nora's approved week: told as cancelled, then approved up to that day", async () => {
+  const [week] = await db`select r.id, to_char(r.start_date, 'YYYY-MM-DD') as start, to_char(r.end_date, 'YYYY-MM-DD') as end from requests r join leave_types t on t.id = r.type_id
+    where r.member_id = ${id("nora")} and r.status = 'approved' and t.away and r.start_date > current_date + 2 and r.end_date - r.start_date = 4 order by r.start_date limit 1`;
+  expect(week, "Nora's approved week");
+  const last = day(plus(new Date(week.start + "T00:00:00Z"), 2));
+  await deliver("people.leaving", { member: id("nora"), lastDay: last });
+  const told = await toldOf(week.id, t => t.length >= 2 && t[0].type === "leave.approved" && t[0].data.to === last);
+  expect(told[0]?.type === "leave.approved" && told[0].data.from === week.start && told[0].data.to === last && told[0].data.toHalf === "pm", "approved up to the last day: " + JSON.stringify(told[0]));
+  expect(told[1]?.type === "leave.cancelled" && told[1].data.to === week.end, "the whole week taken back first: " + JSON.stringify(told[1]));
+  await deliver("people.leaving_cancelled", { member: id("nora") });
+});
+
 await step("a family event for Tom (off on Fridays), Monday to Friday, counts only the 4 days he works", async () => {
   await as(context, origin, "tom");
   const cost = await ask(day(plus(monday, 56)), day(plus(monday, 60)), { kind: "Family event", event: true });
@@ -546,6 +624,16 @@ await step("Inès leaves: her approved leave after the last day is cancelled, th
   expect(Number(after) === Number(before) + 0.5, "the half day comes back: " + before + " → " + after);
   expect(await page.locator(".ledger tr", { hasText: "After their last day" }).count() === 1, "the ledger says why");
   expect((await page.locator(".requests").innerText()).includes("Cancelled"), "the leave is cancelled");
+});
+
+await step("the leave cancelled when Inès left the Chest is told to Rooms and People as cancelled", async () => {
+  const gone = await db`select distinct r.id from requests r join request_events e on e.request_id = r.id
+    where r.member_id = ${id("ines")} and e.kind = 'after_last_day' and r.decided_at is not null`;
+  expect(gone.length >= 1, "leave cancelled by her last day");
+  for (const r of gone) {
+    const [latest] = await toldOf(r.id, told => told[0]?.type === "leave.cancelled");
+    expect(latest?.type === "leave.cancelled" && latest.data.member === id("ines"), "leave.cancelled for " + r.id + ": " + JSON.stringify(latest));
+  }
 });
 
 await step("phone, this week: an absence that starts after the month's end is still listed", async () => {

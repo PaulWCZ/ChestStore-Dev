@@ -363,10 +363,19 @@ Leave tells the other tools of the Chest when a leave is approved and when
 it no longer stands (**Proposal (studio)**: events between tools;
 `chest.proposals.json` `"emits": ["leave.approved", "leave.cancelled"]`),
 once an administrator linked them: **Rooms** then shows the person "Off"
-those days and frees their desk. What is told: the person (their member
-id), the first and last day and the halves — never the kind of leave nor
-the note (`lib/share.ts`). Without events between tools, nothing changes
-here.
+those days and frees their desk; **People** shows "Away · back on …" on
+their card. What is told: the person (their member id), the first and last
+day and the halves — never the kind of leave nor the note (`lib/share.ts`).
+Without events between tools, nothing changes here.
+
+| | |
+|---|---|
+| `leave.approved` | `{member, from, to, fromHalf, toHalf, request}` — an approved **absence** that is not over. A kind that is not an absence (remote work, training: *not away* in Settings) is never told: neither Rooms nor People reads a kind, and Rooms would mark a remote worker "Off" and free their desk (people say *Remote* in Rooms themselves) |
+| `leave.cancelled` | The same data, as it was told — the leave no longer stands: cancelled, refused after all, its approval taken back, cancelled by a last day (HR's, People's or the Chest's when someone leaves), or its kind now *not away* |
+| A leave shortened | By a last day that cuts it: `leave.cancelled`, then `leave.approved` for the days that remain (same `request`). Rooms takes back all of a request's days on a cancellation and adds an approval's days; People keeps the latest word per request (by `occurredAt`) — so the pair shortens it for both within the contract they already read, without a new event type |
+| When | After every change, after the Chest's and People's events, and each weekday morning: `shared_leave` holds what was told, and each run tells what differs, whichever way the leave changed |
+| Reliable | Each event is written to an outbox (`leave_outbox`) in the same transaction as the record of what was told, then published oldest first; while the Chest cannot take them (not linked yet, its hourly quota), they wait and go at the next run. Key `leave:<request>:<approved\|cancelled>:<outbox id>`: the same event tried again is one event. One waiting for days that are over is dropped |
+| Erasure | What was told of the person and what waits is forgotten; the receivers forget them on their own `member.erased` |
 
 **Leave → Booking (and Hiring): `leave.busy`** — so a host who is off is
 not bookable, and an interviewer who is off is not offered to a
@@ -391,21 +400,10 @@ candidate. Booking and Hiring already tell each other their busy times
 | Key | `leave.busy:<member>:<ms>:<sha-256>` (whole; the SDK sends it as its digest): the same content told again the same day is one event; busy, free, busy again are three |
 | Erasure | What Leave last told is forgotten here; the receiver forgets the member on its own `member.erased` |
 
-**What Booking must add to hear it** (Booking's side, not built here):
-declare `"leave.busy"` in its `chest.proposals.json` `"receives"` (it
-receives `hiring.busy` today), hand it to the same handler as
-`hiring.busy` in its `/chest-events` route (`tools: {"leave.busy":
-takeBusy}` — its reader already accepts any `<tool>.busy` v1 snapshot from
-a source other than itself, keeps them by source, and its slots already
-skip every `told_spans` source), a word for the source on its home
-(`app/chest/page.tsx` names `tool:hiring` "An interview in Hiring" and any other
-tool "In another tool of the Chest": `tool:leave` wants "Off"), say it in its
-README ("With the other tools") and in its approval text ("Is told by
-Leave when a host is off"), and add a test and a flow step: a host with
-approved leave has no slot those days. Hiring can do the same for its
-interviewers. Until then Leave publishes and nobody listens: nothing
-breaks (a Chest with no receiver takes the event and delivers it to
-nobody).
+**Booking and Hiring hear it** (`"receives": ["hiring.busy", "leave.busy"]` in
+Booking, `["booking.busy", "leave.busy"]` in Hiring): a host who is off has
+no slot those days, and the agenda shows them "Off"; an interviewer who is
+off is not offered to a candidate.
 
 **People → Leave** (**Proposal (studio)**: events between tools;
 `chest.proposals.json` `"receives"`), once an admin linked them — HR
@@ -440,8 +438,9 @@ once, in People's HR record:
   `app/chest-jobs/[name]/route.ts`): the weekday morning reminder at 08:30.
   Without it, requests still reach approvers through the bell and the tile.
 - **Events between tools** — **Proposal (studio)**: `leave.approved` /
-  `leave.cancelled` to Rooms (payload unchanged: member, from, to, halves,
-  request — never the kind, the note or the family event); `leave.busy` to
+  `leave.cancelled` to Rooms and People (payload unchanged: member, from,
+  to, halves, request — never the kind, the note or the family event;
+  absences only, a cut told as cancelled then approved); `leave.busy` to
   Booking and Hiring (see "With the other tools").
 - **Calendar** — **Proposal (studio)** (`chest.proposals.json` `"calendar":
   true`; `calendar.putMany`, studio.15, for a first sync, 100 events a
@@ -480,7 +479,6 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/leave --prod --reset --
   feeds are personal for now). Calendar apps fetch a feed at their own
   pace (Google: hours), so an approval shows there later; Leave's pages
   are the truth.
-- Booking does not hear `leave.busy` yet (see "With the other tools").
 - The automatic French computations listed under "Not done — HR adjusts by
   hand".
 - No week view of *Who's away* (a month, and a list by week on a phone);

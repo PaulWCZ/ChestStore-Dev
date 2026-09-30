@@ -6,7 +6,7 @@ import { settleAfterLastDay } from "./last-day.ts";
 import { afterLastDay, refreshBadges } from "./tell.ts";
 import { fromLeaving, fromRecord } from "./from-people.ts";
 import { forget } from "./busy.ts";
-import { keepInLine } from "./share.ts";
+import { forgetMember, keepInLine } from "./share.ts";
 
 // What Leave does when a member loses access, leaves or is erased (the
 // Chest posts these to /chest-events, at least once; each handler may run
@@ -55,6 +55,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from staff where member_id = ${memberId}`;
     await tx`update settings set updated_by = null where updated_by = ${memberId}`;
     await forget(tx, memberId);
+    await forgetMember(tx, memberId);
   });
 }
 

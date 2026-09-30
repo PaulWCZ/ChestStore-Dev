@@ -28,7 +28,7 @@ must not break.
 | `lib/mail.ts` | Emails beside the bell (mail proposal): `email()` in each reader's language, the person's switch (`staff.email_off`); the Chest's `mailPreference` applies in `mail.send`; only answers to one's own request are `transactional` |
 | `lib/leave-calendar.ts`, `lib/spans.ts` | Approved leave in each person's Chest calendar feed (calendar proposal): `sync()` puts what changed (`putMany`, 100 a call) and takes back what no longer stands (`calendar_events`); title "Off", private, never the kind. `spans.ts`: a leave as instants in the Chest's time zone (noon for halves) |
 | `lib/busy.ts`, `lib/busy-snapshot.ts` | `leave.busy` for Booking/Hiring: each member's approved leave, 90 days, times only, told when it changed (`shared_busy`). `busy-snapshot.ts` is the same file as Booking's and Hiring's — keep them equal |
-| `lib/share.ts` | Events to other tools (`leave.approved`/`cancelled`), and `keepInLine()`: calendar + busy after each change, event and morning |
+| `lib/share.ts` | Events to Rooms and People (`leave.approved`/`cancelled`): `plan()` compares approved absences with what was told (`shared_leave`) and writes what differs to the outbox (`leave_outbox`), `publish()` sends it (retried at the next run); absences only (`away`), a cut is cancelled + approved. `keepInLine()`: these events, calendar and busy times after each change, event and morning |
 | `lib/morning.ts` | The weekday reminder (schedule proposal) |
 | `lib/theme.ts` | **The look**: the identity "Seaside" (`defineTheme`, equal to the catalogue's) and `currentLook()` (the company's choice from `chest.theme()`, else the identity) |
 | `app/tokens.css`, `app/globals.css` | Leave's own tokens (kinds → categorical slots, calendar shades), defined from contract tokens only; its components |
@@ -40,7 +40,7 @@ must not break.
 | `app/chest/new/request-form.tsx` | The request form (client): the live cost uses `lib/calendar.ts` |
 | `app/chest/calendar/page.tsx` | The month grid and the phone's day list (server-rendered) |
 | `app/chest/people/export/route.ts` | The payroll CSV |
-| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work; `0003` payroll codes, family events on worked days, ledger reason keys, `after_last_day`/`cut` history steps; `0004` who set a last day (`end_by`), when People last told, the email switch, paid leave not below zero by default; `0005` what is in the calendar feeds, the calendar's state, the busy times last told. Never edit a shipped file; add `0006_…` |
+| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work; `0003` payroll codes, family events on worked days, ledger reason keys, `after_last_day`/`cut` history steps; `0004` who set a last day (`end_by`), when People last told, the email switch, paid leave not below zero by default; `0005` what is in the calendar feeds, the calendar's state, the busy times last told; `0006` what Rooms and People were told (`shared_leave`) and the events' outbox. Never edit a shipped file; add `0007_…` |
 | `seed/sample.sql` | A seven-person company, dates around today |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -69,7 +69,10 @@ npm ci && npm test && npm run build   # all three must pass
   calendar event's title is `feed.title` for every kind, private; the
   busy times are times only. A change to requests' status must be
   followed by `share.keepInLine` (actions do it through `act`; lifecycle
-  and People's handlers call it) — never put or publish from elsewhere.
+  and People's handlers call it) — never put or publish from elsewhere:
+  `keepInLine` finds every change itself (a last day that cuts or cancels
+  leave included), so a new way of changing leave needs no event code.
+  Only kinds with `away` are told to Rooms and People.
 - **Mail keys are given whole** (the SDK hashes long ones; never
   `.slice`); `transactional` only for the answer to the person's own
   request.

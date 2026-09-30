@@ -30,8 +30,9 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
     return step(actor);
   });
   revalidatePath("/chest", "layout");
-  // The calendar feeds and the busy times told to Booking follow, once the
-  // answer is sent (only what changed goes).
+  // What Rooms and People are told, the calendar feeds and the busy times
+  // told to Booking and Hiring follow, once the answer is sent (only what
+  // changed goes; lib/share.ts).
   if (result.ok) after(() => share.keepInLine(db()));
   return result;
 }
@@ -42,7 +43,6 @@ export async function askLeave(input: requests.RequestInput): Promise<Result<{ i
     const r = await requests.createRequest(db(), actor, input);
     if (r.memberId !== actor.id) await tell.recorded(db(), actor, r);
     else await tell.asked(db(), actor, r);
-    await share.approved(r);
     return { id: r.id, status: r.status };
   });
 }
@@ -69,7 +69,6 @@ export async function answer(requestId: string, verdict: "approve" | "refuse", r
   return act(async actor => {
     const r = await requests.decide(db(), actor, requestId, { verdict, reason });
     await tell.answered(db(), actor, r);
-    await share.approved(r);
     return null;
   });
 }
@@ -78,7 +77,6 @@ export async function takeBack(requestId: string): Promise<Result<null>> {
   return act(async actor => {
     const r = await requests.reopen(db(), actor, requestId);
     await tell.reopened(db(), actor, r);
-    await share.cancelled(r);
     return null;
   });
 }
@@ -87,7 +85,6 @@ export async function settleCancel(requestId: string, accept: boolean, reason: s
   return act(async actor => {
     const r = await requests.settleCancel(db(), actor, requestId, { accept, reason });
     await tell.cancelSettled(db(), actor, r);
-    if (r.status === "cancelled") await share.cancelled(r);
     return null;
   });
 }
@@ -190,7 +187,6 @@ export async function applyLeaveImport(text: string, mapping: Mapping, kindMap: 
     const lines = p.rows.filter(r => r.problem === null && r.memberId && r.typeId && r.start && r.end)
       .map(r => ({ line: r.line, memberId: r.memberId!, typeId: r.typeId!, start: r.start!, startHalf: r.startHalf, end: r.end!, endHalf: r.endHalf }));
     const result = await requests.importLeave(db(), actor, lines, counted === true, reason);
-    for (const r of result.done) await share.approved(r);
     await tell.refreshBadges(db());
     return { done: result.done.length, skipped: result.skipped };
   });
