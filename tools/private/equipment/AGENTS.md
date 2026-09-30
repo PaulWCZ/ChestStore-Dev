@@ -28,7 +28,8 @@ what must not break.
 | `lib/qr.ts` | The QR encoder (tested by decoding) |
 | `lib/tell.ts`, `lib/notify.ts` | Bell items (keyed, withdrawn when settled), managers' badges |
 | `lib/departures.ts` | Departures told by People (events between tools): read and check each event, ordering by `occurredAt`, the "To take back" list, purge |
-| `lib/lifecycle.ts`, `lib/weekly.ts` | Members leaving / erased (they also forget a departure); Monday's run |
+| `lib/lifecycle.ts`, `lib/weekly.ts` | Members leaving (their departure leaves the lists, kept for `equipment.returned`) / erased (forgets it); Monday's run |
+| `migrations/0007_returned.sql`, `lib/returned.ts` | `equipment.returned {member}` to People once everything a leaving person held is back: a deferred trigger writes the outbox in the take-back's transaction; published after each action (`app/chest/actions.ts` `act`) and by the `returns` schedule; key `equipment:<member>:returned:<ms>` — People's contract, never change its shape |
 | `lib/view.ts`, `lib/words.ts` | Items as rows in words for the views; `categoryName`, `fieldName`, `charterText`: the tool's own names and example rules in the reader's language |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser; the UI kit's word sections (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`, `filters`, `search`) |
 | `lib/theme.ts` | The identity "Tool crib" (`defineTheme`, equal to the kit's catalogue theme `labels`) and `currentLook()` |

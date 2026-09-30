@@ -216,15 +216,47 @@ admin linked the two; `chest.proposals.json` `receives`):
   later, it comes back.
 - **Both paths stay coherent**: when everything is back, the notice goes.
   When the person then leaves the Chest (`member.removed`,
-  `access.revoked`), the departure is forgotten and its notice withdrawn;
-  *"Léa left and holds 3 items"* and *Held by people who left* take over,
-  as before. An erasure forgets it too.
+  `access.revoked`), the departure leaves the managers' lists and its
+  notice is withdrawn; *"Léa left and holds 3 items"* and *Held by people
+  who left* take over, as before. The departure itself is kept (until 30
+  days after the last day), so that People still hears when their things
+  come back. An erasure forgets it.
 - Every field is checked; an event of another shape, from another tool, or
   about someone who is not a member is ignored. Events come at least once
   and not always in order: each departure keeps when People said so, and
   an older word delivered late changes nothing (a cancelled departure keeps
   only that time, for a week). A departure is forgotten 30 days after the
   last day (weekly run and overview).
+
+**Equipment → People** — everything is back (`chest.proposals.json`
+`emits`). The contract, v1, is People's (its README, "With the other
+tools"; its `lib/returns.ts` reads it):
+
+- `equipment.returned` `{member: "mbr_…"}`, key
+  `equipment:<member>:returned:<time>` (`<time>` in milliseconds) — the
+  last thing a **leaving** person held is back. People ticks their leaving
+  checklist's "Return the laptop, badge and keys" step.
+- **Leaving** means People told of a last day (`people.leaving`, not
+  cancelled since), whether or not they have already left the Chest.
+  **Everything back** means no item and no licence seat held any more,
+  whatever made it so: *Take back*, *Take everything back*, a seat taken,
+  the item given to someone else, marked lost or retired, or deleted. It
+  is only the moment it becomes true that counts: someone who held nothing
+  when People told of their departure is never told of (nothing came back:
+  HR ticks the step), and nothing is told for someone not leaving.
+- **Reliable**: a trigger (`migrations/0007_returned.sql`), run when the
+  transaction commits, writes the word in the same transaction as the
+  take-back — several things at once make one word, a change undone in the
+  same transaction none. It is published right after the manager's action
+  (`lib/returned.ts`), and again by the `returns` schedule (every quarter
+  of an hour) while the Chest cannot take it; checked again as it leaves
+  (something given back since, a departure cancelled in People or an
+  erasure: dropped). Told a day ago, it is forgotten; refused for a week,
+  too. The same key twice is one event.
+- **What it does not do**: an *Undo* after the word left does not take it
+  back (the contract has no "not returned" event; People keeps the step
+  ticked, HR unticks it). Given again then back again, it is told again
+  under a new key; People, told twice, finds nothing left to tick.
 
 ## Roles
 
@@ -288,6 +320,7 @@ the same on each (`test/refusals.test.ts`, the browser flow); something a
 member may not see at all (someone else's item or sheet) is "not found".
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
 | `/chest-jobs/weekly` | the Chest only (signed, proposal) | Monday's word to managers |
+| `/chest-jobs/returns` | the Chest only (signed, proposal) | `equipment.returned` told again while the Chest could not take it |
 | `/` | anyone | "This tool lives in your Chest" |
 
 ## On a Chest
@@ -322,7 +355,8 @@ member may not see at all (someone else's item or sheet) is "not found".
 All in `vendor/` (the studio's working copy, `0.3.0-studio.15`):
 
 - `member.locale` — the interface and the bell in each member's language.
-- `schedules` — the Monday "ending soon" word, and the nightly Intune read
+- `schedules` — the Monday "ending soon" word, the nightly Intune read,
+  and `returns` (People told again what the Chest could not take yet)
   (`chest.proposals.json`, `app/chest-jobs/[name]/route.ts`). Without it,
   the overview shows the same list at any time, and Intune is read when a
   manager asks.
@@ -339,8 +373,10 @@ All in `vendor/` (the studio's working copy, `0.3.0-studio.15`):
   codes' links (without it, the host the request came to).
 - `translations` in `chest.proposals.json` — the tile's French title.
 - **Events between tools** — receives `people.leaving`,
-  `people.leaving_cancelled` (see "With the other tools"). Without it,
-  departures are seen only when the person leaves the Chest.
+  `people.leaving_cancelled`; emits `equipment.returned` (see "With the
+  other tools"; the `returns` schedule tells it again). Without it,
+  departures are seen only when the person leaves the Chest, and HR ticks
+  People's "Return the laptop" step by hand.
 
 - `files` — besides photos, each item's purchase invoice (PDF or picture).
 - `mail` (**Proposal (studio)**, `chest.proposals.json`) — *Remind them*
