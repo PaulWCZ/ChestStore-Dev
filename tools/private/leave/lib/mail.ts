@@ -41,9 +41,18 @@ export function letterText(t: Catalogue, letter: Letter, path: string, base: str
 }
 
 // email sends each recipient their letter now, in their language; the key
-// (with the recipient) makes a retry send nothing twice. Says how many
-// were sent (0 on a Chest without mail, or when everyone turned it off).
-export async function email(sql: Query, recipients: Iterable<string>, letter: (t: Catalogue, locale: Locale) => Letter, options: { path: string; key: string }): Promise<number> {
+// (with the recipient, whole: the SDK sends a long one as its digest) makes
+// a retry send nothing twice. Says how many the Chest took (0 on a Chest
+// without mail, or when everyone turned it off here).
+//
+// Two choices apply: the person's switch here (Leave's own emails), and
+// the one they made once in the Chest for every tool (member.mailPreference:
+// all, one a day, none), which mail.send applies — "held" is not an error.
+// transactional: the answer to the person's own request (approved,
+// refused, their cancellation settled), which they get whatever they chose
+// in the Chest; everything else (a request to answer, leave recorded for
+// them) follows their choice.
+export async function email(sql: Query, recipients: Iterable<string>, letter: (t: Catalogue, locale: Locale) => Letter, options: { path: string; key: string; transactional?: boolean }): Promise<number> {
   const ids = [...new Set(recipients)].filter(r => r.startsWith("mbr_"));
   if (ids.length === 0) return 0;
   const off = new Set((await sql<{ member_id: string }[]>`select member_id from staff where member_id in ${sql(ids)} and email_off`).map(r => r.member_id));
@@ -60,7 +69,8 @@ export async function email(sql: Query, recipients: Iterable<string>, letter: (t
         to: { member: person.id },
         subject: written.subject.replace(/[\r\n]+/gu, " ").slice(0, 200),
         text: letterText(t, written, options.path, base),
-        key: `${options.key}:${person.id}`.slice(0, 64),
+        key: `${options.key}:${person.id}`,
+        ...(options.transactional ? { transactional: true } : {}),
       });
       sent++;
     } catch (error) {

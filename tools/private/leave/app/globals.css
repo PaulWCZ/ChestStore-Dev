@@ -379,13 +379,11 @@ tr.problem td .error { color: var(--danger-ink); }
   .kind-option { min-height: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-m); }
 }
 
-/* A day the kit's date field refused: its line "in words" still names the
-   last day it accepted (kit 0.2.5) — hidden while the refusal stands, so
-   the form never shows one day and counts another (reported to ui/). */
-.date-field:has(.ck-date-input:invalid) .ck-date-read { display: none; }
-
 /* Email beside the bell: the person's own switch, at the foot of My leave. */
 .home-footer { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); }
 .email-switch .ck-switch-label { color: var(--ink-2); font-size: var(--text-s); }
+.email-choice { margin: var(--space-2) 0 0; }
+.feed-link { margin: 0 0 var(--space-3); }
+.feed-link a { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; }
 .email-switch .ck-switch-text { display: inline-flex; align-items: center; gap: var(--space-2); }
 .from-people { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }

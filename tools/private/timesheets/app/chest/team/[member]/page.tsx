@@ -50,7 +50,10 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
     <div className="page wide">
       <p><Link className="button link" href="/chest/team"><Back />{t.team.title}</Link></p>
       <header className="page-head">
-        <h1><Avatar name={name} photo={person.photo} size="l" />{name}</h1>
+        <div>
+          <h1><Avatar name={name} photo={person.photo} size="l" />{name}</h1>
+          {person.status !== "member" && person.leftAt && <p className="small muted left-on">{format(t.team.leftOn, { date: formatDate(person.leftAt, zone(), locale, { day: "numeric", month: "long", year: "numeric" }) })}</p>}
+        </div>
         <div className="week-total">
           <span className="label">{format(t.team.weekOf, { date: formatDay(week, locale, { day: "numeric", month: "long" }) })}</span>
           <span className="num big">{formatDuration(total)}</span>

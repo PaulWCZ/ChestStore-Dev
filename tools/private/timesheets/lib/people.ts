@@ -10,8 +10,10 @@ import { catalogue, format } from "./i18n/index.ts";
 // "unknown" is an id the Chest does not know here (or the Chest could not be
 // asked: the page still renders). An 'imp_…' id is someone who left before
 // the Chest, whose time came with an import: "former", with the name the
-// old tool gave (kept by the tool: the Chest never knew them).
-export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale };
+// old tool gave (kept by the tool: the Chest never knew them). leftAt: when
+// a former member left the Chest (studio.15; null from an older Chest, and
+// for imported people, who left before it).
+export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale; leftAt: string | null };
 
 export async function people(ids: Iterable<string>): Promise<Map<string, Person>> {
   const all = [...new Set(ids)];
@@ -20,18 +22,18 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   const imported = all.filter(id => typeof id === "string" && /^imp_[1-9][0-9]{0,17}$/u.test(id));
   if (imported.length) {
     const rows = await db()<{ id: string; name: string }[]>`select 'imp_' || id as id, name from former_people where id = any(${imported.map(x => x.slice(4))}::bigint[])`;
-    for (const r of rows) found.set(r.id, { id: r.id, name: r.name, photo: null, status: "former", locale: "en" });
-    for (const id of imported) if (!found.has(id)) found.set(id, { id, name: "", photo: null, status: "erased", locale: "en" });
+    for (const r of rows) found.set(r.id, { id: r.id, name: r.name, photo: null, status: "former", locale: "en", leftAt: null });
+    for (const id of imported) if (!found.has(id)) found.set(id, { id, name: "", photo: null, status: "erased", locale: "en", leftAt: null });
   }
   if (wanted.length === 0) return found;
   try {
     const answer = await members.lookup(wanted);
-    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale });
-    for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en" });
+    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale, leftAt: null });
+    for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en", leftAt: f.leftAt ?? null });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }
-  for (const id of wanted) if (!found.has(id)) found.set(id, { id, name: "", photo: null, status: "unknown", locale: "en" });
+  for (const id of wanted) if (!found.has(id)) found.set(id, { id, name: "", photo: null, status: "unknown", locale: "en", leftAt: null });
   return found;
 }
 

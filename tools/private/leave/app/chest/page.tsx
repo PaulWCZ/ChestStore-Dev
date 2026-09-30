@@ -1,7 +1,7 @@
 import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Arrow, Check, Plus } from "../../components/icons.tsx";
+import { Arrow, Calendar, Check, Plus } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import { balancesOf } from "../../lib/balances.ts";
 import { balanceNotes } from "../../lib/balance-words.ts";
@@ -18,6 +18,7 @@ import { typeName } from "../../lib/type-name.ts";
 import { MyRequests, type RequestRow } from "./my-requests.tsx";
 import { EmailSwitch } from "./email-switch.tsx";
 import { emailOn } from "../../lib/mail.ts";
+import { feedPage, state as calendarState } from "../../lib/leave-calendar.ts";
 
 // A type's name inside a sentence: "paid leave", but "RTT" stays.
 const inSentence = (name: string): string => (name === name.toUpperCase() ? name : name.charAt(0).toLowerCase() + name.slice(1));
@@ -168,7 +169,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
       </section>
 
       <div className="home-footer">
+        {(await calendarState(sql)) === "on" && <p className="feed-link"><a href={feedPage}><Calendar />{t.home.feed}</a></p>}
         <EmailSwitch on={await emailOn(sql, member)} t={{ label: t.home.email, errors: t.errors }} />
+        {member.mailPreference === "none" && <p className="small muted email-choice">{t.home.emailNone}</p>}
+        {member.mailPreference === "digest" && <p className="small muted email-choice">{t.home.emailDigest}</p>}
       </div>
     </div>
   );

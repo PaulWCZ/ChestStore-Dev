@@ -66,7 +66,10 @@ Weekdone, 15Five OKRs — or the OKR spreadsheet** — for a company of 10 to
   objective I own, each in my language; the tile's number is my key results
   waiting for this week's update; **Friday morning**, one reminder ("3 key
   results wait for your weekly update") in the bell **and by email** —
-  unless the person unticks *Also email me…* at the bottom of *My goals*.
+  unless the person unticks *Also email me…* at the bottom of *My goals*,
+  and as they chose in their Chest settings for every tool (all, one a
+  day, none: `mailPreference`, studio.15, applied by the Chest; *My goals*
+  says so under the switch when it holds emails back).
   Admins hear when goals need a new owner.
 - **Import** (admins): a CSV file — a spreadsheet, Goals' own export, or
   Lattice's goals file. The page guesses which column is which (one select
@@ -237,12 +240,15 @@ candidate's name (`lib/sources.ts`, `lib/crm.ts`; table `fed_events`).
 | `crm.deal.reopened` (Clients) | `{deal}` | takes the deal back | Sent by Clients today |
 | `hiring.hired` (Hiring) | `{candidate, hiredBy: mbr_…}` (Hiring's own shape; the name, email, job are not kept) | "People hired" (only theirs: `hiredBy`) | Sent by Hiring today |
 | `hiring.hire_cancelled` (Hiring) | `{candidate}` | takes the hire back | Sent by Hiring today |
-| `tasks.card.done` (Tasks) | `{card, board, boardName, assignees: [mbr_…]}` | "Cards done" (a board or all; only theirs: in `assignees`) | **Tasks must publish it** |
-| `tasks.card.reopened` (Tasks) | `{card}` | takes the card back | **Tasks must publish it** |
-| `helpdesk.ticket.solved` (Support) | `{ticket, assignee: mbr_… \| null}` | "Tickets solved" (only theirs: `assignee`) | **Support must publish it** |
-| `helpdesk.ticket.reopened` (Support) | `{ticket}` | takes the ticket back | **Support must publish it** |
+| `tasks.card.done` (Tasks) | `{card, board, boardName, assignees: [mbr_…]}` | "Cards done" (a board or all; only theirs: in `assignees`) | Sent by Tasks today |
+| `tasks.card.reopened` (Tasks) | `{card}` | takes the card back | Sent by Tasks today |
+| `helpdesk.ticket.solved` (Support) | `{ticket, assignee: mbr_… \| null}` | "Tickets solved" (only theirs: `assignee`) | Sent by Support today |
+| `helpdesk.ticket.reopened` (Support) | `{ticket}` | takes the ticket back | Sent by Support today |
 
-What each sender must do:
+What each sender does (Tasks' `lib/card-events.ts`, Support's
+`lib/ticket-events.ts`; Goals' test "the exact events Tasks and Support
+publish" delivers each of their shapes as they write them — ids as text of
+digits, `"42"`, `"1042"`):
 
 - **Tasks** declares `"emits": ["tasks.card.done", "tasks.card.reopened"]`
   and publishes `tasks.card.done` when a card moves into a done column (or
@@ -252,14 +258,19 @@ What each sender must do:
   done (Undo included), key `tasks:<card>:reopened:<time>`. A card done
   again is published again (Goals keeps the latest time).
 - **Support** declares `"emits": ["helpdesk.ticket.solved",
-  "helpdesk.ticket.reopened"]` and publishes `helpdesk.ticket.solved`
+  "helpdesk.ticket.reopened"]` in `chest.proposals.json` and publishes `helpdesk.ticket.solved`
   `{ticket, assignee}` when a ticket is solved (the agent who solved it, or
   null), key `helpdesk:<ticket>:solved:<time>`; `helpdesk.ticket.reopened`
   `{ticket}` when the customer or an agent reopens it.
 - **Hiring** already publishes `hiring.hired` and `hiring.hire_cancelled`
   (its README); Goals needs `hiredBy` to count "only theirs".
-- The event's `occurredAt` is when it happened: Goals counts it in the
-  cycle whose dates hold it (the Chest's calendar).
+- The event's `occurredAt` is when the sender published it: Goals counts
+  it in the cycle whose dates hold it (the Chest's calendar). Both senders
+  publish right after the action, and again every quarter of an hour
+  while the Chest refuses: a card done at 23:58 on a cycle's last day and
+  told the next morning would count in the next cycle. The time it
+  happened is in the sender's key only, which a receiver does not see —
+  see the SDK report (`events.publish` cannot say when it happened).
 
 What Goals cannot know: what happened before the tools were linked, and
 a board of Tasks before one of its cards is done (it is offered in the
@@ -277,6 +288,8 @@ form from then on) — both need a query between tools (below).
   opens *My goals*; only the Friday bell item and the Monday refresh wait for
   the Chest to run schedules.
 - `mail` — **Proposal (studio)**: the Friday reminder and *Remind* by email.
+  Keys `reminder:<day>:<member>` / `nudge:<day>:<member>`, passed whole
+  (studio.15); not transactional: the member's `mailPreference` applies.
   Without it, nothing fails: the bell still says it.
 - **Events between tools** — **Proposal (studio)**: the events of Clients,
   Tasks, Support and Hiring feed key results (*With the other tools*).
@@ -294,6 +307,11 @@ form from then on) — both need a query between tools (below).
     `tools.query("tasks", "boards")`, read-only, granted like events): a
     fed key result counts only what happened after the tools were linked;
     the past, and Tasks' boards before a card is done, are out of reach.
+  - **When an event happened** (`events.publish(type, data, {key,
+    occurredAt})`): `occurredAt` is when the sender published; a sender
+    that retries later (Tasks and Support do, every quarter of an hour,
+    while the Chest refuses) cannot say when the card was done, so one done
+    at a cycle's last minute and told after midnight counts in the next.
 
 ## Develop
 
@@ -326,9 +344,10 @@ tools/private/goals --port 5600`.
   column becomes one first update).
 - **Values from other tools**: only what happened after the tools were
   linked (no query between tools yet). Deals won are company-wide (Clients'
-  events name the deal's owner, not yet used). Tasks and Support do not
-  publish their events yet (the contracts are above): until they do, those
-  sources stay at 0. No timesheet hours, no form submissions, no KPIs from
+  events name the deal's owner, not yet used). Tasks and Support publish
+  their events today (the contracts are above); an event is counted on the
+  day it was published, not always the day it happened (above). No
+  timesheet hours, no form submissions, no KPIs from
   a spreadsheet.
 - **Units** are shown in the language they were typed in (Goals cannot
   translate "customers" for a French reader).

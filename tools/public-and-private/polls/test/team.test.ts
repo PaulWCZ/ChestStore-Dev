@@ -143,6 +143,28 @@ test("the organiser reminds those who have not answered — bell and email, at m
   }
 });
 
+test("reminders by email follow each member's email preference; the bell still reminds everyone", async () => {
+  const withMail = everyone.map(m => (m.id === hugo.id ? m : { ...m, email: `${m.firstName.toLowerCase()}@atelier.test` }));
+  const prefs = withMail.map(m => (m.id === tom.id ? { ...m, mailPreference: "none" as const } : m.id === lea.id ? { ...m, mailPreference: "digest" as const } : m));
+  const chest = await fakeChest({ members: prefs, groups: chestGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, timeZone: zone });
+  try {
+    const { sql } = database;
+    const made = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Offsite?", options: ["Yes", "No"], closes: { day: "2026-10-09", time: "12:00" }, open: true }, ctx);
+    await tell.runTellings(sql, now);
+    const q = (await polls.load(sql, made.id)).questions[0]!;
+    for (const p of [hugo, camille]) await answer(sql, asMember(p), made.id, { [q.id]: { options: [q.options[0]!.id] } }, now);
+    await polls.nudge(sql, asMember(sofia), made.id, now);
+    await tell.runTellings(sql, now);
+    // Inès wants every email; Tom none; Léa one a day, from the Chest.
+    const mails = chest.outbox.filter(m => m.subject.includes("Offsite?"));
+    assert.deepEqual(mails.map(m => m.to), [["inès@atelier.test"]]);
+    assert.deepEqual(chest.held.filter(h => h.subject.includes("Offsite?")).map(h => [h.member, h.reason]).sort(), [[lea.id, "digest"], [tom.id, "none"]].sort());
+    for (const who of [tom, lea, ines]) assert.ok(chest.notifications.some(n => n.key === tell.askKey(made.id) && n.member === who.id && /Offsite\?/u.test(n.title)), `${who.firstName}'s bell`);
+  } finally {
+    await chest.close();
+  }
+});
+
 test("new words over answers already given: the poll says after how many", async () => {
   const { sql } = database;
   const made = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Lunch?", options: ["Pizza", "Sushi"], open: true }, ctx);

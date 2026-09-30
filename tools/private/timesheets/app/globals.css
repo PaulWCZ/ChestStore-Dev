@@ -159,6 +159,7 @@ select.field { padding-right: var(--space-6); }
 .page .ck-page-title h1 { font-size: var(--text-xl); }
 .page-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
 .page-head h1 { display: flex; align-items: center; gap: var(--space-3); }
+.page-head .left-on { margin: var(--space-1) 0 0; }
 .panel { background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-l); padding: var(--space-5); margin-bottom: var(--space-4); display: grid; gap: var(--space-3); }
 .panel h2 { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-m); }
 

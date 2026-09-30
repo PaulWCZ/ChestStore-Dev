@@ -2,9 +2,11 @@
   "mail": {
     "send": true
   },
+  "calendar": true,
   "emits": [
     "leave.approved",
-    "leave.cancelled"
+    "leave.cancelled",
+    "leave.busy"
   ],
   "receives": [
     "people.leaving",

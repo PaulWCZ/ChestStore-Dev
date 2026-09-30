@@ -128,8 +128,13 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
 // else is reminded), in their language, with the link to answer. Email is
 // a courtesy on top of the bell: a Chest that cannot send email yet (no
 // "mail"), or the day's quota reached, sends nothing more and the bell
-// item stands. The key makes a repeated delivery of the same reminder send
-// nothing twice. Someone without an address is skipped, not the others.
+// item stands. The key (taken whole: the SDK hashes one longer than the
+// Chest keeps, studio.15) makes a repeated delivery of the same reminder
+// send nothing twice. A reminder is not transactional: the Chest applies
+// each member's email preference (`mailPreference`, studio.15) — "none"
+// sends nothing, "digest" waits for the Chest's one email a day — and the
+// bell item stands either way. Someone without an address is skipped, not
+// the others.
 async function emailReminders(poll: Poll, people: Person[], t: Catalogue, locale: Locale, organiser: string, zone: string): Promise<void> {
   const d = dates(locale, zone);
   const base = chest.teamUrl();
@@ -141,11 +146,13 @@ async function emailReminders(poll: Poll, people: Person[], t: Catalogue, locale
         to: { member: p.id },
         subject: format(t.mail.subject, { title: poll.title }),
         text: format(poll.closesAt ? t.mail.bodyUntil : t.mail.body, { name: p.name, organiser, title: poll.title, date: poll.closesAt ? d.at(poll.closesAt) : "", link }),
-        key: `remind.${poll.id}.${stamp}.${p.id.slice(4, 30)}`.slice(0, 64),
+        key: `remind.${poll.id}.${stamp}.${p.id}`,
       });
     } catch (error) {
       // Someone the Chest has no address for (or who bounced): the next.
       if (error instanceof ChestError && (error.code === "invalid_address" || error.code === "suppressed")) continue;
+      // A key reused for another message is a bug in Polls: heard, not hidden.
+      if (error instanceof ChestError && error.code === "key_conflict") throw error;
       if (error instanceof ChestError) return;
       throw error;
     }

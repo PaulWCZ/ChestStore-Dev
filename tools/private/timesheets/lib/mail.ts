@@ -13,6 +13,10 @@ import { people } from "./people.ts";
 // tool never knows it), in their language, with a link to the page. On a
 // Chest without mail yet nothing is sent and nothing fails: the bell still
 // says it.
+//
+// None is transactional: each asks someone to act, so the choice the person
+// made once in the Chest (member.mailPreference: all, one a day, none) always
+// holds — mail.send applies it ("held" is not an error).
 
 export type Letter = { subject: string; lines: string[] };
 
@@ -24,7 +28,8 @@ export function letterText(t: Catalogue, letter: Letter, path: string, base: str
 }
 
 // email sends each recipient their letter, in their language; the key (with
-// the recipient) makes the same email within a day send nothing again.
+// the recipient, whole: the SDK sends a long one as its digest) makes the
+// same email within a day send nothing again.
 // Says how many left (0 on a Chest without mail).
 export async function email(recipients: Iterable<string>, letter: (t: Catalogue, locale: Locale) => Letter | null, options: { path: string; key: string }): Promise<number> {
   const ids = [...new Set(recipients)].filter(r => r.startsWith("mbr_"));
@@ -37,7 +42,7 @@ export async function email(recipients: Iterable<string>, letter: (t: Catalogue,
     const written = letter(t, person.locale);
     if (!written) continue;
     try {
-      await mail.send({ to: { member: person.id }, subject: written.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, written, options.path, base), key: `${options.key}:${person.id}`.slice(0, 64) });
+      await mail.send({ to: { member: person.id }, subject: written.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, written, options.path, base), key: `${options.key}:${person.id}` });
       sent++;
     } catch (error) {
       // Not granted (a Chest without mail yet): nothing more can leave.

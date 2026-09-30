@@ -224,3 +224,34 @@ test("a Chest without the calendar: Polls learns it and keeps its file", async (
     await bare.close();
   }
 });
+
+test("a date chosen for more than 1,000 people goes to their calendars in parts of 1,000, put in one batch", async () => {
+  const { sql } = database;
+  const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
+  const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
+  const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
+  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, timeZone: "Europe/Paris" });
+  try {
+    const { id, first, second } = await openDinner();
+    const q = (await polls.load(sql, id)).questions[0]!;
+    await answer(sql, asMember(hugo), id, { [q.id]: { dates: { [first]: 0, [second]: 2 } } }, now);
+    await polls.closePoll(sql, asMember(sofia), id, now);
+    await polls.chooseFinal(sql, asMember(sofia), id, first, now);
+    await syncFinal(sql, id);
+    // Everyone asked (6 with a role, less Hugo, plus 2,345): 2,350 in 3 parts.
+    const parts = [eventKey(id), eventKey(id, 2), eventKey(id, 3)].map(k => big.calendar.get(k));
+    assert.deepEqual(parts.map(p => p?.members.length), [1000, 1000, 350]);
+    assert.equal(eventKey(id, 2), `poll:${id}:2`);
+    assert.equal(big.calendar.has(eventKey(id, 4)), false);
+    const all = parts.flatMap(p => p!.members);
+    assert.equal(new Set(all).size, 2350, "each person once");
+    assert.ok(!all.includes(hugo.id), "Hugo said no to it");
+    assert.ok(parts.every(p => p!.path === `/chest/polls/${id}` && "start" in p! && p.start === "2026-10-20T17:00:00.000Z"));
+    // Taken back: every part leaves every calendar.
+    await polls.chooseFinal(sql, asMember(sofia), id, null, now);
+    await syncFinal(sql, id);
+    assert.equal(big.calendar.size, 0);
+  } finally {
+    await big.close();
+  }
+});

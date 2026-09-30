@@ -125,6 +125,8 @@ export const en = {
     email: "Also email me the Friday reminder and reminders from others",
     emailOn: "Reminders will also come by email.",
     emailOff: "Reminders stay in the bell only.",
+    emailDigest: "In your Chest settings you chose one email a day: they wait for it.",
+    emailNone: "In your Chest settings you chose no email: reminders stay in the bell.",
   },
   checkIn: {
     open: "Update",

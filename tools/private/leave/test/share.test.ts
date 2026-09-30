@@ -7,8 +7,7 @@ import * as share from "../lib/share.ts";
 // What Leave tells the other tools (Proposal (studio): events between tools).
 let chest: FakeChest;
 before(async () => {
-  process.env["CHEST_TOOL"] = "leave";
-  chest = await fakeChest({ emits: ["leave.approved", "leave.cancelled"], receivers: 1 });
+  chest = await fakeChest({ tool: "leave", emits: ["leave.approved", "leave.cancelled"], receivers: 1 });
 });
 after(async () => {
   await chest.close();
@@ -33,7 +32,7 @@ test("an approved leave is told as who and which days — never its kind nor its
 test("a cancelled leave is told; without events between tools, nothing breaks", async () => {
   await share.cancelled({ ...request, status: "cancelled" });
   assert.equal(chest.published.at(-1)!.type, "leave.cancelled");
-  const bare = await fakeChest({});
+  const bare = await fakeChest({ tool: "leave" });
   try {
     await share.approved(request);
   } finally {

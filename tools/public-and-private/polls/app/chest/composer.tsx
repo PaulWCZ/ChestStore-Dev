@@ -414,7 +414,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
         )}
       </section>
 
-      <div className="actions-bar">
+      <div className="actions-bar" data-ck-bottom-bar>
         {error && <p className="error" role="alert">{error}</p>}
         {locked ? (
           <button type="submit" className="button primary big" disabled={busy !== null}>{busy ? c.saving : c.save}</button>

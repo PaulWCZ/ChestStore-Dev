@@ -5,6 +5,8 @@ import { withdraw } from "./notify.ts";
 import { settleAfterLastDay } from "./last-day.ts";
 import { afterLastDay, refreshBadges } from "./tell.ts";
 import { fromLeaving, fromRecord } from "./from-people.ts";
+import { forget } from "./busy.ts";
+import { keepInLine } from "./share.ts";
 
 // What Leave does when a member loses access, leaves or is erased (the
 // Chest posts these to /chest-events, at least once; each handler may run
@@ -52,29 +54,33 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update ledger set created_by = 'erased' where created_by = ${memberId}`;
     await tx`delete from staff where member_id = ${memberId}`;
     await tx`update settings set updated_by = null where updated_by = ${memberId}`;
+    await forget(tx, memberId);
   });
 }
 
 // What other tools tell Leave (events between tools): People's records and
 // departures (lib/from-people.ts).
+// After each, the calendar feeds and the busy times follow (leave cut or
+// cancelled by a last day, erased).
 export function tools(sql: Sql): events.ToolHandlers {
   return {
-    "people.record": async e => { await fromRecord(sql, e.data, new Date(e.occurredAt)); },
-    "people.leaving": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), false); },
-    "people.leaving_cancelled": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), true); },
+    "people.record": async e => { await fromRecord(sql, e.data, new Date(e.occurredAt)); await keepInLine(sql); },
+    "people.leaving": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), false); await keepInLine(sql); },
+    "people.leaving_cancelled": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), true); await keepInLine(sql); },
   };
 }
 
 export function handlers(sql: Sql): events.Handlers {
   return {
-    "access.revoked": event => leave(sql, event.data.id),
-    "member.removed": event => leave(sql, event.data.id),
+    "access.revoked": async event => { await leave(sql, event.data.id); await keepInLine(sql); },
+    "member.removed": async event => { await leave(sql, event.data.id); await keepInLine(sql); },
     // A role changed: the approvers' tiles may count differently.
     "member.updated": async event => {
       if (event.data.changed.includes("role")) await refreshBadges(sql);
     },
     "member.erased": async event => {
       await erase(sql, event.data.id);
+      await keepInLine(sql);
       await events.acknowledgeErasure(event.data.erasure);
     },
   };

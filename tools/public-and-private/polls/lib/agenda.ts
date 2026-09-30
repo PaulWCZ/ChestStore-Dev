@@ -1,7 +1,7 @@
 import * as calendar from "@argentic/chest-sdk/calendar";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
-import { all } from "./audience.ts";
+import { all, maxPages, pageSize } from "./audience.ts";
 import { optionText } from "./dates.ts";
 import type { Query, Sql } from "./db.ts";
 import { toTell } from "./guests.ts";
@@ -15,14 +15,26 @@ import { chestZone } from "./zone.ts";
 // serves every member one calendar feed (Google, Outlook, Apple) that
 // merges what each tool put. Everyone the poll asks has it, except those
 // who said "No" to that date; it moves when the organiser changes the
-// date, and leaves when the choice is taken back or the poll deleted. One
-// entry per poll (key poll:<id>), put again at every change. On a Chest
+// date, and leaves when the choice is taken back or the poll deleted. The
+// Chest takes 1,000 members an event: a poll that asks more (Polls reads up
+// to 10,000 people) puts the same date as several events of 1,000, keys
+// poll:<id>, poll:<id>:2, poll:<id>:3…, in one `calendar.putMany` (Proposal
+// (studio.15): checked whole, one write of the minute per 100 events), put
+// again at every change; parts no longer needed are removed. On a Chest
 // without the calendar, the poll keeps its "Add to my calendar" file.
 //
 // Guests (lib/guests.ts) have no Chest calendar: those who gave an email
 // get the date by email (Proposal (studio): mail), with the link back to
 // the poll's page, where the calendar file is.
-export const eventKey = (pollId: string) => `poll:${pollId}`;
+export const eventKey = (pollId: string, part = 1) => (part === 1 ? `poll:${pollId}` : `poll:${pollId}:${part}`);
+const perEvent = calendar.limits.members;
+const maxParts = Math.ceil((maxPages * pageSize) / perEvent);
+
+// removeParts removes the parts from `from` on: they were put one after the
+// other from the first, so the first missing one ends them.
+async function removeParts(pollId: string, from: number): Promise<void> {
+  for (let part = from; part <= maxParts; part++) if (!(await calendar.remove(eventKey(pollId, part)))) return;
+}
 
 export type Learned = "on" | "off" | "unknown";
 
@@ -52,26 +64,29 @@ export async function syncFinal(sql: Sql, pollId: string): Promise<void> {
   const option = poll.questions[0]?.options.find(o => o.id === poll.finalOption);
   try {
     if (poll.deleted || poll.kind !== "date" || poll.status !== "closed" || !option?.day) {
-      await calendar.remove(eventKey(poll.id));
+      await removeParts(poll.id, 1);
       return;
     }
-    const members = (await inCalendar(sql, poll)).slice(0, 1000);
+    const members = await inCalendar(sql, poll);
     if (members.length === 0) {
-      await calendar.remove(eventKey(poll.id));
+      await removeParts(poll.id, 1);
       return;
     }
     const zone = chestZone();
     const when = option.start
       ? { start: zoned(option.day, option.start, zone), end: option.end ? zoned(option.day, option.end, zone) : new Date(zoned(option.day, option.start, zone).getTime() + 3_600_000) }
       : { days: { first: option.day, last: option.day } };
-    await calendar.put({
-      key: eventKey(poll.id),
-      members,
+    const parts: string[][] = [];
+    for (let i = 0; i < members.length && parts.length < maxParts; i += perEvent) parts.push(members.slice(i, i + perEvent));
+    await calendar.putMany(parts.map((part, i) => ({
+      key: eventKey(poll.id, i + 1),
+      members: part,
       title: [...poll.title].slice(0, 120).join(""),
       ...(poll.details ? { description: [...poll.details].slice(0, 1000).join("") } : {}),
       ...when,
       path: `/chest/polls/${poll.id}`,
-    });
+    })));
+    await removeParts(poll.id, parts.length + 1);
     await learn(sql, "on");
   } catch (error) {
     if (error instanceof CapabilityNotGranted) return void (await learn(sql, "off"));
@@ -84,7 +99,11 @@ export async function syncFinal(sql: Sql, pollId: string): Promise<void> {
 
 // emailGuests: the guests who gave an email hear the chosen date, each in
 // the language they answered in. One email per guest and choice (the key
-// holds the time of the choice: a changed date is sent again).
+// holds the time of the choice: a changed date is sent again; taken whole,
+// the SDK hashes a long one). Guests are not members: no Chest email
+// preference applies to them (the Chest applies `mailPreference` to members
+// only), so `transactional` would change nothing and is not set — they gave
+// their address on the poll's page for this one message.
 export async function emailGuests(sql: Sql, pollId: string, origin: string | null): Promise<number> {
   const poll = await load(sql, pollId);
   const option = poll.questions[0]?.options.find(o => o.id === poll.finalOption);
@@ -106,7 +125,7 @@ export async function emailGuests(sql: Sql, pollId: string, origin: string | nul
     } catch (error) {
       // No email from this Chest (yet), the day's quota, an address that
       // bounced before: the page stays the truth.
-      if (error instanceof ChestError) {
+      if (error instanceof ChestError && error.code !== "key_conflict") {
         if (error instanceof CapabilityNotGranted) return sent;
         continue;
       }

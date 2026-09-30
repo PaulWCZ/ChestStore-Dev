@@ -11,6 +11,8 @@ import { remind, remindAll, waitingFor } from "../lib/remind.ts";
 import { clockAt, weeklyReminder } from "../lib/tell.ts";
 import { cycleCsv, checkInsCsv } from "../lib/export.ts";
 import { catalogue } from "../lib/i18n/index.ts";
+import { quarterOf } from "../lib/model.ts";
+import { today } from "../lib/time.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, sofia } from "./support/members.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";
@@ -76,6 +78,33 @@ test("each person may turn the reminders' email off; the Friday reminder is emai
   assert.equal(w.chest.outbox.length, before + 1);
   await sql`delete from cycles`;
   await sql`delete from teams`;
+});
+
+test("the Friday reminder follows each person's email choice in the Chest: none is not sent, one a day waits for the Chest's digest", async () => {
+  const { sql } = w.database;
+  const { cycle } = await running(w);
+  await companyObjective(w, cycle.id);
+  await sql`update key_results set created_at = now() - interval '10 days'`;
+  await sql`delete from preferences`;
+  const chosen = { [hugo.id]: "none", [ines.id]: "digest" } as const;
+  const people = w.chest.members.filter(m => m.id in chosen);
+  for (const m of people) m.mailPreference = chosen[m.id as keyof typeof chosen];
+  w.chest.clearCaches();
+  try {
+    const before = w.chest.outbox.length, held = w.chest.held.length;
+    // Another day of the quarter than today: today's reminder was sent to
+    // Inès above, and its key would answer this one with it.
+    const firstDay = quarterOf(today()).startsOn === today();
+    await weeklyReminder(sql, new Date(Date.now() + (firstDay ? 1 : -1) * 864e5));
+    assert.equal(w.chest.outbox.length, before, "nothing sent now");
+    assert.deepEqual(w.chest.held.slice(held).map(h => [h.member, h.reason]).sort(), [[hugo.id, "none"], [ines.id, "digest"]].sort());
+    assert.ok(w.chest.notifications.some(n => n.member === hugo.id && n.key === "checkin"), "the bell still reminds");
+  } finally {
+    for (const m of people) delete m.mailPreference;
+    w.chest.clearCaches();
+    await sql`delete from cycles`;
+    await sql`delete from teams`;
+  }
 });
 
 test("a confidential objective: seen by its owner, its key results' owners, the people chosen or its team, and the admins; nobody else, anywhere", async () => {

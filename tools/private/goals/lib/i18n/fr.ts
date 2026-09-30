@@ -123,6 +123,8 @@ export const fr: Catalogue = {
     email: "M’envoyer aussi par e-mail le rappel du vendredi et les relances",
     emailOn: "Les rappels arriveront aussi par e-mail.",
     emailOff: "Les rappels restent dans la cloche.",
+    emailDigest: "Dans les réglages de votre Chest, vous avez choisi un e-mail par jour : ils l’attendent.",
+    emailNone: "Dans les réglages de votre Chest, vous avez choisi de ne recevoir aucun e-mail : les rappels restent dans la cloche.",
   },
   checkIn: {
     open: "Faire le point",

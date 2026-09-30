@@ -35,12 +35,13 @@ async function directory(): Promise<Directory | null> {
 // tellBoth: the bell item, and the same words by email (the mail
 // proposal) to those who have not turned emails off. The email's key
 // carries the moment: the same step done again later is a new email.
-async function tellBoth(sql: Query, to: string[], words: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key: string }): Promise<void> {
-  await notify(to, words, options);
+// transactional: the answer to the person's own request (lib/mail.ts).
+async function tellBoth(sql: Query, to: string[], words: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key: string; transactional?: boolean }): Promise<void> {
+  await notify(to, words, { path: options.path, key: options.key });
   await email(sql, to, (t, locale) => {
     const w = words(t, locale);
     return { subject: w.title, lines: w.body ? w.body.split("\n") : [] };
-  }, { path: options.path, key: `${options.key}:${Date.now().toString(36)}` });
+  }, { path: options.path, key: `${options.key}:${Date.now().toString(36)}`, transactional: options.transactional === true });
 }
 
 async function describe(sql: Query, r: LeaveRequest) {
@@ -81,7 +82,7 @@ export async function answered(sql: Query, actor: Member, r: LeaveRequest): Prom
     await tellBoth(sql, [r.memberId], (t, locale) => ({
       title: r.status === "approved" ? t.bell.approved : t.bell.refused,
       body: body(t, locale) + (r.reason ? "\n" + r.reason : "") + "\n" + format(t.bell.by, { name: actor.name }),
-    }), { path: path(r), key: key(r) + ":answer" });
+    }), { path: path(r), key: key(r) + ":answer", transactional: true });
   }
   await refreshBadges(sql);
 }
@@ -118,7 +119,7 @@ export async function cancelSettled(sql: Query, actor: Member, r: LeaveRequest):
     await tellBoth(sql, [r.memberId], (t, locale) => ({
       title: r.status === "cancelled" ? t.bell.cancelled : t.bell.kept,
       body: body(t, locale) + (r.reason ? "\n" + r.reason : "") + "\n" + format(t.bell.by, { name: actor.name }),
-    }), { path: path(r), key: key(r) + ":answer" });
+    }), { path: path(r), key: key(r) + ":answer", transactional: true });
   }
   await refreshBadges(sql);
 }

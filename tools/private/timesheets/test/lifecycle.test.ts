@@ -6,6 +6,7 @@ import { clock, today, zone } from "../lib/clock.ts";
 import { addDays, mondayOf, wall } from "../lib/days.ts";
 import { addEntry, addRow, dayEntries, week } from "../lib/entries.ts";
 import * as projects from "../lib/projects.ts";
+import { nameFor, people } from "../lib/people.ts";
 import { report } from "../lib/reports.ts";
 import { lock, settings } from "../lib/settings.ts";
 import { startTimer, timer } from "../lib/timer.ts";
@@ -96,4 +97,19 @@ test("an erasure keeps the time for the company, anonymous and without notes, an
 test("an event not signed by the Chest is refused", async () => {
   const response = await POST(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
   assert.equal(response.status, 401);
+});
+
+test("someone who left the Chest reads as a former member, with the day they left (studio.15)", async () => {
+  const at = chest.members.findIndex(m => m.id === hugo.id);
+  const [gone] = chest.members.splice(at, 1);
+  chest.former.push({ id: hugo.id, name: hugo.name, leftAt: "2026-09-30T08:00:00.000Z" });
+  chest.clearCaches();
+  try {
+    const found = (await people([hugo.id])).get(hugo.id);
+    assert.deepEqual(found && [found.status, found.leftAt, nameFor(hugo.id, new Map([[hugo.id, found]]), "en")], ["former", "2026-09-30T08:00:00.000Z", "Hugo Bernard (former member)"]);
+  } finally {
+    chest.former.splice(chest.former.findIndex(f => f.id === hugo.id), 1);
+    chest.members.splice(at, 0, gone!);
+    chest.clearCaches();
+  }
 });

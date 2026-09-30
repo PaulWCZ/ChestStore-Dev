@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, roles } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -103,7 +102,7 @@ export async function submitWeek(sql: Query, actor: Member | null, week: unknown
   const approvers = await approversOf(sql, actor.id, w);
   const title = (t: Catalogue, locale: Locale) => format(t.bell.submitted, { name: actor.name, date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(state.minutes) });
   await notify(approvers, (t, locale) => ({ title: title(t, locale) }), { path: `/chest/team/${actor.id}?week=${w}`, key: approveKey(actor.id, w) });
-  await email(approvers, (t, locale) => ({ subject: title(t, locale), lines: [t.mail.submittedLine] }), { path: `/chest/team/${actor.id}?week=${w}`, key: `week:${createHash("sha256").update(`${actor.id}:${w}:${state.submittedAt}`).digest("hex").slice(0, 20)}` });
+  await email(approvers, (t, locale) => ({ subject: title(t, locale), lines: [t.mail.submittedLine] }), { path: `/chest/team/${actor.id}?week=${w}`, key: `week:${actor.id}:${w}:${Date.parse(state.submittedAt ?? "")}` });
   return { ...state, approvers: approvers.length };
 }
 

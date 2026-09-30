@@ -137,6 +137,9 @@ export const en = {
   },
   home: {
     email: "Also send me these by email: requests to answer, answers, cancellations",
+    emailNone: "In your Chest settings you chose no email: only the answers to your own requests still come.",
+    emailDigest: "In your Chest settings you chose one email a day: these wait for it, except the answers to your own requests.",
+    feed: "Your approved leave is in your calendar",
     hello: "Hello {name}",
     summary: "{days} of {type} left.",
     summaryWaiting: { one: "{count} day waits for an answer.", other: "{count} days wait for an answer." },
@@ -265,6 +268,9 @@ export const en = {
     },
     cancelLeave: "Cancel this leave",
     reopen: "Take my answer back",
+  },
+  feed: {
+    title: "Off",
   },
   calendar: {
     title: "Who’s away",

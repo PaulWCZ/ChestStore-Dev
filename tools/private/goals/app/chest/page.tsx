@@ -129,7 +129,7 @@ export default async function MyGoals() {
         )}
       </section>
 
-      {ownsAnyKr && <EmailSwitch on={await emailOn(sql, member)} t={{ label: t.home.email, on: t.home.emailOn, off: t.home.emailOff, errors: t.errors }} />}
+      {ownsAnyKr && <EmailSwitch on={await emailOn(sql, member)} note={member.mailPreference === "none" ? t.home.emailNone : member.mailPreference === "digest" ? t.home.emailDigest : null} t={{ label: t.home.email, on: t.home.emailOn, off: t.home.emailOff, errors: t.errors }} />}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import type { Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { can } from "../../lib/access.ts";
 import * as balances from "../../lib/balances.ts";
 import { db } from "../../lib/db.ts";
@@ -29,6 +30,9 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
     return step(actor);
   });
   revalidatePath("/chest", "layout");
+  // The calendar feeds and the busy times told to Booking follow, once the
+  // answer is sent (only what changed goes).
+  if (result.ok) after(() => share.keepInLine(db()));
   return result;
 }
 

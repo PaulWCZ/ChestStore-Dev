@@ -67,6 +67,34 @@ test("one switch per person turns the emails off (the bell still tells); only pe
   await assert.rejects(setEmail(sql, asMember(ines), "no"), (e: unknown) => e instanceof AppError && e.code === "invalid");
 });
 
+test("the person's choice in the Chest holds too: no email means none — but the answer to their own request still comes", async () => {
+  const { sql } = database;
+  const choose = (id: string, mailPreference: "none" | undefined) => {
+    const m = chest.members.find(x => x.id === id)!;
+    if (mailPreference) Object.assign(m, { mailPreference });
+    else delete (m as { mailPreference?: string }).mailPreference;
+  };
+  choose(ines.id, "none");
+  choose(hugo.id, "none");
+  chest.clearCaches();
+  try {
+    chest.outbox.length = 0;
+    chest.held.length = 0;
+    const r = await requests.createRequest(sql, asMember(hugo), { typeId: paid, ...week(quietMonday(50)) });
+    await tell.asked(sql, asMember(hugo), r);
+    // A request to answer follows Inès's choice: held, her bell still says it.
+    assert.equal(chest.outbox.length, 0);
+    assert.deepEqual(chest.held.map(h => [h.member, h.reason, h.subject]), [[ines.id, "none", "Hugo Bernard demande un congé"]]);
+    // The answer to Hugo's own request is transactional: it reaches him.
+    await tell.answered(sql, asMember(ines), await requests.decide(sql, asMember(ines), r.id, { verdict: "refuse", reason: "Stock-taking" }));
+    assert.deepEqual(chest.outbox.map(m => [m.to, m.subject]), [[["hugo@atelier.test"], "Your time off is refused"]]);
+  } finally {
+    choose(ines.id, undefined);
+    choose(hugo.id, undefined);
+    chest.clearCaches();
+  }
+});
+
 test("on a Chest without mail nothing is sent and nothing fails", async () => {
   const { sql } = database;
   await chest.close();

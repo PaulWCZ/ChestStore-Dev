@@ -12,8 +12,12 @@ import { people } from "./people.ts";
 // chest.proposals.json): the Friday reminder and a manager's "Remind" also
 // reach people by email, in their language, sent by the Chest to their
 // address — the tool never knows it. One switch per person turns it off
-// (on by default: the bell is only seen inside the Chest). On a Chest
-// without mail yet, nothing is sent and nothing fails: the bell says it.
+// (on by default: the bell is only seen inside the Chest). Above it, the
+// person's choice in the Chest for every tool (`mailPreference`,
+// studio.15): mail.send applies it — "none" sends nothing, "digest" waits
+// for the Chest's one email a day — and My goals says so under the switch.
+// Reminders are never transactional. On a Chest without mail yet, nothing
+// is sent and nothing fails: the bell says it.
 
 export async function emailOn(sql: Query, actor: Member | null): Promise<boolean> {
   if (!actor || !can(actor, "read")) throw new AppError("forbidden");
@@ -43,8 +47,10 @@ export function letterText(t: Catalogue, letter: Letter, path: string, base: str
 }
 
 // email sends each recipient their letter, in their language; the key
-// (with the recipient) makes a retry send nothing twice. Says how many
-// were sent (0 on a Chest without mail).
+// (with the recipient, taken whole: the SDK hashes a long one) makes a
+// retry send nothing twice. Says how many went out now (0 on a Chest
+// without mail; one the Chest holds for the person's digest, or not at
+// all by their choice, is not counted).
 export async function email(sql: Query, recipients: Iterable<string>, letter: (t: Catalogue, locale: Locale) => Letter, options: { path: string; key: string }): Promise<number> {
   const ids = await wanting(sql, [...new Set(recipients)].filter(r => r.startsWith("mbr_")));
   if (ids.length === 0) return 0;
@@ -55,13 +61,14 @@ export async function email(sql: Query, recipients: Iterable<string>, letter: (t
     const t = catalogue(person.locale);
     const written = letter(t, person.locale);
     try {
-      await mail.send({ to: { member: person.id }, subject: written.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, written, options.path, base), key: `${options.key}:${person.id}`.slice(0, 64) });
-      sent++;
+      const result = await mail.send({ to: { member: person.id }, subject: written.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, written, options.path, base), key: `${options.key}:${person.id}` });
+      if (result.status === "queued") sent++;
     } catch (error) {
       // Not granted yet, the day's quota, an address that bounced: the bell
       // already told them.
       if (error instanceof CapabilityNotGranted) return sent;
-      if (error instanceof ChestError) continue;
+      // A key reused for another message is a bug in Goals: heard, not hidden.
+      if (error instanceof ChestError && error.code !== "key_conflict") continue;
       throw error;
     }
   }

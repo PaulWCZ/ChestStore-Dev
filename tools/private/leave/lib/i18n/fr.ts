@@ -133,6 +133,9 @@ export const fr: Catalogue = {
   },
   home: {
     email: "M’envoyer aussi tout cela par e-mail : demandes à valider, réponses, annulations",
+    emailNone: "Dans les réglages de votre Chest, vous avez choisi de ne recevoir aucun e-mail : seules les réponses à vos propres demandes arrivent encore.",
+    emailDigest: "Dans les réglages de votre Chest, vous avez choisi un e-mail par jour : ceux-ci l’attendent, sauf les réponses à vos propres demandes.",
+    feed: "Vos congés acceptés sont dans votre agenda",
     hello: "Bonjour {name}",
     summary: "Il vous reste {days} de {type}.",
     summaryWaiting: { one: "{count} jour attend une réponse.", other: "{count} jours attendent une réponse." },
@@ -261,6 +264,9 @@ export const fr: Catalogue = {
     },
     cancelLeave: "Annuler ce congé",
     reopen: "Reprendre ma réponse",
+  },
+  feed: {
+    title: "Absent",
   },
   calendar: {
     title: "Qui est absent",

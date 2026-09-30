@@ -204,7 +204,10 @@ there is a project" (a member reads that a manager opens projects).
   becomes an entry when plausible (under 10 hours, in an open day; dropped
   otherwise), they leave the projects they were named on, their grid rows
   go. Their time and rates stay — reports and invoices need them — and read
-  "Camille Martin (former member)". **An erasure**: the same, then their
+  "Camille Martin (former member)"; their week's page (*Team → a person*)
+  says "Left the Chest on 30 September 2026" (`leftAt`, SDK studio.15;
+  nothing on a Chest that does not say it, nor for people who came with an
+  import). **An erasure**: the same, then their
   entries stay for the company's accounts with their rates written on them
   (the amounts do not move), the author `erased` ("Former member") and
   their notes cleared; their own rates, usual week and approval rows go; a
@@ -228,7 +231,14 @@ there is a project" (a member reads that a manager opens projects).
   (below). Without it the page says Quotes cannot be told; *Mark invoiced*
   by hand still works.
 - `mail` — **Proposal (studio)**: Remind, the Friday reminder and a week
-  sent to approve also go by email. Without it, the bell only.
+  sent to approve also go by email. Without it, the bell only. Keys are
+  given whole (`week:<member>:<monday>:<sent at>:<recipient>`; the SDK
+  sends one longer than the Chest keeps as its digest, studio.15). **None
+  of these emails is transactional**: each asks someone to act (fill in a
+  week, approve one) — a reminder, like Hiring's interviewers' — so the
+  choice each person made in the Chest (`member.mailPreference`: all, one
+  a day, none; applied by `mail.send`, studio.15) always holds; the bell
+  still tells them. An approval or a return is told by the bell only.
 - **Wished — a start-timer event from Tasks**: Toggl and Clockify users start
   timers from their task tool; with events between tools, Tasks could send
   `tasks.timer.start` (a task's title as the note).
@@ -311,7 +321,8 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --res
   person's rate changes.
 - The notes' search is case-insensitive but not accent-insensitive, and
   searches notes only (not project or task names).
-- Emails: no per-person switch to turn them off yet.
+- Emails: no switch of the tool's own — the person's choice in the Chest
+  (all, one a day, none) applies to every email Timesheets sends.
 - Members' reports show a project's whole budget ("251:15 of 230:00 used"),
   not only their share (seen by the critic as harmless; not changed).
 - Approval is weekly and by the whole week (a lead is asked first, any

@@ -120,8 +120,31 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   the approver a request to cancel, the requester its outcome, the person
   leave recorded for them — each in the reader's language, sent by the
   Chest to their address (the tool never knows it). Never the note. One
-  switch at the foot of *My leave* turns them off. On a Chest without mail
+  switch at the foot of *My leave* turns them off. The choice each person
+  made once in the Chest for every tool (all, one a day, none;
+  `member.mailPreference`, applied by `mail.send`) holds too, and *My
+  leave* says so under the switch. Only **the answer to the person's own
+  request** (approved, refused, their cancellation settled) is sent
+  `transactional` — it reaches them whatever they chose in the Chest (not
+  if they turned Leave's own switch off); a request to answer and leave
+  recorded for someone follow their choice. On a Chest without mail
   nothing is sent and nothing fails.
+- **My leave in my calendar** (the `calendar` proposal): each approved
+  leave — asked and approved, declared, recorded by HR, imported — is an
+  event in its person's own Chest calendar feed, the one Google Calendar,
+  Outlook or Apple Calendar subscribe to once. **Private, and it never says
+  why**: the title is "Off" ("Absent" in French), never the kind of leave
+  (not "Sick leave") nor the note, and it is `CLASS:PRIVATE`, so a
+  calendar shared with colleagues shows the time busy without a word. Whole
+  days are whole days; a half day is noon to midnight (afternoon) or
+  midnight to noon (morning), in the Chest's time zone. It opens the
+  request. Cancelled, its approval taken back, refused after all, cut or
+  cancelled by a last day, erased: it goes. A month after it ends it leaves
+  the feed (the Chest keeps 5,000 events per tool). *My leave* links to the
+  Chest's calendar page ("Your approved leave is in your calendar") once
+  the Chest took an event; on a Chest without the calendar, nothing is
+  promised and nothing fails (asked again at most once an hour and each
+  morning).
 - **Payroll files** (*People → Payroll files*): a month's approved absences
   as a CSV — employee number, person, kind, **payroll code**, first day and from when, last
   day and until when, days this month (a leave across two months is split,
@@ -280,6 +303,9 @@ comparison of ouvrés with ouvrables.
 - `capabilities`: `database`; `members` (names, photos, roles and groups
   for the calendar, the approvers and the import — no addresses; emails go
   to `{member}` through the `mail` proposal);
+  proposals (`chest.proposals.json`): `mail` (send), `calendar`, `emits`
+  (`leave.approved`, `leave.cancelled`, `leave.busy`), `receives` (People),
+  `schedules` (`morning`);
   `notifications` (the bell and the tile's number); `receives: ["member.*"]`.
 - **Someone leaves** (or loses access): their requests still waiting are
   cancelled (the history says why), the people they approved go back to HR,
@@ -304,8 +330,11 @@ comparison of ouvrés with ouvrables.
 - **Its look** follows the company's choice in the Chest (see "Looks");
   without that choice (or on a Chest without themes) it is Seaside.
 - **Nothing runs in the background**: earned leave is computed when read;
-  the tile's numbers are set whenever a request changes (and each weekday
-  morning with the schedule proposal).
+  the tile's numbers, the calendar feeds and the busy times are set right
+  after a request changes (after the answer is sent: `after()` in
+  `app/chest/actions.ts`), after the Chest's and People's events, and each
+  weekday morning with the schedule proposal (the busy times' 90-day window
+  moves on; a month-old leave leaves the feeds).
 - No WebSocket: the pages re-read themselves every 30–60 s while visible.
 
 ## Looks
@@ -337,6 +366,45 @@ those days and frees their desk. What is told: the person (their member
 id), the first and last day and the halves — never the kind of leave nor
 the note (`lib/share.ts`). Without events between tools, nothing changes
 here.
+
+**Leave → Booking (and Hiring): `leave.busy`** — so a host who is off is
+not bookable, and an interviewer who is off is not offered to a
+candidate. Booking and Hiring already tell each other their busy times
+(`booking.busy`, `hiring.busy`); Leave speaks the same snapshot, version 1
+(`lib/busy-snapshot.ts`, the same file as theirs; `lib/busy.ts`):
+
+```json
+{ "v": 1, "member": "mbr_…", "at": "2026-09-30T08:31:02.114Z",
+  "from": "2026-09-30T00:00Z", "to": "2026-12-29T00:00Z",
+  "spans": [["2026-10-11T22:00Z", "2026-10-16T22:00Z"], ["2026-11-03T11:00Z", "2026-11-03T23:00Z"]] }
+```
+
+| | |
+|---|---|
+| Who | Each member with approved leave in the window, and once more (empty `spans`) when the last of it goes — never again after that |
+| When | After every change, after the Chest's and People's events, and each weekday morning (the window moves on); only when the member's times changed (`shared_busy` keeps each one's SHA-256 fingerprint) |
+| Window | From the start of today (UTC) to 90 days later; at most 300 spans (past them, `to` stops where the first one left out starts: nothing unknown is claimed free) |
+| Spans | Each **approved** leave's whole days in the Chest's time zone (Europe/Paris by default; a morning ends at noon, an afternoon starts at noon), as UTC minutes, merged. A waiting request is not busy. Days the person does not work inside a leave are busy too (they are off) |
+| Never | The kind of leave, its note, who approved it — nor that it is leave: times only |
+| Replaces | Everything the receiver holds **from Leave** for that member between `from` and `to`; `at` orders snapshots (keep one only if newer) |
+| Key | `leave.busy:<member>:<ms>:<sha-256>` (whole; the SDK sends it as its digest): the same content told again the same day is one event; busy, free, busy again are three |
+| Erasure | What Leave last told is forgotten here; the receiver forgets the member on its own `member.erased` |
+
+**What Booking must add to hear it** (Booking's side, not built here):
+declare `"leave.busy"` in its `chest.proposals.json` `"receives"` (it
+receives `hiring.busy` today), hand it to the same handler as
+`hiring.busy` in its `/chest-events` route (`tools: {"leave.busy":
+takeBusy}` — its reader already accepts any `<tool>.busy` v1 snapshot from
+a source other than itself, keeps them by source, and its slots already
+skip every `told_spans` source), a word for the source on its home
+(`app/chest/page.tsx` names `tool:hiring` "An interview in Hiring" and any other
+tool "In another tool of the Chest": `tool:leave` wants "Off"), say it in its
+README ("With the other tools") and in its approval text ("Is told by
+Leave when a host is off"), and add a test and a flow step: a host with
+approved leave has no slot those days. Hiring can do the same for its
+interviewers. Until then Leave publishes and nobody listens: nothing
+breaks (a Chest with no receiver takes the event and delivers it to
+nobody).
 
 **People → Leave** (**Proposal (studio)**: events between tools;
 `chest.proposals.json` `"receives"`), once an admin linked them — HR
@@ -372,19 +440,24 @@ once, in People's HR record:
   Without it, requests still reach approvers through the bell and the tile.
 - **Events between tools** — **Proposal (studio)**: `leave.approved` /
   `leave.cancelled` to Rooms (payload unchanged: member, from, to, halves,
-  request — never the kind, the note or the family event).
+  request — never the kind, the note or the family event); `leave.busy` to
+  Booking and Hiring (see "With the other tools").
+- **Calendar** — **Proposal (studio)** (`chest.proposals.json` `"calendar":
+  true`; `calendar.putMany`, studio.15, for a first sync, 100 events a
+  call): approved leave in each person's feed (see "What it does").
 - **Mail** — **Proposal (studio)** (`chest.proposals.json` `"mail":
-  {"send": true}`): emails beside the bell (see "What it does"). Without
-  it, the bell and the tile only.
+  {"send": true}`): emails beside the bell (see "What it does"), keys
+  given whole (studio.15), `member.mailPreference` and `transactional`
+  (studio.15). Without it, the bell and the tile only.
 - **Events from People** — **Proposal (studio)**: receives
   `people.record`, `people.leaving`, `people.leaving_cancelled`.
-- Wished, not built: a **per-member secret feed** for
-  an iCal/Outlook/Google calendar of absences (needs a route the Chest
-  serves without a signed-in member, tied to one member, revocable:
-  `feeds.url(memberId, name)` + `feeds.verify(request) → memberId`); the
-  Chest's **time zone** (today is Europe/Paris); a member's **manager**
-  known by the Chest (HR sets approvers here instead). (The `calendar`
-  proposal now exists in the SDK working copy; Leave does not use it yet.)
+- Wished, not built: a **member's own time zone** (the Chest gives one
+  for the whole company, `chest.timeZone()`: someone working from Montréal
+  is off from midnight in Paris in the feed and the busy times); a
+  **shared feed** of a team's absences ("Away", never the kind) for
+  managers — the calendar proposal is personal feeds only; a member's
+  **manager** known by the Chest (HR sets approvers here instead). The
+  counting of days itself is still Europe/Paris (French rules).
 
 ## Develop
 
@@ -401,9 +474,12 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/leave --prod --reset --
 
 ## What it does not do (yet)
 
-- **No calendar feed yet**: approved leave does not reach Outlook or
-  Google (the SDK working copy's `calendar` proposal would carry it; not
-  wired in Leave yet).
+- **No team calendar feed**: each person gets their own leave in their
+  feed; a manager's "who is away" stays in *Who's away* (the Chest's
+  feeds are personal for now). Calendar apps fetch a feed at their own
+  pace (Google: hours), so an approval shows there later; Leave's pages
+  are the truth.
+- Booking does not hear `leave.busy` yet (see "With the other tools").
 - The automatic French computations listed under "Not done — HR adjusts by
   hand".
 - No week view of *Who's away* (a month, and a list by week on a phone);

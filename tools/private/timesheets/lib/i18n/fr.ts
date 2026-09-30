@@ -231,6 +231,7 @@ export const fr: Catalogue = {
     remind: { one: "Rappeler {count} personne", other: "Rappeler {count} personnes" },
     reminded: { zero: "Plus personne à rappeler.", one: "{count} personne rappelée dans sa cloche.", other: "{count} personnes rappelées dans leur cloche." },
     notSent: "Pas encore envoyée.",
+    leftOn: "A quitté le Chest le {date}.",
     sentOn: "Envoyée pour validation le {date}.",
     ofUsual: "{billable} facturables · semaine normale {usual}",
     emptyWeek: "Aucun temps cette semaine.",

@@ -88,6 +88,48 @@ test("cards done, tickets solved and hires follow what the tools tell — per bo
   await sql`delete from teams`;
 });
 
+// The exact shapes Tasks and Support publish today (their
+// lib/card-events.ts cardEventData and lib/ticket-events.ts
+// ticketEventData): ids as text of digits, Tasks' assignees sorted by id,
+// its board's name; Support's one assignee or null. Written out here, not
+// imported: each tool stands on its own.
+test("the exact events Tasks and Support publish move the key results they feed", async () => {
+  const { sql } = w.database;
+  await sql`delete from fed_events`;
+  const { cycle } = await running(w);
+  const o = await createObjective(sql, admin, {
+    cycleId: cycle.id, level: "company", title: "Deliver",
+    keyResults: [
+      { title: "Cards done on Website", source: "tasks.done", scope: "7", unit: "card/cards", start: "0", target: "20", owner: ines.id },
+      { title: "Cards Hugo finished", source: "tasks.done", mine: true, unit: "card/cards", start: "0", target: "20", owner: hugo.id },
+      { title: "Tickets solved", source: "helpdesk.solved", start: "0", target: "100", owner: hugo.id },
+      { title: "Tickets Hugo solved", source: "helpdesk.solved", mine: true, start: "0", target: "100", owner: hugo.id },
+    ],
+  });
+  const read = async () => (await objectiveById(sql, o.id, clockAt(), null))!.keyResults.map(k => k.current);
+  // Tasks: tasks.card.done {card, board, boardName, assignees}, key tasks:<card>:done:<ms>.
+  const card = { card: "42", board: "7", boardName: "Website launch", assignees: [hugo.id, ines.id].sort() };
+  assert.equal(await deliver("tasks.card.done", card), 204);
+  await deliver("tasks.card.done", { card: "43", board: "7", boardName: "Website launch", assignees: [] });
+  await deliver("tasks.card.done", { card: "44", board: "8", boardName: "Shop", assignees: [hugo.id] });
+  // Support: helpdesk.ticket.solved {ticket, assignee}, key helpdesk:<ticket>:solved:<ms>.
+  await deliver("helpdesk.ticket.solved", { ticket: "1042", assignee: hugo.id });
+  await deliver("helpdesk.ticket.solved", { ticket: "1043", assignee: null });
+  assert.deepEqual(await read(), [2, 2, 2, 1]);
+  assert.deepEqual(await knownBoards(sql), [{ id: "8", name: "Shop" }, { id: "7", name: "Website launch" }]);
+  // Reopened: {card} and {ticket}, nothing else.
+  await deliver("tasks.card.reopened", { card: "42" });
+  await deliver("helpdesk.ticket.reopened", { ticket: "1042" });
+  assert.deepEqual(await read(), [1, 1, 1, 0]);
+  // Done and solved again (a new key, a later time): counted once more.
+  await deliver("tasks.card.done", card);
+  await deliver("helpdesk.ticket.solved", { ticket: "1042", assignee: hugo.id });
+  assert.deepEqual(await read(), [2, 2, 2, 1]);
+  await sql`delete from cycles`;
+  await sql`delete from teams`;
+  await sql`delete from fed_events`;
+});
+
 test("every group of the Chest may become a team, not only those that give Goals", async () => {
   const { sql } = w.database;
   forgetGroups();

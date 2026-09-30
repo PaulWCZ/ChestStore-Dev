@@ -224,6 +224,7 @@ a.objective-title:hover { text-decoration: underline; }
 .checkin-form.inline { padding: var(--space-4); background: var(--bg); border-radius: var(--radius-m); border: var(--border-width) solid var(--line); margin-top: var(--space-2); }
 .fed-value { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; }
 .email-switch { display: flex; align-items: center; gap: var(--space-2); min-height: var(--control-h); margin-top: var(--space-6); color: var(--ink-2); font-size: var(--text-s); cursor: pointer; }
+.email-note { margin: 0 0 0 calc(20px + var(--space-2)); color: var(--ink-2); font-size: var(--text-s); }
 .email-switch input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
 
 /* ---------- Empty states: the kit's, on a small map ---------- */

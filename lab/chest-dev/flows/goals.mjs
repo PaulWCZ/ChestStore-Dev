@@ -454,6 +454,28 @@ await step("key results fed by Support and Tasks: counted from what the tools to
   expect(fed.includes("Fed by Tasks") && /\b1\b/u.test(fed), "one card done on that board this cycle: " + fed.slice(0, 160));
 });
 
+await step("Tasks and Support tell Goals, in their exact shapes: a card done and a ticket solved move key results; reopened, they go back", async () => {
+  // As Tasks (lib/card-events.ts) and Support (lib/ticket-events.ts) publish them.
+  const deliver = (type, data) => page.request.post(origin + "/_dev/deliver", { form: { type, data: JSON.stringify(data) } });
+  const value = async (objective, title) => {
+    await page.goto(origin + `/chest/objectives/${objective}`);
+    return page.locator(".kr-card", { hasText: title }).innerText();
+  };
+  await english("camille");
+  expect(/\b1\b/u.test(await value(9, "Workshop cards done")), "one card before");
+  await deliver("tasks.card.done", { card: "57", board: "3", boardName: "Workshop orders", assignees: ["mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", "mbr_tomaaaaaaaaaaaaaaaaaaaaaaa"] });
+  const done = await value(9, "Workshop cards done");
+  expect(/\b2\b/u.test(done) && !/\b1 card\b/u.test(done), "two cards once Tasks told the second: " + done.slice(0, 160));
+  expect((await value(8, "Support tickets solved")).includes("7 tickets"), "seven tickets before");
+  await deliver("helpdesk.ticket.solved", { ticket: "1142", assignee: "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa" });
+  await deliver("helpdesk.ticket.solved", { ticket: "1143", assignee: null });
+  expect((await value(8, "Support tickets solved")).includes("8 tickets"), "Hugo's ticket counted, not the one nobody had");
+  await deliver("tasks.card.reopened", { card: "57" });
+  await deliver("helpdesk.ticket.reopened", { ticket: "1142" });
+  expect((await value(8, "Support tickets solved")).includes("7 tickets"), "the reopened ticket taken back");
+  expect(/\b1\b/u.test(await value(9, "Workshop cards done")), "the reopened card taken back");
+});
+
 await step("teams: every group of the Chest is offered; a French unit reads by its own rule", async () => {
   await english("camille");
   await page.goto(origin + "/chest/settings");

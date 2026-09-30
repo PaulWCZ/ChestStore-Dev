@@ -529,5 +529,23 @@ await step("anonymous two-way feedback: the organiser replies under a free text;
   expect(thread.includes("L’auteur (anonyme)") && thread.includes("The Monday status meeting."), "the author's answer, unnamed");
 });
 
+await step("on a phone, a toast sits above the composer's bottom bar (data-ck-bottom-bar), never over its buttons", async () => {
+  const phone = await fresh("sofia", "en", { width: 390, height: 844 });
+  await phone.p.goto(origin + "/chest/new?kind=choice");
+  await phone.p.getByLabel("Your question").fill("Team lunch on Thursday?");
+  await phone.p.getByLabel("Answer 1").fill("Yes");
+  await phone.p.getByLabel("Answer 2").fill("No");
+  await phone.p.getByRole("button", { name: "Save draft" }).click();
+  const toast = phone.p.locator(".ck-toast", { hasText: "Draft saved." });
+  await toast.waitFor();
+  await phone.p.waitForURL(/\/chest\/polls\/\d+\/edit$/u);
+  await phone.p.waitForTimeout(400);
+  const bar = await phone.p.locator("[data-ck-bottom-bar]").boundingBox();
+  const box = await toast.boundingBox();
+  expect(bar && box && Math.round(bar.y + bar.height) >= 843, "the bar touches the screen's bottom: " + JSON.stringify(bar));
+  expect(box.y + box.height <= bar.y + 1, `the toast (${Math.round(box.y + box.height)}) ends above the bar (${Math.round(bar.y)})`);
+  await phone.c.close();
+});
+
 await browser.close();
 done(problems);

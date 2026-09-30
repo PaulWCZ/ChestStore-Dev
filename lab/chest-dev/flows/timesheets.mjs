@@ -355,6 +355,13 @@ await step("Hugo reads why his week came back and sends it again", async () => {
   await toast("Week sent.");
 });
 
+await step("his week sent again reaches both managers by email, each their own (keys given whole, SDK studio.15)", async () => {
+  const dev = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&amp;", "&");
+  const sent = dev.split("<li>").filter(li => /Hugo Bernard (sent their week|a envoyé sa semaine)/u.test(li)).slice(0, 2);
+  const to = sent.map(li => /→ ([^<\s]+@[^<\s]+)/u.exec(li)?.[1]).sort();
+  expect(to.join(",") === "camille@example.test,sofia@example.test", "the latest two: " + to.join(","));
+});
+
 // Round 3 of the critique.
 await step("a project lead: Camille names Sofia lead of Site vitrine; Sofia sees Hugo's week as her project's", async () => {
   await as(context, origin, "camille");

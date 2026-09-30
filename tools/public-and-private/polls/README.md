@@ -90,7 +90,9 @@ them to everyone, organiser included, only once it closes.
   by those asked and those who manage it; the organiser hears of them in the
   bell; deleting one is undone from the toast. Anonymous polls take none.
 - **Remind those who haven't answered** (the organiser, at most every 12
-  hours): a bell item and, where the Chest sends email, one email each.
+  hours): a bell item and, where the Chest sends email, one email each —
+  as each member chose in their Chest settings (all, one a day, none: the
+  Chest applies it; the bell item always comes).
 - **One answer per member**, bound to the member the Chest signs in — never
   to anything the browser sends. A named answer can be changed until the
   poll closes.
@@ -108,7 +110,9 @@ them to everyone, organiser included, only once it closes.
   (the `calendar` proposal, as News: one feed per person that Google,
   Outlook or Apple Calendar subscribe to) — everyone asked except those who
   said *No* to that date; it moves when the date changes and leaves when
-  the choice is taken back or the poll deleted. The .ics file (RFC 5545;
+  the choice is taken back or the poll deleted. The Chest takes 1,000
+  people an event: a poll that asks more puts the date as several events
+  of 1,000 in one batch. The .ics file (RFC 5545;
   all-day or timed, on the Chest's clock) stays, for a Chest without the
   calendar and for anyone who prefers it.
 - **Reminder**: the day before a poll closes, those who have not answered
@@ -353,11 +357,17 @@ closed poll is seen by those asked, its organiser and admins.
 - `chest.timeZone()` / `today()` — **Proposal (studio)**: dates and closing
   times on the Chest's clock.
 - `mail` — **Proposal (studio)**: reminders by email (`send` to `{member}`).
+  Keys are passed whole (studio.15 hashes long ones). Reminders honour each
+  member's `mailPreference` (studio.15, applied by `mail.send`; not
+  transactional). The chosen date emailed to guests goes to outside
+  addresses, which have no Chest preference, so the `transactional` flag
+  would change nothing there and is not set.
 - `groups: "read"` — **Proposal (studio)**, in `vendor/` (`members.groups.all`,
   `members.groups.members`, `group.*` events): any group of the Chest as an
   audience; results per team (`lib/groups.ts`, adapted from News).
 - `calendar` — **Proposal (studio)**: the chosen date in each person's
-  Chest calendar (`calendar.put`, key `poll:<id>`); without it, the .ics
+  Chest calendar (`calendar.putMany`, studio.15: keys `poll:<id>`, then
+  `poll:<id>:2`… for each further 1,000 people); without it, the .ics
   file (Polls remembers the Chest's answer in `settings.calendar`).
 - `visitors` — **Proposal (studio)**: the guest form's token and the
   Chest's counters of visitors; without them, Polls counts in its own

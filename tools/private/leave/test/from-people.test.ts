@@ -19,10 +19,9 @@ let database: TestDatabase;
 let chest: FakeChest;
 let paid: string;
 before(async () => {
-  process.env["CHEST_TOOL"] = "leave";
   database = await testDatabase();
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups });
   paid = (await types(database.sql)).find(t => t.key === "paid")!.id;
 });
 after(async () => {
