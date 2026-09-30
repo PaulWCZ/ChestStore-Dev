@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { today } from "../lib/clock.ts";
-import { addDays, mondayOf } from "../lib/days.ts";
+import { addDays, mondayOf, todayIn } from "../lib/days.ts";
 import * as entries from "../lib/entries.ts";
 import * as handoff from "../lib/handoff.ts";
 import * as projects from "../lib/projects.ts";
@@ -17,7 +17,8 @@ import { refused } from "./support/refused.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 let site: projects.Project;
-const thisWeek = mondayOf(today());
+// The fake Chest's day (its zone, UTC, is the test database's too).
+const thisWeek = mondayOf(todayIn("UTC"));
 const lastWeek = addDays(thisWeek, -7);
 before(async () => {
   database = await testDatabase();
@@ -221,7 +222,7 @@ test("nobody approves their own week; a project's lead is asked for the weeks on
   await assert.rejects(weeks.returnWeek(sql, asMember(camille), camille.id, old, "no"), refused("self_approval"));
   assert.equal((await weeks.waiting(sql, asMember(camille))).find(w => w.memberId === camille.id)?.mine, true);
   // A second manager, Sofia, leads a project.
-  const sofia = { id: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", firstName: "Sofia", lastName: "Rossi", name: "Sofia Rossi", photo: null, role: "manager", isAdmin: false, isBuilder: false, groups: [], locale: "en" as const };
+  const sofia = { id: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", firstName: "Sofia", lastName: "Rossi", name: "Sofia Rossi", photo: null, role: "manager", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
   chest.members.push(sofia);
   try {
     await assert.rejects(projects.createProject(sql, asMember(camille), { name: "Brand", lead: hugo.id }), refused("lead_invalid"));

@@ -10,7 +10,10 @@ import { provide } from "../../lib/db.ts";
 // otherwise PGlite, PostgreSQL in the test's process (a dev dependency
 // only). DATABASE_URL is set in the shape the Chest gives, so databaseUrl()
 // and lib/db.ts work unchanged; db()
-// answers this very connection (PGlite takes one at a time).
+// answers this very connection (PGlite takes one at a time). As a Chest
+// does, the sessions are in the Chest's zone (current_date is its today):
+// UTC, the fake Chest's default, unless the test gives the zone it gives
+// fakeChest({chest: {timeZone}}).
 export type TestDatabase = { sql: postgres.Sql; url: string; close(): Promise<void> };
 
 const migrationsDir = join(import.meta.dirname, "..", "..", "migrations");
@@ -31,12 +34,15 @@ export async function migrate(sql: postgres.Sql, until?: string): Promise<void> 
   }
 }
 
-export async function testDatabase(options: { until?: string } = {}): Promise<TestDatabase> {
+export async function testDatabase(options: { until?: string; timeZone?: string } = {}): Promise<TestDatabase> {
+  const zone = options.timeZone ?? "UTC";
+  if (!/^[A-Za-z0-9_+\/-]+$/u.test(zone)) throw new Error("not a zone: " + zone);
   const server = process.env["TEST_DATABASE_URL"];
   if (server) {
     const name = "t_test_" + Math.random().toString(36).slice(2, 10);
     const admin = postgres(server, { max: 1, onnotice: () => {} });
     await admin.unsafe(`create database ${name}`);
+    await admin.unsafe(`alter database ${name} set timezone to '${zone}'`);
     const base = new URL(server);
     const url = `postgres://${base.username}:${base.password}@127.0.0.1:${base.port || 5432}/${name}`;
     const sql = postgres(url, { max: 4, onnotice: () => {} });
@@ -60,6 +66,8 @@ export async function testDatabase(options: { until?: string } = {}): Promise<Te
   const { btree_gist } = await import("@electric-sql/pglite/contrib/btree_gist");
   const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
   const pg = await PGlite.create({ extensions: { pg_trgm, unaccent, btree_gist } });
+  // PGlite is one session, which every connection of the socket shares.
+  await pg.exec(`set time zone '${zone}'`);
   const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1" });
   await socket.start();
   const address = (socket as unknown as { server?: { address(): { port: number } } }).server?.address();

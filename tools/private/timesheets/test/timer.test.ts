@@ -16,8 +16,8 @@ let chest: FakeChest;
 let site: projects.Project;
 let other: projects.Project;
 before(async () => {
-  database = await testDatabase();
-  chest = await fakeChest({ members: everyone, timeZone: "Europe/Paris" });
+  database = await testDatabase({ timeZone: "Europe/Paris" });
+  chest = await fakeChest({ members: everyone, chest: { timeZone: "Europe/Paris" } });
   site = await projects.createProject(database.sql, asMember(camille), { name: "Site", tasks: ["Design"] });
   other = await projects.createProject(database.sql, asMember(camille), { name: "Other", billable: false });
 });

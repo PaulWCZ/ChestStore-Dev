@@ -3,7 +3,7 @@ import { forbidden } from "next/navigation";
 import Link from "next/link";
 import { People, Upload } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
-import { currency, today, zone } from "../../../lib/clock.ts";
+import { currency, today } from "../../../lib/clock.ts";
 import { db } from "../../../lib/db.ts";
 import { format, formatDate, formatDay } from "../../../lib/i18n/index.ts";
 import { nameFor, people } from "../../../lib/people.ts";
@@ -27,7 +27,7 @@ export default async function SettingsPage() {
       <SettingsView
         today={day}
         lockedUntil={s.lockedUntil}
-        lockText={s.lockedUntil ? format(t.settings.lock.current, { date: long(s.lockedUntil), name: s.lockedBy ? nameFor(s.lockedBy, who, locale) : t.people.unknown, when: s.lockedAt ? formatDate(s.lockedAt, zone(), locale, { day: "numeric", month: "long" }) : "" }) : null}
+        lockText={s.lockedUntil ? format(t.settings.lock.current, { date: long(s.lockedUntil), name: s.lockedBy ? nameFor(s.lockedBy, who, locale) : t.people.unknown, when: s.lockedAt ? formatDate(s.lockedAt, member.timeZone, locale, { day: "numeric", month: "long" }) : "" }) : null}
         lastMonth={{ day: lastMonth, label: format(t.settings.lock.lastMonth, { date: long(lastMonth) }), done: s.lockedUntil !== null && s.lockedUntil >= lastMonth }}
         reminder={s.reminder}
         approvals={s.approvals}

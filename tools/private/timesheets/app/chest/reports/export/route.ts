@@ -1,11 +1,11 @@
-import { member } from "@argentic/chest-sdk/member";
+import { localeOf, member } from "@argentic/chest-sdk/member";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { today, zone } from "../../../../lib/clock.ts";
 import { toCsv } from "../../../../lib/csv.ts";
 import { db } from "../../../../lib/db.ts";
 import { hours } from "../../../../lib/duration.ts";
-import { catalogue, clock, format, intl, isLocale } from "../../../../lib/i18n/index.ts";
+import { catalogue, clock, format, intl } from "../../../../lib/i18n/index.ts";
 import { nameFor, people } from "../../../../lib/people.ts";
 import { period } from "../../../../lib/periods.ts";
 import { exportRows } from "../../../../lib/reports.ts";
@@ -18,7 +18,7 @@ import { exportRows } from "../../../../lib/reports.ts";
 export async function GET(request: Request): Promise<Response> {
   const actor = member(request);
   if (!actor) return new Response(null, { status: 401 });
-  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const locale = localeOf(actor.language);
   const t = catalogue(locale);
   const q = new URL(request.url).searchParams;
   const p = period(q.get("preset"), today(), q.get("from"), q.get("to"));

@@ -136,7 +136,10 @@ await step("a note in a grid cell: Shift+Enter, write, Enter", async () => {
 });
 
 // Before Friday, the week is not over: "Send it early", never "Done?".
-const early = new Date().getDay() >= 1 && new Date().getDay() <= 4;
+// The Chest's day: its database's current_date (the sessions are in its
+// zone), not the machine's.
+const [chestDay] = await db`select extract(isodow from current_date)::int as dow, to_char(date_trunc('week', current_date)::date - 7, 'YYYY-MM-DD') as last_monday`;
+const early = chestDay.dow >= 1 && chestDay.dow <= 4;
 const sendName = early ? "Send it early" : "Send my week";
 await step("send my week: it becomes read-only, and can be taken back; before Friday it is offered early, not as done", async () => {
   const standing = await page.locator(".standing").innerText();
@@ -249,7 +252,7 @@ await step("lock a period: the week shows why nothing changes there", async () =
   await page.goto(origin + "/chest/settings");
   await page.getByRole("button", { name: "Tout déverrouiller" }).click();
   await page.locator(".ck-toast", { hasText: "Tout est déverrouillé." }).waitFor();
-  const lastMonday = await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7); return d.toISOString().slice(0, 10); });
+  const lastMonday = chestDay.last_monday;
   // The kit's DateField: typed (an ISO date is read too), read on leaving it.
   await page.locator("#lock-until").fill(lastMonday);
   await page.locator("#lock-until").press("Enter");

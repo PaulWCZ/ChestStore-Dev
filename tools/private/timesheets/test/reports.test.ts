@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
 import { GET } from "../app/chest/reports/export/route.ts";
-import { today } from "../lib/clock.ts";
-import { addDays, mondayOf } from "../lib/days.ts";
+import { addDays, mondayOf, todayIn } from "../lib/days.ts";
 import { addEntry } from "../lib/entries.ts";
 import * as projects from "../lib/projects.ts";
 import { exportRows, report, reportPeople } from "../lib/reports.ts";
@@ -17,7 +16,8 @@ let chest: FakeChest;
 let site: projects.Project;
 let brand: projects.Project;
 let internal: projects.Project;
-const monday = mondayOf(today());
+// The fake Chest's day (its zone, UTC, is the test database's too).
+const monday = mondayOf(todayIn("UTC"));
 before(async () => {
   database = await testDatabase();
   chest = await fakeChest({ members: everyone });
@@ -112,7 +112,7 @@ test("the CSV is in the reader's language: French with ';' and decimal commas, n
 
 test("the CSV follows preset= alone (last week: nothing of this week)", async () => {
   const url = "http://tool.test/chest/reports/export?preset=lastWeek";
-  const rows = (await (await GET(withMember(new Request(url), { ...camille, locale: "en" }))).text()).replace(/^﻿/u, "").trim().split("\r\n");
+  const rows = (await (await GET(withMember(new Request(url), { ...camille, language: "en" }))).text()).replace(/^﻿/u, "").trim().split("\r\n");
   const lastMonday = addDays(monday, -7);
   assert.ok(rows.slice(1).every(r => r >= lastMonday && r < monday), rows.join("\n"));
   assert.match((await GET(withMember(new Request(url), camille))).headers.get("Content-Disposition") ?? "", new RegExp(`temps-${lastMonday}-${addDays(lastMonday, 6)}`, "u"));

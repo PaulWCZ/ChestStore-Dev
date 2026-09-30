@@ -8,7 +8,7 @@ import { formatDuration, hours as decimalHours } from "../../../lib/duration.ts"
 import { decimal, format, formatDay, money, percent, plural } from "../../../lib/i18n/index.ts";
 import { nameFor, people } from "../../../lib/people.ts";
 import { period, presets } from "../../../lib/periods.ts";
-import { toolUrl } from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { recentHandoffs, sendable } from "../../../lib/handoff.ts";
 import { billableFilters, foundEntries, foundLimit, groups, isGroup, report, reportPeople, searchWords, type Line } from "../../../lib/reports.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -39,7 +39,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const words = searchWords(q.q) ?? "";
   const sql = db();
   // Billable time to Quotes: when Quotes is installed beside Timesheets.
-  const quotes = all && kind === "uninvoiced" && toolUrl("quotes") !== null;
+  const quotes = all && kind === "uninvoiced" && chest.toolUrl("quotes") !== null;
   const [r, candidates, s, found, toSend, handed] = await Promise.all([
     report(sql, member, { from: p.from, to: p.to, group, person: person || undefined, billable: kind, q: words }),
     all ? reportPeople(sql, member) : Promise.resolve([]),

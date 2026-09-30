@@ -1,5 +1,5 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
+import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 
 // The people who have the tool, as the Chest says now: the rows of the Team
@@ -13,7 +13,7 @@ export async function everyone(): Promise<DirectoryPerson[]> {
   let after: string | undefined;
   for (let page = 0; page < 4; page++) {
     const answer = await members.list({ limit: 500, ...(after ? { after } : {}) });
-    for (const m of answer.members) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: m.photo, role: m.role, groups: m.groups, locale: m.locale });
+    for (const m of answer.members) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: m.photo, role: m.role, groups: m.groups, locale: localeOf(m.language) });
     if (!answer.next) break;
     after = answer.next;
   }

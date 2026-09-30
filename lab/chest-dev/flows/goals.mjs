@@ -2,7 +2,7 @@
 // (the harness runs the tool with --reset: Atelier Martin's sample cycles are there).
 // With --empty, a new company's first visit instead (the harness runs with --reset --empty).
 import { fileURLToPath } from "node:url";
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, control, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5600);
 const fixtures = fileURLToPath(new URL("../../../tools/private/goals/test/fixtures/", import.meta.url));
@@ -21,7 +21,7 @@ if (process.argv.includes("--empty")) {
   // A new company's first visit: the quarter offered is chosen on the
   // Chest's calendar (Europe/Paris in the harness); in the last 14 days of a
   // quarter, the next one comes first.
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.CHEST_TIME_ZONE || "Europe/Paris" }).format(new Date());
   const [y, m, d] = today.split("-").map(Number);
   const q = Math.floor((m - 1) / 3);
   const end = new Date(Date.UTC(y, q * 3 + 3, 0));
@@ -260,6 +260,17 @@ await step("Hugo turns the reminders' email off (and on again)", async () => {
   await page.waitForSelector(".ck-toast >> text=Reminders stay in the bell only.");
   await toggle.check();
   await page.waitForSelector(".ck-toast >> text=Reminders will also come by email.");
+});
+
+await step("Hugo chose one email a day in his Chest: My goals says so under the switch; back to every email, it says nothing", async () => {
+  const note = "In your Chest settings you chose one email a day: they wait for it.";
+  await control(page, origin, "member", { member: id("hugo"), mailPreference: "digest" });
+  await page.goto(origin + "/chest");
+  expect((await page.locator("main").innerText()).includes(note), "the digest is said");
+  await control(page, origin, "member", { member: id("hugo"), mailPreference: "all" });
+  await page.goto(origin + "/chest");
+  expect(!(await page.locator("main").innerText()).includes(note), "nothing said for every email");
+  expect(await page.getByRole("switch", { name: /Also email me/u }).isChecked(), "the tool's own switch unchanged");
 });
 
 await step("the company tree filters by status and owner, kept in the address", async () => {

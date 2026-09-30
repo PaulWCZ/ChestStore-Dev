@@ -20,8 +20,10 @@ export function plural(forms: { readonly one: string; readonly other: string; re
   return format(form, { count: new Intl.NumberFormat(intl(locale)).format(n), ...values });
 }
 
-// An instant in the reader's language, as a clock of the Chest's time zone
-// shows it (the zone comes from lib/clock.ts on the server).
+// An instant in the reader's language and a zone: the reader's own
+// (member.timeZone) for when something happened — sent, approved, locked;
+// the Chest's (lib/clock.ts) for the hours of an entry, which belong to
+// the Chest's day.
 export function formatDate(value: Date | string, zone: string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
   return new Intl.DateTimeFormat(intl(locale), { timeZone: zone, ...options }).format(typeof value === "string" ? new Date(value) : value);
 }

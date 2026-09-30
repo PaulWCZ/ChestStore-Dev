@@ -11,7 +11,7 @@ first; this page is the map and the rules.
 | `lib/model.ts` | Bounds and checks: `clean`, `id`, `day`, `minutes`, `cents`, colours |
 | `lib/duration.ts` | What people type → minutes (`parseDuration`), and back (browser-safe) |
 | `lib/days.ts`, `lib/periods.ts` | Days, weeks (Monday), wall clocks in a zone, report periods (browser-safe) |
-| `lib/clock.ts` | The Chest's time zone and currency (`@argentic/chest-sdk/chest`), `clock.now` (tests move it) |
+| `lib/clock.ts` | The Chest's time zone and currency (`chest.timeZone`, `chest.currency`), today (= the database's `current_date`: the Chest sets its sessions' zone; tests too, `testDatabase({timeZone})`, `test/zones.test.ts`), `clock.now` (tests move it) |
 | `lib/projects.ts` | Clients, projects, tasks, people, budgets; `offeredProjects`, `writable` |
 | `lib/entries.ts` | Entries, the week grid (`week`, `saveCell`, `setNote`, rows), the day list; the 24-hour rule; `checkOpen` (lock + closed week) |
 | `lib/rates.ts` | Rates with a history (billable per project / person / person on a project, cost per person); SQL `bill_rate()`/`cost_rate()` resolve by the entry's day; `fixRates` writes them on entries for good |
@@ -70,7 +70,7 @@ first; this page is the map and the rules.
   only with a new `version`.
 - **Emails** leave through `lib/mail.ts` with a key built from what names
   the email (the recipient is appended) and given **whole** — never cut:
-  the SDK sends a long one as its digest (studio.15). None is
+  the SDK sends a long one as its digest. None is
   `transactional`: each asks someone to act, so the person's choice in the
   Chest (`mailPreference`) holds.
 
@@ -133,8 +133,10 @@ own form), the project picker (above).
   all three, with `leftAt` for a former member (null when the Chest does
   not say, and for imported people).
 - **Days vs instants**: an entry has a `day` (the Chest's calendar day) and
-  optional instants; format days with `formatDay` (UTC), instants with the
-  zone from `lib/clock.ts`. Never hard-code a zone or a currency.
+  optional instants; format days with `formatDay` (UTC), an entry's hours
+  with the zone from `lib/clock.ts` (they belong to the Chest's day), when
+  something happened (sent, approved, locked, left) with the reader's
+  `member.timeZone`. Never hard-code a zone or a currency.
 - **Client components import only** browser-safe modules (`lib/duration.ts`,
   `lib/days.ts`, `lib/work.ts`, `lib/amounts.ts`, `lib/i18n/format.ts`,
   `lib/import-formats.ts`, `lib/model.ts`, `lib/app-error.ts`) and types.

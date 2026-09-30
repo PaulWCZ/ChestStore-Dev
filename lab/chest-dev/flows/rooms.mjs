@@ -698,9 +698,9 @@ await step("French words: a desk is a « poste » everywhere, the office stays �
 // for the days that remain (tools/private/leave/README.md, "With the other
 // tools"). Rooms keeps each request's latest word by occurredAt, an
 // approval winning at the same moment; delivered in reverse, the remaining
-// days stay too (test/away.test.ts — the harness's /_dev/deliver carries
-// no occurredAt of its own). Here, as the Chest delivers it, through the
-// tool's event route.
+// days stay too (test/away.test.ts, and the next step with /_dev/deliver's
+// occurredAt). Here, as the Chest delivers it, through the tool's event
+// route.
 await step("a leave shortened in Leave: its remaining days stay Off in Sofia's week, the days cut open again", async () => {
   await as(context, origin, "sofia");
   const days = [7, 8, 9, 10].map(n => iso(new Date(monday.getTime() + n * 864e5)));
@@ -719,6 +719,55 @@ await step("a leave shortened in Leave: its remaining days stay Off in Sofia's w
   await deliver("leave.approved", { ...leave, to: days[1] });
   const after = await off();
   expect(after.join(",") === "true,true,false,false", "Monday and Tuesday still Off, Wednesday and Thursday open: " + after.join(","));
+});
+
+await step("told in reverse at the same moment: the approval of the remaining days, then the cancellation — the remaining days stay Off", async () => {
+  await as(context, origin, "sofia");
+  const days = [14, 15, 16, 17].map(n => iso(new Date(monday.getTime() + n * 864e5)));
+  const leave = { member: id("sofia"), from: days[0], to: days[3], fromHalf: "day", toHalf: "day", request: "flow-cut-2" };
+  const at = new Date(Date.now() - 60_000).toISOString();
+  const deliver = async (type, data, occurredAt) => {
+    const r = await page.request.post(origin + "/_dev/deliver", { form: { type, data: JSON.stringify(data), occurredAt }, maxRedirects: 0 });
+    expect(r.status() === 303, `${type} delivered: ${r.status()}`);
+  };
+  await deliver("leave.approved", leave, new Date(Date.now() - 120_000).toISOString());
+  await deliver("leave.approved", { ...leave, to: days[1] }, at);
+  await deliver("leave.cancelled", leave, at);
+  await page.goto(origin + `/chest?day=${days[0]}`);
+  const off = (await Promise.all(days.map(async d => (await page.locator("#day-" + d).getAttribute("class")) ?? ""))).map(c => c.split(" ").includes("is-off"));
+  expect(off.join(",") === "true,true,false,false", "the first two days still Off, the last two open: " + off.join(","));
+});
+
+await step("a room kept for Sales, a group that does not give Rooms: Hugo (Sales) may book it, Léa (Tech) may not", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/places");
+  await page.locator("li", { has: page.locator("strong", { hasText: /^Bora$/u }) }).getByRole("button", { name: "Change" }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByLabel("Kept for").selectOption({ label: "Sales" });
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".ck-toast");
+  const bookable = async who => {
+    await as(context, origin, who);
+    await page.goto(origin + `/chest/rooms?day=${far}`);
+    await page.getByRole("button", { name: "Book a room" }).click();
+    const form = page.locator("dialog[open]");
+    const option = form.locator("option", { hasText: /^Bora/u });
+    expect((await option.innerText()).includes("Sales only"), "the room says whom it is kept for");
+    const enabled = !(await option.isDisabled());
+    await page.keyboard.press("Escape");
+    await form.getByRole("button", { name: "Discard" }).click().catch(() => {});
+    return enabled;
+  };
+  expect(await bookable("hugo"), "Hugo, in Sales, may book it");
+  expect(!(await bookable("lea")), "Léa, in Tech, may not");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/places");
+  await page.locator("li", { has: page.locator("strong", { hasText: /^Bora$/u }) }).getByRole("button", { name: "Change" }).click();
+  await page.locator("dialog[open]").getByLabel("Kept for").selectOption({ label: "Everyone" });
+  await page.locator("dialog[open]").getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".ck-toast");
 });
 
 await step("a phone says to tap, not to drag", async () => {

@@ -2,7 +2,8 @@
 -- member ids are those of the studio's dev harness (lab/chest-dev): camille
 -- (admin), ines, hugo, lea, tom, sofia. Days are counted from the Monday of
 -- the current week, so the sample always shows this week and the next.
--- Times are read in Europe/Paris, the harness's time zone.
+-- Days (current_date) and times are the Chest's time zone: the Chest runs
+-- the database's sessions in it.
 
 insert into offices (name, address, position) values ('Paris — Rue de Paradis', '12 rue de Paradis, 75010 Paris', 0);
 
@@ -63,8 +64,8 @@ from (values
 -- Their desks on office days (Sofia has her own, D-12; Inès books mornings on Wednesdays).
 insert into desk_bookings (desk_id, member_id, day, part, during)
 select dk.id, p.member_id, p.day, part,
-  tstzrange((p.day + make_interval(mins => case part when 'pm' then 720 else 0 end))::timestamp at time zone 'Europe/Paris',
-            (p.day + make_interval(mins => case part when 'am' then 720 else 1440 end))::timestamp at time zone 'Europe/Paris', '[)')
+  tstzrange((p.day + make_interval(mins => case part when 'pm' then 720 else 0 end))::timestamptz,
+            (p.day + make_interval(mins => case part when 'am' then 720 else 1440 end))::timestamptz, '[)')
 from presence p
 join (values ('camille', 'D-01'), ('ines', 'D-05'), ('hugo', 'D-02'), ('lea', 'D-09'), ('tom', 'D-03')) as m(who, desk) on p.member_id = 'mbr_' || rpad(m.who, 26, 'a')
 join desks dk on dk.name = m.desk
@@ -91,7 +92,7 @@ with days as (
 ), made as (
   insert into room_bookings (room_id, member_id, title, day, during)
   select r.id, 'mbr_' || rpad(p.who, 26, 'a'), p.title, d.day,
-    tstzrange((d.day + make_interval(mins => p.s))::timestamp at time zone 'Europe/Paris', (d.day + make_interval(mins => p.e))::timestamp at time zone 'Europe/Paris', '[)')
+    tstzrange((d.day + make_interval(mins => p.s))::timestamptz, (d.day + make_interval(mins => p.e))::timestamptz, '[)')
   from days d join plan p on p.dow = d.dow join rooms r on r.name = p.room
   returning id, title, room_id
 )

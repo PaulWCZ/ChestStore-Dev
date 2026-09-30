@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
 import { GET } from "../app/chest/reports/export/route.ts";
 import { today } from "../lib/clock.ts";
-import { addDays, mondayOf } from "../lib/days.ts";
+import { addDays, mondayOf, todayIn } from "../lib/days.ts";
 import { addEntry } from "../lib/entries.ts";
 import { erase } from "../lib/lifecycle.ts";
 import * as projects from "../lib/projects.ts";
@@ -19,7 +19,8 @@ import { refused } from "./support/refused.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
-const base = addDays(mondayOf(today()), -70);
+// The fake Chest's day (its zone, UTC, is the test database's too).
+const base = addDays(mondayOf(todayIn("UTC")), -70);
 const later = addDays(base, 35);
 before(async () => {
   database = await testDatabase();
@@ -116,7 +117,7 @@ test("the CSV gives the rate in force on each day, and managers the cost", async
   await addEntry(sql, asMember(tom()), { projectId: p.id, day: later, minutes: 30 });
   await setRate(sql, m(), { kind: "cost", memberId: tom().id, cents: 3000, from: origin });
   const url = `http://tool.test/chest/reports/export?preset=custom&from=${period.from}&to=${period.to}&person=${tom().id}`;
-  const text = (await (await GET(withMember(new Request(url), { ...camille, locale: "en" }))).text()).replace(/^﻿/u, "").trim().split("\r\n");
+  const text = (await (await GET(withMember(new Request(url), { ...camille, language: "en" }))).text()).replace(/^﻿/u, "").trim().split("\r\n");
   assert.equal(text[0], "Date,Person,Client,Project,Task,Note,Hours,Billable,Hourly rate,Amount,Cost rate,Cost,Invoiced,Start,End");
   assert.ok(text.some(l => l.startsWith(`${base},Tom Walker,,Csv,,,1,Yes,60,60,30,30,No`)), text.join("\n"));
   assert.ok(text.some(l => l.startsWith(`${later},Tom Walker,,Csv,,,0.5,Yes,90,45,30,15,No`)), text.join("\n"));

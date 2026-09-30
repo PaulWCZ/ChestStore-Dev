@@ -219,9 +219,10 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
   it; the Chest's PostgreSQL must ship the contrib extensions (standard
   packages do).
 - **Time zone**: every office lives in the Chest's time zone
-  (`CHEST_TIMEZONE`, Europe/Paris by default, read through the SDK's
-  `schedules.timeZone()`). Bookings are stored as instants; days and hours
-  are computed by PostgreSQL in that zone (daylight saving tested).
+  (`chest.timeZone`, which the Chest's owner sets; the Chest also runs the
+  database's sessions in it). Bookings are stored as instants; days and
+  hours are computed by PostgreSQL in that zone, named in each query
+  (daylight saving tested).
 - **The bell**: guests of a room booking hear of it, of its changes and of
   its cancellation (one item per booking, replaced as it changes; one per
   weekly series). Booking a desk for oneself is silent; a desk or room an
@@ -250,7 +251,7 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
   presence goes; the past stays for the export. An erasure then anonymises
   the past (`'erased'`, "Former member"), deletes presence and preferences,
   and is acknowledged.
-- Private part in the member's language (`member.locale`), English first,
+- Private part in the member's language (`member.language`), English first,
   French second (`lib/i18n/`); dates as in Europe (24-hour clock).
 - No network, no disk writes, nothing in the background; pages that others
   change re-read themselves every 20–30 s while visible.
@@ -281,9 +282,11 @@ back), an approval until its last day is past; an erasure forgets them.
 
 ## Needs from the SDK
 
-All in the SDK working copy packed in `vendor/` (0.3.0-studio.16):
+All in the SDK working copy packed in `vendor/`: SDK 0.3.0 + studio
+proposals (0.3.1-studio.1).
 
-- `member.locale`, `schedules.timeZone()` / `chest.teamUrl()` — **Proposal (studio)**.
+- `member.language`, `chest.timeZone`, `chest.language` — SDK 0.3.0;
+  `chest.teamUrl` — **Proposal (studio)**.
 - `calendar` (`putMany`, `put`, `remove`, `ics`, `uidOf`, `page`) — **Proposal (studio)**:
   the members' calendar feeds, the `.ics` files. What changed goes in one
   `putMany` (studio.15: up to 100 events, one write of the minute); the
@@ -299,7 +302,12 @@ All in the SDK working copy packed in `vendor/` (0.3.0-studio.16):
   `mail.available()` (studio.16): the booking form says "They get an
   email" only while the Chest sends (granted, connected, not paused, the
   day's emails not spent) — not merely because an email once went.
-- `members.groups.all`, all of `member.groups` — **Proposal (studio)** (`"groups": "read"`).
+- `members.groups.all`, `members.groups.members`, `members.groups.of` —
+  **Proposal (studio)** (`"groups": "read"`): `member.groups` says only the
+  groups that give Rooms (none when Rooms is open to everyone, SDK 0.3.0),
+  so a place kept for Sales asks the Chest who is in Sales
+  (`lib/groups.ts`: `groupsOf` for one member, `membership` for the teams
+  of "Who's where"). Without the permission, the groups that give Rooms.
 - `schedules` — **Proposal (studio)**: the quarter-hour reminders and check-in.
 - Events between tools — **Proposal (studio)**: Leave's `leave.approved` / `leave.cancelled`.
 - Would help, not built: a way for a tool to know the UID the Chest's feed

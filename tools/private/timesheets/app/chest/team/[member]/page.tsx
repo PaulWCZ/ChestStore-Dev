@@ -3,7 +3,7 @@ import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { Back, Next } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
-import { today, zone } from "../../../../lib/clock.ts";
+import { today } from "../../../../lib/clock.ts";
 import { db } from "../../../../lib/db.ts";
 import { addDays, isDay, mondayOf, weekDays } from "../../../../lib/days.ts";
 import { formatDuration } from "../../../../lib/duration.ts";
@@ -42,9 +42,9 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
     row.cells[days.indexOf(e.day)]! += e.minutes;
     rows.set(key, row);
   }
-  const statusText = state.status === "approved" ? format(t.week.approvedBy, { name: decider, date: state.decidedAt ? formatDate(state.decidedAt, zone(), locale, { day: "numeric", month: "short" }) : "" })
+  const statusText = state.status === "approved" ? format(t.week.approvedBy, { name: decider, date: state.decidedAt ? formatDate(state.decidedAt, member.timeZone, locale, { day: "numeric", month: "short" }) : "" })
     : state.status === "returned" ? `${format(t.week.returnedBy, { name: decider })} “${state.reason}”`
-    : state.status === "submitted" ? format(t.team.sentOn, { date: state.submittedAt ? formatDate(state.submittedAt, zone(), locale, { weekday: "long", day: "numeric", month: "short" }) : "" }) : t.team.notSent;
+    : state.status === "submitted" ? format(t.team.sentOn, { date: state.submittedAt ? formatDate(state.submittedAt, member.timeZone, locale, { weekday: "long", day: "numeric", month: "short" }) : "" }) : t.team.notSent;
   const link = (w: string) => `/chest/team/${memberId}?week=${w}`;
   return (
     <div className="page wide">
@@ -52,7 +52,7 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
       <header className="page-head">
         <div>
           <h1><Avatar name={name} photo={person.photo} size="l" />{name}</h1>
-          {person.status !== "member" && person.leftAt && <p className="small muted left-on">{format(t.team.leftOn, { date: formatDate(person.leftAt, zone(), locale, { day: "numeric", month: "long", year: "numeric" }) })}</p>}
+          {person.status !== "member" && person.leftAt && <p className="small muted left-on">{format(t.team.leftOn, { date: formatDate(person.leftAt, member.timeZone, locale, { day: "numeric", month: "long", year: "numeric" }) })}</p>}
         </div>
         <div className="week-total">
           <span className="label">{format(t.team.weekOf, { date: formatDay(week, locale, { day: "numeric", month: "long" }) })}</span>

@@ -1,14 +1,15 @@
-import * as chest from "@argentic/chest-sdk/chest";
+import { chest } from "@argentic/chest-sdk/chest";
 import { todayIn } from "./days.ts";
 
-// The time and money of the tool, as the Chest gives them (Proposal
-// (studio), @argentic/chest-sdk/chest): its time zone (the day an entry
-// belongs to, "this week", Friday's reminder) and its currency (rates and
-// amounts). Tests move `clock.now` to play a forgotten timer.
+// The time and money of the tool, as the Chest gives them
+// (@argentic/chest-sdk/chest): its time zone (chest.timeZone: the day an
+// entry belongs to, "this week", Friday's reminder — the database's
+// current_date is that day too, the Chest's zone being its sessions') and
+// its currency (chest.currency, a studio proposal: rates and amounts). Tests move `clock.now` to play a forgotten timer.
 export const clock = { now: (): Date => new Date() };
 
 export function zone(): string {
-  return chest.timeZone();
+  return chest.timeZone;
 }
 
 export function today(): string {
@@ -16,5 +17,5 @@ export function today(): string {
 }
 
 export function currency(): string {
-  return chest.currency();
+  return chest.currency;
 }

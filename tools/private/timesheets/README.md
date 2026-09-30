@@ -205,7 +205,7 @@ there is a project" (a member reads that a manager opens projects).
   otherwise), they leave the projects they were named on, their grid rows
   go. Their time and rates stay — reports and invoices need them — and read
   "Camille Martin (former member)"; their week's page (*Team → a person*)
-  says "Left the Chest on 30 September 2026" (`leftAt`, SDK studio.15;
+  says "Left the Chest on 30 September 2026" (`leftAt`, a studio proposal;
   nothing on a Chest that does not say it, nor for people who came with an
   import). **An erasure**: the same, then their
   entries stay for the company's accounts with their rates written on them
@@ -221,10 +221,17 @@ there is a project" (a member reads that a manager opens projects).
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**: the interface and the bell in
-  each member's language.
-- `@argentic/chest-sdk/chest` — **Proposal (studio)**: `timeZone()` (the
-  day an entry belongs to, "this week"), `currency()` (rates and amounts).
+Timesheets runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in
+`vendor/`. From 0.3.0: `member(request)` with the member's `language` (the
+interface and the bell in each member's language) and `timeZone` (when a
+week was sent, approved or locked, shown at their own hour);
+`chest.timeZone` and `chest.today()` — the day an entry belongs to, "this
+week", the hours of an entry. The database's `current_date` is that day
+too: the Chest makes its zone the TimeZone of the tool's database
+sessions.
+
+- `chest.currency` — **Proposal (studio)**: rates and amounts (EUR when
+  the Chest does not say).
 - `schedules` — **Proposal (studio)**, `chest.proposals.json`: the Friday
   reminder. Without it the tool is complete; the setting says so.
 - **Events between tools** — **Proposal (studio)**: billable time to Quotes
@@ -233,11 +240,11 @@ there is a project" (a member reads that a manager opens projects).
 - `mail` — **Proposal (studio)**: Remind, the Friday reminder and a week
   sent to approve also go by email. Without it, the bell only. Keys are
   given whole (`week:<member>:<monday>:<sent at>:<recipient>`; the SDK
-  sends one longer than the Chest keeps as its digest, studio.15). **None
+  sends one longer than the Chest keeps as its digest). **None
   of these emails is transactional**: each asks someone to act (fill in a
   week, approve one) — a reminder, like Hiring's interviewers' — so the
-  choice each person made in the Chest (`member.mailPreference`: all, one
-  a day, none; applied by `mail.send`, studio.15) always holds; the bell
+  choice each person made in the Chest (`mailPreference` in the members
+  API: all, one a day, none; applied by `mail.send`) always holds; the bell
   still tells them. An approval or a return is told by the bell only.
 - **Wished — a start-timer event from Tasks**: Toggl and Clockify users start
   timers from their task tool; with events between tools, Tasks could send
@@ -256,7 +263,7 @@ the key `timesheets:billable:<handoff>:<made>` (`<made>`: when the hand-off
 was made, in milliseconds — the same hand-off is never two events, and a
 hand-off id given again after a restore from a backup is not taken for an
 earlier one: sdk/README, "Put the recipient in the key"), with
-`occurredAt` the moment it was made (studio.16). Taken back:
+`occurredAt` the moment it was made. Taken back:
 `timesheets.billable_cancelled` under `<that key>:cancelled`, `occurredAt`
 the moment it was taken back. `data`:
 

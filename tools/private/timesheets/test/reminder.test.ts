@@ -15,8 +15,8 @@ import { refused } from "./support/refused.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test", ...(p.id === tom.id ? { mailPreference: "none" as const } : {}) })), capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, schedules: [{ name: "friday", cron: "30 15 * * 5" }], timeZone: "Europe/Paris" });
+  database = await testDatabase({ timeZone: "Europe/Paris" });
+  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test", ...(p.id === tom.id ? { mailPreference: "none" as const } : {}) })), capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, schedules: [{ name: "friday", cron: "30 15 * * 5" }], chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();
@@ -66,7 +66,7 @@ test("turned off, or a higher bar, as the manager sets it", async () => {
 
 test("a week sent to two managers: each gets their email, under a key of their own (never cut)", async () => {
   const { sql } = database;
-  const sofia = { id: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", firstName: "Sofia", lastName: "Rossi", name: "Sofia Rossi", photo: null, role: "manager", isAdmin: false, isBuilder: false, groups: [], locale: "en" as const, email: "sofia@atelier.test" };
+  const sofia = { id: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", firstName: "Sofia", lastName: "Rossi", name: "Sofia Rossi", photo: null, role: "manager", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris", email: "sofia@atelier.test" };
   chest.members.push(sofia);
   try {
     const p = await projects.createProject(sql, asMember(camille), { name: "Shop" });

@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
-import { today } from "../lib/clock.ts";
-import { addDays, mondayOf } from "../lib/days.ts";
+import { addDays, mondayOf, todayIn } from "../lib/days.ts";
 import * as entries from "../lib/entries.ts";
 import * as handoff from "../lib/handoff.ts";
 import * as projects from "../lib/projects.ts";
@@ -16,7 +15,8 @@ import { refused } from "./support/refused.ts";
 // Billable time to Quotes (events between tools), and the notes' search.
 let database: TestDatabase;
 let chest: FakeChest;
-const monday = mondayOf(today());
+// The fake Chest's day (its zone, UTC, is the test database's too).
+const monday = mondayOf(todayIn("UTC"));
 const from = addDays(monday, -14), to = addDays(monday, -8);
 before(async () => {
   database = await testDatabase();

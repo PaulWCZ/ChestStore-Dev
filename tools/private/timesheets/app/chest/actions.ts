@@ -1,13 +1,13 @@
 "use server";
 
-import type { Member } from "@argentic/chest-sdk/member";
+import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
 import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { everyone } from "../../lib/directory.ts";
 import * as entries from "../../lib/entries.ts";
 import { AppError, attempt, type Result } from "../../lib/errors.ts";
-import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import { catalogue } from "../../lib/i18n/index.ts";
 import { forgetFormer as forget, planImport, runImport, type ImportOptions, type ImportPlan } from "../../lib/import.ts";
 import * as handoff from "../../lib/handoff.ts";
 import * as invoicing from "../../lib/invoicing.ts";
@@ -35,7 +35,7 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
   return result;
 }
 
-const wordsOf = (actor: Member) => catalogue(isLocale(actor.locale) ? actor.locale : "en");
+const wordsOf = (actor: Member) => catalogue(localeOf(actor.language));
 
 // The timer.
 export async function startTimer(input: { projectId: string; taskId: string | null; note: string }): Promise<Result<{ stopped: entries.Entry | null }>> {

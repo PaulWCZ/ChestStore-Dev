@@ -1,5 +1,5 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
+import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { db } from "./db.ts";
 import { catalogue, format } from "./i18n/index.ts";
@@ -11,7 +11,8 @@ import { catalogue, format } from "./i18n/index.ts";
 // asked: the page still renders). An 'imp_…' id is someone who left before
 // the Chest, whose time came with an import: "former", with the name the
 // old tool gave (kept by the tool: the Chest never knew them). leftAt: when
-// a former member left the Chest (studio.15; null from an older Chest, and
+// a former member left the Chest (a studio proposal; null when the Chest
+// does not say, and
 // for imported people, who left before it).
 export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale; leftAt: string | null };
 
@@ -28,7 +29,7 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   if (wanted.length === 0) return found;
   try {
     const answer = await members.lookup(wanted);
-    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale, leftAt: null });
+    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: localeOf(m.language), leftAt: null });
     for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en", leftAt: f.leftAt ?? null });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
