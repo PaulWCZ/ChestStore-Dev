@@ -31,7 +31,10 @@ if (!folder || !existsSync(join(folder, "docs", "screens.json"))) {
 }
 const tool = resolve(folder);
 const shots = JSON.parse(readFileSync(join(tool, "docs", "screens.json"), "utf8"));
-const origin = `http://localhost:${port}`;
+// The harness's two hosts (dev.mjs): https, self-signed (cert.mjs).
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+const origin = `https://127.0.0.1:${port}`;
+const publicOrigin = `https://localhost:${port + 2}`;
 const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
 const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
 mkdirSync(join(tool, "docs", "screens"), { recursive: true });
@@ -64,13 +67,13 @@ for (const given of shots) {
   if (shot.preview) sizes.push(["preview", { width: 1280, height: 800 }, 1]);
   for (const [kind, viewport, scale] of sizes) {
     if (shot.only && !shot.only.includes(kind)) continue;
-    const context = await browser.newContext({ viewport, deviceScaleFactor: scale, colorScheme: shot.dark ? "dark" : "light", locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
+    const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport, deviceScaleFactor: scale, colorScheme: shot.dark ? "dark" : "light", locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
     await context.addCookies([
       { name: "dev_member", value: id(shot.member ?? "camille"), url: origin },
-      ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }] : []),
+      ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: publicOrigin }] : []),
     ]);
     const page = await context.newPage();
-    await page.goto(origin + shot.path, { waitUntil: "networkidle" });
+    await page.goto((/^\/chest(\/|\?|$)/iu.test(shot.path) ? origin : publicOrigin) + shot.path, { waitUntil: "networkidle" });
     await run(page, shot.actions);
     await page.waitForTimeout(250);
     const file = kind === "preview" ? join(tool, "chest", "preview.png") : join(tool, "docs", "screens", `${shot.name}-${kind}.png`);

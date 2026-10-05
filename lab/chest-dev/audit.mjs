@@ -26,7 +26,10 @@ if (!folder || !existsSync(join(folder, "docs", "screens.json"))) {
 }
 // "language" (SDK 0.3.0's word) or "locale" (its former name), as screens.mjs.
 const shots = JSON.parse(readFileSync(join(resolve(folder), "docs", "screens.json"), "utf8")).map(shot => ({ ...shot, locale: shot.language ?? shot.locale }));
-const origin = `http://localhost:${port}`;
+// The harness's two hosts (dev.mjs): https, self-signed (cert.mjs).
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+const origin = `https://127.0.0.1:${port}`;
+const publicOrigin = `https://localhost:${port + 2}`;
 const axe = require.resolve("axe-core/axe.min.js");
 const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
 const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
@@ -66,13 +69,13 @@ for (const shot of screens) {
   for (const [kind, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
     if (shot.only && !shot.only.includes(kind)) continue;
     for (const scheme of ["light", "dark"]) {
-      const context = await browser.newContext({ bypassCSP: true, viewport, colorScheme: scheme, locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
+      const context = await browser.newContext({ ignoreHTTPSErrors: true, bypassCSP: true, viewport, colorScheme: scheme, locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
       await context.addCookies([
         { name: "dev_member", value: id(shot.member ?? "camille"), url: origin },
-        ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }] : []),
+        ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: publicOrigin }] : []),
       ]);
       const page = await context.newPage();
-      await page.goto(origin + shot.path, { waitUntil: "networkidle" });
+      await page.goto((/^\/chest(\/|\?|$)/iu.test(shot.path) ? origin : publicOrigin) + shot.path, { waitUntil: "networkidle" });
       try {
         await run(page, shot.actions);
       } catch (error) {

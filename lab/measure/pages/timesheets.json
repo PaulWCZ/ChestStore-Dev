@@ -1,0 +1,62 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/reports?preset=lastWeek",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/reports?preset=month&group=person",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/team",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/team/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/people",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/projects/2",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/projects",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/import",
+  "member": "sofia",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/reports?preset=month&q=Feyssine",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/reports?preset=month&kind=uninvoiced",
+  "member": "camille",
+  "language": "fr"
+ }
+]

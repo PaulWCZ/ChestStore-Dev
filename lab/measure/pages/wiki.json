@@ -1,0 +1,97 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pages/2",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pages/9",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/pages/2/history",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=teletravail",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/spaces/1",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pages/3",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/import",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pages/7",
+  "member": "sofia",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/pages/8",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pages/8/reads",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/spaces/2/settings",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pages",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/trash",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search/synonyms",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=note%20de%20frais",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/pages/3/edit",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=rembours%C3%A9",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/search?q=wifi",
+  "member": "hugo",
+  "language": "en"
+ }
+]

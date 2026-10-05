@@ -1,0 +1,72 @@
+[
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/tickets/1003",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/t/demoFollowUpLinkForTheScreens000",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest?folder=open",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/tickets/1001",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest?tag=2&sort=priority",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/t/demoLampFollowUpLinkForScreens00",
+  "public": true,
+  "language": "fr"
+ },
+ {
+  "path": "/chest/tickets/1002",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/tickets/1007",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/reports",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/mine",
+  "member": "nora",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/mine/1008",
+  "member": "nora",
+  "language": "fr"
+ }
+]
