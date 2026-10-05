@@ -1,0 +1,922 @@
+{
+ "tool": "leave",
+ "label": "before-next16",
+ "source": "/home/user/wt/before/tools/private/leave",
+ "date": "2026-10-05T23:12:28.082Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "fc16acb 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 1.44,
+   "five": 1.57,
+   "fifteen": 1.29
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 39.3,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 7.9,
+    "rssMiB": 424,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 46,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 140,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 129,
+    "command": "next-server (v1"
+   }
+  ],
+  "atEnd": {
+   "one": 0.62,
+   "five": 0.95,
+   "fifteen": 1.12
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 7.8,
+    "rssMiB": 429,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.2,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 2.2,
+    "rssMiB": 70,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 2.1,
+    "rssMiB": 70,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 2.1,
+    "rssMiB": 70,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 8,
+  "apparentMiB": 7.5,
+  "files": 179
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 5092,
+  "peakRssMiB": 562.1,
+  "peakPssMiB": 511.8,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "mean": 1.33,
+   "max": 1.33
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 10030,
+  "peakRssMiB": 733.5,
+  "peakPssMiB": 683.1,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1222.8,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 1.75,
+   "max": 1.81
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 137,
+   "signal": null,
+   "ms": 34612,
+   "peakRssMiB": 642.2,
+   "peakPssMiB": 529.1,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 512,
+    "failcnt": 0,
+    "oomKills": 1
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 1.75,
+    "max": 2.02
+   },
+   "tail": "\n> chest-leave@0.1.0 build\n> NEXT_TELEMETRY_DISABLED=1 next typegen && tsc -p tsconfig.json --noEmit && NEXT_TELEMETRY_DISABLED=1 next build --webpack\n\nGenerating route types...\n✓ Types generated successfully\n▲ Next.js 16.3.6 (webpack)\n✓ Running next.config.ts took 69ms\n- Experiments (use with caution):\n  · cpus: 1\n  ⨯ webpackBuildWorker\n  ✓ webpackMemoryOptimizations\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 14.5s\n  Skipping validation of types\n  Finished TypeScript config validation in 4ms ...\n  Collecting page data using 1 worker ...\n  Generating static pages using 1 worker (0/5) ...\n  Generating static pages using 1 worker (1/5) \r\n  Generating static pages using 1 worker (2/5) \r\n  Generating static pages using 1 worker (3/5) \r\n✓ Generating static pages using 1 worker (5/5) in 416ms\n  Finalizing page optimization ...\n  Collecting build traces ...\nKilled\n",
+   "fits": false
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 16407,
+   "peakRssMiB": 1134.9,
+   "peakPssMiB": 1032.9,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 1041.1,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 2.08,
+    "max": 2.18
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 4.8,
+  "apparentMiB": 4,
+  "files": 181,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 455.4
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/leave.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/calendar",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/new",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/approvals",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/requests/13",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/payroll",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 399.3,
+    "firstMs": 850.9,
+    "statuses": [
+     200
+    ],
+    "load": 1.99
+   },
+   {
+    "portMs": 345,
+    "firstMs": 766.4,
+    "statuses": [
+     200
+    ],
+    "load": 1.85
+   },
+   {
+    "portMs": 298.8,
+    "firstMs": 663.5,
+    "statuses": [
+     200
+    ],
+    "load": 1.56
+   },
+   {
+    "portMs": 268.5,
+    "firstMs": 673,
+    "statuses": [
+     200
+    ],
+    "load": 1.48
+   },
+   {
+    "portMs": 258.7,
+    "firstMs": 606,
+    "statuses": [
+     200
+    ],
+    "load": 1.48
+   },
+   {
+    "portMs": 277.9,
+    "firstMs": 690.7,
+    "statuses": [
+     200
+    ],
+    "load": 1.23
+   },
+   {
+    "portMs": 321,
+    "firstMs": 743.6,
+    "statuses": [
+     200
+    ],
+    "load": 1.12
+   },
+   {
+    "portMs": 339.7,
+    "firstMs": 754.7,
+    "statuses": [
+     200
+    ],
+    "load": 1.17
+   },
+   {
+    "portMs": 311.4,
+    "firstMs": 761.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.99
+   },
+   {
+    "portMs": 310.1,
+    "firstMs": 790.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.91
+   }
+  ],
+  "port": {
+   "median": 310.75,
+   "min": 258.7,
+   "max": 399.3
+  },
+  "first200": {
+   "median": 749.1500000000001,
+   "min": 606,
+   "max": 850.9
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 239.8,
+     "pss": 132.8
+    },
+    "peakMiB": {
+     "rss": 263.4,
+     "pss": 156.5,
+     "cgroup": 135.1
+    },
+    "afterRequestsMiB": {
+     "rss": 263.4,
+     "pss": 156.5
+    },
+    "restMiB": {
+     "rss": 231.2,
+     "pss": 123.9,
+     "pssAnon": 97,
+     "pssFile": 27,
+     "cgroupAnon": 96.9,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 19.3
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 162.5,
+      "pssMiB": 104.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36608,
+      "ms": 34.2
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 68.4
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 35
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 46
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 29
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 79.3
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 33.6
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 26.9
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 20.6
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 47.1
+     }
+    ],
+    "load": {
+     "mean": 0.85,
+     "max": 0.95
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 240.1,
+     "pss": 131.8
+    },
+    "peakMiB": {
+     "rss": 261,
+     "pss": 152.7,
+     "cgroup": 132.5
+    },
+    "afterRequestsMiB": {
+     "rss": 261,
+     "pss": 152.7
+    },
+    "restMiB": {
+     "rss": 228.3,
+     "pss": 119.9,
+     "pssAnon": 94.2,
+     "pssFile": 25.8,
+     "cgroupAnon": 94.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 18.9
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 159.4,
+      "pssMiB": 100.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36608,
+      "ms": 38.5
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 42.1
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 24.6
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 24.1
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 25.3
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 27.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 21.4
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 23.9
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 18.6
+     }
+    ],
+    "load": {
+     "mean": 0.55,
+     "max": 0.66
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 240.1,
+     "pss": 131.7
+    },
+    "peakMiB": {
+     "rss": 262.4,
+     "pss": 154,
+     "cgroup": 134.1
+    },
+    "afterRequestsMiB": {
+     "rss": 262.4,
+     "pss": 154
+    },
+    "restMiB": {
+     "rss": 229.9,
+     "pss": 121.4,
+     "pssAnon": 95.7,
+     "pssFile": 25.7,
+     "cgroupAnon": 95.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.5,
+      "pssMiB": 19.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 160.6,
+      "pssMiB": 101.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36608,
+      "ms": 24.5
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 40.2
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 23.1
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 25
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 21.2
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 24.9
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 23.8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 19.6
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 18.5
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 17.7
+     }
+    ],
+    "load": {
+     "mean": 0.5,
+     "max": 0.68
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 240.5,
+     "pss": 131.9
+    },
+    "peakMiB": {
+     "rss": 262.6,
+     "pss": 154,
+     "cgroup": 133.9
+    },
+    "afterRequestsMiB": {
+     "rss": 262.6,
+     "pss": 154
+    },
+    "restMiB": {
+     "rss": 229.9,
+     "pss": 121.2,
+     "pssAnon": 95.6,
+     "pssFile": 25.6,
+     "cgroupAnon": 95.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 18.9
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 160.9,
+      "pssMiB": 102.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36608,
+      "ms": 24.7
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 40.3
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 22.7
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 24.1
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 24.8
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 26.8
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 39.5
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 19.8
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 21.1
+     }
+    ],
+    "load": {
+     "mean": 0.43,
+     "max": 0.53
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 240.3,
+     "pss": 131.7
+    },
+    "peakMiB": {
+     "rss": 263.2,
+     "pss": 154.6,
+     "cgroup": 134.6
+    },
+    "afterRequestsMiB": {
+     "rss": 263.2,
+     "pss": 154.6
+    },
+    "restMiB": {
+     "rss": 230.4,
+     "pss": 121.3,
+     "pssAnon": 96.2,
+     "pssFile": 25.1,
+     "cgroupAnon": 96.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 18.6
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.6,
+      "pssMiB": 102.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36608,
+      "ms": 25.1
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 64.6
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 29.1
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 27.7
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 23.8
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 27.8
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 25.2
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 21.5
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 18.8
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 18.5
+     }
+    ],
+    "load": {
+     "mean": 0.44,
+     "max": 0.61
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 229.9,
+    "min": 228.3,
+    "max": 231.2
+   },
+   "pss": {
+    "median": 121.3,
+    "min": 119.9,
+    "max": 123.9
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 262.6,
+    "min": 261,
+    "max": 263.4
+   },
+   "pss": {
+    "median": 154,
+    "min": 152.7,
+    "max": 156.5
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 162.8,
+    "min": 161.3,
+    "max": 164.4
+   },
+   "pss": {
+    "median": 102.3,
+    "min": 101,
+    "max": 104.6
+   }
+  }
+ }
+}
