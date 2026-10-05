@@ -4,7 +4,8 @@
   "type": "module",
   "description": "The studio's local Chest: runs a tool against the SDK working copy's fakeChest, with its database, a member switcher and the Chest's bell. A lab tool, never part of a tool.",
   "scripts": {
-    "dev": "node dev.mjs"
+    "dev": "node dev.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "axe-core": "4.10.3",
