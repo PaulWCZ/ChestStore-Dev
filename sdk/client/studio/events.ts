@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import { ask, json as readJson, refusal } from "../src/api.js";
 import { CapabilityNotGranted, ChestError, Unavailable } from "../src/errors.js";
-import { handle as officialHandle, type Handlers } from "../src/events.js";
+import { handle as officialHandle, type Handlers as OfficialHandlers } from "../src/events.js";
 import { groupIdPattern } from "../src/member.js";
 import { forget } from "../src/members.js";
 import { delivery, eventChannel, headerValue, instant, json, memorySeen, object, type Seen } from "../src/signed.js";
@@ -13,7 +13,8 @@ import { idempotencyKey } from "./keys.js";
 // handle's tools), and the Chest's group events (group.changed,
 // group.removed) for a tool that reads its groups. handle is the one name
 // the studio defines again: it hands a member event to 0.4.1's handle,
-// unchanged, and the studio's events to their handlers.
+// unchanged, and the studio's events to their handlers (its Handlers type
+// is defined again with them).
 export * from "../src/events.js";
 
 // ---- The Chest's groups (Studio proposal) ---------------------------------------
@@ -26,11 +27,14 @@ export type GroupChange = "name" | "members";
 export type GroupChanged = { id: string; type: "group.changed"; occurredAt: string; data: { id: string; changed: GroupChange[] } };
 export type GroupRemoved = { id: string; type: "group.removed"; occurredAt: string; data: { id: string } };
 export type GroupEvent = GroupChanged | GroupRemoved;
-// 0.4.1's handlers of member events, and those of group events.
-export type StudioHandlers = Handlers & {
+// What handle() calls for each type: 0.4.1's handlers of member events
+// (its Handlers), and those of the Chest's group events. The studio's
+// Handlers is this one — the name is defined again, as handle is.
+export type Handlers = OfficialHandlers & {
   "group.changed"?: (event: GroupChanged) => void | Promise<void>;
   "group.removed"?: (event: GroupRemoved) => void | Promise<void>;
 };
+export type StudioHandlers = Handlers;
 
 // ---- Events between tools (Studio proposal) --------------------------------------
 //
@@ -93,7 +97,7 @@ const remembered = memorySeen();
 // 500, the Chest delivers it again. seen is the store of the ids handled
 // (memorySeen by default: give a durable one, the same as for 0.4.1's
 // events and schedules).
-export async function handle(request: IncomingMessage | Request, handlers: StudioHandlers, options: { seen?: Seen; tools?: ToolHandlers } = {}): Promise<number> {
+export async function handle(request: IncomingMessage | Request, handlers: Handlers, options: { seen?: Seen; tools?: ToolHandlers } = {}): Promise<number> {
   const got = await read(request);
   if (!got) return 401;
   const seen = options.seen ?? remembered;

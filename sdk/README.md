@@ -937,9 +937,10 @@ is published.
   (`client/studio/index.ts`) is 0.4.1's root with these in place.
 - **Two names are defined again, and hand 0.4.1's part to 0.4.1's code**:
   `events.handle` (a member event goes to 0.4.1's `handle`, unchanged; an
-  event of another tool or of the Chest's groups to the studio's handlers)
-  and `members.groups` (its `list` is 0.4.1's function; `all`, `members`,
-  `of` are the proposal's). `chest` is a new object whose official members
+  event of another tool or of the Chest's groups to the studio's handlers;
+  its type `events.Handlers` is 0.4.1's with the group events added) and
+  `members.groups` (its `list` is 0.4.1's function; `all`, `members`, `of`
+  are the proposal's). `chest` is a new object whose official members
   are getters of 0.4.1's (`chest.currency === official chest.currency` at
   every read) beside the studio's.
 - **The fake Chest is 0.4.1's, with the studio's in front.** `fakeChest`
