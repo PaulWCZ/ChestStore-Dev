@@ -4,23 +4,23 @@ _Written on 5 October 2026 against the reference snapshot of that day
 (`reference/perseus-starter/`, Chest `0c2bcfd`; `@argentic/chest-sdk`
 0.4.1). The proposed template is [`starter/`](../starter/); the measuring
 tools are [`lab/starter-bench/`](../lab/starter-bench/), their raw output
-[`lab/starter-bench/results/2026-10-05.json`](../lab/starter-bench/results/2026-10-05.json).
+[`lab/starter-bench/results/run-2.json`](../lab/starter-bench/results/run-2.json).
 What is measured is said with its method; what is assumed is marked so._
 
 ## 1. In short
 
 - **The reference starter's stack is right** — Hono, React rendered on the
   server, islands, Vite, TypeScript — and it is light: 75 MiB at rest
-  (RSS of the server process), a 0.8 s build. Nothing measured justifies
+  (RSS of the server process), a 0.9 s build. Nothing measured justifies
   another stack: Next.js (the studio's template) rests at 141 MiB, builds
-  in 15 s with an 883 MiB peak, installs 504 MiB.
+  in 14 s with an 894 MiB peak, installs 504 MiB.
 - **What it lacks is everything a real tool does next**: a way to change
   data (no action, no form handling, no CSRF rule), a refresh after a
   change, words in two languages, dates in the member's zone, error pages,
   a database, the Chest's events and schedules, the UI kit, logs, and
   tests beyond one greeting. Each agent re-invents them, differently.
 - **`starter/` keeps the stack and adds those, at the same weight**:
-  74 MiB at rest (vs 75), build 1.5 s with a 235 MiB peak (fits the
+  74 MiB at rest (vs 75), build 1.2 s with a 250 MiB peak (fits the
   512 MiB build container), 79 KiB of gzip JS+CSS for the members' page,
   axe-core clean. 35 files, 1,698 lines (the reference: 16 files, 311
   lines) — of which 579 are machinery an agent rarely opens (`src/core/`).
@@ -79,7 +79,7 @@ neither is recommended.
 never two builds at once). Machine: the studio's container, 4 CPUs, 16 GB,
 Linux 6.18, shared with other agents' builds (timings are noisy; memory is
 not: 5 runs within 0.4 MiB). Node **v24.21.0** (`/opt/node24/bin`, the
-Chest's pinned version). 5 October 2026, 23:00–23:28 UTC.
+Chest's pinned version). 5 October 2026, 23:30–23:55 UTC.
 
 - **Install**: `npm ci` from a clean copy (files Git tracks); size of
   `node_modules` (`du -sk`), then again after `npm prune --omit=dev` (what
@@ -104,23 +104,31 @@ Chest's pinned version). 5 October 2026, 23:00–23:28 UTC.
 |---|---|---|---|---|
 | `node_modules` after `npm ci` | 109 MiB (1,715 files) | 109 MiB | 110 MiB (2,369 files) | 504 MiB (11,635 files) |
 | … after `npm prune --omit=dev` | 12.8 MiB | 12.8 MiB | 14.9 MiB | 443 MiB |
-| `npm ci` | 1.8 s | 1.6 s | 2.0 s | 7.9 s |
-| Build time (median of 3) | 0.8 s | 0.8 s | 1.5 s | 15.4 s |
-| Build peak, tree PSS / largest RSS | 161 / 191 MiB | 159 / 190 MiB | 235 / 267 MiB | **883 / 918 MiB** |
+| `npm ci` | 1.7 s | 1.6 s | 1.8 s | 9.4 s |
+| Build time (median of 3) | 0.9 s | 0.9 s | 1.2 s | 13.7 s |
+| Build peak, tree PSS / largest RSS | 185 / 203 MiB | 167 / 185 MiB | 250 / 266 MiB | **894 / 907 MiB** |
 | Build output | 0.2 MiB | 0.2 MiB | 1.0 MiB | 3.4 MiB |
-| Cold start to first 200 (median, min–max) | 204 ms (178–245) | 283 ms (247–312) | 263 ms (215–306) | 644 ms (600–778) |
-| **At rest, server RSS** (median of 5) | **75.3 MiB** | 70.6 MiB | **74.2 MiB** | **141.4 MiB** |
-| At rest, server USS (private) | 23.7 MiB | 18.7 MiB | 22.4 MiB | 64.1 MiB |
-| At rest, `npm start` process beside it | 67.7 RSS / 18.1 USS | same | same | same |
-| At rest, whole tree RSS / USS | 145 / 42 MiB | 141 / 37 MiB | 144 / 41 MiB | 211 / 83 MiB |
+| Cold start to first 200 (median, min–max) | 196 ms (180–222) | 239 ms (227–273) | 230 ms (218–281) | 823 ms (655–1,090) |
+| **At rest, server RSS** (median of 5) | **75.3 MiB** | 70.5 MiB | **74.3 MiB** | **140.9 MiB** |
+| At rest, server USS (private) | 23.8 MiB | 18.7 MiB | 22.6 MiB | 84.8 MiB |
+| At rest, `npm start` process beside it | 68 RSS / 18 USS | same | same | same |
+| At rest, whole tree RSS / USS | 145 / 42 MiB | 140 / 37 MiB | 144 / 41 MiB | 211 / 104 MiB |
 | Members' page JS, gzip (raw) | 66 KiB (214) | 66 KiB | 71 KiB (228) | 135 KiB (455), 7 requests |
 | Members' page CSS, gzip | 0.2 KiB | 0.2 KiB | 7.9 KiB | 7.3 KiB |
 | axe-core violations on `/chest` | 0 | 0 | 0 | 0 |
 
+Raw output: [`lab/starter-bench/results/run-2.json`](../lab/starter-bench/results/run-2.json)
+(5 October, 23:30–23:55 UTC). A first full run 30 minutes earlier gave
+the same memory (within 0.2 MiB; C's USS 64 instead of 85 MiB, its RSS
+the same) but left the servers of earlier runs alive — a harness bug,
+since fixed: npm does not pass `SIGTERM` on to its script, so the harness
+now stops the whole tree. Its timings were noisier; this table is the
+second run's.
+
 Notes on the table:
 
 - **Cold start** is dominated by the machine's load here: A and A′ run the
-  same code, and A′ measured 80 ms slower. Started without npm (`node
+  same code, and A′ measured 40 ms slower. Started without npm (`node
   dist/server/main.js`, 3 runs each, same harness), A answered in
   120–145 ms and B in 118–152 ms. Read the column as "A and B are equal,
   C is 3× slower".
@@ -150,18 +158,18 @@ Notes on the table:
 
 ## 5. Judgement, criterion by criterion
 
-**Memory at rest.** A and B are equal (75.3 vs 74.2 MiB server RSS);
+**Memory at rest.** A and B are equal (75.3 vs 74.3 MiB server RSS);
 B carries a database driver with a live connection, the kit's
 components, ICU formatting and 6 more routes, and pays for them by bundling
-its packages and the V8 flag. C costs 66 MiB more per awake tool. Beside
+its packages and the V8 flag. C costs 66 MiB more per awake tool (61 MiB more private memory). Beside
 each of them, `npm start` keeps a 68 MiB process (§9.1).
 
-**Cold start.** A ≈ B (≈ 130 ms without npm, ≈ 200–260 ms with it);
-C 644 ms. All far under the Chest's 2 s before "Waking up…".
+**Cold start.** A ≈ B (≈ 130 ms without npm, ≈ 200–230 ms with it);
+C 823 ms. All far under the Chest's 2 s before "Waking up…".
 
 **Install and build.** A and B: about 110 MiB installed (typescript 7's
 native binary, vite/rolldown, and for B PGlite for tests), 13–15 MiB kept
-after prune, builds in 1–2 s under 270 MiB. C: 443 MiB kept, 15 s, more
+after prune, builds in about 1 s under 270 MiB. C: 443 MiB kept, 14 s, more
 than the build container.
 
 **Simplicity for an AI agent.** What each change takes:
@@ -321,7 +329,7 @@ public part.
 
 1. **`npm start` stays resident.** `build.start` must be `npm start` or
    `npm run <script>`, so every awake tool keeps an npm process: measured
-   67.7 MiB RSS, 18.1 MiB private, for every candidate — as much as the
+   68 MiB RSS, 18 MiB private, for every candidate — as much as the
    whole server of A or B. In the Chest the launcher (`node
    /chest/launcher.mjs`) is a third Node process (not measured here).
    Ask: let `build.start` be `node <file> [flags]` (an argument vector,

@@ -1,44 +1,44 @@
 {
-  "date": "2026-10-05T23:27:43.477Z",
+  "date": "2026-10-05T23:54:45.260Z",
   "node": "v24.21.0",
   "cpus": 4,
   "results": [
     {
       "name": "A (reference starter)",
       "install": {
-        "seconds": 1.8,
+        "seconds": 1.7,
         "node_modules_mib": 109.4,
         "files": 1715,
         "after_prune_mib": 12.8
       },
       "build": {
-        "seconds": 0.8,
-        "peak_pss_mib": 161.2,
-        "largest_rss_mib": 190.8,
+        "seconds": 0.9,
+        "peak_pss_mib": 185.1,
+        "largest_rss_mib": 203.4,
         "output_mib": 0.2
       },
       "cold_start_ms": {
-        "median": 204,
-        "min": 178,
-        "max": 245
+        "median": 196,
+        "min": 180,
+        "max": 222
       },
       "rest_mib": {
         "server_rss": 75.3,
-        "server_uss": 23.7,
+        "server_uss": 23.8,
         "tree_rss": 145,
-        "tree_uss": 42.1,
-        "tree_pss": 45,
+        "tree_uss": 42.2,
+        "tree_pss": 58,
         "runs": [
+          75.6,
+          76.2,
           75.3,
-          75.2,
-          75.4,
-          75.3,
-          75
+          74.8,
+          75.2
         ],
         "processes": [
-          "npm start: RSS 67.7, USS 18.1, PSS 19.6",
+          "npm start: RSS 68.1, USS 18.5, PSS 25.9",
           "sh -c node dist/server/main.js: RSS 1.9, USS 0.1, PSS 0.2",
-          "node dist/server/main.js: RSS 75.3, USS 23.7, PSS 25.1"
+          "node dist/server/main.js: RSS 75.6, USS 24.1, PSS 31.9"
         ]
       },
       "browser_kib": {
@@ -62,33 +62,33 @@
         "after_prune_mib": 12.8
       },
       "build": {
-        "seconds": 0.8,
-        "peak_pss_mib": 158.6,
-        "largest_rss_mib": 189.8,
+        "seconds": 0.9,
+        "peak_pss_mib": 166.9,
+        "largest_rss_mib": 185.1,
         "output_mib": 0.2
       },
       "cold_start_ms": {
-        "median": 283,
-        "min": 247,
-        "max": 312
+        "median": 239,
+        "min": 227,
+        "max": 273
       },
       "rest_mib": {
-        "server_rss": 70.6,
+        "server_rss": 70.5,
         "server_uss": 18.7,
-        "tree_rss": 140.5,
-        "tree_uss": 37.2,
-        "tree_pss": 39.3,
+        "tree_rss": 140.3,
+        "tree_uss": 37.3,
+        "tree_pss": 54.8,
         "runs": [
           71,
-          70.6,
-          70.6,
-          70.3,
-          70.6
+          70.5,
+          70.5,
+          70.1,
+          70.3
         ],
         "processes": [
-          "npm start: RSS 67.8, USS 18.2, PSS 19.3",
+          "npm start: RSS 67.9, USS 18.3, PSS 25.8",
           "sh -c node --optimize-for-size dist/server/main.js: RSS 1.9, USS 0.1, PSS 0.2",
-          "node --optimize-for-size dist/server/main.js: RSS 71, USS 19.2, PSS 20.2"
+          "node --optimize-for-size dist/server/main.js: RSS 71, USS 19.2, PSS 27.1"
         ]
       },
       "browser_kib": {
@@ -106,39 +106,39 @@
     {
       "name": "B (this starter)",
       "install": {
-        "seconds": 2,
+        "seconds": 1.8,
         "node_modules_mib": 109.8,
         "files": 2369,
         "after_prune_mib": 14.9
       },
       "build": {
-        "seconds": 1.5,
-        "peak_pss_mib": 235.1,
-        "largest_rss_mib": 267.1,
+        "seconds": 1.2,
+        "peak_pss_mib": 250.2,
+        "largest_rss_mib": 266.2,
         "output_mib": 1
       },
       "cold_start_ms": {
-        "median": 263,
-        "min": 215,
-        "max": 306
+        "median": 230,
+        "min": 218,
+        "max": 281
       },
       "rest_mib": {
-        "server_rss": 74.2,
-        "server_uss": 22.4,
+        "server_rss": 74.3,
+        "server_uss": 22.6,
         "tree_rss": 144,
         "tree_uss": 40.9,
-        "tree_pss": 42.7,
+        "tree_pss": 58.1,
         "runs": [
-          74.2,
-          74.2,
           74.3,
-          74.2,
+          74.3,
+          74.4,
+          74.4,
           74.3
         ],
         "processes": [
-          "npm start: RSS 67.9, USS 18.3, PSS 19.3",
+          "npm start: RSS 67.7, USS 18.1, PSS 25.7",
           "sh -c node --optimize-for-size dist/server/main.js: RSS 1.9, USS 0.1, PSS 0.2",
-          "node --optimize-for-size dist/server/main.js: RSS 74.2, USS 22.3, PSS 23.3"
+          "node --optimize-for-size dist/server/main.js: RSS 74.3, USS 22.6, PSS 32"
         ]
       },
       "browser_kib": {
@@ -156,39 +156,39 @@
     {
       "name": "C (lab/template, Next.js)",
       "install": {
-        "seconds": 7.9,
+        "seconds": 9.4,
         "node_modules_mib": 504.2,
         "files": 11635,
         "after_prune_mib": 442.6
       },
       "build": {
-        "seconds": 15.4,
-        "peak_pss_mib": 882.8,
-        "largest_rss_mib": 917.9,
+        "seconds": 13.7,
+        "peak_pss_mib": 894.2,
+        "largest_rss_mib": 907.4,
         "output_mib": 3.4
       },
       "cold_start_ms": {
-        "median": 644,
-        "min": 600,
-        "max": 778
+        "median": 823,
+        "min": 655,
+        "max": 1090
       },
       "rest_mib": {
-        "server_rss": 141.4,
-        "server_uss": 64.1,
+        "server_rss": 140.9,
+        "server_uss": 84.8,
         "tree_rss": 211.2,
-        "tree_uss": 82.5,
-        "tree_pss": 85.8,
+        "tree_uss": 103.7,
+        "tree_pss": 122.8,
         "runs": [
-          140.8,
-          141.4,
-          141.1,
+          140,
           141.7,
-          142
+          141.5,
+          140.8,
+          140.9
         ],
         "processes": [
-          "npm start: RSS 67.6, USS 18.1, PSS 18.8",
+          "npm start: RSS 68, USS 18.4, PSS 25.6",
           "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1: RSS 1.9, USS 0.1, PSS 0.2",
-          "next-server (v16.3.6): RSS 140.8, USS 63.5, PSS 66.4"
+          "next-server (v16.3.6): RSS 140, USS 84, PSS 93.1"
         ]
       },
       "browser_kib": {
