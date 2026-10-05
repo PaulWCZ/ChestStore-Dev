@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as calendar from "../calendar.js";
+import * as calendarRules from "../calendar-rules.js";
 import { CapabilityNotGranted, ChestError } from "../../src/errors.js";
 import type { Member } from "../member.js";
 import { fakeChest, withMember } from "../testing.js";
@@ -12,29 +13,29 @@ const octets = (line: string) => Buffer.byteLength(line);
 
 test("TEXT values are escaped as RFC 5545 §3.3.11 says", () => {
   // The RFC's own example, a DESCRIPTION over three lines.
-  assert.equal(calendar.escapeText("Project XYZ Final Review\nConference Room - 3B\nCome Prepared."), "Project XYZ Final Review\\nConference Room - 3B\\nCome Prepared.");
-  assert.equal(calendar.escapeText("a;b,c\\d"), "a\\;b\\,c\\\\d");
-  assert.equal(calendar.escapeText("one\r\ntwo\rthree"), "one\\ntwo\\nthree");
+  assert.equal(calendarRules.escapeText("Project XYZ Final Review\nConference Room - 3B\nCome Prepared."), "Project XYZ Final Review\\nConference Room - 3B\\nCome Prepared.");
+  assert.equal(calendarRules.escapeText("a;b,c\\d"), "a\\;b\\,c\\\\d");
+  assert.equal(calendarRules.escapeText("one\r\ntwo\rthree"), "one\\ntwo\\nthree");
   // Other control characters could end a line early in a weak reader.
-  assert.equal(calendar.escapeText("bell\u0007 tab\t"), "bell tab");
+  assert.equal(calendarRules.escapeText("bell\u0007 tab\t"), "bell tab");
 });
 
 test("content lines fold at 75 octets, never inside a character, and unfold back (RFC 5545 §3.1)", () => {
   // The RFC's example of a folded line unfolds to one line.
-  assert.equal(calendar.unfold("DESCRIPTION:This is a lo\r\n ng description\r\n  that exists on a long line."), "DESCRIPTION:This is a long description that exists on a long line.");
-  assert.equal(calendar.foldLine("SUMMARY:short"), "SUMMARY:short");
+  assert.equal(calendarRules.unfold("DESCRIPTION:This is a lo\r\n ng description\r\n  that exists on a long line."), "DESCRIPTION:This is a long description that exists on a long line.");
+  assert.equal(calendarRules.foldLine("SUMMARY:short"), "SUMMARY:short");
   const long = "DESCRIPTION:" + "Réunion d'équipe — 会議 🗓️ ".repeat(20);
-  const folded = calendar.foldLine(long);
+  const folded = calendarRules.foldLine(long);
   const lines = folded.split("\r\n");
   assert.ok(lines.length > 5);
   assert.ok(lines.every(l => octets(l) <= 75), "every line is 75 octets at most");
   assert.ok(lines.slice(1).every(l => l.startsWith(" ")), "a continuation starts with one space");
-  assert.equal(calendar.unfold(folded), long);
+  assert.equal(calendarRules.unfold(folded), long);
   // Exactly 75 octets stays on one line; 76 folds.
-  assert.equal(calendar.foldLine("X".repeat(75)).includes("\r\n"), false);
-  assert.equal(calendar.foldLine("X".repeat(76)), "X".repeat(75) + "\r\n X");
+  assert.equal(calendarRules.foldLine("X".repeat(75)).includes("\r\n"), false);
+  assert.equal(calendarRules.foldLine("X".repeat(76)), "X".repeat(75) + "\r\n X");
   // A three-octet character that would cross the limit goes whole to the next line.
-  const edge = calendar.foldLine("X".repeat(74) + "é" + "€");
+  const edge = calendarRules.foldLine("X".repeat(74) + "é" + "€");
   assert.equal(edge.split("\r\n")[0], "X".repeat(74));
 });
 
@@ -46,7 +47,7 @@ test("ics writes UTC times, whole days with an exclusive end, a stable DTSTAMP a
     { uid: "x@atelier.test", stamp, title: "Due", days: { first: "2026-12-31", last: "2026-12-31" }, busy: false },
   ], { name: "Chest — Atelier", refresh: "PT1H" });
   assert.ok(text.endsWith("\r\n") && !/[^\r]\n/u.test(text), "CRLF line ends only");
-  const lines = calendar.unfold(text).split("\r\n");
+  const lines = calendarRules.unfold(text).split("\r\n");
   assert.equal(lines[0], "BEGIN:VCALENDAR");
   assert.ok(lines.includes("VERSION:2.0") && lines.includes("PRODID:-//Argentic//Chest//EN"));
   assert.ok(lines.includes("REFRESH-INTERVAL;VALUE=DURATION:PT1H") && lines.includes("X-WR-CALNAME:Chest — Atelier"));
@@ -104,25 +105,25 @@ test("events go to their members' feeds, each in its reader's language; the same
     const put = await calendar.put({ key: "booking:981", members: [camille.id, hugo.id, nora.id], title: { en: "Room booked: Green room", fr: "Salle réservée : Salle verte" }, start: at(3, 7), end: at(3, 8), location: "2nd floor", path: "/chest/bookings/981" });
     assert.deepEqual(put, { key: "booking:981", members: [camille.id, hugo.id], skipped: [nora.id] }, "Nora does not have the tool");
     await calendar.put({ key: "desk:5", members: [camille.id], title: { en: "Office — desk D-12", fr: "Au bureau — poste D-12" }, days: { first: at(4, 0).slice(0, 10), last: at(4, 0).slice(0, 10) }, busy: false });
-    const french = calendar.unfold(chest.feed(camille.id));
+    const french = calendarRules.unfold(chest.feed(camille.id));
     assert.ok(french.includes("SUMMARY:Salle réservée : Salle verte") && french.includes("SUMMARY:Au bureau — poste D-12"));
     assert.ok(french.includes("URL:https://tool-chest.chest.test/chest/bookings/981") && french.includes("CATEGORIES:Rooms") && french.includes("X-WR-CALNAME:Chest — Atelier Martin"));
-    const english = calendar.unfold(chest.feed(hugo.id));
+    const english = calendarRules.unfold(chest.feed(hugo.id));
     assert.ok(english.includes("SUMMARY:Room booked: Green room") && !english.includes("desk"), "Hugo sees his event only, in English");
     assert.equal(chest.feed(nora.id).includes("BEGIN:VEVENT"), false);
     // The same key replaces: new time, Hugo left out, sequence up.
     await calendar.put({ key: "booking:981", members: [camille.id], title: "Green room", start: at(3, 9), end: at(3, 10) });
     assert.equal(chest.calendar.get("booking:981")?.sequence, 1);
-    assert.ok(calendar.unfold(chest.feed(camille.id)).includes("SEQUENCE:1"));
+    assert.ok(calendarRules.unfold(chest.feed(camille.id)).includes("SEQUENCE:1"));
     assert.equal(chest.feed(hugo.id).includes("BEGIN:VEVENT"), false);
     // A title of one text reads the same in every language.
-    assert.ok(calendar.unfold(chest.feed(camille.id)).includes("SUMMARY:Green room"));
+    assert.ok(calendarRules.unfold(chest.feed(camille.id)).includes("SUMMARY:Green room"));
     const listed = await calendar.list();
     assert.deepEqual(listed.events.map(e => e.key), ["booking:981", "desk:5"]);
     assert.equal(listed.next, null);
     assert.equal(await calendar.remove("booking:981"), true);
     assert.equal(await calendar.remove("booking:981"), false, "removing again is harmless");
-    assert.equal(calendar.unfold(chest.feed(camille.id)).includes("Green room"), false);
+    assert.equal(calendarRules.unfold(chest.feed(camille.id)).includes("Green room"), false);
     // A member who loses the tool loses its events from their feed.
     chest.members.splice(0, 1);
     assert.equal(chest.feed(camille.id).includes("BEGIN:VEVENT"), false);
@@ -144,7 +145,7 @@ test("each member's feed is served at a secret address, replaced on demand; the 
     assert.equal(served.headers.get("content-type"), "text/calendar; charset=utf-8");
     assert.equal(served.headers.get("referrer-policy"), "no-referrer");
     const body = await served.text();
-    assert.ok(calendar.unfold(body).includes("SUMMARY:Absente") && body.includes("CLASS:PRIVATE"));
+    assert.ok(calendarRules.unfold(body).includes("SUMMARY:Absente") && body.includes("CLASS:PRIVATE"));
     const again = await fetch(local(address), { headers: { "If-None-Match": served.headers.get("etag")! } });
     assert.equal(again.status, 304);
     const replaced = chest.newFeedUrl(camille.id);
@@ -152,8 +153,8 @@ test("each member's feed is served at a secret address, replaced on demand; the 
     assert.equal((await fetch(local(address))).status, 404, "the old address stops working");
     assert.equal((await fetch(local(replaced))).status, 200);
     // The page: only for the member the front signs in.
-    assert.equal((await fetch(chest.api + calendar.page)).status, 404);
-    const page = await fetch(withMember(new Request(chest.api + calendar.page), camille));
+    assert.equal((await fetch(chest.api + calendarRules.page)).status, 404);
+    const page = await fetch(withMember(new Request(chest.api + calendarRules.page), camille));
     const html = await page.text();
     assert.ok(html.includes("Ajoutez votre calendrier Chest") && html.includes(replaced) && html.includes("webcal://"));
     const renewed = await fetch(withMember(new Request(chest.api + "/_chest/calendar/new", { method: "POST" }), camille), { redirect: "manual" });
@@ -181,9 +182,9 @@ test("without the capability, or on a Chest without the calendar, put says so", 
   }
 });
 
-// Proposal (studio.15): Tasks' first sync put one event per call against
+// Proposal (0.3.0-studio.15): Tasks' first sync put one event per call against
 // 600 writes a minute; putMany sends 100 a call, each checked first.
-// studio.16: answered event by event — one wrong event holds none of the
+// 0.3.0-studio.16: answered event by event — one wrong event holds none of the
 // others back (Rooms, Clients and Tasks put a refused batch again one by
 // one).
 test("putMany: many events in few calls, answered event by event in the order given", async () => {
@@ -206,7 +207,7 @@ test("putMany: many events in few calls, answered event by event in the order gi
   }
 });
 
-test("putMany (studio.16): a wrong event, a bad key or a key given twice is refused alone, with its reason; the rest is put", async () => {
+test("putMany (0.3.0-studio.16): a wrong event, a bad key or a key given twice is refused alone, with its reason; the rest is put", async () => {
   const chest = await fakeChest({ members: [camille], capabilities: ["calendar"] });
   try {
     const one = (n: number | string) => ({ key: `e:${n}`, members: [camille.id], title: "x", days: { first: "2026-10-12", last: "2026-10-12" } });

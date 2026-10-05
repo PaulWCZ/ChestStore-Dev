@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
 import * as webhooks from "../webhooks.js";
+import * as webhooksRules from "../webhooks-rules.js";
 import { fakeChest } from "../testing.js";
 
 // A made-up address in Slack's shape, built in parts so secret scanners do not take it for a real one.
@@ -37,39 +38,39 @@ test("an address is checked before anything is sent: https, no credentials, no p
     [slack.replace("hooks.slack.com", "evil.example.com"), "slack"],
     ["https://outlook.office.com/webhook/abc", "teams"],
   ] as const) assert.ok(webhooks.checkUrl(url, kind).length > 0, `${url} (${kind}) is refused`);
-  assert.equal(webhooks.isPublicAddress("93.184.215.14"), true);
-  assert.equal(webhooks.isPublicAddress("2606:2800:21f:cb07:6820:80da:af6b:8b2c"), true);
-  for (const a of ["0.0.0.0", "100.64.1.1", "172.20.0.1", "192.168.1.1", "198.18.0.1", "224.0.0.1", "fd00::1", "fe80::1", "::ffff:7f00:1", "64:ff9b::a00:1", "not an address"]) assert.equal(webhooks.isPublicAddress(a), false, a);
-  assert.equal(webhooks.shownUrl("https://a.example.com/in?token=secret", "generic"), "https://a.example.com/in?…");
-  assert.equal(webhooks.shownUrl(slack, "slack"), "https://hooks.slack.com/…");
-  assert.deepEqual(webhooks.checkManifest({ max: 200 }), []);
-  assert.equal(webhooks.checkManifest({ max: 0 }).length, 1);
-  assert.equal(webhooks.checkManifest({ max: 5, extra: 1 }).length, 1);
+  assert.equal(webhooksRules.isPublicAddress("93.184.215.14"), true);
+  assert.equal(webhooksRules.isPublicAddress("2606:2800:21f:cb07:6820:80da:af6b:8b2c"), true);
+  for (const a of ["0.0.0.0", "100.64.1.1", "172.20.0.1", "192.168.1.1", "198.18.0.1", "224.0.0.1", "fd00::1", "fe80::1", "::ffff:7f00:1", "64:ff9b::a00:1", "not an address"]) assert.equal(webhooksRules.isPublicAddress(a), false, a);
+  assert.equal(webhooksRules.shownUrl("https://a.example.com/in?token=secret", "generic"), "https://a.example.com/in?…");
+  assert.equal(webhooksRules.shownUrl(slack, "slack"), "https://hooks.slack.com/…");
+  assert.deepEqual(webhooksRules.checkManifest({ max: 200 }), []);
+  assert.equal(webhooksRules.checkManifest({ max: 0 }).length, 1);
+  assert.equal(webhooksRules.checkManifest({ max: 5, extra: 1 }).length, 1);
 });
 
 test("Slack and Teams get their own shapes; a generic receiver gets the event, signed", () => {
   const message = { id: "whd_aaaaaaaaaaaaaaaaaaaaaaaaaa", event: "incident.created", text: "Checkout <down> & slow", data: { incident: 7 }, key: "incident:7", tool: "status", createdAt: "2026-09-29T10:00:00.000Z" };
-  assert.deepEqual(JSON.parse(webhooks.format("slack", message)), { text: "Checkout &lt;down&gt; &amp; slow" });
-  const card = JSON.parse(webhooks.format("teams", message)) as { type: string; attachments: { contentType: string; contentUrl: null; content: { type: string; body: { text: string }[] } }[] };
+  assert.deepEqual(JSON.parse(webhooksRules.format("slack", message)), { text: "Checkout &lt;down&gt; &amp; slow" });
+  const card = JSON.parse(webhooksRules.format("teams", message)) as { type: string; attachments: { contentType: string; contentUrl: null; content: { type: string; body: { text: string }[] } }[] };
   assert.equal(card.type, "message");
   assert.equal(card.attachments[0]!.contentType, "application/vnd.microsoft.card.adaptive");
   assert.equal(card.attachments[0]!.content.type, "AdaptiveCard");
   assert.equal(card.attachments[0]!.content.body[0]!.text, "Checkout <down> & slow");
-  assert.deepEqual(JSON.parse(webhooks.format("generic", message)), { id: message.id, event: "incident.created", text: message.text, data: { incident: 7 }, key: "incident:7", tool: "status", created_at: message.createdAt });
+  assert.deepEqual(JSON.parse(webhooksRules.format("generic", message)), { id: message.id, event: "incident.created", text: message.text, data: { incident: 7 }, key: "incident:7", tool: "status", created_at: message.createdAt });
 
   // The receiver's side, and the same check written by hand (the README's snippet).
   const secret = "whsec_" + "a".repeat(43);
-  const body = webhooks.format("generic", message);
-  const header = webhooks.sign(secret, body, 1_790_000_000);
+  const body = webhooksRules.format("generic", message);
+  const header = webhooksRules.sign(secret, body, 1_790_000_000);
   assert.match(header, /^t=1790000000,v1=[0-9a-f]{64}$/u);
   assert.equal(header.split("v1=")[1], createHmac("sha256", secret).update(`1790000000.${body}`).digest("hex"));
-  assert.equal(webhooks.verifySignature({ secret, header, body, now: 1_790_000_100 }), true);
-  assert.equal(webhooks.verifySignature({ secret, header, body: body + " ", now: 1_790_000_100 }), false);
-  assert.equal(webhooks.verifySignature({ secret, header, body, now: 1_790_000_400 }), false, "older than five minutes");
-  assert.equal(webhooks.verifySignature({ secret: secret.replace("a", "b"), header, body, now: 1_790_000_000 }), false);
+  assert.equal(webhooksRules.verifySignature({ secret, header, body, now: 1_790_000_100 }), true);
+  assert.equal(webhooksRules.verifySignature({ secret, header, body: body + " ", now: 1_790_000_100 }), false);
+  assert.equal(webhooksRules.verifySignature({ secret, header, body, now: 1_790_000_400 }), false, "older than five minutes");
+  assert.equal(webhooksRules.verifySignature({ secret: secret.replace("a", "b"), header, body, now: 1_790_000_000 }), false);
   // During a rotation, either secret verifies.
-  const both = webhooks.sign(["whsec_" + "n".repeat(43), secret], body, 1_790_000_000);
-  assert.equal(webhooks.verifySignature({ secret, header: both, body, now: 1_790_000_000 }), true);
+  const both = webhooksRules.sign(["whsec_" + "n".repeat(43), secret], body, 1_790_000_000);
+  assert.equal(webhooksRules.verifySignature({ secret, header: both, body, now: 1_790_000_000 }), true);
 });
 
 test("a generic target is pinged, then receives signed deliveries, once per key", async () => {
@@ -78,14 +79,14 @@ test("a generic target is pinged, then receives signed deliveries, once per key"
   try {
     const { id, secret, target } = await webhooks.add({ url: "https://hooks.zapier.com/hooks/catch/1/abc/?t=x", kind: "generic", label: " Zapier — answers ", owner });
     assert.match(id, webhooks.targetIdPattern);
-    assert.match(secret!, webhooks.secretPattern);
+    assert.match(secret!, webhooksRules.secretPattern);
     assert.deepEqual([target.label, target.owner, target.url, target.state, target.status], ["Zapier — answers", owner, "https://hooks.zapier.com/hooks/catch/1/abc/?…", "active", null]);
     // The ping: signed, event chest.ping, with a challenge.
     assert.equal(received.length, 1);
     const ping = JSON.parse(received[0]!.body) as { event: string; data: { challenge: string } };
     assert.equal(ping.event, "chest.ping");
     assert.ok(ping.data.challenge.length > 10);
-    assert.ok(webhooks.verifySignature({ secret: secret!, header: received[0]!.headers["Chest-Webhook-Signature"], body: received[0]!.body }));
+    assert.ok(webhooksRules.verifySignature({ secret: secret!, header: received[0]!.headers["Chest-Webhook-Signature"], body: received[0]!.body }));
 
     const sent = await webhooks.send(id, { event: "form.answered", text: "New answer to Contact", data: { form: 12, answer: 981 }, key: "answer:981" });
     assert.equal(sent.deliveries.length, 1);
@@ -93,7 +94,7 @@ test("a generic target is pinged, then receives signed deliveries, once per key"
     const last = received.at(-1)!;
     assert.equal(last.headers["Chest-Webhook-Id"], sent.deliveries[0]!.id);
     assert.equal(last.headers["Chest-Webhook-Event"], "form.answered");
-    assert.ok(webhooks.verifySignature({ secret: secret!, header: last.headers["Chest-Webhook-Signature"], body: last.body }));
+    assert.ok(webhooksRules.verifySignature({ secret: secret!, header: last.headers["Chest-Webhook-Signature"], body: last.body }));
     assert.deepEqual((JSON.parse(last.body) as { data: unknown }).data, { form: 12, answer: 981 });
     // The same key: the same delivery, nothing sent again.
     const again = await webhooks.send([id], { event: "form.answered", text: "New answer to Contact", data: { form: 12, answer: 981 }, key: "answer:981" });
@@ -108,7 +109,7 @@ test("a generic target is pinged, then receives signed deliveries, once per key"
     // A rotated secret: both sign for a while.
     const fresh = await webhooks.rotateSecret(id);
     await webhooks.send(id, { event: "form.answered", text: "Another", key: "answer:982" });
-    for (const s of [fresh, secret!]) assert.ok(webhooks.verifySignature({ secret: s, header: received.at(-1)!.headers["Chest-Webhook-Signature"], body: received.at(-1)!.body }));
+    for (const s of [fresh, secret!]) assert.ok(webhooksRules.verifySignature({ secret: s, header: received.at(-1)!.headers["Chest-Webhook-Signature"], body: received.at(-1)!.body }));
     // Removed: skipped as unknown.
     assert.equal(await webhooks.remove(id), true);
     assert.equal(await webhooks.remove(id), false);
@@ -222,9 +223,9 @@ test("a retry left without an answer ends failed after its eighth attempt, 24 ho
   }
 });
 
-// Proposal (studio.16): Support's Settings shows "Send new tickets to
+// Proposal (0.3.0-studio.16): Support's Settings shows "Send new tickets to
 // Slack" only when the Chest will deliver, before anyone pastes an address.
-test("available (studio.16): whether the Chest would deliver notices, how many addresses the tool has and may have", async () => {
+test("available (0.3.0-studio.16): whether the Chest would deliver notices, how many addresses the tool has and may have", async () => {
   const fake = await fakeChest({ webhooks: { max: 3 } });
   try {
     assert.deepEqual(await webhooks.available(), { ok: true, reason: null, targets: 0, max: 3 });

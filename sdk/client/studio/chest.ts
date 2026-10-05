@@ -303,7 +303,8 @@ export function forgetTheme(): void {
 // everyone (due today, the company's day). What concerns one person — the
 // whole days of their leave, "today" on their own page — is their day, in
 // member.timeZone. A zone this runtime does not know reads as the Chest's
-// (a member's zone must never break their page).
+// (a member's zone must never break their page), and as UTC outside a
+// Chest: todayIn never throws for the zone it is given.
 
 function knownZone(zone: string): boolean {
   if (typeof zone !== "string" || !timeZonePattern.test(zone)) return false;
@@ -315,10 +316,20 @@ function knownZone(zone: string): boolean {
   }
 }
 
+// The Chest's zone, or UTC outside a Chest: todayIn never throws for a
+// zone it does not know.
+function chestZoneOrUtc(): string {
+  try {
+    return official.timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
 function todayIn(zone: string, at: Date | number = Date.now()): string {
   const instant = typeof at === "number" ? new Date(at) : at;
   if (Number.isNaN(instant.getTime())) throw new RangeError("todayIn() needs a valid date");
-  const name = knownZone(zone) ? zone : official.timeZone;
+  const name = knownZone(zone) ? zone : chestZoneOrUtc();
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: name, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(instant).map(p => [p.type, p.value]));
   return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
 }

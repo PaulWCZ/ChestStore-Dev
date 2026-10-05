@@ -8,8 +8,9 @@ import type { Member } from "../member.js";
 import * as notifications from "../notifications.js";
 import { fakeChest } from "../testing.js";
 import * as webhooks from "../webhooks.js";
+import * as webhooksRules from "../webhooks-rules.js";
 
-// studio.15: every key a tool gives the Chest, reviewed after the mail bug
+// 0.3.0-studio.15: every key a tool gives the Chest, reviewed after the mail bug
 // (a key cut to 64 characters lost its recipient). Keys that make a retry
 // harmless (mail, events.publish, webhooks.send) take any length and are
 // sent whole or as their digest, never cut; keys that name a thing for as
@@ -69,7 +70,7 @@ test("webhooks.send: a long key is kept whole (hashed); the same key for another
     const b = await webhooks.send(target.id, { event: "ticket.new", text: "New ticket #2", key: long("2") });
     assert.notEqual(a.deliveries[0]?.id, b.deliveries[0]?.id);
     assert.equal((await webhooks.send(target.id, { event: "ticket.new", text: "New ticket #1", key: long("1") })).deliveries[0]?.id, a.deliveries[0]?.id);
-    assert.deepEqual(webhooks.checkMessage({ event: "ticket.new", text: "x", key: long("3") }), []);
+    assert.deepEqual(webhooksRules.checkMessage({ event: "ticket.new", text: "x", key: long("3") }), []);
     await assert.rejects(webhooks.send(target.id, { event: "ticket.replied", text: "Reply", key: long("1") }), code("key_conflict"));
     assert.equal(chest.webhooks.deliveries.length, 2);
     assert.equal(chest.webhooks.deliveries[0]?.key, idempotencyKey(long("1")));
@@ -83,7 +84,7 @@ test("calendar and notifications keys name a thing: beyond 64 they are refused, 
   try {
     const event = { members: [camille.id], title: "Due", days: { first: "2026-10-12", last: "2026-10-12" } };
     await assert.rejects(calendar.put({ ...event, key: long("1") }), code("invalid_key"));
-    // putMany (studio.16) answers it event by event: refused, not cut.
+    // putMany (0.3.0-studio.16) answers it event by event: refused, not cut.
     assert.deepEqual((await calendar.putMany([{ ...event, key: long("1") }])).map(r => (r.ok ? "ok" : r.reason)), ["invalid_key"]);
     await assert.rejects(calendar.remove(long("1")), code("invalid_key"));
     assert.equal(chest.calendar.size, 0, "nothing was put under a cut key");

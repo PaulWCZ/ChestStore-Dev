@@ -5,12 +5,12 @@ import { groupIdPattern, member as memberOf, memberIdPattern, type Member } from
 import { forget } from "../src/members.js";
 import { eventChannel, sign } from "../src/signed.js";
 import { fakeChest as officialFakeChest, signAssertion as officialSignAssertion, withMember as officialWithMember, type AssertionOptions, type FakeChest as OfficialFakeChest, type FakeChestOptions as OfficialFakeChestOptions, type FakeEvent as OfficialFakeEvent } from "../src/testing.js";
-import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calendarKeyPattern, limits as calendarLimits, type CalendarEvent, type KeptEvent } from "./calendar.js";
+import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calendarKeyPattern, limits as calendarLimits, type CalendarEvent, type KeptEvent } from "./calendar-rules.js";
 import { forgetTheme, toolNamePattern } from "./chest.js";
 import { occurredAtOf, type GroupChanged, type GroupRemoved } from "./events.js";
 import { threadTag, type MailPreference } from "./mail.js";
 import { checkChannel, mailChannel, webhooksChannel } from "./signed.js";
-import { checkInput as checkWebhookInput, checkMessage as checkWebhookMessage, deliveryIdPattern as webhookDeliveryPattern, format as formatWebhook, isPublicAddress, keyPattern as wireKeyPattern, limits as webhookLimits, shownUrl, sign as signWebhook, targetIdPattern as webhookTargetPattern, type WebhookDelivery, type WebhookKind, type WebhookTarget } from "./webhooks.js";
+import { checkInput as checkWebhookInput, checkMessage as checkWebhookMessage, deliveryIdPattern as webhookDeliveryPattern, format as formatWebhook, isPublicAddress, keyPattern as wireKeyPattern, limits as webhookLimits, shownUrl, sign as signWebhook, targetIdPattern as webhookTargetPattern, type WebhookDelivery, type WebhookKind, type WebhookTarget } from "./webhooks-rules.js";
 
 // @argentic/chest-sdk/testing as the studio publishes it: 0.4.1's fake
 // Chest, unchanged, with the fakes of the studio's proposals layered on it.
@@ -267,15 +267,26 @@ function completed<M extends FakeMember>(given: M, language = process.env["CHEST
   return { ...given, language: given.language ?? language, timeZone: given.timeZone ?? timeZone } as StudioMember;
 }
 
+// The groups of the running fake Chest that do not give the tool
+// (FakeGroup.grants: false): a real Chest never puts them in a member's
+// assertion, so signAssertion leaves them out while a fake runs.
+let hiddenGroups: () => Set<string> = () => new Set();
+const asserted = (member: FakeMember): StudioMember => {
+  const full = completed(member);
+  const hidden = hiddenGroups();
+  return hidden.size === 0 ? full : { ...full, groups: full.groups.filter(g => !hidden.has(g)) };
+};
+
 // signAssertion and withMember are 0.4.1's, for a member whose language and
 // zone may be left out (the Chest's, CHEST_LANGUAGE and CHEST_TIME_ZONE;
-// "en" and "UTC" outside a fake Chest). The assertion carries exactly
-// 0.4.1's claims.
+// "en" and "UTC" outside a fake Chest), and whose groups that do not give
+// the tool (while a fake runs) are left out as the Chest leaves them out.
+// The assertion carries exactly 0.4.1's claims.
 export function signAssertion(member: FakeMember, options: AssertionOptions = {}): string {
-  return officialSignAssertion(completed(member), options);
+  return officialSignAssertion(asserted(member), options);
 }
 export function withMember<R extends Request | IncomingMessage>(request: R, member: FakeMember, options: AssertionOptions = {}): R {
-  return officialWithMember(request, completed(member), options);
+  return officialWithMember(request, asserted(member), options);
 }
 
 // 0.4.1's types and helpers that the studio does not redefine.
@@ -374,7 +385,7 @@ async function body(request: IncomingMessage, limit: number): Promise<Buffer | n
   return Buffer.concat(chunks);
 }
 
-// ---- The declared network (studio.15) ----------------------------------------
+// ---- The declared network (0.3.0-studio.15) ----------------------------------------
 //
 // 0.4 declares a tool's hosts in chest.json ("network") and gives the tool
 // the Chest's egress proxy; 0.4.1's fake has nothing for it: this plays it.
@@ -476,6 +487,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const upstream = official.api;
   let groups: FakeGroup[] = [...(givenGroups ?? [])];
   const granting = () => groups.filter(g => g.grants !== false);
+  const hiding = () => new Set(groups.filter(g => g.grants === false).map(g => g.id));
+  hiddenGroups = hiding;
   Object.defineProperty(official, "groups", { get: () => granting().map(g => ({ id: g.id, name: g.name, members: g.members })), set: (value: FakeGroup[]) => void (groups = value), configurable: true, enumerable: true });
   const tool = official.tool, token = official.token;
   const files = official.files;
@@ -676,7 +689,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       const raw = await body(request, 64 << 10);
       try { const v = JSON.parse(raw?.toString() ?? "") as unknown; return v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null; } catch { return null; }
     };
-    // Proposal (studio.16): whether the Chest would deliver, without sending.
+    // Proposal (0.3.0-studio.16): whether the Chest would deliver, without sending.
     if (url.pathname === "/webhooks/status" && request.method === "GET") return send(response, 200, { state: chest.delivery.webhooks, targets: hooks.targets.length, max: hookOptions.max });
     // Paused by the owner: nothing is added or sent.
     if (chest.delivery.webhooks === "suspended" && request.method === "POST" && (url.pathname === "/webhooks" || url.pathname === "/webhooks/send")) return send(response, 409, { error: "suspended" });
@@ -707,7 +720,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       if (!wireKeyPattern.test(key)) return send(response, 400, { error: "invalid_message" });
       const fresh = (d: FakeWebhookDelivery | undefined) => d !== undefined && now - Date.parse(d.createdAt) < 86_400_000;
       // A key names one delivery per target: the same key for another
-      // event is refused, nothing sent (studio.15).
+      // event is refused, nothing sent (0.3.0-studio.15).
       if ((ids as string[]).some(id => { const d = hookKeys.get(id + "\u0000" + key); return fresh(d) && d!.event !== message["event"]; })) return send(response, 409, { error: "key_conflict" });
       const plan = [...new Set(ids as string[])].map(id => {
         const t = hooks.targets.find(x => x.id === id);
@@ -803,7 +816,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const emits = new Set(options.emits ?? []);
   const publishedKeys = new Map<string, { id: string; fingerprint: string; at: number }>();
   async function eventsRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-    // Proposal (studio.16): which tools receive a type this tool emits —
+    // Proposal (0.3.0-studio.16): which tools receive a type this tool emits —
     // those an admin linked (chest.linked).
     if (url.pathname === "/events/receivers") {
       if (request.method !== "GET") return send(response, 404, { error: "not_found" });
@@ -818,7 +831,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const type = e["type"], data = e["data"], key = e["key"], occurred = e["occurred_at"];
     if (typeof type !== "string" || !emits.has(type) || data === null || typeof data !== "object" || Array.isArray(data)) return send(response, 400, { error: "invalid_event" });
     if (key !== undefined && (typeof key !== "string" || !wireKeyPattern.test(key))) return send(response, 400, { error: "invalid_event" });
-    // Proposal (studio.16): when it happened, within the last 24 hours and
+    // Proposal (0.3.0-studio.16): when it happened, within the last 24 hours and
     // not ahead beyond a minute — checked again against the Chest's clock.
     let occurredAt: string | undefined;
     if (occurred !== undefined) {
@@ -826,7 +839,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     }
     // The same key within 24 hours is the same event — for the same type,
     // data and occurredAt only: another event under it is refused, never
-    // answered with the first (studio.15).
+    // answered with the first (0.3.0-studio.15).
     const fingerprint = JSON.stringify([type, data, occurredAt ?? null]);
     const first = typeof key === "string" ? publishedKeys.get(key) : undefined;
     const receiving = () => (chest.linked[type] ? new Set(chest.linked[type]).size : options.receivers ?? 0);
@@ -842,18 +855,18 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const domain = mailOptions.domain ?? "company.test";
   const mailboxes = new Set(mailOptions.mailboxes ?? []);
   const suppressed = new Set((mailOptions.suppressed ?? []).map(a => a.toLowerCase()));
-  // What a key answered, for 24 hours, and who it went to (studio.15).
+  // What a key answered, for 24 hours, and who it went to (0.3.0-studio.15).
   const sentKeys = new Map<string, { answer: Record<string, unknown>; recipients: string; at: number }>();
   const mailDay: Window = { start: 0, count: 0 };
   const newId = (prefix: string) => prefix + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");
   async function mailRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
     if (!capabilities.has("mail")) return send(response, 404, { error: "not_found" });
-    // Proposal (studio.16): whether the Chest would deliver, without sending.
+    // Proposal (0.3.0-studio.16): whether the Chest would deliver, without sending.
     if (url.pathname === "/mail/status" && request.method === "GET") {
       const left = Math.max(0, (mailOptions.perDay ?? 500) - (live(mailDay, 86_400_000, Date.now()) ? mailDay.count : 0));
       return send(response, 200, { send: chest.delivery.mail, remaining_today: left });
     }
-    // Proposal (studio.15): a member's email preference, read-only.
+    // Proposal (0.3.0-studio.15): a member's email preference, read-only.
     const preference = /^\/mail\/preferences\/([^/]+)$/u.exec(url.pathname);
     if (request.method === "GET" && preference) {
       if (!memberIdPattern.test(preference[1]!)) return send(response, 400, { error: "invalid_id" });
@@ -882,7 +895,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     // The same key within 24 hours answers the first message — for the
     // same recipients only: a key reused for others (a key cut by the
     // tool, which lost the recipient) is refused, nothing sent, never
-    // answered with the first message (studio.15).
+    // answered with the first message (0.3.0-studio.15).
     const recipientsOf = (list: unknown) => (Array.isArray(list) ? list : []).map(r => (typeof r === "string" ? r.toLowerCase() : "member:" + String((r as { member?: unknown } | null)?.member)));
     const fingerprint = JSON.stringify([...recipientsOf(m["to"]), ...recipientsOf(m["cc"])].sort());
     const first = typeof key === "string" ? sentKeys.get(key) : undefined;
@@ -904,7 +917,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const toAll = resolve(m["to"]), ccAll = resolve(m["cc"] ?? []);
     if (!toAll || !ccAll || toAll.length < 1) return send(response, 400, { error: "invalid_address" });
     if (m["mailbox"] !== undefined && !mailboxes.has(String(m["mailbox"]))) return send(response, 400, { error: "invalid_mailbox" });
-    // Proposal (studio.15): the members' email preference, unless the
+    // Proposal (0.3.0-studio.15): the members' email preference, unless the
     // message is transactional.
     const transactional = m["transactional"] === true;
     const held = new Map<string, "none" | "digest">();
@@ -962,7 +975,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       const keys = [...chest.calendar.keys()].filter(k => k > after).sort();
       return send(response, 200, { events: keys.slice(0, limit).map(k => chest.calendar.get(k)), next: keys.length > limit ? keys[limit - 1]! : null });
     }
-    // Proposal (studio.15, per event since studio.16): a batch of 1 to 100
+    // Proposal (0.3.0-studio.15, per event since 0.3.0-studio.16): a batch of 1 to 100
     // events, one write of the minute's 600, answered event by event — one
     // the Chest refuses (its reason in the answer) holds none of the others
     // back; a new key beyond the 5,000 events is refused, those before it
@@ -1335,6 +1348,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       answer.on("error", () => response.destroy());
     });
     forward.on("error", () => { if (!response.headersSent) send(response, 503, { error: "unavailable" }); else response.destroy(); });
+    // A client that goes away takes its relayed request with it.
+    response.on("close", () => { if (!response.writableFinished) forward.destroy(); });
     request.pipe(forward);
   }
 
@@ -1353,7 +1368,17 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       : path === "/checks" ? (request: IncomingMessage, response: ServerResponse) => checksRoute(request, response)
       : path === "/webhooks" || path.startsWith("/webhooks/") ? webhooksRoute
       : null;
-    if (!route) return relay(request, response, url);
+    if (!route) {
+      // The members API's 600 calls a minute are one budget for 0.4.1's
+      // routes and the studio's (matchEmails, leftAt, groups read): counted
+      // here too before 0.4.1's fake counts its own.
+      if (path === "/members" || path.startsWith("/members/") || path === "/groups") {
+        const now = Date.now();
+        if (now - window >= 60_000) [window, calls] = [now, 0];
+        if (++calls > callsPerMinute) return send(response, 429, { error: "rate_limited" }, { "Retry-After": "60" });
+      }
+      return relay(request, response, url);
+    }
     route(request, response, url).catch(() => { if (!response.headersSent) send(response, 503, { error: "unavailable" }); else response.destroy(); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -1471,6 +1496,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
     await official.close();
+    if (hiddenGroups === hiding) hiddenGroups = () => new Set();
     for (const [name, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;

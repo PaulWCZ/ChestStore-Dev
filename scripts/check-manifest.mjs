@@ -31,8 +31,8 @@ const proposalKeys = new Set(["mail", "files", "emits", "receives", "translation
 const officialKeys = new Set(JSON.parse(readFileSync(join(root, "reference", "sdk", "contract", "contract.json"), "utf8")).manifest.keys.map(k => k.key).filter(k => !k.includes(".")));
 const studioDist = join(root, "sdk", "dist", "studio");
 const load = async name => existsSync(join(studioDist, name)) ? import(pathToFileURL(join(studioDist, name)).href) : null;
-const checksApi = await load("checks.js");
-const webhooksApi = await load("webhooks.js");
+const checksApi = await load("checks-rules.js");
+const webhooksApi = await load("webhooks-rules.js");
 const invisible = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb]/u;
 
 function walk(dir, visit, skip) {

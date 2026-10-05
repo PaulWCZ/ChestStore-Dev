@@ -34,7 +34,6 @@ export type Handlers = OfficialHandlers & {
   "group.changed"?: (event: GroupChanged) => void | Promise<void>;
   "group.removed"?: (event: GroupRemoved) => void | Promise<void>;
 };
-export type StudioHandlers = Handlers;
 
 // ---- Events between tools (Studio proposal) --------------------------------------
 //
@@ -46,7 +45,7 @@ export type StudioHandlers = Handlers;
 // words: "Is told by Leave when a leave is approved"). data is what the
 // publisher documents (plain JSON, 16 KiB at most); people in it are member
 // ids. occurredAt is when it happened: the time the publisher gave
-// (publish's occurredAt, studio.16 — an event told late by a retry keeps
+// (publish's occurredAt, 0.3.0-studio.16 — an event told late by a retry keeps
 // its time), or the Chest's time of the publish.
 export type ToolEvent = { id: string; type: string; source: string; occurredAt: string; data: Record<string, unknown> };
 export type ToolHandlers = Record<string, (event: ToolEvent) => void | Promise<void>>;
@@ -126,11 +125,11 @@ export async function handle(request: IncomingMessage | Request, handlers: Handl
 // data a JSON object of 16 KiB at most (member ids for people). key makes a
 // retry harmless: the same key within 24 hours is one event — any text of 1
 // to 512 characters without control characters, never cut (a long one goes
-// as its SHA-256, as mail's; studio.15); the same key with another type,
+// as its SHA-256, as mail's; 0.3.0-studio.15); the same key with another type,
 // other data or another occurredAt is refused (ChestError key_conflict,
 // 409), never answered with the first event.
 //
-// occurredAt (studio.16) is when it happened, when the tool publishes later
+// occurredAt (0.3.0-studio.16) is when it happened, when the tool publishes later
 // than that — a retry after the Chest was unreachable, a schedule that tells
 // what waited: a Date or an ISO 8601 instant with Z or an offset, within the
 // last 24 hours (the window in which the key makes a retry one event) and
@@ -163,7 +162,7 @@ export async function publish(type: string, data: Record<string, unknown>, optio
   return { id: answer.id, receivers: answer.receivers };
 }
 
-// How far back and ahead an event's occurredAt may be (studio.16): 24 hours
+// How far back and ahead an event's occurredAt may be (0.3.0-studio.16): 24 hours
 // back — the window of a key, so an event told late is still one event —
 // and a minute ahead, for the clocks of the tool's container and of the
 // Chest.
@@ -182,7 +181,7 @@ export function occurredAtOf(value: Date | string, now: number = Date.now()): st
   return new Date(at).toISOString();
 }
 
-// receivers says which tools receive an event this tool emits (studio.16):
+// receivers says which tools receive an event this tool emits (0.3.0-studio.16):
 // the names (chest.json "name") of the installed tools that declare it in
 // "receives" AND that an admin linked to this tool for it — what publish
 // would deliver to now, sorted; [] when none. For a page that offers a

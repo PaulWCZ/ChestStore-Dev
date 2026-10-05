@@ -24,9 +24,17 @@ test("without \"groups\", a tool sees only the groups that give it (and a member
     await assert.rejects(members.groups.all(), CapabilityNotGranted);
     await assert.rejects(members.groups.members(sales.id), CapabilityNotGranted);
     await assert.rejects(members.groups.of(ines.id), CapabilityNotGranted);
+    // The assertion agrees with the members API: a group that does not give
+    // the tool is never in member(request).groups.
+    const signed = (who: Member) => member(withMember(new Request("http://tool.test/chest"), who))?.groups;
+    assert.deepEqual(signed(ines), []);
+    assert.deepEqual(signed(camille), [office.id]);
+    assert.deepEqual(signed({ ...ines, groups: [sales.id, office.id] }), [office.id]);
   } finally {
     await chest.close();
   }
+  // Without a fake running, a test's member is signed as given.
+  assert.deepEqual(member(withMember(new Request("http://tool.test/chest"), ines, { token: "t".repeat(43), tool: "tool" })), null, "no CHEST_TOKEN: nobody");
 });
 
 test("with \"groups\": every group of the Chest, who is in one among those who have the tool, every group of a member (by a call)", async () => {

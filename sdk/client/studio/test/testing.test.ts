@@ -79,8 +79,8 @@ test("public uploads (proposal): a visitor sends to the public host, 10 MiB at m
     const left = (await (await chest.upload(short.url, "%PDF-1.7", "application/pdf")).json()) as { claim: string };
     assert.ok(left.claim);
     await files.put("public/logo.svg", "<svg/>", "image/svg+xml");
-    assert.equal(files.publicUrl("public/logo.svg", { version: "3" }), "/_chest/public/logo.svg?v=3");
-    assert.throws(() => files.publicUrl("private/logo.svg"), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
+    assert.equal(files.publicPath("public/logo.svg", { version: "3" }), "/_chest/public/logo.svg?v=3");
+    assert.throws(() => files.publicPath("private/logo.svg"), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
     const served = await fetch(chest.api + "/_chest/public/logo.svg");
     assert.equal(served.headers.get("cache-control"), "public, max-age=3600");
     assert.equal(await served.text(), "<svg/>");
@@ -117,7 +117,7 @@ test("members.leftAt (proposal): when former members left, kept after an erasure
   }
 });
 
-// Proposal (studio.15): Equipment matches Intune's users to members without
+// Proposal (0.3.0-studio.15): Equipment matches Intune's users to members without
 // reading every member's address.
 test("members.matchEmails: addresses → member ids, only for members who have the tool, without members.email", async () => {
   const lea: Member = { ...zoe, id: id("lea"), firstName: "Léa", name: "Léa Petit", email: "Lea.Petit@Example.test" };

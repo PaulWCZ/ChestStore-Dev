@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { fakeChest } from "../testing.js";
 import * as visitors from "../visitors.js";
 
-const from = (address: string, extra: Record<string, string> = {}) => new Headers({ "x-forwarded-for": `${address}, 10.0.0.1`, ...extra });
+const from = (address: string, extra: Record<string, string> = {}) => new Headers({ "chest-visitor-address": address, ...extra });
 
 test("a form's token: ours, not too fast, not too old", async () => {
   const fake = await fakeChest({});
@@ -21,7 +21,11 @@ test("a form's token: ours, not too fast, not too old", async () => {
   }
 });
 
-test("the visitor's address and key: the first of X-Forwarded-For, hashed with the tool", () => {
+test("the visitor's address and key: the front's Chest-Visitor-Address only, hashed with the tool", () => {
+  // X-Forwarded-For is the visitor's own words: never read.
+  assert.equal(visitors.address(new Headers({ "x-forwarded-for": "203.0.113.9" })), null);
+  assert.equal(visitors.visitor(new Headers({ "x-forwarded-for": "203.0.113.9" })), "unknown");
+  assert.equal(visitors.address(from("203.0.113.9, 10.0.0.1")), null, "one address, as the front sets it");
   assert.equal(visitors.address(from("203.0.113.9")), "203.0.113.9");
   assert.equal(visitors.address(new Headers()), null);
   assert.equal(visitors.address(from("<script>")), null);
@@ -30,7 +34,7 @@ test("the visitor's address and key: the first of X-Forwarded-For, hashed with t
   assert.notEqual(visitors.visitor(from("203.0.113.9")), visitors.visitor(from("198.51.100.4")));
   // A Request, and a headers object that has a field named "headers" of its own (Next's headers()).
   assert.equal(visitors.address(new Request("http://tool.test/", { headers: from("203.0.113.9") })), "203.0.113.9");
-  const nextLike = { headers: { "x-forwarded-for": "nope" }, get: (name: string) => from("203.0.113.9").get(name) };
+  const nextLike = { headers: { "chest-visitor-address": "nope" }, get: (name: string) => from("203.0.113.9").get(name) };
   assert.equal(visitors.address(nextLike), "203.0.113.9");
 });
 
@@ -47,6 +51,10 @@ test("counting: per visitor, per hour for everyone, and the Chest's ceiling per 
     for (let i = 0; i < 3; i++) assert.equal((await visitors.count(a, "contact", { perVisitor: 10, perHour: 100 })).allowed, true);
     assert.equal((await visitors.count(a, "contact", { perVisitor: 10, perHour: 100 })).allowed, false);
     await assert.rejects(visitors.count(a, "Bad Name", { perVisitor: 1, perHour: 1 }));
+    // A robot that writes a new X-Forwarded-For at every request is still
+    // one visitor: without the front's address, all count together.
+    for (let i = 0; i < 2; i++) assert.equal((await visitors.count(new Headers({ "x-forwarded-for": `192.0.2.${i}` }), "forged", { perVisitor: 2, perHour: 100 })).allowed, true);
+    assert.equal((await visitors.count(new Headers({ "x-forwarded-for": "192.0.2.99" }), "forged", { perVisitor: 2, perHour: 100 })).allowed, false);
   } finally {
     await fake.close();
   }

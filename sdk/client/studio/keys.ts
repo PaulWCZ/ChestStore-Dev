@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-// Studio proposal (not in 0.4.1; studio.15): idempotency keys of any length.
+// Studio proposal (not in 0.4.1; 0.3.0-studio.15): idempotency keys of any length.
 // Not a published module: mail, events (publish) and webhooks use it, and
 // mail re-exports idempotencyKey for tools that store the key the Chest saw.
 //
