@@ -88,8 +88,11 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
     ready,
     assertion,
     async stop() {
-      child.kill("SIGTERM");
+      // npm does not pass SIGTERM on to its script: stop the whole tree.
+      const all = tree(child.pid);
+      for (const p of all.reverse()) try { process.kill(p, "SIGTERM"); } catch { /* gone */ }
       await new Promise(r => (child.exitCode !== null ? r() : child.once("exit", r)));
+      for (let i = 0; i < 100 && all.some(p => { try { process.kill(p, 0); return true; } catch { return false; } }); i++) await new Promise(r => setTimeout(r, 20));
       await new Promise(r => proxy.close(r));
       await chest.close();
     },
