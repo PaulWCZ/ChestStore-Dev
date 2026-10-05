@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ChestError } from "../src/errors.js";
-import * as notifications from "../src/notifications.js";
-import { fakeChest } from "../src/testing.js";
+import { ChestError } from "../../src/errors.js";
+import * as notifications from "../notifications.js";
+import { fakeChest } from "../testing.js";
 
 // notifications.broadcast (Proposal (studio), not in 0.3.0). Ported from
 // 0.3.0-studio.16's notifications.test.ts, whose official part is now

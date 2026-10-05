@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { ask, json, refusal } from "./api.js";
-import { CapabilityNotGranted, ChestError, Unavailable } from "./errors.js";
+import { ask, json, refusal } from "../src/api.js";
+import { CapabilityNotGranted, ChestError, Unavailable } from "../src/errors.js";
 import { locales, memberIdPattern, type Locale } from "./member.js";
 
-// Proposal (studio) — the calendar bridge. Tools put events about members
+// Studio proposal (not in 0.4.1) — the calendar bridge. Tools put events about members
 // (a room booked, a desk day, an approved leave, a meeting a guest booked,
 // an interview, a company event, a task due) and the Chest serves each
 // member ONE secret calendar feed (iCalendar, RFC 5545) that merges every
@@ -13,7 +13,8 @@ import { locales, memberIdPattern, type Locale } from "./member.js";
 // private tool — which has no host reachable without signing in — needs no
 // public part for it.
 //
-//   // chest.json (chest.proposals.json in the studio) — a permission:
+//   // chest.proposals.json (a 0.4 Chest refuses keys it does not know in
+//   // chest.json) — a permission:
 //   //   “Adds events to the calendar of the members concerned”
 //   "calendar": true
 //

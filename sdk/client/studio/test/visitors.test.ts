@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fakeChest } from "../src/testing.js";
-import * as visitors from "../src/visitors.js";
+import { fakeChest } from "../testing.js";
+import * as visitors from "../visitors.js";
 
 const from = (address: string, extra: Record<string, string> = {}) => new Headers({ "x-forwarded-for": `${address}, 10.0.0.1`, ...extra });
 

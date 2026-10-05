@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CapabilityNotGranted, ChestError, QuotaExceeded } from "../src/errors.js";
-import * as files from "../src/files.js";
-import * as mail from "../src/mail.js";
-import { member, type Member } from "../src/member.js";
-import * as members from "../src/members.js";
-import { fakeChest, withMember } from "../src/testing.js";
+import { CapabilityNotGranted, ChestError, QuotaExceeded } from "../../src/errors.js";
+import * as files from "../files.js";
+import * as mail from "../mail.js";
+import { member, type Member } from "../member.js";
+import { fakeChest, withMember } from "../testing.js";
 
 const camille: Member = { id: "mbr_camilleaaaaaaaaaaaaaaaaaaa", firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: "agent", isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "Europe/Paris", email: "camille@company.test" };
 const code = (c: string) => (e: unknown) => e instanceof ChestError && e.code === c;
@@ -190,16 +189,18 @@ test("idempotency: a long per-recipient key never loses its recipient; a key reu
 // Proposal (studio.15): one email preference per person, in the Chest; the
 // tools read it and mail.send honours it.
 test("email preference: none is skipped, digest waits for the Chest's daily email, transactional always goes", async () => {
-  const hugo: Member = { ...camille, id: "mbr_" + "hugo".padEnd(26, "a"), firstName: "Hugo", name: "Hugo Martin", email: "hugo@company.test", mailPreference: "none" };
-  const nora: Member = { ...camille, id: "mbr_" + "nora".padEnd(26, "a"), firstName: "Nora", name: "Nora Martin", email: "nora@company.test", mailPreference: "digest" };
+  const hugo = { ...camille, id: "mbr_" + "hugo".padEnd(26, "a"), firstName: "Hugo", name: "Hugo Martin", email: "hugo@company.test", mailPreference: "none" as const };
+  const nora = { ...camille, id: "mbr_" + "nora".padEnd(26, "a"), firstName: "Nora", name: "Nora Martin", email: "nora@company.test", mailPreference: "digest" as const };
   const chest = await fakeChest({ members: [camille, hugo, nora], capabilities: ["mail", "members"] });
   try {
-    // Read-only, where the tool already reads its members — the members API,
-    // never the assertion (its claims are 0.3.0's).
-    assert.equal(member(withMember(new Request("http://tool.test/chest"), hugo))?.mailPreference, undefined);
-    assert.equal((await members.get(hugo.id))?.mailPreference, "none");
-    assert.equal((await members.get(nora.id))?.mailPreference, "digest");
-    assert.equal((await members.get(camille.id))?.mailPreference, undefined, "not said: read it as all");
+    // Read-only, asked of mail — never in the assertion (its claims are
+    // 0.4.1's) nor in 0.4.1's members API.
+    assert.equal(Object.hasOwn(member(withMember(new Request("http://tool.test/chest"), hugo))!, "mailPreference"), false);
+    assert.equal(await mail.preference(hugo.id), "none");
+    assert.equal(await mail.preference(nora.id), "digest");
+    assert.equal(await mail.preference(camille.id), "all", "not said: all");
+    assert.equal(await mail.preference("mbr_" + "nobody".padEnd(26, "a")), null, "not a member who has the tool");
+    await assert.rejects(mail.preference("camille"), code("invalid_id"));
     const all = await mail.send({ to: [{ member: camille.id }, { member: hugo.id }, { member: nora.id }], subject: "A task was assigned", text: "…", key: "assigned:1" });
     assert.deepEqual([all.status, all.skipped, all.digest], ["queued", [hugo.id], [nora.id]]);
     assert.deepEqual(chest.outbox.map(m => m.to), [["camille@company.test"]]);

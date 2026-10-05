@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import * as calendar from "../src/calendar.js";
-import { CapabilityNotGranted, ChestError } from "../src/errors.js";
-import type { Member } from "../src/member.js";
-import { fakeChest, withMember } from "../src/testing.js";
+import * as calendar from "../calendar.js";
+import { CapabilityNotGranted, ChestError } from "../../src/errors.js";
+import type { Member } from "../member.js";
+import { fakeChest, withMember } from "../testing.js";
 
 const person = (key: string, locale: "en" | "fr"): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: locale, timeZone: "Europe/Paris" });
 const camille = person("camille", "fr"), hugo = person("hugo", "en"), nora = person("nora", "en");

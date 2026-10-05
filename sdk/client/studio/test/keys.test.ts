@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { idempotencyKey } from "../src/api.js";
-import * as calendar from "../src/calendar.js";
-import { ChestError } from "../src/errors.js";
-import * as events from "../src/events.js";
-import type { Member } from "../src/member.js";
-import * as notifications from "../src/notifications.js";
-import { fakeChest } from "../src/testing.js";
-import * as webhooks from "../src/webhooks.js";
+import { idempotencyKey } from "../keys.js";
+import * as calendar from "../calendar.js";
+import { ChestError } from "../../src/errors.js";
+import * as events from "../events.js";
+import type { Member } from "../member.js";
+import * as notifications from "../notifications.js";
+import { fakeChest } from "../testing.js";
+import * as webhooks from "../webhooks.js";
 
 // studio.15: every key a tool gives the Chest, reviewed after the mail bug
 // (a key cut to 64 characters lost its recipient). Keys that make a retry

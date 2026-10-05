@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CapabilityNotGranted, ChestError } from "../src/errors.js";
-import * as events from "../src/events.js";
-import type { Member } from "../src/member.js";
-import { fakeChest } from "../src/testing.js";
+import { CapabilityNotGranted, ChestError } from "../../src/errors.js";
+import * as events from "../events.js";
+import type { Member } from "../member.js";
+import { fakeChest } from "../testing.js";
 
 // Events between tools (Proposal (studio), not in 0.3.0): publish, receive,
 // occurredAt, receivers. Ported from 0.3.0-studio.16's events.test.ts, whose

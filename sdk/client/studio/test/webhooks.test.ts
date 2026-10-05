@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
-import * as webhooks from "../src/webhooks.js";
-import { fakeChest } from "../src/testing.js";
+import * as webhooks from "../webhooks.js";
+import { fakeChest } from "../testing.js";
 
 // A made-up address in Slack's shape, built in parts so secret scanners do not take it for a real one.
 const slack = ["https://hooks.slack.com/services", "T0" + "0000000", "B0" + "0000000", "x".repeat(24)].join("/");
