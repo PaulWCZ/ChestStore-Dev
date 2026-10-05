@@ -1,0 +1,34 @@
+/* The tool's own styles, after the theme (src/theme.ts) and the kit's
+   components (ck-…). Only the kit's tokens — var(--ink), var(--space-3)…
+   — never a colour (test/units.test.ts checks it). No style="" in pages:
+   a size from data is an SVG attribute, <progress> or <meter>. */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; min-height: 100dvh; background: var(--bg); color: var(--ink); font: var(--text-m)/var(--leading) var(--font-body); }
+h1, h2, h3 { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); line-height: 1.2; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent-text); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.island { display: contents; }
+.brand { color: var(--ink); font-family: var(--font-display); font-size: var(--text-l); text-decoration: none; }
+.notice { margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); border: var(--border-width) solid var(--danger); background: var(--danger-soft); color: var(--danger-ink); }
+form[aria-busy="true"] { opacity: 0.7; }
+
+/* The public part */
+.public-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); max-width: 40rem; margin: 0 auto; padding: var(--space-4); }
+.public main { max-width: 40rem; margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-7); }
+.narrow { display: grid; gap: var(--space-4); }
+.sent { padding: var(--space-3) var(--space-4); background: var(--ok-soft); color: var(--ok-ink); }
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* Notes */
+.composer { display: grid; gap: var(--space-2); margin: var(--space-5) 0; }
+.composer textarea { resize: vertical; }
+.composer .ck-button { justify-self: end; }
+.notes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.note { display: grid; gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--line); border-radius: var(--radius-l); background: var(--surface); }
+.note.pinned { border-color: var(--line-strong); }
+.note p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--ink-2); font-size: var(--text-s); }
+.meta .actions { display: flex; gap: var(--space-2); margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
