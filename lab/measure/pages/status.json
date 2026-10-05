@@ -1,0 +1,77 @@
+[
+ {
+  "path": "/",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/incidents/7",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/history",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/subscribe",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/incidents/new",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/checks",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/incidents/7",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/incidents/9",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/components",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/subscribers",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/incidents/1",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/embed",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest/incidents/1",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "tom",
+  "language": "en"
+ }
+]

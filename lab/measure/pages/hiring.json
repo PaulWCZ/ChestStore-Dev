@@ -1,0 +1,87 @@
+[
+ {
+  "path": "/",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/senior-furniture-designer",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/senior-furniture-designer/apply",
+  "public": true,
+  "language": "fr"
+ },
+ {
+  "path": "/sales-associate-lyon-showroom/apply",
+  "public": true,
+  "language": "en"
+ },
+ {
+  "path": "/chest",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/jobs/1",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/candidates/1",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/candidates/7",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/jobs/3",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/jobs/2",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/search?q=lu",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/pool",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/reports?job=1",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/mail",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/jobs/new",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/jobs/new?template=officeManager",
+  "member": "camille",
+  "language": "fr"
+ }
+]

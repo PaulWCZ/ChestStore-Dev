@@ -1,0 +1,13 @@
+{
+  "name": "chest-measure",
+  "private": true,
+  "type": "module",
+  "description": "The studio's measuring bench: a tool's image, cold start and memory at rest, measured the same way for every tool. A lab tool, never part of a tool.",
+  "scripts": {
+    "measure": "node measure.mjs",
+    "table": "node table.mjs"
+  },
+  "dependencies": {
+    "postgres": "3.4.9"
+  }
+}
