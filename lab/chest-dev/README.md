@@ -8,7 +8,7 @@ copy's `fakeChest` (`sdk/`). `screens.mjs` takes screenshots, `audit.mjs`
 runs axe-core, `flows/` are browser flows (`flows/lib.mjs`).
 
 ```sh
-node lab/chest-dev/dev.mjs tools/private/tasks --reset            # npm run dev: http://localhost:4000/_dev
+node lab/chest-dev/dev.mjs tools/private/tasks --reset            # npm run dev: https://127.0.0.1:4000/_dev
 node lab/chest-dev/dev.mjs tools/private/tasks --prod --build     # npm ci if needed, build.command, build.start
 node lab/chest-dev/dev.mjs tools/private/tasks --prod --sleep-after 10   # asleep after 10 s idle
 sh lab/chest-dev/stop.sh 4000
@@ -20,10 +20,18 @@ names a superuser otherwise).
 
 ## Two hosts, the Chest's routing in front
 
-As on a Chest, the tool has **two origins**: the **team host**
-`http://localhost:<port>` (4000) and the **public host**
-`http://localhost:<port+2>` (4002); the tool itself listens on `<port+1>`
-(`PORT`), reached only through them. The front (`routing.mjs`, from
+As on a Chest, the tool has **two origins, over https**: the **team host**
+`https://127.0.0.1:<port>` (4000) and the **public host**
+`https://localhost:<port+2>` (4002) — two host names, so their cookies are
+apart as on a Chest; the tool itself listens on `<port+1>` (`PORT`, plain
+http, as behind the Chest's launcher), reached only through them. The
+certificate is self-signed for both names (`cert.mjs`, made once with
+openssl in `lab/chest-dev/.cert/`, not committed): the browsers of flows,
+screens and audits accept it (`ignoreHTTPSErrors`), and the lab scripts
+that call the harness from Node set `NODE_TLS_REJECT_UNAUTHORIZED=0` for
+themselves. https because the SDK reads only https origins in
+`CHEST_TEAM_URL` and `CHEST_PUBLIC_URL` (`chest.tool`, `chest.tools`), and
+because `Secure` and `__Host-` cookies then behave as on a Chest. The front (`routing.mjs`, from
 `reference/contract/application-contract.md` "Front", "Public host", "Team
 host", and `reference/sdk/contract/README.md`) enforces the Chest's rules:
 
@@ -39,8 +47,11 @@ host", and `reference/sdk/contract/README.md`) enforces the Chest's rules:
 | both | a path not in its simple form (`//`, `.`/`..`, `\`, `%2F`, `%5C`, `%2E`, `%00`); `Upgrade` | **400**; **501** |
 
 Toward the tool: path, query and `Host` unchanged, every `Chest-*` header
-from the client removed, `X-Forwarded-Proto: http` and `X-Forwarded-Host`
-set. Toward the browser: the **CSP the Chest adds** — on the team host
+from the client removed, and `X-Forwarded-For`, `Forwarded` and
+`X-Real-IP` too (never trusted: the Chest adds none), `X-Forwarded-Proto:
+https` and `X-Forwarded-Host` set; on the public host, **`Chest-Visitor-Address`**,
+the address of the connection the front accepted (proposal, SDK report
+§4.8: what `visitors.address()` reads; here always `127.0.0.1`). Toward the browser: the **CSP the Chest adds** — on the team host
 `frame-ancestors 'none'` to an answer without a policy; on the public host
 its default policy on every answer, or only the floor policy
 (`frame-ancestors 'none'; base-uri 'self'; object-src 'none'`) beside the
@@ -56,9 +67,15 @@ team host of a private tool it ends in a 404 from the public host. A 302
 from the team host is not logged for a tool with a public part (it is how a
 visitor on the team host reaches it).
 
-Cookies ignore the port: the two hosts share `localhost`'s cookies (on a
-Chest they are two host names). The harness's own cookies (`dev_member`,
-`dev_locale`) rely on it.
+**Files' links and uploads are on the team host**, as on a Chest
+(`/_chest/files/…`): the fake Chest signs them with `chest.api`, which the
+harness sets to the team host's origin once the fake has started, while the
+tool's `CHEST_API` stays the fake's own address (`http://127.0.0.1:<p>`,
+where the SDK's calls go). A page's `<img src>` of a file is then
+same-origin and the tool's `img-src 'self'` holds; the team host relays
+`/_chest/…` to the fake. The harness's cookies (`dev_member`,
+`dev_locale`) are the team host's; screens and audits set the public part's
+`lang` on the public host too.
 
 ## The tool's process
 
@@ -191,7 +208,9 @@ Every delivery a control makes (an event, a run, a mail, a check) wakes a
 sleeping tool first, as the Chest does. `GET /_dev/logs` (and
 `/_dev/logs.txt`) shows the tool's log.
 
-**Flows and the two hosts.** A public page lives on `publicOrigin`; a GET of
+**Flows and the two hosts.** The team host is `https://127.0.0.1:<port>`
+(`origin`), the public host `https://localhost:<port+2>` (`publicOrigin`);
+a link a tool writes is one of them. A public page lives on `publicOrigin`; a GET of
 a public path on the team origin is redirected there (302), so
 `page.goto(origin + "/")` still lands on it, but a URL comparison
 (`waitForURL(origin + "/…")`) must use `publicOrigin`. A `POST` to `/chest…`

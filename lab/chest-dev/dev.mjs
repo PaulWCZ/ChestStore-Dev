@@ -7,8 +7,8 @@
 // lab/chest-dev/README.md: the Chest is "Atelier Martin", in
 // CHEST_TIME_ZONE (Europe/Paris unless set), speaking English, paying in
 // euros; the tool's database sessions are in that zone. Two origins, as on
-// a Chest: the team host http://localhost:<port> (/chest…, build.static,
-// /_dev, /_chest) and the public host http://localhost:<port+2>; the tool
+// a Chest: the team host https://127.0.0.1:<port> (/chest…, build.static,
+// /_dev, /_chest) and the public host https://localhost:<port+2>; the tool
 // listens on <port+1>; the Chest's routing is enforced in front of it
 // (routing.mjs) and every refusal is logged.
 //
@@ -27,10 +27,10 @@
 //   (lab/chest-dev/logs/<tool>/<run>.log, shown on /_dev/logs); with
 //   --sleep-after, put to sleep when idle and woken by the next request,
 //   event or schedule run (tool.mjs);
-// - in front, the team host http://localhost:<port>: /chest… carries the
+// - in front, the team host https://127.0.0.1:<port>: /chest… carries the
 //   Chest-Member assertion of the member chosen on /_dev (in the language
 //   chosen there), a GET under build.static goes to anyone, anything else
-//   is sent to the public host http://localhost:<port+2> (the public part,
+//   is sent to the public host https://localhost:<port+2> (the public part,
 //   no member; 404 without one); /_chest/… is the fake Chest's
 //   front (uploads, file links, photos), /_dev is the harness: who you are,
 //   the bell, badges, files, and buttons that play the Chest (member
@@ -47,7 +47,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { createServer, request as httpRequest } from "node:http";
+import { request as httpRequest } from "node:http";
+import { createServer } from "node:https";
+import { certificate } from "./cert.mjs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import postgres from "postgres";
@@ -90,11 +92,11 @@ const proposals = existsSync(join(tool, "chest.proposals.json")) ? JSON.parse(re
 const port = Number(option("port", "4000"));
 const inner = port + 1;
 const publicPort = port + 2;
-// The two hosts of a Chest, two origins (two ports of localhost: a browser
-// keeps them apart for scripts, fetches and the CSP's 'self' — not for
-// cookies, which ignore the port).
-const origin = `http://localhost:${port}`;
-const publicOrigin = `http://localhost:${publicPort}`;
+// The two hosts of a Chest, two origins over https (cert.mjs): the team
+// host on 127.0.0.1, the public host on localhost — two host names, so a
+// browser keeps their cookies apart too, as a Chest's two hosts.
+const origin = `https://127.0.0.1:${port}`;
+const publicOrigin = `https://localhost:${publicPort}`;
 const sleepAfter = Number(option("sleep-after", "0"));
 if (!Number.isFinite(sleepAfter) || sleepAfter < 0) {
   console.error("✗ --sleep-after: a number of seconds (the Chest: 900; its laboratory: 5 to 900)");
@@ -215,7 +217,7 @@ const chest = await testing.fakeChest({
   capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(proposals.groups === "read" ? ["groups"] : [])],
   mail: mailOptions,
   // The calendar bridge (Proposal (studio)): each member's feed at
-  // http://localhost:<port>/_chest/calendar/<secret>.ics — a calendar app
+  // https://127.0.0.1:<port>/_chest/calendar/<secret>.ics — a calendar app
   // on this machine may subscribe to it.
   calendar: { domain: "atelier-martin.test", toolTitle: manifest.title ?? manifest.name, company: "Atelier Martin" },
   emits: proposals.emits ?? [],
@@ -227,7 +229,6 @@ const chest = await testing.fakeChest({
   // https://<name>-chest.chest.test — never reached, but a link back to
   // them shows as on a Chest. This tool is always there, at the origin.
   tools: Object.fromEntries([...(proposals.receives ?? []).map(type => String(type).split(".")[0]), ...option("tools", "").split(",").filter(Boolean)].filter(name => /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(name) && name.length <= 63 && name !== manifest.name && !["member", "group"].includes(name)).map(name => [name, true])),
-  origin,
   // Schedules: "schedules" of chest.json (contract 0.4), else a studio
   // tool's chest.proposals.json.
   schedules,
@@ -248,6 +249,14 @@ const chest = await testing.fakeChest({
   theme: {},
   themeFiles,
 });
+// The fake's own address (CHEST_API: the tool's calls go there), and the
+// origin of the links and uploads it signs, which a Chest serves on the
+// team host (/_chest/files/…): the fake writes them with chest.api, so it
+// is the team host's from here on — a page's <img src> is then
+// same-origin, as on a Chest, and the tool's CSP holds.
+const apiOrigin = chest.api;
+chest.api = origin;
+
 // --linked (opt-in; Proposal (studio.16): events.receivers): an admin
 // linked each tool installed beside this one to it, for every type this
 // tool emits that the other declares in its `receives` (read from its
@@ -284,7 +293,7 @@ const env = {
   HOME: process.env["HOME"],
   ...declared,
   PORT: String(inner),
-  CHEST_API: chest.api,
+  CHEST_API: apiOrigin,
   CHEST_TOKEN: chest.token,
   CHEST_TOOL: manifest.name,
   ...chestEnv,
@@ -444,10 +453,10 @@ async function teamHost(request, response) {
           const leftAt = new Date().toISOString();
           if (gone >= 0) {
             const [who] = chest.members.splice(gone, 1);
-            chest.former.push(type === "member.erased" ? { id, erased: true, leftAt } : { id, name: who.name, leftAt });
+            chest.former.push(type === "member.erased" ? { id, status: "erased", leftAt } : { id, name: who.name, leftAt });
           } else if (type === "member.erased") {
             const known = chest.former.find(f => f.id === id);
-            if (known) { delete known.name; known.erased = true; }
+            if (known) { delete known.name; known.status = "erased"; }
           }
         }
         const status = await chest.emit({ type, data }, await to(`the event ${type}`));
@@ -626,7 +635,7 @@ async function teamHost(request, response) {
     const headers = { ...request.headers };
     delete headers["chest-member"];
     if (path === "/_chest/calendar" || path === "/_chest/calendar/new") headers["chest-member"] = testing.signAssertion(current(request));
-    return relay(request, response, { port: Number(new URL(chest.api).port) }, headers);
+    return relay(request, response, { port: Number(new URL(apiOrigin).port) }, headers);
   }
   return front(request, response, "team");
 }
@@ -636,7 +645,7 @@ async function teamHost(request, response) {
 // page that loads a file outside the rules fails visibly.
 function front(request, response, host) {
   const decision = route(host, { method: request.method ?? "GET", url: request.url ?? "/", headers: request.headers }, manifest, { teamOrigin: origin, publicOrigin });
-  if (decision.to === "chest") return relay(request, response, { port: Number(new URL(chest.api).port) }, request.headers);
+  if (decision.to === "chest") return relay(request, response, { port: Number(new URL(apiOrigin).port) }, request.headers);
   if (!decision.to) {
     const quiet = decision.status === 302 && (host === "public" || manifest.public);
     if (!quiet) toolProcess.log(`front (${host} host): ${request.method} ${request.url} → ${decision.status}${decision.location ? " " + decision.location : ""}: ${decision.reason}${request.headers.referer ? ` (asked by ${request.headers.referer})` : ""}`);
@@ -648,9 +657,15 @@ function front(request, response, host) {
   // removed, X-Forwarded-Proto and X-Forwarded-Host set by the Chest, and
   // the member's assertion on /chest.
   const headers = {};
-  for (const [name, value] of Object.entries(request.headers)) if (!name.startsWith("chest-") && name !== "x-forwarded-proto" && name !== "x-forwarded-host") headers[name] = value;
-  headers["x-forwarded-proto"] = "http";
-  headers["x-forwarded-host"] = host === "team" ? `localhost:${port}` : `localhost:${publicPort}`;
+  // The client's forwarding headers are never trusted: X-Forwarded-For,
+  // Forwarded and X-Real-IP are dropped (the Chest adds none).
+  for (const [name, value] of Object.entries(request.headers)) if (!name.startsWith("chest-") && !["x-forwarded-proto", "x-forwarded-host", "x-forwarded-for", "forwarded", "x-real-ip"].includes(name)) headers[name] = value;
+  headers["x-forwarded-proto"] = "https";
+  headers["x-forwarded-host"] = new URL(host === "team" ? origin : publicOrigin).host;
+  // Proposal (studio, SDK report §4.8): on the public host, the front tells
+  // the tool the visitor's address — the connection it accepted —, which
+  // visitors.address() reads; no client can send it (Chest-* removed above).
+  if (host === "public") headers["chest-visitor-address"] = String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "");
   if (decision.member) headers["chest-member"] = testing.signAssertion(current(request));
   void toTool(host, request, response, headers);
 }
@@ -697,8 +712,9 @@ async function toTool(host, request, response, headers) {
   request.pipe(upstream);
 }
 
-const team = createServer(teamHost);
-const publicHost = createServer((request, response) => front(request, response, "public"));
+const tls = certificate();
+const team = createServer(tls, teamHost);
+const publicHost = createServer(tls, (request, response) => front(request, response, "public"));
 // Upgrade (WebSocket) is refused on both hosts, as the Chest refuses it.
 for (const server of [team, publicHost]) server.on("upgrade", (request, socket) => {
   toolProcess.log(`front: ${request.url} → 501: the Chest refuses Upgrade (no WebSocket)`);

@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { request } from "node:http";
+import { request } from "node:https";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -16,8 +16,10 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..", "..");
 const port = 4870;
-const team = `http://localhost:${port}`;
-const publicHost = `http://localhost:${port + 2}`;
+// The harness's hosts are https, self-signed (cert.mjs).
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+const team = `https://127.0.0.1:${port}`;
+const publicHost = `https://localhost:${port + 2}`;
 const sdkVersion = JSON.parse(readFileSync(join(root, "sdk", "package.json"), "utf8")).version;
 const official04 = !/^0\.[0-3]\./u.test(sdkVersion);
 
@@ -40,6 +42,7 @@ const app = createServer(async (req, res) => {
   if (url.pathname === "/chest/cookies") return json(res, 200, {}, { "Set-Cookie": ["good=1; Path=/; HttpOnly", "wide=1; Domain=localhost; Path=/", "__Host-chest=stolen; Path=/; Secure"] });
   if (url.pathname === "/chest/own-policy") return json(res, 200, {}, { "Content-Security-Policy": "default-src 'self'" });
   if (url.pathname.startsWith("/assets/")) { res.writeHead(200, { "Content-Type": "text/css", "X-Had-Member": String(Boolean(req.headers["chest-member"])) }); return res.end("body{}"); }
+  if (url.pathname === "/headers") return json(res, 200, req.headers);
   if (url.pathname === "/") { res.writeHead(200, { "Content-Type": "text/html" }); return res.end("<h1>Public</h1>"); }
   json(res, 404, { error: "not_found" });
 });
@@ -84,7 +87,9 @@ test("the Chest's environment, and nothing of the shell's", async () => {
   assert.equal(env.NODE_ENV, "production");
   assert.equal(env.SLOW_START_MS, "2600", "a variable the tool declares (env) comes from the shell");
   assert.equal(env.NODE_OPTIONS, undefined, "the shell's NODE_OPTIONS never reaches the tool");
-  assert.ok(env.CHEST_API && env.CHEST_TOKEN && env.CHEST_TOOL === "fixture");
+  assert.match(env.CHEST_API, /^http:\/\/127\.0\.0\.1:\d+$/u);
+  assert.notEqual(env.CHEST_API, team, "the API is the fake's own address");
+  assert.ok(env.CHEST_TOKEN && env.CHEST_TOOL === "fixture");
 });
 
 test("the team host: static files without a member, the rest to the public host", async () => {
@@ -107,6 +112,19 @@ test("the public host: its pages with the Chest's policy, /chest sent back", asy
   assert.equal(back.status, 302);
   assert.equal(back.headers.get("location"), `${team}/chest/env`);
   assert.equal((await get(`${publicHost}/a/../chest`)).status, 302, "fetch normalizes ..; a raw one is tested in routing.test.mjs");
+});
+
+test("the visitor's address comes from the front, never from the client", async () => {
+  const headers = await (await get(`${publicHost}/headers`, { headers: { "x-forwarded-for": "203.0.113.9", "chest-visitor-address": "198.51.100.7", "chest-member": "forged", forwarded: "for=203.0.113.9", "x-real-ip": "203.0.113.9" } })).json();
+  assert.equal(headers["chest-visitor-address"], "127.0.0.1");
+  assert.equal(headers["chest-member"], undefined);
+  assert.equal(headers["x-forwarded-for"], undefined);
+  assert.equal(headers.forwarded, undefined);
+  assert.equal(headers["x-real-ip"], undefined);
+  assert.equal(headers["x-forwarded-proto"], "https");
+  assert.equal(headers["x-forwarded-host"], `localhost:${port + 2}`);
+  const teamSide = await (await get(`${team}/chest/env`)).json();
+  assert.equal(teamSide.member, true);
 });
 
 test("cookies: only the tool's own, on its host", async () => {
@@ -145,7 +163,7 @@ test("a browser opening a page while the tool wakes gets 'Waking up…' after 2 
   // navigation is played with node:http.
   const started = Date.now();
   const page = await new Promise((done, fail) => {
-    request(`${team}/chest/env`, { headers: { "sec-fetch-mode": "navigate", accept: "text/html", cookie: "dev_member=mbr_hugoaaaaaaaaaaaaaaaaaaaaaa" } }, (res) => {
+    request(`${team}/chest/env`, { rejectUnauthorized: false, headers: { "sec-fetch-mode": "navigate", accept: "text/html", cookie: "dev_member=mbr_hugoaaaaaaaaaaaaaaaaaaaaaa" } }, (res) => {
       let body = "";
       res.on("data", (c) => { body += c; });
       res.on("end", () => done({ status: res.statusCode, headers: res.headers, body }));
