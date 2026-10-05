@@ -36,11 +36,6 @@ export type Member = {
   language: string;
   timeZone: string;
   email?: string;
-  // Proposal (studio.15): how the member chose to receive the email of
-  // every tool (below). Only the members API answers it (members.get,
-  // list, lookup); member(request) never does — its claims are exactly
-  // 0.3.0's. Absent when the Chest says nothing.
-  mailPreference?: MailPreference;
 };
 // What is the same for every member — the organization, the company's time
 // zone — is the Chest's: the chest module.
@@ -55,47 +50,6 @@ export const groupIdPattern = /^grp_[a-z2-7]{26}$/u;
 // "America/Argentina/Buenos_Aires").
 export const languagePattern = /^[a-z]{2,3}$/u;
 export const timeZonePattern = /^(?:UTC|[A-Z][A-Za-z_]{1,31}(?:\/[A-Za-z0-9_+-]{1,31}){1,2})$/u;
-
-// ---- Studio proposals (not in 0.3.0) ---------------------------------------
-//
-// mailPreference (Proposal (studio.15)) is how the member chose, once in the
-// Chest, to receive the email of every tool: "all", "digest" (one email a
-// day from the Chest gathering the others) or "none". Read-only: the Chest
-// applies it in mail.send (transactional mail goes whatever it says); a tool
-// reads it to say so ("You chose a daily email"). A tool may keep its own
-// switch too ("no reminders from Tasks"): both apply — the tool's decides
-// whether it sends, the Chest's whether and how the person receives. The
-// Chest answers it as mail_pref in the members API only — never in the
-// assertion, whose claims stay exactly 0.3.0's; absent when the Chest says
-// nothing (a Chest before it, such as 0.3.0): read it as "all". An unknown
-// value is left out, never a reason to refuse the member.
-export type MailPreference = "all" | "digest" | "none";
-
-// mailPreferenceOf reads the Chest's word for a member's email preference:
-// one of the three, or undefined for anything else (a later Chest's value
-// is not a reason to refuse the member).
-export function mailPreferenceOf(value: unknown): MailPreference | undefined {
-  return value === "all" || value === "digest" || value === "none" ? value : undefined;
-}
-
-// The languages the store's tools speak today, the first one the default and
-// fallback (Proposal (studio)). member.language is any language the Chest
-// speaks — a tool narrows it to one of its catalogues with localeOf, so that
-// a language added to the Chest before the tool translates it reads as
-// English rather than as nothing.
-export const locales = ["en", "fr"] as const;
-export type Locale = (typeof locales)[number];
-
-// localeOf is the store's language for a language tag ("fr", "fr-FR", "FR"):
-// its primary subtag when the store speaks it, English otherwise — also for
-// anything that is not a tag.
-//
-//   const t = catalogue[localeOf(who.language)];
-export function localeOf(tag: unknown): Locale {
-  if (typeof tag !== "string" || tag.length > 35) return locales[0];
-  const primary = tag.split(/[-_]/u)[0]!.toLowerCase();
-  return (locales as readonly string[]).includes(primary) ? primary as Locale : locales[0];
-}
 
 // The key of the assertions is HMAC-SHA256 of this label under the text of
 // CHEST_TOKEN, exactly as the Chest derives it (chest/toolfront). Its version

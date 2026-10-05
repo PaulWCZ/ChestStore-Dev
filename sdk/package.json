@@ -1,7 +1,7 @@
 {
   "name": "@argentic/chest-sdk",
-  "version": "0.3.1-studio.1",
-  "description": "The client a Chest server tool embeds: the member the Chest asserts on a request, the Chest itself (its organization, time zone and language), who else has the tool, the tool's own database, its private files, badges and notifications inside the Chest, the events of its members' lifecycle, AI models through the Chest, and a fake Chest for its tests — with the studio's proposals: schedules, mail, calendar, webhooks, visitors, checks, events between tools.",
+  "version": "0.4.1-studio.1",
+  "description": "The client a Chest server tool embeds — the official @argentic/chest-sdk 0.4.1 (the member the Chest asserts, the Chest itself, its members, database, files, notifications, members' events, schedules, AI, a fake Chest for tests), unchanged, with the studio's proposals on top: mail, calendar, webhooks, visitors, checks, events between tools, every group of the Chest, broadcast, public uploads and files, the addresses of the other tools, the company's look.",
   "keywords": [
     "chest",
     "argentic",
@@ -13,9 +13,9 @@
     "members",
     "notifications",
     "events",
+    "schedules",
     "ai",
     "llm",
-    "schedules",
     "mail",
     "calendar",
     "webhooks"
@@ -37,79 +37,80 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/studio/index.d.ts",
+      "default": "./dist/studio/index.js"
     },
     "./errors": {
       "types": "./dist/src/errors.d.ts",
       "default": "./dist/src/errors.js"
     },
     "./member": {
-      "types": "./dist/src/member.d.ts",
-      "default": "./dist/src/member.js"
+      "types": "./dist/studio/member.d.ts",
+      "default": "./dist/studio/member.js"
     },
     "./chest": {
-      "types": "./dist/src/chest.d.ts",
-      "default": "./dist/src/chest.js"
+      "types": "./dist/studio/chest.d.ts",
+      "default": "./dist/studio/chest.js"
     },
     "./database": {
       "types": "./dist/src/database.d.ts",
       "default": "./dist/src/database.js"
     },
     "./files": {
-      "types": "./dist/src/files.d.ts",
-      "default": "./dist/src/files.js"
+      "types": "./dist/studio/files.d.ts",
+      "default": "./dist/studio/files.js"
     },
     "./members": {
-      "types": "./dist/src/members.d.ts",
-      "default": "./dist/src/members.js"
+      "types": "./dist/studio/members.d.ts",
+      "default": "./dist/studio/members.js"
     },
     "./notifications": {
-      "types": "./dist/src/notifications.d.ts",
-      "default": "./dist/src/notifications.js"
+      "types": "./dist/studio/notifications.d.ts",
+      "default": "./dist/studio/notifications.js"
     },
     "./events": {
-      "types": "./dist/src/events.d.ts",
-      "default": "./dist/src/events.js"
-    },
-    "./ai": {
-      "types": "./dist/src/ai.d.ts",
-      "default": "./dist/src/ai.js"
+      "types": "./dist/studio/events.d.ts",
+      "default": "./dist/studio/events.js"
     },
     "./schedules": {
       "types": "./dist/src/schedules.d.ts",
       "default": "./dist/src/schedules.js"
     },
+    "./ai": {
+      "types": "./dist/src/ai.d.ts",
+      "default": "./dist/src/ai.js"
+    },
     "./mail": {
-      "types": "./dist/src/mail.d.ts",
-      "default": "./dist/src/mail.js"
+      "types": "./dist/studio/mail.d.ts",
+      "default": "./dist/studio/mail.js"
     },
     "./calendar": {
-      "types": "./dist/src/calendar.d.ts",
-      "default": "./dist/src/calendar.js"
+      "types": "./dist/studio/calendar.d.ts",
+      "default": "./dist/studio/calendar.js"
     },
     "./webhooks": {
-      "types": "./dist/src/webhooks.d.ts",
-      "default": "./dist/src/webhooks.js"
+      "types": "./dist/studio/webhooks.d.ts",
+      "default": "./dist/studio/webhooks.js"
     },
     "./visitors": {
-      "types": "./dist/src/visitors.d.ts",
-      "default": "./dist/src/visitors.js"
+      "types": "./dist/studio/visitors.d.ts",
+      "default": "./dist/studio/visitors.js"
     },
     "./checks": {
-      "types": "./dist/src/checks.d.ts",
-      "default": "./dist/src/checks.js"
+      "types": "./dist/studio/checks.d.ts",
+      "default": "./dist/studio/checks.js"
     },
     "./testing": {
-      "types": "./dist/src/testing.d.ts",
-      "default": "./dist/src/testing.js"
+      "types": "./dist/studio/testing.d.ts",
+      "default": "./dist/studio/testing.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
-    "client/index.ts",
+    "dist/src",
+    "dist/studio",
     "client/src/api.ts",
+    "client/src/signed.ts",
     "client/src/errors.ts",
     "client/src/member.ts",
     "client/src/chest.ts",
@@ -118,14 +119,24 @@
     "client/src/files.ts",
     "client/src/notifications.ts",
     "client/src/events.ts",
-    "client/src/ai.ts",
     "client/src/schedules.ts",
-    "client/src/mail.ts",
-    "client/src/calendar.ts",
-    "client/src/webhooks.ts",
-    "client/src/visitors.ts",
-    "client/src/checks.ts",
-    "client/src/testing.ts"
+    "client/src/ai.ts",
+    "client/src/testing.ts",
+    "client/studio/index.ts",
+    "client/studio/member.ts",
+    "client/studio/chest.ts",
+    "client/studio/members.ts",
+    "client/studio/files.ts",
+    "client/studio/notifications.ts",
+    "client/studio/events.ts",
+    "client/studio/keys.ts",
+    "client/studio/signed.ts",
+    "client/studio/mail.ts",
+    "client/studio/calendar.ts",
+    "client/studio/webhooks.ts",
+    "client/studio/visitors.ts",
+    "client/studio/checks.ts",
+    "client/studio/testing.ts"
   ],
   "publishConfig": {
     "access": "public",
@@ -133,11 +144,12 @@
   },
   "scripts": {
     "clean": "node -e \"for (const d of ['dist', 'build']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
-    "test": "npm run build && tsc -p tsconfig.json && node --test build/client/test/*.test.js",
-    "check:package": "node scripts/check-package.mjs",
-    "prepack": "npm run build",
-    "prepublishOnly": "npm test && npm run check:package"
+    "build": "npm run clean && tsc -p tsconfig.studio.json",
+    "test": "npm run build && tsc -p tsconfig.json && node --test build/client/test/*.test.js build/client/studio/test/*.test.js",
+    "test:official": "npm run build && tsc -p tsconfig.json && node --test build/client/test/*.test.js",
+    "test:studio": "npm run build && tsc -p tsconfig.json && node --test build/client/studio/test/*.test.js",
+    "check:package": "node scripts/check-studio-package.mjs",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@types/node": "24.13.5",

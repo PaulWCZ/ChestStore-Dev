@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CapabilityNotGranted, ChestError } from "../src/errors.js";
-import * as events from "../src/events.js";
-import { member, type Member } from "../src/member.js";
-import * as members from "../src/members.js";
-import { fakeChest, withMember } from "../src/testing.js";
+import { CapabilityNotGranted, ChestError } from "../../src/errors.js";
+import * as events from "../events.js";
+import { member, type Member } from "../member.js";
+import * as members from "../members.js";
+import { fakeChest, withMember } from "../testing.js";
 
 const gid = (name: string) => "grp_" + name + "a".repeat(26 - name.length);
 const mid = (name: string) => "mbr_" + name + "a".repeat(26 - name.length);

@@ -1,10 +1,13 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { ask, idempotencyKey, json, refusal } from "./api.js";
-import { CapabilityNotGranted, ChestError, TooLarge, Unavailable } from "./errors.js";
-import { memberIdPattern } from "./member.js";
+import { ask, json, refusal } from "../src/api.js";
+import { CapabilityNotGranted, ChestError, TooLarge, Unavailable } from "../src/errors.js";
+import { memberIdPattern } from "../src/member.js";
+import { delivery, json as parse, memorySeen, object, type Seen } from "../src/signed.js";
+import { idempotencyKey } from "./keys.js";
+import { mailChannel } from "./signed.js";
 
-// Proposal (studio) — email. A tool sends email in the company's name and
+// Studio proposal (not in 0.4.1) — email. A tool sends email in the company's name and
 // receives the email sent to its mailboxes; the Chest holds the company's
 // mail provider (its SMTP or API, connected once by the owner), never the
 // tool. Capabilities, not credentials.
@@ -71,7 +74,7 @@ export type Message = {
   // recipients is refused (ChestError key_conflict), never dropped.
   key?: string;
   // Proposal (studio.15): a message the person must get whatever their
-  // email preference (member.mailPreference) — a password, a booking's
+  // email preference (preference(), below) — a password, a booking's
   // confirmation, a payslip, an answer to what they asked. Everything else
   // (reminders, digests, "a task was assigned") honours it: a member who
   // turned email off is skipped, one who reads a daily digest gets it
@@ -262,7 +265,7 @@ export async function status(id: string): Promise<Status | null> {
 //                    tomorrow".
 // remainingToday is what is left of the day's messages (null when the
 // Chest does not say). A snapshot: send can still fail, and a member's own
-// preference (mailPreference) may still hold a message back.
+// preference (preference(), below) may still hold a message back.
 export type MailAvailability = { ok: boolean; reason: "not_granted" | "not_connected" | "suspended" | "quota" | null; remainingToday: number | null };
 
 // available asks the Chest whether it would deliver now; it never sends
@@ -305,6 +308,42 @@ export async function mailboxAddress(mailbox: string): Promise<string | null> {
   if (response.status !== 200) throw await refusal(response, "mail");
   const answer = (await json(response)) as { address?: unknown } | null;
   return answer && isAddress(answer.address) ? answer.address : null;
+}
+
+// ---- The person's email preference (Proposal (studio.15)) -------------------
+//
+// Each member chooses once, in the Chest, how every tool may email them:
+// "all", "digest" (one email a day from the Chest gathering the others) or
+// "none". send applies it to every message that is not transactional, so no
+// tool can forget or override it; a tool reads it only to say so ("You
+// chose one email a day — change it in your Chest settings"). A tool may
+// keep its own switch too ("no reminders from Tasks"): both apply — the
+// tool's decides whether it sends, the Chest's whether and how the person
+// receives. Read-only.
+//
+// Until studio.1 of 0.4.1 it was a field of Member (mailPreference),
+// answered by members.get/list/lookup as mail_pref: a field the official
+// members module does not read. It is mail's, asked of mail: GET
+// /mail/preferences/<member>.
+export type MailPreference = "all" | "digest" | "none";
+
+// preference is how a member who has the tool wants email: "all" when the
+// Chest says nothing else (a Chest without preferences). null for an
+// identifier the tool does not have. Errors: ChestError invalid_id,
+// CapabilityNotGranted (not declared, or a Chest without mail), Unavailable.
+export async function preference(memberId: string): Promise<MailPreference | null> {
+  if (typeof memberId !== "string" || !memberIdPattern.test(memberId)) throw new ChestError("invalid_id", 400, "invalid member identifier");
+  const response = await ask("mail", "GET", "/mail/preferences/" + memberId);
+  if (response.status === 404) {
+    const code = ((await json(response).catch(() => null)) as { error?: unknown } | null)?.error;
+    if (code === "member_not_found") return null;
+    throw new CapabilityNotGranted("mail");
+  }
+  if (response.status !== 200) throw await refusal(response, "mail");
+  const answer = (await json(response)) as { preference?: unknown } | null;
+  const given = answer?.preference;
+  // A word of a later Chest is not a reason to refuse: read it as "all".
+  return given === "digest" || given === "none" ? given : "all";
 }
 
 // ---- Threads (Proposal (studio)) -------------------------------------------
@@ -382,76 +421,19 @@ export async function threadAddress(mailbox: string, thread: string): Promise<st
 
 // ---- Received mail ---------------------------------------------------------
 
-const label = "Chest-Mail v1";
-const claims = ["aud", "iat", "exp", "jti", "digest"] as const;
-const skew = 5;
-const maxBody = 4 << 20;
-const compact = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/u;
-const receivedPattern = /^rcv_[a-z2-7]{26}$/u;
 export const bouncePattern = /^bnc_[a-z2-7]{26}$/u;
 
-function object(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-function parse(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
-async function bodyOf(request: IncomingMessage | Request): Promise<Buffer | null> {
-  try {
-    if (request instanceof Request) {
-      if (request.bodyUsed || Number(request.headers.get("content-length") ?? "0") > maxBody) return null;
-      const raw = Buffer.from(await request.arrayBuffer());
-      return raw.length <= maxBody ? raw : null;
-    }
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of request) {
-      size += (chunk as Buffer).length;
-      if (size > maxBody) return null;
-      chunks.push(chunk as Buffer);
-    }
-    return Buffer.concat(chunks);
-  } catch {
-    return null;
-  }
-}
 const strings = (v: unknown, max: number): v is string[] => Array.isArray(v) && v.length <= max && v.every(x => typeof x === "string" && x.length <= 998);
 
 // verify returns what a delivery carries (POST /chest-mail, signed
-// Chest-Mail for this tool): a received message, or a bounce of a message
-// the tool sent (Proposal (studio)); null for anything else. It reads the
-// body.
+// Chest-Mail for this tool with 0.4.1's signed deliveries, as Chest-Event):
+// a received message, or a bounce of a message the tool sent; null for
+// anything else. It reads the body (4 MiB at most) and never throws for
+// what a request carries.
 export async function verify(request: IncomingMessage | Request): Promise<Received | Bounce | null> {
-  const token = process.env["CHEST_TOKEN"];
-  const tool = process.env["CHEST_TOOL"];
-  if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token) || !tool || request.method !== "POST") return null;
-  const headers = request.headers as Headers | IncomingMessage["headers"];
-  const signature = typeof (headers as Headers).get === "function" ? (headers as Headers).get("chest-mail") : (headers as IncomingMessage["headers"])["chest-mail"];
-  const parts = typeof signature === "string" && signature.length <= 2048 ? compact.exec(signature) : null;
-  if (!parts) return null;
-  const [, encodedHeader = "", encodedPayload = "", encodedSignature = ""] = parts;
-  const header = object(parse(Buffer.from(encodedHeader, "base64url").toString("utf8")));
-  if (!header || Object.keys(header).length !== 2 || header["alg"] !== "HS256" || header["typ"] !== "JWT") return null;
-  const key = createHmac("sha256", Buffer.from(token, "utf8")).update(label).digest();
-  const expected = createHmac("sha256", key).update(encodedHeader + "." + encodedPayload).digest();
-  const given = Buffer.from(encodedSignature, "base64url");
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
-  const payload = object(parse(Buffer.from(encodedPayload, "base64url").toString("utf8")));
-  if (!payload || Object.keys(payload).length !== claims.length || !claims.every(n => Object.hasOwn(payload, n))) return null;
-  const { aud, iat, exp, jti, digest } = payload;
-  if (aud !== tool || typeof jti !== "string" || !(receivedPattern.test(jti) || bouncePattern.test(jti)) || typeof digest !== "string") return null;
-  if (typeof iat !== "number" || typeof exp !== "number" || exp <= iat) return null;
-  const now = Math.floor(Date.now() / 1000);
-  if (iat > now + skew || exp <= now - skew) return null;
-  const body = await bodyOf(request);
-  if (body === null) return null;
-  const sum = createHash("sha256").update(body).digest();
-  const told = Buffer.from(digest, "base64url");
-  if (told.length !== sum.length || !timingSafeEqual(told, sum)) return null;
+  const signed = await delivery(request, mailChannel);
+  if (!signed) return null;
+  const { id: jti, body } = signed;
   const m = object(parse(body.toString("utf8")));
   if (!m || m["id"] !== jti) return null;
   if (bouncePattern.test(jti)) {
@@ -492,20 +474,23 @@ export async function verify(request: IncomingMessage | Request): Promise<Receiv
   };
 }
 
-// handle verifies a delivery and hands it to its handler: 401 for a
-// delivery that is not the Chest's, 204 once handled. handler is a
-// function of the received messages (a bounce is then accepted and
-// ignored), or {message, bounce} (Proposal (studio)). A handler that
-// throws makes handle throw: answer 500, the Chest delivers it again (at
-// least once: the same id; keep the handler idempotent). seen, as in
-// events, drops what was handled already.
-export async function handle(request: IncomingMessage | Request, handler: ((message: Received) => void | Promise<void>) | MailHandlers, options: { seen?: { has(id: string): boolean | Promise<boolean>; add(id: string): void | Promise<void> } } = {}): Promise<number> {
-  const delivery = await verify(request);
-  if (!delivery) return 401;
-  if (options.seen && (await options.seen.has(delivery.id))) return 204;
+const remembered = memorySeen();
+
+// handle verifies a delivery and hands it to its handler, once: 401 for a
+// delivery that is not the Chest's, 204 once handled or for one already
+// handled (seen.has). handler is a function of the received messages (a
+// bounce is then accepted and ignored), or {message, bounce}. A handler
+// that throws leaves the delivery unseen and handle throws: answer 500, the
+// Chest delivers it again (at least once: the same id). seen is memorySeen
+// by default, as in 0.4.1's events and schedules; give a durable one.
+export async function handle(request: IncomingMessage | Request, handler: ((message: Received) => void | Promise<void>) | MailHandlers, options: { seen?: Seen } = {}): Promise<number> {
+  const received = await verify(request);
+  if (!received) return 401;
+  const seen = options.seen ?? remembered;
+  if (await seen.has(received.id)) return 204;
   const handlers: MailHandlers = typeof handler === "function" ? { message: handler } : handler;
-  if (delivery.kind === "message") await handlers.message?.(delivery);
-  else await handlers.bounce?.(delivery);
-  await options.seen?.add(delivery.id);
+  if (received.kind === "message") await handlers.message?.(received);
+  else await handlers.bounce?.(received);
+  await seen.add(received.id);
   return 204;
 }

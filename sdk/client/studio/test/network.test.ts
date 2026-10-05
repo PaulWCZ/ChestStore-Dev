@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import * as events from "../src/events.js";
-import type { Member } from "../src/member.js";
-import * as members from "../src/members.js";
-import { fakeChest } from "../src/testing.js";
+import * as events from "../events.js";
+import type { Member } from "../member.js";
+import * as members from "../members.js";
+import { fakeChest } from "../testing.js";
 
 const person = (key: string): Member => ({ id: "mbr_" + key + "a".repeat(26 - key.length), firstName: key, lastName: "X", name: key + " X", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" });
 
@@ -112,7 +112,8 @@ test("tool: the fake runs as the tool a test names; clearCaches() forgets what l
     assert.equal((await members.lookup([camille.id])).members.length, 1);
     // …until the test says so.
     chest.clearCaches();
-    assert.deepEqual((await members.lookup([camille.id])).former, [{ id: camille.id, name: "camille X", status: "former", leftAt: "2026-09-30T17:00:00.000Z" }]);
+    assert.deepEqual((await members.lookup([camille.id])).former, [{ id: camille.id, name: "camille X", status: "former" }]);
+    assert.equal((await members.leftAt([camille.id])).get(camille.id), "2026-09-30T17:00:00.000Z");
   } finally {
     await chest.close();
   }

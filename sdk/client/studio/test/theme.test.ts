@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import { chest as theChest, forgetTheme, readThemeChoice } from "../src/chest.js";
+import { chest as theChest, forgetTheme, readThemeChoice } from "../chest.js";
 
 const theme = () => theChest.theme();
-import { fakeChest } from "../src/testing.js";
+import { fakeChest } from "../testing.js";
 
 const brand = { name: "Atelier Martin", primary: "#e4572e", secondary: "#17bebb", neutral: null, corners: "round", density: "compact", display: { id: "young-serif" }, body: { family: "Atelier Sans", files: [{ url: "/_chest/theme/brand/atelier-sans.woff2", weight: "400 700", style: "normal" }] }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" } };
 

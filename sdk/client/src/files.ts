@@ -1,4 +1,4 @@
-import { json, read, ask as chest, refusal as refused } from "./api.js";
+import { chestLink, json, read, ask as chest, refusal as refused } from "./api.js";
 import { ChestError, TooLarge, Unavailable } from "./errors.js";
 
 // The private files of a server tool whose chest.json declares
@@ -18,8 +18,9 @@ import { ChestError, TooLarge, Unavailable } from "./errors.js";
 // not reached), ChestError otherwise (invalid_name, invalid_type,
 // no_thumbnail 400, not_found 404…).
 
-// width and height: of a JPEG, PNG, GIF or WebP image the Chest measured.
-export type FileObject = { name: string; type: string; size: number; updated: string; width?: number; height?: number };
+// sha256: the digest of the content, in hex, as the Chest took it; width and
+// height: of a JPEG, PNG, GIF or WebP image the Chest measured.
+export type FileObject = { name: string; type: string; size: number; sha256: string; updated: string; width?: number; height?: number };
 export type FileData = { data: Uint8Array; type: string; size: number };
 export type FilePage = { files: FileObject[]; next: string | null };
 
@@ -31,14 +32,7 @@ const namePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(\/[A-Za-z0-9][A-Za-z0-9._-
 // family (RFC 6838 names).
 const typePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,62}\/(\*|[a-z0-9][a-z0-9!#$&^_.+-]{0,62})$/u;
 // Where the team host serves a link, and where it takes an upload.
-// Links are https on the tool's team host; http only on this machine, where
-// a local Chest (chest dev, the studio's harness) serves them — Proposal
-// (studio).
-const linkPattern = /^(?:https:\/\/[A-Za-z0-9.-]{1,253}|http:\/\/(?:localhost|127\.0\.0\.1))(:[0-9]{1,5})?\/_chest\/files\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
-const uploadPattern = /^(?:https:\/\/[A-Za-z0-9.-]{1,253}|http:\/\/(?:localhost|127\.0\.0\.1))(:[0-9]{1,5})?\/_chest\/(?:files\/)?upload\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
-// A public upload (Proposal (studio), the storage spec's publicUploads): 10
-// MiB at most whatever the tool asks, into uploads/public/.
-const publicMax = 10 << 20;
+const linkPath = "/_chest/files/", uploadPath = "/_chest/files/upload/";
 // The longest an upload may wait, in seconds.
 const uploadLife = 900;
 
@@ -53,7 +47,7 @@ const refusal = (response: Response) => refused(response, "files");
 function isObject(value: unknown): value is FileObject {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const o = value as Record<string, unknown>;
-  return typeof o["name"] === "string" && namePattern.test(o["name"]) && typeof o["type"] === "string" && o["type"].length <= 200 && typeof o["size"] === "number" && Number.isSafeInteger(o["size"]) && o["size"] >= 0 && typeof o["updated"] === "string" && isSide(o["width"]) && isSide(o["height"]) && (o["width"] === undefined) === (o["height"] === undefined);
+  return typeof o["name"] === "string" && namePattern.test(o["name"]) && typeof o["type"] === "string" && o["type"].length <= 200 && typeof o["size"] === "number" && Number.isSafeInteger(o["size"]) && o["size"] >= 0 && typeof o["sha256"] === "string" && /^[a-f0-9]{64}$/u.test(o["sha256"]) && typeof o["updated"] === "string" && isSide(o["width"]) && isSide(o["height"]) && (o["width"] === undefined) === (o["height"] === undefined);
 }
 // isSide accepts a side of an image the Chest measured, or none.
 function isSide(value: unknown): boolean {
@@ -61,7 +55,7 @@ function isSide(value: unknown): boolean {
 }
 function object(value: unknown): FileObject {
   if (!isObject(value)) throw new Unavailable();
-  return { name: value.name, type: value.type, size: value.size, updated: value.updated, ...(value.width !== undefined ? { width: value.width, height: value.height! } : {}) };
+  return { name: value.name, type: value.type, size: value.size, sha256: value.sha256, updated: value.updated, ...(value.width !== undefined ? { width: value.width, height: value.height! } : {}) };
 }
 
 // put keeps data as the file name, of type type (application/octet-stream
@@ -163,21 +157,9 @@ export async function url(name: string, options: { thumbnail?: 256 | 1024; downl
   const response = await ask("POST", "/files/url", { body: JSON.stringify(command), type: "application/json" });
   if (response.status !== 200) throw await refusal(response);
   const body = (await json(response)) as { url?: unknown; expires_in?: unknown } | null;
-  const token = body && typeof body.url === "string" ? linkPattern.exec(body.url)?.[2] : undefined;
+  const token = body ? chestLink(body.url, linkPath) : undefined;
   if (!body || token === undefined || token.length > 1536 || typeof body.expires_in !== "number" || !Number.isInteger(body.expires_in) || body.expires_in <= 0) throw new Unavailable();
   return { url: body.url as string, expiresIn: body.expires_in };
-}
-
-// publicUrl is the permanent address of an object under public/ on the
-// tool's public host (Proposal (studio), the storage spec's publicFiles):
-// served without a signed link, cached an hour; version (its updated time,
-// from stat) changes the address when the file changes. A path of the
-// public host, to put in its pages.
-export function publicUrl(name: string, options: { version?: string } = {}): string {
-  checkName(name);
-  if (!name.startsWith("public/")) throw new ChestError("invalid_name", 400, "only objects under public/ have a public address");
-  const v = options.version === undefined ? "" : "?v=" + encodeURIComponent(options.version);
-  return "/_chest/public/" + name.slice("public/".length).split("/").map(encodeURIComponent).join("/") + v;
 }
 
 // uploadUrl authorises one upload from a member's browser, which sends the
@@ -188,46 +170,18 @@ export function publicUrl(name: string, options: { version?: string } = {}): str
 // (up to 8, "image/*" for a family; any when not said), within expiresIn
 // seconds (1–900, 900 when not said), once. Call it from a /chest route,
 // after member(); then stat the name before recording it.
-// With public: true (Proposal (studio), the manifest's
-// "files": {"publicUploads": true}), a visitor of the public part sends it,
-// with no session, to /_chest/upload/<token> on the public host: 10 MiB at
-// most, under uploads/public/, 30 uploads a minute per visitor — for a job
-// application's CV, a support request's photo. Authorise it only after the
-// tool's own checks of the visitor (a form's guard).
-export async function uploadUrl(name: string, options: { maxSize?: number; types?: string[]; expiresIn?: number; public?: boolean; expiresUnclaimedAfter?: number } = {}): Promise<{ url: string; method: "PUT"; expiresIn: number }> {
+export async function uploadUrl(name: string, options: { maxSize?: number; types?: string[]; expiresIn?: number } = {}): Promise<{ url: string; method: "PUT"; expiresIn: number }> {
   if (typeof name !== "string" || !(name.endsWith("/") ? namePattern.test(name.slice(0, -1)) && name.split("/").length <= 8 : namePattern.test(name))) throw new ChestError("invalid_name", 400, "invalid file or folder name");
   const { maxSize, types, expiresIn } = options;
   if (maxSize !== undefined && (typeof maxSize !== "number" || !Number.isSafeInteger(maxSize) || maxSize < 1)) throw new ChestError("invalid_body", 400, "maxSize is a number of bytes");
   if (maxSize !== undefined && maxSize > maxObject) throw new TooLarge();
   if (types !== undefined && (!Array.isArray(types) || types.length > 8 || types.some((t, i) => typeof t !== "string" || t.length > 100 || !typePattern.test(t) || types.indexOf(t) !== i))) throw new ChestError("invalid_type", 400, "invalid media types");
   if (expiresIn !== undefined && (typeof expiresIn !== "number" || !Number.isInteger(expiresIn) || expiresIn < 1 || expiresIn > uploadLife)) throw new ChestError("invalid_body", 400, "expiresIn is 1 to 900 seconds");
-  if (options.public !== undefined && typeof options.public !== "boolean") throw new TypeError("public must be true or false");
-  const unclaimed = options.expiresUnclaimedAfter;
-  if (unclaimed !== undefined && (!options.public || typeof unclaimed !== "number" || !Number.isInteger(unclaimed) || unclaimed < 60 || unclaimed > 604800)) throw new ChestError("invalid_body", 400, "expiresUnclaimedAfter is 60 seconds to 7 days, for a public upload");
-  if (options.public) {
-    if (!name.startsWith("uploads/public/")) throw new ChestError("invalid_name", 400, "a public upload goes under uploads/public/");
-    if (maxSize !== undefined && maxSize > publicMax) throw new TooLarge();
-  }
-  const command = { name, ...(maxSize !== undefined ? { max_size: maxSize } : {}), ...(types !== undefined ? { types } : {}), ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}), ...(options.public ? { public: true } : {}), ...(unclaimed !== undefined ? { expires_unclaimed_after: unclaimed } : {}) };
+  const command = { name, ...(maxSize !== undefined ? { max_size: maxSize } : {}), ...(types !== undefined ? { types } : {}), ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}) };
   const response = await ask("POST", "/files/upload-url", { body: JSON.stringify(command), type: "application/json" });
   if (response.status !== 200) throw await refusal(response);
   const body = (await json(response)) as { url?: unknown; method?: unknown; expires_in?: unknown } | null;
-  const token = body && typeof body.url === "string" ? uploadPattern.exec(body.url)?.[2] : undefined;
+  const token = body ? chestLink(body.url, uploadPath) : undefined;
   if (!body || token === undefined || token.length > 2048 || body.method !== "PUT" || typeof body.expires_in !== "number" || !Number.isInteger(body.expires_in) || body.expires_in < 1 || body.expires_in > uploadLife) throw new Unavailable();
   return { url: body.url as string, method: "PUT", expiresIn: body.expires_in };
-}
-
-// Proposal (studio): claim takes a visitor's public upload for the tool. A
-// public upload answers the visitor's browser {type, size, claim}, not the
-// object's name: the form hands the claim to the tool's server, which
-// trades it once for the object — so a visitor can attach only what they
-// uploaded themselves, never guess someone else's. Unclaimed within
-// expiresUnclaimedAfter (uploadUrl), the Chest deletes the object itself.
-// Answers the object; ChestError not_found when the claim is unknown,
-// already used or expired.
-export async function claim(token: string): Promise<FileObject> {
-  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{16,128}\.claim$/u.test(token)) throw new ChestError("not_found", 404, "unknown claim");
-  const response = await ask("POST", "/files/claim", { body: JSON.stringify({ claim: token }), type: "application/json" });
-  if (response.status !== 200) throw await refusal(response);
-  return object(await json(response));
 }

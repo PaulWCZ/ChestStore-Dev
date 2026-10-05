@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import * as checks from "../src/checks.js";
-import { fakeChest } from "../src/testing.js";
+import * as checks from "../checks.js";
+import { fakeChest } from "../testing.js";
 
 test("a check's result reaches the tool, signed; anything else is refused", async () => {
   const fake = await fakeChest({ checks: { max: 2 } });

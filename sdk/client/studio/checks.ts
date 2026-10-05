@@ -1,12 +1,15 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { ask, json as answerOf, refusal } from "./api.js";
-import { ChestError, Unavailable } from "./errors.js";
+import { ask, json as answerOf, refusal } from "../src/api.js";
+import { ChestError, Unavailable } from "../src/errors.js";
+import { delivery, json, memorySeen, object, type Seen } from "../src/signed.js";
+import { checkChannel } from "./signed.js";
 
-// Proposal (studio) — checks run by the Chest: a tool that watches a
-// service (Status) cannot reach it — no outbound network, no process
-// between requests. The Chest can: it probes the addresses a tool declares,
-// from outside the tool, and posts each result to the tool.
+// Studio proposal (not in 0.4.1) — checks run by the Chest. A tool that
+// watches a service (Status) has no process between requests (a schedule
+// runs every 15 minutes at best), and probing the company's own addresses,
+// unknown when the manifest is written, would take "network": ["*"] — a
+// permission to reach anything. The Chest can: it probes the addresses the
+// tool configures, from outside the tool, and posts each result to it.
 //
 //   // chest.json — a permission the owner approves:
 //   // “Asks the Chest to check up to 10 web addresses of yours”
@@ -26,11 +29,11 @@ import { ChestError, Unavailable } from "./errors.js";
 // The Chest probes with a GET (no cookie, no body, redirects not followed,
 // its own user agent), from its own address, every `every` minutes (1 to
 // 60), and posts {id, name, at, ok, status, ms, error} to POST /chest-checks
-// through the tool's launcher, signed for this tool (Chest-Check, like
-// Chest-Job). ok is the expectation met: the status (200 by default) within
-// maxMs (10,000 by default). error, when not ok: "timeout", "dns", "tls",
-// "refused", "status" or "slow". At least once; a result may come twice (the
-// same id).
+// through the tool's launcher, signed for this tool (Chest-Check: 0.4.1's
+// signed deliveries, as Chest-Event and Chest-Schedule). ok is the
+// expectation met: the status (200 by default) within maxMs (10,000 by
+// default). error, when not ok: "timeout", "dns", "tls", "refused",
+// "status" or "slow". At least once; a result may come twice (the same id).
 //
 // Bounds (the Chest's): 10 checks per tool, at most every minute, https
 // only (http on localhost for the harness), no private address.
@@ -50,12 +53,6 @@ export type CheckResult = {
 };
 export type Check = { name: string; url: string; every: number; expect?: { status?: number; maxMs?: number } };
 
-const label = "Chest-Check v1";
-const claims = ["aud", "iat", "exp", "jti", "digest"] as const;
-const skew = 5;
-const maxSignature = 2048;
-const maxBody = 4096;
-const compact = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/u;
 export const checkIdPattern = /^chk_[a-z2-7]{26}$/u;
 export const checkPattern = /^[a-z][a-z0-9-]{0,31}$/u;
 export const limits = { checks: 10, minimumMinutes: 1, maximumMinutes: 60, maxMs: 30000 } as const;
@@ -124,78 +121,15 @@ export async function list(): Promise<Check[]> {
   return answer.checks as Check[];
 }
 
-function object(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-function json(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
-function headerOf(request: IncomingMessage | Request): string | null {
-  const headers = request.headers as Headers | IncomingMessage["headers"];
-  const value = typeof (headers as Headers).get === "function" ? (headers as Headers).get("chest-check") : (headers as IncomingMessage["headers"])["chest-check"];
-  return typeof value === "string" && value.length <= maxSignature ? value : null;
-}
-function pathOf(request: IncomingMessage | Request): string {
-  try {
-    return new URL(request.url ?? "/", "http://tool").pathname;
-  } catch {
-    return "";
-  }
-}
-async function bodyOf(request: IncomingMessage | Request): Promise<Buffer | null> {
-  try {
-    if (request instanceof Request) {
-      if (request.bodyUsed || Number(request.headers.get("content-length") ?? "0") > maxBody) return null;
-      const raw = Buffer.from(await request.arrayBuffer());
-      return raw.length <= maxBody ? raw : null;
-    }
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of request) {
-      size += (chunk as Buffer).length;
-      if (size > maxBody) return null;
-      chunks.push(chunk as Buffer);
-    }
-    return Buffer.concat(chunks);
-  } catch {
-    return null;
-  }
-}
-
 // verify returns the result a delivery carries, or null when it is not one
-// the Chest made for this tool (signature, tool, time, body, path
-// /chest-checks, POST). It reads the body and never throws for what a
-// request carries.
+// the Chest made for this tool: not a POST, no or another signature (the
+// header Chest-Check), another tool, expired, a body other than the one
+// signed or not of a result's shape. It reads the body (4 KiB at most) and
+// never throws for what a request carries.
 export async function verify(request: IncomingMessage | Request): Promise<CheckResult | null> {
-  const token = process.env["CHEST_TOKEN"];
-  const tool = process.env["CHEST_TOOL"];
-  if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token) || !tool || request.method !== "POST" || pathOf(request) !== "/chest-checks") return null;
-  const signature = headerOf(request);
-  const parts = signature === null ? null : compact.exec(signature);
-  if (!parts) return null;
-  const [, encodedHeader = "", encodedPayload = "", encodedSignature = ""] = parts;
-  const header = object(json(Buffer.from(encodedHeader, "base64url").toString("utf8")));
-  if (!header || Object.keys(header).length !== 2 || header["alg"] !== "HS256" || header["typ"] !== "JWT") return null;
-  const key = createHmac("sha256", Buffer.from(token, "utf8")).update(label).digest();
-  const expected = createHmac("sha256", key).update(encodedHeader + "." + encodedPayload).digest();
-  const given = Buffer.from(encodedSignature, "base64url");
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
-  const payload = object(json(Buffer.from(encodedPayload, "base64url").toString("utf8")));
-  if (!payload || Object.keys(payload).length !== claims.length || !claims.every(name => Object.hasOwn(payload, name))) return null;
-  const { aud, iat, exp, jti, digest } = payload;
-  if (aud !== tool || typeof jti !== "string" || !checkIdPattern.test(jti) || typeof digest !== "string") return null;
-  if (typeof iat !== "number" || !Number.isSafeInteger(iat) || typeof exp !== "number" || !Number.isSafeInteger(exp) || exp <= iat) return null;
-  const now = Math.floor(Date.now() / 1000);
-  if (iat > now + skew || exp <= now - skew) return null;
-  const body = await bodyOf(request);
-  if (body === null) return null;
-  const sum = createHash("sha256").update(body).digest();
-  const told = Buffer.from(digest, "base64url");
-  if (told.length !== sum.length || !timingSafeEqual(told, sum)) return null;
+  const signed = await delivery(request, checkChannel);
+  if (!signed) return null;
+  const { id: jti, body } = signed;
   const r = object(json(body.toString("utf8")));
   if (!r || Object.keys(r).sort().join(",") !== "at,error,id,ms,name,ok,status" || r["id"] !== jti) return null;
   const { name, at, ok, status, ms, error } = r;
@@ -207,14 +141,21 @@ export async function verify(request: IncomingMessage | Request): Promise<CheckR
   return { id: jti, name, at, ok, status: status as number | null, ms, error: error as CheckResult["error"] };
 }
 
-// handle verifies one delivery and hands its result to the handler: the
-// status to answer the Chest. 401 for a delivery that is not the Chest's,
-// 204 once the handler returned. A handler that throws makes handle throw:
-// answer 500, the Chest delivers the result again. Handlers must be
-// idempotent (the same result.id may come twice).
-export async function handle(request: IncomingMessage | Request, handler: (result: CheckResult) => void | Promise<void>): Promise<number> {
+const remembered = memorySeen();
+
+// handle verifies one delivery and hands its result to the handler, once:
+// the status to answer the Chest. 401 for a delivery that is not the
+// Chest's, 204 once the handler returned or for a result already handled
+// (seen.has, as in 0.4.1's events and schedules). A handler that throws
+// leaves the result unseen and handle throws: answer 500, the Chest
+// delivers it again. seen is memorySeen by default; events' durable store
+// serves here too (the ids never meet).
+export async function handle(request: IncomingMessage | Request, handler: (result: CheckResult) => void | Promise<void>, options: { seen?: Seen } = {}): Promise<number> {
   const result = await verify(request);
   if (!result) return 401;
+  const seen = options.seen ?? remembered;
+  if (await seen.has(result.id)) return 204;
   await handler(result);
+  await seen.add(result.id);
   return 204;
 }

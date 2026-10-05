@@ -1,11 +1,14 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { BlockList, isIP } from "node:net";
-import { ask, idempotencyKey, json as answerOf, refusal } from "./api.js";
-import { CapabilityNotGranted, ChestError, Unavailable } from "./errors.js";
-import { memberIdPattern } from "./member.js";
+import { ask, json as answerOf, refusal } from "../src/api.js";
+import { CapabilityNotGranted, ChestError, Unavailable } from "../src/errors.js";
+import { memberIdPattern } from "../src/member.js";
+import { delivery as signedDelivery, json, memorySeen, type Seen } from "../src/signed.js";
+import { idempotencyKey } from "./keys.js";
+import { webhooksChannel } from "./signed.js";
 
-// Proposal (studio) — webhooks: notices the Chest delivers, on the tool's
+// Studio proposal (not in 0.4.1) — webhooks: notices the Chest delivers, on the tool's
 // behalf, to web addresses the company's admins or the tool's subscribers
 // give (a Slack or Teams channel, Zapier, Make, the customer's own server).
 // A tool has no outbound network but the hosts its manifest names, and a
@@ -14,7 +17,8 @@ import { memberIdPattern } from "./member.js";
 // So the Chest delivers: it checks each address, signs, retries, disables
 // what keeps failing, and journals every delivery for the owner.
 //
-//   // chest.json (chest.proposals.json in the studio) — a permission:
+//   // chest.proposals.json (a 0.4 Chest refuses keys it does not know in
+//   // chest.json) — a permission:
 //   // “Sends notices to web addresses your admins or subscribers give,
 //   //  signed by your Chest (up to 200 addresses)”
 //   "webhooks": { "max": 200 }
@@ -505,81 +509,16 @@ export async function journal(options: { target?: string; after?: string; limit?
 // Chest signs its other deliveries (HS256 under HMAC-SHA256 of "Chest-
 // Webhooks v1" keyed by CHEST_TOKEN, naming the tool, the event's id and
 // the digest of the body).
-const label = "Chest-Webhooks v1";
-const claims = ["aud", "iat", "exp", "jti", "digest"] as const;
-const skew = 5;
-const maxSignature = 2048;
-const maxBody = 4096;
-const compact = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/u;
-
-function json(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
-function headerOf(request: IncomingMessage | Request): string | null {
-  const headers = request.headers as Headers | IncomingMessage["headers"];
-  const value = typeof (headers as Headers).get === "function" ? (headers as Headers).get("chest-webhooks") : (headers as IncomingMessage["headers"])["chest-webhooks"];
-  return typeof value === "string" && value.length <= maxSignature ? value : null;
-}
-function pathOf(request: IncomingMessage | Request): string {
-  try {
-    return new URL(request.url ?? "/", "http://tool").pathname;
-  } catch {
-    return "";
-  }
-}
-async function bodyOf(request: IncomingMessage | Request): Promise<Buffer | null> {
-  try {
-    if (request instanceof Request) {
-      if (request.bodyUsed || Number(request.headers.get("content-length") ?? "0") > maxBody) return null;
-      const raw = Buffer.from(await request.arrayBuffer());
-      return raw.length <= maxBody ? raw : null;
-    }
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of request) {
-      size += (chunk as Buffer).length;
-      if (size > maxBody) return null;
-      chunks.push(chunk as Buffer);
-    }
-    return Buffer.concat(chunks);
-  } catch {
-    return null;
-  }
-}
-
-// verify returns the event a delivery to POST /chest-webhooks carries, or
-// null when it is not one the Chest made for this tool. It reads the body
-// and never throws for what a request carries.
+// What the Chest tells the tool, on POST /chest-webhooks: signed with
+// 0.4.1's signed deliveries (src/signed.ts) under the label "Chest-Webhooks
+// v1", in the header Chest-Webhooks. verify returns the event a delivery
+// carries, or null when it is not one the Chest made for this tool. It
+// reads the body (4 KiB at most) and never throws for what a request
+// carries.
 export async function verify(request: IncomingMessage | Request): Promise<WebhookEvent | null> {
-  const token = process.env["CHEST_TOKEN"];
-  const tool = process.env["CHEST_TOOL"];
-  if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token) || !tool || request.method !== "POST" || pathOf(request) !== "/chest-webhooks") return null;
-  const signature = headerOf(request);
-  const parts = signature === null ? null : compact.exec(signature);
-  if (!parts) return null;
-  const [, encodedHeader = "", encodedPayload = "", encodedSignature = ""] = parts;
-  const header = object(json(Buffer.from(encodedHeader, "base64url").toString("utf8")));
-  if (!header || Object.keys(header).length !== 2 || header["alg"] !== "HS256" || header["typ"] !== "JWT") return null;
-  const key = createHmac("sha256", Buffer.from(token, "utf8")).update(label).digest();
-  const expected = createHmac("sha256", key).update(encodedHeader + "." + encodedPayload).digest();
-  const given = Buffer.from(encodedSignature, "base64url");
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
-  const payload = object(json(Buffer.from(encodedPayload, "base64url").toString("utf8")));
-  if (!payload || Object.keys(payload).length !== claims.length || !claims.every(name => Object.hasOwn(payload, name))) return null;
-  const { aud, iat, exp, jti, digest } = payload;
-  if (aud !== tool || typeof jti !== "string" || !eventIdPattern.test(jti) || typeof digest !== "string") return null;
-  if (typeof iat !== "number" || !Number.isSafeInteger(iat) || typeof exp !== "number" || !Number.isSafeInteger(exp) || exp <= iat) return null;
-  const now = Math.floor(Date.now() / 1000);
-  if (iat > now + skew || exp <= now - skew) return null;
-  const body = await bodyOf(request);
-  if (body === null) return null;
-  const sum = createHash("sha256").update(body).digest();
-  const told = Buffer.from(digest, "base64url");
-  if (told.length !== sum.length || !timingSafeEqual(told, sum)) return null;
+  const signed = await signedDelivery(request, webhooksChannel);
+  if (!signed) return null;
+  const { id: jti, body } = signed;
   const e = object(json(body.toString("utf8")));
   if (!e || Object.keys(e).sort().join(",") !== "at,id,last_error,reason,target,type" || e["id"] !== jti) return null;
   const { type, at, target: to, reason, last_error } = e;
@@ -587,14 +526,20 @@ export async function verify(request: IncomingMessage | Request): Promise<Webhoo
   return { id: jti, type, at, target: to, reason, lastError: last_error };
 }
 
-// handle verifies one delivery and hands its event to the handler: the
-// status to answer. 401 for a delivery that is not the Chest's, 204 once
-// handled. A handler that throws makes handle throw: answer 500, the Chest
-// delivers again (for 72 hours). The same event may come twice (same id):
-// keep the handler idempotent.
-export async function handle(request: IncomingMessage | Request, handlers: { disabled?: (event: WebhookEvent) => void | Promise<void> }): Promise<number> {
+const remembered = memorySeen();
+
+// handle verifies one delivery and hands its event to the handler, once:
+// the status to answer. 401 for a delivery that is not the Chest's, 204
+// once handled or for an event already handled (seen.has). A handler that
+// throws leaves the event unseen and handle throws: answer 500, the Chest
+// delivers again (for 72 hours). seen is memorySeen by default, as in
+// 0.4.1's events and schedules.
+export async function handle(request: IncomingMessage | Request, handlers: { disabled?: (event: WebhookEvent) => void | Promise<void> }, options: { seen?: Seen } = {}): Promise<number> {
   const event = await verify(request);
   if (!event) return 401;
+  const seen = options.seen ?? remembered;
+  if (await seen.has(event.id)) return 204;
   if (handlers.disabled) await handlers.disabled(event);
+  await seen.add(event.id);
   return 204;
 }
