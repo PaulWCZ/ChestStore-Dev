@@ -1,7 +1,7 @@
 {
   "name": "@argentic/chest-sdk",
-  "version": "0.3.1-studio.1",
-  "description": "The client a Chest server tool embeds: the member the Chest asserts on a request, the Chest itself (its organization, time zone and language), who else has the tool, the tool's own database, its private files, badges and notifications inside the Chest, the events of its members' lifecycle, AI models through the Chest, and a fake Chest for its tests — with the studio's proposals: schedules, mail, calendar, webhooks, visitors, checks, events between tools.",
+  "version": "0.4.1",
+  "description": "The client a Chest server tool embeds: the member the Chest asserts on a request, the Chest itself (its organization, time zone, language and currency, and where the tool is reached), who else has the tool, the tool's own database, its private files, badges and notifications inside the Chest, the events of its members' lifecycle, the runs of its schedules, AI models through the Chest, a fake Chest for its tests — and the tool contract, published in its repository (chest check is @argentic/chest-check).",
   "keywords": [
     "chest",
     "argentic",
@@ -13,12 +13,9 @@
     "members",
     "notifications",
     "events",
-    "ai",
-    "llm",
     "schedules",
-    "mail",
-    "calendar",
-    "webhooks"
+    "ai",
+    "llm"
   ],
   "homepage": "https://github.com/chest-by-argentic/Chest-SDK#readme",
   "bugs": {
@@ -35,6 +32,9 @@
     "node": ">=22"
   },
   "sideEffects": false,
+  "workspaces": [
+    "check"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -72,33 +72,13 @@
       "types": "./dist/src/events.d.ts",
       "default": "./dist/src/events.js"
     },
-    "./ai": {
-      "types": "./dist/src/ai.d.ts",
-      "default": "./dist/src/ai.js"
-    },
     "./schedules": {
       "types": "./dist/src/schedules.d.ts",
       "default": "./dist/src/schedules.js"
     },
-    "./mail": {
-      "types": "./dist/src/mail.d.ts",
-      "default": "./dist/src/mail.js"
-    },
-    "./calendar": {
-      "types": "./dist/src/calendar.d.ts",
-      "default": "./dist/src/calendar.js"
-    },
-    "./webhooks": {
-      "types": "./dist/src/webhooks.d.ts",
-      "default": "./dist/src/webhooks.js"
-    },
-    "./visitors": {
-      "types": "./dist/src/visitors.d.ts",
-      "default": "./dist/src/visitors.js"
-    },
-    "./checks": {
-      "types": "./dist/src/checks.d.ts",
-      "default": "./dist/src/checks.js"
+    "./ai": {
+      "types": "./dist/src/ai.d.ts",
+      "default": "./dist/src/ai.js"
     },
     "./testing": {
       "types": "./dist/src/testing.d.ts",
@@ -110,6 +90,7 @@
     "dist",
     "client/index.ts",
     "client/src/api.ts",
+    "client/src/signed.ts",
     "client/src/errors.ts",
     "client/src/member.ts",
     "client/src/chest.ts",
@@ -118,13 +99,8 @@
     "client/src/files.ts",
     "client/src/notifications.ts",
     "client/src/events.ts",
-    "client/src/ai.ts",
     "client/src/schedules.ts",
-    "client/src/mail.ts",
-    "client/src/calendar.ts",
-    "client/src/webhooks.ts",
-    "client/src/visitors.ts",
-    "client/src/checks.ts",
+    "client/src/ai.ts",
     "client/src/testing.ts"
   ],
   "publishConfig": {
@@ -134,7 +110,8 @@
   "scripts": {
     "clean": "node -e \"for (const d of ['dist', 'build']) require('node:fs').rmSync(d, {recursive: true, force: true})\"",
     "build": "npm run clean && tsc -p tsconfig.build.json",
-    "test": "npm run build && tsc -p tsconfig.json && node --test build/client/test/*.test.js",
+    "test": "npm run build && tsc -p tsconfig.json && node scripts/contract.mjs --check && node --test build/client/test/*.test.js && npm test -w check",
+    "contract": "node scripts/contract.mjs",
     "check:package": "node scripts/check-package.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm test && npm run check:package"
