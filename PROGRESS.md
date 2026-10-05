@@ -7,6 +7,35 @@ meaningful step (brief/07-plan.md).
 
 **Update from the owner (2026-10-05): read [brief/08-update-2026-10.md](brief/08-update-2026-10.md).** `reference/` was refreshed (SDK 0.4.1, contract 0.4, the Perseus starter); the 18 tools are refused by a 0.4 Chest as they are (`"version": 2`, schedules on `/chest-jobs`). Asks: (a) every tool on SDK 0.4.x and the 0.4 manifest; (b) memory at rest measured, Next.js tools moved to the lighter reference stack unless measured otherwise; (c) a better starter template for Perseus (`reports/` + a working template folder).
 
+### Update 2026-10 — the plan and where it stands
+
+The owner's message (2026-10-05) adds: work the three asks **in parallel,
+with subagents, in loops**, each result reviewed by a separate critical
+reviewer until it is excellent (works on a real Chest, best a company
+could get, every screen understood in seconds); every tool must pass
+`chest check` and install on a Chest.
+
+How the lead runs it: each agent works in its own Git worktree
+(`/home/user/wt/<name>`, branch `wt/<name>`) and commits there; the lead
+merges into `claude/exciting-planck-t5514x` and pushes (PR to main). Node
+24.21 (the Chest's pinned image) is at `/opt/node24/bin` and used for
+builds, checks and measurements (the shell default stays Node 22).
+
+| Phase | What | State |
+|---|---|---|
+| 0 | `scripts/chest-check.mjs`: the official checker on one tool as its own repository | done — all 18 tools **refused** today (`manifest`: no `"chest"`) |
+| 1a | `sdk/` → `0.4.1-studio.1` (official verbatim + proposals that 0.4.1 lacks), change list, SDK report §2/§5/§10 | agent running (`wt/sdk`) |
+| 1b | The studio starter `starter/` + `reports/06-perseus-starter.md` with measurements | agent running (`wt/starter`) |
+| 1c | `lab/measure/` bench; `before-next16` numbers for the 18 tools; `lab/chest-dev` on contract 0.4 (two hosts, routing, schedules, sleep, logs) | agent running (`wt/bench`) |
+| 2 | Pilot migrations onto the starter (Polls, Tasks), critical review, starter v2 | next |
+| 3 | The 16 other tools, 3 at a time, each reviewed until excellent | — |
+| 4 | Before/after measured together in a quiet window; reports; critique verdicts (custom domains) | — |
+
+Findings so far (for the SDK report): `chest check` archives the whole Git
+repository a folder belongs to (fails in a monorepo: `ENOBUFS`); under Node
+22.22 its WASI run segfaults on archives of a few MB (Tasks), not under
+Node 24.21.
+
 Step 3 done (17 tools verified). Step 4: the SDK report is kept current. Step 5 under way.
 
 **Owner's requests (2026-09-28), to honour from now on:**
