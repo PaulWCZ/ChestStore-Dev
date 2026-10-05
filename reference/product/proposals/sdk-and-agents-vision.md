@@ -11,7 +11,7 @@ tools — under the powers the owner gives it. Already decided and specified:
 
 **Update, 28 September 2026 (later):** Paul decided part (b) and the LLM
 gateway. The decisions are specified in
-[Perseus and connected agents](../02_specs/chest-agent.md),
+[Connected agents](../02_specs/chest-agent.md),
 [AI gateway](../02_specs/ai-gateway.md),
 [Develop and test tools](../02_specs/develop-and-test-tools.md) and
 [Owner space and billing](../02_specs/owner-space-and-billing.md); where this
@@ -24,6 +24,20 @@ spend is their own; only the Chest's own agent has a monthly money budget.
 the owner and admins. Code stays on GitHub as today (no Chest Git, no GitHub
 write for now; deferred). AI runs on BYOK connectors first; managed AI credits
 are later.
+
+**Update, 29 September 2026:** realtime (the gap of team chat, docs and
+boards) is specified in [Realtime](../02_specs/realtime.md): socket
+pass-through on the tool front (RT1, before PB3's hot reload), then a Chest
+Realtime service with channels, presence and tool-signed tokens (RT2).
+
+**Update, 28 September 2026 (night):** Perseus v1 **is** the build agent,
+[Perseus Code](../02_specs/perseus-build.md), first priority after AI1 (with
+the PB0 spike). The Chest maintaining itself (“Ask Perseus about your Chest”,
+maintenance loops, event reactions, weekly reports, Perseus statuses, AG5
+below) is [later, not planned](../02_specs/perseus-build.md#later-not-planned);
+connected agents (AG1–AG4) come after Perseus Code. **Builder** becomes a
+Chest-level status (member < builder < admin < owner) that opens Perseus
+Build; “its tools” below = the tools created or assigned.
 
 ## (a) A complete SDK
 
@@ -79,7 +93,7 @@ are later.
 | **Scheduled tasks** | `"schedules": [{"name": "reminders", "cron": "0 8 * * 1-5", "path": "/chest-jobs/reminders"}]`; the Chest calls the path with a signed request, logs duration and status, shows the next run | Needed by half the catalogue; cheap: the Chest is already a supervisor. **P1** |
 | **Jobs / queue** | `jobs.enqueue(name, payload, {runAt?, key?})`; the Chest delivers to `/chest-jobs/<name>` with retries and backoff, at-least-once, stored in the Chest (not the tool's memory) | Same delivery engine as events and schedules: build once. **P1** |
 | **Events between tools** | `events.emit(type, data)`, `"emits"` / `"receives"` in the manifest, links set by an admin (“When Forms receives a response → create a contact in CRM”) | Already the plan (batch A); it is what turns tools into a suite. **P1** |
-| **Realtime** | WebSocket and Server-Sent Events passed through the front on `/chest` (and the public part), session checked at upgrade; `realtime.publish(channel, data)` for fan-out later | Passing the upgrade through is small and unlocks chat, boards, co-editing; a hosted pub/sub only if tools struggle. **P1** (pass-through) |
+| **Realtime** | WebSocket and Server-Sent Events passed through the front on `/chest` (and the public part), session checked at upgrade; `realtime.publish(channel, data)` for fan-out later | Passing the upgrade through is small and unlocks chat, boards, co-editing; a hosted pub/sub only if tools struggle. **P1** (pass-through) — specified 29 September: [Realtime](../02_specs/realtime.md) (RT1 pass-through, RT2 Chest Realtime) |
 | **Audit log** | `audit.record({action, target, detail})`, kept by the Chest outside the tool, shown to admins on the tool's page, exported | Compliance sells to companies; a tool cannot tamper with it. **P1** |
 | **Email connector** | Separate decision (batch G) | Blocks CRM, helpdesk, invoicing. **P1 decision** |
 | **Public accounts connector** | `accounts.*`: sign-up, sign-in, recovery, passkeys for a tool's public part, per tool, ids `acc_…` | The biggest unlock for customer-facing tools (shop, portal, LMS, booking). **P2**, designed early |
@@ -160,7 +174,7 @@ with its own tokens, journal and activity page. Its status:
   “Pause agent” stops every token at once. **No money limit** for connected
   agents; irreversible actions (deleting a tool or data, a new permission, a
   domain) always wait for the owner's approval in the Chest. Defaults in
-  [Perseus and connected agents](../02_specs/chest-agent.md#safety-limits).
+  [Connected agents](../02_specs/chest-agent.md#safety-limits).
 
 ### Building and publishing many tools cleanly
 
@@ -211,7 +225,7 @@ An agent with the Maintainer status keeps its tools alive:
 - **Report:** a weekly note in its sponsor's inbox: what changed, what waits
   for a human, what it could not fix.
 
-Later, the Chest runs its own agent, **Perseus** (“Ask your Chest”): a run in
+Later, the Chest runs its own agent, **Perseus** (“Ask Perseus about your Chest”): a run in
 a sandbox container like a tool, with the owner's model through the AI
 gateway, acting through MCP with its agent principal — **a Chest that
 maintains itself**, under powers a human set.
@@ -254,7 +268,7 @@ Chest gives them a workshop with rules.
 | AG2 | Requests | Requests to the owner in the inbox, approval in the Chest; MCP `requests` |
 | AG3 | Build loop | Templates, `create_tool`, `watch_build`, automatic rollback after a bad version |
 | AG4 | Previews | Branch previews with their own database — now batch DT, [Develop and test tools](../02_specs/develop-and-test-tools.md) |
-| AG5 | Perseus | “Ask your Chest”, maintenance findings and proposals, on the AI gateway |
+| AG5 | Perseus | “Ask Perseus about your Chest”, maintenance findings and proposals, on the AI gateway |
 | — | Chest Git | Deferred: push to the Chest without GitHub, only if simple |
 
 ## Opinions and open questions for Paul
@@ -270,4 +284,4 @@ Chest gives them a workshop with rules.
    first, managed credits later; see [AI gateway](../02_specs/ai-gateway.md).
 6. **Agent safety limits by default** — decided: generous rate caps, no money
    limit for connected agents; values in
-   [Perseus and connected agents](../02_specs/chest-agent.md#safety-limits).
+   [Connected agents](../02_specs/chest-agent.md#safety-limits).

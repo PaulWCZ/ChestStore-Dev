@@ -45,7 +45,9 @@ opening, on central.
 
 ### 2. Replace SaaS subscriptions with the catalogue
 
-A **store** of open-source tools, installable or **forkable** into the Chest.
+A **store** of open-source tools, installable into the Chest and **customizable
+with Perseus** — your changes on top of the author's, updates kept
+([Customize an installed tool](../02_specs/perseus-build.md#customize-an-installed-tool)).
 
 ## Agent moat
 
@@ -66,7 +68,7 @@ See [For agents](../02_specs/for-agents.md).
 |---|---|
 | Company head / Owner | Central account (subscription) + access to the Chest’s portal |
 | Team (**members**) | Groups, a role in each tool, private access |
-| Builder + **agent** | Agent key, linked GitHub, SDK; push → Compartment (proposal or auto-deploy) |
+| **Builder** (a Chest status) + Perseus or their **agent** | Perseus Code in the Chest, or agent key, linked GitHub, SDK; publish or push → Compartment (proposal or auto-deploy) |
 | A tool’s **end users** | Tool account on public access |
 | **Visitors** | Anonymous public access if the tool allows it |
 
@@ -76,7 +78,7 @@ See [For agents](../02_specs/for-agents.md).
 |---|---|
 | Central | Owner account, subscription, provisioning |
 | Portal | Compartments, team, store — using the Chest |
-| Store | Open-source catalogue; install or fork |
+| Store | Open-source catalogue; install, then customize with Perseus |
 | GitHub + agent key | Code relay and API to publish from an agent |
 | SDK | End users, files, mail, Postgres, roles, connectors |
 | Manifest | Declares needs; a human approves |
@@ -87,7 +89,9 @@ See [For agents](../02_specs/for-agents.md).
 
 - Not a multi-tenant host where all Chests share the same VM.
 - Not an “internal only” platform: **public** access is part of the product.
-- Not a mandatory built-in AI editor: you use your usual agent.
+- Not a mandatory built-in AI editor: [Perseus Code](../02_specs/perseus-build.md)
+  builds a tool in conversation for those who want it; your usual agent works
+  just as well.
 - Not a business SaaS: the business lives in the Compartments.
 - Not a model vendor: the [AI gateway](../02_specs/ai-gateway.md) gives tools
   governed access to models (Argentic credits or the company's own keys).

@@ -1,0 +1,1 @@
+Package of chest-by-argentic/Chest-SDK, commit b053ed3fcbb9f5e0559d9aab2e20bcd0061e166d, 2026-09-30: `chest-sdk-0.4.0.tgz`, as npm packs it; do not edit here: `node scripts/sync-sdk.mjs` in the Chest's repository

@@ -91,4 +91,6 @@ upload?.addEventListener("submit", event => {
   })();
 });
 
-void show();
+// A list that cannot be read — the network gone, the page left while it
+// loaded — says so; nothing is retried.
+void show().catch(() => say("The operation did not go through."));

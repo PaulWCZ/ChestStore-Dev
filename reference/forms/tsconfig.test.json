@@ -19,5 +19,5 @@
     "outDir": ".test-dist",
     "types": ["node"]
   },
-  "include": ["lib/model.ts", "lib/forms.ts", "lib/i18n.ts", "test/**/*.ts", "packages/chest-client/**/*.ts"]
+  "include": ["lib/model.ts", "lib/forms.ts", "lib/i18n.ts", "test/**/*.ts"]
 }

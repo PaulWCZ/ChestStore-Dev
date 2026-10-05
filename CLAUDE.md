@@ -51,6 +51,7 @@ whenever you (re)start, update it after every meaningful step.**
 5. [brief/05-design-contest.md](brief/05-design-contest.md) — the UX bar and the style contest
 6. [brief/06-sdk-report.md](brief/06-sdk-report.md) — what the SDK report must contain
 7. [brief/07-plan.md](brief/07-plan.md) — working autonomously until the credits run out, Git
+8. [brief/08-update-2026-10.md](brief/08-update-2026-10.md) — **read first on your next run**: what the Chest shipped up to 5 October 2026 (SDK 0.4.1, contract 0.4, schedules, custom domains, the Perseus starter) and three asks: tools on 0.4, a lighter stack for memory, a better Perseus starter
 
 ## Rules that never bend
 

@@ -1,8 +1,8 @@
 # Forms — create forms and collect the responses
 
 A tool of the Chest by Argentic catalogue. A Chest builds it itself from this
-repository, at a pinned commit: it is a Next.js server (tool contract v2:
-`chest.json` `"version": 2`) with its own PostgreSQL database.
+repository, at a pinned commit: it is a Next.js server (tool contract 0.4:
+`chest.json` `"chest": "0.4"`) with its own PostgreSQL database.
 
 To adapt it: fork this repository, change it with your agent (see
 `AGENTS.md`), and link your fork to your Chest.
@@ -56,7 +56,8 @@ same shape (a test checks that every catalogue has every word).
   the Chest then only adds `frame-ancestors 'none'; base-uri 'self';
   object-src 'none'` on the public host. A page without a policy keeps the
   Chest's strict one;
-- `capabilities: ["database"]` — a database: the Chest gives `DATABASE_URL`.
+- `capabilities: ["database"]` — a database, whose address the SDK's
+  `databaseUrl()` reads.
 
 What the Chest imposes on a server, and how the tool complies:
 
@@ -72,9 +73,11 @@ What the Chest imposes on a server, and how the tool complies:
 - `npm prune --omit=dev` after the build: `next`, `react`, `react-dom` and
   `postgres` are dependencies, TypeScript and the types are not.
 
-`packages/chest-client` is a vendored copy of the SDK
-(`chest-by-argentic/Chest-SDK`, see its `VENDORED.md`): `member(request)`
-reads the Chest's assertion. Relative imports carry the `.ts` extension
+The SDK (`@argentic/chest-sdk`) is the package the Chest ships, in
+`vendor/chest-sdk-<version>.tgz` (see `vendor/VENDORED.md`), written with
+`package.json` and its lock by the Chest's repository (`npm run sync:sdk`),
+never taken from npm nor edited here: `member(request)` reads the Chest's
+assertion, `databaseUrl()` the database's address. Relative imports carry the `.ts` extension
 (`allowImportingTsExtensions`): webpack and Turbopack do not resolve `./x.js`
 to `./x.ts`.
 
@@ -88,7 +91,7 @@ npm run build      # types, then the build, as the Chest does
 
 `npm run dev` serves the tool on `localhost:3000`; the members' part expects
 the Chest's signed assertion (`CHEST_TOKEN`, `CHEST_TOOL`) and a database
-(`DATABASE_URL`).
+(`DATABASE_URL`, which `databaseUrl()` reads).
 
 ## Since version 1
 

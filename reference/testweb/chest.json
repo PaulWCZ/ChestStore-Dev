@@ -1,8 +1,8 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "testweb",
   "title": "Server test bench",
-  "description": "The web server that exercises the v2 contract of a Chest.",
+  "description": "The web server that exercises the tool contract of a Chest.",
   "icon": "chest/icon.svg",
   "roles": [
     "reader",
@@ -13,10 +13,21 @@
     "database",
     "files",
     "members",
-    "notifications"
+    "notifications",
+    "ai"
   ],
+  "ai": {
+    "monthly": 2,
+    "purpose": "Summarises a member's text in one sentence"
+  },
   "receives": [
     "member.*"
+  ],
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "30 7 * * 1-5"
+    }
   ],
   "network": [
     "allowed.egress.test",

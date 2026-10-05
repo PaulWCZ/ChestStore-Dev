@@ -33,7 +33,12 @@ tool's data to one provider, one realm and one installation. It is replaced.
 `name`, the date, and the set of tools the member had access to. A tool from
 that set that looks the id up gets `{id, name, status: "former"}`, so a record
 still reads “Assigned to Camille Martin (former member)”. Erasure (§ 5) removes
-the name: `{id, status: "erased"}`, rendered “Former member”.
+the name: `{id, status: "erased"}`, rendered “Former member”. A member who
+stays in the Chest but **lost access to a tool** is `{id, name, status:
+"no_access"}` to that tool — only if the tool had them (the Chest remembers
+whom each tool had): “Léa Dubois (no access)”, so the laptops she holds or
+the goals she owned keep a name (decided 30 September 2026, from the store
+studio's friction report). Anyone the tool never had stays `unknown`.
 
 **Export and import between Chests** (not built; what it would need):
 
@@ -71,14 +76,67 @@ type Member = {
   isAdmin: boolean;
   isBuilder: boolean;    // builder of THIS tool
   groups: string[];      // ids of the groups that give this member access to this tool
+  language: string;      // "fr": the language the Chest speaks to them
+  timeZone: string;      // "America/New_York": the zone the member works in
   email?: string;        // only with "members.email"
 };
 ```
 
 Assertion claims: `sub` (member id), `given_name`, `family_name`, `name`,
-`picture`, `role`, `admin`, `builder`, `groups`, and `email` only with the
+`picture`, `role`, `admin`, `builder`, `groups`, `language` (the one the
+Chest speaks to this member), `time_zone` (the zone they work in), and
+`email` only with the
 permission. Everything else (`iss`, `aud`, 60 s life, HS256 under
 `CHEST_TOKEN`) is unchanged.
+
+**The Chest is not the member (decided by Paul, 29 September 2026).** What
+is the same for every member is never a member's field: the organization's
+name, the Chest's time zone, its language and its currency are the Chest's,
+read with the SDK's `chest` module (`chest.organization.name`,
+`chest.timeZone`, `chest.today()`, `chest.language`, `chest.currency`), in a
+request or outside one; so are the tool's own addresses
+(`chest.tool.teamUrl`, `chest.tool.publicUrl` — its custom domain once one is
+served), for the links of a mail sent later. The Chest
+gives them to every tool in its environment and starts every tool again
+when the owner or an admin changes one (Settings → General; the currency
+is the euro until set: neither the language nor the zone says a company's
+currency) or, for its addresses, a custom domain starts or stops being
+served; the zone is
+also the zone of the tool's database, so its `current_date` is the
+company's day. There is no `member.organization`.
+
+**Each member works in their own zone (Paul, 29 September 2026: “each user
+may work in different zones”).** The Chest's zone stays the company's
+reference — deadlines, the business day, the database. A member's zone is
+theirs: followed from their browser without a question (at their first
+visit, and whenever the browser is elsewhere, as long as they chose none),
+or chosen in their Profile, next to the language (“Automatic
+(Europe/Paris, 17:21)” by default); the Chest's zone while nothing is known.
+Tools are told it — `member.timeZone`, on each request and in the members
+API, beside `member.language`, so a notification to another member is in
+their language and at their hour — and follow one rule, written in the SDK's guide: **store instants in
+UTC, decide the company's day in the Chest's zone, show times (and remind)
+in the member's**.
+
+**Guests (decided by Paul, 29 September 2026).** A status below member,
+**guest < member < builder < admin < owner**, for someone from outside the
+company — an accountant, a lawyer, a contractor — given a single tool. A
+guest has **exactly a member's rights** in the Chest: the tools they are
+given, their profile, nothing to run. The status only sets them apart for
+whoever runs the Chest:
+
+- **Team** lists them in their own **Guests** section, below the members,
+  with the line “Someone from outside the company, like your accountant.
+  Uses the tools they are given, as a member.”
+- **Invitations** and a member's **Status** menu offer *Guest · Member ·
+  Builder · Admin* (Admin to the owner only), each with its one line; the
+  default stays Member. A guest given a tool to change becomes a builder.
+- **Tools are told nothing new**: no `isGuest`, no claim; a guest is a
+  member to a tool (`isAdmin` and `isBuilder` false). Nothing a tool would do
+  with it that its own roles do not do better (an accountant is given the
+  tool's “accountant” role, not a Chest status), and exposing it would tell
+  tools something about people they do not need.
+- No migration: existing members stay members.
 
 ## 3. Permission `members`
 
@@ -95,8 +153,9 @@ Read-only. Approved like `database`; adding either to a later version is a new
 permission (owner or admin approves).
 
 **Who a tool sees:** exactly the members that have access to it at the time of
-the call (`Team.Access`: direct grant, group, open to all, plus owner, admins
-and its builders, who always get in). Recomputed on every call. A member
+the call (`Team.Access`: direct grant, group, open to all, plus the owner and
+the admins, who always get in; a builder of the tool only through a grant,
+like any member — [Builders](perseus-build.md#builders)). Recomputed on every call. A member
 without access is indistinguishable from an id that does not exist.
 
 ### API
@@ -232,7 +291,7 @@ exist, batches M and N ship without them and tools reconcile by listing.
 
 | Event | Data | When |
 |---|---|---|
-| `member.updated` | `{id, changed: ["name" \| "photo" \| "role" \| "groups" \| "email"]}` | Something the tool can see changed (`email` only with `members.email`) |
+| `member.updated` | `{id, changed: ["name" \| "photo" \| "role" \| "groups" \| "email" \| "language" \| "timeZone"]}` | Something the tool can see changed (`email` only with `members.email`; `language`, `timeZone`: what a digest is written in, and at what hour) |
 | `access.revoked` | `{id}` | The member lost access to this tool but stays in the Chest |
 | `member.removed` | `{id}` | The member left the Chest (the id becomes “former”) |
 | `member.erased` | `{id, erasure, deadline}` | The owner asked for this person's data to be erased |
@@ -266,7 +325,7 @@ For the tool's own tests, never imported by production code.
 |---|---|
 | `signAssertion(member, {token?, tool?, now?})` | A `Chest-Member` header value signed like the Chest's, for a `Member` of § 2 |
 | `withMember(request, member)` | The same request carrying that assertion |
-| `fakeChest({members?, groups?, capabilities?, files?})` | An in-process HTTP server on `127.0.0.1` that sets `CHEST_API`, `CHEST_TOKEN`, `CHEST_TOOL` and answers members, groups, badges, notifications and files with the same limits and errors as a Chest; a capability left out answers 403 |
+| `fakeChest({members?, groups?, capabilities?, files?, chest?})` | An in-process HTTP server on `127.0.0.1` that sets `CHEST_API`, `CHEST_TOKEN`, `CHEST_TOOL`, and the Chest's organization, time zone and language (`chest`), and answers members, groups, badges, notifications and files with the same limits and errors as a Chest; a capability left out answers 403 |
 | `fake.notifications`, `fake.badges`, `fake.files` | What the tool sent, to assert on |
 | `fake.emit(event)` | Delivers a signed event to the tool (once events exist) |
 | `fake.close()` | Stops it and restores the environment |

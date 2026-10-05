@@ -27,18 +27,28 @@ ${body}
 `;
 }
 
-// The public part: anyone on the Internet, no identity.
-export function publicPage(version: string): string {
+// The public part: anyone on the Internet, no identity; the address the
+// Chest says it is at (its custom domain once one is served).
+export function publicPage(version: string, address: string | null): string {
   return document(title, `<p>This page is public.</p>
 <p class="version">Version: ${escape(version)}</p>
+<p class="address">Public address: ${escape(address ?? "none")}</p>
 <p><a href="/chest">Team space</a></p>`);
 }
 
-// The team part: the member the Chest asserted, their role, the variable the
-// tool expects (set in its tab Variables, given at its start), the notes
-// (drawn by /chest/app.js) and, for who may write, the form; a photo sent
-// straight to the Chest, then shown by its thumbnail.
-export function teamPage(version: string, name: string, role: string | null, canWrite: boolean, greeting: string | undefined): string {
+// What the team page says of the Chest: its organization, its time zone and
+// its currency (the chest module), today there, where the tool is reached,
+// and the zone and the day of the tool's database sessions, which the Chest
+// sets to its own.
+export type ChestView = { organization: string; timeZone: string; currency: string; teamUrl: string; publicUrl: string | null; today: string; database: { timeZone: string; today: string } };
+
+// The team part: the member the Chest asserted, their role, the organization
+// the Chest is of, the member's language and time zone, the Chest's zone and its
+// day, in the tool and in its database, the variable the tool expects (set
+// in its tab Variables, given at its start), the notes (drawn by
+// /chest/app.js) and, for who may write, the form; a photo sent straight to
+// the Chest, then shown by its thumbnail.
+export function teamPage(version: string, name: string, role: string | null, chest: ChestView, language: string, timeZone: string, canWrite: boolean, greeting: string | undefined): string {
   const form = canWrite
     ? `<form id="new-note">
 <label for="note">New note</label>
@@ -53,6 +63,12 @@ export function teamPage(version: string, name: string, role: string | null, can
     : `<p>Read only.</p>`;
   return document("Team notes", `<p>Hello, ${escape(name)}</p>
 <p>Your role: ${escape(role ?? "none")}</p>
+<p class="organization">Organization: ${escape(chest.organization)} · Language: ${escape(language)}</p>
+<p class="time-zone">Time zone: ${escape(chest.timeZone)} · Today: ${escape(chest.today)}</p>
+<p class="member-time-zone">Your time zone: ${escape(timeZone)}</p>
+<p class="currency">Currency: ${escape(chest.currency)}</p>
+<p class="addresses">Team address: ${escape(chest.teamUrl)} · Public address: ${escape(chest.publicUrl ?? "none")}</p>
+<p class="database-time-zone">Database time zone: ${escape(chest.database.timeZone)} · Database today: ${escape(chest.database.today)}</p>
 <p class="version">Version: ${escape(version)}</p>
 <p class="variable">TESTWEB_GREETING: ${greeting === undefined ? "not set" : escape(greeting)}</p>
 ${form}

@@ -5,15 +5,26 @@ The expected sequence, from the first purchase to operation.
 ## 1. Subscribe (central)
 
 Subscribing is the moment a **Chest is opened**. The Owner creates their
-**account on central** (`chest.argentic.app`): that is where they manage the
-subscription and track the opening. When the Chest is ready, central hands
-them a **single-use entry link**.
+**account on central** (`chest.argentic.app`, in English or French, a switch
+at the foot of its pages): that is where they manage the subscription and
+track the opening. They name their **organization** (“Acme SAS”, as the
+team knows it), choose the **Chest's name** (its address) and their
+**language**, which becomes the Chest's default; the **time zone** their
+browser is in becomes the Chest's, without a question. When the Chest is ready,
+central hands them a **single-use entry link**.
 
 ## 2. Enter the Chest
 
 Through this link, the Owner arrives on their Chest and **creates their
-password** there (or their passkey); from then on they always enter through
-`login.acme.argentic.work`. The **Chest is empty**. Team, store,
+password** there (or their passkey), on a page in their language that names
+the organization; from then on they always enter through
+`login.acme.argentic.work`. The **Chest is empty**; its header, its
+invitations and the tools name the organization, which the Owner can rename
+in Settings → General, where they (or an admin) also set the Chest's time
+zone — the company's day, its deadlines — and its currency, the one its
+tools write amounts in. Each member sees times in their
+own zone: their device's, without a question, or the one they choose in
+their profile. Team, store,
 member account, capacity, status. Subscription and billing stay on
 central.
 
@@ -50,6 +61,20 @@ A member connects GitHub and can create an **agent key**. The agent (or the
 human) uses the template and the SDK, then **pushes**; Chest fetches the code
 and builds. Runtime: Node first, Python next. No general access to the VPS. Details: [For agents](../02_specs/for-agents.md).
 
+Or, without GitHub, for a **builder**: **Add a tool → Build with Perseus**.
+The builder describes the tool; Perseus, the Chest's agent, writes it in a
+workspace on the Chest and shows it live; the builder iterates, then
+publishes it through the same approval. A member who is not a builder asks
+the owner or an admin to become one. Details:
+[Perseus Code](../02_specs/perseus-build.md).
+
+To adapt a tool already installed — from the store or from someone's GitHub —
+its builder, an admin or the owner clicks **Customize with Perseus** on the
+tool's page, describes the change and tries it on a copy of the tool's data;
+**Publish** puts it into service under the same name and data, and the
+author's next versions arrive with the changes re-applied
+([Customize an installed tool](../02_specs/perseus-build.md#customize-an-installed-tool)).
+
 ## 8. Propose, then get approval
 
 By default: proposal — the Owner or an admin validates installation and permissions.
@@ -58,9 +83,18 @@ widening the manifest beyond the ceiling. The manifest speeds up the review.
 
 ## 9. Become a Builder
 
-After validation, the author is the Builder of this tool. They can update it
-without new approval as long as the manifest does not widen permissions.
-Beyond that: the Owner or an admin must re-approve.
+Builder is a Chest status (guest, member < builder < admin < owner), granted by the
+Owner or an admin — directly, by giving the member a tool (from Team or the
+tool's Access tab), or on approval of the member's first tool. It opens
+Perseus Code to create tools. A builder changes the tools they created or
+were given, never another; the Owner and admins change every tool. Changing
+a tool is not seeing its data: the builder uses it only if given access —
+the tool they created is given to them at its approval —, and sees its
+database and files only if the Owner or an admin allows it. A
+builder finds their tools, with their Perseus Code drafts, under **Your
+projects** on the Tools page, and can update them without new approval as
+long as the manifest does not widen permissions. Beyond that: the Owner or
+an admin must re-approve.
 
 ## 10. Evolve
 

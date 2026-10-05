@@ -1,15 +1,18 @@
 import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { chest } from "../../../packages/chest-client/src/chest.js";
 import { ChestError } from "../../../packages/chest-client/src/errors.js";
 import { member } from "../../../packages/chest-client/src/member.js";
 import type { Member } from "../../../packages/chest-client/src/member.js";
+import type { Assistant } from "./assistant.js";
 import { probeTargets, type Database, type ProbeTarget } from "./database.js";
 import { egress, egressTargets, type EgressTarget } from "./egress.js";
 import type { Files } from "./files.js";
 import type { Lifecycle } from "./lifecycle.js";
+import type { Schedules } from "./schedules.js";
 import type { Team } from "./members.js";
 import { noteText, type NoteStore } from "./notes.js";
-import { errorPage, membersPage, publicPage, teamPage } from "./pages.js";
+import { errorPage, membersPage, publicPage, teamPage, type ChestView } from "./pages.js";
 
 // The version the tool shows on its public page: the laboratory's GitHub
 // changes it in a second commit to prove an update.
@@ -85,9 +88,14 @@ export function canWrite(who: Member): boolean {
 }
 
 // createApp returns the request handler of the tool, with its notes, its
-// database, its files, its team and what it is told of its members'
-// lifecycle.
-export function createApp(notes: NoteStore, database: Database, files: Files, members: Team, lifecycle: Lifecycle): (request: IncomingMessage, response: ServerResponse) => void {
+// database, its files, its team, what it is told of its members' lifecycle,
+// what it does by itself and its AI.
+export function createApp(notes: NoteStore, database: Database, files: Files, members: Team, lifecycle: Lifecycle, schedules: Schedules, assistant: Assistant): (request: IncomingMessage, response: ServerResponse) => void {
+  // chestView is the Chest as the tool is told it (the chest module) and as
+  // its database's sessions are in it.
+  async function chestView(): Promise<ChestView> {
+    return { organization: chest.organization.name, timeZone: chest.timeZone, currency: chest.currency, teamUrl: chest.tool.teamUrl, publicUrl: chest.tool.publicUrl, today: chest.today(), database: await database.session() };
+  }
   async function teamRoute(request: IncomingMessage, response: ServerResponse, path: string, query: string): Promise<void> {
     // /chest and below: the Chest's team host asserts the member. Without a
     // valid assertion — the public host never sends one —, nobody.
@@ -97,7 +105,12 @@ export function createApp(notes: NoteStore, database: Database, files: Files, me
     if (path === "/chest" || path === "/chest/") {
       if (method !== "GET" && method !== "HEAD") return json(response, 405, { ...team, Allow: "GET, HEAD" }, { error: "method_not_allowed" });
       // The variable the manifest expects (env), as the Chest gave it at start.
-      return html(response, 200, team, teamPage(version, who.name, who.role, canWrite(who), process.env["TESTWEB_GREETING"]));
+      return html(response, 200, team, teamPage(version, who.name, who.role, await chestView(), who.language, who.timeZone, canWrite(who), process.env["TESTWEB_GREETING"]));
+    }
+    // What the proofs read of the Chest, as the tool and its database see it.
+    if (path === "/chest/api/chest") {
+      if (method !== "GET") return json(response, 405, { ...team, Allow: "GET" }, { error: "method_not_allowed" });
+      return json(response, 200, team, { ...(await chestView()), language: chest.language });
     }
     if (path === "/chest/app.js") {
       if (method !== "GET" && method !== "HEAD") return json(response, 405, { ...team, Allow: "GET, HEAD" }, { error: "method_not_allowed" });
@@ -128,9 +141,27 @@ export function createApp(notes: NoteStore, database: Database, files: Files, me
     if (path === "/chest/api/files" || path.startsWith("/chest/api/files/")) return filesRoute(request, response, path, who);
     if (path === "/chest/api/notify" || path === "/chest/api/withdraw" || path === "/chest/api/badge") return notifyRoute(request, response, path, who);
     if (path === "/chest/members" || path === "/chest/api/me" || path === "/chest/api/members" || path.startsWith("/chest/api/members/") || path === "/chest/api/groups") return membersRoute(request, response, path, query, who);
+    // A summary by the Chest's AI, for any member: {text, stream?} → {text,
+    // model, cost}, or {paused: reason} while the Chest pauses AI.
+    if (path === "/chest/api/summary") {
+      if (method !== "POST") return json(response, 405, { ...team, Allow: "POST" }, { error: "method_not_allowed" });
+      const body = await readFields(request, ["text", "stream"]);
+      const text = body?.["text"], stream = body?.["stream"] ?? false;
+      if (typeof text !== "string" || text.length < 1 || text.length > 2000 || typeof stream !== "boolean") return json(response, 400, team, { error: "invalid_body" });
+      try {
+        return json(response, 200, team, await assistant.summarise(text, who.id, stream));
+      } catch (error) {
+        if (error instanceof ChestError) return json(response, error.status, team, { error: error.code });
+        throw error;
+      }
+    }
     if (path === "/chest/api/events") {
       if (method !== "GET") return json(response, 405, { ...team, Allow: "GET" }, { error: "method_not_allowed" });
       return json(response, 200, team, lifecycle.view());
+    }
+    if (path === "/chest/api/schedules") {
+      if (method !== "GET") return json(response, 405, { ...team, Allow: "GET" }, { error: "method_not_allowed" });
+      return json(response, 200, team, schedules.view());
     }
     if (path === "/chest/api/events/hold") {
       if (method !== "POST") return json(response, 405, { ...team, Allow: "POST" }, { error: "method_not_allowed" });
@@ -277,12 +308,17 @@ export function createApp(notes: NoteStore, database: Database, files: Files, me
       if (request.method !== "POST") return json(response, 405, { ...common, Allow: "POST" }, { error: "method_not_allowed" });
       return send(response, await lifecycle.receive(request), common);
     }
+    if (path === "/chest-schedules") {
+      // The runs of its schedules, through the launcher only: the SDK verifies them.
+      if (request.method !== "POST") return json(response, 405, { ...common, Allow: "POST" }, { error: "method_not_allowed" });
+      return send(response, await schedules.receive(request), common);
+    }
     if (path === "/chest/api/egress") return egressRoute(request, response, query);
     if (path === "/chest/api/db-probe") return probeRoute(request, response, query);
     if (path === "/chest" || path.startsWith("/chest/")) return teamRoute(request, response, path, query);
     const method = request.method ?? "";
     if (method !== "GET" && method !== "HEAD") return json(response, 405, { ...common, Allow: "GET, HEAD" }, { error: "method_not_allowed" });
-    if (path === "/") return html(response, 200, common, publicPage(version));
+    if (path === "/") return html(response, 200, common, publicPage(version, chest.tool.publicUrl));
     // Who the tool sees here: on the public host, nobody, whatever a client sends.
     if (path === "/api/whoami") return json(response, 200, { ...common, "Cache-Control": "no-store" }, { member: member(request) });
     if (path === "/static/site.css") return send(response, 200, { ...common, "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=300" }, stylesheet);

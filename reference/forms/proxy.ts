@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { localeOf, messagesFor } from "./lib/i18n.ts";
-import { member } from "./packages/chest-client/src/member.ts";
+import { member } from "@argentic/chest-sdk/member";
 
 // Every page this server renders carries its own Content-Security-Policy:
 // scripts only from this origin or with the nonce of this response — the

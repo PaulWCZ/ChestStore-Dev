@@ -1,7 +1,9 @@
 # Develop and test tools
 
-**Specified 28 September 2026 from Paul's requirement of the same day; to
-build** (batch DT in [status.md](../03_roadmap/status.md)). A developer or an
+**Specified 28 September 2026 from Paul's requirement of the same day;
+DT1 `chest check` built 30 September (SDK 0.4.0, with the tool contract's
+versions, batch MV), the rest to build** (batch DT in
+[status.md](../03_roadmap/status.md)). A developer or an
 agent must know a tool works on a Chest **before** it reaches the real one.
 Today the SDK offers `@argentic/chest-sdk/testing` (`signAssertion`,
 `fakeChest` for members, files, notifications and events): unit tests only.
@@ -13,7 +15,11 @@ This page adds three levels, each closer to production:
 | 2 | `chest dev` | “Does the tool work as the Chest runs it?” | Node; Podman or Docker for the database |
 | 3 | Preview | “Does it work on our Chest, with our setup?” | A push to a branch |
 
-Agents use all three through MCP ([Perseus and connected agents](chest-agent.md)).
+Agents use all three through MCP ([Connected agents](chest-agent.md)).
+[Perseus Code](perseus-build.md) runs level 2 on the server: its workbench is
+the `chest dev` runner with the `fakeChest` server, and its drafts may declare
+`build.dev` (`npm run <script>`, optional) for the dev server, which `chest
+check` learns.
 Previews are what make an agent's “deploy without waiting” safe.
 
 ## Goals
@@ -30,16 +36,18 @@ Previews are what make an agent's “deploy without waiting” safe.
 ## Level 1 — `chest check`
 
 ```sh
-npx @argentic/chest-sdk check            # in the tool's repository
-npx @argentic/chest-sdk check --against live.json   # also: what this version asks in addition
+# not on npm yet (Paul, 30 September): from a clone of Chest-SDK
+npm ci && npx chest check /path/to/the/tool
+# or, in the tool's repository: npm install --save-dev /path/to/Chest-SDK/check
+npx chest check                      # in the tool's repository
+npx chest check --against live.json  # (to build) also: what this version asks in addition
 ```
-
-(The package declares a `chest` binary: once the SDK is a dependency,
-`npx chest check`.)
 
 **What it checks — exactly the Chest's rules:**
 
-- `chest.json`: version 2, every key and value rule (name, roles and labels,
+- `chest.json`: the contract version it needs (`"chest": "0.4"`: a later one
+  is `newer_chest`, “This tool needs a newer version of your Chest”), every
+  key and value rule (name, roles and labels,
   `public`, `csp`, `env`, `build` vectors, port, `static`, `network`,
   `capabilities`, `files`, `ai`, presentation), 16 KiB, unknown and duplicate
   keys;
@@ -66,14 +74,19 @@ refusal; `--json` for agents and CI.
 validator to WebAssembly and ship it in the SDK package.** The same packages
 that decide on the Chest (`chest/sourcefile`, `chest/sourcearchive`,
 `common/packagefile`, the migration checks) are built with `GOOS=wasip1`
-into `check.wasm` and run by Node's `node:wasi`, with read access to the
-repository only.
+into `check.wasm` and run by Node's `node:wasi`. As built (30 September):
+the command gives it the source archive on its input — the tree `git
+archive` would make of the working tree, committed or not, through a
+temporary index — and it answers the Chest's verdict on its output: it reads
+no file and reaches nothing. The one validator is `sourcearchive.Validate`
+(the manifest, the pictures, the migrations), which the Chest's build, its
+GitHub imports and Perseus's workbench run too.
 
 | Option | Verdict |
 |---|---|
 | JSON Schema generated from Go | Expresses keys and patterns, not the rest: image bytes, archive shape, “covered by another entry” for `network`, migration history, the permission difference. A second implementation for the rest would drift. **Kept only for editors**: `chest.schema.json` generated from the same Go types, referenced by `"$schema"` for completion. |
 | A small published native binary | Same code, but one binary per OS and architecture, downloaded at install (a postinstall script — a supply-chain risk we refuse) or bundled (tens of MB). |
-| **Go → WebAssembly in the npm package** | Same code, one file (≈ 3 MB) for every platform, no postinstall, no network, sandboxed by WASI. Built and tested by the Chest repository's release, vendored into the SDK by the existing sync script, version printed by `chest check --version`. |
+| **Go → WebAssembly in the npm package** | Same code, one file for every platform (6.2 MB, shipped gzipped: 1.6 MB, in `@argentic/chest-check`, apart from the runtime client), no postinstall, no network, sandboxed by WASI. Built by the Chest repository (`scripts/build-contract.mjs`, reproducible: the same commit gives the same bytes) into the SDK's `contract/`, with `contract.json` — the contract as the Chest's code says it, from which the SDK's `contract/README.md` renders every rule — and the digest the Chest's tests hold it to; the SDK's copy comes back through the sync script; `chest --version`. |
 
 A test in the Chest repository runs the same fixtures through the Go code and
 through `check.wasm` and requires identical results.
@@ -220,7 +233,7 @@ tests → `chest dev` → push a branch → preview → promote).
 
 | Lot | Where | Content | Roadmap |
 |---|---|---|---|
-| **DT1 Check** | Chest repo + SDK | Go validator → `check.wasm`; `chest.schema.json`; `chest check` CLI with `--against`, `--json`; parity test | With DX (phase 1); first |
+| **DT1 Check** | Chest repo + SDK | Go validator → `check.wasm`; `chest.schema.json`; `chest check` CLI with `--against`, `--json`; parity test | **Built 30 September** (SDK 0.4.0): `check.wasm` (the archive, the manifest and the migrations: `sourcearchive.Validate`, what the build, the imports and Perseus run), `chest check [dir] [--json]` (`@argentic/chest-check`, from a clone of Chest-SDK) on the archive git would make of the working tree, the contract published with it (`contract/`), parity and drift tests. Remaining: `--against` (what a version asks more), the hints, `chest.schema.json` for editors |
 | **DT2 Dev** | SDK | `chest dev` runner, local front with the two hosts, dev assertion key, `fakeChest` as a server, panel, PostgreSQL container and migrations, egress warnings, AI stub; `--container` | With DX |
 | **DT3 Build tests** | Chest | `build.test`, “Tests failed”, promotion blocked | After DT1 |
 | **DT4 Previews** | Chest | Branch builds, preview hosts behind member sign-in, banner, empty databases and seed, idle stop, removal, Promote, Previews section, `/api/v1` routes and MCP tools | With the agents' build loop (AG4) |
@@ -233,8 +246,13 @@ then removed on merge.
 
 ## Open questions
 
-1. `chest` binary in the SDK package (as asked; adds ≈ 3 MB to every tool's
-   dependencies) or a separate `@argentic/chest` CLI package? Proposed: in the
-   SDK now, split later if the size matters.
+1. `chest` binary in the SDK package or a separate CLI package? **Decided
+   30 September: its own package, `@argentic/chest-check` (bin `chest`), the
+   `check/` workspace of the SDK's repository, under the SDK's version — kept
+   local for now: not published on npm, used from a clone (Paul, 30
+   September).** Measured:
+   `check.wasm` is 6.2 MB, shipped gzipped (1.6 MB packed); the runtime
+   client `@argentic/chest-sdk` stays at 111 KB packed, and so does the SDK
+   a Perseus draft vendors (Perseus checks with the Chest's own Go code).
 2. Anonymised copy: is a declared map enough for GDPR, or should it be
    owner-only and logged (proposed both)?
