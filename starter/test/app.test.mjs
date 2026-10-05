@@ -1,0 +1,152 @@
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
+import { testDatabase } from "./db.mjs";
+
+// The server as built for the tests (npm test: dist/test), asked as the
+// Chest asks it: members signed by a fake Chest, a real PostgreSQL.
+const member = (id, firstName, language, extra = {}) => ({ id: `mbr_${id.padEnd(26, "a")}`, firstName, lastName: "Test", name: `${firstName} Test`, photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language, timeZone: "Europe/Paris", ...extra });
+const camille = member("camille", "Camille", "fr");
+const sam = member("sam", "Sam", "en", { timeZone: "America/New_York" });
+
+let chest, database, app;
+before(async () => {
+  chest = await fakeChest({ members: [camille, sam] });
+  database = await testDatabase();
+  ({ app } = await import("../dist/test/app.js"));
+});
+after(async () => {
+  await database.close();
+  await chest.close();
+});
+
+const url = path => `https://tool.test${path}`;
+const get = (who, path, headers = {}) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
+// An action as call() sends it from an island of the page.
+const call = (who, name, input, headers = {}) => {
+  const request = new Request(url(`${who ? "/chest" : ""}/actions/${name}`), { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
+  return app.fetch(who ? withMember(request, who) : request);
+};
+// A form posted without JavaScript.
+const form = (who, path, fields, from) => {
+  const request = new Request(url(path), { method: "POST", body: new URLSearchParams(fields), headers: { "sec-fetch-site": "same-origin", referer: url(from), host: "tool.test" } });
+  return app.fetch(who ? withMember(request, who) : request);
+};
+
+test("a page: the member's language, the tool's policy, no inline script or style", async () => {
+  const response = await get(camille, "/chest");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<html lang="fr">/u);
+  assert.match(html, /Nouvelle note/u);
+  assert.match(html, /0 note</u); // French: zero is singular
+  assert.equal(response.headers.get("content-security-policy"), "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.doesNotMatch(html, /\sstyle="/u);
+  assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/u);
+  assert.doesNotMatch(html, /<style/u);
+  assert.equal((await get(null, "/chest")).status, 401);
+});
+
+test("an action from an island: typed answer, then the page shows it", async () => {
+  const response = await call(sam, "addNote", { body: "  Fire drill on Friday  " });
+  assert.equal(response.status, 200);
+  const { ok, value } = await response.json();
+  assert.equal(ok, true);
+  assert.match(value.id, /^[0-9]+$/u);
+  const html = await (await get(sam, "/chest")).text();
+  assert.match(html, /Fire drill on Friday/u);
+  assert.match(html, /1 note</u);
+  assert.match(html, /Sam Test, /u); // the author's name, resolved when the page renders
+});
+
+test("refusals: a code and the reader's words, nothing written", async () => {
+  const empty = await call(camille, "addNote", { body: "   " });
+  assert.equal(empty.status, 400);
+  assert.deepEqual(await empty.json(), { ok: false, error: "empty", message: "Écrivez d’abord quelque chose." });
+  const long = await (await call(sam, "addNote", { body: "x".repeat(2001) })).json();
+  assert.equal(long.message, "Too long: 2000 characters at most.");
+  assert.equal((await call(sam, "noSuchAction", {})).status, 404);
+  assert.equal((await call(sam, "sendMessage", { body: "hi", website: "" })).status, 404, "a public action is not a members' one");
+  const [{ count }] = await database.sql`select count(*)::int from notes`;
+  assert.equal(count, 1);
+});
+
+test("a note is changed only by its author", async () => {
+  const [{ id }] = await database.sql`select id::text from notes`;
+  const refused = await call(camille, "removeNote", { id });
+  assert.equal(refused.status, 403);
+  assert.equal((await refused.json()).error, "forbidden");
+  assert.equal((await (await call(sam, "removeNote", { id })).json()).ok, true);
+  assert.doesNotMatch(await (await get(sam, "/chest")).text(), /Fire drill/u);
+  assert.equal((await (await call(sam, "restoreNote", { id })).json()).ok, true);
+  assert.match(await (await get(sam, "/chest")).text(), /Fire drill/u);
+});
+
+test("cross-site requests are refused", async () => {
+  assert.equal((await call(sam, "addNote", { body: "x" }, { "sec-fetch-site": "cross-site" })).status, 403);
+  const noHeader = withMember(new Request(url("/chest/actions/addNote"), { method: "POST", body: JSON.stringify({ body: "x" }), headers: { "content-type": "application/json", "sec-fetch-site": "same-origin" } }), sam);
+  assert.equal((await app.fetch(noHeader)).status, 403, "JSON without the island's header");
+  const oldBrowser = withMember(new Request(url("/chest/actions/addNote"), { method: "POST", body: new URLSearchParams({ body: "x" }), headers: { origin: "https://evil.test", host: "tool.test" } }), sam);
+  assert.equal((await app.fetch(oldBrowser)).status, 403);
+});
+
+test("a form without JavaScript: posted, then back to its page", async () => {
+  const [{ id }] = await database.sql`select id::text from notes`;
+  const pinned = await form(sam, "/chest/actions/pinNote", { id, pinned: "1" }, "/chest");
+  assert.equal(pinned.status, 303);
+  assert.equal(pinned.headers.get("location"), "/chest");
+  assert.match(await (await get(sam, "/chest")).text(), /Pinned/u);
+  const refused = await form(sam, "/chest/actions/addNote", { body: "" }, "/chest");
+  assert.equal(refused.headers.get("location"), "/chest?error=empty");
+  assert.match(await (await get(sam, "/chest?error=empty")).text(), /role="alert">Write something first\./u);
+});
+
+test("a download streams the rows as CSV, formulas defused", async () => {
+  await call(sam, "addNote", { body: "=HYPERLINK(\"x\")" });
+  const response = await get(sam, "/chest/notes.csv");
+  assert.equal(response.headers.get("content-type"), "text/csv; charset=utf-8");
+  assert.match(response.headers.get("content-disposition"), /^attachment; filename="notes-\d{4}-\d{2}-\d{2}\.csv"$/u);
+  const text = await response.text();
+  assert.match(text, /^id,created_at,author,pinned,body\r\n/u);
+  assert.match(text, /"'=HYPERLINK\(""x""\)"/u);
+});
+
+test("the public part: a visitor's words and form, no member", async () => {
+  const page = await get(null, "/", { "accept-language": "fr-CH, en;q=0.5" });
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /Écrire à l’équipe/u);
+  const sent = await form(null, "/actions/sendMessage", { body: "Hello team", website: "" }, "/");
+  assert.equal(sent.headers.get("location"), "/?sent=1");
+  const robot = await form(null, "/actions/sendMessage", { body: "Buy now", website: "spam.test" }, "/");
+  assert.equal(robot.status, 303);
+  const html = await (await get(sam, "/chest")).text();
+  assert.match(html, /Hello team/u);
+  assert.doesNotMatch(html, /Buy now/u);
+  assert.equal((await call(null, "addNote", { body: "x" })).status, 404, "a members' action is not a public one");
+  const lang = await get(null, "/lang/fr?back=/");
+  assert.match(lang.headers.get("set-cookie"), /^lang=fr;/u);
+});
+
+test("errors: the reader's page, the right status", async () => {
+  const missing = await get(camille, "/chest/nothing");
+  assert.equal(missing.status, 404);
+  assert.match(await missing.text(), /Rien ici/u);
+  assert.equal((await get(null, "/nothing")).status, 404);
+  assert.equal((await get(null, "/assets/nothing.js")).status, 404);
+});
+
+test("the Chest's events and schedules, each delivered at least once", async () => {
+  const to = request => app.fetch(request);
+  const erased = { type: "member.erased", id: "evt_" + "c".repeat(26), data: { id: sam.id, erasure: "era_" + "b".repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } };
+  assert.equal(await chest.emit(erased, to), 204);
+  assert.equal(await chest.emit(erased, to), 204); // again: seen, nothing done twice
+  assert.deepEqual(chest.acknowledged, [erased.data.erasure]);
+  const [{ authors }] = await database.sql`select count(*)::int as authors from notes where author = ${sam.id}`;
+  assert.equal(authors, 0);
+  await database.sql`update notes set deleted_at = now() - interval '31 days' where body = 'Hello team'`;
+  assert.equal(await chest.run("purge", to), 204);
+  assert.equal(await chest.run("nothing", to), 404);
+  const [{ left }] = await database.sql`select count(*)::int as left from notes where body = 'Hello team'`;
+  assert.equal(left, 0);
+});

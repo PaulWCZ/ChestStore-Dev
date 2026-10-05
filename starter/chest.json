@@ -1,0 +1,11 @@
+{
+  "chest": "0.4",
+  "name": "my-tool",
+  "title": "My tool",
+  "description": "What the tool does, in one sentence.",
+  "roles": ["member"],
+  "capabilities": ["database", "members"],
+  "receives": ["member.*"],
+  "schedules": [{"name": "purge", "cron": "15 3 * * *"}],
+  "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
+}
