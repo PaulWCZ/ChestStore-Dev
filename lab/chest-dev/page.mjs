@@ -53,18 +53,18 @@ function deliveryPanelOf(chest, proposals, mailQuota) {
   return `<section><h2>Delivery (proposal)</h2>${mail}${hooks}<p><small>Now: mail <code>${escape(mailNow)}</code>${proposals.webhooks ? `, webhooks <code>${escape(chest.delivery.webhooks)}</code>` : ""}. <code>not_connected</code>: send is refused as without mail; <code>suspended</code>: unavailable; <code>quota</code>: none left today.</small></p></section>`;
 }
 
-export function devPage({ manifest, proposals = {}, chest, me, origin, publicOrigin = origin, zone = process.env["CHEST_TIME_ZONE"] ?? "UTC", mailQuota = false, schedulesApi, catalogue = [], sampleBrand = null, tool = null }) {
+export function devPage({ manifest, proposals = {}, chest, schedules: scheduleList = chest.schedules ?? [], runs: runList = chest.runs ?? [], sdkVersion = "", me, origin, publicOrigin = origin, zone = process.env["CHEST_TIME_ZONE"] ?? "UTC", mailQuota = false, schedulesApi, catalogue = [], sampleBrand = null, tool = null }) {
   const name = id => chest.members.find(m => m.id === id)?.name ?? id;
   const people = chest.members.map(m => `<option value="${m.id}"${m.id === me.id ? " selected" : ""}>${escape(m.name)} — ${escape(m.role ?? "no role")}${m.isAdmin ? " (admin)" : ""}</option>`).join("");
   const bell = chest.notifications.slice().reverse().map(n => `<li><b>${escape(name(n.member))}</b> · ${escape(n.title)}${n.body ? `<br><small>${escape(n.body)}</small>` : ""}<br><a href="${escape(n.path)}">${escape(n.path)}</a>${n.key ? ` <code>${escape(n.key)}</code>` : ""}</li>`).join("") || "<li class=none>Nothing yet.</li>";
   const badges = [...chest.badges].map(([id, count]) => `<li>${escape(name(id))}: <b>${count}</b></li>`).join("") || "<li class=none>None.</li>";
   const files = [...chest.files].map(([n, f]) => `<li><code>${escape(n)}</code> ${escape(f.type)} · ${f.data.byteLength} B</li>`).join("") || "<li class=none>None.</li>";
-  const schedules = (chest.schedules ?? []).map(s => {
+  const schedules = scheduleList.map(s => {
     let next = null;
     try { next = schedulesApi?.nextRun?.(s.cron, new Date(), zone) ?? null; } catch { next = null; }
     return `<li><form method="post" action="/_dev/schedule"><input type="hidden" name="name" value="${escape(s.name)}"><b>${escape(s.name)}</b> <code>${escape(s.cron)}</code>${schedulesApi?.describeCron ? ` — ${escape(schedulesApi.describeCron(s.cron))}` : ""}${next ? `, next ${escape(next.toISOString().slice(0, 16).replace("T", " "))} UTC` : ""} <button>Run now</button></form></li>`;
   }).join("");
-  const runs = (chest.runs ?? []).slice(-8).reverse().map(r => `<li><code>${escape(r.name)}</code> ${escape(r.scheduledAt.slice(0, 16))} → ${r.status}</li>`).join("");
+  const runs = runList.slice(-8).reverse().map(r => `<li><code>${escape(r.name)}</code> ${escape(r.scheduledAt.slice(0, 16))} → ${r.status}</li>`).join("");
   const outbox = (chest.outbox ?? []).slice().reverse().slice(0, 12).map(m => `<li><b>${escape(m.subject)}</b>${m.status === "bounced" ? " <code>bounced</code>" : ""}<br><small>${escape(m.fromName ? m.fromName + " — " : "")}${escape(m.from)} → ${escape(m.to.join(", "))}${m.replyTo ? `<br>replies to <code>${escape(m.replyTo)}</code>` : ""}</small><details><summary>text</summary><pre style="white-space:pre-wrap">${escape(m.text)}</pre></details>${m.status === "bounced" ? "" : `<form method="post" action="/_dev/bounce"><input type="hidden" name="message" value="${escape(m.id)}"><button name="permanent" value="1">Bounce (address unknown)</button> <button name="permanent" value="0">Bounce (mailbox full)</button></form>`}</li>`).join("");
   const mailboxes = (proposals.mail?.mailboxes ?? []).map(b => `<option>${escape(b)}</option>`).join("");
   const replies = (chest.outbox ?? []).slice().reverse().slice(0, 12).filter(m => m.to.length).map(m => `<option value="${escape(m.id)}">Reply to “${escape(m.subject.slice(0, 50))}” (${escape(m.to[0])})</option>`).join("");
@@ -98,7 +98,7 @@ a{color:#7cc4ff}ul{margin:0;padding-left:18px}li{margin:4px 0}.none{color:#6b7c8
 select,button,input{font:inherit;background:#0c1014;color:inherit;border:1px solid #2a3440;border-radius:6px;padding:6px 8px}button{cursor:pointer;background:#1f6feb;border-color:#1f6feb}
 form{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px}code{color:#ffb86b}
 </style></head><body>
-<header><h1>chest dev · ${escape(manifest.title ?? manifest.name)}</h1><a href="/chest">Open /chest</a>${manifest.public ? `<a href="${escape(publicOrigin)}/">Public part</a>` : ""}<a href="/_dev/logs">Logs</a><span style="margin-left:auto;color:#8fa3b8">team ${escape(origin)} · public ${escape(publicOrigin)}</span></header>
+<header><h1>chest dev · ${escape(manifest.title ?? manifest.name)}</h1><a href="/chest">Open /chest</a>${manifest.public ? `<a href="${escape(publicOrigin)}/">Public part</a>` : ""}<a href="/_dev/logs">Logs</a><span style="margin-left:auto;color:#8fa3b8">${sdkVersion ? `SDK ${escape(sdkVersion)} · ` : ""}team ${escape(origin)} · public ${escape(publicOrigin)}</span></header>
 <main>
 <section><h2>You are</h2>
 <form method="post" action="/_dev/as"><select name="member">${people}</select>

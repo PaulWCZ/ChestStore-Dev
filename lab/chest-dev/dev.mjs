@@ -103,11 +103,15 @@ if (!Number.isFinite(sleepAfter) || sleepAfter < 0) {
 
 // The SDK working copy, built.
 const sdk = join(root, "sdk");
-if (!existsSync(join(sdk, "dist", "src", "testing.js"))) {
+// 0.4.1-studio.N builds the studio's fake to dist/studio/testing.js (the
+// official modules stay in dist/src).
+const testingFile = ["studio", "src"].map(dir => join(sdk, "dist", dir, "testing.js")).find(existsSync) ?? join(sdk, "dist", "studio", "testing.js");
+if (!existsSync(testingFile) || statSync(join(sdk, "package.json")).mtimeMs > statSync(testingFile).mtimeMs) {
   if (!existsSync(join(sdk, "node_modules"))) execFileSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: sdk, stdio: "inherit" });
   execFileSync("npm", ["run", "build"], { cwd: sdk, stdio: "inherit" });
 }
-const testing = { ...(await import(pathToFileURL(join(sdk, "dist", "src", "testing.js")).href)), schedulesApi: await import(pathToFileURL(join(sdk, "dist", "src", "schedules.js")).href) };
+const testing = { ...(await import(pathToFileURL(["studio", "src"].map(dir => join(sdk, "dist", dir, "testing.js")).find(existsSync)).href)), schedulesApi: await import(pathToFileURL(join(sdk, "dist", "src", "schedules.js")).href) };
+const sdkVersion = JSON.parse(readFileSync(join(sdk, "package.json"), "utf8")).version;
 
 // The UI kit working copy, built: the theme catalogue for the switcher,
 // and its fonts, which the fake Chest's front serves at /_chest/theme/fonts/
@@ -185,6 +189,11 @@ if (capabilities.includes("database")) {
   await sql.end();
 }
 
+// The schedules: "schedules" of chest.json (contract 0.4), else a studio
+// tool's chest.proposals.json; the runs posted, newest last.
+const schedules = manifest.schedules ?? proposals.schedules ?? [];
+const runs = [];
+
 // The fake Chest, with the cast given the tool's roles.
 process.env["CHEST_TOOL"] = manifest.name;
 // The mail options stay this harness's: /_dev/delivery "quota" sets perDay
@@ -221,7 +230,8 @@ const chest = await testing.fakeChest({
   origin,
   // Schedules: "schedules" of chest.json (contract 0.4), else a studio
   // tool's chest.proposals.json.
-  schedules: manifest.schedules ?? proposals.schedules ?? [],
+  schedules,
+  tool: manifest.name,
   ...(proposals.checks ? { checks: proposals.checks } : {}),
   // Webhooks (Proposal (studio)): the Chest delivers to the addresses the
   // tool adds — simulated here (no request leaves this machine); /_dev
@@ -449,8 +459,9 @@ async function teamHost(request, response) {
         // it signed (Chest-Schedule) to POST /chest-schedules, the tool woken
         // first as the Chest wakes it.
         const name = form.get("name");
-        if (!(chest.schedules ?? []).some(s => s.name === name)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end(`no schedule named ${name} in chest.json`);
+        if (!schedules.some(s => s.name === name)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end(`no schedule named ${name} in chest.json`);
         const status = await chest.run(name, await to(`a run of the schedule ${name}`));
+        runs.push({ name, scheduledAt: new Date().toISOString(), status });
         toolProcess.log(`Schedule ${name}: run posted → ${status}`);
         return void response.writeHead(303, back).end();
       }
@@ -606,7 +617,7 @@ async function teamHost(request, response) {
     if (path === "/_dev/logs.txt") {
       return void response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }).end(toolProcess.recent().map(e => `${e.at} ${e.stream.padEnd(5)} ${e.line}`).join("\n") + "\n");
     }
-    const html = devPage({ manifest, proposals, chest, me: current(request), origin, publicOrigin, zone, mailQuota: mailOptions.perDay === 0, schedulesApi: testing.schedulesApi, catalogue, sampleBrand, tool: { state: toolProcess.state, sleepAfter, logFile: toolProcess.logFile.slice(root.length + 1), statics: staticPrefixes(manifest) } });
+    const html = devPage({ manifest, proposals, chest, schedules, runs, sdkVersion, me: current(request), origin, publicOrigin, zone, mailQuota: mailOptions.perDay === 0, schedulesApi: testing.schedulesApi, catalogue, sampleBrand, tool: { state: toolProcess.state, sleepAfter, logFile: toolProcess.logFile.slice(root.length + 1), statics: staticPrefixes(manifest) } });
     return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
   }
   if (path.startsWith("/_chest/")) {
