@@ -176,7 +176,9 @@ export function createApp() {
     if (!c.req.path.startsWith("/assets/") || c.res.status >= 400) log.info("request", { method: c.req.method, path: c.req.path, status: c.res.status, ms: Math.round(performance.now() - started) });
   });
 
-  app.use("/assets/*", serveStatic({ root: "./dist/client", onFound: (_path, c) => { c.header("Cache-Control", "public, max-age=31536000, immutable"); } }));
+  // The browser's files (dist/client/assets, from src/ and public/assets/):
+  // linked with ?v=… they never change; any other, an hour.
+  app.use("/assets/*", serveStatic({ root: "./dist/client", onFound: (_path, c) => { c.header("Cache-Control", c.req.query("v") ? "public, max-age=31536000, immutable" : "public, max-age=3600"); } }));
 
   // The members' part: the Chest asserts who asks on every request
   // (member(): the only source of identity); without it, 401.

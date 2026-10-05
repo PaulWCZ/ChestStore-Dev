@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "tsc && vite build && vite build --ssr",
-    "start": "node dist/server/main.js",
+    "start": "node --optimize-for-size dist/server/main.js",
     "test": "tsc && vite build --ssr --outDir dist/test && node --test --test-force-exit test/*.test.*"
   },
   "dependencies": {

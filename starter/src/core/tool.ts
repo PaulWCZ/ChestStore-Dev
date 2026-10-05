@@ -1,5 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Catalogue, Format, Locale } from "../i18n/index.ts";
+import { log } from "./log.ts";
 
 // What an action or a page refuses, as a code: the catalogue's errors.<code>
 // says it to the reader. Services never write sentences.
@@ -35,6 +36,14 @@ export const redirect = (to: string): never => {
   if (!/^\/(?!\/)/u.test(to)) throw new TypeError("redirect() takes a path of the tool");
   throw new HttpStatus(303, to);
 };
+
+// after(): work that need not delay the answer (a notification, a badge),
+// done once it is sent. A failure is logged, never thrown: an unhandled
+// rejection would stop the server. The tool may sleep later: nothing
+// here may take minutes (that is a schedule's work).
+export function after(name: string, task: () => Promise<unknown>): void {
+  setImmediate(() => task().catch(error => log.error(`${name} failed`, error)));
+}
 
 // The fields of an action's input. Each reads what a form sends (text) and
 // what fetch sends (JSON) alike, and refuses anything else with a code.
@@ -84,13 +93,13 @@ export type VisitorContext = { member: null; locale: Locale; t: Catalogue; f: Fo
 export type Action<F extends Fields = Fields, R = unknown> = {
   access: "member" | "public";
   input: F;
-  run(input: InputOf<F>, context: MemberContext & VisitorContext): Promise<R>;
+  run(input: InputOf<F>, context: never): Promise<R>; // its context: by access
 };
 
 // action: a mutation of the members' part, POST /chest/actions/<name>.
 // publicAction: one of the public part (no member), POST /actions/<name>.
-// Both are called from an island (call(), src/core/client.ts) or by a
-// <form method="post" action={actionPath("name")}> (works without
+// Both are called from an island (call(), src/core/client.tsx) or by a
+// <form method="post" action="/chest/actions/<name>"> (works without
 // JavaScript, refreshes in place with it). What run returns goes back to
 // the island as JSON: plain data only.
 export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>): Action<F, R> {

@@ -1,7 +1,7 @@
 import { Toasts, useToast, type ShowToast } from "@argentic/chest-ui/components";
 import type { ToastWords } from "@argentic/chest-ui/components/logic";
 import { createElement, useEffect, type ComponentType } from "react";
-import { hydrateRoot, type Root } from "react-dom/client";
+import type { hydrateRoot, Root } from "react-dom/client";
 import type { actions } from "../actions.ts";
 import type { Action, InputOf, Outcome } from "./tool.ts";
 
@@ -11,16 +11,19 @@ import type { Action, InputOf, Outcome } from "./tool.ts";
 
 // ---- Islands: hydrated on load, kept (state, focus) across refreshes.
 let registry: Record<string, ComponentType<object>> = {};
+let hydrate: typeof hydrateRoot;
 const roots = new Map<Element, Root>();
 const propsOf = (el: Element): object => JSON.parse(el.getAttribute("data-props") ?? "{}") as object;
 
-export function start(islands: Record<string, ComponentType<never>>): void {
+// react-dom/client comes from entry.tsx: the server never loads it.
+export function start(islands: Record<string, ComponentType<never>>, hydrateRoot: typeof hydrate): void {
   registry = islands as typeof registry;
+  hydrate = hydrateRoot;
   for (const el of document.querySelectorAll("[data-island]")) mount(el);
 }
 function mount(el: Element): void {
   const component = registry[el.getAttribute("data-island") ?? ""];
-  if (component && !roots.has(el)) roots.set(el, hydrateRoot(el, createElement(component, propsOf(el))));
+  if (component && !roots.has(el)) roots.set(el, hydrate(el, createElement(component, propsOf(el))));
 }
 const islandsIn = (node: Node): Element[] => (node instanceof Element ? [...(node.matches("[data-island]") ? [node] : []), ...node.querySelectorAll("[data-island]")] : []);
 

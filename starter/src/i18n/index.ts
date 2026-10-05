@@ -39,6 +39,20 @@ export const fill = (text: string, values: Record<string, string | number> = {})
 
 export type Plural = { readonly zero?: string; readonly one: string; readonly other: string };
 
+// Intl objects are costly and live outside V8's heap: one made per call
+// (per row of a page) piles up hundreds of MiB before a GC frees it. Each
+// is made once per language, zone and style, and kept.
+const made = new Map<string, Intl.DateTimeFormat | Intl.NumberFormat | Intl.PluralRules>();
+function once<T extends Intl.DateTimeFormat | Intl.NumberFormat | Intl.PluralRules>(key: string, make: () => T): T {
+  if (made.size > 500) made.clear();
+  let found = made.get(key) as T | undefined;
+  if (!found) made.set(key, (found = make()));
+  return found;
+}
+const dates = (tag: string, timeZone: string, style: Intl.DateTimeFormatOptions) =>
+  once(`d|${tag}|${timeZone}|${JSON.stringify(style)}`, () => new Intl.DateTimeFormat(tag, { timeZone, ...style }));
+const numbers = (tag: string, style: Intl.NumberFormatOptions = {}) => once(`n|${tag}|${JSON.stringify(style)}`, () => new Intl.NumberFormat(tag, style));
+
 // How a reader writes dates, times, numbers, amounts and plurals: their
 // language, their time zone (a member's own; the Chest's for a visitor),
 // the Chest's currency. Made on the server for each request: a page is
@@ -47,21 +61,20 @@ export type Format = ReturnType<typeof formatter>;
 export function formatter(locale: Locale, timeZone: string, currency = "EUR") {
   // English as written in Europe (day month year, 24-hour clock).
   const tag = locale === "en" ? "en-GB" : locale;
-  const at = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(tag, { timeZone, ...options });
   const instant = (value: Date | string) => (typeof value === "string" ? new Date(value) : value);
   return {
     locale,
     timeZone,
     // An instant (a timestamptz): in the reader's zone.
-    date: (value: Date | string) => at({ day: "numeric", month: "short", year: "numeric" }).format(instant(value)),
-    time: (value: Date | string) => at({ hour: "2-digit", minute: "2-digit" }).format(instant(value)),
-    dateTime: (value: Date | string) => at({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(instant(value)),
+    date: (value: Date | string) => dates(tag, timeZone, { day: "numeric", month: "short", year: "numeric" }).format(instant(value)),
+    time: (value: Date | string) => dates(tag, timeZone, { hour: "2-digit", minute: "2-digit" }).format(instant(value)),
+    dateTime: (value: Date | string) => dates(tag, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(instant(value)),
     // A calendar day ("2026-10-05", a date column): the same day everywhere.
-    day: (iso: string) => new Intl.DateTimeFormat(tag, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso}T00:00:00Z`)),
-    number: (n: number) => new Intl.NumberFormat(tag).format(n),
-    money: (amount: number) => new Intl.NumberFormat(tag, { style: "currency", currency }).format(amount),
+    day: (iso: string) => dates(tag, "UTC", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso}T00:00:00Z`)),
+    number: (n: number) => numbers(tag).format(n),
+    money: (amount: number) => numbers(tag, { style: "currency", currency }).format(amount),
     // The form of n in this language (French says "0 note", English "0 notes").
     plural: (forms: Plural, n: number, values: Record<string, string | number> = {}) =>
-      fill(n === 0 && forms.zero !== undefined ? forms.zero : new Intl.PluralRules(tag).select(n) === "one" ? forms.one : forms.other, { count: new Intl.NumberFormat(tag).format(n), ...values }),
+      fill(n === 0 && forms.zero !== undefined ? forms.zero : once(`p|${tag}`, () => new Intl.PluralRules(tag)).select(n) === "one" ? forms.one : forms.other, { count: numbers(tag).format(n), ...values }),
   };
 }

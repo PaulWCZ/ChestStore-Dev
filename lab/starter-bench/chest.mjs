@@ -107,12 +107,18 @@ export function tree(pid) {
   return all;
 }
 
-// Resident and proportional memory (KiB) of each process of the tree.
+// Resident, proportional and private (USS) memory, in KiB, of each process
+// of the tree.
 export function memory(pid) {
-  return tree(pid).map(p => {
-    const rollup = readFileSync(`/proc/${p}/smaps_rollup`, "utf8");
+  return tree(pid).flatMap(p => {
+    let rollup, command;
+    try {
+      rollup = readFileSync(`/proc/${p}/smaps_rollup`, "utf8");
+      command = readFileSync(`/proc/${p}/cmdline`, "utf8").split("\0").filter(Boolean).slice(0, 3).join(" ");
+    } catch {
+      return []; // ended meanwhile
+    }
     const kib = name => Number(new RegExp(`^${name}:\\s+(\\d+) kB`, "mu").exec(rollup)?.[1] ?? 0);
-    const command = readFileSync(`/proc/${p}/cmdline`, "utf8").split("\0").filter(Boolean).slice(0, 3).join(" ");
-    return { pid: p, command, rss: kib("Rss"), pss: kib("Pss") };
+    return [{ pid: p, command, rss: kib("Rss"), pss: kib("Pss"), uss: kib("Private_Clean") + kib("Private_Dirty") }];
   });
 }

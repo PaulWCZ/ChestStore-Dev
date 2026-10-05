@@ -39,7 +39,8 @@ starts with — Notes — is there to be changed into the tool.
 - **Islands** are the only components that run in the browser:
   `<Island name="DeleteNote" props={{ id, words }} />`. Props are plain
   data (checked by the types: no function, no Date) and include their
-  words (`t.home.remove`…): islands never import the catalogue or the SDK.
+  words (`t.home.remove`…), dates already written by `f`, and the path if
+  they need it: islands never import the catalogue or the SDK.
 - **Actions** are the only way to change data: `action(fields, run)` in
   `src/actions.ts`, served at `POST /chest/actions/<name>`. Two callers:
   - a form: `<form method="post" action="/chest/actions/addNote">` with
@@ -120,6 +121,18 @@ server. A new language: one file like `fr.ts`, its code in `locales`.
 
 **A download** — a route returning a `Response`: `/chest/notes.csv` streams
 rows with a cursor (`csvLine` quotes cells and defuses formulas).
+
+**An upload** (`files`) — an action answers `await files.uploadUrl("photos/",
+{ maxSize, types })`; the island `PUT`s the file there, then calls a second
+action that checks `files.stat(name)` before recording it.
+
+**Static files** (images, icons, fonts) — `public/assets/…`, served at
+`/assets/…`. The catalogue's icon and picture: `chest/icon.svg`,
+`chest/preview.png`, named in `chest.json`.
+
+**Work after the answer** (a notification, a badge) —
+`after("notify", () => notifications.notify(…))` from `src/core/tool.ts`:
+logged if it fails, never minutes long.
 
 **Members' lifecycle** — `/chest-events` in `src/app.tsx` (needs
 `"receives": ["member.*"]` and `members`): on `member.erased`, delete or
