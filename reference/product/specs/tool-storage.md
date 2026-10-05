@@ -28,7 +28,7 @@ Storage stays **per tool** (per Compartment). Reasons:
 
 1. **Isolation is the product.** A tool's bug or a hostile package reaches its
    own files only; there is no bucket policy to get wrong.
-2. **Lifecycle follows the tool.** Remove, archive, export, restore, fork: the
+2. **Lifecycle follows the tool.** Remove, archive, export, restore, customize: the
    files go with the database and the variables, under the tool's name.
 3. **Accountable usage.** Each quota belongs to one tool, one builder; the owner
    sees who fills the disk.
@@ -78,7 +78,7 @@ const up = await files.uploadUrl("invoices/2026/0042.pdf", {
 await fetch(up.url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
 
 // Server side, when the browser says it is done
-const info = await files.stat("invoices/2026/0042.pdf"); // {name, type, size, updated, width?, height?} or null
+const info = await files.stat("invoices/2026/0042.pdf"); // {name, type, size, sha256, updated, width?, height?} or null
 ```
 
 | SDK | Chest route (tool API) | Answer |
@@ -116,7 +116,10 @@ downloads, never inline. No antivirus scan at this stage (said in the docs).
 `files.url(name, {thumbnail})` returns a 256 or 1,024 px version (JPEG, or PNG
 when the image has transparency), made once in a bounded worker and kept
 beside the original; thumbnails are not counted in the quota and go with the
-original. `stat` gives `width` and `height` for these images. Nothing else is
+original. `stat` gives `width` and `height` for these images. Every object
+the Chest answers carries `sha256`, the digest of its content computed as it
+was written (built 30 September: a receipt sent twice is recognised without
+reading it again). Nothing else is
 converted (no video, no HEIC, no PDF pages).
 
 **Public files** (`publicFiles`): objects under `public/` are served on the

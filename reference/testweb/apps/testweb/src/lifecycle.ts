@@ -11,7 +11,8 @@ import type { NoteStore } from "./notes.js";
 // delivery answer 503 — the proof's way to see the Chest deliver the same
 // event again —, the refused ones kept apart. Nothing of it outlives the
 // process: the Chest delivers again what it did not see accepted.
-export type Received = { id: string; type: ChestEvent["type"]; member: string; at: string };
+// changed: what member.updated says changed.
+export type Received = { id: string; type: ChestEvent["type"]; member: string; at: string; changed?: string[] };
 export type LifecycleView = { events: Received[]; refused: string[]; held: boolean };
 
 export interface Lifecycle {
@@ -41,7 +42,7 @@ export class ChestLifecycle implements Lifecycle {
       return 503;
     }
     const record = (event: ChestEvent): void => {
-      this.#received.push({ id: event.id, type: event.type, member: event.data.id, at: event.occurredAt });
+      this.#received.push({ id: event.id, type: event.type, member: event.data.id, at: event.occurredAt, ...(event.type === "member.updated" ? { changed: [...event.data.changed] } : {}) });
       this.#received.splice(0, this.#received.length - kept);
     };
     return events.handle(request, {
@@ -56,7 +57,7 @@ export class ChestLifecycle implements Lifecycle {
     }, { seen: this.#seen });
   }
 
-  view(): LifecycleView { return { events: this.#received.map(e => ({ ...e })), refused: [...this.#refused], held: this.#held }; }
+  view(): LifecycleView { return { events: this.#received.map(e => ({ ...e, ...(e.changed ? { changed: [...e.changed] } : {}) })), refused: [...this.#refused], held: this.#held }; }
 
   hold(held: boolean): void { this.#held = held; }
 }

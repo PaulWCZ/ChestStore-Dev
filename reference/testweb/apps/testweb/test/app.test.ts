@@ -6,9 +6,11 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createApp, version } from "../src/app.js";
-import type { Database, Probe, ProbeTarget, Schema } from "../src/database.js";
+import type { Database, Probe, ProbeTarget, Schema, Session } from "../src/database.js";
 import type { Files, LinkOptions, QuotaProbe, UploadOptions } from "../src/files.js";
 import { ChestLifecycle, type LifecycleView } from "../src/lifecycle.js";
+import { ChestSchedules, type Ran } from "../src/schedules.js";
+import { ChestAssistant } from "../src/assistant.js";
 import { ChestTeam } from "../src/members.js";
 import { maxNotes, type Note, type NoteStore } from "../src/notes.js";
 import { QuotaExceeded } from "../../../packages/chest-client/src/errors.js";
@@ -43,6 +45,7 @@ const notes = new MemoryNotes();
 const probes: ProbeTarget[] = [];
 const database: Database = {
   async schema(): Promise<Schema> { return { migrations: ["0001_notes.sql"], columns: ["id", "text", "author", "created_at"] }; },
+  async session(): Promise<Session> { return { timeZone: "Europe/Paris", today: "2026-09-30" }; },
   async probe(target: ProbeTarget): Promise<Probe> { probes.push(target); return { target, outcome: "refused", code: "28000" }; },
 };
 
@@ -53,7 +56,7 @@ class MemoryFiles implements Files {
   async put(name: string, data: Uint8Array, type: string): Promise<FileObject> {
     if (data.byteLength > 16) throw new QuotaExceeded();
     this.kept.set(name, { type, data });
-    return { name, type, size: data.byteLength, updated: "2026-09-25T00:00:00.000Z" };
+    return { name, type, size: data.byteLength, sha256: "0".repeat(64), updated: "2026-09-25T00:00:00.000Z" };
   }
   async get(name: string): Promise<FileData | null> {
     const file = this.kept.get(name);
@@ -61,9 +64,9 @@ class MemoryFiles implements Files {
   }
   async stat(name: string): Promise<FileObject | null> {
     const file = this.kept.get(name);
-    return file ? { name, type: file.type, size: file.data.byteLength, updated: "2026-09-25T00:00:00.000Z" } : null;
+    return file ? { name, type: file.type, size: file.data.byteLength, sha256: "0".repeat(64), updated: "2026-09-25T00:00:00.000Z" } : null;
   }
-  async list(): Promise<FilePage> { return { files: [...this.kept.keys()].sort().map(name => ({ name, type: this.kept.get(name)!.type, size: this.kept.get(name)!.data.byteLength, updated: "2026-09-25T00:00:00.000Z" })), next: null }; }
+  async list(): Promise<FilePage> { return { files: [...this.kept.keys()].sort().map(name => ({ name, type: this.kept.get(name)!.type, size: this.kept.get(name)!.data.byteLength, sha256: "0".repeat(64), updated: "2026-09-25T00:00:00.000Z" })), next: null }; }
   async remove(name: string): Promise<boolean> { return this.kept.delete(name); }
   async url(name: string, options: LinkOptions = {}): Promise<{ url: string; expiresIn: number }> { return { url: "https://web-chest.atelier.example/_chest/files/" + name.length + (options.thumbnail ? "." + options.thumbnail : ""), expiresIn: 900 }; }
   readonly uploads: [string, UploadOptions][] = [];
@@ -78,8 +81,8 @@ const files = new MemoryFiles();
 // The members of the tool, as the SDK's fake Chest keeps them: the owner,
 // and bob, an editor; a reader is bob with another role.
 const id = (name: string): string => "mbr_" + name + "a".repeat(26 - name.length);
-const owner: Member = { id: id("alice"), firstName: "Alice", lastName: "Martin", name: "Alice Martin", photo: null, role: "reader", isAdmin: true, isBuilder: false, groups: [] };
-const editor: Member = { id: id("bob"), firstName: "", lastName: "", name: "Bob", photo: null, role: "editor", isAdmin: false, isBuilder: false, groups: [] };
+const owner: Member = { id: id("alice"), firstName: "Alice", lastName: "Martin", name: "Alice Martin", photo: null, role: "reader", isAdmin: true, isBuilder: false, groups: [], language: "en", timeZone: "America/New_York" };
+const editor: Member = { id: id("bob"), firstName: "", lastName: "", name: "Bob", photo: null, role: "editor", isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "Europe/Paris" };
 const reader: Member = { ...editor, role: "reader" };
 
 // The tool behind a plain HTTP server, as the Chest's launcher reaches it,
@@ -90,8 +93,8 @@ let server: Server;
 let base: string;
 before(async () => {
   process.env["CHEST_TOOL"] = "web";
-  chest = await fakeChest({ members: [owner, editor], capabilities: ["members", "notifications"] });
-  server = createServer(createApp(notes, database, files, new ChestTeam(), new ChestLifecycle(notes)));
+  chest = await fakeChest({ members: [owner, editor], capabilities: ["members", "notifications", "ai"], ai: { cap: 0.0001 }, chest: { organization: "Atelier & Fils", timeZone: "Europe/Paris", language: "fr", currency: "CHF", publicUrl: "https://forms.atelier.example" } });
+  server = createServer(createApp(notes, database, files, new ChestTeam(), new ChestLifecycle(notes), new ChestSchedules(), new ChestAssistant()));
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   base = "http://127.0.0.1:" + String((server.address() as AddressInfo).port);
@@ -111,6 +114,7 @@ test("the public part answers anyone, shows its version and sees nobody, even wi
   const text = await page.text();
   assert.match(text, /This page is public\./u);
   assert.ok(text.includes("Version: " + version));
+  assert.ok(text.includes("Public address: https://forms.atelier.example"));
   assert.deepEqual(await (await call("/api/whoami", undefined, { headers: { "Chest-Member": "forged.forged.forged" } })).json(), { member: null });
   const css = await call("/static/site.css");
   assert.equal(css.status, 200);
@@ -135,6 +139,18 @@ test("a member sees their name and role; editors, admins and builders write, rea
   const html = await page.text();
   assert.ok(html.includes("Hello, Alice Martin"));
   assert.ok(html.includes("Your role: reader"));
+  // The Chest, as the tool is told it and as its database is in it; the
+  // language is the member's.
+  assert.ok(html.includes("Organization: Atelier &amp; Fils · Language: en"));
+  assert.ok(html.includes("Time zone: Europe/Paris · Today: "));
+  assert.ok(html.includes("Database time zone: Europe/Paris · Database today: 2026-09-30"));
+  // The member's own zone: where the tool shows them times.
+  assert.ok(html.includes("Your time zone: America/New_York"));
+  const told = await (await call("/chest/api/chest", owner)).json() as Record<string, unknown>;
+  assert.deepEqual({ ...told, today: "" }, { organization: "Atelier & Fils", timeZone: "Europe/Paris", currency: "CHF", teamUrl: "https://web-chest.chest.test", publicUrl: "https://forms.atelier.example", today: "", language: "fr", database: { timeZone: "Europe/Paris", today: "2026-09-30" } });
+  assert.ok(html.includes("Currency: CHF"));
+  assert.ok(html.includes("Team address: https://web-chest.chest.test · Public address: https://forms.atelier.example"));
+  assert.match(String(told["today"]), /^\d{4}-\d{2}-\d{2}$/u);
   assert.ok(html.includes("TESTWEB_GREETING: not set"));
   assert.ok(html.includes("<label for=\"note\">New note</label>"));
   // The variable the tool expects, once the Chest gives it: escaped as any text.
@@ -199,7 +215,7 @@ test("files are listed and read by a member, put and removed by who writes, and 
   assert.equal((await call("/chest/api/files")).status, 401);
   const put = (who: Member, name: string, body: string, type = "text/plain"): Promise<Response> => call("/chest/api/files/" + name, who, { method: "PUT", headers: { "Content-Type": type }, body });
   assert.equal((await put(reader, "notes/a.txt", "hello")).status, 403);
-  assert.deepEqual(await (await put(editor, "notes/a.txt", "hello")).json(), { name: "notes/a.txt", type: "text/plain", size: 5, updated: "2026-09-25T00:00:00.000Z" });
+  assert.deepEqual(await (await put(editor, "notes/a.txt", "hello")).json(), { name: "notes/a.txt", type: "text/plain", size: 5, sha256: "0".repeat(64), updated: "2026-09-25T00:00:00.000Z" });
   assert.deepEqual(await (await call("/chest/api/files/notes/a.txt", reader)).json(), { name: "notes/a.txt", type: "text/plain", size: 5, data: Buffer.from("hello").toString("base64") });
   assert.deepEqual((await (await call("/chest/api/files", reader)).json() as FilePage).files.map(f => f.name), ["notes/a.txt"]);
   assert.deepEqual(await (await call("/chest/api/files/url", reader, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "notes/a.txt" }) })).json(), { url: "https://web-chest.atelier.example/_chest/files/11", expiresIn: 900 });
@@ -246,7 +262,7 @@ test("an upload is authorised to who writes — photos into photos/, images of 1
   assert.deepEqual(files.uploads, [["photos/", { types: ["image/*"], maxSize: 10 << 20 }], ["doc.txt", { expiresIn: 1 }]]);
   for (const bad of [{}, { name: 1 }, { name: "a", other: 1 }, { name: "a", expiresIn: "1" }]) assert.equal((await post(editor, "/chest/api/files/upload-url", bad)).status, 400);
   await files.put("photos/cat.png", new Uint8Array([1, 2]), "image/png");
-  assert.deepEqual(await (await post(reader, "/chest/api/files/stat", { name: "photos/cat.png" })).json(), { name: "photos/cat.png", type: "image/png", size: 2, updated: "2026-09-25T00:00:00.000Z" });
+  assert.deepEqual(await (await post(reader, "/chest/api/files/stat", { name: "photos/cat.png" })).json(), { name: "photos/cat.png", type: "image/png", size: 2, sha256: "0".repeat(64), updated: "2026-09-25T00:00:00.000Z" });
   assert.equal((await post(reader, "/chest/api/files/stat", { name: "none" })).status, 404);
   assert.deepEqual(await (await post(reader, "/chest/api/files/url", { name: "photos/cat.png", thumbnail: 256 })).json(), { url: "https://web-chest.atelier.example/_chest/files/14.256", expiresIn: 900 });
   assert.equal((await post(reader, "/chest/api/files/url", { name: "photos/cat.png", thumbnail: 300 })).status, 400);
@@ -267,6 +283,26 @@ test("who writes tells members through the Chest: an item of their inbox, withdr
   assert.equal(chest.badges.get(owner.id), 3);
   for (const bad of [{}, { title: "x" }, { members: "x", title: "x" }]) assert.equal((await post(editor, "/chest/api/notify", bad)).status, 400);
   assert.equal((await call("/chest/api/badge", editor)).status, 405);
+});
+
+test("any member has a text summarised by the Chest's AI, whole or streamed, and the tool keeps working once AI is paused", async () => {
+  const summarise = (who: Member, body: unknown): Promise<Response> => call("/chest/api/summary", who, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const whole = await (await summarise(reader, { text: "Meeting moved to Friday" })).json() as { text: string; cost: number };
+  assert.equal(whole.text, "Meeting moved to Friday");
+  assert.ok(whole.cost > 0);
+  const sent = chest.ai.at(-1)?.body as { model: string; max_tokens: number; member: string; stream?: boolean };
+  assert.deepEqual([sent.model, sent.max_tokens, sent.member, sent.stream], ["default", 200, reader.id, undefined]);
+  // Streamed until the month's cap pauses AI: the page says so, the rest works.
+  let paused: string | undefined;
+  for (let i = 0; i < 50 && paused === undefined; i++) {
+    const answer = await (await summarise(owner, { text: "Streamed words", stream: true })).json() as { text?: string; paused?: string };
+    if (answer.paused) paused = answer.paused;
+    else assert.equal(answer.text, "Streamed words");
+  }
+  assert.equal(paused, "cap_reached");
+  assert.equal((await call("/chest/api/notes", owner)).status, 200);
+  for (const bad of [{}, { text: "" }, { text: "x", stream: "yes" }, { text: "x", other: 1 }]) assert.equal((await summarise(owner, bad)).status, 400);
+  assert.equal((await call("/chest/api/summary", owner)).status, 405);
 });
 
 test("the Chest's events are received on /chest-events: each once, held on demand, an erasure anonymises and is acknowledged", async () => {
@@ -299,6 +335,19 @@ test("the Chest's events are received on /chest-events: each once, held on deman
   assert.deepEqual(chest.acknowledged, [erasure]);
   assert.equal((await view()).events.at(-1)?.type, "member.erased");
   await notes.remove(note!.id);
+});
+
+test("the runs of its schedules are received on /chest-schedules: each once, a schedule it does not have refused", async () => {
+  const runs = async (): Promise<Ran[]> => (await (await call("/chest/api/schedules", owner)).json() as { runs: Ran[] }).runs;
+  const id = "run_" + "s".repeat(26);
+  assert.equal(await chest.run("morning", base, { id, scheduledAt: "2026-10-05T05:30:00Z" }), 204);
+  assert.equal(await chest.run("morning", base, { id, attempt: 2 }), 204);
+  assert.deepEqual((await runs()).map(r => [r.id, r.name, r.scheduledAt, r.attempt]), [[id, "morning", "2026-10-05T05:30:00Z", 1]]);
+  assert.equal(await chest.run("evening", base), 404);
+  // Not the Chest's: refused; not a POST: 405; the list is for members.
+  assert.equal((await fetch(base + "/chest-schedules", { method: "POST", body: "{}" })).status, 401);
+  assert.equal((await call("/chest-schedules")).status, 405);
+  assert.equal((await call("/chest/api/schedules")).status, 401);
 });
 
 test("the server listens on PORT and exits cleanly on SIGTERM", async () => {

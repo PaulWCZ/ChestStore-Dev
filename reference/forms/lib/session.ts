@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
-import { member } from "../packages/chest-client/src/member.ts";
-import type { Member } from "../packages/chest-client/src/member.ts";
+import { member } from "@argentic/chest-sdk/member";
+import type { Member } from "@argentic/chest-sdk/member";
 import { Forms } from "./forms.ts";
 import { localeOf, messagesFor } from "./i18n.ts";
 import type { Messages } from "./i18n.ts";

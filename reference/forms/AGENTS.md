@@ -20,7 +20,7 @@ break.
 | `app/actions.ts` | Server actions; each re-checks the member, returns codes, never sentences |
 | `proxy.ts` | Own Content-Security-Policy with a nonce; 401 on `/chest` without an assertion |
 | `migrations/NNNN_name.sql` | Schema, run by the Chest in order at install and every update |
-| `packages/chest-client` | Vendored SDK (`@argentic/chest-sdk`); do not edit — update it from the SDK |
+| `vendor/chest-sdk-<version>.tgz` | The SDK (`@argentic/chest-sdk`), packed by the Chest's `npm run sync:sdk`; do not edit, never install it from npm |
 
 ## Commands
 

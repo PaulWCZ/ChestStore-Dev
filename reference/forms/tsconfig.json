@@ -42,7 +42,6 @@
     "node_modules",
     ".next",
     ".test-dist",
-    "test",
-    "packages/chest-client/test"
+    "test"
   ]
 }

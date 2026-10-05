@@ -72,7 +72,7 @@ entering an opened Chest.
 |---|---|
 | Baseline | Email + password, or **passkey** |
 | Reinforcement, if the Owner enables the option | In addition: a **six-digit code** sent by email at each sign-in |
-| Sign-in connectors | Company SSO, GitHub, Google…: the **company** plugs them into its Chest, with its own credentials at the provider. Argentic manages no OAuth for Chests. |
+| Sign-in connectors | Company SSO, GitHub, Google…: the **company** plugs them into its Chest, with its own credentials at the provider. Argentic manages no OAuth for Chests. Microsoft first: [Sign-in and SSO](sign-in-and-sso.md). |
 
 **The Owner.** They sign in to central, subscribe, track the opening. When the
 Chest is ready, the tracking page hands them a **single-use entry
@@ -212,15 +212,15 @@ Installing a tool and deciding who enters it are two separate decisions. A
 freshly installed Compartment is open only to the owner until decided
 otherwise.
 
-## Store, fork, proposal
+## Store, customization, proposal
 
 ```mermaid
 flowchart TB
-  Store[Open_source_store] --> Install[Install_as_is]
-  Store --> Fork[Fork_and_adapt]
+  Store[Open_source_store] --> Install[Install]
   Custom[Agent_or_code_push] --> GH[Linked_GitHub_repository]
-  Fork --> GH
   GH --> ChestBuild[Chest_fetches_and_builds]
+  Comp --> Customize[Customize_with_Perseus]
+  Customize --> ChestBuild
   ChestBuild --> Policy{Policy}
   Policy --> Propose[Propose]
   Policy --> Auto[Auto_deploy]
@@ -230,16 +230,19 @@ flowchart TB
   Install --> Comp
 ```
 
-- The **store** lists Argentic tools (open source on GitHub), ready to install
-  or to fork.
+- The **store** lists Argentic tools (open source on GitHub), ready to install.
+- A tool in service (from the store or GitHub) can be **customized with
+  Perseus**: the changes live in the Chest, the author's updates are
+  re-applied and offered ([Customize an installed tool](perseus-build.md#customize-an-installed-tool)).
 - A member can link **GitHub** and issue an **agent key**; the agent pushes, Chest
   fetches and builds ([For agents](for-agents.md)).
 - Any **member** can propose. Submission runs nothing while the mode
   is “proposal”.
 - Only the **Owner** or an authorised **admin** approves (or enables bounded
   auto-deploy). The manifest sets the requested permissions.
-- After validation, the author becomes **Builder**: updates without
-  re-approval as long as the manifest does not widen permissions.
+- After validation, the author becomes a **builder** (a Chest status) who
+  can change this tool — updates without re-approval as long as the
+  manifest does not widen permissions — and no tool that is not theirs.
 
 ## SDK and platform
 

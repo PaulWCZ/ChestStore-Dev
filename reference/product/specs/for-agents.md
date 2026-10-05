@@ -64,7 +64,9 @@ configuring a connector, deleting data: always a human.
   “get into” the server. The direction is always Chest → GitHub: no
   inbound Internet entry is opened for GitHub on the Chest.
 
-Aligned with the store (GitHub repositories) and forking.
+Aligned with the store (GitHub repositories); a tool installed from GitHub can
+also be customized in the Chest with Perseus, without writing to the repository
+([Customize an installed tool](perseus-build.md#customize-an-installed-tool)).
 
 **What exists** (22 September 2026, phase 2): a single GitHub App,
 “Chest by Argentic”, which the owner installs on their account in one click
@@ -110,6 +112,7 @@ Rules fixed even in auto-deploy:
 | Primitive | Use |
 |---|---|
 | **Member** context + **roles** | Private access |
+| **The Chest** | The organization’s name, the time zone and “today”, the language |
 | **End-user** auth | Public access |
 | **Files** | Per-Compartment storage |
 | **Mail** | Governed sending |
@@ -130,7 +133,8 @@ Payments inside a tool: later, through a **Stripe connector** on public access (
 
 - [Building a tool](building-tools.md)
 - [Security](security.md)
-- [Perseus and connected agents](chest-agent.md) (specified: Perseus, statuses, safety limits, OAuth consent; code stays on GitHub)
+- [Connected agents](chest-agent.md) (specified, after Perseus Code: statuses, safety limits, OAuth consent; code stays on GitHub)
 - [Develop and test tools](develop-and-test-tools.md)
+- [Perseus Code](perseus-build.md) (first priority: builders build a tool with Perseus, the Chest's own agent, without GitHub)
 - [SDK and agents vision](../98_travail/sdk-and-agents-vision.md) (proposal: agents with powers)
 - [Overview](../01_vision/overview.md)

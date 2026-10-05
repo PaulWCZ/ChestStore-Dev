@@ -2,15 +2,19 @@ import postgres, { type Sql } from "postgres";
 
 // What the laboratory's proofs read of the tool's database, through the
 // tool itself: the migrations the Chest recorded as played and the columns
-// of the notes (a later version adds one), and tries at reaching what the
-// tool must never reach. The targets are fixed, never an address given.
+// of the notes (a later version adds one), the zone and the day of its
+// sessions (the Chest's, which it sets on the tool's role), and tries at
+// reaching what the tool must never reach. The targets are fixed, never an
+// address given.
 export type Schema = { migrations: string[]; columns: string[] };
+export type Session = { timeZone: string; today: string };
 export const probeTargets = ["keycloak", "other", "cluster", "admin"] as const;
 export type ProbeTarget = typeof probeTargets[number];
 export type Probe = { target: ProbeTarget; outcome: "connected" | "refused"; code: string | null };
 
 export interface Database {
   schema(): Promise<Schema>;
+  session(): Promise<Session>;
   probe(target: ProbeTarget): Promise<Probe>;
 }
 
@@ -25,6 +29,10 @@ export class PostgresDatabase implements Database {
     const migrations = await this.#sql<{ name: string }[]>`SELECT name FROM chest_migrations ORDER BY name`;
     const columns = await this.#sql<{ column_name: string }[]>`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'notes' ORDER BY ordinal_position`;
     return { migrations: migrations.map(row => row.name), columns: columns.map(row => row.column_name) };
+  }
+  async session(): Promise<Session> {
+    const [row] = await this.#sql<{ zone: string; today: string }[]>`SELECT current_setting('TimeZone') AS zone, current_date::text AS today`;
+    return { timeZone: row?.zone ?? "", today: row?.today ?? "" };
   }
   async probe(target: ProbeTarget): Promise<Probe> {
     const own = { host: process.env["PGHOST"] ?? "", port: Number(process.env["PGPORT"]), user: process.env["PGUSER"] ?? "", password: process.env["PGPASSWORD"] ?? "" };

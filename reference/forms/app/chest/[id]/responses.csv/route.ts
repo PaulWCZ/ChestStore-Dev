@@ -1,6 +1,6 @@
 import { localeOf, messagesFor } from "../../../../lib/i18n.ts";
 import { FormsError, csv } from "../../../../lib/model.ts";
-import { member } from "../../../../packages/chest-client/src/member.ts";
+import { member } from "@argentic/chest-sdk/member";
 import { forms } from "../../../../lib/session.ts";
 
 // Every answer of a form, as a CSV file, for a member who may read it.

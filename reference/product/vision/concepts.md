@@ -11,7 +11,8 @@ Reference vocabulary. One definition per term.
 | **Admin** | Delegated administrator of the **Chest**; may be allowed to approve like the Owner. An admin is a member of the Chest — not the subscription manager on central (unless also the Owner). |
 | **Group** | Set of **members** of the Chest (“Sales”, “Accounting”). A person is placed in groups from the invitation onward. It is the group that opens Compartments. |
 | **Role** | What a member is **within a tool** (“manager”, “seller”). Declared by the tool in its manifest, read by the SDK. There is no role at the Chest level. |
-| **Builder** | **Member** who authored an approved tool; no global admin rights and no automatic access to business data. Can **update** their tool without new approval as long as the manifest **does not ask for more** permissions than before. Often works with a coding **agent**. |
+| **Guest** | **Chest status** below member, for someone from outside the company (an accountant) given a tool: exactly a member's rights, only listed apart in Team. Tools see a member. |
+| **Builder** | **Chest status** between member and admin (guest, member < builder < admin < owner), granted by the Owner or an admin — or by being given a tool, or on approval of the member's first tool. A builder uses **Perseus Code** to create tools and changes **their tools** only (those they created or were given), never another tool; one can be a builder without any tool. No global admin rights. **Changing a tool is not seeing its data**: uses it only if granted (the tool they created is granted to them at approval), no say on who has it, its database and files only if the Owner or an admin allows it. Can **update** their tools without new approval as long as the manifest **does not ask for more** permissions than before. Often works with Perseus or a coding **agent** ([Perseus Code](../02_specs/perseus-build.md), “Builders”). |
 | **End user** (usager) | Person who has (or can have) a **tool account** on a Compartment’s **public** access. **Not** a member of the Chest. |
 | **Visitor** | Person on the public access without a tool account. |
 | **Tool account** | Identity specific to one Compartment, for an end user. |
@@ -37,12 +38,16 @@ An app chooses: private only, public only, or both.
 
 | Term | Definition |
 |---|---|
-| **Store / catalogue** | Argentic open-source tools, installable or forkable. |
+| **Store / catalogue** | Argentic open-source tools, installable, then customizable with Perseus. |
 | **Package** | Installable unit (code + manifest). Same contract for catalogue and custom tools. |
 | **Manifest** | Declaration of access needs. It requests; it does not grant. |
 | **SDK** | Platform primitives: member context / roles, end-user auth, files, mail, Postgres, connectors. It makes things easier; it does not secure anything on its own. |
 | **Connector** | Governed access to an external service: the platform holds the secret; the tool gets bounded **capabilities**, not the key. |
 | **Runtime** | **Node** first; **Python** next. |
+| **Perseus** | The Chest's own agent, on its server. In v1 it only builds tools with a builder, in Perseus Code ([Perseus Code](../02_specs/perseus-build.md)). |
+| **Perseus Code** | The space opened by **Build with Perseus** in “Add a tool”, where a **builder** builds a tool in conversation with Perseus, with a live preview, then publishes it through the normal approval. Its **projects** keep their source on the Chest, never on GitHub, and appear in the builder's **Your projects** ([Perseus Code](../02_specs/perseus-build.md)). |
+| **Customization** | A builder's changes to an installed tool (catalogue or GitHub), made with Perseus and kept in the Chest: **base** (the author's commit, read, never written) + **your changes** = **your version**, under the same name and data; the author's updates are re-applied and offered ([Customize an installed tool](../02_specs/perseus-build.md#customize-an-installed-tool)). |
+| **Connected agent** | An agent a person brings (Claude Code, Cursor, Codex), connected by OAuth consent with a human sponsor, a status and safety limits ([Connected agents](../02_specs/chest-agent.md)). |
 | **Agent key** | Scoped token (member / Chest) that lets an agent call the Chest’s API: link a repo, propose, deploy according to rights. No VPS access. Revocable. |
 | **GitHub link** | The member connects their GitHub to **their** Chest: a GitHub App specific to the Chest, owned by the company, read-only on the chosen repositories. On push, GitHub rings the Chest, which **fetches** the code. Neither central nor a shell on the server. |
 | **Subscription** | The moment a Chest is opened, on central. Separate from any payment collected inside a tool. |
@@ -60,7 +65,7 @@ An app chooses: private only, public only, or both.
 - **Connectors**: capabilities, not credentials in the app.
 - **GitHub** = code relay; **agent key** = Chest API auth; no VPS shell.
 - Owner policy: proposal by default; auto-deploy optional and bounded (manifest).
-- A forked tool follows the custom path (no automatic store updates).
+- A customized tool keeps its source and its updates: each new base is re-applied with the changes and offered, never deployed automatically.
 - **PostgreSQL**: one database per Compartment that asks for it.
 - Former label “external account” = **tool account**.
 

@@ -1,23 +1,23 @@
 import postgres from "postgres";
+import { databaseUrl } from "@argentic/chest-sdk/database";
 import { storedAnswers, storedFields } from "./model.ts";
 import type { Answers, Definition, Form, Response, Status } from "./model.ts";
 import type { Store } from "./forms.ts";
 
-// The tool's own PostgreSQL database, as its Chest gives it (DATABASE_URL,
-// capability database); the schema is migrations/0001_forms.sql, played by
+// The tool's own PostgreSQL database, as its Chest gives it (the SDK's
+// databaseUrl, capability database); the schema is migrations/0001_forms.sql, played by
 // the Chest before a version serves. Every statement is a tagged template:
 // values are parameters, never text of the query.
 
 type Sql = ReturnType<typeof postgres>;
 const holder = globalThis as { formsSql?: Sql };
 
-// One pool per process, opened at the first query. DATABASE_URL is the
+// One pool per process, opened at the first query. databaseUrl() is the
 // address the Chest gives at start (127.0.0.1, the launcher's relay): a
-// secret, never logged, never sent to a browser.
+// secret, never logged, never sent to a browser; CapabilityNotGranted
+// without the capability.
 function sql(): Sql {
-  const url = process.env["DATABASE_URL"];
-  if (!url?.startsWith("postgres://")) throw new Error("no database: the Chest gives DATABASE_URL to a version that declares the capability database");
-  holder.formsSql ??= postgres(url, { max: 5, idle_timeout: 30, connect_timeout: 10, onnotice: () => {} });
+  holder.formsSql ??= postgres(databaseUrl(), { max: 5, idle_timeout: 30, connect_timeout: 10, onnotice: () => {} });
   return holder.formsSql;
 }
 
