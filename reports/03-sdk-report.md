@@ -8,7 +8,7 @@ and `client/src/*.ts`, cited by section or file. Every claim about a tool
 comes from its code (`tools/private/*/`, `tools/public-and-private/*/`,
 `lib/`, `app/`, `chest.json`, `chest.proposals.json`), read on 2026-09-30
 and, for the counts marked so, on 2026-10-05. The studio's proposals live
-in the SDK working copy `sdk/`, now **`0.4.1-studio.1`**: the official
+in the SDK working copy `sdk/`, now **`0.4.1-studio.2`**: the official
 0.4.1 byte for byte, with the proposals in files of their own
 (`sdk/client/studio/`; §5 says what the rebase dropped and reshaped). On
 2026-10-05 the 18 tools still vendor `0.3.1-studio.1` (0.3.0 plus the
@@ -230,7 +230,7 @@ WebAssembly, run from a clone, not on npm yet).
 
 One section per gap. For each: the tools that need it and the features
 that depend on it (from their code), what the studio built in `sdk/`
-(`0.4.1-studio.1`, `sdk/client/studio/`; details, tests and fakes in
+(`0.4.1-studio.2`, `sdk/client/studio/`; details, tests and fakes in
 `sdk/README.md` under "Studio proposals (not in 0.4.1)"), and the design
 notes and limits recorded when it was built. §4.1 and §4.5 record what
 0.4.x made official. Counts come from `chest.proposals.json` and `@argentic/chest-sdk/…`
@@ -251,7 +251,7 @@ imports in each tool's `lib/` and `app/` (2026-09-30).
   Wiki's review reminders; Polls' closing pass; Forms' bell and cleanup;
   Support's late events and cleanup; Clients', People's and Rooms'
   morning or quarter-hour passes.
-- **The studio's proposal went** (`sdk/` 0.4.1-studio.1): its
+- **The studio's proposal went** (`sdk/` 0.4.1-studio.N): its
   `/chest-jobs/<name>`, `Chest-Job v1`, `Run.timeZone`, cron helpers and
   fake. 0.4.1's design is the one the studio proposed (the platform calls
   the tool, the owner approves each schedule in words, at least once, one
@@ -364,7 +364,8 @@ imports in each tool's `lib/` and `app/` (2026-09-30).
   title, start, end | days, location?, path?, busy?, private?})`,
   `putMany(events) → PutResult[]` (each event answered on its own:
   `{ok: true, …}` or `{ok: false, index, key, reason}`), `remove`, `list`,
-  and the writer (`ics`, `escapeText`, `foldLine`, `feed`, `check`);
+  `ics` for a file to download; the Chest's checks and feed writer in
+  `calendar-rules.ts` (not published: the fake uses them);
   `fakeChest({calendar})`, `chest.feed(member)`, the fake front's
   `/_chest/calendar/<secret>.ics`; `calendar.test.ts` (RFC 5545 folding,
   escaping, UTC form, exclusive `DTEND`, per-language titles, ETag).
@@ -372,8 +373,8 @@ imports in each tool's `lib/` and `app/` (2026-09-30).
   each reader's; `path` under `/chest`, never a URL; personal feeds only;
   a random secret, stored hashed, replaceable; UID = hash(tool,
   key)@domain; `DTSTAMP` = last change, so an unchanged feed answers 304.
-  `putMany` went from all-or-nothing (studio.14) to one result per event
-  (studio.15): Rooms, Clients and Tasks each re-sent a refused batch one
+  `putMany` went from all-or-nothing (when it came, in 0.3.0-studio.15) to
+  one result per event (0.3.0-studio.16, commit `8a25574`): Rooms, Clients and Tasks each re-sent a refused batch one
   event at a time, costing up to 100 writes of the minute's 600.
 - **Manifest and approval**: `"calendar": true` — "Adds events to the
   calendar of the members concerned".
@@ -503,14 +504,15 @@ addresses**:
   with a request, `lib/attachments.ts`), Forms (a file question and a
   form's images, `lib/uploads.ts`, `lib/images.ts`); public files by Forms
   (a form's images) and Hiring (the careers page's images and logo,
-  `lib/careers.ts`, `lib/public-feed.ts`), through `files.publicUrl`. 0.4.1's `files` is
+  `lib/careers.ts`, `lib/public-feed.ts`), through `files.publicPath`. 0.4.1's `files` is
   private only, and a `files.url()` link is for "a member's browser, never
   a public page" (`client/src/files.ts`).
 - **Working copy**: `files.publicUploadUrl(name, {types, maxSize,
   expiresUnclaimedAfter})` (until 0.3.1-studio `uploadUrl(name, {public:
   true})`: a public upload's address is not the team host's, which 0.4.1's
   `uploadUrl` checks, so it is a function of its own), `files.claim(ref)`,
-  `files.publicUrl(name, {version})`; `fakeChest({storage: {publicUploads,
+  `files.publicPath(name, {version})` (until 0.4.1-studio.2 `publicUrl`:
+  it is a path, not an origin's URL); `fakeChest({storage: {publicUploads,
   publicFiles}})`, the fake front's `/_chest/upload/<token>` (with 0.4.1's
   content checks) and `/_chest/public/<name>`; tests in
   `sdk/client/studio/test/testing.test.ts`. Built from the Chest's own
@@ -541,6 +543,25 @@ addresses**:
 - **Why the Chest counts**: it sees every public tool's traffic; a
   per-tool counter lets a robot spread over five tools five times the
   allowance. `language()` falls back to `chest.language` (0.3.0).
+- **The visitor's address must come from the front — corrected
+  2026-10-05.** Every public tool, and the studio's `visitors` until
+  0.4.1-studio.2, keyed visitors by the first `X-Forwarded-For` address,
+  "set by the Chest's front". The contract says otherwise: toward a tool
+  the front removes every `Chest-*` header and sets only
+  `X-Forwarded-Proto: https` and `X-Forwarded-Host`, the client's removed
+  (`reference/contract/application-contract.md`, "Front"); it adds no
+  `X-Forwarded-For` (and its egress proxy adds none either, same
+  document, "Relayed HTTP"). So an `X-Forwarded-For` a tool reads is the
+  visitor's own: a robot writes a new one at every request and every
+  per-visitor limit falls. **Proposal**: the front sets
+  `Chest-Visitor-Address` — the address of the connection it accepted —
+  on the public host's requests; being a `Chest-*` header, no client can
+  send it (the front removes those first). `visitors.address()` reads it
+  and nothing else; without it (every Chest today) it is null,
+  `visitor()` is `"unknown"`, and `count()` counts such visitors together:
+  the per-hour ceiling for everyone holds, the per-visitor one becomes
+  global. The 7 public tools' own copies (`lib/public-origin.ts`) must
+  change the same way.
 - **Approval**: none new. **Risks**: shared addresses behind one NAT (the
   owner may raise the ceiling; tools say "try again in an hour").
 
@@ -554,9 +575,10 @@ addresses**:
   tool a way into the company's own network (SSRF).
 - **Working copy**: `sdk/client/studio/webhooks.ts` — `add`, `remove`,
   `list`, `enable`, `rotateSecret`, `send`, `journal`, `available()`,
-  `handle` of `webhook.disabled` on `POST /chest-webhooks`, and the rules
-  as pure functions (`checkUrl`, `isPublicAddress`, `format`, `sign`,
-  `verifySignature`); `fakeChest({webhooks})`; `webhooks.test.ts`.
+  `handle` of `webhook.disabled` on `POST /chest-webhooks`, `checkUrl` for
+  a form; the Chest's own rules (`isPublicAddress`, `format`, `sign`,
+  `verifySignature`) in `webhooks-rules.ts`, not published, used by the
+  fake; `fakeChest({webhooks})`; `webhooks.test.ts`.
 - **Manifest and approval**: `"webhooks": {"max": 200}` — "Sends notices
   to web addresses your admins or subscribers give, signed by your Chest
   (up to 200 addresses)". The owner sees each address, its state and the
@@ -732,7 +754,7 @@ None is faked in a tool; each tool's README says what it cannot do yet.
 
 Where 0.4.x chose a shape for something the studio had built, **the
 studio adopts the official shape**, and the proposals that remain are
-re-expressed on 0.4.1's patterns in `0.4.1-studio.1`. How they sit: the
+re-expressed on 0.4.1's patterns in `0.4.1-studio.2`. How they sit: the
 official 0.4.1 is kept byte for byte (`diff -r reference/sdk sdk`, `check/`
 aside, shows only `client/studio/`, `tsconfig.studio.json`,
 `scripts/check-studio-package.mjs`, the package metadata and the appended
@@ -743,7 +765,7 @@ unchanged beside the studio's 75. What changes for the tools the day they
 are re-vendored (the mechanical list for migrators is kept with the lead,
 not in the repository):
 
-| Topic | Studio (`0.3.1-studio.1`) | Official 0.4.1 | Studio adopts (`0.4.1-studio.1`) |
+| Topic | Studio (`0.3.1-studio.1`) | Official 0.4.1 | Studio adopts (`0.4.1-studio.2`) |
 |---|---|---|---|
 | Manifest | `"version": 2`; proposals in `chest.proposals.json` | `"chest": "0.4"`; a Chest refuses a later contract and any unknown key (`contract/README.md`, "Versions") | the official key; proposals stay in `chest.proposals.json` (`mail`, `calendar`, `groups`, `emits`, `receives` of other tools and `group.*`, `files.publicUploads`/`publicFiles`, `checks`, `webhooks`, `translations`), checked by `scripts/check-manifest.mjs`; `chest.json` judged by `chest check` |
 | Schedules | `chest.proposals.json`, `POST /chest-jobs/<name>`, `Chest-Job v1`, `Run.timeZone`, cron helpers, `fakeChest({schedules})` | `chest.json` `"schedules"`, `POST /chest-schedules`, `Chest-Schedule v1`, `{id, name, scheduledAt, attempt}`, `handle(…, {seen})`, `fakeChest().run()` | the official module, unchanged; the studio's went (§4.1) |
@@ -868,9 +890,12 @@ part behind `/chest`, "the public host has no member" (`AGENTS.md`) — but
 each public tool rebuilt the same things, and each is a platform concern:
 
 1. **Abuse on forms** — a honeypot, a signed "form shown at" time,
-   per-visitor counters keyed by the first `X-Forwarded-For` address
-   (assumed set by the Chest's front; the contract should say so). The
-   `visitors` proposal (§4.8).
+   per-visitor counters. The tools keyed visitors by the first
+   `X-Forwarded-For` address, assuming the front set it; the contract
+   shows it does not (it sets only `X-Forwarded-Proto` and
+   `X-Forwarded-Host` and removes the client's `Chest-*` headers), so a
+   visitor forges it. The `visitors` proposal now asks the front for
+   `Chest-Visitor-Address` and reads nothing else (§4.8).
 2. **Visitors' language** — the same `/lang/<code>` switch, cookie and
    `Accept-Language` parsing in each; 0.3.0 gave the last fallback
    (`chest.language`: "a public page before the visitor chooses",
