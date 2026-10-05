@@ -18,7 +18,7 @@ test("events between tools (proposal): a tool publishes its own events; another 
     const sent = await events.publish("tool.approved", { member: camille.id, from: "2026-10-12", to: "2026-10-16" }, { key: "leave:42" });
     assert.equal(sent.receivers, 2);
     assert.equal((await events.publish("tool.approved", { member: camille.id, from: "2026-10-12", to: "2026-10-16" }, { key: "leave:42" })).id, sent.id);
-    // studio.15: the same key for another event is refused, not answered with the first.
+    // 0.3.0-studio.15: the same key for another event is refused, not answered with the first.
     await assert.rejects(events.publish("tool.approved", { member: camille.id }, { key: "leave:42" }), (e: unknown) => e instanceof ChestError && e.code === "key_conflict");
     assert.deepEqual(chest.published.map(p => p.type), ["tool.approved"]);
     await assert.rejects(events.publish("other.approved", {}), (e: unknown) => e instanceof ChestError && e.code === "invalid_event");
@@ -37,10 +37,10 @@ test("events between tools (proposal): a tool publishes its own events; another 
   }
 });
 
-// Proposal (studio.16): Support and Tasks tell again every 15 minutes what
+// Proposal (0.3.0-studio.16): Support and Tasks tell again every 15 minutes what
 // the Chest could not take; Goals counts by when it happened, so an event
 // published after its cycle ended must keep its time.
-test("publish with occurredAt (studio.16): a late event keeps when it happened, within 24 hours and not ahead", async () => {
+test("publish with occurredAt (0.3.0-studio.16): a late event keeps when it happened, within 24 hours and not ahead", async () => {
   const chest = await fakeChest({ tool: "helpdesk", members: [camille], emits: ["helpdesk.ticket.solved"], linked: { "helpdesk.ticket.solved": ["goals"] } });
   try {
     const solved = new Date(Date.now() - 20 * 60_000);
@@ -83,9 +83,9 @@ test("publish with occurredAt (studio.16): a late event keeps when it happened, 
   }
 });
 
-// Proposal (studio.16): Forms greys "Send to Clients" when nothing will
+// Proposal (0.3.0-studio.16): Forms greys "Send to Clients" when nothing will
 // receive its contacts — toolUrl says only that Clients is installed.
-test("receivers (studio.16): the tools linked to receive a type this tool emits", async () => {
+test("receivers (0.3.0-studio.16): the tools linked to receive a type this tool emits", async () => {
   const chest = await fakeChest({ tool: "forms", emits: ["forms.contact", "forms.request"], linked: { "forms.contact": ["crm"] }, tools: { crm: true, helpdesk: true } });
   try {
     assert.deepEqual(await events.receivers("forms.contact"), ["crm"]);

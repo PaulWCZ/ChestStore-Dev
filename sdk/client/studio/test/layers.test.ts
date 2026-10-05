@@ -12,6 +12,7 @@ import * as checks from "../checks.js";
 import * as events from "../events.js";
 import * as files from "../files.js";
 import * as members from "../members.js";
+import { RateLimited } from "../../src/errors.js";
 import * as notifications from "../notifications.js";
 import { fakeChest } from "../testing.js";
 
@@ -91,6 +92,18 @@ test("the studio's deliveries are 0.4.1's signed deliveries on channels of their
     // A check's delivery is no event, and no event is a check's.
     assert.equal(await chest.check("website", (request: Request) => events.handle(request, {}).then(status => new Response(null, { status }))), 401);
     assert.equal(await chest.emit({ type: "access.revoked", data: { id: camille.id } }, to), 401);
+  } finally {
+    await chest.close();
+  }
+});
+
+test("the members API's 600 calls a minute are one budget for 0.4.1's routes and the studio's", async () => {
+  const chest = await fakeChest({ members: [camille], capabilities: ["members", "groups"] });
+  try {
+    for (let i = 0; i < 300; i++) await members.groups.all();
+    for (let i = 0; i < 300; i++) await members.list();
+    await assert.rejects(members.list(), RateLimited);
+    await assert.rejects(members.groups.all(), RateLimited);
   } finally {
     await chest.close();
   }

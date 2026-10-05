@@ -16,9 +16,23 @@ import { locales, localeOf, type Locale } from "./member.js";
 //
 // A form sent faster than a person types (or never shown) is refused by its
 // token, signed with a key derived from the tool's CHEST_TOKEN. Counting is
-// the Chest's: it knows the visitor's address (its front set
-// X-Forwarded-For) and counts across the tools of the Chest, so a robot
-// that tries every tool meets one limit.
+// the Chest's: it counts across the tools of the Chest, so a robot that
+// tries every tool meets one limit.
+//
+// The visitor's address. The Chest's front adds no X-Forwarded-For toward a
+// tool: it removes every Chest-* header the client sent and sets only
+// X-Forwarded-Proto and X-Forwarded-Host
+// (reference/contract/application-contract.md, "Front", toward the tool),
+// so an X-Forwarded-For a tool receives is whatever the visitor wrote — a
+// robot changes it at every request and is a new visitor each time. The
+// proposal: the front sets Chest-Visitor-Address, the address of the TCP
+// connection it accepted (after its own trusted proxies), on requests of
+// the public host; being a Chest-* header, the client cannot send it (the
+// front removes those first). address() reads that header only; without it
+// (a Chest that does not set it yet), it is null, visitor() is "unknown",
+// and count() counts every such visitor together — the per-hour ceiling
+// for everyone still holds, the per-visitor one becomes a global one.
+export const addressHeader = "chest-visitor-address";
 
 type Headers_ = Headers | { get(name: string): string | null };
 // Headers themselves (anything with get(), like Next's headers()), or a
@@ -29,7 +43,7 @@ const headersOf = (r: Request | Headers_): Headers_ => (typeof (r as Headers_).g
 function key(): Buffer {
   const token = process.env["CHEST_TOKEN"], tool = process.env["CHEST_TOOL"] ?? "";
   if (!token) throw new ChestError("no_token", 500, "CHEST_TOKEN is not set");
-  return createHmac("sha256", Buffer.from(token, "utf8")).update("Chest-Form v1 " + tool).digest();
+  return createHmac("sha256", Buffer.from(token, "utf8")).update("studio visitors form token 1 " + tool).digest();
 }
 const sign = (value: string) => createHmac("sha256", key()).update(value).digest("base64url");
 
@@ -52,11 +66,12 @@ export function checkForm(token: unknown, options: { minimumSeconds?: number; ma
   return "ok";
 }
 
-// address is the visitor's address as the Chest's front gave it (the first
-// of X-Forwarded-For), or null.
+// address is the visitor's address as the Chest's front gave it
+// (Chest-Visitor-Address), or null — never X-Forwarded-For, which the
+// visitor writes.
 export function address(request: Request | Headers_): string | null {
-  const first = (headersOf(request).get("x-forwarded-for") ?? "").split(",")[0]!.trim();
-  return /^[0-9a-fA-F:.]{2,45}$/u.test(first) ? first : null;
+  const given = (headersOf(request).get(addressHeader) ?? "").trim();
+  return /^[0-9a-fA-F:.]{2,45}$/u.test(given) && /[.:]/u.test(given) ? given : null;
 }
 
 // visitor is an opaque key for a visitor of this tool (a hash of their

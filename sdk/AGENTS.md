@@ -379,7 +379,7 @@ before opening a pull request.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the guide of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.1**: 0.4.1 unchanged,
+0.4.1, word for word. This package is **0.4.1-studio.2**: 0.4.1 unchanged,
 plus the studio's proposals — primitives the store's tools need that no
 Chest gives yet, in files of their own (`client/studio/`). `README.md`,
 "Studio proposals", is their reference; this is the short path.
@@ -400,7 +400,7 @@ Chest gives yet, in files of their own (`client/studio/`). `README.md`,
 | Every group of the Chest, and every group of a member | `members.groups.all()`, `groups.members(id)`, `groups.of(memberId)`; `group.changed`/`group.removed` in `events.handle` | `"groups": "read"`, `"receives": ["group.*"]` |
 | One notification to everyone, each in their language | `notifications.broadcast` | nothing beyond `notifications` |
 | Which addresses are members; when former members left | `members.matchEmails`, `members.leftAt(ids)` | nothing beyond `members` |
-| Uploads from public visitors; public files | `files.publicUploadUrl(name, {...})`, `files.claim`, `files.publicUrl` | `"files": {publicUploads, publicFiles}` |
+| Uploads from public visitors; public files | `files.publicUploadUrl(name, {...})`, `files.claim`, `files.publicPath` | `"files": {publicUploads, publicFiles}` |
 | The store's words in other languages | — (read by the Chest) | `"translations": {"fr": {title, description, role_labels}}` |
 
 What 0.4.1 gives is not a proposal any more: schedules (`"schedules"` in

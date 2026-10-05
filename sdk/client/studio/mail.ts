@@ -68,12 +68,12 @@ export type Message = {
   attachments?: Attachment[];
   // The same key within 24 hours sends nothing again and answers the first
   // message: a retry never sends twice. Any text of 1 to 512 characters
-  // without control characters (studio.15): build it from what names the
+  // without control characters (0.3.0-studio.15): build it from what names the
   // message — `digest:${day}:${member}` — and never cut it; the SDK sends
   // a long one as its SHA-256 (idempotencyKey). The same key for other
   // recipients is refused (ChestError key_conflict), never dropped.
   key?: string;
-  // Proposal (studio.15): a message the person must get whatever their
+  // Proposal (0.3.0-studio.15): a message the person must get whatever their
   // email preference (preference(), below) — a password, a booking's
   // confirmation, a payslip, an answer to what they asked. Everything else
   // (reminders, digests, "a task was assigned") honours it: a member who
@@ -81,7 +81,7 @@ export type Message = {
   // there. The Chest journals the flag; the owner sees each tool's share.
   transactional?: boolean;
 };
-// What send did: the message queued, and (Proposal (studio.15)) the members
+// What send did: the message queued, and (Proposal (0.3.0-studio.15)) the members
 // it did not go to now because of their email preference — skipped: email
 // off; digest: in their daily digest from the Chest. status "held" when
 // nobody receives it now.
@@ -153,7 +153,7 @@ export type Bounce = {
 };
 export type MailHandlers = { message?: (message: Received) => void | Promise<void>; bounce?: (bounce: Bounce) => void | Promise<void> };
 
-// idempotencyKey (studio.15) is the key the Chest receives for a key a tool
+// idempotencyKey (0.3.0-studio.15) is the key the Chest receives for a key a tool
 // gives: the key itself when it is 1 to 64 of A-Z a-z 0-9 . _ : -,
 // otherwise "sha256:" and its digest; null when it is not a key.
 export { idempotencyKey };
@@ -185,7 +185,7 @@ const headerSafe = (s: string) => !/[\r\n]/u.test(s);
 // queued (sending is the Chest's). Errors: ChestError invalid_address,
 // invalid_message, suppressed (every recipient refuses email: bounced or
 // complained), key_conflict (409: the key was used within 24 hours for
-// other recipients — nothing sent; studio.15), TooLarge, QuotaExceeded
+// other recipients — nothing sent; 0.3.0-studio.15), TooLarge, QuotaExceeded
 // (the day's messages), and CapabilityNotGranted when the version does not
 // declare "mail" or the Chest has no mail yet. A member held back by their
 // email preference is not an error: Sent says skipped or digest.
@@ -247,7 +247,7 @@ export async function status(id: string): Promise<Status | null> {
   return { id, status: answer.status as Status["status"], at: answer.at };
 }
 
-// Proposal (studio.16): whether the Chest will deliver what the tool
+// Proposal (0.3.0-studio.16): whether the Chest will deliver what the tool
 // sends, asked without sending — for a form that offers "Email the
 // newcomer their first-day details" (People) or a Settings page that says
 // whether alerts can go out. ok is true when a send would be queued now;
@@ -310,7 +310,7 @@ export async function mailboxAddress(mailbox: string): Promise<string | null> {
   return answer && isAddress(answer.address) ? answer.address : null;
 }
 
-// ---- The person's email preference (Proposal (studio.15)) -------------------
+// ---- The person's email preference (Proposal (0.3.0-studio.15)) -------------------
 //
 // Each member chooses once, in the Chest, how every tool may email them:
 // "all", "digest" (one email a day from the Chest gathering the others) or

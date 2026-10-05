@@ -106,7 +106,7 @@ export const groups: {
   },
 };
 
-// ---- Matching email addresses (Studio proposal, studio.15) ---------------------
+// ---- Matching email addresses (Studio proposal, 0.3.0-studio.15) ---------------------
 //
 // A tool that holds addresses from elsewhere — Intune's devices (their
 // user's sign-in address), an imported spreadsheet, a calendar — needs to
@@ -161,7 +161,7 @@ export async function matchEmails(emails: Iterable<string>): Promise<Record<stri
   return found;
 }
 
-// ---- When former members left (Studio proposal, studio.15) ---------------------
+// ---- When former members left (Studio proposal, 0.3.0-studio.15) ---------------------
 //
 // 0.4.1's lookup says who left ("former", with the name they had, or
 // "erased") but not when. A final pay, a last day on a receipt, "Camille

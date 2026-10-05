@@ -80,10 +80,10 @@ export async function claim(token: string): Promise<FileObject> {
 //
 // Objects under public/ are served on the public host at
 // /_chest/public/<name>, to anyone, cached an hour: a logo on a public
-// page, a published PDF. publicUrl is that path (a path of the public host,
+// page, a published PDF. publicPath is that path (a path of the public host,
 // to put in its pages); version (the object's updated time, from stat)
 // changes the address when the file changes.
-export function publicUrl(name: string, options: { version?: string } = {}): string {
+export function publicPath(name: string, options: { version?: string } = {}): string {
   if (typeof name !== "string" || !namePattern.test(name)) throw new ChestError("invalid_name", 400, "invalid file name");
   if (!name.startsWith("public/")) throw new ChestError("invalid_name", 400, "only objects under public/ have a public address");
   const v = options.version === undefined ? "" : "?v=" + encodeURIComponent(options.version);

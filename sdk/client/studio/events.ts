@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import { ask, json as readJson, refusal } from "../src/api.js";
 import { CapabilityNotGranted, ChestError, Unavailable } from "../src/errors.js";
-import { handle as officialHandle, type Handlers } from "../src/events.js";
+import { handle as officialHandle, type Handlers as OfficialHandlers } from "../src/events.js";
 import { groupIdPattern } from "../src/member.js";
 import { forget } from "../src/members.js";
 import { delivery, eventChannel, headerValue, instant, json, memorySeen, object, type Seen } from "../src/signed.js";
@@ -13,7 +13,8 @@ import { idempotencyKey } from "./keys.js";
 // handle's tools), and the Chest's group events (group.changed,
 // group.removed) for a tool that reads its groups. handle is the one name
 // the studio defines again: it hands a member event to 0.4.1's handle,
-// unchanged, and the studio's events to their handlers.
+// unchanged, and the studio's events to their handlers (its Handlers type
+// is defined again with them).
 export * from "../src/events.js";
 
 // ---- The Chest's groups (Studio proposal) ---------------------------------------
@@ -26,8 +27,10 @@ export type GroupChange = "name" | "members";
 export type GroupChanged = { id: string; type: "group.changed"; occurredAt: string; data: { id: string; changed: GroupChange[] } };
 export type GroupRemoved = { id: string; type: "group.removed"; occurredAt: string; data: { id: string } };
 export type GroupEvent = GroupChanged | GroupRemoved;
-// 0.4.1's handlers of member events, and those of group events.
-export type StudioHandlers = Handlers & {
+// What handle() calls for each type: 0.4.1's handlers of member events
+// (its Handlers), and those of the Chest's group events. The studio's
+// Handlers is this one — the name is defined again, as handle is.
+export type Handlers = OfficialHandlers & {
   "group.changed"?: (event: GroupChanged) => void | Promise<void>;
   "group.removed"?: (event: GroupRemoved) => void | Promise<void>;
 };
@@ -42,7 +45,7 @@ export type StudioHandlers = Handlers & {
 // words: "Is told by Leave when a leave is approved"). data is what the
 // publisher documents (plain JSON, 16 KiB at most); people in it are member
 // ids. occurredAt is when it happened: the time the publisher gave
-// (publish's occurredAt, studio.16 — an event told late by a retry keeps
+// (publish's occurredAt, 0.3.0-studio.16 — an event told late by a retry keeps
 // its time), or the Chest's time of the publish.
 export type ToolEvent = { id: string; type: string; source: string; occurredAt: string; data: Record<string, unknown> };
 export type ToolHandlers = Record<string, (event: ToolEvent) => void | Promise<void>>;
@@ -93,7 +96,7 @@ const remembered = memorySeen();
 // 500, the Chest delivers it again. seen is the store of the ids handled
 // (memorySeen by default: give a durable one, the same as for 0.4.1's
 // events and schedules).
-export async function handle(request: IncomingMessage | Request, handlers: StudioHandlers, options: { seen?: Seen; tools?: ToolHandlers } = {}): Promise<number> {
+export async function handle(request: IncomingMessage | Request, handlers: Handlers, options: { seen?: Seen; tools?: ToolHandlers } = {}): Promise<number> {
   const got = await read(request);
   if (!got) return 401;
   const seen = options.seen ?? remembered;
@@ -122,11 +125,11 @@ export async function handle(request: IncomingMessage | Request, handlers: Studi
 // data a JSON object of 16 KiB at most (member ids for people). key makes a
 // retry harmless: the same key within 24 hours is one event — any text of 1
 // to 512 characters without control characters, never cut (a long one goes
-// as its SHA-256, as mail's; studio.15); the same key with another type,
+// as its SHA-256, as mail's; 0.3.0-studio.15); the same key with another type,
 // other data or another occurredAt is refused (ChestError key_conflict,
 // 409), never answered with the first event.
 //
-// occurredAt (studio.16) is when it happened, when the tool publishes later
+// occurredAt (0.3.0-studio.16) is when it happened, when the tool publishes later
 // than that — a retry after the Chest was unreachable, a schedule that tells
 // what waited: a Date or an ISO 8601 instant with Z or an offset, within the
 // last 24 hours (the window in which the key makes a retry one event) and
@@ -159,7 +162,7 @@ export async function publish(type: string, data: Record<string, unknown>, optio
   return { id: answer.id, receivers: answer.receivers };
 }
 
-// How far back and ahead an event's occurredAt may be (studio.16): 24 hours
+// How far back and ahead an event's occurredAt may be (0.3.0-studio.16): 24 hours
 // back — the window of a key, so an event told late is still one event —
 // and a minute ahead, for the clocks of the tool's container and of the
 // Chest.
@@ -178,7 +181,7 @@ export function occurredAtOf(value: Date | string, now: number = Date.now()): st
   return new Date(at).toISOString();
 }
 
-// receivers says which tools receive an event this tool emits (studio.16):
+// receivers says which tools receive an event this tool emits (0.3.0-studio.16):
 // the names (chest.json "name") of the installed tools that declare it in
 // "receives" AND that an admin linked to this tool for it — what publish
 // would deliver to now, sorted; [] when none. For a page that offers a

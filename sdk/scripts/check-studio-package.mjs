@@ -41,15 +41,15 @@ const official = {
 const studio = {
   member: ["localeOf", "locales"],
   chest: ["forgetTheme", "readThemeChoice", "readToolUrls", "themeIdPattern", "toolNamePattern"],
-  files: ["claim", "publicLimits", "publicUploadUrl", "publicUrl"],
+  files: ["claim", "publicLimits", "publicPath", "publicUploadUrl"],
   members: ["leftAt", "matchEmails", "matchLimits"],
   notifications: ["broadcast"],
   events: ["occurredAtOf", "occurredLimits", "publish", "receivers", "toolEventPattern"],
   mail: ["available", "bouncePattern", "handle", "idempotencyKey", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "preference", "send", "status", "threadAddress", "threadOf", "threadPattern", "threadTag", "verify"],
-  calendar: ["check", "escapeText", "feed", "foldLine", "ics", "isDay", "keyPattern", "limits", "list", "page", "pick", "put", "putMany", "remove", "uidOf", "unfold"],
-  webhooks: ["add", "available", "checkInput", "checkManifest", "checkMessage", "checkUrl", "deliveryIdPattern", "enable", "escapeSlack", "eventIdPattern", "format", "handle", "isPublicAddress", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "secretPattern", "send", "shownUrl", "sign", "targetIdPattern", "verify", "verifySignature", "webhookEventPattern"],
-  visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
-  checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
+  calendar: ["ics", "keyPattern", "limits", "list", "pick", "put", "putMany", "remove", "uidOf"],
+  webhooks: ["add", "available", "checkUrl", "deliveryIdPattern", "enable", "eventIdPattern", "handle", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "send", "targetIdPattern", "verify", "webhookEventPattern"],
+  visitors: ["address", "addressHeader", "checkForm", "count", "formToken", "language", "visitor"],
+  checks: ["checkIdPattern", "checkPattern", "configure", "handle", "limits", "list", "verify"],
 };
 const expected = Object.fromEntries([...new Set([...Object.keys(official), ...Object.keys(studio)])].map(sub => [sub, [...(official[sub] ?? []), ...(studio[sub] ?? [])].sort()]));
 const namespaces = ["files", "members", "notifications", "events", "schedules", "ai", "mail", "calendar", "webhooks", "visitors", "checks"];
@@ -78,7 +78,7 @@ try {
   console.log(`${packed.filename}: ${shipped.length} files, ${packed.size} bytes`);
   for (const path of shipped) console.log("  " + path);
   for (const path of shipped) {
-    assert.ok(/^(package\.json|README\.md|LICENSE|dist\/(src|studio)\/[a-z]+\.(js|d\.ts)(\.map)?|client\/(src|studio)\/[a-z]+\.ts)$/u.test(path), `unexpected file in the package: ${path}`);
+    assert.ok(/^(package\.json|README\.md|LICENSE|dist\/(src|studio)\/[a-z-]+\.(js|d\.ts)(\.map)?|client\/(src|studio)\/[a-z-]+\.ts)$/u.test(path), `unexpected file in the package: ${path}`);
   }
   // The runtime client stays small: 0.4.1 holds itself under 200 KiB; the
   // proposals (mail, calendar, webhooks, the fakes) about double it.

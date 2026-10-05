@@ -909,7 +909,7 @@ MIT (`LICENSE`), © 2026 Argentic.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the README of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.1**: that release,
+0.4.1, word for word. This package is **0.4.1-studio.2**: that release,
 unchanged, plus the studio's proposals — what the store's tools needed that
 0.4.1 does not give. Each is designed as it would ship: a module or an
 export, its route on the Chest's API, a fake in `testing`, its tests. On a
@@ -928,18 +928,28 @@ is published.
   the studio's (`client/studio/test/`).
 - **The proposals live in files of their own**, under `client/studio/`.
   Where a proposal adds to an official module, the studio's module
-  re-exports the official one — every official name is the official value,
-  which a test checks — and adds its names: `member`, `chest`, `members`,
-  `files`, `notifications`, `events`, `testing`. The package's subpaths
+  re-exports the official one and adds its names: `member`, `chest`,
+  `members`, `files`, `notifications`, `events`, `testing`. Every official
+  name is the official value (a test checks it) **except** these, defined
+  again: `chest` (a new object whose `organization`, `timeZone`,
+  `language`, `currency`, `tool` and `today` are getters of 0.4.1's own,
+  read at every access); `members.groups` (a new object; its `list` is
+  0.4.1's function); `events.handle` and the type `events.Handlers`;
+  `testing`'s `fakeChest`, `signAssertion`, `withMember` and the types
+  `FakeChest`, `FakeChestOptions`, `FakeGroup`, `FakeFormer`, `FakeEvent`
+  (0.4.1's are called inside, unchanged). Internal rules and writers the
+  Chest would own — `webhooks-rules.ts`, `calendar-rules.ts`,
+  `checks-rules.ts` — are shipped but not subpaths. The package's subpaths
   point to them; `errors`, `database`, `schedules` and `ai` point to 0.4.1's
   modules as they are. The studio's own modules — `mail`, `calendar`,
   `webhooks`, `visitors`, `checks` — are subpaths of their own. The root
   (`client/studio/index.ts`) is 0.4.1's root with these in place.
 - **Two names are defined again, and hand 0.4.1's part to 0.4.1's code**:
   `events.handle` (a member event goes to 0.4.1's `handle`, unchanged; an
-  event of another tool or of the Chest's groups to the studio's handlers)
-  and `members.groups` (its `list` is 0.4.1's function; `all`, `members`,
-  `of` are the proposal's). `chest` is a new object whose official members
+  event of another tool or of the Chest's groups to the studio's handlers;
+  its type `events.Handlers` is 0.4.1's with the group events added) and
+  `members.groups` (its `list` is 0.4.1's function; `all`, `members`, `of`
+  are the proposal's). `chest` is a new object whose official members
   are getters of 0.4.1's (`chest.currency === official chest.currency` at
   every read) beside the studio's.
 - **The fake Chest is 0.4.1's, with the studio's in front.** `fakeChest`
@@ -1025,7 +1035,7 @@ them.
 
 ## `members` — the studio's additions
 
-### `members.leftAt` — when former members left (Proposal (studio.15))
+### `members.leftAt` — when former members left (Proposal (0.3.0-studio.15))
 
 ```ts
 const { former } = await members.lookup(ids);
@@ -1043,7 +1053,7 @@ Chest) or an identifier the tool does not know. Any number: 200 a call
 a call of its own only because the studio does not change 0.4.1's lookup.
 In tests: `fakeChest({former: [{id, name, status, leftAt}]})`.
 
-### `members.matchEmails` — who these addresses are (Proposal (studio.15))
+### `members.matchEmails` — who these addresses are (Proposal (0.3.0-studio.15))
 
 A tool that holds addresses from elsewhere — Intune's devices and their
 user, an imported spreadsheet — learns which member each one is without
@@ -1108,7 +1118,7 @@ await members.groups.of("mbr_…");             // every group the member is in 
   targeted them through that group (a poll's reminder, a post's badge);
   `group.removed` withdraws what targeted the group.
 - Errors: `CapabilityNotGranted` (not declared or not approved),
-  `RateLimited` (600 calls a minute; the fake counts them apart from 0.4.1's), `Unavailable`.
+  `RateLimited` (600 calls a minute, one budget with `members` — the fake counts both together), `Unavailable`.
 
 Store group ids, resolve names when rendering (`all()` is one call; keep it
 a minute). In tests: `fakeChest({groups: [{id, name, members, grants: false}],
@@ -1186,11 +1196,11 @@ export async function POST(request: Request) {
 
 | Export | Gives |
 |---|---|
-| `send(message)` | Queues one message: `to`/`cc` (addresses or `{member}`), `subject`, `text` (+ `html`), `mailbox` (its address and the company's name; the no-reply address otherwise), `fromName`, `replyTo`, `inReplyTo`/`references` (threads), `attachments` (a file of the tool's `files`, or content), `key` (the same key within 24 h sends nothing again), `transactional` (Proposal (studio.15)). `{id: "msg_…", messageId, status: "queued" \| "held", skipped, digest}` |
+| `send(message)` | Queues one message: `to`/`cc` (addresses or `{member}`), `subject`, `text` (+ `html`), `mailbox` (its address and the company's name; the no-reply address otherwise), `fromName`, `replyTo`, `inReplyTo`/`references` (threads), `attachments` (a file of the tool's `files`, or content), `key` (the same key within 24 h sends nothing again), `transactional` (Proposal (0.3.0-studio.15)). `{id: "msg_…", messageId, status: "queued" \| "held", skipped, digest}` |
 | `status(id)` | `queued`, `held`, `sent`, `delivered`, `bounced`, `complained`, `failed` |
-| `available()` | **Proposal (studio.16).** Whether the Chest would send now, asked without sending: `{ok, reason, remainingToday}` — `reason` `"not_granted"` (not declared or approved, a Chest without mail, outside a Chest), `"not_connected"` (the owner has not connected the company's mail), `"suspended"` (the Chest stopped sending for now), `"quota"` (the day's messages are used), or null. Never throws for a missing capability; `Unavailable` when the Chest does not answer (say "unknown", not "off") |
-| `preference(memberId)` | **Proposal (studio.15).** How a member who has the tool wants email: `"all"`, `"digest"` or `"none"` (`"all"` when the Chest says nothing else); null for an identifier the tool does not have (`GET /mail/preferences/<id>`). Read-only |
-| `idempotencyKey(key)` | The key the Chest receives for a key the tool gives (studio.15): as given when it is 1–64 of `A-Z a-z 0-9 . _ : -`, otherwise `sha256:` and its digest; null for what is not a key |
+| `available()` | **Proposal (0.3.0-studio.16).** Whether the Chest would send now, asked without sending: `{ok, reason, remainingToday}` — `reason` `"not_granted"` (not declared or approved, a Chest without mail, outside a Chest), `"not_connected"` (the owner has not connected the company's mail), `"suspended"` (the Chest stopped sending for now), `"quota"` (the day's messages are used), or null. Never throws for a missing capability; `Unavailable` when the Chest does not answer (say "unknown", not "off") |
+| `preference(memberId)` | **Proposal (0.3.0-studio.15).** How a member who has the tool wants email: `"all"`, `"digest"` or `"none"` (`"all"` when the Chest says nothing else); null for an identifier the tool does not have (`GET /mail/preferences/<id>`). Read-only |
+| `idempotencyKey(key)` | The key the Chest receives for a key the tool gives (0.3.0-studio.15): as given when it is 1–64 of `A-Z a-z 0-9 . _ : -`, otherwise `sha256:` and its digest; null for what is not a key |
 | `mailboxAddress(name)` | The mailbox's address, to show on pages; null until the owner gives it one |
 | `handle(request, handler \| {message, bounce}, {seen?})`, `verify(request)` | A received message: `{kind: "message", id: "rcv_…", mailbox, from {address, name}, to, cc, deliveredTo, thread, subject, text, html (cleaned by the Chest), original (the .eml in the tool's files), messageId, inReplyTo, references, attachments [{file, name, type, size}] already in the tool's files under `mail/`, dropped, receivedAt, spam 0–10, authenticated, auto}`; or a bounce `{kind: "bounce", id: "bnc_…", message, recipient, permanent, reason, at}` |
 | `threadAddress(mailbox, thread)`, `threadTag`, `threadOf` | A conversation's own reply address (`support+t1042-k3q…@…`), whose tag only this tool can make, and the thread read back from an address |
@@ -1205,12 +1215,12 @@ tool says "Emails will be sent once your Chest can send them"). The Chest
 journals every message (to, subject, size, status; never the body by
 default) and shows the day's count on the tool's page.
 
-**Keys (studio.15).** A `key` is the tool's name for one message, and a
+**Keys (0.3.0-studio.15).** A `key` is the tool's name for one message, and a
 retry under it sends nothing twice. Build it from what names the message —
 `` `digest:${day}:${member}` `` — and **never cut it**: any text of 1 to 512
 characters without control characters is taken whole, and the SDK sends
 one longer than the Chest keeps (64 of `A-Z a-z 0-9 . _ : -`) as its
-SHA-256 (`idempotencyKey`). Until studio.15 the cap was 64 and tools cut
+SHA-256 (`idempotencyKey`). Until 0.3.0-studio.15 the cap was 64 and tools cut
 `` `${key}:${member}`.slice(0, 64) ``: past 33 characters of their own, the
 cut took the recipient off, two recipients shared one key, and the Chest
 answered the second with the first message — one email dropped, silently.
@@ -1222,7 +1232,7 @@ fit are sent unchanged: a tool's keys keep working, and its retries across
 the upgrade are still recognised.
 
 **Put the recipient in the key when it is built from database ids
-(studio.16).** The Chest remembers a key for 24 hours; the tool's database
+(0.3.0-studio.16).** The Chest remembers a key for 24 hours; the tool's database
 does not remember the Chest. After a restore from a backup, a sequence
 starts again from where the backup was, and `subscriber:42` or
 `candidate:7` can name another person than the one the Chest remembers —
@@ -1235,7 +1245,7 @@ never cuts it. The same holds for `webhooks.send` (the target's id) and
 `events.publish` (what the event is about). Status and Hiring learned it
 the hard way.
 
-**Is mail on? (Proposal (studio.16)).** `mail.available()` answers without
+**Is mail on? (Proposal (0.3.0-studio.16)).** `mail.available()` answers without
 sending, for a page that offers email before anyone asks for one — People's
 start form ("Email the newcomer their first-day details"), a Settings page
 that says whether alerts go out:
@@ -1252,7 +1262,7 @@ still hold a message back. In tests, `fakeChest({ delivery: { mail } })` or
 whose mail is not connected answers `send` as a Chest without mail
 (`CapabilityNotGranted`), a suspended one `Unavailable`.
 
-**The person's email preference (Proposal (studio.15)).** Each member
+**The person's email preference (Proposal (0.3.0-studio.15)).** Each member
 chooses once, in the Chest, `all`, `digest` or `none`
 (`mail.preference(memberId)`, read-only; never in the assertion nor in
 0.4.1's members API — until studio.1 of 0.4.1 it was `Member.mailPreference`,
@@ -1400,10 +1410,10 @@ await calendar.put({
 });                                                                        // {key, members, skipped}
 await calendar.put({ key: "leave:42", members: [who], title: { en: "Off", fr: "Absent" }, days: { first: "2026-10-12", last: "2026-10-16" }, private: true });
 await calendar.put({ key: "desk:2026-10-13", members: [who], title: "Office — desk D-12", days: { first: "2026-10-13", last: "2026-10-13" }, busy: false });
-const results = await calendar.putMany(openTasks.map(eventOf));           // Proposal (studio.15): 100 a call; one result per event, in order (studio.16)
+const results = await calendar.putMany(openTasks.map(eventOf));           // Proposal (0.3.0-studio.15): 100 a call; one result per event, in order (0.3.0-studio.16)
 await calendar.remove("booking:981");                                     // gone from every feed; true if it was there
 const { events, next } = await calendar.list();                           // what the tool put, to reconcile
-// A link to the member's page: <a href={calendar.page}>See it in your calendar</a>   ("/_chest/calendar")
+// A link to the member's page: <a href="/_chest/calendar">See it in your calendar</a> (the Chest's front serves it on the team host)
 ```
 
 | Field | Rules |
@@ -1418,7 +1428,7 @@ const { events, next } = await calendar.list();                           // wha
 | `busy` | `false`: shown free (`TRANSP:TRANSPARENT`: a desk day, a due date); busy by default |
 | `private` | `CLASS:PRIVATE`: a calendar shared with colleagues shows it as busy, without its words (a leave) |
 
-**`putMany(events)` (Proposal (studio.15); per event since studio.16).**
+**`putMany(events)` (Proposal (0.3.0-studio.15); per event since 0.3.0-studio.16).**
 A first sync — every open task with a due date, every approved leave of
 the year — was one `put` per event against the 600 writes a minute.
 `putMany` sends 100 a call, counted as one write of the minute
@@ -1448,12 +1458,10 @@ they concern the call and not an event: `CapabilityNotGranted`,
 an array. Beyond 100, batches go one after the other: an error after the
 first leaves the earlier ones applied; put again, it is idempotent by key.
 
-**No all-or-nothing option.** Until studio.16 one wrong event refused the
+**No all-or-nothing option.** Until 0.3.0-studio.16 one wrong event refused the
 whole batch, and the three tools that use `putMany` (Rooms, Clients,
 Tasks) each caught the refusal and put the batch again one event at a
-time — up to 100 writes for one bad date. None wanted all-or-nothing; a
-tool that does checks every event with `calendar.check(event)` before
-calling. **Upgrading from studio.15**: `putMany` no longer throws for a
+time — up to 100 writes for one bad date. None wanted all-or-nothing. **Upgrading from 0.3.0-studio.15**: `putMany` no longer throws for a
 wrong event — read `ok` of each result instead of catching `invalid_event`,
 or a refused event is taken for put.
 
@@ -1467,7 +1475,8 @@ the old one stops working at once) — a signed URL could not be revoked.
 Events are the Chest's copy: a member who loses the tool loses its events
 at the next fetch; a member who leaves the Chest loses their feed.
 
-**The feed** (`calendar.feed`, `calendar.ics` write it; the fake serves it):
+**The feed** (the Chest writes it — the fake with the same writer,
+`client/studio/calendar-rules.ts`, which `calendar.ics` shares):
 `text/calendar; charset=utf-8`, CRLF, lines folded at 75 octets never
 inside a character, TEXT escaped (`\\ \; \, \n`), UTC times,
 `UID` = a hash of tool and key `@<chest domain>` (stable, reveals no
@@ -1543,8 +1552,8 @@ await events.handle(request, memberHandlers, { seen, tools: {
 
 | Export | Gives |
 |---|---|
-| `publish(type, data, {key?, occurredAt?})` | `{id, receivers}`: `type` is `"<tool>.<name>"` of this tool, declared in `emits`; `data` a JSON object (16 KiB at most; people as member ids); the same `key` within 24 h is one event — any text of 1 to 512 characters, never cut (a long one goes as its SHA-256, as `mail`'s; studio.15), and the same key with another type or other data is refused (`ChestError` `key_conflict`, 409), never answered with the first event. **`occurredAt` (Proposal (studio.16))**: when it happened, for an event told later than that — a `Date` or an ISO 8601 instant with `Z` or an offset, within the last 24 hours (the key's window: an event told late is still one event) and at most a minute ahead (clock skew) (`occurredLimits`, `occurredAtOf`); receivers read it as the event's `occurredAt` (without it, the Chest's time of the publish); another `occurredAt` under the same key is `key_conflict`. `ChestError` `invalid_event`, `CapabilityNotGranted` (not declared, or no events between tools yet), `QuotaExceeded` (1,000 an hour) |
-| `receivers(type)` | **Proposal (studio.16).** The tools (by `chest.json` name, sorted) that would receive an event of this type now: installed, declaring it in `receives`, **and linked** by an admin to this tool for it; `[]` when none. For a page that offers a link to another tool — Forms greys "Send contacts to Clients" with its reason when `crm` is not among them. `chest.tools.get` only says a tool is installed; this says it listens. `invalid_event` for a type this tool does not emit, `CapabilityNotGranted`. Read it when rendering such a page, not before every publish |
+| `publish(type, data, {key?, occurredAt?})` | `{id, receivers}`: `type` is `"<tool>.<name>"` of this tool, declared in `emits`; `data` a JSON object (16 KiB at most; people as member ids); the same `key` within 24 h is one event — any text of 1 to 512 characters, never cut (a long one goes as its SHA-256, as `mail`'s; 0.3.0-studio.15), and the same key with another type or other data is refused (`ChestError` `key_conflict`, 409), never answered with the first event. **`occurredAt` (Proposal (0.3.0-studio.16))**: when it happened, for an event told later than that — a `Date` or an ISO 8601 instant with `Z` or an offset, within the last 24 hours (the key's window: an event told late is still one event) and at most a minute ahead (clock skew) (`occurredLimits`, `occurredAtOf`); receivers read it as the event's `occurredAt` (without it, the Chest's time of the publish); another `occurredAt` under the same key is `key_conflict`. `ChestError` `invalid_event`, `CapabilityNotGranted` (not declared, or no events between tools yet), `QuotaExceeded` (1,000 an hour) |
+| `receivers(type)` | **Proposal (0.3.0-studio.16).** The tools (by `chest.json` name, sorted) that would receive an event of this type now: installed, declaring it in `receives`, **and linked** by an admin to this tool for it; `[]` when none. For a page that offers a link to another tool — Forms greys "Send contacts to Clients" with its reason when `crm` is not among them. `chest.tools.get` only says a tool is installed; this says it listens. `invalid_event` for a type this tool does not emit, `CapabilityNotGranted`. Read it when rendering such a page, not before every publish |
 | `handle(request, handlers, {seen, tools})` | 0.4.1's `handle` for member events (each is handed to it, unchanged), and: a received tool event `{id, type, source, occurredAt, data}` to `tools[type]`, a group event to `handlers["group.changed" \| "group.removed"]`; a type without a handler is accepted and ignored; one `seen` for all |
 
 What the owner approves: for the publisher, "Tells other tools when a
@@ -1711,10 +1720,24 @@ than a person types or never shown (its token, signed with a key derived
 from `CHEST_TOKEN`, dated), and the Chest counts what visitors do — per
 visitor and per name, per name for everyone, and its own ceiling per
 address **across the tools of the Chest** (60 an hour), so a robot that
-tries every public tool meets one limit. The visitor's address is the
-first of `X-Forwarded-For`, which the Chest's front sets. For a tool with
-a public part; `count` asks the Chest (`POST /visitors/count`), the rest
-is local. In tests: `fakeChest({visitors: {perAddressHour}})`.
+tries every public tool meets one limit. For a tool with a public part;
+`count` asks the Chest (`POST /visitors/count`), the rest is local. In
+tests: `fakeChest({visitors: {perAddressHour}})`, and a request with the
+header `Chest-Visitor-Address` plays the front.
+
+**The visitor's address is the front's, never `X-Forwarded-For`.** The
+Chest's front adds no `X-Forwarded-For` toward a tool: it removes every
+`Chest-*` header the client sent and sets only `X-Forwarded-Proto` and
+`X-Forwarded-Host` (`reference/contract/application-contract.md`,
+"Front", toward the tool). An `X-Forwarded-For` a tool receives is the
+visitor's own words: a robot writes a new one at every request and is a
+new visitor each time. The proposal: the front sets
+**`Chest-Visitor-Address`** — the address of the connection it accepted —
+on the public host's requests; as a `Chest-*` header, no client can send
+it. `visitors.address()` reads it and nothing else; without it (a Chest
+that does not set it yet) it is null, `visitor()` is `"unknown"`, and
+`count()` counts all such visitors together: the ceiling per hour for
+everyone holds, the ceiling per visitor becomes a global one.
 
 
 ## `checks` — web addresses the Chest checks for the tool (Proposal (studio))
@@ -1785,13 +1808,12 @@ Chest checks, formats, signs, delivers, retries and journals.
 | Export | Gives |
 |---|---|
 | `add({url, kind, label, owner?})` | A target: `{id: "whk_…", secret, target}`. `kind` `"generic"` (any https receiver: JSON, signed), `"slack"` (a Slack incoming webhook, `https://hooks.slack.com/services/…`) or `"teams"` (a Teams Workflows webhook, `https://….environment.api.powerplatform.com/powerautomate/automations/direct/workflows/…`). `owner`: the member who added it, or none (a subscriber of a public page). `secret` (`whsec_…`, generic only) is given once |
-| `send(ids, {event, text, data?, key})` | One delivery per target, queued: `{deliveries: [{id: "whd_…", target}], skipped: [{target, reason: "disabled" \| "not_found"}]}`. The same `key` within 24 hours answers the first deliveries and sends nothing. Any key of 1 to 512 characters, never cut: a longer one than 64 of `A-Z a-z 0-9 . _ : -` goes as its SHA-256 (the journal shows that); the same key for another event is refused (`key_conflict`, nothing sent) — studio.15 |
+| `send(ids, {event, text, data?, key})` | One delivery per target, queued: `{deliveries: [{id: "whd_…", target}], skipped: [{target, reason: "disabled" \| "not_found"}]}`. The same `key` within 24 hours answers the first deliveries and sends nothing. Any key of 1 to 512 characters, never cut: a longer one than 64 of `A-Z a-z 0-9 . _ : -` goes as its SHA-256 (the journal shows that); the same key for another event is refused (`key_conflict`, nothing sent) — 0.3.0-studio.15 |
 | `list()`, `remove(id)`, `enable(id)`, `rotateSecret(id)` | The targets with `state` (`active`, `disabled`), `status` of the last delivery (`delivered`, `failed`, `disabled`, null), `lastError`, `failures` in a row; the address shown without its query (generic) or its secret path (Slack, Teams). `enable` tries a disabled target again (a ping first); `rotateSecret` gives a new secret, the old one still signs for 24 hours |
-| `available()` | **Proposal (studio.16).** Whether the Chest would deliver now, asked without sending: `{ok, reason, targets, max}` — `reason` `"not_granted"` (not declared or approved, a Chest without webhooks, outside a Chest) or `"suspended"` (the owner paused the tool's notices: `add` and `send` answer `ChestError` `suspended`, targets are kept), or null; `targets` of `max` addresses ("3 of 200"; `add` is refused at `max` even when `ok`). Never throws for a missing capability. Support's Settings shows "Send new tickets to Slack" only when `ok`. In tests: `chest.delivery.webhooks = "ready" \| "suspended"` |
+| `available()` | **Proposal (0.3.0-studio.16).** Whether the Chest would deliver now, asked without sending: `{ok, reason, targets, max}` — `reason` `"not_granted"` (not declared or approved, a Chest without webhooks, outside a Chest) or `"suspended"` (the owner paused the tool's notices: `add` and `send` answer `ChestError` `suspended`, targets are kept), or null; `targets` of `max` addresses ("3 of 200"; `add` is refused at `max` even when `ok`). Never throws for a missing capability. Support's Settings shows "Send new tickets to Slack" only when `ok`. In tests: `chest.delivery.webhooks = "ready" \| "suspended"` |
 | `journal({target?, after?, limit?})` | Deliveries: `status` (`pending`, `retrying`, `delivered`, `failed`), `attempts`, `responseStatus`, `lastError`, `nextAttemptAt` — never the text or data |
 | `handle(request, {disabled})`, `verify(request)` | `webhook.disabled` `{id: "whe_…", target, reason: "failures" \| "gone", lastError}` on `POST /chest-webhooks`, signed `Chest-Webhooks` (0.4.1's signed deliveries under the label "Chest-Webhooks v1"), at least once; `handle(request, handlers, {seen})` drops one already handled |
-| `checkUrl`, `checkInput`, `checkMessage`, `checkManifest`, `isPublicAddress`, `shownUrl` | The rules, for a form to explain a refusal before it happens |
-| `format(kind, message)`, `escapeSlack`, `sign`, `verifySignature` | The exact bodies and signature the Chest sends, and the receiver's check |
+| `checkUrl(url, kind)` | The address rules, for a form to explain a refusal before it happens. The rest of the Chest's rules — the bodies it posts, its signature, its address checks — are the Chest's, in `client/studio/webhooks-rules.ts` (not published: the fake Chest and `scripts/check-manifest.mjs` use it) |
 
 **What the Chest checks at `add`** (refusal `ChestError` `invalid_target`,
 400, before anything leaves; `address_refused` or `verification_failed`,
@@ -1840,7 +1862,7 @@ function verified(secret, header, rawBody) {
     return given.length === expected.length && timingSafeEqual(given, expected);
   });
 }
-// A Node tool of another Chest: webhooks.verifySignature({ secret, header, body })
+// The same check as the fake Chest's tests run (client/studio/webhooks-rules.ts, verifySignature)
 ```
 
 **Delivery.** At least once. 10 s to answer; a 2xx is delivered; 408,
@@ -1907,7 +1929,7 @@ const up = await files.publicUploadUrl("uploads/public/", { types: ["application
 // → { url: "https://<public host>/_chest/upload/<token>", method: "PUT", expiresIn }: the visitor's browser PUTs the file there, no session
 const object = await files.claim(claimFromTheForm);   // the visitor's browser got {type, size, claim}; the tool trades the claim, once
 
-files.publicUrl("public/logo.png", { version: info.updated }); // "/_chest/public/logo.png?v=…" on the public host
+files.publicPath("public/logo.png", { version: info.updated }); // "/_chest/public/logo.png?v=…", a path of the public host
 ```
 
 A public upload: 10 MiB at most whatever `maxSize` says (`TooLarge`
@@ -1983,7 +2005,9 @@ stack), on a fake Chest, and a TypeScript consumer under `bundler` and
 `nodenext`. 0.4.1's own `test` and `check:package` also build and pack
 `check/` (`@argentic/chest-check`), which this copy does not hold: the
 studio runs the checker with `scripts/chest-check.mjs` at the
-repository's root, and `contract/README.md` is 0.4.1's as published. The
+repository's root. **`node scripts/contract.mjs --check` is not run**: it
+reads `check/package.json`, absent here; `contract/README.md` and
+`contract.json` are 0.4.1's files as published, unchanged. The
 version is `0.4.1-studio.N`, `N` growing with each change of the
 proposals. Semver sorts such a pre-release before 0.4.1: nothing resolves
 it by range — a tool depends on its tarball by file

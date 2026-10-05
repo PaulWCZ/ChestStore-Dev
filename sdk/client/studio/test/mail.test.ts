@@ -186,7 +186,7 @@ test("idempotency: a long per-recipient key never loses its recipient; a key reu
   }
 });
 
-// Proposal (studio.15): one email preference per person, in the Chest; the
+// Proposal (0.3.0-studio.15): one email preference per person, in the Chest; the
 // tools read it and mail.send honours it.
 test("email preference: none is skipped, digest waits for the Chest's daily email, transactional always goes", async () => {
   const hugo = { ...camille, id: "mbr_" + "hugo".padEnd(26, "a"), firstName: "Hugo", name: "Hugo Martin", email: "hugo@company.test", mailPreference: "none" as const };
@@ -222,9 +222,9 @@ test("email preference: none is skipped, digest waits for the Chest's daily emai
   }
 });
 
-// Proposal (studio.16): People's start form offers to email the newcomer
+// Proposal (0.3.0-studio.16): People's start form offers to email the newcomer
 // only when the Chest will deliver; asked without sending.
-test("available (studio.16): whether the Chest would send now, and why not, without sending", async () => {
+test("available (0.3.0-studio.16): whether the Chest would send now, and why not, without sending", async () => {
   const chest = await fakeChest({ members: [camille], capabilities: ["mail"], mail: { perDay: 2 } });
   try {
     assert.deepEqual(await mail.available(), { ok: true, reason: null, remainingToday: 2 });
