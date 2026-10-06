@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { keepUnlinkedDays, purgeArrivals } from "../lib/arrivals.ts";
-import { addDays } from "../lib/model.ts";
-import { today } from "../lib/zone.ts";
+import { keepUnlinkedDays, purgeArrivals } from "../src/lib/arrivals.ts";
+import { addDays } from "../src/shared/model.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { everyone } from "./support/members.ts";
 
@@ -16,7 +16,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase({ timeZone: zone });
-  chest = await fakeChest({ tool: "people", chest: { timeZone: zone }, members: everyone });
+  chest = await fakeChest({ network: {}, tool: "people", chest: { timeZone: zone }, members: everyone });
 });
 after(async () => {
   await chest.close();

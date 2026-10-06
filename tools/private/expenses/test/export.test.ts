@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET as csvRoute } from "../app/chest/export/csv/route.ts";
-import { GET as zipRoute } from "../app/chest/export/zip/route.ts";
-import { POST as grantRoute } from "../app/chest/api/receipts/route.ts";
-import { GET as receiptRoute } from "../app/chest/receipts/[id]/route.ts";
-import * as expenses from "../lib/expenses.ts";
-import * as settings from "../lib/settings.ts";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { atLeast } from "@argentic/chest-app/testing";
+import * as expenses from "../src/lib/expenses.ts";
+import * as settings from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 import { upload } from "./support/receipts.ts";
+import { call, get } from "./support/server.ts";
 import { readZip } from "./zip.test.ts";
+
+atLeast(5);
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -20,7 +20,7 @@ const yes = async () => true;
 const ids: Record<string, string> = {};
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
   const { sql } = database;
   for (const r of await sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
   // September: Hugo's lunch (receipt, VAT), hotel on the company card, a trip;
@@ -45,13 +45,8 @@ after(async () => {
   await database.close();
 });
 
-const get = (path: string, who: typeof camille | null) => {
-  const request = new Request("http://tool.test" + path);
-  return who ? withMember(request, who) : request;
-};
-
 test("the CSV: the month's approved and paid expenses, in the accountant's language, safe for spreadsheets", async () => {
-  const response = await csvRoute(get("/chest/export/csv?month=2026-09", camille));
+  const response = await get(camille, "/chest/export/csv?month=2026-09");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("Content-Disposition") ?? "", /Notes-de-frais_2026-09\.csv/u);
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -68,14 +63,14 @@ test("the CSV: the month's approved and paid expenses, in the accountant's langu
   // Fuel: 80 % of the VAT.
   assert.equal(lines[4]!.split(";").slice(7, 9).join(";"), "1,65;1,32");
   // English: commas and dots.
-  const english = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...lea, language: "en" }))).status;
+  const english = await (await get({ ...lea, language: "en" }, "/chest/export/csv?month=2026-09&person=" + lea.id)).status;
   assert.equal(english, 403);
-  const en = await (await csvRoute(get("/chest/export/csv?month=2026-09&person=" + lea.id, { ...camille, language: "en" }))).text();
+  const en = await (await get({ ...camille, language: "en" }, "/chest/export/csv?month=2026-09&person=" + lea.id)).text();
   assert.equal(en.trim().split("\r\n")[1], `2026-09-15,Léa Dubois,Fuel,606100,Station,,8.25,1.65,1.32,9.90,EUR,,9.90,Own money,Approved,Camille Martin,,2026-09-15_Lea-Dubois_9-90EUR_E${ids["pens"]}.pdf,E${ids["pens"]},`);
 });
 
 test("the ZIP: every receipt named by date and person, and the CSV, streamed", async () => {
-  const response = await zipRoute(get("/chest/export/zip?month=2026-09", camille));
+  const response = await get(camille, "/chest/export/zip?month=2026-09");
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Content-Type"), "application/zip");
   const entries = readZip(new Uint8Array(await response.arrayBuffer()));
@@ -88,21 +83,21 @@ test("the ZIP: every receipt named by date and person, and the CSV, streamed", a
   assert.equal(new TextDecoder().decode(entries[0]!.data), "%PDF-1.4 lunch");
   assert.match(new TextDecoder().decode(entries[3]!.data), /Paris → Lyon/u);
   // One person.
-  const one = readZip(new Uint8Array(await (await zipRoute(get(`/chest/export/zip?month=2026-09&person=${lea.id}`, camille))).arrayBuffer()));
+  const one = readZip(new Uint8Array(await (await get(camille, `/chest/export/zip?month=2026-09&person=${lea.id}`)).arrayBuffer()));
   assert.equal(one.length, 2);
   assert.equal(one[1]!.name, "Notes-de-frais_2026-09_Lea-Dubois.csv");
 });
 
 test("exports: accountants only, a real month, a real person", async () => {
-  assert.equal((await zipRoute(get("/chest/export/zip?month=2026-09", ines))).status, 403);
-  assert.equal((await zipRoute(get("/chest/export/zip?month=2026-09", null))).status, 401);
-  assert.equal((await csvRoute(get("/chest/export/csv?month=2026-13", camille))).status, 400);
-  assert.equal((await csvRoute(get("/chest/export/csv?month=2026-09&person=bob", camille))).status, 400);
-  assert.equal((await csvRoute(get("/chest/export/csv", camille))).status, 400);
+  assert.equal((await get(ines, "/chest/export/zip?month=2026-09")).status, 403);
+  assert.equal((await get(null, "/chest/export/zip?month=2026-09")).status, 401);
+  assert.equal((await get(camille, "/chest/export/csv?month=2026-13")).status, 400);
+  assert.equal((await get(camille, "/chest/export/csv?month=2026-09&person=bob")).status, 400);
+  assert.equal((await get(camille, "/chest/export/csv")).status, 400);
 });
 
 test("a receipt opens for who may see its expense, through a fresh link; thumbnails only for photos", async () => {
-  const open = (id: string, who: typeof camille | null, query = "") => receiptRoute(get(`/chest/receipts/${id}${query}`, who), { params: Promise.resolve({ id }) });
+  const open = (id: string, who: typeof camille | null, query = "") => get(who, `/chest/receipts/${id}${query}`);
   const own = await open(ids["lunch"]!, hugo);
   assert.equal(own.status, 303);
   assert.match(own.headers.get("Location") ?? "", /\/_chest\/files\//u);
@@ -115,17 +110,15 @@ test("a receipt opens for who may see its expense, through a fresh link; thumbna
 });
 
 test("an upload is authorised for a member with a role only, for receipts' types and size", async () => {
-  const post = (who: typeof camille | null, body: unknown) => {
-    const request = new Request("http://tool.test/chest/api/receipts", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
-    return grantRoute(who ? withMember(request, who) : request);
-  };
-  const ok = await post(hugo, { type: "image/jpeg", size: 2000 });
+  const ok = await call(hugo, "grantUpload", { type: "image/jpeg", size: 2000 });
   assert.equal(ok.status, 200);
-  const body = (await ok.json()) as { url: string; method: string; object: string };
+  const body = ok.value as { url: string; method: string; object: string };
   assert.equal(body.method, "PUT");
   assert.match(body.object, /^receipts\/\d{4}-\d{2}\/[0-9a-f]{24}\.jpg$/u);
-  assert.equal((await post(hugo, { type: "image/svg+xml", size: 2000 })).status, 400);
-  assert.equal((await post(hugo, { type: "image/png", size: 20 << 20 })).status, 413);
-  assert.equal((await post({ ...hugo, role: null }, { type: "image/png", size: 20 })).status, 403);
-  assert.equal((await post(null, {})).status, 401);
+  const svg = await call(hugo, "grantUpload", { type: "image/svg+xml", size: 2000 });
+  assert.deepEqual([svg.status, svg.error], [400, "file_type"]);
+  const big = await call(hugo, "grantUpload", { type: "image/png", size: 20 << 20 });
+  assert.deepEqual([big.status, big.error, big.message], [400, "file_too_large", "This file is too large: 10 MB at most."]);
+  assert.equal((await call({ ...hugo, role: null }, "grantUpload", { type: "image/png", size: 20 })).status, 403);
+  assert.equal((await call(null, "grantUpload", {})).status, 401);
 });

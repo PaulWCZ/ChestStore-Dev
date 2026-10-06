@@ -5,7 +5,7 @@ import { plural } from "../i18n/index.ts";
 import { notify } from "./notify.ts";
 import { openRequests } from "./requests.ts";
 import { counts } from "./routing.ts";
-import { keepInLine } from "./share.ts";
+import { keepInLine, type InLine } from "./share.ts";
 import { refreshBadges } from "./tell.ts";
 
 // The weekday morning (schedule "morning", a Proposal of the SDK working
@@ -16,14 +16,14 @@ import { refreshBadges } from "./tell.ts";
 // under the same key.
 export const reminderAfterDays = 2;
 
-export async function morning(sql: Sql, _run: Run): Promise<void> {
+export async function morning(sql: Sql, _run: Run): Promise<{ reminders: number; tiles: number } & InLine> {
   const dir = await everyone();
   const old = counts(await openRequests(sql, { olderThanDays: reminderAfterDays }), dir);
   for (const [approver, n] of old) {
     await notify([approver], (t, locale) => ({ title: plural(t.bell.reminder, n, locale) }), { path: "/chest/approvals", key: "reminder" });
   }
-  await refreshBadges(sql, dir);
+  const tiles = await refreshBadges(sql, dir);
   // The calendar feeds (a month-old leave leaves them; a Chest that refused
   // the calendar is asked again) and the busy times, as the window moves on.
-  await keepInLine(sql, { recheck: true });
+  return { reminders: old.size, tiles: tiles.size, ...(await keepInLine(sql, { recheck: true })) };
 }

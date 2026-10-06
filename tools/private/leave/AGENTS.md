@@ -16,7 +16,7 @@ actions, words, the database, tests, recipes, pitfalls — is
 | `src/app.tsx` | **Every route**: the pages (`members()` runs a page only for a member with a role, and counts what waits for an approver: the layout's "To answer"), payroll's two downloads, `/chest-events`, `/chest-schedules`, the host's root |
 | `src/actions.ts` | **Every mutation**, by name (`call("askLeave", …)` from an island). Thin: the services check everything; `keepInLine()` after each change |
 | `src/calls.ts` | What the Chest posts by itself: events (`events.handle`) and schedule runs (`schedules.handle`, `morning`), with the durable `seen` |
-| `src/downloads.ts` | Payroll's CSVs: the month's absences, everyone's balances on a day |
+| `src/downloads.ts` | Payroll's CSVs: the month's absences, everyone's balances on a day (served by the package's `download()`: a refusal is a page in the reader's words) |
 | `src/pages/` | The pages, rendered on the server: Home, NewRequest, Request, Approvals, Calendar, People, Person, Import, Payroll, Settings, PublicHome |
 | `src/islands/` | What runs in the browser (`index.ts` lists them): the request form, the approval cards, a request's actions, my requests (Cancel + Undo), HR's forms, the people table, the settings, the email switch, AutoRefresh |
 | `src/layout.tsx` | The kit's shell and sections, NoAccess, the toasts; the public layout |

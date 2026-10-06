@@ -1183,32 +1183,24 @@ export async function todayCounts(sql: Query, memberIds: string[], now = Date.no
 
 // ——— The public form's guard ———
 
-// The tool's own counters, when the Chest does not count visitors itself
-// (src/lib/guard.ts), each per hour and per kind — bookings and changes
-// (a cancellation, a move) apart, so changes never close the booking
-// form: per visitor (a hash of their address or of their browser's
-// cookie, never the address), per subject (one form's token, one guest's
-// link: replaying one fills nothing), for everyone, and for everyone over
-// the last 24 hours — the daily cap, in the database, so it holds across
-// restarts, sleeps and two instances. Only valid attempts are counted
-// (src/actions.ts): junk cannot fill them.
+// The package bounds every public write (src/actions.ts: a form token,
+// the honeypot, budgets per visitor and for everyone a day). Booking's own
+// counter, per hour and per subject (one guest's link): see
+// src/lib/guard.ts. perKind: the budgets src/actions.ts gives the package.
 export type FormKind = "new" | "change";
-export const formLimits = { perVisitorHour: 8, perSubjectHour: 10, perHour: 200, perDay: 1000, minimumSeconds: 3, tokenHours: 2 } as const;
+export const formLimits = {
+  perSubjectHour: 10,
+  formSeconds: 3,
+  perKind: { new: { perVisitor: 10, perDay: 1000 }, change: { perVisitor: 20, perDay: 1000 } },
+} as const;
 
-export async function guard(sql: Query, visitor: string, kind: FormKind = "new", subject = "", now = Date.now()): Promise<void> {
+export async function guard(sql: Query, kind: FormKind, subject: string, now = Date.now()): Promise<void> {
   const hour = new Date(Math.floor(now / 3600000) * 3600000);
-  const mine = `v:${kind}:` + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
-  const about = subject ? `s:${kind}:${subject}` : null;
-  const all = `all:${kind}`;
-  const keys = [mine, all, ...(about ? [about] : [])];
-  const counts = await sql<{ key: string; count: number }[]>`
-    insert into form_counts (key, hour, count) select k, ${hour}, 1 from unnest(${sql.array(keys)}::text[]) as k
+  const [row] = await sql<{ count: number }[]>`
+    insert into form_counts (key, hour, count) values (${`s:${kind}:${subject}`}, ${hour}, 1)
     on conflict (key, hour) do update set count = form_counts.count + 1
-    returning key, count`;
-  const of = (key: string | null) => counts.find(c => c.key === key)?.count ?? 0;
-  if (of(mine) > formLimits.perVisitorHour || of(about) > formLimits.perSubjectHour || of(all) > formLimits.perHour) throw new AppError("too_many");
-  const [day] = await sql<{ total: number }[]>`select coalesce(sum(count), 0)::int as total from form_counts where key = ${all} and hour > ${new Date(hour.getTime() - 23 * 3600000 - 1)}`;
-  if ((day?.total ?? 0) > formLimits.perDay) throw new AppError("too_many");
+    returning count`;
+  if ((row?.count ?? 0) > formLimits.perSubjectHour) throw new AppError("limit");
 }
 
 // ——— Keeping data ———
@@ -1218,7 +1210,6 @@ export async function guard(sql: Query, visitor: string, kind: FormKind = "new",
 export async function cleanup(sql: Query, now = Date.now()): Promise<number> {
   const s = await settings(sql);
   await sql`delete from form_counts where hour < ${new Date(now - 86400000)}`;
-  await sql`delete from form_tokens where at < ${new Date(now - formLimits.tokenHours * 3600000 - 3600000)}`;
   if (s.retentionMonths === 0) return 0;
   const done = await sql`delete from bookings where ends_at < ${new Date(now)} - make_interval(months => ${s.retentionMonths})`;
   return done.count;

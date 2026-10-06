@@ -1,12 +1,12 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { compress } from "hono/compress";
 import { getCookie, setCookie } from "hono/cookie";
 import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
@@ -16,7 +16,7 @@ import { setRenderingForm } from "./form.tsx";
 import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
 import type { ErrorCode, LayoutData, Words } from "./register.ts";
-import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
+import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Bound, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
 
 // The server of a tool: security headers and a log line on every answer,
 // the browser's files under /assets/, the member of every /chest request,
@@ -130,7 +130,7 @@ function noticeOf(c: Context, t: Words): string | null {
     // Numbers only: a value in the address is anyone's to write.
     if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && typeof v === "number" && Number.isFinite(v)));
   } catch { /* no values */ }
-  const said = fill(t.errors[code as ErrorCode] ?? t.errors.unavailable, values);
+  const said = fill(sayError(t, code), values);
   // A value missing (an address written by hand): the plain refusal.
   return /\{\w+\}/u.test(said) ? t.errors.invalid : said;
 }
@@ -147,6 +147,8 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   // A public page of a tool with bounded actions carries a form token
   // (<Honeypot /> puts it in a form; call() sends it).
   const form = viewer.member === null && hasBounds(options) ? formToken() : "";
+  // The actions call() sends at once (beside the queue): this part's.
+  const parallel = Object.entries(options.actions).filter(([, a]) => a.parallel && a.access === (viewer.member !== null ? "member" : "public")).map(([name]) => name);
   setRenderingForm(form);
   const page = renderToString(
     <html lang={viewer.locale}>
@@ -158,6 +160,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
         {options.head?.(viewer)}
         {view.head}
         {form && <meta name="chest-form" content={form} />}
+        {parallel.length > 0 && <meta name="chest-parallel" content={parallel.join(",")} />}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
         <script type="module" src={`/assets/${script}`} />
@@ -194,6 +197,50 @@ function errorView(viewer: Viewer, status: 403 | 404 | 500): View {
 function contextOf<V extends Viewer>(c: Context, viewer: V): PageContext<V> {
   return { ...viewer, url: new URL(c.req.url), param: name => c.req.param(name) ?? "", query: name => c.req.query(name) };
 }
+
+// download(): a file of the members' part (/chest/…/export.csv) — the
+// handler returns { name, type, body } (a string, bytes or a stream: a
+// csv built line by line, zipStream()), or a Response of its own. Sent as
+// an attachment, never cached. A refusal (fail("forbidden"), "invalid"
+// with its values…) is a page in the reader's words with its status (403,
+// 400, 404) — what the person sees when the link does not give a file.
+// publicDownload(): the same for the public part.
+export type Download = { name: string; type: string; body: BodyInit | ReadableStream<Uint8Array> };
+const attachment = (file: Download) => new Response(file.body, {
+  headers: {
+    "Content-Type": file.type,
+    "Content-Disposition": `attachment; filename="${file.name.replace(/[^\x20-\x7e]|["\\]/gu, "_")}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    "Cache-Control": "no-store",
+  },
+});
+async function served(c: Context, viewer: Viewer, run: () => Promise<Download | Response> | Download | Response): Promise<Response> {
+  try {
+    const file = await run();
+    return file instanceof Response ? file : attachment(file);
+  } catch (error) {
+    if (!(error instanceof AppError) || error.code === "unavailable" || error.code === "unknown") throw error;
+    const status = error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : 400;
+    const t = viewer.t;
+    const title = status === 403 ? t.pages.forbidden.title : status === 404 ? t.pages.notFound.title : t.pages.failed.title;
+    const said = fill(sayError(t, error.code), error.values);
+    return html(c, {
+      title,
+      body: (
+        <div className="ck-empty">
+          <h1 className="ck-empty-title">{title}</h1>
+          <p className="ck-empty-body">{said}</p>
+          {viewer.member !== null && <div className="ck-empty-actions"><a className="ck-button ck-button-quiet" href="/chest">{t.pages.back}</a></div>}
+        </div>
+      ),
+    }, viewer, status);
+  }
+}
+export const download = (render: (p: PageContext<MemberContext>) => Promise<Download | Response> | Download | Response) => async (c: Context<Env>) =>
+  served(c, c.get("viewer"), () => render(contextOf(c, c.get("viewer"))));
+export const publicDownload = (render: (p: PageContext<VisitorContext>) => Promise<Download | Response> | Download | Response) => async (c: Context) => {
+  const viewer = visitor(c);
+  return served(c, viewer, () => render(contextOf(c, viewer)));
+};
 
 // page(): a page of the members' part (under /chest); publicPage(): one of
 // the public part. The handler reads what the page needs and returns its
@@ -258,7 +305,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const fetched = c.req.header("x-tool-action") === "1";
   let renew: Record<string, string> = {};
   const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
-    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code] ?? viewer.t.errors.unavailable, values), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
+    fetched ? c.json({ ok: false, error: code, message: fill(sayError(viewer.t, code), values), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
   const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -279,11 +326,13 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
       const raw = json ? await c.req.json<Record<string, unknown>>() : formFields(await c.req.formData());
       let spent: Spent | null = null;
       let charged = false;
-      const charge = async (kind: string) => {
+      const charge = async (kind: string, options: { subject?: string } = {}) => {
         if (!bound || !("budgets" in bound) || !Object.hasOwn(bound.budgets, kind)) throw new Error(`charge("${kind}"): ${name} has no such budget`);
         if (charged) throw new Error(`charge(): ${name} spends one budget a call`);
+        const budget = bound.budgets[kind]!;
+        if (budget.perSubject !== undefined && !options.subject) throw new Error(`charge("${kind}"): its budget has perSubject — say the subject: charge("${kind}", { subject })`);
         charged = true;
-        spent = await spend(c, `${name}:${kind}`, bound.budgets[kind]!, spent);
+        spent = await spend(c, `${name}:${kind}`, budget, options.subject ?? null, spent);
       };
       try {
         if (bound) {
@@ -292,10 +341,16 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
             answer = ok(null);
             return;
           }
-          spent = await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120, Math.min(bound.formSeconds ?? 0, 30));
+          // The token is spent whatever follows (a refusal's answer, or the
+          // page it goes back to, brings the next one).
+          await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120, Math.min(bound.formSeconds ?? 0, 30));
+          // Refusals have a budget of their own (ten times the day's): a
+          // run's checks may ask the Chest, and a flood of calls refused
+          // one by one must not spend the Chest's limits for the tool.
+          await refusalsLeft(name, bound);
         }
         const input = readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {});
-        if (bound && !("budgets" in bound)) spent = await spend(c, name, bound, spent);
+        if (bound && !("budgets" in bound)) spent = await spend(c, name, bound, null, spent);
         const value = await definition.run(input as never, { ...viewer, cookies: cookiesOf(c), request: c.req.raw, ...(definition.access === "public" ? { charge } : {}) } as never);
         if (bound && "budgets" in bound && !charged) {
           // Written without a budget: a bug of the tool's, said loudly.
@@ -304,9 +359,12 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
         }
         answer = ok(value);
       } catch (error) {
-        // Refused or failed (a redirect is done): its count and its token
-        // given back.
-        if (!(error instanceof HttpStatus && error.to)) await (spent as Spent | null)?.release();
+        // Refused or failed (a redirect is done): its counts given back, and
+        // a refusal counted with the refusals.
+        if (!(error instanceof HttpStatus && error.to)) {
+          await (spent as Spent | null)?.release();
+          if (bound && (error instanceof AppError || error instanceof HttpStatus) && !(error instanceof AppError && (error.code === "limit" || error.code === "expired"))) await countRefusal(name);
+        }
         throw error;
       }
     } catch (error) {
@@ -349,7 +407,7 @@ export function formToken(now = Date.now()): string {
 }
 // A token ours, younger than its minutes and never served: taken (in
 // chest_seen) until the call fails. Otherwise "expired".
-async function takeForm(token: unknown, minutes: number, seconds: number): Promise<Spent> {
+async function takeForm(token: unknown, minutes: number, seconds: number): Promise<void> {
   const parts = typeof token === "string" && token.length <= 128 ? token.split(".") : [];
   const [time = "", nonce = "", signature = ""] = parts;
   const expected = parts.length === 3 && /^\d{13}$/u.test(time) ? formSignature(`${time}.${nonce}`) : "";
@@ -362,7 +420,20 @@ async function takeForm(token: unknown, minutes: number, seconds: number): Promi
   const id = `form:${nonce}`;
   if ((await sql`insert into chest_seen (id) values (${id}) on conflict do nothing returning id`).length === 0) fail("expired" as ErrorCode);
   if (Math.random() < 0.02) await sql`delete from chest_seen where id like 'form:%' and at < now() - interval '2 days'`;
-  return { release: async () => { await sql`delete from chest_seen where id = ${id}`; } };
+}
+
+// The refusals of a public action today, for everyone: at most ten times
+// its day's budget (the sum of its kinds'), then "limit" before its run.
+const refusalCeiling = (bound: Bound) => 10 * ("budgets" in bound ? Object.values(bound.budgets).reduce((n, b) => n + b.perDay, 0) : bound.perDay);
+async function refusalsLeft(name: string, bound: Bound): Promise<void> {
+  const { db } = await import("./db.ts");
+  const [row] = await db()<{ count: number }[]>`select count from chest_bounds where scope = ${name + ":refused"} and visitor = '*' and day = current_date`;
+  if ((row?.count ?? 0) >= refusalCeiling(bound)) fail("limit" as ErrorCode);
+}
+async function countRefusal(name: string): Promise<void> {
+  const { db } = await import("./db.ts");
+  await db()`insert into chest_bounds (scope, visitor, day, count) values (${name + ":refused"}, '*', current_date, 1)
+    on conflict (scope, visitor, day) do update set count = chest_bounds.count + 1`;
 }
 
 // The visitor a budget counts: the address the Chest's front gives
@@ -378,25 +449,34 @@ function visitorKey(c: Context): string | null {
   return null;
 }
 
-// One more in a budget, today (the Chest's day), for this visitor and for
-// everyone, in chest_bounds; past either, refused ("limit") and not kept.
-async function spend(c: Context, scope: string, budget: Budget, before: Spent | null): Promise<Spent> {
+// One more in a budget, today (the Chest's day), for this visitor, for
+// the subject (perSubject: a guest link, a booking) and for everyone, in
+// chest_bounds; past any, refused ("limit") and not kept. A visitor who
+// already wrote today (known by address or cookie) keeps a reserve past
+// everyone's ceiling — a tenth of it, at least one —, so a flood of new
+// visitors does not lock out the people already in a conversation.
+const reserveOf = (budget: Budget) => Math.max(1, Math.ceil(budget.perDay / 10));
+async function spend(c: Context, scope: string, budget: Budget, subject: string | null, before: Spent | null): Promise<Spent> {
   const { db } = await import("./db.ts");
   const sql = db();
   const who = visitorKey(c);
   const add = async (key: string, by: number) => (await sql<{ count: number }[]>`
     insert into chest_bounds (scope, visitor, day, count) values (${scope}, ${key}, current_date, ${by})
     on conflict (scope, visitor, day) do update set count = chest_bounds.count + ${by} returning count`)[0]!.count;
-  const keys = who === null ? ["*"] : [who, "*"];
   const taken: string[] = [];
   const release = async () => { for (const key of taken) await add(key, -1); };
-  for (const key of keys) {
+  const over = async (key: string, limit: number) => {
     taken.push(key);
-    if ((await add(key, 1)) > (key === "*" ? budget.perDay : budget.perVisitor)) {
+    const count = await add(key, 1);
+    if (count > limit) {
       await release();
       fail("limit" as ErrorCode);
     }
-  }
+    return count;
+  };
+  const known = who === null ? 0 : await over(who, budget.perVisitor);
+  if (subject !== null && budget.perSubject !== undefined) await over("s:" + createHash("sha256").update(subject).digest("base64url").slice(0, 22), budget.perSubject);
+  await over("*", budget.perDay + (known > 1 ? reserveOf(budget) : 0));
   if (Math.random() < 0.02) await sql`delete from chest_bounds where day < current_date - 1`;
   return chain(before, release);
 }
@@ -413,12 +493,27 @@ function formFields(data: FormData): Record<string, unknown> {
 
 // The look's stylesheet: linked with ?v=<its hash> it never changes (a
 // new look is a new address); without, revalidated by its ETag.
+// A refusal's sentence: the catalogue's; an optional code it does not say
+// falls back to the nearest it must say ("amount_ambiguous" → "invalid").
+function sayError(t: Words, code: string): string {
+  const errors = t.errors as Record<string, string | undefined>;
+  return errors[code] ?? (code === "amount_ambiguous" ? t.errors.invalid : t.errors.unavailable);
+}
+
+// If-None-Match against a tag, weakly (W/"x" and "x" are the same).
+function weakMatch(header: string | undefined, tag: string): boolean {
+  if (!header) return false;
+  const strip = (t: string) => t.trim().replace(/^W\//u, "");
+  return header.split(",").some(t => t.trim() === "*" || strip(t) === strip(tag));
+}
+
 function stylesheet(c: Context, css: string) {
   const hash = createHash("sha256").update(css).digest("base64url");
   const tag = `"${hash.slice(0, 27)}"`;
   c.header("ETag", tag);
   c.header("Cache-Control", c.req.query("v") === hash.slice(0, 16) ? "private, max-age=31536000, immutable" : "private, no-cache");
-  if (c.req.header("if-none-match") === tag) return c.body(null, 304);
+  // Compared weakly: gzipped on its way, the tag becomes W/"…".
+  if (weakMatch(c.req.header("if-none-match"), tag)) return c.body(null, 304);
   c.header("Content-Type", "text/css; charset=utf-8");
   return c.body(css);
 }
@@ -429,7 +524,53 @@ function stylesheet(c: Context, css: string) {
 // them. call(name, input, { at: "/p/abc" }) sends there.
 export const publicActionsAt = () => (c: Context<Env>) => runAction(c, false);
 
-const gzip = compress({ encoding: "gzip", threshold: 1024 });
+// gzip from 1 KiB, measured: a page or JSON (c.html, c.json) has no
+// Content-Length, so the body's first KiB is read before choosing — a
+// short answer goes as it is, a long one (a stream too) gzipped as it goes.
+const compressible = /^(text\/|application\/(json|javascript|xml|[\w.+-]*\+(json|xml))|image\/svg\+xml)/u;
+async function gzip(c: Context, next: () => Promise<void>): Promise<void> {
+  await next();
+  const res = c.res;
+  if (!res.body || c.req.method === "HEAD" || res.status === 204 || res.status === 304 || res.headers.has("Content-Encoding") || !compressible.test(res.headers.get("Content-Type") ?? "")) return;
+  const vary = () => { if (!/accept-encoding/iu.test(c.res.headers.get("Vary") ?? "")) c.res.headers.append("Vary", "Accept-Encoding"); };
+  const length = res.headers.get("Content-Length");
+  if (!/\bgzip\b/u.test(c.req.header("Accept-Encoding") ?? "") || (length !== null && Number(length) < 1024)) return vary();
+  const reader = res.body.getReader();
+  const head: Uint8Array[] = [];
+  let size = 0;
+  let ended = false;
+  while (size < 1024) {
+    const read = await reader.read();
+    if (read.done) {
+      ended = true;
+      break;
+    }
+    head.push(read.value);
+    size += read.value.byteLength;
+  }
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of head) controller.enqueue(chunk);
+      if (ended) controller.close();
+    },
+    async pull(controller) {
+      const read = await reader.read();
+      if (read.done) controller.close();
+      else controller.enqueue(read.value);
+    },
+    cancel: reason => reader.cancel(reason),
+  });
+  if (ended && size < 1024) {
+    c.res = new Response(body, res);
+    return vary();
+  }
+  c.res = new Response(body.pipeThrough(new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>), res);
+  c.res.headers.delete("Content-Length");
+  c.res.headers.set("Content-Encoding", "gzip");
+  const tag = c.res.headers.get("ETag");
+  if (tag && !tag.startsWith("W/")) c.res.headers.set("ETag", `W/${tag}`);
+  vary();
+}
 
 export function createApp(options: AppOptions) {
   const app = new Hono<Env>();
@@ -466,14 +607,50 @@ export function createApp(options: AppOptions) {
   // compressed at build (chestConfig) and served as they are.
   app.use(async (c, next) => (c.req.path.startsWith("/assets/") ? next() : gzip(c, next)));
 
+  // A link the browser follows in place (navigate(): x-tool-navigate) that
+  // leads to a file: 204, its body never sent (a stream cancelled at its
+  // start), and the browser then loads it plainly — the file made once.
+  app.use(async (c, next) => {
+    await next();
+    if (c.req.header("x-tool-navigate") !== "1" || c.req.method !== "GET" || c.res.status !== 200) return;
+    if ((c.res.headers.get("Content-Type") ?? "").startsWith("text/html")) return;
+    await c.res.body?.cancel().catch(() => undefined);
+    c.res = new Response(null, { status: 204, headers: { "x-tool-file": "1", "Cache-Control": "no-store" } });
+    c.res.headers.delete("Content-Type");
+    c.res.headers.delete("Content-Disposition");
+    c.res.headers.delete("Content-Length");
+  });
+
   // The browser's files (dist/client/assets, from src/ and public/assets/):
   // linked with ?v=…, or named by their hash (the script, its chunks),
   // they never change; any other, an hour.
   // (Set once the file is served: a header set in serveStatic's onFound
   // never reached the browser — the files went out "no-store".)
+  // A file without a name that changes (an icon, a font) has its ETag and
+  // Last-Modified, answered 304 when the browser has it; every file says
+  // Vary: Accept-Encoding (a .br or .gz may be served for it).
   app.use("/assets/*", async (c, next) => {
+    const forever = Boolean(c.req.query("v")) || hashed.test(c.req.path);
+    let tag: string | null = null;
+    let modified: Date | null = null;
+    if (!forever && !c.req.path.includes("..")) {
+      try {
+        const stat = statSync(join("dist/client", c.req.path));
+        if (stat.isFile()) {
+          tag = `W/"${stat.size.toString(36)}-${Math.floor(stat.mtimeMs).toString(36)}"`;
+          modified = stat.mtime;
+        }
+      } catch { /* not there: serveStatic's 404 */ }
+      if (tag && weakMatch(c.req.header("if-none-match"), tag)) return c.body(null, 304, { ETag: tag, "Cache-Control": "public, max-age=3600", Vary: "Accept-Encoding" });
+    }
     await next();
-    if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") || hashed.test(c.req.path) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+    if (!c.res.ok) return;
+    c.res.headers.set("Cache-Control", forever ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+    if (!/accept-encoding/iu.test(c.res.headers.get("Vary") ?? "")) c.res.headers.append("Vary", "Accept-Encoding");
+    if (tag && modified) {
+      c.res.headers.set("ETag", tag);
+      c.res.headers.set("Last-Modified", modified.toUTCString());
+    }
   }, serveStatic({ root: "./dist/client", precompressed: true }));
 
   // The members' part: the Chest asserts who asks on every request

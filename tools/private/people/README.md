@@ -297,7 +297,7 @@ holds; once everything they held is back, it publishes
   example step does (its words' key `offboarding.equipment`, kept until HR
   rewords it): a step HR wrote itself stays HR's to tick. Another shape,
   another tool, a stopped checklist: nothing; told twice, nothing more.
-  Built and tested on both sides (`lib/returns.ts`,
+  Built and tested on both sides (`src/lib/returns.ts`,
   `test/returns.test.ts`, the harness's *Deliver*; Equipment's
   `lib/returned.ts`, which tells it again every quarter of an hour while
   the Chest cannot take it). Until an admin links Equipment to People for
@@ -335,8 +335,9 @@ corners, and its logo where People's mark is), as the company chooses in
 its Chest, for all its tools or for People alone. Same features, same
 pages, readable in every look (every theme is checked against WCAG AA,
 light and dark). The look is resolved on the server
-(`chest.theme()`, a Proposal (studio) of the SDK) and written into the page;
-no script, nothing to set in People. The staff register and the HR record
+(`chest.theme()`, a Proposal (studio) of the SDK) and served as the page's
+own stylesheet (`/chest/look.css`, named by its content's hash: cached until
+the look changes); no script, no inline style, nothing to set in People. The staff register and the HR record
 print black on white whatever the look (DESIGN.md, "Paper").
 
 The shared pieces — the header and its labelled tabs, toasts with *Undo*,
@@ -401,7 +402,9 @@ records: see "On a Chest").
 | `/chest/records/register`, `/chest/records/register/csv` | HR | the staff register; its CSV |
 | `/chest/numbers` | HR | headcount, arrivals and departures, turnover |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-jobs/morning` | the Chest only (signed) — proposal | the weekday morning reminder |
+| `/chest-schedules` | the Chest only (signed) | the runs of `chest.json`'s schedules: `morning`, weekdays 07:40 |
+| `/chest/actions/<name>` | members (from the page) | every change (`src/actions.ts`) |
+| `/chest/look.css`, `/assets/…` | the page | the look; the browser's script, styles, fonts, icon |
 | `/` | anyone | "People lives in your Chest" |
 
 ## On a Chest
@@ -412,7 +415,11 @@ records: see "On a Chest").
   (the bell and the tile's number: open to-dos); `receives: ["member.*"]`.
   No network. Proposal (studio), in `chest.proposals.json`: `mail:
   {send: true}` (the welcome email), `emits`, `receives` (Hiring, Leave,
-  Equipment), `schedules`.
+  Equipment).
+- `"schedules"` (contract 0.4): `morning`, weekdays at 07:40 on the
+  Chest's clock, posted to `POST /chest-schedules`.
+- `build.static: ["/assets/"]`: the browser's files, the fonts and the icon
+  are served there, to anyone, without a member — nothing else is.
 - **Who is HR**: the owner, the admins and the tool's builders enter with
   the first role, `hr` — so they read HR records. Give the tool's building
   to someone who may read them, or see "Needs from the SDK".
@@ -448,30 +455,33 @@ records: see "On a Chest").
 
 ## Needs from the SDK
 
-People runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in
-`vendor/`. From 0.3.0: `member(request)` with the member's `language` (the
+People runs on SDK 0.4.1 + studio proposals (0.4.1-studio.3), contract
+0.4, and the studio's `@argentic/chest-app` (0.1.0-studio.3), in `vendor/`.
+From 0.3.0: `member(request)` with the member's `language` (the
 interface and the bell in each member's language) and `timeZone`;
 `chest.organization.name` (the company's name in the welcome email and
 the letters); `chest.timeZone` and `chest.today()`: "today", due days and
 anniversaries — the database's `current_date` is the same day, since the
 Chest makes its zone the TimeZone of the tool's database sessions. The
-member's own zone (`lib/zone.ts` `todayOf`, `chest.todayIn`, a studio
+member's own zone (`src/lib/zone.ts` `todayOf`, `chest.todayIn`, a studio
 addition): "today" and "late" on a person's own *My to-dos*, and every
 time shown to them (the day a step was ticked, a record's history); the
 Chest's zone stays for what concerns everyone (checklists' due days,
 records, the morning run).
 
-- **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`:
+- **Scheduled tasks** (official since 0.4.0: `schedules` in `chest.json`,
   `morning`, weekdays 07:40): one bell item per person with steps due today
-  or late, tiles' numbers kept true overnight, and the 30-day purge of
-  departed profiles. **Without it** the tool is fully usable: the tile's
-  number is set whenever a step changes and when its owner opens *My
-  to-dos*, and the purge runs whenever the directory is read.
+  or late, HR's endings (trial periods, contracts, work permits, dated
+  fields), tiles' numbers kept true overnight, the purges (departed
+  profiles after 30 days, past leaves, arrivals, records after five years,
+  the journal after two, the delivered ids after 30 days). The tile's
+  number is also set whenever a step changes and when its owner opens *My
+  to-dos*, and the profiles' purge runs whenever the directory is read.
 - `mail` — **Proposal (studio)**: `mail.send` of the welcome email (to a
   member by id, or to an arrival's work address; `replyTo` the HR person's
   Chest address, `members.email`). The person's own email choice
   (`mailPreference`, in the members API) is applied by `mail.send`. The
-  start form asks `mail.available()` (`lib/mailing.ts`) before
+  start form asks `mail.available()` (`src/lib/mailing.ts`) before
   it promises the email: "{name} gets a short welcome email" only when the
   Chest would send it; otherwise it says why none will leave (mail not
   connected, mail paused or the day's emails used, no work email for an
@@ -503,16 +513,33 @@ records, the morning run).
 
 ## Develop
 
+How it is made: the studio's starter stack — a Hono server that renders
+React pages (`src/pages/`), a few islands that run in the browser
+(`src/islands/`), typed actions (`src/actions.ts`) over the services
+(`src/lib/`, the rules and the SQL), Vite for the two builds, the machinery
+from `@argentic/chest-app` (`vendor/`). AGENTS.md has the map.
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm test          # tsc, the server built into dist/test, node:test (113 tests);
+                  # TEST_DATABASE_URL for a real PostgreSQL, else PGlite
+npm run build     # tsc, the browser's files, the server (dist/), as the Chest does
+npm start         # the built server on PORT, as the Chest runs it
+npm run dev       # rebuilds on every change
 ```
+
+Measured on 6 October 2026 with `lab/measure` (Node 24.21, production
+build, 20 pages read then 30 s at rest, five times; the server process
+tree): **~70 MiB PSS at rest** (125.7 on Next.js 16), RSS ~173 MiB (236),
+first page ~0.39 s after start (0.64), image ~30 MiB (460), build peak
+~280 MiB PSS in 2.4 s (1,064 MiB in 19.6 s; it now fits 512 MiB and one
+CPU, where `npm ci` alone did not).
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/people --reset`
 (a sample company from `seed/sample.sql`: Nora started six days ago, her
-welcome checklist is under way), `node lab/chest-dev/flows/people.mjs 4700`
-(the browser flows), `node lab/chest-dev/screens.mjs tools/private/people`.
+welcome checklist is under way), `node lab/chest-dev/dev.mjs tools/private/people --prod --build --reset --port 4700`
+then `node lab/chest-dev/flows/people.mjs 4700` (the browser flows),
+`node lab/chest-dev/audit.mjs tools/private/people --port 4700`, `node lab/chest-dev/screens.mjs tools/private/people`.
 
 ## What it does not do (yet)
 

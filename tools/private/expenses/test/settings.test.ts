@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError, type ErrorCode } from "../lib/app-error.ts";
-import * as settings from "../lib/settings.ts";
+import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
+import * as settings from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -11,7 +11,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
 });
 after(async () => {
   await chest.close();

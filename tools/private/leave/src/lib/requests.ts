@@ -95,16 +95,22 @@ export async function quote(sql: Query, actor: Member | null, input: RequestInpu
     event = input.event;
   } else if (input.event !== undefined && input.event !== null && input.event !== "") throw new AppError("invalid");
   const person = await staffRow(sql, who);
-  if (person.endDate && span.start > person.endDate) throw new AppError("left_company");
+  // Nothing after the person's last day: their final balance is what
+  // payroll pays (asked, or recorded by HR alike).
+  if (person.endDate && span.end > person.endDate) throw new AppError("left_company");
   const days = cost(span, rulesFor(type, await settings(sql), span.start, span.end, person.workDays));
   if (days <= 0) throw new AppError("no_days");
   // A kind that may not go below zero: what is left once the waiting
   // requests are approved must cover it (HR recording leave decides).
-  if (type.balance && !type.overdraw && !forSomeone) {
-    const b = (await balancesOf(sql, [who])).get(who)?.find(x => x.typeId === type.id);
-    if (b && leftIfApproved(b) - days < 0) throw new AppError("not_enough", { days: Math.max(leftIfApproved(b), 0) });
-  }
+  if (type.balance && !type.overdraw && !forSomeone) await enough(sql, who, type.id, days);
   return { span, days, typeId: type.id, note, who, forSomeone, event };
+}
+
+// enough: refused when what would be left, once the waiting requests are
+// approved, does not cover `days` (a kind that may not go below zero).
+async function enough(sql: Query, who: string, typeId: string, days: number): Promise<void> {
+  const b = (await balancesOf(sql, [who])).get(who)?.find(x => x.typeId === typeId);
+  if (b && leftIfApproved(b) - days < 0) throw new AppError("not_enough", { days: Math.max(leftIfApproved(b), 0) });
 }
 
 // createRequest: a person asks for leave for themselves; or HR, or their
@@ -123,6 +129,9 @@ export async function createRequest(sql: Sql, actor: Member | null, input: Reque
       select ${columns(tx)} from requests
       where member_id = ${who} and status in ('pending', 'approved') and start_date <= ${q.span.end} and end_date >= ${q.span.start}`;
     if (near.map(toRequest).some(r => overlaps(r, q.span))) throw new AppError(q.forSomeone ? "overlap_someone" : "overlap");
+    // Counted again under the lock: two requests sent at once are not both
+    // covered by the same days.
+    if (type.balance && !type.overdraw && !q.forSomeone) await enough(tx, who, type.id, q.days);
     const now = q.forSomeone || !type.approval;
     const status: Status = now ? "approved" : "pending";
     const by = q.forSomeone ? actor!.id : "chest";
@@ -210,7 +219,14 @@ export async function reopen(sql: Sql, actor: Member | null, requestId: unknown)
   const recent = r.decidedAt !== null && Date.now() - Date.parse(r.decidedAt) <= undoMinutes * 60000;
   if (!r.mayDecide || r.decidedBy !== actor!.id || !recent || (r.status !== "approved" && r.status !== "refused")) throw new AppError("not_pending");
   await sql.begin(async tx => {
-    const done = await tx`update requests set status = 'pending', decided_by = null, decided_at = null, reason = null where id = ${r.id} and status = ${r.status} returning id`;
+    // Waiting again, it must not overlap a request made meanwhile (a
+    // refusal taken back: the person may have asked other days since).
+    await tx`select 1 from staff where member_id = ${r.memberId} for update`;
+    const near = await tx<Row[]>`
+      select ${columns(tx)} from requests
+      where member_id = ${r.memberId} and id <> ${r.id} and status in ('pending', 'approved') and start_date <= ${r.end} and end_date >= ${r.start}`;
+    if (near.map(toRequest).some(o => overlaps(o, r))) throw new AppError("overlap_someone");
+    const done = await tx`update requests set status = 'pending', decided_by = null, decided_at = null, reason = null, cancel_asked_at = null where id = ${r.id} and status = ${r.status} returning id`;
     if (done.length === 0) throw new AppError("not_pending");
     await tx`insert into request_events (request_id, actor, kind) values (${r.id}, ${actor!.id}, 'reopened')`;
     await giveBack(tx, r.id, actor!.id);
