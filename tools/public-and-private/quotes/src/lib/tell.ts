@@ -4,7 +4,7 @@ import type { Query } from "./db.ts";
 import type { Doc } from "./documents.ts";
 import { issuerCount } from "./documents.ts";
 import { format } from "../i18n/index.ts";
-import { formatMoney } from "./money.ts";
+import { formatMoney } from "../shared/money.ts";
 import { badges, notify, withdraw } from "./notify.ts";
 import type { Answer } from "./online.ts";
 import { holders } from "./people.ts";

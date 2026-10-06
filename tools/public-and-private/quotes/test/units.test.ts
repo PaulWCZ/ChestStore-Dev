@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { catalogue } from "../src/i18n/index.ts";
-import { unitCodes, unitKey, unitText } from "../src/lib/units.ts";
+import { unitCodes, unitKey, unitText } from "../src/shared/units.ts";
 
 // "10 exemplaire" was a bug: a unit reads as the quantity says, in the
 // document's language.

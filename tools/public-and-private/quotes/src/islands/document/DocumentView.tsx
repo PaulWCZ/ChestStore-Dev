@@ -4,7 +4,7 @@ import { Back, Coins, Copy, Download, Invoice, Seal, Send, Trash, Bell, Check, C
 import { Stamp } from "../../components/stamp.tsx";
 import { format, formatDay } from "../../i18n/format.ts";
 import type { Catalogue, Locale } from "../../i18n/index.ts";
-import { formatMoney } from "../../lib/money.ts";
+import { formatMoney } from "../../shared/money.ts";
 import type { ClientOption, DocView, Fact, ItemOption, Moment, OnlineView, PaymentView, RelatedView, Rights, VersionView } from "../../lib/views.ts";
 import type { DocWords } from "../../lib/views.ts";
 import type { MailState } from "../../lib/mailing.ts";

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { decideQuote, getDocument, saveDraft } from "../src/lib/documents.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { erase } from "../src/lib/lifecycle.ts";
 import { reviseQuote } from "../src/lib/versions.ts";
 import { answer, answerPdf, answersOf, ensureLink, liveLink, openLink, renewLink, revokeLink, shownPdf } from "../src/lib/online.ts";
@@ -166,7 +166,7 @@ test("past its validity date the link says the quote expired", async () => {
   const later = "2027-06-01";
   assert.equal((await openLink(sql, secret, later))!.showing, "expired");
   const { sha256 } = await shownPdf(sql, opened, today);
-  await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, later), refused("expired"));
+  await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, later), refused("quote_expired"));
 });
 
 test("a link turned off never works again; a new one does", async () => {

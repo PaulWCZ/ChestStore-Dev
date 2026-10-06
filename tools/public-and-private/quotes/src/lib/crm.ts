@@ -6,11 +6,11 @@ import { can } from "./access.ts";
 import { company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
 import { isLocale, format, type Locale } from "../i18n/index.ts";
-import { addDays, country, email, limits, siren, vatNumber } from "./model.ts";
-import { lineNet, totals } from "./totals.ts";
+import { addDays, country, email, limits, siren, vatNumber } from "../shared/model.ts";
+import { lineNet, totals } from "../shared/totals.ts";
 import { holders } from "./people.ts";
 import { notify, withdraw } from "./notify.ts";
-import { formatMoney } from "./money.ts";
+import { formatMoney } from "../shared/money.ts";
 
 // What Clients (the CRM tool) tells Quotes (Proposal (studio): events
 // between tools, once an admin linked the two). A deal won there becomes a

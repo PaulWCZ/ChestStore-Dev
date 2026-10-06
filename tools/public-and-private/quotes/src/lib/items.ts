@@ -1,9 +1,9 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { clean, id, limits } from "./model.ts";
-import { isVatRate, parseAmount } from "./money.ts";
+import { clean, id, limits } from "../shared/model.ts";
+import { isVatRate, parseAmount } from "../shared/money.ts";
 
 // The catalogue: what the company sells, with its price excluding VAT and
 // its VAT rate. A line made from an item copies it (the document keeps its

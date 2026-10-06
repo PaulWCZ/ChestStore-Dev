@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { missing, company } from "../src/lib/company.ts";
 import { listDocuments } from "../src/lib/documents.ts";
-import { totals } from "../src/lib/totals.ts";
+import { totals } from "../src/shared/totals.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, lea } from "./support/members.ts";

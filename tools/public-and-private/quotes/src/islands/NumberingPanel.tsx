@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Alert } from "../components/icons.tsx";
 import { format } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
-import type { DocumentType, NumberFormat } from "../lib/model.ts";
+import type { DocumentType, NumberFormat } from "../shared/model.ts";
 
 export type NumberingWords = { settings: Pick<Catalogue["settings"], "numbering" | "sections">; kit: Catalogue["kit"]; common: Catalogue["common"] };
 

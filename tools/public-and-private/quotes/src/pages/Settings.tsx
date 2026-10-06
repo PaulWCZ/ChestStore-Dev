@@ -6,8 +6,8 @@ import { can } from "../lib/access.ts";
 import { company, missing } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
 import { mailState } from "../lib/mailing.ts";
-import { documentNumber } from "../lib/model.ts";
-import { formatRate, vatRates } from "../lib/money.ts";
+import { documentNumber } from "../shared/model.ts";
+import { formatRate, vatRates } from "../shared/money.ts";
 import { numberingChanges, sequences } from "../lib/numbering.ts";
 import { nameOf, people } from "../lib/people.ts";
 

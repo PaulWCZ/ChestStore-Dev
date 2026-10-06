@@ -1,10 +1,10 @@
 import type { Doc, Line } from "./documents.ts";
 import { noVat, operationOf } from "./documents.ts";
 import { catalogue, format, locales, type Locale } from "../i18n/index.ts";
-import { formatMoney, formatRate, minorDigits } from "./money.ts";
-import { spacedSiren, type Buyer, type Seller } from "./parties.ts";
-import { lineNet, totals } from "./totals.ts";
-import { unitCodes, unitKey } from "./units.ts";
+import { formatMoney, formatRate, minorDigits } from "../shared/money.ts";
+import { spacedSiren, type Buyer, type Seller } from "../shared/parties.ts";
+import { lineNet, totals } from "../shared/totals.ts";
+import { unitCodes, unitKey } from "../shared/units.ts";
 
 // The structured invoice: an issued invoice, deposit invoice or credit note
 // as UN/CEFACT Cross Industry Invoice (CII D16B) XML, profile EN 16931

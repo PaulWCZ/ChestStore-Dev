@@ -6,10 +6,10 @@ import { Down, Plus, Section, Trash, Up, Box, Copy } from "../../components/icon
 import { format, formatDay, languageNames } from "../../i18n/format.ts";
 import type { Catalogue, Locale } from "../../i18n/index.ts";
 import type { Line } from "../../lib/documents.ts";
-import { formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parsePercent, parseQuantity, vatRates } from "../../lib/money.ts";
-import { addressLines, spacedSiren } from "../../lib/parties.ts";
-import { lineNet, totals } from "../../lib/totals.ts";
-import { unitText } from "../../lib/units.ts";
+import { formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parsePercent, parseQuantity, vatRates } from "../../shared/money.ts";
+import { addressLines, spacedSiren } from "../../shared/parties.ts";
+import { lineNet, totals } from "../../shared/totals.ts";
+import { unitText } from "../../shared/units.ts";
 import type { ClientOption, DocView, ItemOption } from "../../lib/views.ts";
 import type { DocWords } from "../../lib/views.ts";
 import { ClientPicker } from "./client-picker.tsx";

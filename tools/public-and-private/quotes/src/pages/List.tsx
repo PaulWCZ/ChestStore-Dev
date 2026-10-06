@@ -6,7 +6,7 @@ import type { Catalogue } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
 import { listDocuments, type ListRow } from "../lib/documents.ts";
-import { formatMoney } from "../lib/money.ts";
+import { formatMoney } from "../shared/money.ts";
 import { rowView } from "../lib/rows.ts";
 import { localeOf } from "../i18n/index.ts";
 

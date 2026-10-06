@@ -1,10 +1,10 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
 import { prefixOf } from "./documents.ts";
-import { documentNumber, nextSeq, numberFormats, oneOf, periodOf, documentTypes, type DocumentType, type NumberFormat } from "./model.ts";
+import { documentNumber, nextSeq, numberFormats, oneOf, periodOf, documentTypes, type DocumentType, type NumberFormat } from "../shared/model.ts";
 
 // Switching from another invoicing tool without breaking the law's one
 // unbroken sequence: the company goes on from the last number its previous

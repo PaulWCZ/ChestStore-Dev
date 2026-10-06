@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { addClient, archiveClient, getClient, listClients, updateClient } from "../src/lib/clients.ts";
 import { company, missing, updateCompany } from "../src/lib/company.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { addItem, archiveItem, listItems, updateItem } from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";

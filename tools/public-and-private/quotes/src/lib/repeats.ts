@@ -1,14 +1,14 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, issuers } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { linesOf } from "./documents.ts";
 import { format } from "../i18n/index.ts";
-import { day, id, oneOf } from "./model.ts";
-import { formatMoney } from "./money.ts";
+import { day, id, oneOf } from "../shared/model.ts";
+import { formatMoney } from "../shared/money.ts";
 import { notify } from "./notify.ts";
 import { holders } from "./people.ts";
-import { lineNet, totals } from "./totals.ts";
+import { lineNet, totals } from "../shared/totals.ts";
 
 // Recurring invoices — the maintenance contract, the monthly subscription:
 // an issued invoice is made again every month, quarter or year, as a draft

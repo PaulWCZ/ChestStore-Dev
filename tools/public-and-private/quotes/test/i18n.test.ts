@@ -59,7 +59,10 @@ test("every error code a service may answer has its words, and every word of err
   // a code that comes back from a rule as data (an import's line, a bank
   // line, a field the form points at).
   const package_ = ["invalid", "empty", "too_long", "too_large", "forbidden", "not_found", "unavailable", "unknown", "limit", "expired", "amount_ambiguous"];
-  const asData = ["date_invalid", "amount_invalid"];
+  // Codes a rule takes as a value (int(…, "quantity_invalid"), wholeDays(…,
+  // "terms_invalid")), the dialogs' own checks (percent_invalid), and the
+  // database's guard of a finalised document (frozen: a trigger's refusal).
+  const asData = ["date_invalid", "amount_invalid", "quantity_invalid", "discount_invalid", "percent_invalid", "terms_invalid", "frozen"];
   const unused = Object.keys(catalogue("en").errors).filter(code => !codes.has(code) && !package_.includes(code) && !asData.includes(code));
   assert.deepEqual(unused, []);
 });

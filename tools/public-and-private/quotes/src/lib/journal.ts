@@ -1,15 +1,15 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { company, type Accounts } from "./company.ts";
-import { separatorFor, toCsv } from "./csv.ts";
+import { separatorFor, toCsv } from "../shared/csv.ts";
 import type { Query } from "./db.ts";
 import { linesOf, noVat, type Line } from "./documents.ts";
 import type { Period } from "./export.ts";
 import { catalogue, type Locale } from "../i18n/index.ts";
-import { limits } from "./model.ts";
-import { plainAmount } from "./money.ts";
-import { lineNet, totals } from "./totals.ts";
+import { limits } from "../shared/model.ts";
+import { plainAmount } from "../shared/money.ts";
+import { lineNet, totals } from "../shared/totals.ts";
 
 // The accountant's entries: the sales journal of a period, one entry per
 // invoice or credit note, balanced — the client's account debited with the

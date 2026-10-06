@@ -16,7 +16,7 @@ import { log } from "@argentic/chest-app";
 // src/tokens.css, defined from them).
 //
 // The PDF is not the screen: an issued invoice is a legal document, drawn
-// by src/lib/pdf/ in its own neutral print design (black on white,
+// by src/pdf/ in its own neutral print design (black on white,
 // Liberation fonts) whatever the look the company chose.
 export const identity = defineTheme({
   id: "letterpress", tool: "quotes",

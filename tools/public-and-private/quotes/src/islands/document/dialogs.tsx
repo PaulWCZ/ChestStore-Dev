@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Download, Info, Send } from "../../components/icons.tsx";
 import { format, languageNames } from "../../i18n/format.ts";
 import type { Catalogue, Locale } from "../../i18n/index.ts";
-import { formatMoney, inputAmount, parsePercent } from "../../lib/money.ts";
-import type { PaymentMethod } from "../../lib/model.ts";
+import { formatMoney, inputAmount, parsePercent } from "../../shared/money.ts";
+import type { PaymentMethod } from "../../shared/model.ts";
 import type { DocView, DocWords, Message } from "../../lib/views.ts";
 import type { MailState } from "../../lib/mailing.ts";
 

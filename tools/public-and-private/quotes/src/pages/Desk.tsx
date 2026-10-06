@@ -9,9 +9,9 @@ import { db } from "../lib/db.ts";
 import { desk } from "../lib/desk.ts";
 import { followUpOnce } from "../lib/followup.ts";
 import { waitingArchives } from "../lib/monthly.ts";
-import { formatMoney } from "../lib/money.ts";
+import { formatMoney } from "../shared/money.ts";
 import { change, revenue } from "../lib/revenue.ts";
-import { versioned } from "../lib/model.ts";
+import { versioned } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { kindOf, rowView } from "../lib/rows.ts";
 

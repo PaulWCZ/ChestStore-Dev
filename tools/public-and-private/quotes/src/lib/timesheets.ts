@@ -5,13 +5,13 @@ import type { ToolEvent } from "@argentic/chest-sdk/events";
 import { issuers } from "./access.ts";
 import { company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
-import { fold } from "./fold.ts";
+import { fold } from "../shared/fold.ts";
 import { catalogue, format, formatDay, isLocale, type Locale } from "../i18n/index.ts";
-import { limits } from "./model.ts";
-import { formatMoney } from "./money.ts";
+import { limits } from "../shared/model.ts";
+import { formatMoney } from "../shared/money.ts";
 import { notify, withdraw } from "./notify.ts";
 import { holders } from "./people.ts";
-import { lineNet, totals } from "./totals.ts";
+import { lineNet, totals } from "../shared/totals.ts";
 
 // What Timesheets tells Quotes (Proposal (studio): events between tools,
 // once an admin linked the two): the billable time of a project and a

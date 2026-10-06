@@ -1,9 +1,9 @@
 import type { Full } from "../lib/documents.ts";
 import { format, formatDay, type Catalogue, type Locale } from "../i18n/index.ts";
-import { formatMoney, formatQuantity, formatRate } from "../lib/money.ts";
-import { addressLines, spacedSiren } from "../lib/parties.ts";
+import { formatMoney, formatQuantity, formatRate } from "../shared/money.ts";
+import { addressLines, spacedSiren } from "../shared/parties.ts";
 import { countryName } from "../lib/rows.ts";
-import { unitText } from "../lib/units.ts";
+import { unitText } from "../shared/units.ts";
 
 // The quote as a page, for the client who opens the link: the same
 // content as its PDF (seller, buyer, lines, VAT per rate, totals, validity,

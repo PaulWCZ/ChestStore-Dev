@@ -3,7 +3,7 @@ import { inflateRawSync } from "node:zlib";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { finalise, saveDraft, startCreditNote } from "../src/lib/documents.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { exportCsv, exportZip, period } from "../src/lib/export.ts";
 import { exportJournal } from "../src/lib/journal.ts";
 import { updateCompany } from "../src/lib/company.ts";

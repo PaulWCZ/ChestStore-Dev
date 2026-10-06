@@ -4,9 +4,9 @@ import { useState, useTransition } from "react";
 import { Box, Invoice, People, Upload } from "../components/icons.tsx";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
-import { AppError } from "../lib/app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { ImportReport } from "../lib/importers.ts";
-import { fieldsOf, guessMapping, importKinds, importLimits, mapRow, mappingReady, readTable, type Field, type ImportKind, type Mapped, type Mapping, type Table } from "../lib/parse-import.ts";
+import { fieldsOf, guessMapping, importKinds, importLimits, mapRow, mappingReady, readTable, type Field, type ImportKind, type Mapped, type Mapping, type Table } from "../shared/parse-import.ts";
 
 export type ImporterWords = Pick<Catalogue, "importer" | "errors" | "kit">;
 

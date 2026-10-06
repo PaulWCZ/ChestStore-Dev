@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { finalise } from "../src/lib/documents.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { erase } from "../src/lib/lifecycle.ts";
 import { archiveDue, listArchives, makeArchive, monthsDue, openArchive, waitingArchives } from "../src/lib/monthly.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";

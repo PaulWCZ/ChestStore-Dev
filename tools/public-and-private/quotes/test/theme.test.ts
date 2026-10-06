@@ -78,10 +78,11 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
 // The PDF is a legal document: it keeps its own neutral print design
 // (black on white, Liberation fonts) whatever the look the company chose.
 // Nothing that draws it may read the look.
-test("the PDF never reads the look: src/lib/pdf and the archive import no theme", () => {
+test("the PDF never reads the look: src/pdf and the archive import no theme", () => {
   const found: string[] = [];
   const lib = join(root, "src", "lib");
-  const sources = [...readdirSync(join(lib, "pdf")).filter(n => n.endsWith(".ts")).map(n => join(lib, "pdf", n)), join(lib, "archive.ts"), join(lib, "einvoice.ts")];
+  const pdf = join(root, "src", "pdf");
+  const sources = [...readdirSync(pdf).filter(n => n.endsWith(".ts")).map(n => join(pdf, n)), join(lib, "archive.ts"), join(lib, "einvoice.ts")];
   for (const file of sources) {
     const source = readFileSync(file, "utf8");
     if (/@argentic\/chest-ui|theme\.ts|chest\.theme\(/u.test(source)) found.push(relative(root, file));

@@ -3,13 +3,13 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { draw } from "./archive.ts";
 import type { Query, Sql } from "./db.ts";
 import { getDocument, toDoc, type Doc, type Full, type Line } from "./documents.ts";
-import { id } from "./model.ts";
+import { id } from "../shared/model.ts";
 import { keptPdf } from "./online.ts";
-import { lineNet } from "./totals.ts";
+import { lineNet } from "../shared/totals.ts";
 
 // The versions of a sent quote.
 //

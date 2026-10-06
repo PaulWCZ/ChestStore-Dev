@@ -1,7 +1,7 @@
 // The fonts the documents are set in, by the names of the PDF standard
 // fonts they stand for: the Liberation fonts (SIL Open Font License), made
 // with the same widths as Helvetica and Times, embedded in every PDF as
-// PDF/A asks (lib/pdf/fonts.ts). Their widths come from the fonts
+// PDF/A asks (src/pdf/fonts.ts). Their widths come from the fonts
 // themselves.
 export const fontNames = ["Helvetica", "Helvetica-Bold", "Times-Roman", "Times-Bold", "Times-Italic"] as const;
 export type FontName = (typeof fontNames)[number];

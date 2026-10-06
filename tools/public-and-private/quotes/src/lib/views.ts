@@ -3,9 +3,9 @@
 // already written where the server writes them (dates, names).
 import type { Line, State } from "./documents.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
-import type { DocumentType, Status, VatTreatment } from "./model.ts";
-import type { Buyer, Seller } from "./parties.ts";
-import type { RateTotal } from "./totals.ts";
+import type { DocumentType, Status, VatTreatment } from "../shared/model.ts";
+import type { Buyer, Seller } from "../shared/parties.ts";
+import type { RateTotal } from "../shared/totals.ts";
 
 export type ClientOption = Buyer & { id: string; language: Locale; reverseCharge: boolean; archived: boolean; countryName: string };
 export type ItemOption = { id: string; name: string; description: string; unit: string; unitPrice: number; vatRate: number; goods: boolean };

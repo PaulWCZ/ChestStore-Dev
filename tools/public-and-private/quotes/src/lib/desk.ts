@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import type { Query } from "./db.ts";
 import { collectable, listDocuments, type ListRow } from "./documents.ts";
-import { addDays } from "./model.ts";
+import { addDays } from "../shared/model.ts";
 
 // The desk: what the company waits for (quotes sent, money to collect), what
 // is late, and what needs someone now — each list short, the oldest first.

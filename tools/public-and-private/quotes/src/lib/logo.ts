@@ -2,9 +2,9 @@ import { randomBytes } from "node:crypto";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
-import { limits } from "./model.ts";
-import { ImageError, readImage } from "./pdf/image.ts";
+import { AppError } from "../shared/app-error.ts";
+import { limits } from "../shared/model.ts";
+import { ImageError, readImage } from "../pdf/image.ts";
 
 // The company's logo goes from the admin's browser to the Chest's files
 // directly: the tool names the object and authorises that one upload,

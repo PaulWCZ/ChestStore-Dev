@@ -7,8 +7,8 @@ import { can } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
 import { listDocuments } from "../lib/documents.ts";
 import { period as checkPeriod, type Period } from "../lib/export.ts";
-import { addDays } from "../lib/model.ts";
-import { formatMoney } from "../lib/money.ts";
+import { addDays } from "../shared/model.ts";
+import { formatMoney } from "../shared/money.ts";
 import { listArchives } from "../lib/monthly.ts";
 
 // The accountant's export: choose a period, see what it holds, download the
@@ -72,7 +72,7 @@ export async function exportPage(ctx: PageContext<MemberContext>): Promise<View>
             </a>
           ))}
         </nav>
-        <Island id={`island-period-${chosen.from}-${chosen.to}`} name="PeriodForm" props={{ from: chosen.from, to: chosen.to, today, labels: t.kit.date, words: { from: x.from, to: x.to, show: x.show } }} />
+        <Island id={`period-${chosen.from}-${chosen.to}`} name="PeriodForm" props={{ from: chosen.from, to: chosen.to, today, labels: t.kit.date, words: { from: x.from, to: x.to, show: x.show } }} />
         {invalid && <p className="error" role="alert">{t.errors.period_invalid}</p>}
       </section>
       <section className="panel" aria-labelledby="summary">

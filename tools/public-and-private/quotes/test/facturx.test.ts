@@ -10,11 +10,11 @@ import { pdfOf } from "../src/lib/archive.ts";
 import { finalise, getDocument, invoiceFromQuote, decideQuote, sendQuote, startCreditNote, saveDraft } from "../src/lib/documents.ts";
 import type { Line } from "../src/lib/documents.ts";
 import { einvoiceXml, type EInvoiceInput } from "../src/lib/einvoice.ts";
-import type { Buyer, Seller } from "../src/lib/parties.ts";
-import { renderPdf } from "../src/lib/pdf/document.ts";
-import { loadFont } from "../src/lib/pdf/fonts.ts";
-import { srgbProfile } from "../src/lib/pdf/icc.ts";
-import { TrueType } from "../src/lib/pdf/truetype.ts";
+import type { Buyer, Seller } from "../src/shared/parties.ts";
+import { renderPdf } from "../src/pdf/document.ts";
+import { loadFont } from "../src/pdf/fonts.ts";
+import { srgbProfile } from "../src/pdf/icc.ts";
+import { TrueType } from "../src/pdf/truetype.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -251,6 +251,6 @@ test("finalised, an invoice's copy of record is its Factur-X; a credit note's to
 });
 
 test("the fonts are read from the tool's own folder", () => {
-  assert.ok(existsSync(join(import.meta.dirname, "..", "lib", "pdf", "fonts", "LiberationSans-Regular.ttf")));
-  assert.ok(readFileSync(join(import.meta.dirname, "..", "lib", "pdf", "fonts", "LICENSE-liberation.txt"), "utf8").includes("SIL OPEN FONT LICENSE Version 1.1"));
+  assert.ok(existsSync(join(import.meta.dirname, "..", "src", "pdf", "fonts", "LiberationSans-Regular.ttf")));
+  assert.ok(readFileSync(join(import.meta.dirname, "..", "src", "pdf", "fonts", "LICENSE-liberation.txt"), "utf8").includes("SIL OPEN FONT LICENSE Version 1.1"));
 });

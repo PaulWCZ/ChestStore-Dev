@@ -3,7 +3,7 @@ import { PageHeader } from "@argentic/chest-ui/components";
 import { Back } from "../components/icons.tsx";
 import { localeOf } from "../i18n/index.ts";
 import { canImport } from "../lib/importers.ts";
-import { isImportKind } from "../lib/parse-import.ts";
+import { isImportKind } from "../shared/parse-import.ts";
 
 // Bringing the clients, the catalogue or the invoices still to collect
 // from the previous tool: a spreadsheet with its columns matched, a look at

@@ -1,14 +1,14 @@
 import { randomBytes } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { fold } from "./fold.ts";
-import { accountCode, addDays, clean, country as checkCountry, email as checkEmail, limits, siren as checkSiren, siret as checkSiret, vatNumber as checkVat } from "./model.ts";
-import { buyerOf } from "./parties.ts";
-import { checkMapping, clientKindOf, countryOf, dateOf, goodsOf, isImportKind, languageOf, mapRow, mappingReady, priceOf, readTable, vatRateOf, type ImportKind, type Mapped } from "./parse-import.ts";
+import { fold } from "../shared/fold.ts";
+import { accountCode, addDays, clean, country as checkCountry, email as checkEmail, limits, siren as checkSiren, siret as checkSiret, vatNumber as checkVat } from "../shared/model.ts";
+import { buyerOf } from "../shared/parties.ts";
+import { checkMapping, clientKindOf, countryOf, dateOf, goodsOf, isImportKind, languageOf, mapRow, mappingReady, priceOf, readTable, vatRateOf, type ImportKind, type Mapped } from "../shared/parse-import.ts";
 import { toClient } from "./clients.ts";
-import { roundDiv } from "./totals.ts";
+import { roundDiv } from "../shared/totals.ts";
 
 // Bringing the clients and the catalogue from the previous tool, so
 // switching costs an afternoon, not a week of typing: a spreadsheet (CSV)

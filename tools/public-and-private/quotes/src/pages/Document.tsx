@@ -8,10 +8,10 @@ import { db } from "../lib/db.ts";
 import { editAbility, editable, getDocument, upcomingNumber } from "../lib/documents.ts";
 import { listItems } from "../lib/items.ts";
 import { mailState } from "../lib/mailing.ts";
-import { formatMoney } from "../lib/money.ts";
-import { sellerOf } from "../lib/parties.ts";
+import { formatMoney } from "../shared/money.ts";
+import { sellerOf } from "../shared/parties.ts";
 import { continuedAt } from "../lib/numbering.ts";
-import { versioned } from "../lib/model.ts";
+import { versioned } from "../shared/model.ts";
 import { answersOf, liveLink } from "../lib/online.ts";
 import { versionsOf } from "../lib/versions.ts";
 import { handoffOf } from "../lib/timesheets.ts";
@@ -160,7 +160,7 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
   return {
     title: `${kindOf(full, t)} ${doc.number ?? ""}`.trim(),
     body: (
-      <Island id={`island-doc-${key}`} name="DocumentView" props={{
+      <Island id={`doc-${key}`} name="DocumentView" props={{
         doc,
         t: docWords(t),
         locale,

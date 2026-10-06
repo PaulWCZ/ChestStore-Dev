@@ -16,7 +16,7 @@ export async function clientPage(ctx: PageContext<MemberContext>): Promise<View>
   const docs = await listDocuments(sql, member, { types: ["quote", "invoice", "credit"], clientId: client.id }, chest.today());
   return {
     title: client.name,
-    body: <Island id={`island-client-${client.id}`} name="ClientView" props={{
+    body: <Island id={`client-${client.id}`} name="ClientView" props={{
       t: { clients: t.clients, list: t.list, kit: t.kit, clientForm: t.clientForm, errors: t.errors, common: t.common, shell: t.shell, desk: t.desk },
       client, rows: docs.map(r => rowView(r, t, locale)), canWrite: can(member, "clients.write"), canQuote: can(member, "quotes.write"), canInvoice: can(member, "invoices.draft"),
     }} />,

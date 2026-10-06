@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
-import { frenchVatNumber, siren as checkSiren } from "./model.ts";
+import { AppError } from "../shared/app-error.ts";
+import { frenchVatNumber, siren as checkSiren } from "../shared/model.ts";
 
 // Filling a new client from its SIREN, through France's free public
 // directory of companies, the "API Recherche d'entreprises" of the State

@@ -1,7 +1,6 @@
 import { call, Honeypot, navigate } from "@argentic/chest-app/client";
 import { useEffect, useState, type FormEvent } from "react";
 import { Alert, Check, Close } from "../components/icons.tsx";
-import { format } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 
 // The client's answer: accepting is the one obvious action — their name,
@@ -15,13 +14,13 @@ import type { Catalogue } from "../i18n/index.ts";
 // It works without script too: a plain form posted to the public action
 // (POST /actions/answerQuote, with the package's honeypot and form token),
 // which goes back to this page with the refusal, or on to the answer.
-export type AnswerWords = Pick<Catalogue["online"], "acceptTitle" | "acceptLead" | "name" | "goodForAgreement" | "agreeHint" | "agreeHintTerms" | "date" | "accept" | "declineLink" | "declineTitle" | "reason" | "optional" | "decline" | "cancel" | "changedTitle" | "changedLead" | "changedPlain">;
+export type AnswerWords = Pick<Catalogue["online"], "acceptTitle" | "name" | "goodForAgreement" | "agreeHint" | "agreeHintTerms" | "date" | "accept" | "declineLink" | "declineTitle" | "reason" | "optional" | "decline" | "cancel" | "changedTitle" | "changedLead" | "changedPlain"> & { lead: string };
 
-// `terms`: the fingerprint of the terms and conditions of sale offered
+// `t.lead` (online.acceptLead) comes filled with the quote's amount. `terms`: the fingerprint of the terms and conditions of sale offered
 // with the quote ("" when the company has none). `changes`: what differs
 // from the version the visitor's last answer was given on (null: nothing
 // to say; [] the quote changed, without the detail).
-export function AnswerForm({ secret, shown, terms, today, amount, t, changes }: { secret: string; shown: string; terms: string; today: string; amount: string; t: AnswerWords; changes: readonly string[] | null }) {
+export function AnswerForm({ secret, shown, terms, today, t, changes }: { secret: string; shown: string; terms: string; today: string; t: AnswerWords; changes: readonly string[] | null }) {
   const [mode, setMode] = useState<"accept" | "decline">("accept");
   const [name, setName] = useState("");
   const [reason, setReason] = useState("");
@@ -93,7 +92,7 @@ export function AnswerForm({ secret, shown, terms, today, amount, t, changes }: 
     <form method="post" action="/actions/answerQuote" className="answer-form" aria-labelledby="accept-title" onSubmit={e => void submit(e)}>
       <h2 id="accept-title">{t.acceptTitle}</h2>
       {changed}
-      <p className="hint">{format(t.acceptLead, { amount })}</p>
+      <p className="hint">{t.lead}</p>
       {hidden}
       <input type="hidden" name="answer" value="accepted" />
       <div>

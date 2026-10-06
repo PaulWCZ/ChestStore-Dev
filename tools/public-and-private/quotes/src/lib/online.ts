@@ -3,13 +3,13 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { draw } from "./archive.ts";
 import type { Query, Sql } from "./db.ts";
 import { getDocument, type Full } from "./documents.ts";
 import { isLocale, type Locale } from "../i18n/index.ts";
 import { recall, remember } from "./kept.ts";
-import { clean, id } from "./model.ts";
+import { clean, id } from "../shared/model.ts";
 
 // The client's answer online (the tool's public part, /q/<secret>).
 //

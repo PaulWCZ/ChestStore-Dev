@@ -4,10 +4,10 @@ import { useState, useTransition } from "react";
 import { Check, Coins, Upload } from "../components/icons.tsx";
 import { format, formatDay, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
-import { AppError } from "../lib/app-error.ts";
-import { bankFields, bankLimits, bankMappingReady, decodeStatement, guessBankMapping, readStatement, type BankField, type BankMapping, type Statement } from "../lib/bank-parse.ts";
+import { AppError } from "../shared/app-error.ts";
+import { bankFields, bankLimits, bankMappingReady, decodeStatement, guessBankMapping, readStatement, type BankField, type BankMapping, type Statement } from "../shared/bank-parse.ts";
 import type { Proposal, Reading } from "../lib/bank.ts";
-import { formatMoney } from "../lib/money.ts";
+import { formatMoney } from "../shared/money.ts";
 
 export type BankWords = Pick<Catalogue, "bank" | "errors" | "kit"> & { importer: Pick<Catalogue["importer"], "column" | "example" | "field" | "fieldOf" | "ignore"> };
 

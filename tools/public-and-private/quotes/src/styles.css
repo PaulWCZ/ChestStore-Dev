@@ -4,7 +4,7 @@
    (lib/theme.ts), any theme of the catalogue or the company's brand. The
    kit's components (@argentic/chest-ui/components.css) are restyled here by
    their ck- classes where the letterpress needs it. The PDF is not drawn
-   from this file: it keeps its own neutral print design (lib/pdf/). */
+   from this file: it keeps its own neutral print design (src/pdf/). */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 /* An icon takes the size of its text unless its place says otherwise. */
@@ -557,3 +557,10 @@ select.ink { appearance: none; cursor: pointer; padding-right: 18px; background-
 .siren-fill { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .siren-fill .field { flex: 1 1 12ch; min-width: 0; }
 .terms-row .logo-actions { display: grid; gap: var(--space-2); justify-items: start; }
+
+/* ── The refusal of a form sent without JavaScript (the layout's notice) ── */
+.page-notice { max-width: var(--page-width); margin: var(--space-4) auto 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-m); background: var(--danger-soft); color: var(--danger-ink); }
+.public-main .page-notice { margin: 0 0 var(--space-4); }
+
+/* Names the flows and the tests select by, with no look of their own. */
+.siren-row, .filled, .art, .bank, .mapping, .doc-table, .from-timesheets, .versions, .online, .line-text, .download { --ck-hook: 1; }

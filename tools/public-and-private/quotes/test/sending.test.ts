@@ -5,7 +5,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { pdfOf } from "../src/lib/archive.ts";
 import { company as readCompany } from "../src/lib/company.ts";
 import { finalise, getDocument, upcomingNumber } from "../src/lib/documents.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { draftMessage, markReminded, markSent, sendDocument, sendReminder } from "../src/lib/sending.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";

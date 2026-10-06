@@ -1,5 +1,5 @@
 import { inflateSync } from "node:zlib";
-import { winAnsiHigh } from "../../src/lib/pdf/metrics.ts";
+import { winAnsiHigh } from "../../src/pdf/metrics.ts";
 
 // The text a PDF of the tool shows, read back from its bytes the way a
 // reader's text extraction does it: each compressed content stream

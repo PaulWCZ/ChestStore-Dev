@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import {
   createDocument, decideQuote, duplicate, finalise, getDocument, invoiceFromQuote, listDocuments, markReady, receivables, removeDraft, restoreDraft,
   saveDraft, sendQuote, startCreditNote, stateOf,

@@ -20,7 +20,7 @@ const publicFiles: Record<string, Record<string, string[]>> = {
   "src/pages/PublicHome.tsx": { t: [""] },
   "src/pages/Answer.tsx": { t: [""], o: ["online"] },
   "src/islands/AnswerForm.tsx": { t: ["online"] },
-  "src/components/quote-sheet.tsx": { words: ["pdf"] },
+  "src/pages/QuoteSheet.tsx": { words: ["pdf"] },
   "src/layout.tsx": { t: [""] },
 };
 
@@ -103,6 +103,6 @@ test("every public page is scanned", () => {
   const walk = (dir: string): string[] => readdirSync(join(root, dir), { withFileTypes: true })
     .flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith(".tsx") ? [join(dir, e.name)] : []));
   // The public part's pages, and the islands they show.
-  const pages = [...walk("src/pages").filter(f => /PublicHome|Answer/u.test(f)), "src/islands/AnswerForm.tsx", "src/layout.tsx"].map(f => relative(".", f));
+  const pages = [...walk("src/pages").filter(f => /PublicHome|Answer|QuoteSheet/u.test(f)), "src/islands/AnswerForm.tsx", "src/layout.tsx"].map(f => relative(".", f));
   for (const page of pages) assert.ok(page in publicFiles, `${page} is a public page: list it in test/public-words.test.ts`);
 });

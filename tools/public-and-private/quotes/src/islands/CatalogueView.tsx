@@ -5,7 +5,7 @@ import { Box, Plus, Upload } from "../components/icons.tsx";
 import { format } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { Item } from "../lib/items.ts";
-import { formatMoney, formatRate, inputAmount, vatRates } from "../lib/money.ts";
+import { formatMoney, formatRate, inputAmount, vatRates } from "../shared/money.ts";
 
 export type CatalogueWords = Pick<Catalogue, "catalogue" | "list" | "kit" | "errors" | "common"> & { units: readonly string[] };
 

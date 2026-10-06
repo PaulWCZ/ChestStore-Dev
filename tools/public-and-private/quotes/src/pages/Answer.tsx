@@ -2,13 +2,13 @@ import { Island, type PageContext, type View, type VisitorContext } from "@argen
 import { chest } from "@argentic/chest-sdk/chest";
 import type { ReactNode } from "react";
 import { Alert, Check, Close, Download } from "../components/icons.tsx";
-import { QuoteSheet } from "../components/quote-sheet.tsx";
+import { QuoteSheet } from "./QuoteSheet.tsx";
 import { catalogue, format, formatDate, formatDay, localeOf, type Catalogue, type Locale } from "../i18n/index.ts";
 import type { Full } from "../lib/documents.ts";
 import { company, goesBy } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
-import { formatMoney } from "../lib/money.ts";
-import { versioned } from "../lib/model.ts";
+import { formatMoney } from "../shared/money.ts";
+import { versioned } from "../shared/model.ts";
 import { openLink, shownFingerprint } from "../lib/online.ts";
 import { changesSince, earlierVersions } from "../lib/versions.ts";
 
@@ -96,8 +96,8 @@ export async function answerPage(ctx: PageContext<VisitorContext>): Promise<View
         <section className="card answer" id="answer" aria-label={o.answerLabel}>
           {shown ? (
             <Island name="AnswerForm" props={{
-              secret, shown, terms: terms?.sha256 ?? "", today: longDay(today), amount: money(full.gross), changes,
-              t: { acceptTitle: o.acceptTitle, acceptLead: o.acceptLead, name: o.name, goodForAgreement: o.goodForAgreement, agreeHint: o.agreeHint, agreeHintTerms: o.agreeHintTerms, date: o.date, accept: o.accept, declineLink: o.declineLink, declineTitle: o.declineTitle, reason: o.reason, optional: o.optional, decline: o.decline, cancel: o.cancel, changedTitle: o.changedTitle, changedLead: o.changedLead, changedPlain: o.changedPlain },
+              secret, shown, terms: terms?.sha256 ?? "", today: longDay(today), changes,
+              t: { acceptTitle: o.acceptTitle, lead: format(o.acceptLead, { amount: money(full.gross) }), name: o.name, goodForAgreement: o.goodForAgreement, agreeHint: o.agreeHint, agreeHintTerms: o.agreeHintTerms, date: o.date, accept: o.accept, declineLink: o.declineLink, declineTitle: o.declineTitle, reason: o.reason, optional: o.optional, decline: o.decline, cancel: o.cancel, changedTitle: o.changedTitle, changedLead: o.changedLead, changedPlain: o.changedPlain },
             }} />
           ) : <p className="error" role="alert"><Alert />{t.errors.unavailable}</p>}
         </section>
@@ -111,7 +111,8 @@ export async function answerPage(ctx: PageContext<VisitorContext>): Promise<View
 // fingerprint their form carried) and the quote now, as sentences in the
 // visitor's language, amounts in the quote's currency ([] when the version
 // read is not known: the page only says the quote changed).
-async function whatChanged(sql: ReturnType<typeof db>, full: Pick<Full, "id" | "lines" | "gross" | "currency">, read: string, t: Catalogue, locale: Locale): Promise<string[]> {
+type Changed = Pick<Full, "id" | "lines" | "gross" | "currency">;
+async function whatChanged(sql: ReturnType<typeof db>, full: Changed, read: string, t: Catalogue, locale: Locale): Promise<string[]> {
   const found = await changesSince(sql, full, read);
   if (!found) return [];
   const o = t.online;

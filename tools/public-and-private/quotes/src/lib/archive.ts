@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { company } from "./company.ts";
 import type { Query } from "./db.ts";
 import { getDocument, type Full } from "./documents.ts";
-import { versioned } from "./model.ts";
-import { buyerOf, sellerOf, type Seller } from "./parties.ts";
+import { versioned } from "../shared/model.ts";
+import { buyerOf, sellerOf, type Seller } from "../shared/parties.ts";
 import { einvoiceXml } from "./einvoice.ts";
-import { renderPdf, pdfFileName } from "./pdf/document.ts";
-import { readImage, type Image } from "./pdf/image.ts";
+import { renderPdf, pdfFileName } from "../pdf/document.ts";
+import { readImage, type Image } from "../pdf/image.ts";
 
 // The PDF of a document. A finalised invoice or credit note is kept as it
 // was issued: its PDF is made once, from its frozen data, and stored in the

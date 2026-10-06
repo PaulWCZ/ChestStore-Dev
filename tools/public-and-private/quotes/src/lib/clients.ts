@@ -1,10 +1,10 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { isLocale, type Locale } from "../i18n/index.ts";
-import { accountCode, clean, clientKinds, country, email, id, limits, oneOf, siren, vatNumber, type ClientKind } from "./model.ts";
-import type { Buyer } from "./parties.ts";
+import { accountCode, clean, clientKinds, country, email, id, limits, oneOf, siren, vatNumber, type ClientKind } from "../shared/model.ts";
+import type { Buyer } from "../shared/parties.ts";
 
 // The people and companies the company sells to. A client who has
 // documents is never deleted (the documents are legal records that name

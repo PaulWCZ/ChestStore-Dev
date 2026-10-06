@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { connectionOptions, type Sql } from "../src/lib/db.ts";
 import { finalise, nextNumber } from "../src/lib/documents.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";

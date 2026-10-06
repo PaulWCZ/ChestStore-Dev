@@ -1,14 +1,14 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, type Ability } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { clientMissing, toClient, type Client } from "./clients.ts";
 import { company, missing, type Company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "../i18n/index.ts";
-import { addDays, clean, day, documentNumber, id, limits, oneOf, periodOf, vatTreatments, versioned, wholeDays, type DocumentType, type Status, type VatTreatment } from "./model.ts";
-import { formatRate, isVatRate } from "./money.ts";
-import { buyerOf, sellerOf, type Buyer, type Seller } from "./parties.ts";
-import { lineNet, totals, depositBases, type RateTotal, type Totals } from "./totals.ts";
+import { addDays, clean, day, documentNumber, id, limits, oneOf, periodOf, vatTreatments, versioned, wholeDays, type DocumentType, type Status, type VatTreatment } from "../shared/model.ts";
+import { formatRate, isVatRate } from "../shared/money.ts";
+import { buyerOf, sellerOf, type Buyer, type Seller } from "../shared/parties.ts";
+import { lineNet, totals, depositBases, type RateTotal, type Totals } from "../shared/totals.ts";
 
 // Quotes, invoices and credit notes: one table, three kinds, and the rules
 // that make an invoice a legal record.

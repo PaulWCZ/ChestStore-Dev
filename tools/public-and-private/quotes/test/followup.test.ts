@@ -5,7 +5,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestSchedules as POST } from "../src/lib/deliveries.ts";
 import { updateCompany } from "../src/lib/company.ts";
 import { finalise, getDocument, listDocuments } from "../src/lib/documents.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { followUp, followUpOnce } from "../src/lib/followup.ts";
 import { entriesOf } from "../src/lib/journal.ts";
 import { mailState } from "../src/lib/mailing.ts";

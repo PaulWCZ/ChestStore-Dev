@@ -5,7 +5,7 @@ import * as files from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { company as readCompany } from "../src/lib/company.ts";
 import { getDocument } from "../src/lib/documents.ts";
-import { AppError } from "../src/lib/app-error.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import { answer, openLink, shownPdf } from "../src/lib/online.ts";
 import { draftMessage, sendDocument } from "../src/lib/sending.ts";
 import { grantTerms, removeTerms, saveTerms, termsFile } from "../src/lib/terms.ts";

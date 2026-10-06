@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
-import { checkBankMapping, linesOf, readStatement, type BankLine, type BankProblem } from "./bank-parse.ts";
+import { AppError } from "../shared/app-error.ts";
+import { checkBankMapping, linesOf, readStatement, type BankLine, type BankProblem } from "../shared/bank-parse.ts";
 import type { Query, Sql } from "./db.ts";
 import { receivables, type ListRow } from "./documents.ts";
-import { key } from "./fold.ts";
-import { day, limits } from "./model.ts";
+import { key } from "../shared/fold.ts";
+import { day, limits } from "../shared/model.ts";
 import { addPayment } from "./payments.ts";
 
 // Matching a bank statement to the invoices still to collect (Axonaut's

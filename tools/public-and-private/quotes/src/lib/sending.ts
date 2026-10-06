@@ -3,15 +3,15 @@ import { CapabilityNotGranted, ChestError, QuotaExceeded } from "@argentic/chest
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { pdfOfFull } from "./archive.ts";
 import { company, goesBy, rememberMail } from "./company.ts";
 import type { Sql } from "./db.ts";
 import { getDocument, recordReminder, recordSent, sendQuote, type Full } from "./documents.ts";
 import { catalogue, format, formatDay, type Locale } from "../i18n/index.ts";
-import { clean, email, limits, numberPattern, versioned } from "./model.ts";
-import { formatMoney } from "./money.ts";
-import { pdfFileName } from "./pdf/document.ts";
+import { clean, email, limits, numberPattern, versioned } from "../shared/model.ts";
+import { formatMoney } from "../shared/money.ts";
+import { pdfFileName } from "../pdf/document.ts";
 import { ensureLink } from "./online.ts";
 import { termsFile, termsFileName } from "./terms.ts";
 

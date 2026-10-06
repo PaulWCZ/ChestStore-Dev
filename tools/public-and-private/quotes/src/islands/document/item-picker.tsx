@@ -1,7 +1,7 @@
 import { Dialog, SearchBox } from "@argentic/chest-ui/components";
 import { useMemo, useState } from "react";
 import type { Locale } from "../../i18n/index.ts";
-import { formatMoney, formatRate } from "../../lib/money.ts";
+import { formatMoney, formatRate } from "../../shared/money.ts";
 import type { ItemOption } from "../../lib/views.ts";
 import type { DocWords } from "../../lib/views.ts";
 

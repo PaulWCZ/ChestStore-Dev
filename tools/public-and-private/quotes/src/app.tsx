@@ -15,7 +15,7 @@ import { clientsCsv, exportCsv, exportZip, itemsCsv, period } from "./lib/export
 import { exportJournal } from "./lib/journal.ts";
 import { openArchive } from "./lib/monthly.ts";
 import { answerPdf, keptPdf, openLink, shownPdf } from "./lib/online.ts";
-import { pdfFileName } from "./lib/pdf/document.ts";
+import { pdfFileName } from "./pdf/document.ts";
 import { termsFile, termsFileName } from "./lib/terms.ts";
 import { versionPdf } from "./lib/versions.ts";
 import { answerPage } from "./pages/Answer.tsx";

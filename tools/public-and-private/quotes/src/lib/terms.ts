@@ -3,11 +3,11 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, type Locale } from "../i18n/index.ts";
 import { recall, remember } from "./kept.ts";
-import { clean, limits } from "./model.ts";
+import { clean, limits } from "../shared/model.ts";
 
 // The company's terms and conditions of sale (conditions générales de
 // vente, CGV). An administrator adds them once, as a PDF, in Settings: it

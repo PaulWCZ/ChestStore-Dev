@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { winAnsiHigh, type FontName } from "./metrics.ts";
 import { TrueType } from "./truetype.ts";
 
-// The font files the documents embed (lib/pdf/fonts/, SIL Open Font
+// The font files the documents embed (src/pdf/fonts/, SIL Open Font
 // License, LICENSE-liberation.txt): Liberation Sans for Helvetica,
 // Liberation Serif for Times — the same widths, so a document is laid out
 // as it always was. Read once per process, from the tool's own folder.
@@ -17,9 +17,9 @@ const files: Record<FontName, { file: string; serif: boolean; italic: boolean; b
 
 export type LoadedFont = { font: TrueType; serif: boolean; italic: boolean; bold: boolean; widths: number[] };
 
-// The directory of the font files: the tool's src/lib/pdf/fonts, from where the
+// The directory of the font files: the tool's src/pdf/fonts, from where the
 // server runs (the tool's folder, as `npm start` and `npm test` do).
-export const fontDirectory = (): string => process.env["QUOTES_FONT_DIR"] ?? join(process.cwd(), "src", "lib", "pdf", "fonts");
+export const fontDirectory = (): string => process.env["QUOTES_FONT_DIR"] ?? join(process.cwd(), "src", "pdf", "fonts");
 
 const loaded = new Map<FontName, LoadedFont>();
 

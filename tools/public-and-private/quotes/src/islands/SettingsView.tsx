@@ -7,8 +7,8 @@ import { format } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { Accounts, Company } from "../lib/company.ts";
 import type { MailState } from "../lib/mailing.ts";
-import { limits } from "../lib/model.ts";
-import { inputAmount, inputPercent } from "../lib/money.ts";
+import { limits } from "../shared/model.ts";
+import { inputAmount, inputPercent } from "../shared/money.ts";
 
 export type SettingsWords = Pick<Catalogue, "settings" | "errors" | "kit">;
 

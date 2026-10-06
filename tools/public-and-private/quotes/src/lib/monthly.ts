@@ -4,14 +4,14 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { pdfOfFull } from "./archive.ts";
 import type { Query, Sql } from "./db.ts";
 import { getDocument } from "./documents.ts";
 import { clientsCsv, corrected, csvText, fileBase, itemsCsv, rows, type Period } from "./export.ts";
 import { catalogue, type Locale } from "../i18n/index.ts";
 import { exportJournal } from "./journal.ts";
-import { pdfFileName } from "./pdf/document.ts";
+import { pdfFileName } from "../pdf/document.ts";
 import { ZipWriter } from "./zip.ts";
 
 // The monthly archive. Invoices must be kept ten years (Code de commerce

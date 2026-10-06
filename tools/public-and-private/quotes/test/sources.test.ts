@@ -30,6 +30,6 @@ test("no Intl object is made outside the cached formatters", () => {
 // An island's props travel in the page's HTML: it gets the words it says,
 // never the whole catalogue.
 test("no island is given the whole catalogue", () => {
-  const found = walk(src).flatMap(file => [...readFileSync(file, "utf8").matchAll(/<Island[^>]*props=\{\{[^}]*\bt\b(?:\s*[,}])/gu)].map(m => `${relative(src, file)}: ${m[0].slice(0, 80)}`));
+  const found = walk(src).flatMap(file => [...readFileSync(file, "utf8").matchAll(/<Island[^>]*props=\{\{(?:\s*t\s*[,}]|[^}]*\bt:\s*t\s*[,}])/gu)].map(m => `${relative(src, file)}: ${m[0].slice(0, 80)}`));
   assert.deepEqual(found, []);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../src/lib/app-error.ts";
-import { addDays, bic, clean, day, documentNumber, email, frenchVatNumber, iban, luhn, prefix, siren, siret, slug, vatNumber } from "../src/lib/model.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { addDays, bic, clean, day, documentNumber, email, frenchVatNumber, iban, luhn, prefix, siren, siret, slug, vatNumber } from "../src/shared/model.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 

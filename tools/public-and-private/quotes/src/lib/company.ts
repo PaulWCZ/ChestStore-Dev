@@ -1,11 +1,11 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { bic, clean, country, email, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "./model.ts";
-import { parseAmount, parsePercent } from "./money.ts";
-import type { Seller } from "./parties.ts";
+import { bic, clean, country, email, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "../shared/model.ts";
+import { parseAmount, parsePercent } from "../shared/money.ts";
+import type { Seller } from "../shared/parties.ts";
 
 // The seller: the company's legal details, which every document prints
 // (French mandatory mentions), and the defaults of new documents. Only the
@@ -71,7 +71,7 @@ export async function company(sql: Query): Promise<Company> {
 // one its admin entered here (trade name, else legal name), else — before
 // the settings are filled in — the Chest's organization as its owner wrote
 // it (chest.organization.name), else "". A document prints the seller it
-// was numbered with (its legal name, lib/pdf/document.ts, Factur-X), never
+// was numbered with (its legal name, src/pdf/document.ts, Factur-X), never
 // this fallback: numbering needs the legal details (missing(), below).
 export function goesBy(c: Pick<Company, "tradeName" | "legalName">): string {
   if (c.tradeName || c.legalName) return c.tradeName || c.legalName;

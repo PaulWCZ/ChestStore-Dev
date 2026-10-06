@@ -1,7 +1,7 @@
 import type { ListRow, State } from "./documents.ts";
 import { format, formatDay, type Catalogue, type Locale } from "../i18n/index.ts";
-import { formatMoney } from "./money.ts";
-import { versioned } from "./model.ts";
+import { formatMoney } from "../shared/money.ts";
+import { versioned } from "../shared/model.ts";
 
 // What a list shows of a document, as plain data in the reader's words:
 // views (client components) get these, never the services' rows. Dates

@@ -1,9 +1,9 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Sql } from "./db.ts";
-import { clean, day, id, limits, oneOf, paymentMethods } from "./model.ts";
-import { parseAmount } from "./money.ts";
+import { clean, day, id, limits, oneOf, paymentMethods } from "../shared/model.ts";
+import { parseAmount } from "../shared/money.ts";
 
 // Payments received for finalised invoices: a date, an amount, a method.
 // Several make a partial payment; an invoice is paid once they (and its
