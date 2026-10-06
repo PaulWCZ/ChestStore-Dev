@@ -5,8 +5,6 @@
    the UI kit's (@argentic/chest-ui, imported first in app/layout.tsx); a
    few of its classes are given the tool crib's steel and tags below. */
 *, *::before, *::after { box-sizing: border-box; }
-/* An island's wrapper (the package's) is not a box of its own. */
-.island { display: contents; }
 html { -webkit-text-size-adjust: 100%; }
 /* An icon takes the size of its text unless its place says otherwise. */
 svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: -0.15em; }
