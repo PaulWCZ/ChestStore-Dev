@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { test } from "node:test";
+import { atLeast } from "@argentic/chest-app/testing";
+
+atLeast(1);
 
 // Nothing shown to a person is written outside the catalogues: no text
 // between JSX tags, no words in the attributes people read or hear.
@@ -9,12 +12,12 @@ const root = join(import.meta.dirname, "..");
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "test"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "test"].includes(name)) return [];
     return statSync(path).isDirectory() ? files(path) : path.endsWith(".tsx") ? [path] : [];
   });
 }
 
-test("no words in the pages outside lib/i18n", () => {
+test("no words in the pages outside src/i18n", () => {
   const found: string[] = [];
   for (const file of files(root)) {
     const source = readFileSync(file, "utf8").replace(/\{\/\*[\s\S]*?\*\/\}/gu, "").replace(/^\s*\/\/.*$/gmu, "");

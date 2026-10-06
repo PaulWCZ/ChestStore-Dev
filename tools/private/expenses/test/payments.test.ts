@@ -4,24 +4,24 @@ import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET as fileRoute } from "../app/chest/pay/files/[id]/route.ts";
-import { AppError, type ErrorCode } from "../lib/app-error.ts";
-import * as bank from "../lib/bank.ts";
-import * as expenses from "../lib/expenses.ts";
-import { checkBic, checkIban, groupIban, mod97 } from "../lib/iban.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { today } from "../lib/today.ts";
-import * as payments from "../lib/payments.ts";
-import { leftNote, people } from "../lib/people.ts";
-import { seal, sealing, unseal } from "../lib/seal.ts";
-import { pain001, sepaAmount, sepaText } from "../lib/sepa.ts";
-import * as settings from "../lib/settings.ts";
-import * as tell from "../lib/tell.ts";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
+import * as bank from "../src/lib/bank.ts";
+import * as expenses from "../src/lib/expenses.ts";
+import { checkBic, checkIban, groupIban, mod97 } from "../src/shared/iban.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { today } from "../src/lib/today.ts";
+import * as payments from "../src/lib/payments.ts";
+import { leftNote, people } from "../src/lib/people.ts";
+import { seal, sealing, unseal } from "../src/lib/seal.ts";
+import { pain001, sepaAmount, sepaText } from "../src/lib/sepa.ts";
+import * as settings from "../src/lib/settings.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, tom } from "./support/members.ts";
+import { get as fetchAs } from "./support/server.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -29,7 +29,7 @@ const cat: Record<string, string> = {};
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
   for (const r of await database.sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
 });
 after(async () => {
@@ -237,7 +237,7 @@ test("the file's route: accountants only, the XML as a download", async () => {
   await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban });
   await approved(hugo, "10");
   const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
-  const get = (who: typeof camille | null) => fileRoute(who ? withMember(new Request("http://tool.test/chest/pay/files/" + made.run.id), who) : new Request("http://tool.test/x"), { params: Promise.resolve({ id: made.run.id }) });
+  const get = (who: typeof camille | null) => fetchAs(who, "/chest/pay/files/" + made.run.id);
   const ok = await get(camille);
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("Content-Type"), "application/xml; charset=utf-8");
@@ -279,16 +279,16 @@ test("someone who left is never in a transfer file: paid on their final pay slip
     await approved(lea, "8");
     const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
     assert.deepEqual(made.skipped, [{ member: paul.id, reason: "left", leftAt: "2026-09-30T16:00:00.000Z" }]);
-    // The pages say since when (studio.15, FormerMember.leftAt), in each
+    // The pages say since when (members.leftAt, a studio proposal), in each
     // reader's language; the year only when it is not this one.
-    const who = await people([paul.id]);
+    const who = await people([paul.id], { leftAt: true });
     const en = catalogue("en"), fr = catalogue("fr");
-    assert.equal(leftNote(who.get(paul.id), "en", en.pay, new Date("2026-10-02T09:00:00Z")), "Left the company on 30 September: pay on their final pay slip, then “Mark paid” (not in the transfer file)");
-    assert.match(leftNote(who.get(paul.id), "fr", fr.approve, new Date("2026-10-02T09:00:00Z"))!, /^A quitté l’entreprise le 30 septembre\s:/u);
-    assert.match(leftNote(who.get(paul.id), "en", en.approve, new Date("2027-01-05T09:00:00Z"))!, /^Left the company on 30 September 2026:/u);
+    assert.equal(leftNote(who.get(paul.id), "en", en.pay, "Europe/Paris", new Date("2026-10-02T09:00:00Z")), "Left the company on 30 September: pay on their final pay slip, then “Mark paid” (not in the transfer file)");
+    assert.match(leftNote(who.get(paul.id), "fr", fr.approve, "Europe/Paris", new Date("2026-10-02T09:00:00Z"))!, /^A quitté l’entreprise le 30 septembre\s:/u);
+    assert.match(leftNote(who.get(paul.id), "en", en.approve, "Europe/Paris", new Date("2027-01-05T09:00:00Z"))!, /^Left the company on 30 September 2026:/u);
     // A Chest that does not say when: the sentence without the day.
-    assert.equal(leftNote({ ...who.get(paul.id)!, leftAt: null }, "en", en.pay), en.pay.left);
-    assert.equal(leftNote((await people([lea.id])).get(lea.id), "en", en.pay), null);
+    assert.equal(leftNote({ ...who.get(paul.id)!, leftAt: null }, "en", en.pay, "Europe/Paris"), en.pay.left);
+    assert.equal(leftNote((await people([lea.id])).get(lea.id), "en", en.pay, "Europe/Paris"), null);
     // Paid by hand ("Mark paid") once his final pay slip did it.
     await expenses.markPaid(sql, asMember(camille), [p], today());
   } finally {

@@ -1,22 +1,26 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import * as expenses from "../lib/expenses.ts";
-import * as cards from "../lib/cards.ts";
-import * as settings from "../lib/settings.ts";
-import * as tell from "../lib/tell.ts";
+import { atLeast } from "@argentic/chest-app/testing";
+import * as expenses from "../src/lib/expenses.ts";
+import * as cards from "../src/lib/cards.ts";
+import * as settings from "../src/lib/settings.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, lea } from "./support/members.ts";
 import { upload } from "./support/receipts.ts";
+import { deliver, server } from "./support/server.ts";
+
+atLeast(3);
 
 let database: TestDatabase;
 let chest: FakeChest;
 let meals = "";
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, schedules: [{ name: "reminder", cron: "0 9 25 * *" }, { name: "cleanup", cron: "40 3 * * *" }] });
+  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, network: {}, chest: { publicUrl: null } });
+  await server();
   meals = String((await database.sql`select id from categories where key = 'meals'`)[0]!["id"]);
 });
 after(async () => {
@@ -30,19 +34,19 @@ test("on the 25th, everyone with drafts is reminded, in their language, once", a
   await expenses.saveExpense(sql, asMember(hugo), null, { spentOn: "2026-09-11", amount: "8,50", categoryId: meals });
   const sent = (await expenses.saveExpense(sql, asMember(lea), null, { spentOn: "2026-09-11", amount: "3", categoryId: meals })).expense;
   await expenses.submit(sql, asMember(lea), [sent.id], async () => true);
-  assert.equal(await chest.run("reminder", POST), 204);
+  assert.equal(await chest.run("reminder", deliver), 204);
   assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body, n.key]), [[hugo.id, "Send your expenses before the end of the month", "2 drafts · €20.50", "reminder"]]);
   // By email too: Hugo his drafts; Camille, the accountant, Léa's expense
   // waiting for her; in each one's language (Camille reads French).
   assert.deepEqual(chest.outbox.map(m => [m.to[0], m.subject]).sort(), [["camille@atelier.test", "1 dépense attend votre validation"], ["hugo@atelier.test", "Send your expenses before the end of the month"]]);
   assert.match(chest.outbox.find(m => m.to[0] === "hugo@atelier.test")!.text, /2 drafts · €20\.50/u);
-  assert.equal(await chest.run("reminder", POST), 204);
+  assert.equal(await chest.run("reminder", deliver), 204);
   assert.equal(chest.notifications.length, 1);
   assert.equal(chest.outbox.length, 2);
   // Turned off by the accountant: nothing.
   await settings.updateSettings(sql, asMember(camille), { reminder: false });
   chest.notifications.length = 0;
-  assert.equal(await chest.run("reminder", POST), 204);
+  assert.equal(await chest.run("reminder", deliver), 204);
   assert.equal(chest.notifications.length, 0);
 });
 
@@ -55,11 +59,13 @@ test("every night, unused uploads after a day and deleted drafts after a week go
   const gone = (await expenses.saveExpense(sql, asMember(hugo), null, { spentOn: "2026-09-10", amount: "4", categoryId: meals }, receipt)).expense;
   await expenses.remove(sql, asMember(hugo), gone.id);
   await sql`update expenses set deleted_at = now() - interval '8 days' where id = ${gone.id}`;
-  assert.equal(await chest.run("cleanup", POST), 204);
+  assert.equal(await chest.run("cleanup", deliver), 204);
   assert.ok(!chest.files.has(old.object) && chest.files.has(fresh.object));
   assert.ok(!chest.files.has(receipt.object));
   assert.equal((await sql`select 1 from expenses where id = ${gone.id}`).length, 0);
-  assert.equal(await POST(new Request("http://tool.test/chest-jobs/reminder", { method: "POST" })).then(r => r.status), 401);
+  // Not signed by the Chest: refused; a schedule without a handler: 404.
+  assert.equal(await deliver(new Request("https://expenses-chest.chest.test/chest-schedules", { method: "POST", body: "{}" })).then(r => r.status), 401);
+  assert.equal(await chest.run("nothing", deliver), 404);
 });
 
 test("email beside the bell: expenses sent to approve, a card payment's receipt; once each", async () => {
