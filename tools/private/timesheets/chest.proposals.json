@@ -9,12 +9,6 @@
   "receives": [
     "quotes.invoiced"
   ],
-  "schedules": [
-    {
-      "name": "friday",
-      "cron": "30 15 * * 5"
-    }
-  ],
   "translations": {
     "fr": {
       "title": "Temps",

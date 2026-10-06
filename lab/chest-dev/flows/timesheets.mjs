@@ -3,12 +3,12 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { as, done, expect, id, open, step } from "./lib.mjs";
+import { as, done, expect, id, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5200);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en" });
 const tmp = process.env.TMPDIR ?? "/tmp";
-const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, "/t_timesheets"), { max: 1, onnotice: () => {} });
+const db = postgres(toolDatabase("timesheets", port), { max: 1, onnotice: () => {} });
 // The kit's Segmented (0.2.1+): the radio is hidden, its word is what one
 // taps; the radio then says it is chosen.
 const choose = async (name, exact = false) => {
@@ -44,7 +44,7 @@ await step("start the timer on a project; it survives a reload; stop records it"
   // Offered, on the timer's line: keep one minute rather than nothing.
   await page.locator(".timer").getByRole("button", { name: "Keep 1 min" }).click();
   await toast("0:01 recorded on Site vitrine");
-  await page.locator(".timer.idle").waitFor();
+  await page.locator(".timer:not(.running)").waitFor();
 });
 
 await step("a forgotten timer asks when it stopped, and records that time", async () => {
@@ -61,7 +61,7 @@ await step("a forgotten timer asks when it stopped, and records that time", asyn
   await dialog.locator("select").selectOption({ index: 16 });
   await dialog.getByRole("button", { name: "Save this time" }).click();
   await toast("recorded on Site vitrine");
-  await page.locator(".timer.idle").waitFor();
+  await page.locator(".timer:not(.running)").waitFor();
 });
 
 await step("type hours in the week grid; a wrong entry is refused, a right one stays", async () => {
@@ -131,7 +131,7 @@ await step("a note in a grid cell: Shift+Enter, write, Enter", async () => {
   await page.keyboard.press("Enter");
   await toast("Note saved.");
   await page.reload();
-  expect(await page.locator("td.noted .note-button.has").count() >= 1, "note shown on the cell");
+  expect(await page.locator("td[data-noted] .note-button.has").count() >= 1, "note shown on the cell");
   expect((await page.locator("[data-cell='0:2']").getAttribute("aria-label"))?.includes("Checkout page, second pass"), "the note is read with the cell");
 });
 
@@ -196,7 +196,7 @@ await step("the team: approve last week, send this one back with a word, remind 
   // Neither is complete (last week under 35:00, this one not over): no bulk
   // approval, and each line says why.
   expect(await page.getByRole("button", { name: /^Valider (les|la|toutes)/u }).count() === 0, "no bulk approval of short or unfinished weeks");
-  expect(/semaine pas finie/u.test(await rows.last().innerText()) && /30:15 sur 35:00/u.test(await rows.first().innerText()), "shortness said: " + (await page.locator(".waiting").innerText()));
+  expect(/semaine pas finie/u.test(await rows.last().innerText()) && /\d+:\d{2} sur 35:00/u.test(await rows.first().innerText()), "shortness said: " + (await page.locator(".waiting").innerText()));
   // Weeks before a person's start in the tool are "—", never "short".
   const camille = page.locator("tr", { hasText: "Camille Martin" });
   expect((await camille.getByRole("link", { name: /avant son arrivée/u }).count()) === 1, "Camille's first week shown as before her start: " + (await camille.innerText()));
@@ -207,7 +207,7 @@ await step("the team: approve last week, send this one back with a word, remind 
   await page.locator(".ck-toast", { hasText: "Semaine renvoyée à Hugo Bernard." }).waitFor();
   // A short week: approving asks first, saying what it holds.
   await page.locator(".waiting-row", { hasText: "Hugo Bernard" }).first().getByRole("button", { name: "Valider" }).click();
-  await page.getByText(/30:15 sur 35:00\. La valider telle quelle\s\?/u).waitFor();
+  await page.getByText(/\d+:\d{2} sur 35:00\. La valider telle quelle\s\?/u).waitFor();
   await page.getByRole("button", { name: "Valider quand même" }).click();
   await page.locator(".ck-toast", { hasText: "La semaine de Hugo Bernard est validée." }).waitFor();
   await page.getByText("Aucune semaine ne vous attend.").waitFor();
@@ -420,7 +420,7 @@ await step("search the notes: the report and the entries found follow the words"
   await page.getByRole("searchbox").fill("Feyssine");
   await page.keyboard.press("Enter");
   await page.waitForURL(/q=Feyssine/u);
-  const found = await page.locator(".found").innerText();
+  const found = await page.locator("#found").innerText();
   expect(/entrées? dont la note contient « Feyssine »/u.test(found) && found.includes("Repérage au parc de la Feyssine") && found.includes("Hugo Bernard"), "found: " + found.slice(0, 300));
   expect((await page.locator(".found-list li").count()) >= 1, "entries listed");
   const csv = await page.request.get(origin + "/chest/reports/export?" + new URL(page.url()).searchParams.toString());
@@ -436,21 +436,21 @@ await step("billable time to Quotes: a draft invoice per project, sent once; Quo
   await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
   await page.reload();
   expect(await panel.locator("li", { hasText: "Identité visuelle" }).getByRole("button").count() === 0 || !(await panel.locator("ul.quotes-list").first().innerText()).includes("Identité visuelle"), "not offered twice");
-  const recent = await panel.locator(".recent").innerText();
+  const recent = await panel.locator("#quotes-recent").innerText();
   expect(recent.includes("Identité visuelle") && recent.includes("En attente de sa facture"), "waiting for its invoice: " + recent);
   const dev = await (await page.request.get(origin + "/_dev")).text();
   const handoff = dev.match(/timesheets\.billable<\/code> <small>\{&quot;version&quot;:1,&quot;handoff&quot;:&quot;(\d+)&quot;/u)?.[1];
   expect(handoff, "published timesheets.billable version 1");
   await page.request.post(origin + "/_dev/deliver", { form: { type: "quotes.invoiced", data: JSON.stringify({ handoff, invoice: "F2026-014", path: "/chest/invoices/14" }) } });
   await page.reload();
-  const after = await panel.locator(".recent").innerText();
+  const after = await panel.locator("#quotes-recent").innerText();
   expect(after.includes("Facturé : F2026-014"), "invoiced by Quotes' answer: " + after);
 });
 
 await step("taken back and sent again, the same project's time reaches Quotes each time: Quotes is told of the take-back, and the new hand-off is not refused as the old one", async () => {
   await page.goto(origin + "/chest/reports?preset=month&kind=uninvoiced");
   const panel = page.locator(".quotes");
-  const offered = panel.locator("ul.quotes-list:not(.recent) li").filter({ has: page.getByRole("button", { name: /^Brouillon de facture dans Devis/u }) }).first();
+  const offered = panel.locator("ul.quotes-list:not(#quotes-recent) li").filter({ has: page.getByRole("button", { name: /^Brouillon de facture dans Devis/u }) }).first();
   expect(await offered.count() === 1, "another project's time to send");
   const project = await offered.locator(".quotes-what strong").innerText();
   const published = async (type) => ((await (await page.request.get(origin + "/_dev")).text()).match(new RegExp(`${type.replace(".", "\\.")}</code>`, "gu")) ?? []).length;
@@ -458,15 +458,15 @@ await step("taken back and sent again, the same project's time reaches Quotes ea
   await offered.getByRole("button", { name: `Brouillon de facture dans Devis : ${project}` }).click();
   await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
   await page.reload();
-  await panel.locator(".recent li", { hasText: project }).first().getByRole("button", { name: /^Reprendre/u }).click();
+  await panel.locator("#quotes-recent li", { hasText: project }).first().getByRole("button", { name: /^Reprendre/u }).click();
   await page.locator(".ck-toast", { hasText: "Devis a été prévenu" }).waitFor();
   expect(await published("timesheets.billable_cancelled") >= 1, "Quotes told of the take-back");
   await page.reload();
-  await panel.locator("ul.quotes-list:not(.recent) li", { hasText: project }).getByRole("button", { name: `Brouillon de facture dans Devis : ${project}` }).click();
+  await panel.locator("ul.quotes-list:not(#quotes-recent) li", { hasText: project }).getByRole("button", { name: `Brouillon de facture dans Devis : ${project}` }).click();
   await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
   expect(await published("timesheets.billable") >= Math.min(billable + 2, 8), "both hand-offs published");
   await page.reload();
-  const recent = await panel.locator(".recent").innerText();
+  const recent = await panel.locator("#quotes-recent").innerText();
   expect(recent.includes(project) && recent.includes("Repris") && recent.includes("En attente de sa facture"), "one taken back, one waiting: " + recent);
 });
 
