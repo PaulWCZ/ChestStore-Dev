@@ -1,37 +1,17 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "tasks",
   "title": "Tasks",
   "description": "Plan the team's work in boards, give tasks to people, see what is late.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": [
-    "manager",
-    "member",
-    "viewer"
+  "roles": ["manager", "member", "viewer"],
+  "role_labels": {"manager": "Manager", "member": "Member", "viewer": "Viewer"},
+  "capabilities": ["database", "files", "members", "notifications"],
+  "receives": ["member.*"],
+  "schedules": [
+    {"name": "morning", "cron": "30 7 * * 1-5"},
+    {"name": "mail", "cron": "*/15 * * * *"}
   ],
-  "role_labels": {
-    "manager": "Manager",
-    "member": "Member",
-    "viewer": "Viewer"
-  },
-  "capabilities": [
-    "database",
-    "files",
-    "members",
-    "notifications"
-  ],
-  "receives": [
-    "member.*"
-  ],
-  "build": {
-    "runtime": "node",
-    "install": "npm ci",
-    "command": "npm run build",
-    "start": "npm start",
-    "port": 3000,
-    "static": [
-      "/_next/static/"
-    ]
-  }
+  "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
 }

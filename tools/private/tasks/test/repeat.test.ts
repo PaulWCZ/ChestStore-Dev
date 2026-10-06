@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { today } from "../lib/model.ts";
-import { addDays, firstDue, nextDue, occurs, parseRepeat, suggest, weekday } from "../lib/repeat.ts";
+import { AppError } from "../src/core/tool.ts";
+import { today } from "../src/shared/model.ts";
+import { addDays, firstDue, nextDue, occurs, parseRepeat, suggest, weekday } from "../src/shared/repeat.ts";
 
 // The rules of a repeating card, alone: what a page may send, the day the
 // next one is due, month ends and summer time.
