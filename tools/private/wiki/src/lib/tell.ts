@@ -1,22 +1,21 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import type { Run } from "@argentic/chest-sdk/schedules";
 import { spaceAccess, type SpaceAudience } from "./access.ts";
 import { purgeRemoved, commenters, type Comment } from "./comments.ts";
 import type { Query, Sql } from "./db.ts";
 import { format } from "../i18n/index.ts";
-import { email } from "./mail.ts";
 import { cut, notify, withdraw } from "./notify.ts";
 import { dueUntold, markTold } from "./reviews.ts";
-import { membersOfTool, withAllGroups } from "./groups.ts";
+import { membersOfTool } from "./groups.ts";
 import { concerns, pending, type ReadAsk } from "./reads.ts";
 import { audienceOf } from "./spaces.ts";
 import { watchers } from "./watching.ts";
 
-// What the wiki tells people through the Chest's bell, each in their own
-// language. Every item is keyed by its page and its reason, so a new one
+// What the wiki tells people through the Chest's notifications, each in
+// their own language (one notice with its translations). The wiki never
+// emails anyone: the Chest emails members their notifications as each one
+// chose (every one, once or twice a day, or off). Every item is keyed by its page and its reason, so a new one
 // replaces the last one instead of piling up:
 //
 // - comments:<page> — a new comment, to the page's author, those who
@@ -40,7 +39,7 @@ export async function audience(space: SpaceAudience, ids: Iterable<string>, need
   if (wanted.length === 0) return [];
   try {
     const found = await members.lookup(wanted);
-    return (await withAllGroups(found.members)).filter(m => {
+    return found.members.filter(m => {
       const access = spaceAccess(m, space);
       return needed === "write" ? access === "write" : access !== "none";
     }).map(m => m.id);
@@ -123,35 +122,24 @@ export async function askedToRead(space: SpaceAudience, ask: ReadAsk, all?: Memb
 }
 
 // A page to read and confirm: each person asked is told (not the one
-// asking), in the bell and by email; asked again, the item is replaced
-// (and a new email says so: the key holds the version and the moment).
+// asking); asked again, the item is replaced.
 export async function readAsked(actor: Member, page: { id: string; title: string; space: SpaceAudience }, ask: ReadAsk): Promise<number> {
   const asked = (await askedToRead(page.space, ask)).filter(m => m.id !== actor.id);
   const told = asked.map(m => m.id);
   await notify(told, t => ({ title: format(t.bell.read, { name: actor.name, title: cut(page.title, 44) }), body: t.bell.readBody }), { path: pagePath(page.id), key: `read:${page.id}` });
-  await email(asked, t => ({
-    letter: { subject: format(t.bell.read, { name: actor.name, title: cut(page.title, 120) }), lines: [format(t.mail.readLine, { name: actor.name }), "", page.title, "", t.bell.readBody] },
-    path: pagePath(page.id),
-    why: t.mail.whyRead,
-  }), person => `read:${page.id}:${ask.version}:${Math.floor(ask.at.getTime() / 1000)}:${person.id}`);
   return told.length;
 }
 
 // A reminder to those asked who have not confirmed the current version:
 // by an editor ("Remind those who have not"), or by the weekday schedule a
-// week after the ask (twice at most). The bell item comes back to the top
-// and an email goes, once a day at most per person.
-export async function remindReaders(sql: Query, page: { id: string; title: string; space: SpaceAudience }, ask: ReadAsk, day: string): Promise<number> {
+// week after the ask (twice at most). The item comes back to the top,
+// unread (the Chest emails it to those who chose so).
+export async function remindReaders(sql: Query, page: { id: string; title: string; space: SpaceAudience }, ask: ReadAsk): Promise<number> {
   const all = await askedToRead(page.space, ask);
   const waiting = await pending(sql, page.id, ask, all.map(m => m.id));
   const people = all.filter(m => waiting.includes(m.id));
   if (people.length === 0) return 0;
   await notify(people.map(m => m.id), t => ({ title: format(t.bell.remind, { title: cut(page.title, 50) }), body: t.bell.readBody }), { path: pagePath(page.id), key: `read:${page.id}` });
-  await email(people, t => ({
-    letter: { subject: format(t.bell.remind, { title: cut(page.title, 120) }), lines: [t.mail.remindLine, "", page.title, "", t.bell.readBody] },
-    path: pagePath(page.id),
-    why: t.mail.whyRead,
-  }), person => `remind:${page.id}:${day}:${person.id}`);
   await sql`update pages set read_reminded_at = now(), read_reminders = read_reminders + 1 where id = ${page.id}`;
   return people.length;
 }
@@ -209,10 +197,8 @@ export async function moved(sql: Query, pageId: string, spaceId: string): Promis
 // the last person who saved it. A page nobody can be told about waits for
 // the next morning. Idempotent: an item already sent is never sent again
 // (review_told), and a run delivered twice replaces the same key.
-export async function reviews(sql: Sql, run?: Run): Promise<{ told: number; reminded: number }> {
+export async function reviews(sql: Sql): Promise<{ told: number; reminded: number }> {
   await purgeRemoved(sql);
-  // The Chest's day (a run at 00:30 in Paris is not yesterday's, as in UTC).
-  const day = chest.today(run ? new Date(run.scheduledAt) : new Date());
   let count = 0;
   const spaces = new Map<string, SpaceAudience | null>();
   for (const due of await dueUntold(sql)) {
@@ -223,15 +209,6 @@ export async function reviews(sql: Sql, run?: Run): Promise<{ told: number; remi
     const to = due.owner && writers.has(due.owner) ? due.owner : writers.has(due.lastEditor) ? due.lastEditor : null;
     if (!to) continue;
     await notify([to], t => ({ title: format(t.bell.review, { title: cut(due.title, 50) }), body: t.bell.reviewBody }), { path: pagePath(due.id), key: `review:${due.id}` });
-    // By email too: the owner may not open the Chest for weeks.
-    const [person] = (await members.lookup([to]).catch(() => ({ members: [] }))).members;
-    if (person) {
-      await email([person], t => ({
-        letter: { subject: format(t.bell.review, { title: cut(due.title, 120) }), lines: [t.mail.reviewLine, "", due.title, "", t.bell.reviewBody] },
-        path: pagePath(due.id),
-        why: t.mail.whyReview,
-      }), p => `review:${due.id}:${day}:${p.id}`);
-    }
     await markTold(sql, due.id);
     count++;
   }
@@ -247,13 +224,13 @@ export async function reviews(sql: Sql, run?: Run): Promise<{ told: number; remi
     if (!spaces.has(String(a.space_id))) spaces.set(String(a.space_id), await audienceOf(sql, String(a.space_id)));
     const space = spaces.get(String(a.space_id));
     if (!space) continue;
-    reminded += await remindReaders(sql, { id: String(a.id), title: a.title, space }, { at: a.read_asked_at, by: a.read_asked_by, version: a.read_version, groups: a.read_groups ?? [] }, day);
+    reminded += await remindReaders(sql, { id: String(a.id), title: a.title, space }, { at: a.read_asked_at, by: a.read_asked_by, version: a.read_version, groups: a.read_groups ?? [] });
   }
   return { told: count, reminded };
 }
 
 // Someone moved between groups, or a group changed or went (Proposal
-// (studio) "groups"): whoever a page's confirmation no longer concerns
+// (studio) "members.groups"): whoever a page's confirmation no longer concerns
 // loses its item.
 export async function reconcileReads(sql: Query, only: { member?: string; group?: string } = {}): Promise<void> {
   const asked = await sql<{ id: string; space_id: string; read_asked_at: Date; read_asked_by: string | null; read_version: number; read_groups: string[] }[]>`

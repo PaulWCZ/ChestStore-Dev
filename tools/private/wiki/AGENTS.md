@@ -15,8 +15,8 @@ the studio's `app/`.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest (contract 0.4): roles `editor`, `reader`; `database`, `files`, `members`, `notifications`; `receives`; the `reviews` schedule (weekdays 07:40); `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposals of the studio's SDK: `mail` (send), `groups: read` and `receives: ["group.*"]`, the French tile |
-| `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, `complete: withGroups`, the look), the pages, files, downloads, the import's upload, the editor's beacon, `/chest-events`, `/chest-schedules` |
+| `chest.proposals.json` | Proposals of the studio's SDK: `capabilities: ["members.groups"]` and `receives: ["group.*"]`, the French tile (no `mail`: the wiki writes to nobody outside) |
+| `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, files, downloads, the import's upload, the editor's beacon, `/chest-events`, `/chest-schedules` |
 | `src/calls.ts` | What is not a page nor an action, as plain functions of a Request: `chestEvents`, `chestSchedules` (`reviews`), `leaveEditor` (the beacon), `importUpload`, `openFile`, the exports, `readsCsv` |
 | `src/actions.ts` | **Every mutation**, by name (`call("movePage", …)` from an island); thin: the rules are in `src/lib/`. Times the editor shows (a lock's, a draft's) are written here, in the member's zone |
 | `src/frame.tsx` | Around every page of /chest: the sidebar's tree (an island), `NoAccess` for a member without a role; what the layout's Trash tab depends on |
@@ -33,12 +33,11 @@ the studio's `app/`.
 | `src/lib/editing.ts` | The lock (taken, kept by `heartbeat`, given back by `leave` — the beacon — lapsing after `lockLeaseSeconds`), drafts, `publish` |
 | `src/lib/history.ts` | Versions, the comparison in words, restore |
 | `src/lib/search.ts`, `src/lib/synonyms.ts` | Full-text search (stems, compounds, typos, little words, synonyms, the relevance floor) and the words that mean the same |
-| `src/lib/mail.ts` | Email beside the bell (Proposal (studio) `mail`) |
 | `src/lib/files.ts` | Files of pages (records; the bytes are the Chest's; a name as the Chest gives it, with or without an extension) |
 | `src/lib/importer.ts`, `zip.ts`, `html.ts`, `docx.ts` | Imports (Markdown, Notion, Confluence, Google Docs, Word, HTML), never HTML kept |
 | `src/lib/export.ts`, `origin.ts` | Markdown, HTML and zip exports; the team host's address (`chest.tool.teamUrl`) |
 | `src/lib/comments.ts`, `watching.ts`, `templates.ts`, `reviews.ts`, `reads.ts`, `pins.ts` | Comments, watching, templates, review reminders, read and acknowledged, pins |
-| `src/lib/groups.ts` | Every group of the Chest and each person's groups (`withGroups`, `withAllGroups`), kept a minute, forgotten on `group.*` events |
+| `src/lib/groups.ts` | Every group of the Chest (kept a minute, forgotten on `group.*` events); a member's groups come with the member (`members.groups`) |
 | `src/lib/tell.ts`, `notify.ts` | **Everything the bell says**, each recipient checked against the space's access at that moment; the `reviews` schedule's work |
 | `src/lib/starter.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | The example handbook; leaving and erasure; names (former, no access, erased); the package's `db()` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `index.ts` (`catalogue`, `format`, `plural`, `formatDate`, `relative`, `moment`, `orList` — Intl objects made once per language and zone) |

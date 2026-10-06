@@ -43,8 +43,8 @@ export async function chestSchedules(request: Request): Promise<Response> {
   const sql = db();
   return new Response(null, {
     status: await schedules.handle(request, {
-      reviews: async run => {
-        const done = await reviews(sql, run);
+      reviews: async () => {
+        const done = await reviews(sql);
         log.info("reviews run", { told: done.told, reminded: done.reminded });
       },
     }, { seen: seen(sql) }),

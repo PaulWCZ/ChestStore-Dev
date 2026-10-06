@@ -460,8 +460,7 @@ export const en = {
     menu: "Ask readers to confirm",
     menuSeen: "Who has read it",
     title: "Ask readers to confirm",
-    intro: "Each person asked is told in the bell and by email, and sees “I have read it” on “{title}”. You will see who confirmed.",
-    introBell: "Each person asked is told in the bell, and sees “I have read it” on “{title}”. You will see who confirmed. (Your Chest is not sending email for now.)",
+    intro: "Each person asked gets a notification and sees “I have read it” on “{title}”. You will see who confirmed.",
     everyone: "Everyone who reads this space",
     groups: "Only some groups",
     submit: "Ask",
@@ -490,8 +489,7 @@ export const en = {
     since: "asked {date}",
     csv: { person: "Person", status: "Status", version: "Version read", at: "Confirmed at", page: "Page", asked: "Asked about version" },
     remind: "Remind those who have not confirmed",
-    reminded: { zero: "Everyone has confirmed: nobody to remind.", one: "1 person reminded, in the bell and by email.", other: "{count} people reminded, in the bell and by email." },
-    remindedBell: { zero: "Everyone has confirmed: nobody to remind.", one: "1 person reminded, in the bell.", other: "{count} people reminded, in the bell." },
+    reminded: { zero: "Everyone has confirmed: nobody to remind.", one: "1 person reminded.", other: "{count} people reminded." },
   },
   bell: {
     commented: "{name} commented on “{title}”",
@@ -506,16 +504,6 @@ export const en = {
   },
   // The kit's components (@argentic/chest-ui/components): their words, in
   // the kit's types (ToastWords, DialogWords, SearchWords, FileWords).
-  // Email beside the bell (lib/mail.ts): the lines of each letter.
-  mail: {
-    open: "Open it: {link}",
-    openChest: "Open it from your company’s Chest.",
-    readLine: "{name} asks you to read this page, then confirm you did:",
-    remindLine: "You have not confirmed yet that you read this page:",
-    reviewLine: "You asked to be reminded to check this page:",
-    whyRead: "You get this email because your company’s wiki asks you to confirm you read a page.",
-    whyReview: "You get this email because you set a review reminder on this page (its menu, “Review reminder”).",
-  },
   // Words that mean the same, for search (editors).
   synonyms: {
     title: "Words that mean the same",

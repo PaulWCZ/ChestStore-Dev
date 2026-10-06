@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestSchedules as jobs } from "../src/calls.ts";
 import { chestEvents as events } from "../src/calls.ts";
 import { normalize, plainText } from "../src/lib/doc.ts";
@@ -149,7 +149,7 @@ test("when due, the owner is told once by the morning run; 'Still correct' settl
   assert.deepEqual((await reviews.myReviews(sql, asMember(ines))).map(r => r.id), [p.id]);
   assert.deepEqual(await reviews.myReviews(sql, asMember(tom)), []);
   assert.equal(await chest.run("reviews", jobs), 204);
-  assert.deepEqual(chest.notifications.map(n => ({ member: n.member, title: n.title, key: n.key, path: n.path })), [
+  assert.deepEqual(chest.notifications.map(n => ({ member: n.member, title: shownTo(n, "fr").title, key: n.key, path: n.path })), [
     { member: ines.id, title: "À relire : « Fire drill »", key: `review:${p.id}`, path: `/chest/pages/${p.id}` },
   ]);
   // Told once: the next mornings add nothing.

@@ -8,7 +8,6 @@ import { pageStamp } from "./lib/pages.ts";
 import { locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
-import { withGroups } from "./lib/groups.ts";
 import { limits } from "./lib/model.ts";
 import { editPage } from "./pages/Edit.tsx";
 import { historyPage } from "./pages/History.tsx";
@@ -27,17 +26,14 @@ import { lookFor } from "./theme.ts";
 
 // The wiki's routes. createApp() already serves /assets/, the actions
 // (src/actions.ts), the look (/chest/look.css), the member of every /chest
-// request — with every group they are in, asked of the Chest once per
-// request and kept a minute (src/lib/groups.ts: the assertion names only
-// the groups that give the wiki, and a space may be kept to any) —,
-// /lang/<code>, the error pages, and answers 404 to anything else.
+// request — with every group they are in, as the Chest names them with
+// "members.groups" (src/lib/groups.ts) —, /lang/<code>, the error pages, and answers 404 to anything else.
 export const app = createApp({
   actions,
   islands,
   locales,
   words,
   layouts: { members: MembersLayout, public: PublicLayout },
-  complete: withGroups,
   // The look: the company's choice, else Library (src/theme.ts), served by
   // the package at /chest/look.css and /look.css.
   look: lookFor,

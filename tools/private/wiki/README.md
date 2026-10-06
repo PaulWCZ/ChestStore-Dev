@@ -144,16 +144,17 @@ intranet — on the company's own server, for no fee per seat.
   chose to.
 - **Read and acknowledged** (policies, the company's rules): *More → Ask
   readers to confirm*, everyone who reads the space or **any group of the
-  Chest** (with the `groups` proposal: Sales, the warehouse… even when the
-  wiki is open to all). Each is told in the bell **and by email** (the
-  `mail` proposal: one letter each, in their language, with the link), finds it under "Pages to read" on the home
+  Chest** (with the `members.groups` proposal: Sales, the warehouse… even
+  when the wiki is open to all). Each gets a **notification**, in their
+  language, with the link (the Chest emails it to those who chose so),
+  finds it under "Pages to read" on the home
   page, and sees "Please read this page, then confirm" with **I have read
   it**. The editors see *Who has read it*: how many confirmed the current
   version, each person (not yet, an older version, done) with the date,
   and **download it as a table** (CSV, for the company's records). After a
   change, *Ask again for the current version*; *Stop asking* keeps what
   was confirmed. **Reminders**: *Remind those who have not confirmed*
-  (bell and email, once a day at most per person), and by itself a week
+  (a notification again, once a day at most per person), and by itself a week
   after the ask (the `reviews` schedule, twice at most).
 - **Templates**: an editor marks a page "Use as a template"; *New page*
   then offers, in the same dialog, *Blank page* (chosen), the space's
@@ -161,8 +162,8 @@ intranet — on the company's own server, for no fee per seat.
   *Meeting notes*, *How-to*, *Decision record*. The template's content is
   copied once; changing it later changes only pages made after.
 - **Review reminders** (optional, quiet): *More → Review reminder*, every
-  3, 6 or 12 months. Whoever sets it is reminded, once, in the bell **and
-  by email** on the weekday morning it comes due (the `reviews` schedule); the page then asks
+  3, 6 or 12 months. Whoever sets it is reminded, once, with a
+  notification on the weekday morning it comes due (the `reviews` schedule); the page then asks
   its editors "Is this page still correct?" — *Still correct* settles it
   for months, *Update it* opens the editor. The home page lists "Pages to
   check". Saving the page does not count as a check.
@@ -335,7 +336,7 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`, on
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`, on
 the tool contract 0.4: `member.language` and `member.timeZone` (the
 interface in each member's language, times in their zone), `chest.today()`
 in the Chest's zone for the day of a reminder's key, **schedules**
@@ -358,23 +359,22 @@ Chest who lost the wiki is named "Léa Dubois (no access)"). Bell items need `no
 - **A live channel** (server-sent events or a presence API) — for real
   co-editing some day; today a lock and drafts stand in for it.
 - **Localized manifest titles**: `chest.json` has one `title`.
-- `groups` — **Proposal (studio)**, declared (`"groups": "read"`, as
-  News): `members.groups.all()` gives every group of the Chest, for "who
-  reads", "who edits" and "ask to confirm" (`src/lib/groups.ts`; without it,
-  the groups that give the wiki, as before). 0.3.0's `member.groups`
-  lists only the groups that give the wiki — none for a wiki open to
-  everyone —, so whether someone is in a group is asked of the Chest:
-  `members.groups.of(id)` for the person signed in, every group's members
-  for a list of people (one call per group), kept a minute and forgotten
-  on `member.updated` (groups) and `group.*`.
-- `mail` — **Proposal (studio)**, declared (`"mail": {"send": true}`, as
-  News, Tasks, Polls and Goals): read requests, reminders and review
-  reminders by email (`src/lib/mail.ts`). On a Chest without mail, nothing is
-  sent and nothing fails: the bell has told them. "Ask readers to confirm"
-  and "Remind those who have not confirmed" ask the Chest first
-  (`mail.available()`, studio.16; `mailNow`) and say "in the bell" only
-  when it would not send now (no mail, not connected, paused, the day's
-  emails used). Keys carry the member (`read:<page>:<version>:<at>:<member>`).
+- `members.groups` — **Proposal (studio)**, the name announced for 0.5,
+  declared (`"capabilities": ["members.groups"]` in `chest.proposals.json`,
+  as News): `members.groups.all()` gives every group of the Chest, for
+  "who reads", "who edits" and "ask to confirm" (`src/lib/groups.ts`;
+  without it, the groups that give the wiki, as before), and the Chest
+  names every group a member is in (`member(request).groups`,
+  `members.*`): a member's groups come with them. Someone who leaves a
+  group (`member.updated`) or a group changed or removed (`group.*`) takes
+  the pages to confirm that no longer concern them from their bell. Known
+  limit of the official 0.4.1: `member()` refuses an assertion with more
+  than 16 groups (lifted by 0.5).
+- **Notifications with `translations`** — Proposal (studio), announced
+  for 0.5: every notice is written once, in English with its French
+  translation, and the Chest shows each member theirs. The wiki **never
+  emails anyone**: the Chest emails members their notifications by their
+  own choice (every one, once or twice a day, or off; and off per tool).
 - **`access.granted` / `member.added` events**: someone who gets the wiki
   after a page asked for read confirmations is asked only when it is asked
   again.
@@ -442,6 +442,23 @@ node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
 node lab/chest-dev/audit.mjs tools/private/wiki --port 4300
 ```
 
+## Mail to people outside the company
+
+None. The wiki is for the team only: it writes to nobody outside the
+company, and it emails no member either (the Chest emails members their
+notifications, by their choice). It declares no `mail`.
+
+## What changed with the mail decisions of 6 October 2026
+
+- The emails of "Ask readers to confirm", of its reminders and of review
+  reminders are gone: each is a notification (one notice with its French
+  translation), which the Chest emails to those who chose so. The dialog
+  and the toast no longer say "in the bell and by email"; the `mail`
+  proposal is removed.
+- Groups use the capability `members.groups` (the earlier groups read
+  proposal is gone): a member's groups come with the member, no extra
+  question to the Chest.
+
 ## What it does not do (yet)
 
 - **Live co-editing** and cursors (needs a realtime channel from the Chest);
@@ -468,9 +485,6 @@ node lab/chest-dev/audit.mjs tools/private/wiki --port 4300
   expense page, not the English *Expense policy*). Stemming follows
   PostgreSQL's Snowball stemmers (a stem shared by unrelated words can
   match both).
-- **Emails** cannot be turned off per person (they are the company's
-  requests: read and confirm, check a page); comments and mentions stay
-  in the bell only.
 - **Imports**: Notion databases (CSV), Confluence's page history, comments
   and permissions (the pages as they are now, their images and files
   come), Word's comments, tracked changes (the accepted text comes),

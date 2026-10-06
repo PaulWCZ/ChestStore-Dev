@@ -1,27 +1,39 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { catalogue, type Catalogue } from "../i18n/index.ts";
+import { catalogue, locales, type Catalogue } from "../i18n/index.ts";
 import { people } from "./people.ts";
 
-// Items in the Chest's bell, each written in its recipient's language. A
-// notification is a courtesy: when the Chest cannot take it (not granted,
-// quota, unreachable), the action that sent it still succeeds.
-export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
+// Items in the Chest's bell. A notice is written once in every language
+// the wiki speaks — English the fallback, the others as its translations
+// (Proposal (studio), announced for 0.5) — and the Chest shows each member
+// theirs. The Chest emails members their notifications by each member's
+// choice: the wiki never emails anyone. A notification is a courtesy: when
+// the Chest cannot take it (not granted, quota, unreachable), the action
+// that sent it still succeeds.
+export type Words = (t: Catalogue, locale: Locale) => { title: string; body?: string };
+
+// notice: the words in English, with the other languages as translations.
+export function notice(message: Words, options: { path: string; key?: string }): notifications.Notice {
+  const shaped = (locale: Locale) => {
+    const { title, body } = message(catalogue(locale), locale);
+    return { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}) };
+  };
+  const translations = Object.fromEntries(locales.filter(l => l !== "en").map(l => [l, shaped(l)]));
+  return { ...shaped("en"), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
+}
+
+// notify: those of these members who still have the wiki hear of it (the
+// Chest takes 500 recipients a call).
+export async function notify(recipients: Iterable<string>, message: Words, options: { path: string; key?: string }): Promise<void> {
   const ids = [...new Set(recipients)];
   if (ids.length === 0) return;
-  const byLocale = new Map<Locale, string[]>();
-  for (const person of (await people(ids)).values()) {
-    if (person.status !== "member") continue;
-    byLocale.set(person.locale, [...(byLocale.get(person.locale) ?? []), person.id]);
-  }
-  for (const [locale, group] of byLocale) {
-    const { title, body } = message(catalogue(locale), locale);
-    try {
-      await notifications.notify(group, { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}), path: options.path, ...(options.key ? { key: options.key } : {}) });
-    } catch (error) {
-      if (!(error instanceof ChestError)) throw error;
-    }
+  const current = [...(await people(ids)).values()].filter(p => p.status === "member").map(p => p.id);
+  const value = notice(message, options);
+  try {
+    for (let i = 0; i < current.length; i += 500) await notifications.notify(current.slice(i, i + 500), value);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
   }
 }
 

@@ -4,7 +4,6 @@ import { Back, Download } from "../components/icons.tsx";
 import { format, formatDate, localeOf, relative } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
 import { AppError } from "../lib/errors.ts";
-import { mailNow } from "../lib/mail.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { report } from "../lib/reads.ts";
 
@@ -25,7 +24,6 @@ export async function readsPage({ member, locale: language, t, param }: PageCont
   const who = await people([...rows.map(r => r.memberId), ...(ask.by ? [ask.by] : [])]);
   const now = new Date();
   const done = rows.filter(r => r.current).length;
-  const mail = await mailNow();
   return { title: format(t.reads.reportTitle, { title: page.title }), body: (
     <div className="page narrow reads">
       <a className="back" href={`/chest/pages/${page.id}`}><Back />{t.reads.back}</a>
@@ -34,7 +32,7 @@ export async function readsPage({ member, locale: language, t, param }: PageCont
       <p className="muted small">{format(t.reads.askedBy, { when: relative(ask.at, locale, now), name: ask.by === member.id ? t.people.you : nameOf(ask.by ? who.get(ask.by) : undefined, locale), version: ask.version })}</p>
       <div className="row-actions">
         <a className="button quiet" href={`/chest/pages/${page.id}/reads/csv`} download><Download />{t.reads.download}</a>
-        <Island name="ReadsActions" props={{ pageId: page.id, stale: ask.version < page.version, waiting: rows.length - done, locale, t: { again: t.reads.again, againDone: t.reads.againDone, stop: t.reads.stop, stopped: t.reads.stopped, remind: t.reads.remind, reminded: mail ? t.reads.reminded : t.reads.remindedBell } }} />
+        <Island name="ReadsActions" props={{ pageId: page.id, stale: ask.version < page.version, waiting: rows.length - done, locale, t: { again: t.reads.again, againDone: t.reads.againDone, stop: t.reads.stop, stopped: t.reads.stopped, remind: t.reads.remind, reminded: t.reads.reminded } }} />
       </div>
       <table className="reads-table">
         <thead>

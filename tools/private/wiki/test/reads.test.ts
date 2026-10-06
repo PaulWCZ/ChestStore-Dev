@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestEvents as POST } from "../src/calls.ts";
 import { normalize } from "../src/lib/doc.ts";
 import * as editing from "../src/lib/editing.ts";
@@ -52,7 +52,7 @@ test("editors ask everyone who reads the space; each is told once, confirms, and
   assert.equal(told, 4);
   assert.deepEqual(chest.notifications.map(n => n.member).sort(), [ines.id, tom.id, hugo.id, lea.id].sort());
   assert.ok(chest.notifications.every(n => n.key === `read:${p.id}`));
-  assert.ok(chest.notifications.find(n => n.member === lea.id)!.title.startsWith("Camille Martin vous demande de lire"));
+  assert.ok(shownTo(chest.notifications.find(n => n.member === lea.id)!, "fr").title.startsWith("Camille Martin vous demande de lire"));
   // Hugo sees it on his home page, confirms version 1; it leaves his home page and his bell.
   assert.deepEqual((await reads.toRead(sql, asMember(hugo))).map(r => r.id), [p.id]);
   assert.deepEqual(await reads.confirm(sql, asMember(hugo), p.id), { version: 1 });
