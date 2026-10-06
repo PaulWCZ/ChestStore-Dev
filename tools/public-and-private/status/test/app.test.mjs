@@ -54,7 +54,8 @@ test("the status page: the company's title, the visitor's language, the policy, 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-security-policy"), policy);
   assert.equal(response.headers.get("cache-control"), "public, max-age=30, stale-while-revalidate=30");
-  assert.equal(response.headers.get("vary"), "Accept-Language, Cookie");
+  // The package gzips the page: a shared cache keeps one copy per encoding too.
+  assert.equal(response.headers.get("vary"), "Accept-Language, Cookie, Accept-Encoding");
   const html = checkPage(await response.text());
   assert.match(html, /<html lang="fr">/u);
   assert.match(html, /<title>État des services — Atelier Martin<\/title>/u);

@@ -404,7 +404,7 @@ public page never shows who posted.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), a packed copy in
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), a packed copy in
 `vendor/`. The member's `language`, the Chest's `organization.name`,
 `timeZone`, `language` and `tool.publicUrl`, and the schedules are the
 released 0.4.1; the table lists what is not in it yet.
