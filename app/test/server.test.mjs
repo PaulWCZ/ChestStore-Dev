@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { action, createApp, fail, field, Island, page, publicAction, publicPage, redirect } from "../dist/index.js";
+import { action, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { db } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
@@ -11,7 +11,7 @@ import { checkPage, testDatabase } from "../dist/testing.js";
 const words = {
   kit,
   tool: { name: "Probe" },
-  pages: { notFound: { title: "Nothing here", body: "." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language" },
+  pages: { notFound: { title: "Nothing here", body: "." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language", back: "Back" },
   errors: { invalid: "Invalid.", empty: "Empty.", too_long: "Too long: {max} at most.", too_large: "Too large.", forbidden: "Forbidden.", not_found: "Not found.", unavailable: "Unavailable.", unknown: "Unknown." },
 };
 function Labelled({ label }) {
@@ -28,7 +28,11 @@ const actions = {
 const layout = ({ notice, children }) => h("main", { id: "main" }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
+  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }] }),
+  complete: async who => ({ ...who, groups: ["grp_completedcompletedcompleted"] }),
 });
+app.post("/p/:link/actions/:name", publicActionsAt());
+app.get("/chest/groups", page(({ member }) => ({ title: "Groups", body: h("p", null, member.groups.join(",")) })));
 app.get("/chest", page(({ t }) => ({ title: "Home", body: h("div", null, h(Island, { name: "Labelled", props: { label: "A" } }), h(Island, { name: "Labelled", props: { label: "B" } }), t.tool.name) })));
 app.get("/chest/day", page(async () => {
   const [{ day }] = await db()`select date '2026-10-05' as day`;
@@ -89,4 +93,20 @@ test("the language switch and the forms never send elsewhere", async () => {
 
 test("db(): a date column is a day as text", async () => {
   assert.match(await (await get("/chest/day")).text(), /string 2026-10-05/u);
+});
+
+test("options: a look served as a stylesheet with its hash, the member completed, public actions under a path", async () => {
+  const html = await (await get("/chest")).text();
+  const href = /href="(\/chest\/look\.css\?v=[^"]+)"/u.exec(html)?.[1];
+  assert.ok(href, "the look's link");
+  assert.match(html, /<meta name="theme-color" media="\(prefers-color-scheme: light\)" content="#ffffff"\/>/u);
+  const sheet = await get(href);
+  assert.equal(await sheet.text(), ":root{--ink:#111}");
+  assert.equal(sheet.headers.get("cache-control"), "private, max-age=31536000, immutable");
+  assert.equal((await get("/look.css", null)).headers.get("cache-control"), "private, no-cache");
+  assert.match(await (await get("/chest/groups")).text(), /grp_completedcompletedcompleted/u);
+  assert.equal((await json("/p/abc/actions/shout", { text: "x" })).status, 200);
+  assert.equal((await json("/p/abc/actions/echo", { text: "x" })).status, 404, "a members' action is not served there");
+  assert.match(await (await get("/chest/nothing")).text(), /href="\/chest">Back</u);
+  assert.doesNotMatch(await (await get("/nothing", null)).text(), />Back</u);
 });
