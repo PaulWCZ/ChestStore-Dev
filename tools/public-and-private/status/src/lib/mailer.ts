@@ -10,11 +10,15 @@ import { allComponents, inLocale } from "./components.ts";
 import { chestLanguage } from "./languages.ts";
 import { pick } from "./texts.ts";
 
-// Email to subscribers through the Chest's mail (Proposal (studio): the
-// "mail" capability, chest.proposals.json). On a Chest without mail,
-// nothing is sent, the tool remembers it and the public page offers the
-// feeds instead of the form. The words around the texts follow each
-// subscriber's language; the texts too, when the team wrote them in it.
+// Email to subscribers — people outside the company — through the Chest's
+// mail (Proposal (studio): the "mail" capability, chest.proposals.json),
+// which the Chest sends through the company's own mail provider. Replies
+// go to the company's reply address the owner set with that connector (the
+// SDK's default Reply-To): the emails say so, and nothing comes back to the
+// tool. On a Chest without mail, nothing is sent, the tool remembers it and
+// the public page offers the feeds instead of the form. The words around
+// the texts follow each subscriber's language; the texts too, when the team
+// wrote them in it.
 
 const wordsFor = (language: string): Catalogue => catalogue(isLocale(language) ? language : "en");
 export const subscriberLink = (origin: string, token: string) => `${origin}/s/${token}`;
@@ -37,12 +41,7 @@ async function send(sql: Query, message: mail.Message): Promise<Outcome> {
 }
 
 // The first email of a subscription: the link that confirms it — or, to an
-// address already confirmed, the link of its page. It is the answer to the
-// person's own request (they just typed their address in the form), so it
-// is transactional: an address that is also a member's, who chose "none"
-// or "digest" in their Chest, still gets the link now. Update emails are
-// not transactional: they honour that choice (the Chest holds them back
-// or puts them in its daily email), as every other notice does.
+// address already confirmed, the link of its page.
 export async function welcome(sql: Query, s: Subscriber, state: "new" | "pending" | "confirmed", origin: string): Promise<Outcome> {
   const t = wordsFor(s.language).mail;
   const name = company() || t.team;
@@ -55,7 +54,6 @@ export async function welcome(sql: Query, s: Subscriber, state: "new" | "pending
     text: format(confirmed ? t.alreadyBody : t.confirmBody, { company: name, link }),
     fromName: name,
     key: `welcome:${s.id}:${s.email.toLowerCase()}:${day}:${confirmed ? "c" : "p"}`,
-    transactional: true,
   });
 }
 

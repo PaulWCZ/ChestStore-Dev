@@ -1,28 +1,19 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { catalogue, type Catalogue } from "../i18n/index.ts";
-import { people } from "./people.ts";
+import { catalogue, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 
-// Items in the Chest's bell, each written in its recipient's language. A
-// notification is a courtesy: when the Chest cannot take it (not granted,
-// quota, unreachable), the action that sent it still succeeds.
-export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
-  const ids = [...new Set(recipients)];
-  if (ids.length === 0) return;
-  const byLocale = new Map<Locale, string[]>();
-  for (const person of (await people(ids)).values()) {
-    if (person.status !== "member") continue;
-    byLocale.set(person.locale, [...(byLocale.get(person.locale) ?? []), person.id]);
-  }
-  for (const [locale, group] of byLocale) {
-    const { title, body } = message(catalogue(locale), locale);
-    try {
-      await notifications.notify(group, { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}), path: options.path, ...(options.key ? { key: options.key } : {}) });
-    } catch (error) {
-      if (!(error instanceof ChestError)) throw error;
-    }
-  }
+// A notice in every language the tool speaks, in one call (studio.5: a
+// notice's translations, announced for 0.5): English is its own title and
+// body (the fallback), the others go in translations; the Chest shows each
+// member their language. Bounded as the Chest bounds them (80, 280).
+export type Words = { title: string; body?: string };
+export function notice(words: (t: Catalogue, locale: Locale) => Words, options: { path: string; key?: string }): notifications.Notice {
+  const shaped = (locale: Locale): Words => {
+    const w = words(catalogue(locale), locale);
+    return { title: cut(w.title, 80), ...(w.body ? { body: cut(w.body, 280) } : {}) };
+  };
+  const translations = Object.fromEntries(locales.filter(l => l !== "en").map(l => [l, shaped(l)]));
+  return { ...shaped("en"), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
 }
 
 export async function withdraw(key: string, members?: string[]): Promise<void> {

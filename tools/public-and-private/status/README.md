@@ -138,18 +138,10 @@ minute, in plain words.
   same whether the address was known or not. Unconfirmed
   addresses are forgotten after 7 days. **Without mail on the Chest** the
   form disappears and `/subscribe` gives the RSS address instead.
-  **Which emails are transactional** (SDK studio.15: the Chest applies a
-  member's email choice — all, one a day, none — to every recipient who
-  is a member, unless the message is `transactional`): subscribers are
-  mostly customers, outside addresses the preference never touches; it
-  matters when an employee subscribes with their own work address. Decided
-  per email: the **confirmation link** (and "you are already subscribed",
-  with the link of their page) is transactional — it answers what the
-  person just asked for in the form, and without it nothing works. **Each
-  update's email** is not: it is a notice like any other, so a member who
-  chose "none" gets none and one who chose "one a day" finds it in the
-  Chest's daily email (the page, the feeds and the team's inbox still
-  say it at once). There is **no unsubscribe confirmation email**:
+  **Replies** to these emails go to the company's own inbox — the
+  reply address the owner set with the Chest's mail connector — and each
+  update's email says so ("A question? Reply to this email: it reaches
+  Atelier Martin."); nothing comes back into Status. There is **no unsubscribe confirmation email**:
   *Unsubscribe* is a page, which says it is done, and the address is
   deleted at once — writing to an address one has just been asked to
   forget would be the wrong way round. Each key names its recipient's
@@ -277,10 +269,14 @@ minute, in plain words.
   - **The other tools are told** (Proposal *events between tools*): see
     *With the other tools*.
   - **The team is told**: a new incident rings the bell of every editor,
-    each in their language (`notifications.broadcast`, Proposal; on a
-    Chest without it, the tool lists its editors and notifies each
-    language's group); its resolution replaces that item; the tile's
-    badge counts the open incidents.
+    in one call (`notifications.broadcast`, Proposal announced for 0.5),
+    each member reading it in their language (the notice's
+    `translations`); on a Chest without broadcast, the tool lists its
+    editors and notifies them with the same translated notice. Its
+    resolution replaces that item; the tile's badge counts the open
+    incidents. How each member is told beyond the bell (an email for each
+    notification, once or twice a day, or none) is the member's choice in
+    the Chest, not a setting of Status.
 - **Automatic checks** (Proposal *checks*): on *Checks*, an editor gives a
   service a web address (https), how often (1 to 60 minutes), the answer
   expected (HTTP status) and when it is too slow. Saving hands the whole
@@ -427,9 +423,27 @@ language and choices only; chat subscriptions' target id, the address as
 the Chest shows it (without its secret part), language and choices. The
 public page never shows who posted.
 
+## Mail to people outside the company
+
+Status mails only people outside the company who asked for it on the
+public page; it never mails a member (the team is told in the Chest's bell,
+above). Sent through the Chest's mail connector (studio proposal, not built
+yet): `mail.send`, declared as `"mail": {"send": true}` in
+`chest.proposals.json`.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| A visitor who typed their address in *Get updates* | Confirm the subscription (double opt-in) | Right after the form (three a day per address at most, ten minutes apart) | The company's name, the confirmation link (opens a page with *Confirm*), "ignore this email if it was not you"; in the visitor's language | None | The company's reply address (the connector's default) |
+| The same address, already confirmed | Say it already receives updates | When the form is sent again for it | The link of their own page (choose what to follow, *Unsubscribe*) | None | The company's reply address |
+| A confirmed subscriber | An update of an incident or a maintenance touching what they follow | At each update (the queue is sent right away, then every 15 minutes; it stops at the Chest's daily quota and goes on later) | The step and title, the text, the services affected, the time in the Chest's time zone, the incident's link, the link of their own page, "A question? Reply to this email: it reaches {company}." | None | The company's reply address |
+
+When the Chest cannot send (no mail, not connected, paused, the day's
+quota used), the public page hides the form and offers the feeds, and
+*Subscribers* says why; nothing is lost silently.
+
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), a packed copy in
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.5), a packed copy in
 `vendor/`. The member's `language`, the Chest's `organization.name`,
 `timeZone`, `language` and `tool.publicUrl`, and the schedules are the
 released 0.4.1; the table lists what is not in it yet.
@@ -437,7 +451,7 @@ released 0.4.1; the table lists what is not in it yet.
 | Proposal | Used for | Without it |
 |---|---|---|
 | `mail` | Confirmation and update emails; `mail.available()` (studio.16) before the form is offered and on *Subscribers* | The form is hidden; the page offers the feeds |
-| `notifications.broadcast` | The bell of every editor in one call | The tool pages through its members and notifies each language's group |
+| `notifications.broadcast`, a notice's `translations` | The bell of every editor in one call, each in their language | The tool pages through its members and notifies them (500 a call) |
 | `visitors` | The visitor's address (`Chest-Visitor-Address`, which the package's bound reads — never `X-Forwarded-For`, which the Chest does not set) | The browser's cookie names the visitor; one without it is counted in the day's totals only |
 | `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
 | `webhooks` | Updates delivered to Slack, Teams and web addresses (SDK report §4.17); `webhooks.available()` (studio.16) before the chat option is offered and on *Subscribers* ("3 of 200 addresses used", or paused by the Chest's owner) | "Or in Slack, Teams…" is not offered |

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { toApp as events, toApp as jobs } from "./support/app.ts";
 import { addComponent } from "../src/lib/components.ts";
 import * as incidents from "../src/lib/incidents.ts";
@@ -67,13 +67,13 @@ test("the 'updates' schedule posts a maintenance's start in the Chest's language
   assert.equal(m.updates[0]!.body, "La maintenance a commencé.");
 });
 
-test("the team hears of an incident in their language, only people with the role; its resolution replaces the item; badges count what is open", async () => {
+test("the team hears of an incident in their language (one notice, its translations), only people with the role; its resolution replaces the item; badges count what is open", async () => {
   const { sql } = database;
   chest.notifications.length = 0;
   await incidentOpened({ id: "41", title: "Payments fail" }, "major", ["Payments"]);
   const items = chest.notifications.filter(n => n.key === "incident:41");
   assert.deepEqual(items.map(n => n.member).sort(), [camille.id, lea.id, tom.id].sort());
-  assert.equal(items.find(n => n.member === camille.id)!.title, "Incident : Payments fail");
+  assert.equal(shownTo(items.find(n => n.member === camille.id)!, "fr").title, "Incident : Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.title, "Incident: Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.body, "Major outage — Payments");
   assert.equal(items[0]!.path, "/chest/incidents/41");

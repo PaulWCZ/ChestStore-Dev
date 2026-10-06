@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { toApp as POST } from "./support/app.ts";
 import { AppError } from "../src/lib/app-error.ts";
 import { checkName, listWatches, measured, purge, record, saveWatches, statuses, syncChest } from "../src/lib/checks.ts";
@@ -94,7 +94,7 @@ test("three failures in a row tell the editors once, in their language; answerin
   assert.deepEqual(items.map(n => n.member).sort(), [camille.id, lea.id, tom.id].sort(), "editors only, once");
   assert.equal(items.find(n => n.member === tom.id)!.title, "Website is not answering");
   assert.equal(items.find(n => n.member === tom.id)!.body, "Three checks in a row failed: no answer in time. Open an incident if customers are affected.");
-  assert.equal(items.find(n => n.member === camille.id)!.title, "Website ne répond plus");
+  assert.equal(shownTo(items.find(n => n.member === camille.id)!, "fr").title, "Website ne répond plus");
   assert.equal(items[0]!.path, `/chest#check-${website}`);
   const s = (await statuses(sql)).get(website)!;
   assert.equal(s.downSince!.toISOString(), at(0));

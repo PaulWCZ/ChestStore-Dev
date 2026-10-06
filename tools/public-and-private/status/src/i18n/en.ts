@@ -189,7 +189,7 @@ export const en = {
     alreadySubject: "You are subscribed to {company} status updates",
     alreadyBody: "Hello,\n\nThis address already receives {company}'s status updates.\n\nChange what you follow or unsubscribe here:\n{link}\n",
     updateSubject: "[{company}] {step}: {title}",
-    updateBody: "{step}: {title}\n\n{body}\n\n{affected}{when}\n\nFollow it: {incident}\n\n—\nYou receive this because you subscribed to {company} status updates.\nChange what you follow or unsubscribe: {manage}\n",
+    updateBody: "{step}: {title}\n\n{body}\n\n{affected}{when}\n\nFollow it: {incident}\n\n—\nYou receive this because you subscribed to {company} status updates.\nChange what you follow or unsubscribe: {manage}\nA question? Reply to this email: it reaches {company}.\n",
     affected: "Affects: {list}\n",
     when: "Posted {time} ({zone})",
     window: "Planned for {from} – {to} ({zone})",

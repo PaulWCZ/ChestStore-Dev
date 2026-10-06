@@ -139,29 +139,19 @@ test("emails: a confirmation in the visitor's language, then each update with it
   assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "sent once");
 });
 
-test("a member's email preference (studio.15): the confirmation link is transactional, update emails honour it", async () => {
+test("subscribers' emails go to the address they gave, replies to the company's address; the mail says where replies go", async () => {
   const { sql } = database;
-  // Nora subscribes with her own address; in her Chest she chose "none".
-  const quiet = { ...nora, language: "fr", timeZone: "UTC", email: "nora@atelier-martin.test", mailPreference: "none" as const };
-  chest.members.push(quiet);
-  chest.clearCaches();
-  try {
-    const r = await subs.subscribe(sql, { email: "nora@atelier-martin.test", language: "fr", components: "all" });
-    assert.equal(await welcome(sql, r.subscriber, r.state, "https://status.atelier-martin.test"), "sent");
-    assert.deepEqual(chest.outbox.at(-1)!.to, ["nora@atelier-martin.test"], "the answer to her own request goes whatever she chose");
-    assert.equal(chest.held.length, 0);
-    await subs.confirm(sql, r.subscriber.token);
-    const sent = chest.outbox.length;
-    await incidents.openIncident(sql, editor, { title: "Paiement en panne", status: "investigating", body: "Nous cherchons.", states: { [checkout]: "major" } });
-    assert.deepEqual(await flush(sql), { sent: 1, stopped: null }, "handed to the Chest, which holds it");
-    assert.equal(chest.outbox.length, sent, "an update is not sent to someone who chose no email");
-    assert.deepEqual(chest.held.map(h => [h.member, h.reason]), [[nora.id, "none"]]);
-    assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "and never retried");
-  } finally {
-    chest.members.splice(chest.members.indexOf(quiet), 1);
-    chest.held.length = 0;
-    chest.clearCaches();
-  }
+  const r = await subs.subscribe(sql, { email: "nora@atelier-martin.test", language: "fr", components: "all" });
+  assert.equal(await welcome(sql, r.subscriber, r.state, "https://status.atelier-martin.test"), "sent");
+  assert.deepEqual(chest.outbox.at(-1)!.to, ["nora@atelier-martin.test"]);
+  assert.equal(chest.outbox.at(-1)!.replyTo, "contact@atelier-martin.test", "the connector's reply address: the company's inbox");
+  await subs.confirm(sql, r.subscriber.token);
+  await incidents.openIncident(sql, editor, { title: "Paiement en panne", status: "investigating", body: "Nous cherchons.", states: { [checkout]: "major" } });
+  assert.deepEqual(await flush(sql), { sent: 1, stopped: null });
+  const update = chest.outbox.at(-1)!;
+  assert.equal(update.replyTo, "contact@atelier-martin.test");
+  assert.match(update.text, /Une question\u202f\? Répondez à cet e-mail\u202f: il arrive chez Atelier Martin\./u);
+  assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "never sent twice");
 });
 
 test("the Chest's daily quota stops the queue, which goes on later; a Chest without mail hides the form", async () => {

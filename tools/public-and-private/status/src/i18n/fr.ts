@@ -186,7 +186,7 @@ export const fr: Catalogue = {
     alreadySubject: "Vous êtes abonné aux alertes de {company}",
     alreadyBody: "Bonjour,\n\nCette adresse reçoit déjà les alertes sur l’état des services de {company}.\n\nChoisissez ce que vous suivez ou désabonnez-vous ici :\n{link}\n",
     updateSubject: "[{company}] {step} : {title}",
-    updateBody: "{step} : {title}\n\n{body}\n\n{affected}{when}\n\nSuivre l’incident : {incident}\n\n—\nVous recevez cet e-mail car vous êtes abonné aux alertes de {company}.\nChoisir ce que vous suivez ou vous désabonner : {manage}\n",
+    updateBody: "{step} : {title}\n\n{body}\n\n{affected}{when}\n\nSuivre l’incident : {incident}\n\n—\nVous recevez cet e-mail car vous êtes abonné aux alertes de {company}.\nChoisir ce que vous suivez ou vous désabonner : {manage}\nUne question ? Répondez à cet e-mail : il arrive chez {company}.\n",
     affected: "Concerne : {list}\n",
     when: "Publié {time} ({zone})",
     window: "Prévue {from} – {to} ({zone})",

@@ -1,12 +1,11 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { roles } from "./access.ts";
 import type { Query } from "./db.ts";
-import { catalogue, format, locales, type Catalogue } from "../i18n/index.ts";
+import { format, type Catalogue, type Locale } from "../i18n/index.ts";
 import { openCount } from "./incidents.ts";
-import { badges, cut } from "./notify.ts";
+import { badges, notice } from "./notify.ts";
 import { checkError } from "./check-words.ts";
 
 // What the team is told through the Chest: a new incident rings the bell
@@ -16,47 +15,41 @@ import { checkError } from "./check-words.ts";
 export const incidentPath = (incidentId: string) => `/chest/incidents/${incidentId}`;
 const key = (incidentId: string) => `incident:${incidentId}`;
 
-type Message = { title: string; body?: string };
-type Words = (t: Catalogue, locale: Locale) => Message;
+type Words = (t: Catalogue, locale: Locale) => { title: string; body?: string };
 
 // The team: everyone who has the tool with a role, page by page (500 at a
-// time, 20 pages at most).
-async function team(): Promise<{ id: string; locale: Locale }[]> {
-  const found: { id: string; locale: Locale }[] = [];
+// time, 20 pages at most) — only for the tile's number, and to notify them
+// on a Chest without broadcast.
+async function team(): Promise<string[]> {
+  const found: string[] = [];
   let after: string | null = null;
   for (let page = 0; page < 20; page++) {
     const answer: members.MemberPage = await members.list({ limit: 500, ...(after ? { after } : {}) });
-    found.push(...answer.members.filter(m => m.role !== null && (roles as readonly string[]).includes(m.role)).map(m => ({ id: m.id, locale: localeOf(m.language) })));
+    found.push(...answer.members.filter(m => m.role !== null && (roles as readonly string[]).includes(m.role)).map(m => m.id));
     if (!answer.next) break;
     after = answer.next;
   }
   return found;
 }
 
-// tellTeam uses notifications.broadcast (Proposal (studio)): one call, the
-// Chest picks each member's language. On a Chest without it, the tool lists
-// its team and notifies each language's group. A notification is a
-// courtesy: the incident is posted whatever happens here.
+// tellTeam uses notifications.broadcast (Proposal (studio), announced for
+// 0.5): one call to everyone with a role, each member reading the notice in
+// their language (its translations). On a Chest without it (or past its 30
+// broadcasts an hour), the tool lists its team and notifies them, 500 at a
+// time, with the same translated notice. A notification is a courtesy: the
+// incident is posted whatever happens here.
 async function tellTeam(words: Words, path: string, itemKey: string): Promise<"broadcast" | "notify" | "none"> {
-  const messages = Object.fromEntries(locales.map(l => {
-    const m = words(catalogue(l), l);
-    return [l, { title: cut(m.title, 80), ...(m.body ? { body: cut(m.body, 280) } : {}) }];
-  })) as { en: Message } & Partial<Record<Locale, Message>>;
+  const told = notice(words, { path, key: itemKey });
   try {
-    await notifications.broadcast({ messages, path, key: itemKey, to: { roles: [...roles] } });
+    await notifications.broadcast(told, { to: { roles: [...roles] } });
     return "broadcast";
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }
   try {
-    const people = await team();
-    const byLocale = new Map<Locale, string[]>();
-    for (const p of people) byLocale.set(p.locale, [...(byLocale.get(p.locale) ?? []), p.id]);
-    for (const [locale, ids] of byLocale) {
-      const m = messages[locale] ?? messages.en;
-      for (let i = 0; i < ids.length; i += 500) await notifications.notify(ids.slice(i, i + 500), { ...m, path, key: itemKey });
-    }
-    return byLocale.size ? "notify" : "none";
+    const ids = await team();
+    for (let i = 0; i < ids.length; i += 500) await notifications.notify(ids.slice(i, i + 500), told);
+    return ids.length ? "notify" : "none";
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     return "none";
@@ -89,7 +82,7 @@ export async function refreshBadges(sql: Query): Promise<void> {
   const count = await openCount(sql);
   try {
     const people = await team();
-    await badges(new Map(people.map(p => [p.id, count])));
+    await badges(new Map(people.map(id => [id, count])));
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }
