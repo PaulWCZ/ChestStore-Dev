@@ -1,0 +1,1133 @@
+{
+ "tool": "crm",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/tools/private/crm",
+ "date": "2026-10-06T09:09:32.454Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "963a12b 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.72,
+   "five": 1.24,
+   "fifteen": 1.66
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 31.8,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 13,
+    "rssMiB": 603,
+    "command": "claude"
+   },
+   {
+    "cpu": 8,
+    "rssMiB": 49,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 4.5,
+    "rssMiB": 183,
+    "command": "chrome"
+   },
+   {
+    "cpu": 2.5,
+    "rssMiB": 110,
+    "command": "MainThread"
+   }
+  ],
+  "atEnd": {
+   "one": 1.45,
+   "five": 1.2,
+   "fifteen": 1.51
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 203,
+    "rssMiB": 1069,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 12.9,
+    "rssMiB": 606,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.9,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 1,
+    "rssMiB": 77,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.5,
+    "rssMiB": 56,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 10.7,
+  "apparentMiB": 10,
+  "files": 232
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 3654,
+  "peakRssMiB": 561.5,
+  "peakPssMiB": 516.6,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.67,
+   "five": 1.22,
+   "fifteen": 1.65
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 6920,
+  "peakRssMiB": 767.5,
+  "peakPssMiB": 722.5,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1383.9,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.69,
+   "max": 0.69
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 506.7,
+   "apparentMiB": 470.4,
+   "files": 11879
+  },
+  "pruned": {
+   "diskMiB": 445,
+   "apparentMiB": 412,
+   "files": 10782
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 137,
+   "signal": null,
+   "ms": 35983,
+   "peakRssMiB": 640,
+   "peakPssMiB": 539.1,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 512,
+    "failcnt": 0,
+    "oomKills": 1
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 1.72,
+    "max": 2.08
+   },
+   "tail": "\n> chest-crm@0.1.0 build\n> NEXT_TELEMETRY_DISABLED=1 next typegen && tsc -p tsconfig.json --noEmit && NEXT_TELEMETRY_DISABLED=1 next build --webpack\n\nGenerating route types...\n✓ Types generated successfully\n▲ Next.js 16.3.6 (webpack)\n✓ Running next.config.ts took 31ms\n- Experiments (use with caution):\n  · cpus: 1\n  ⨯ webpackBuildWorker\n  ✓ webpackMemoryOptimizations\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 18.8s\n  Skipping validation of types\n  Finished TypeScript config validation in 4ms ...\n  Collecting page data using 1 worker ...\n  Generating static pages using 1 worker (0/4) ...\n  Generating static pages using 1 worker (1/4) \r\n  Generating static pages using 1 worker (2/4) \r\n  Generating static pages using 1 worker (3/4) \r\n✓ Generating static pages using 1 worker (4/4) in 425ms\n  Finalizing page optimization ...\n  Collecting build traces ...\nKilled\n",
+   "fits": false
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 15928,
+   "peakRssMiB": 1121.2,
+   "peakPssMiB": 1037.2,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 1031,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 2.7,
+    "max": 2.93
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 5.8,
+  "apparentMiB": 4.9,
+  "files": 227,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 461.5
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/crm.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/deals",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/deals/1",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/contacts/1",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/companies/1",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/deals?view=list&status=any",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=durand",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/deals/4",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/team",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings/fields",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/companies",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/contacts/17",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings/forms",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/contacts/2",
+    "member": "ines",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 296.7,
+    "firstMs": 844.6,
+    "statuses": [
+     200
+    ],
+    "load": 2.85
+   },
+   {
+    "portMs": 297.3,
+    "firstMs": 717.7,
+    "statuses": [
+     200
+    ],
+    "load": 2.49
+   },
+   {
+    "portMs": 276,
+    "firstMs": 724.5,
+    "statuses": [
+     200
+    ],
+    "load": 2.16
+   },
+   {
+    "portMs": 281.2,
+    "firstMs": 694.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.83
+   },
+   {
+    "portMs": 271.4,
+    "firstMs": 672.9,
+    "statuses": [
+     200
+    ],
+    "load": 1.7
+   },
+   {
+    "portMs": 295,
+    "firstMs": 732.4,
+    "statuses": [
+     200
+    ],
+    "load": 1.59
+   },
+   {
+    "portMs": 348.5,
+    "firstMs": 792.4,
+    "statuses": [
+     200
+    ],
+    "load": 1.42
+   },
+   {
+    "portMs": 334.7,
+    "firstMs": 788.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.2
+   },
+   {
+    "portMs": 300,
+    "firstMs": 708.2,
+    "statuses": [
+     200
+    ],
+    "load": 1.02
+   },
+   {
+    "portMs": 304.8,
+    "firstMs": 732.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.93
+   }
+  ],
+  "port": {
+   "median": 297,
+   "min": 271.4,
+   "max": 348.5
+  },
+  "first200": {
+   "median": 728.3,
+   "min": 672.9,
+   "max": 844.6
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 244.7,
+     "pss": 168.1
+    },
+    "peakMiB": {
+     "rss": 268.6,
+     "pss": 191.9,
+     "cgroup": 139.9
+    },
+    "afterRequestsMiB": {
+     "rss": 268.6,
+     "pss": 191.9
+    },
+    "restMiB": {
+     "rss": 234.8,
+     "pss": 146.9,
+     "pssAnon": 100.2,
+     "pssFile": 46.7,
+     "cgroupAnon": 100.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 26.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 165.9,
+      "pssMiB": 119.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 92349,
+      "ms": 36
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 91204,
+      "ms": 48.4
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 94359,
+      "ms": 37.1
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 101464,
+      "ms": 37
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 111881,
+      "ms": 33.3
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 94515,
+      "ms": 37.7
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 32572,
+      "ms": 26.4
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 73598,
+      "ms": 35.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 72189,
+      "ms": 18.2
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 87123,
+      "ms": 16.6
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 60706,
+      "ms": 24.4
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 75387,
+      "ms": 17.3
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 98680,
+      "ms": 21.1
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 87543,
+      "ms": 17.4
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 63813,
+      "ms": 18.5
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 96355,
+      "ms": 23
+     }
+    ],
+    "load": {
+     "mean": 0.96,
+     "max": 1.15
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 247.1,
+     "pss": 170.5
+    },
+    "peakMiB": {
+     "rss": 272.1,
+     "pss": 195.5,
+     "cgroup": 143.5
+    },
+    "afterRequestsMiB": {
+     "rss": 272.1,
+     "pss": 195.5
+    },
+    "restMiB": {
+     "rss": 236.8,
+     "pss": 142.3,
+     "pssAnon": 102.3,
+     "pssFile": 40,
+     "cgroupAnon": 102.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 24.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 168,
+      "pssMiB": 118
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 92349,
+      "ms": 29.6
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 91204,
+      "ms": 35.1
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 94359,
+      "ms": 29.8
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 101464,
+      "ms": 28.7
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 111881,
+      "ms": 29.4
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 94515,
+      "ms": 23.2
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 32572,
+      "ms": 19
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 73598,
+      "ms": 30.6
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 72189,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 87123,
+      "ms": 15.2
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 60706,
+      "ms": 25.4
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 75328,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 98680,
+      "ms": 19.6
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 87543,
+      "ms": 17.1
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 63813,
+      "ms": 12.9
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 96355,
+      "ms": 17
+     }
+    ],
+    "load": {
+     "mean": 0.77,
+     "max": 0.81
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 245.8,
+     "pss": 151.3
+    },
+    "peakMiB": {
+     "rss": 270,
+     "pss": 175.5,
+     "cgroup": 141.4
+    },
+    "afterRequestsMiB": {
+     "rss": 270,
+     "pss": 175.5
+    },
+    "restMiB": {
+     "rss": 234.3,
+     "pss": 157.8,
+     "pssAnon": 99.8,
+     "pssFile": 58.1,
+     "cgroupAnon": 99.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 30.5
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 165.6,
+      "pssMiB": 127.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 92349,
+      "ms": 29.7
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 91204,
+      "ms": 34.8
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 94359,
+      "ms": 30.2
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 101464,
+      "ms": 37.6
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 111881,
+      "ms": 40.3
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 94515,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 32572,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 73598,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 72189,
+      "ms": 16.9
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 87123,
+      "ms": 17.1
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 60706,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 75387,
+      "ms": 14.4
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 98680,
+      "ms": 19.5
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 87543,
+      "ms": 17.1
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 63813,
+      "ms": 12.8
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 96355,
+      "ms": 17.1
+     }
+    ],
+    "load": {
+     "mean": 0.53,
+     "max": 0.64
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 248,
+     "pss": 171.4
+    },
+    "peakMiB": {
+     "rss": 271.7,
+     "pss": 195,
+     "cgroup": 143.3
+    },
+    "afterRequestsMiB": {
+     "rss": 271.7,
+     "pss": 195
+    },
+    "restMiB": {
+     "rss": 236.6,
+     "pss": 153.6,
+     "pssAnon": 102,
+     "pssFile": 51.6,
+     "cgroupAnon": 102,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.2,
+      "pssMiB": 28
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 167.5,
+      "pssMiB": 125.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 92349,
+      "ms": 29.6
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 91204,
+      "ms": 35.7
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 94359,
+      "ms": 31
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 101464,
+      "ms": 28.9
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 111881,
+      "ms": 30.2
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 94515,
+      "ms": 21.5
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 32572,
+      "ms": 26.2
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 73598,
+      "ms": 20.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 72189,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 87123,
+      "ms": 15.4
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 60706,
+      "ms": 29
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 75387,
+      "ms": 14.8
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 98680,
+      "ms": 20
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 87543,
+      "ms": 17
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 63813,
+      "ms": 13.3
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 96355,
+      "ms": 17.4
+     }
+    ],
+    "load": {
+     "mean": 0.5,
+     "max": 0.62
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 246,
+     "pss": 153.8
+    },
+    "peakMiB": {
+     "rss": 271.7,
+     "pss": 179.5,
+     "cgroup": 143.1
+    },
+    "afterRequestsMiB": {
+     "rss": 271.7,
+     "pss": 179.5
+    },
+    "restMiB": {
+     "rss": 238.1,
+     "pss": 148.8,
+     "pssAnon": 103.5,
+     "pssFile": 45.2,
+     "cgroupAnon": 103.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.5,
+      "pssMiB": 24.7
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 169.7,
+      "pssMiB": 123.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 92349,
+      "ms": 43.5
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 91204,
+      "ms": 36.5
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 94359,
+      "ms": 34.9
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 101464,
+      "ms": 32.9
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 111881,
+      "ms": 73
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 94515,
+      "ms": 24.3
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 32572,
+      "ms": 23.3
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 73598,
+      "ms": 22.9
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 72189,
+      "ms": 20.3
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 87123,
+      "ms": 19.8
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 60706,
+      "ms": 26.1
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 75387,
+      "ms": 15.5
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 98680,
+      "ms": 23.8
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 87543,
+      "ms": 25.3
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 63813,
+      "ms": 15.6
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 96355,
+      "ms": 24.7
+     }
+    ],
+    "load": {
+     "mean": 1.16,
+     "max": 1.29
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 236.6,
+    "min": 234.3,
+    "max": 238.1
+   },
+   "pss": {
+    "median": 148.8,
+    "min": 142.3,
+    "max": 157.8
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 271.7,
+    "min": 268.6,
+    "max": 272.1
+   },
+   "pss": {
+    "median": 191.9,
+    "min": 175.5,
+    "max": 195.5
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 169.4,
+    "min": 167.5,
+    "max": 171.6
+   },
+   "pss": {
+    "median": 124,
+    "min": 118.2,
+    "max": 127.4
+   }
+  }
+ }
+}
