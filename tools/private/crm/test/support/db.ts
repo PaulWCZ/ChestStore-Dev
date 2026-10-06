@@ -9,9 +9,9 @@ import type { Sql } from "../../src/lib/db.ts";
 // (src/lib/db.ts) opens its own pool to it, unchanged; the services take
 // this connection. Start fakeChest() first: the connection then runs in
 // the Chest's time zone, as db() does.
-export type TestDatabase = { sql: Sql; close(): Promise<void> };
+export type TestDatabase = { sql: Sql; kind: "server" | "preview" | "pglite"; close(): Promise<void> };
 
 export async function testDatabase(): Promise<TestDatabase> {
   const made = await packageDatabase({ extensions: ["unaccent", "pg_trgm"] });
-  return { sql: made.sql as unknown as Sql, close: () => made.close() };
+  return { sql: made.sql as unknown as Sql, kind: made.kind, close: () => made.close() };
 }

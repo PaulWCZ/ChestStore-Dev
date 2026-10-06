@@ -109,7 +109,16 @@ test("a deal: its amount as people write it, an ambiguous one asked again, a mov
   assert.deepEqual([ambiguous.status, ambiguous.error, ambiguous.message], [400, "amount_ambiguous", "Is it thousands or cents? Write 1250 or 1.25."]);
   const french = await call(camille, "addDeal", { title: "Ambigu", value: "1.234" });
   assert.equal(french.message, "Des milliers ou des centimes\u202f? Écrivez 1250 ou 1,25.");
-  assert.equal((await call(hugo, "addDeal", { title: "Negative", value: "-5" })).error, "invalid");
+  // The amount's own words for one it cannot read.
+  const negative = await call(hugo, "addDeal", { title: "Negative", value: "-5" });
+  assert.deepEqual([negative.error, negative.message], ["bad_amount", "Write an amount such as 12 500 or 12,500.50."]);
+  assert.equal((await call(hugo, "addDeal", { title: "Lots", value: "lots" })).error, "bad_amount");
+  // The currency set aside, "k" as thousands: what people type.
+  for (const [typed, cents] of [["€12 500", 1250000], ["12 500 €", 1250000], ["12500 EUR", 1250000], ["12k", 1200000], ["12,5k", 1250000]] as const) {
+    const r = await call(camille, "addDeal", { title: `Typed ${typed}`, value: typed });
+    assert.equal(r.ok, true, typed);
+    assert.equal(Number((await database.sql`select value_cents from deals where id = ${r.value.id}`)[0]!["value_cents"]), cents, typed);
+  }
   assert.equal((await call(hugo, "addDeal", { title: "", value: "5" })).error, "empty");
   // A viewer changes nothing; the refusal is in their words.
   const viewer = await call(lea, "addDeal", { title: "Not mine", value: "5" });
@@ -140,8 +149,17 @@ test("two deals dropped into one stage at once each get a place of their own", a
 
 test("lists as files: written as they are read, formulas defused, the reader's words; the whole book for a manager", async () => {
   await call(hugo, "addCompany", { name: "=HYPERLINK(\"http://x\")", website: "" });
+  await call(hugo, "addCompany", { name: "Phone Garage", phone: "+33 6 12 34 56 78" });
+  // The lists leave for managers and sales by default (Settings).
+  const viewer = await get(lea, "/chest/export/companies");
+  assert.equal(viewer.status, 403);
+  assert.doesNotMatch(await (await get(lea, "/chest/companies")).text(), /\/chest\/export\/companies/u, "no link to what would be refused");
+  const allowed = await app.fetch(withMember(new Request(url("/chest/actions/setExport"), { method: "POST", body: new URLSearchParams({ who: "everyone" }), headers: { "sec-fetch-site": "same-origin", referer: url("/chest/settings") } }), camille));
+  assert.equal(allowed.status, 303, "a plain form, without script");
   const csv = await get(lea, "/chest/export/companies?q=HYPERLINK");
   assert.equal(csv.status, 200);
+  const phone = await (await get(lea, "/chest/export/companies?q=Phone")).text();
+  assert.match(phone, /,\+33 6 12 34 56 78,/u, "a phone is no formula");
   assert.equal(csv.headers.get("content-type"), "text/csv; charset=utf-8");
   assert.match(csv.headers.get("content-disposition") ?? "", /^attachment; filename="companies-\d{4}-\d{2}-\d{2}\.csv"/u);
   assert.equal(csv.headers.get("cache-control"), "no-store");
@@ -208,10 +226,20 @@ test("an action a page answers: refused without the Chest's member, or from anot
   assert.equal((await database.sql`select count(*)::int as n from deals where title = 'x'`)[0]!["n"], 0);
 });
 
-test("a big client book still renders in time: 5,000 contacts, 500 deals", async () => {
+test("a big client book still renders in time: 5,000 contacts, 2,000 deals", async () => {
   const lead = await idOf("stages", "key", "lead");
+  const negotiation = await idOf("stages", "key", "negotiation");
   await database.sql`insert into contacts (name, email, owner, created_by) select 'Scale person ' || g, 'p' || g || '@scale.test', ${hugo.id}, ${hugo.id} from generate_series(1, 5000) g`;
-  await database.sql`insert into deals (title, value_cents, stage_id, position, owner, created_by) select 'Scale deal ' || g, g * 100, ${lead}, 'n' || lpad(g::text, 5, '0'), ${hugo.id}, ${hugo.id} from generate_series(1, 500) g`;
+  await database.sql`insert into deals (title, value_cents, stage_id, position, owner, created_by) select 'Scale deal ' || g, g * 100, case when g % 2 = 0 then ${lead}::bigint else ${negotiation}::bigint end, 'n' || lpad(g::text, 5, '0'), ${hugo.id}, ${hugo.id} from generate_series(1, 2000) g`;
+  // The board: each column's count is all its deals, its cards the first 100.
+  const board = await (await get(hugo, "/chest/deals")).text();
+  const props = JSON.parse(decode(/data-island="DealBoard"[^>]*data-props="([^"]*)"/u.exec(board)![1]!)) as { stages: { id: string; count: number; more: number }[]; deals: { stageId: string }[] };
+  const [expected] = await database.sql`select count(*)::int as n from deals where stage_id = ${negotiation}`;
+  const column = props.stages.find(s => s.id === negotiation)!;
+  assert.equal(column.count, expected!["n"]);
+  assert.equal(props.deals.filter(d => d.stageId === negotiation).length, 100);
+  assert.equal(column.more, column.count - 100);
+  assert.match(board, /more deals: see the list/u);
   for (const path of ["/chest/deals", "/chest/contacts", "/chest/contacts?page=40", "/chest/deals?view=list", "/chest", "/chest/team"]) {
     const started = performance.now();
     const response = await get(hugo, path);
@@ -229,15 +257,9 @@ test("a big client book still renders in time: 5,000 contacts, 500 deals", async
   assert.ok(csv.split("\r\n").length > 5000);
 });
 
-test("a refresh with nothing new is a 304, the page not rendered; any change gives a new version", async () => {
-  const first = await get(hugo, "/chest/deals");
-  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(await first.text())?.[1];
-  assert.ok(version);
-  const again = await app.fetch(withMember(new Request(url("/chest/deals"), { headers: { accept: "text/html", "x-tool-navigate": "1", "x-tool-version": version } }), hugo));
-  assert.equal(again.status, 304);
-  await call(hugo, "addCompany", { name: "Version Bump SA" });
-  const next = await get(hugo, "/chest/deals");
-  assert.notEqual(/<meta name="chest-version" content="([^"]+)"/u.exec(await next.text())?.[1], version);
+test("no page version for now: a refresh renders the page again (the package's change stamp will come)", async () => {
+  const page = await (await get(hugo, "/chest/deals")).text();
+  assert.doesNotMatch(page, /<meta name="chest-version"/u);
 });
 
 test("the static files: under /assets/ only, cached", async () => {

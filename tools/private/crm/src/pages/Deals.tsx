@@ -7,10 +7,11 @@ import { emptyDeal } from "../components/values.ts";
 import { formatDay, money, plural, localeOf } from "../i18n/index.ts";
 import { can, canEditDeal } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
-import { boardClosedDays, boardDeals, listDeals, type DealFilter } from "../lib/deals.ts";
+import { boardClosedDays, boardDeals, boardTotals, listDeals, type DealFilter } from "../lib/deals.ts";
 import { fieldFilterOf } from "../lib/fields.ts";
 import { currency, dealFormProps, dueLabel, formChoices } from "../lib/page-data.ts";
 import { directory } from "../lib/people.ts";
+import { exportSetting, mayExport } from "../lib/settings.ts";
 import { today } from "../lib/zone.ts";
 import { Pager } from "./parts.tsx";
 import { words } from "./words.ts";
@@ -36,7 +37,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
   const now = today();
   const cur = currency();
   const choices = await formChoices(sql, member, t);
-  const newDeal = { initial: emptyDeal(member.id, choices.openStages[0]?.id ?? ""), ...dealFormProps(choices, member.id), t: words.deal(t) };
+  const newDeal = { initial: emptyDeal(member.id, choices.openStages[0]?.id ?? ""), ...dealFormProps(choices, member.id, locale), t: words.deal(t) };
   const kept: Record<string, string> = Object.fromEntries(Object.entries({ owner, stage: String(filter.stage ?? ""), closing: filter.closing ?? "", status: one("status"), q: String(filter.q ?? ""), cf: one("cf"), cv: one("cv"), cmin: one("cmin"), cmax: one("cmax") }).filter(([, x]) => x !== ""));
   const href = (extra: Record<string, string>) => {
     const p = new URLSearchParams(Object.entries({ ...kept, ...extra }).filter(([, x]) => x !== ""));
@@ -65,9 +66,18 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
 
   if (view === "board") {
     const deals = boardList;
-    const people = await directory(deals.map(d => d.owner), locale);
+    const [people, totals] = await Promise.all([directory(deals.map(d => d.owner), locale), boardTotals(sql, member, { owner })]);
     const year = now.slice(0, 4);
-    const stages = choices.stages.map(s => ({ id: s.id, name: choices.stageNames[s.id]!, kind: s.kind, probability: s.probability, total: money(deals.filter(d => d.stageId === s.id).reduce((n, d) => n + d.value, 0), locale, { currency: cur }) }));
+    const shown = new Map<string, number>();
+    for (const d of deals) shown.set(d.stageId, (shown.get(d.stageId) ?? 0) + 1);
+    // Each column's count and total are the database's (all its deals, in
+    // each currency), whatever the cards shown.
+    const stages = choices.stages.map(s => {
+      const all = totals.find(x => x.stageId === s.id) ?? { count: 0, totals: [] };
+      const total = all.totals.length === 0 ? money(0, locale, { currency: cur }) : all.totals.map(x => money(x.value, locale, { currency: x.currency })).join(" · ");
+      const list = `/chest/deals?${new URLSearchParams({ view: "list", stage: s.id, status: s.kind === "open" ? "open" : s.kind, ...(owner ? { owner } : {}) }).toString()}`;
+      return { id: s.id, name: choices.stageNames[s.id]!, kind: s.kind, probability: s.probability, count: all.count, totals: all.totals, total, more: Math.max(0, all.count - (shown.get(s.id) ?? 0)), list };
+    });
     const cards: BoardDeal[] = deals.map(d => {
       const step = d.step;
       const state = !step ? "none" : step.due < now ? "late" : step.due === now ? "today" : "planned";
@@ -75,7 +85,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
         id: d.id, title: d.title, stageId: d.stageId, value: d.value, valueText: money(d.value, locale, { currency: d.currency }),
         company: d.company?.name ?? null, closeLabel: d.expectedClose ? formatDay(d.expectedClose, locale, { day: "numeric", month: "short" }, year) : null,
         owner: d.owner, open: d.closedAt === null, state, stateLabel: state === "none" ? t.deals.noStep : state === "late" ? t.deals.stepLate : state === "today" ? t.deals.stepToday : step!.text,
-        editable: canEditDeal(member, d),
+        editable: canEditDeal(member, d), currency: d.currency,
       };
     });
     return {
@@ -139,7 +149,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
         <Island name="DealList" id="deal-list" props={{
           rows: list, writes, team: choices.team, me: member.id, canAssign: choices.canAssign, locale, labels: t.table, t: words.owner(t),
           words: { caption: t.deals.title, select: t.common.bulk.selectColumn, selectOne: t.common.bulk.select, title: t.deals.listTitle, company: t.deals.listCompany, value: t.deals.listValue, stage: t.deals.listStage, probability: t.deals.listProbability, close: t.deals.listClose, owner: t.deals.listOwner, step: t.deals.listStep },
-          summary: { text: `${plural(t.deals.count, total, locale)} · ${money(value, locale, { currency: cur })}`, exportHref: `/chest/export/deals${exportQuery ? "?" + exportQuery : ""}`, exportLabel: t.common.exportCsv },
+          summary: { text: `${plural(t.deals.count, total, locale)} · ${money(value, locale, { currency: cur })}`, exportHref: mayExport(member, await exportSetting(sql)) ? `/chest/export/deals${exportQuery ? "?" + exportQuery : ""}` : null, exportLabel: t.common.exportCsv },
         }} />
         {rows.length === 0 && (
           <EmptyState

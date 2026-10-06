@@ -6,6 +6,7 @@ import { db } from "../lib/db.ts";
 import { fieldsByObject } from "../lib/fields.ts";
 import { formLinesToCheck } from "../lib/leads.ts";
 import { answerLink, stageWords } from "../lib/page-data.ts";
+import { exportChoices, exportSetting } from "../lib/settings.ts";
 import { words } from "./words.ts";
 
 // The parts of the settings (managers): the stages of the pipeline, the
@@ -26,6 +27,7 @@ export async function settingsPage({ member, locale: lang, t }: PageContext): Pr
   const locale = localeOf(lang);
   const sql = db();
   const { stages, names } = await stageWords(sql, t);
+  const exports = await exportSetting(sql);
   const counts = new Map((await sql<{ stage_id: string; n: number }[]>`select stage_id, count(*)::int as n from deals group by stage_id`).map(r => [String(r.stage_id), r.n]));
   return {
     title: t.settings.title,
@@ -41,6 +43,20 @@ export async function settingsPage({ member, locale: lang, t }: PageContext): Pr
         {can(member, "stages") ? (
           <Island name="StagesEditor" props={{ stages: stages.map(s => ({ id: s.id, kind: s.kind, name: s.name ?? "", shown: names[s.id]!, standard: s.key ? t.stages[s.key] : null, probability: s.probability, deals: counts.get(s.id) ?? 0 })), locale, t: words.settings(t) }} />
         ) : <p className="notice">{t.settings.readOnly}</p>}
+        <section className="panel exports-setting" aria-labelledby="exports-title">
+          <h2 id="exports-title" className="label-mono">{t.settings.exports.title}</h2>
+          <p className="small-text muted">{t.settings.exports.body}</p>
+          {can(member, "stages") ? (
+            // A plain form: it works before (and without) the page's script.
+            <form method="post" action="/chest/actions/setExport" className="row">
+              <label className="visually-hidden" htmlFor="export-who">{t.settings.exports.title}</label>
+              <select id="export-who" name="who" className="field" defaultValue={exports}>
+                {exportChoices.map(c => <option key={c} value={c}>{t.settings.exports.choices[c]}</option>)}
+              </select>
+              <button type="submit" className="button small">{t.settings.exports.save}</button>
+            </form>
+          ) : <p>{t.settings.exports.choices[exports]} <span className="muted small-text">{t.settings.exports.readOnly}</span></p>}
+        </section>
       </div>
     ),
   };

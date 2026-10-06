@@ -9,7 +9,7 @@ import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { clean, day, id, limits, monthOf, optionalId, owner as ownerOf, type Stage } from "../shared/model.ts";
 import { chestZone, today } from "./zone.ts";
-import { between, sequence } from "../shared/position.ts";
+import { between, isPosition, sequence } from "../shared/position.ts";
 import { listStages, stage as stageOf } from "./stages.ts";
 import { stepColumns, toStep, type Step } from "./steps.ts";
 import { checkAssignable } from "./team.ts";
@@ -75,17 +75,46 @@ function reader(actor: Member | null): void {
 // How long closed deals stay on the board.
 export const boardClosedDays = 30;
 
+// How many cards a column of the board shows at most: past it, the column
+// says how many more there are and opens the list (a board of thousands of
+// cards is too heavy to read or to drag on).
+export const boardCap = 100;
+
+// The board's filter: everyone's deals, mine, nobody's, or someone's.
+const boardWhere = (sql: Query, actor: Member, owner: OwnerFilter) => sql`
+  ${ownerClause(sql, "d.owner", owner, actor)}
+  and (s.kind = 'open' or d.closed_at > now() - make_interval(days => ${boardClosedDays}))`;
+
 // boardDeals: every open deal, and those won or lost in the last 30 days,
-// in their stage's order.
+// in their stage's order — the first boardCap of each stage.
 export async function boardDeals(sql: Sql, actor: Member | null, filter: { owner?: OwnerFilter } = {}): Promise<Deal[]> {
   reader(actor);
   const rows = await sql<Row[]>`
-    select ${columns(sql)} from ${from(sql)}
-    where ${ownerClause(sql, "d.owner", filter.owner ?? "", actor!)}
-      and (s.kind = 'open' or d.closed_at > now() - make_interval(days => ${boardClosedDays}))
-    order by d.position, d.id
-    limit 2000`;
+    select * from (
+      select ${columns(sql)}, row_number() over (partition by d.stage_id order by d.position, d.id) as rank
+      from ${from(sql)} where ${boardWhere(sql, actor!, filter.owner ?? "")}
+    ) x where x.rank <= ${boardCap}
+    order by x.position, x.id`;
   return rows.map(toDeal);
+}
+
+// Each column of the board in full, counted by the database (never from
+// the cards shown): its deals and its total in each currency.
+export type StageTotal = { stageId: string; count: number; totals: { currency: string; value: number }[] };
+export async function boardTotals(sql: Sql, actor: Member | null, filter: { owner?: OwnerFilter } = {}): Promise<StageTotal[]> {
+  reader(actor);
+  const rows = await sql<{ stage_id: string; currency: string; n: number; value: string }[]>`
+    select d.stage_id, d.currency, count(*)::int as n, coalesce(sum(d.value_cents), 0)::text as value
+    from ${from(sql)} where ${boardWhere(sql, actor!, filter.owner ?? "")}
+    group by d.stage_id, d.currency order by d.stage_id, d.currency`;
+  const by = new Map<string, StageTotal>();
+  for (const r of rows) {
+    const t = by.get(String(r.stage_id)) ?? { stageId: String(r.stage_id), count: 0, totals: [] };
+    t.count += r.n;
+    t.totals.push({ currency: r.currency, value: Number(r.value) });
+    by.set(t.stageId, t);
+  }
+  return [...by.values()];
 }
 
 export type DealFilter = { owner?: OwnerFilter; stage?: unknown; closing?: "month" | ""; status?: "open" | "won" | "lost" | ""; q?: unknown; company?: unknown; contact?: unknown; field?: FieldFilter };
@@ -185,8 +214,15 @@ async function respace(tx: Query, stageId: string, except: string): Promise<void
 
 // top puts a deal first in its stage (the stage locked: lockStage).
 async function top(sql: Query, stageId: string): Promise<string> {
-  const [first] = await sql<{ position: string }[]>`select position from deals where stage_id = ${stageId} order by position limit 1`;
-  return between(null, first?.position ?? null);
+  const first = async () => (await sql<{ position: string }[]>`select position from deals where stage_id = ${stageId} order by position limit 1`)[0]?.position ?? null;
+  let key = between(null, await first());
+  // Keys grow as deals keep going first: past a few dozen characters, the
+  // stage's keys are written again, short.
+  if (!isPosition(key)) {
+    await respace(sql, stageId, "0");
+    key = between(null, await first());
+  }
+  return key;
 }
 
 export async function addDeal(sql: Sql, actor: Member | null, input: { title: unknown; company?: unknown; contact?: unknown; value?: unknown; stage?: unknown; expectedClose?: unknown; owner?: unknown; custom?: unknown }): Promise<Deal> {
@@ -260,14 +296,19 @@ export async function setOwner(sql: Sql, actor: Member | null, dealId: unknown, 
 // or null at an end). Entering Won or Lost closes it, with the reason said;
 // leaving them opens it again. The history keeps each change of stage.
 export async function moveDeal(sql: Sql, actor: Member | null, dealId: unknown, stageId: unknown, afterId: unknown = null, beforeId: unknown = null, reason: unknown = undefined): Promise<{ deal: Deal; from: Stage; to: Stage }> {
-  const d = await editable(sql, actor, dealId);
   const to = await stageOf(sql, stageId);
-  const fromStage = await stageOf(sql, d.stageId);
   const why = reason === undefined ? null : clean(reason, limits.reason, { optional: true });
-  const closing = to.kind !== "open" && fromStage.kind === "open";
-  const reopening = to.kind === "open" && fromStage.kind !== "open";
-  const anchor = { dealId: d.id, companyId: d.company?.id ?? null, contactId: d.contact?.id ?? null };
-  await sql.begin(async tx => {
+  const moved = await sql.begin(async tx => {
+    // The deal read with its row locked: two moves of one deal at once
+    // (Won here, Lost in another tab) go one after the other, the second
+    // from where the first left it — never both recorded from the old stage.
+    await tx`select id from deals where id = ${id(dealId)} for update`;
+    const d = await deal(tx, actor, dealId);
+    if (!canEditDeal(actor, d)) throw new AppError("forbidden");
+    const fromStage = await stageOf(tx, d.stageId);
+    const closing = to.kind !== "open" && fromStage.kind === "open";
+    const reopening = to.kind === "open" && fromStage.kind !== "open";
+    const anchor = { dealId: d.id, companyId: d.company?.id ?? null, contactId: d.contact?.id ?? null };
     // The stage's positions read and written with its row locked.
     await lockStage(tx, to.id);
     const neighbour = async (value: unknown): Promise<string | null> => {
@@ -295,18 +336,27 @@ export async function moveDeal(sql: Sql, actor: Member | null, dealId: unknown, 
       await respace(tx, to.id, d.id);
       ({ low, high } = await place());
     }
-    const position = between(low, high);
+    let position = between(low, high);
+    // Keys grow when deals keep landing between the same two: past a few
+    // dozen characters, the stage's keys are written again, short.
+    if (!isPosition(position)) {
+      await respace(tx, to.id, d.id);
+      ({ low, high } = await place());
+      position = between(low, high);
+    }
     await tx`
       update deals set stage_id = ${to.id}, position = ${position}, updated_at = now(),
         closed_at = ${to.kind === "open" ? null : closing || to.kind !== fromStage.kind ? tx`now()` : tx`closed_at`},
         reason = ${to.kind === "open" ? "" : why ?? (to.kind === fromStage.kind ? d.reason : "")}
       where id = ${d.id}`;
-    if (to.id === fromStage.id) return;
-    if (to.kind === "won" || to.kind === "lost") await record(tx, to.kind, actor!.id, anchor, why ?? "", { from: fromStage.id, to: to.id, value: d.value });
-    else if (reopening) await record(tx, "reopened", actor!.id, anchor, "", { from: fromStage.id, to: to.id });
-    else await record(tx, "stage", actor!.id, anchor, "", { from: fromStage.id, to: to.id });
+    if (to.id !== fromStage.id) {
+      if (to.kind === "won" || to.kind === "lost") await record(tx, to.kind, actor!.id, anchor, why ?? "", { from: fromStage.id, to: to.id, value: d.value });
+      else if (reopening) await record(tx, "reopened", actor!.id, anchor, "", { from: fromStage.id, to: to.id });
+      else await record(tx, "stage", actor!.id, anchor, "", { from: fromStage.id, to: to.id });
+    }
+    return { deal: await deal(tx, actor, d.id), from: fromStage };
   });
-  return { deal: await deal(sql, actor, d.id), from: fromStage, to };
+  return { ...moved, to };
 }
 
 // deleteDeal deletes it for good with its history (a deal that went

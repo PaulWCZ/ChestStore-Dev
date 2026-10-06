@@ -39,7 +39,8 @@ no import outside it. Read `README.md` first.
 | `src/app.tsx`, `src/pages/` | Routes and pages (server); `pages/words.ts` picks each island's words (`pick()`: never the whole catalogue in an island's props) |
 | `src/islands/`, `src/components/` | What runs in the browser: `combobox.tsx` + `pickers.tsx` search records as one types (the kit's keys, list classes and `useFloat`), `owner-select.tsx` the kit's PeoplePicker, `bulk.tsx`, `step-box.tsx`, `files-box.tsx`, `custom-fields.tsx`, `merge-dialog.tsx`; `board.tsx` the dnd-kit board (its `DndContext` takes a `useId()` id; Tasks' multi-container guard against React #185; the moving state recipe of the package's AGENTS.md) |
 | `src/lib/deliveries.ts` | `/chest-events` and `/chest-schedules` (signed routes of the Chest) |
-| `src/lib/version.ts`, `migrations/0007_book_version.sql` | The pages' version: a 304 to a refresh with nothing new |
+| `src/lib/settings.ts` | The team's settings (`settings` table): who may export lists (`checkExport`, `mayExport`) |
+| `migrations/0008_page_version_off.sql` | Drops the `book_version` counter (it could answer a stale 304); pages carry no version until the package's change stamp |
 | `test/` | `node:test` with `fakeChest`; PGlite or `TEST_DATABASE_URL` |
 
 - `src/lib/step-calendar.ts` — timed next steps in their owner's Chest

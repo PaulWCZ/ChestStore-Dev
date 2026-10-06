@@ -183,7 +183,7 @@ export async function myDayPage({ member, locale: lang, t }: PageContext): Promi
             <h1>{title}</h1>
             <p className="lede">{plural(t.home.summary, urgent, locale)}</p>
           </div>
-          {can(member, "deals.create") && <Island name="NewDealButton" props={{ label: t.home.newDeal, initial: emptyDeal(member.id, choices.openStages[0]?.id ?? ""), ...dealFormProps(choices, member.id), t: words.deal(t) }} />}
+          {can(member, "deals.create") && <Island name="NewDealButton" props={{ label: t.home.newDeal, initial: emptyDeal(member.id, choices.openStages[0]?.id ?? ""), ...dealFormProps(choices, member.id, locale), t: words.deal(t) }} />}
         </div>
         <div className="day-grid">
           <section aria-labelledby="steps-title" className="day-steps">

@@ -1,4 +1,4 @@
-import { action, after, fail, field, type Field, type MemberContext } from "@argentic/chest-app";
+import { action, after, AppError, fail, field, type Field, type MemberContext } from "@argentic/chest-app";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import { catalogue, localeOf } from "./i18n/index.ts";
@@ -16,6 +16,7 @@ import * as leads from "./lib/leads.ts";
 import { mergeCompanies, mergeContacts } from "./lib/merge.ts";
 import { lookalikes, type Lookalike } from "./lib/search.ts";
 import * as share from "./lib/share.ts";
+import { exportChoices, setExport } from "./lib/settings.ts";
 import * as stages from "./lib/stages.ts";
 import { publishStep, reconcile } from "./lib/step-calendar.ts";
 import * as steps from "./lib/steps.ts";
@@ -75,8 +76,28 @@ const calendars = () => after("calendars", () => reconcile(db()));
 
 const company = { name: optionalText(limits.name), website: optionalText(limits.website), phone: optionalText(limits.phone), email: optionalText(limits.email), address: optionalText(limits.address), postcode: optionalText(limits.postcode), city: optionalText(limits.city), country: optionalText(limits.country), siren: optionalText(30), vat: optionalText(30), industry: optionalText(limits.industry), notes: optionalText(limits.notes), tags: optionalText(400), owner, custom };
 const contact = { name: optionalText(limits.name), email: optionalText(limits.email), phone: optionalText(limits.phone), phone2: optionalText(limits.phone), url: optionalText(limits.url), title: optionalText(limits.title), company: field.nullable(id()), notes: optionalText(limits.notes), tags: optionalText(400), owner, custom };
-// A deal's amount as the person typed it ("12 500", "12,500.50"): cents.
-const deal = { title: optionalText(limits.dealTitle), company: field.nullable(id()), contact: field.nullable(id()), value: field.nullable(field.money({ max: limits.maxCents })), expectedClose: field.nullable(field.day()), custom };
+// A deal's amount as the person typed it, in cents: the package's
+// field.money ("12 500", "12,500.50", "1.234,50"; a lone "1,250" asks
+// thousands or cents?) after the currency is set aside — "€12 500",
+// "12 500 €", "12500 EUR" — and "k" read as thousands ("12k", "12,5k"). A
+// refusal says the Amount field's own words (bad_amount).
+const money = field.money({ max: limits.maxCents });
+const amount: Field<number, number | string> = {
+  read(value) {
+    if (typeof value !== "string") return money.read(value);
+    let text = value.normalize("NFKC").replace(/[€$£]|\beuros?\b|\b[a-z]{3}\b/giu, "").trim();
+    const thousands = /^(.*\d)\s*k$/iu.exec(text);
+    if (thousands) text = thousands[1]!;
+    try {
+      const cents = money.read(text) * (thousands ? 1000 : 1);
+      return cents <= limits.maxCents ? cents : fail("bad_amount");
+    } catch (error) {
+      if (error instanceof AppError && (error.code === "invalid" || error.code === "empty") && text !== "") fail("bad_amount");
+      throw error;
+    }
+  },
+};
+const deal = { title: optionalText(limits.dealTitle), company: field.nullable(id()), contact: field.nullable(id()), value: field.nullable(amount), expectedClose: field.nullable(field.day()), custom };
 const step = { text: text(limits.step), due: field.day(), time: field.nullable(field.text({ max: 5 })), owner };
 const listFilter = { q: optionalText(limits.query), owner: field.optional(field.text({ max: 40 })), tag: optionalText(limits.tag), stale: field.bool(), cf: field.optional(field.text({ max: 20 })), cv: optionalText(100), cmin: field.optional(field.text({ max: 30 })), cmax: field.optional(field.text({ max: 30 })) };
 const importOptions = { fileName: optionalText(limits.fileName), ownerFallback: field.optional(field.text({ max: 40 })), fillEmpty: field.bool() };
@@ -266,6 +287,10 @@ export const actions = {
     async ({ id, ...input }, { member }): Promise<null> => { await stages.updateStage(db(), member, id, defined(input)); return null; }),
   moveStage: action({ id: id(), direction: field.choice(["up", "down"]) }, async ({ id, direction }, { member }): Promise<null> => { await stages.moveStage(db(), member, id, direction); return null; }),
   removeStage: action({ id: id() }, async ({ id }, { member }): Promise<null> => { await stages.removeStage(db(), member, id); return null; }),
+
+  // ---- Who may download the lists (managers): a plain form of the
+  // settings page.
+  setExport: action({ who: field.choice(exportChoices) }, async ({ who }, { member }): Promise<null> => { await setExport(db(), member, who); return null; }),
 
   // ---- The team's own fields (managers).
   addField: action({ object: field.choice(["companies", "contacts", "deals"]), label: text(60), kind: field.choice(["text", "number", "date", "choice"]), options: optionalText(4000) },

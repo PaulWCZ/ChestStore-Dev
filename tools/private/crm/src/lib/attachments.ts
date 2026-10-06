@@ -7,7 +7,8 @@ import { clean, id, limits } from "../shared/model.ts";
 // Files on a deal, a company or a contact — a signed quote, a
 // specification, a purchase order. The bytes live in the Chest's files
 // (capability "files"): the member's browser sends them to the Chest
-// itself, the tool records what arrived (app/chest/api/files). Everyone who
+// itself, the tool records what arrived (the actions uploadFile and
+// attachFile, src/actions.ts). Everyone who
 // reads the record opens its files; whoever logs on it adds some; the one
 // who added a file, or a manager, removes it.
 

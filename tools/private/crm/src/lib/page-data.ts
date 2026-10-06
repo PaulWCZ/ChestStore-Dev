@@ -17,7 +17,7 @@ import { team } from "./team.ts";
 // What most pages hand to their views: the stages in the reader's words,
 // the team (owner pickers), the team's own fields, and what the forms need.
 // Companies and contacts are not listed here: the forms search them as one
-// types (app/chest/ui/pickers.tsx).
+// types (src/components/pickers.tsx).
 export async function stageWords(sql: Sql, t: Catalogue): Promise<{ stages: Stage[]; names: Record<string, string> }> {
   const stages = await listStages(sql);
   return { stages, names: Object.fromEntries(stages.map(s => [s.id, stageName(s, t.stages)])) };
@@ -40,8 +40,13 @@ export async function formChoices(sql: Sql, actor: Member, t: Catalogue) {
 // The props of "New deal" (DealDialog), from formChoices — its words
 // apart (src/pages/words.ts); `today` in the Chest's time zone, for its
 // date field.
-export function dealFormProps(choices: Awaited<ReturnType<typeof formChoices>>, me: string) {
-  return { fields: choices.fields.deals, stages: choices.openStages, team: choices.team, me, canAssign: choices.canAssign, canCreateCompany: choices.canCreateCompany, today: today() };
+export function dealFormProps(choices: Awaited<ReturnType<typeof formChoices>>, me: string, locale: Locale) {
+  return { fields: choices.fields.deals, stages: choices.openStages, team: choices.team, me, canAssign: choices.canAssign, canCreateCompany: choices.canCreateCompany, today: today(), currency: currencySymbol(locale) };
+}
+
+// The company's currency as the reader writes it ("€", "$", "CHF").
+export function currencySymbol(locale: Locale): string {
+  return numberFormat(locale, { style: "currency", currency: chest.currency }).formatToParts(0).find(p => p.type === "currency")?.value ?? chest.currency;
 }
 
 // A timeline as its view shows it: each item's time in words, written here,
