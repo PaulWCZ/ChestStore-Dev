@@ -140,4 +140,7 @@ test("the lists' version moves with what they show, and only then", async () => 
   await sql`update documents set deleted_at = now(), updated_at = now() where id = ${d.id}`;
   assert.notEqual(await listStamp(sql, today), withDraft, "a draft dropped");
   assert.notEqual(await listStamp(sql, "2099-01-01"), await listStamp(sql, today), "another day: what is overdue moves");
+  const still = await listStamp(sql, today);
+  await sql`delete from payments where id < 0`;
+  assert.equal(await listStamp(sql, today), still, "a statement that changes nothing does not move it");
 });

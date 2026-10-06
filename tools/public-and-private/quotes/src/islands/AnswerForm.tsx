@@ -57,7 +57,7 @@ export function AnswerForm({ secret, shown, terms, today, t, changes }: { secret
   ) : null;
   const hidden = (
     <>
-      <Honeypot />
+      <Honeypot action="answerQuote" />
       <input type="hidden" name="secret" value={secret} />
       <input type="hidden" name="shown" value={shown} />
       <input type="hidden" name="terms" value={terms} />

@@ -101,7 +101,9 @@ the tool.
   declared network host (`chest.json` `network`), plain `fetch`; tests
   answer it with `fakeChest({ network })`.
 - `src/lib/stamp.ts` — the desk's and lists' version (a refresh with
-  nothing new is a 304).
+  nothing new is a 304): the package's change stamp over
+  `migrations/0016_chest_changes.sql` — a new table the lists read gets
+  `select chest_watch('…')` in a new migration.
 - `src/lib/export.ts` — CSV and ZIP for the accountant.
 - `src/lib/lifecycle.ts`, `tell.ts`, `notify.ts`, `people.ts` — the Chest glue.
 - `migrations/0001_quotes.sql` — the schema **and the freezing triggers**;

@@ -172,7 +172,7 @@ test("the public part: the root says where to go; a quote's page in the visitor'
   assert.equal(page.status, 200);
   const html = await page.text();
   assert.match(html, /data-island="AnswerForm"/u);
-  assert.match(html, /<meta name="chest-form" content="[^"]+"/u);
+  assert.match(html, /data-action="answerQuote" name="chest_form" value="[^"]+"/u);
   assert.match(html, /<meta name="robots" content="noindex, nofollow"\/><meta name="description"/u);
   assert.match(html, /<meta name="referrer" content="same-origin"/u);
   assert.match(html, /Atelier Martin/u, "the company, never the Chest");
@@ -198,7 +198,7 @@ test("the quote's PDF for the link's holder: bounded, kept by its fingerprint, t
 test("the client answers: refused without a fresh form token, refused when the quote changed, accepted with Bon pour accord", async () => {
   const html = await (await get(null, `/q/${secret}`)).text();
   const shown = /&quot;shown&quot;:&quot;([0-9a-f]{64})&quot;/u.exec(html)[1];
-  const answer = (input, token = formToken(Date.now() - 10_000)) => call(null, "answerQuote", { secret, answer: "accepted", name: "Jeanne Roux", agree: true, reason: "", shown, terms: "", chest_form: token, ...input });
+  const answer = (input, token = formToken("answerQuote", Date.now() - 10_000)) => call(null, "answerQuote", { secret, answer: "accepted", name: "Jeanne Roux", agree: true, reason: "", shown, terms: "", chest_form: token, ...input });
   assert.equal((await (await answer({}, "nope")).json()).error, "expired");
   assert.equal((await (await answer({ shown: "0".repeat(64) })).json()).error, "changed");
   assert.equal((await (await answer({ agree: false })).json()).error, "must_agree");
@@ -215,7 +215,7 @@ test("the client answers: refused without a fresh form token, refused when the q
 });
 
 test("a plain form without JavaScript: the answer's page, or back with the refusal", async () => {
-  const request = new Request(publicHost + "/actions/answerQuote", { method: "POST", body: new URLSearchParams({ secret, answer: "accepted", name: "J", agree: "on", shown: "0".repeat(64), terms: "", chest_form: formToken(Date.now() - 10_000) }), headers: { "sec-fetch-site": "same-origin", referer: `${publicHost}/q/${secret}`, host: "quotes.chest.test" } });
+  const request = new Request(publicHost + "/actions/answerQuote", { method: "POST", body: new URLSearchParams({ secret, answer: "accepted", name: "J", agree: "on", shown: "0".repeat(64), terms: "", chest_form: formToken("answerQuote", Date.now() - 10_000) }), headers: { "sec-fetch-site": "same-origin", referer: `${publicHost}/q/${secret}`, host: "quotes.chest.test" } });
   const back = await app.fetch(request);
   assert.equal(back.status, 303);
   assert.match(back.headers.get("location"), new RegExp(`^/q/${secret}\\?error=`, "u"));
