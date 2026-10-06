@@ -244,7 +244,7 @@ function NewField({ t }: { t: Words }) {
       {kind === "date" && (
         <div className="field-group">
           <label htmlFor={uid + "alert"} className="label">{t.table.fieldAlert}</label>
-          <input id={uid + "alert"} name="alert" className="field compact" inputMode="numeric" pattern="[0-9]*" maxLength={3} aria-describedby={uid + "alert-hint"} />
+          <input id={uid + "alert"} name="alert" className="field short" inputMode="numeric" pattern="[0-9]*" maxLength={3} aria-describedby={uid + "alert-hint"} />
           <p id={uid + "alert-hint"} className="hint">{t.table.fieldAlertHint}</p>
         </div>
       )}

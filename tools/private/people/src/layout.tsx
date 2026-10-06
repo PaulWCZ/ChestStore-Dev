@@ -38,7 +38,7 @@ export function MembersLayout({ viewer: { member, t, request }, look, path, noti
   return (
     <>
       <AppShell
-        brand={<a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark><span className="brand-name">{t.tool.name}</span></a>}
+        brand={<a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark>{t.tool.name}</a>}
         nav={nav}
         path={path}
         tools={chip}

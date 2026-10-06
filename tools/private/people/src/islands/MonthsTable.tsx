@@ -16,7 +16,7 @@ export function MonthsTable({ caption, rows, departures, heads, labels }: { capt
       labels={labels}
       columns={[
         { key: "month", label: heads.month, render: r => r.label, rowHeader: true },
-        { key: "arrivals", label: heads.arrivals, render: r => <span className="cell-bar"><span className={`mini-bar in pct-${r.arrivalsPct}`} /><span className="bar-value">{r.arrivalsText}</span></span> },
+        { key: "arrivals", label: heads.arrivals, render: r => <span className="cell-bar"><span className={`mini-bar pct-${r.arrivalsPct}`} /><span className="bar-value">{r.arrivalsText}</span></span> },
         ...(departures ? [{ key: "departures", label: heads.departures, render: (r: MonthRow) => <span className="cell-bar"><span className={`mini-bar out pct-${r.departuresPct}`} /><span className="bar-value">{r.departuresText}</span></span> }] : []),
       ]}
     />
