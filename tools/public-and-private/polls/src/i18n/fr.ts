@@ -27,7 +27,6 @@ export const fr: Catalogue = {
     closed: "Ce sondage est clos. L’organisateur choisit la date.",
     yourAnswerKept: "Merci, {name} : votre réponse a été prise en compte.",
     privacy: "L’organisateur et les personnes interrogées dans l’entreprise voient votre nom et votre réponse. Vous ne voyez que la vôtre.",
-    honey: "Laissez ce champ vide",
   },
   pages: {
     notFound: {
@@ -460,7 +459,8 @@ export const fr: Catalogue = {
     no_answer: "Répondez au moins à une question.",
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     unknown: "Un problème est survenu. Réessayez.",
-    too_fast: "C’était rapide ! Attendez une seconde et renvoyez.",
+    limit: "Trop de réponses envoyées d’ici aujourd’hui. Réessayez demain.",
+    expired: "Cette page est restée ouverte trop longtemps. Rechargez-la, puis renvoyez votre réponse.",
     bad_email: "Cette adresse e-mail ne semble pas correcte.",
     guests_full: "Ce sondage a déjà tous les invités qu’il peut accueillir ({max}).",
   },

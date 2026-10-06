@@ -361,7 +361,7 @@ closed poll is seen by those asked, its organiser and admins.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`, contract 0.4 (`"chest": "0.4"`).
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`, and `@argentic/chest-app` 0.1.0-studio.3, contract 0.4 (`"chest": "0.4"`).
 
 - `member.language` — SDK 0.3.0: the interface and the bell in each
   member's language (`localeOf`: English for a language Polls does not
@@ -400,11 +400,13 @@ Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`, contract 0
   5,000 events full, a date out of its range) is taken out of calendars
   and its people are remembered (`polls.calendar_missing`), so their page
   offers the .ics file rather than saying "In your calendar".
-- `visitors` — **Proposal (studio)**: the guest page's language (the
-  visitor's switch, their browser's, then the Chest's own), the guest
-  form's token and the Chest's counters of visitors; without them, Polls
-  counts in its own
-  table (`guest_counts`).
+- The guest form's guard is `@argentic/chest-app`'s (`publicAction`'s
+  `bound`): a single-use form token that lasts two hours, a form sent
+  faster than a person waits the seconds left, a field only robots fill,
+  answers counted a day per visitor (the address the Chest's front gives —
+  a studio proposal — else a cookie) and for everyone (`chest_bounds`).
+  The tool's own hourly counters (`guest_counts`) are no longer written;
+  the table goes in a later migration.
 - `chest.tool.publicUrl` — SDK 0.4: the guest link's address (the
   company's own domain once connected; outside a Chest, derived from the
   request, as Booking does).

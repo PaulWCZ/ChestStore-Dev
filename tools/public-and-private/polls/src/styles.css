@@ -540,7 +540,6 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 
 /* The guest page of a date poll (src/pages/Guest.tsx): the public host, one column. */
 .guest-form { scroll-margin-top: var(--space-5); }
-.honey { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .public:has(> .guest) { max-width: 720px; padding-top: var(--space-5); }
 .guest { display: grid; gap: var(--space-5); }
 .guest-top { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; }
