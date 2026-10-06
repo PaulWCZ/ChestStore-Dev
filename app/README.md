@@ -27,7 +27,9 @@ node scripts/add-app.mjs starter                 # or tools/private/<name>
 
 Peers: `hono`, `@hono/node-server`, `react`, `react-dom`,
 `@argentic/chest-sdk` (≥ 0.4.1), `@argentic/chest-ui`; `postgres` for
-`/db`, `vite` for `/vite`, PGlite for the tests' last resort.
+`/db`. A tool's devDependencies give `vite` (for `/vite`) and
+`@electric-sql/pglite` + `pglite-socket` (the tests' last resort): they
+are not peers, so `npm prune --omit=dev` drops them from the image.
 
 `npm test` builds it, type-checks the tests and runs them (unit tests of
 the sources, and a small tool on the built package with the SDK's
