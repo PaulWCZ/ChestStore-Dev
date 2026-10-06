@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { en } from "../lib/i18n/en.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { en } from "../src/i18n/en.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -13,7 +13,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();

@@ -22,7 +22,11 @@ export type TestDatabase = { sql: postgres.Sql; kind: "server" | "preview" | "pg
 const chestShape = /^postgres:\/\/(t_[a-z][a-z0-9_]{0,47}|pb_[a-z2-7]{26}):[^@]+@127\.0\.0\.1:\d+\/\1\?sslmode=disable$/u;
 const quiet = { onnotice: () => {} };
 
-export async function testDatabase({ migrations = "migrations" }: { migrations?: string } = {}): Promise<TestDatabase> {
+// extensions: what the migrations create (unaccent, pg_trgm…), for
+// PGlite, which loads each from its own contrib module; a server has them.
+// PGlite serves every connection from one session: work after() still
+// does may run between a test's queries — another reason to prefer a server.
+export async function testDatabase({ migrations = "migrations", extensions = [] }: { migrations?: string; extensions?: string[] } = {}): Promise<TestDatabase> {
   const files = existsSync(migrations) ? readdirSync(migrations).filter(f => /^\d{4}_[a-z0-9_-]+\.sql$/u.test(f)).sort().map(f => readFileSync(join(migrations, f), "utf8")) : [];
   const name = `t_test_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const server = process.env["TEST_DATABASE_URL"];
@@ -66,7 +70,13 @@ export async function testDatabase({ migrations = "migrations" }: { migrations?:
   }
   const { PGlite } = await import("@electric-sql/pglite");
   const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
-  const pg = await PGlite.create();
+  const loaded: Record<string, unknown> = {};
+  for (const name of extensions) {
+    if (!/^[a-z_][a-z0-9_]*$/u.test(name)) throw new TypeError(`extension ${name}`);
+    const module = await import(`@electric-sql/pglite/contrib/${name}`) as Record<string, unknown>;
+    loaded[name] = module[name];
+  }
+  const pg: InstanceType<typeof PGlite> = await (PGlite.create as (options: object) => Promise<InstanceType<typeof PGlite>>)({ extensions: loaded });
   const socket = new PGLiteSocketServer({ db: pg, host: "127.0.0.1", port: 0, maxConnections: 8 });
   await socket.start();
   const port = (socket as unknown as { server: { address(): { port: number } } }).server.address().port;
@@ -124,7 +134,9 @@ export function checkWords(catalogues: Record<string, object>): void {
 // - every class a page names exists (the tool's CSS or the kit's);
 // - each capability of chest.json is used, and each used is declared;
 //   "receives" goes with events.handle, "schedules" with their handlers.
-export function checkSources({ root = "." }: { root?: string } = {}): void {
+// requireTests (the starter sets it): every src/lib/ module is imported
+// by a test file.
+export function checkSources({ root = ".", requireTests = false }: { root?: string; requireTests?: boolean } = {}): void {
   const walk = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)])) : []);
   const files = walk(join(root, "src"));
   const code = files.filter(f => /\.tsx?$/u.test(f)).map(f => ({ file: f, text: readFileSync(f, "utf8") }));
@@ -150,10 +162,13 @@ export function checkSources({ root = "." }: { root?: string } = {}): void {
   for (const { file, text } of code.filter(c => c.file.endsWith(".tsx"))) {
     for (const m of text.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/gu)) {
       const literals = m[1] !== undefined ? [m[1]] : [...(m[2] ?? "").matchAll(/"([^"]*)"|'([^']*)'|`([^`$]*)/gu)].map(x => x[1] ?? x[2] ?? x[3] ?? "");
-      for (const name of literals.flatMap(l => l.split(/\s+/u)).filter(Boolean)) if (!known.has(name)) problems.push(`${file}: the class "${name}" is in no stylesheet (the tool's or the kit's)`);
+      // A name ending with "-" is a family the code completes
+      // (`c-${color}`): some class of the stylesheets must start with it.
+      const defined = (name: string) => (name.endsWith("-") ? [...known].some(k => k !== undefined && k.startsWith(name) && k.length > name.length) : known.has(name));
+      for (const name of literals.flatMap(l => l.split(/\s+/u)).filter(Boolean)) if (!defined(name)) problems.push(`${file}: the class "${name}" is in no stylesheet (the tool's or the kit's)`);
     }
   }
-  const manifest = JSON.parse(readFileSync(join(root, "chest.json"), "utf8")) as { capabilities?: string[]; receives?: string[]; schedules?: { name: string }[] };
+  const manifest = JSON.parse(readFileSync(join(root, "chest.json"), "utf8")) as { capabilities?: string[]; receives?: string[]; schedules?: { name: string }[]; public?: boolean };
   const all = code.map(c => c.text).join("\n");
   const uses: Record<string, RegExp> = {
     database: /from "@argentic\/chest-(app\/db|sdk\/database)"/u,
@@ -166,6 +181,23 @@ export function checkSources({ root = "." }: { root?: string } = {}): void {
   for (const [capability, use] of Object.entries(uses)) {
     if (declared.has(capability) && !use.test(all)) problems.push(`chest.json asks "${capability}" and src/ never uses it: remove it (the owner approves each one)`);
     if (!declared.has(capability) && use.test(all)) problems.push(`src/ uses "${capability}": declare it in chest.json "capabilities"`);
+  }
+  const manifestPublic = (manifest as { public?: boolean }).public === true;
+  const code_ = all.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
+  // A public action without the public part is dead (the Chest never
+  // routes to it) — a page alone may stay (an "open it from your Chest"
+  // page). The public part declared with nothing served asks for nothing.
+  const publicWrites = /\bpublicAction(sAt)?\(/u.test(code_);
+  const publicPages = /\bpublicPage\(/u.test(code_);
+  if (publicWrites && !manifestPublic) problems.push(`src/ has public actions (publicAction) without "public": true in chest.json: the Chest would never route to them`);
+  if (manifestPublic && !publicWrites && !publicPages) problems.push(`chest.json asks "public": true and src/ serves no publicPage nor publicAction: remove it`);
+  // requireTests: every rule module is imported by a test.
+  if (requireTests) {
+    const tests = walk(join(root, "test")).filter(f => /\.test\.(m?[jt]s|tsx)$/u.test(f)).map(f => readFileSync(f, "utf8")).join("\n");
+    for (const file of walk(join(root, "src", "lib")).filter(f => /\.tsx?$/u.test(f))) {
+      const base = file.split(/[/\\]/u).pop()!.replace(/\.tsx?$/u, "");
+      if (!new RegExp(`from "[^"]*lib/${base}(\\.tsx?|\\.js)?"`, "u").test(tests)) problems.push(`${file}: no test imports it — a rule without a test`);
+    }
   }
   const handlesEvents = /events\.handle\(/u.test(all);
   if ((manifest.receives?.length ?? 0) > 0 && !handlesEvents) problems.push(`chest.json "receives" without events.handle on /chest-events`);

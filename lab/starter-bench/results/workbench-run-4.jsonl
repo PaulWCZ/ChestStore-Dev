@@ -1,0 +1,3 @@
+{"name":"A","test":{"code":0,"seconds":1,"rss":194.3,"pss":137.5},"dev":{"peak":{"rss":375,"pss":200.6},"rest":{"rss":375,"pss":195.7}},"testBesideDev":{"test":{"code":0,"seconds":1,"rss":196.1,"pss":133.6},"peak":{"rss":375,"pss":195.3}}}
+{"name":"B (a PostgreSQL server)","test":{"code":0,"seconds":2.4,"rss":330.8,"pss":236.2},"dev":{"peak":{"rss":425.9,"pss":251.3},"rest":{"rss":425.9,"pss":251.3}},"testBesideDev":{"test":{"code":0,"seconds":1.6,"rss":301,"pss":198.4},"peak":{"rss":425.9,"pss":250.2}}}
+{"name":"B (PGlite)","test":{"code":0,"seconds":3.3,"rss":1171.6,"pss":1041.1},"dev":{"peak":{"rss":432.5,"pss":257.9},"rest":{"rss":432.5,"pss":255.3}},"testBesideDev":{"test":{"code":0,"seconds":3.9,"rss":1099.7,"pss":965.2},"peak":{"rss":432.5,"pss":255.2}}}

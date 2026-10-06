@@ -22,7 +22,9 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     emptyOutDir: true,
     rolldownOptions: {
       input: { client: "src/entry.tsx" },
-      output: { entryFileNames: "assets/[name].js", chunkFileNames: "assets/[name].js", assetFileNames: asset => (asset.names[0]?.endsWith(".css") ? "assets/client.css" : "assets/[name][extname]") },
+      // The script and its chunks named by their hash: a chunk imports the
+      // entry under the very name the page links (http.tsx, browserFiles).
+      output: { entryFileNames: "assets/[name]-[hash].js", chunkFileNames: "assets/[name]-[hash].js", assetFileNames: asset => (asset.names[0]?.endsWith(".css") ? "assets/client.css" : "assets/[name][extname]") },
       onLog,
     },
   };
@@ -40,11 +42,14 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
   };
   return defineConfig(({ isSsrBuild, mode }) => ({
     plugins: [look],
-    oxc: { jsx: { runtime: "automatic" } },
+    // The JSX runtime and React's build follow the Vite mode, never the
+    // shell's NODE_ENV (the Perseus workbench sets development: a build's
+    // JSX must still be the production runtime its React provides).
+    oxc: { jsx: { runtime: "automatic", development: mode === "development" } },
     // Bundled in a build only: npm run dev keeps them in node_modules (a
     // watcher holding them all costs ~100 MiB more).
     ssr: { noExternal: mode === "development" ? [] : ["hono", "@hono/node-server", "react", "react-dom", "scheduler", "postgres", "@argentic/chest-sdk", "@argentic/chest-ui", "@argentic/chest-app", ...bundle] },
-    define: isSsrBuild ? { "process.env.NODE_ENV": JSON.stringify(mode) } : {},
+    define: { "process.env.NODE_ENV": JSON.stringify(mode === "development" ? "development" : "production") },
     build: isSsrBuild ? server : browser,
   })) as UserConfig;
 }

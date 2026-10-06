@@ -25,7 +25,8 @@ function sample(child) {
   return { stop: () => { clearInterval(timer); return { rss: mib(rss), pss: mib(pss) }; } };
 }
 
-async function run(command, cwd, env = {}) {
+// npm test runs as in the Perseus workbench: NODE_ENV=development.
+async function run(command, cwd, env = { NODE_ENV: "development" }) {
   const started = performance.now();
   const child = spawn(command[0], command.slice(1), { cwd, stdio: "ignore", env: { ...process.env, ...env } });
   const s = sample(child);

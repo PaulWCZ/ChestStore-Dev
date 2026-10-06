@@ -20,9 +20,9 @@ export function Home({ notes, names, member, t, f }: { notes: Note[]; names: Map
         <ul className="notes">
           {notes.map(note => (
             <li key={note.id} id={`note-${note.id}`} className={note.pinned ? "note pinned" : "note"}>
-              <p id={`note-${note.id}-text`}>{note.body}</p>
+              <p id={`note-${note.id}-text`}><a className="note-link" href={`/chest/notes/${note.id}`}>{note.body}</a></p>
               <div className="meta">
-                <span>{note.author === null ? fill(t.home.fromVisitor, { date: f.dateTime(note.createdAt) }) : fill(t.home.by, { name: names.get(note.author) ?? t.people.unknown, date: f.dateTime(note.createdAt) })}</span>
+                <span>{fill(t.home.by, { name: names.get(note.author) ?? t.people.unknown, date: f.dateTime(note.createdAt) })}</span>
                 {note.pinned && <span className="ck-badge">{t.home.pinned}</span>}
                 {mayChange(member, note) && (
                   <div className="actions">

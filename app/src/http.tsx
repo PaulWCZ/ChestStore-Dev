@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
@@ -11,7 +11,7 @@ import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
-import { setIslands, startRender } from "./island.tsx";
+import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
 import type { ErrorCode, Words } from "./register.ts";
 import { AppError, HttpStatus, readInput, toolPath, type Action, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
@@ -66,11 +66,15 @@ export type AppOptions = {
   complete?: (who: Member) => Promise<Member>;
 };
 
-type Env = { Variables: { viewer: MemberContext } };
+type Env = { Variables: { viewer: MemberContext; app: AppOptions } };
+// A file the build names by its content (client-<hash>.js, a chunk).
+const hashed = /^\/assets\/[\w.-]+-[\w-]{8}\.js$/u;
 const firstSegment = (path: string) => path.split("/")[1]?.toLowerCase() ?? "";
 const isMembers = (path: string) => firstSegment(path) === "chest";
 
-let options: AppOptions;
+// Each app keeps its options on its requests (two apps in one process
+// never share them).
+const optionsOf = (c: Context): AppOptions => (c as Context<Env>).get("app");
 
 function cookiesOf(c: Context): Cookies {
   return {
@@ -79,23 +83,31 @@ function cookiesOf(c: Context): Cookies {
   };
 }
 function visitor(c: Context): VisitorContext {
+  const options = optionsOf(c);
   const locale = publicLocale(options.locales, getCookie(c, "lang"), c.req.header("accept-language"), chest.language);
   return { member: null, locale, t: options.words(locale), f: formatter(locale, chest.timeZone, chest.currency), request: c.req.raw, cookies: cookiesOf(c) };
 }
 const viewerOf = (c: Context<Env>): Viewer => (isMembers(c.req.path) && c.get("viewer")) || visitor(c);
 
-// The browser's files are linked with their build time (?v=…): a new
-// build is fetched at once, an unchanged one comes from the cache. Read
-// once at start; on every page in development (npm run dev rebuilds them).
-let version: string | undefined;
-function assetVersion(): string {
-  if (version && process.env["NODE_ENV"] !== "development") return version;
+// The browser's files. The script is named by its content's hash
+// (client-<hash>.js, vite.ts): a chunk loaded later by an island's
+// import() imports it under that very name, so the entry — React with
+// it — runs once (a "?v=" on the page's link would be another URL, and a
+// second React). The stylesheet is linked with the build's time (?v=…).
+// A new build is fetched at once, an unchanged one comes from the cache.
+// Read once at start; on every page in development (npm run dev rebuilds).
+const assets = "dist/client/assets";
+let built: { script: string; version: string } | undefined;
+function browserFiles(): { script: string; version: string } {
+  if (built && process.env["NODE_ENV"] !== "development") return built;
   try {
-    version = Math.round(statSync("dist/client/assets/client.js").mtimeMs + statSync("dist/client/assets/client.css").mtimeMs).toString(36);
+    // The newest entry (a watching build leaves the earlier ones).
+    const script = readdirSync(assets).filter(f => /^client-[\w-]+\.js$/u.test(f)).map(f => ({ f, at: statSync(`${assets}/${f}`).mtimeMs })).sort((a, b) => b.at - a.at)[0]?.f ?? "client.js";
+    built = { script, version: Math.round(statSync(`${assets}/client.css`).mtimeMs).toString(36) };
   } catch {
-    version = "none";
+    built = { script: "client.js", version: "none" };
   }
-  return version;
+  return built;
 }
 
 // A refusal of a form sent without JavaScript comes back in the address:
@@ -106,19 +118,23 @@ function noticeOf(c: Context, t: Words): string | null {
   let values: Record<string, string | number> = {};
   try {
     const raw = JSON.parse(c.req.query("values") ?? "{}") as unknown;
-    if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && (typeof v === "number" || (typeof v === "string" && v.length < 100))));
+    // Numbers only: a value in the address is anyone's to write.
+    if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && typeof v === "number" && Number.isFinite(v)));
   } catch { /* no values */ }
-  return fill(t.errors[code as ErrorCode], values);
+  const said = fill(t.errors[code as ErrorCode], values);
+  // A value missing (an address written by hand): the plain refusal.
+  return /\{\w+\}/u.test(said) ? t.errors.invalid : said;
 }
 
-async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 403 | 404 | 500 = 200) {
-  const v = assetVersion();
+async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 401 | 403 | 404 | 500 = 200) {
+  const options = optionsOf(c);
+  const { script, version: v } = browserFiles();
   const look = options.look ? await options.look(viewer) : null;
   const lookTag = look ? createHash("sha256").update(look.css).digest("base64url").slice(0, 16) : "";
   const name = viewer.t.tool.name;
   const notice = noticeOf(c, viewer.t);
   const { members: Members, public: Public } = options.layouts;
-  startRender();
+  startRender(options.islands);
   const page = renderToString(
     <html lang={viewer.locale}>
       <head>
@@ -129,7 +145,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
         {options.head?.(viewer)}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
-        <script type="module" src={`/assets/client.js?v=${v}`} />
+        <script type="module" src={`/assets/${script}`} />
       </head>
       <body>
         {viewer.member !== null
@@ -174,10 +190,11 @@ export const page = (render: (p: PageContext<MemberContext>) => Promise<View | R
 export const publicPage = (render: (p: PageContext<VisitorContext>) => Promise<View | Response> | View | Response) => async (c: Context) => {
   const viewer = visitor(c);
   const view = await render(contextOf(c, viewer));
-  return view instanceof Response ? view : html(c, view, speaking(viewer, view.locale));
+  return view instanceof Response ? view : html(c, view, speaking(c, viewer, view.locale));
 };
 // The visitor, in the page's own language when it names one the tool speaks.
-function speaking(viewer: VisitorContext, locale: string | undefined): VisitorContext {
+function speaking(c: Context, viewer: VisitorContext, locale: string | undefined): VisitorContext {
+  const options = optionsOf(c);
   if (!locale || locale === viewer.locale || !options.locales.includes(locale)) return viewer;
   return { ...viewer, locale, t: options.words(locale), f: formatter(locale, chest.timeZone, chest.currency) };
 }
@@ -219,16 +236,21 @@ const chestDown = (e: unknown) => e instanceof Unavailable || e instanceof RateL
 // Fetched (call(), an enhanced form: x-tool-action: 1): JSON. A plain
 // form: a redirect back (303).
 async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
+  const options = optionsOf(c);
   const name = c.req.param("name") ?? "";
   const definition = Object.hasOwn(options.actions, name) ? options.actions[name] : undefined;
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
-  const refuse = (status: 400 | 403 | 404 | 413 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
+  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
     fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code], values) }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
-  const json = c.req.header("content-type")?.startsWith("application/json") === true;
+  const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+  const json = type === "application/json";
   if (json && !fetched) return c.text("Cross-site request refused.", 403);
+  // What a form or call() sends, nothing else (no error logged: anyone may
+  // post anything to a public action).
+  if (!json && type !== "application/x-www-form-urlencoded" && type !== "multipart/form-data") return refuse(415, "invalid");
   let answer: Response | undefined;
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
     try {
@@ -239,7 +261,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
       if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to }) : c.redirect(error.to, 303);
       else if (error instanceof HttpStatus) answer = refuse(error.status === 403 ? 403 : 404, error.status === 403 ? "forbidden" : "not_found");
       else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : 400, error.code, error.values);
-      else if (error instanceof SyntaxError) answer = refuse(400, "invalid");
+      else if (error instanceof SyntaxError || (error instanceof TypeError && /form|body|parse/iu.test(error.message))) answer = refuse(400, "invalid");
       else if (chestDown(error)) {
         log.warn("the Chest did not answer", { action: name, error: (error as Error).name });
         answer = refuse(500, "unavailable");
@@ -280,10 +302,12 @@ function stylesheet(c: Context, css: string) {
 // them. call(name, input, { at: "/p/abc" }) sends there.
 export const publicActionsAt = () => (c: Context<Env>) => runAction(c, false);
 
-export function createApp(appOptions: AppOptions) {
-  options = appOptions;
-  setIslands(appOptions.islands);
+export function createApp(options: AppOptions) {
   const app = new Hono<Env>();
+  app.use(async (c, next) => {
+    c.set("app", options);
+    await next();
+  });
 
   // Every answer: the policy, the headers that go with it, a log line.
   app.use(async (c, next) => {
@@ -305,12 +329,13 @@ export function createApp(appOptions: AppOptions) {
   });
 
   // The browser's files (dist/client/assets, from src/ and public/assets/):
-  // linked with ?v=… they never change; any other, an hour.
+  // linked with ?v=…, or named by their hash (the script, its chunks),
+  // they never change; any other, an hour.
   // (Set once the file is served: a header set in serveStatic's onFound
   // never reached the browser — the files went out "no-store".)
   app.use("/assets/*", async (c, next) => {
     await next();
-    if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+    if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") || hashed.test(c.req.path) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
   }, serveStatic({ root: "./dist/client" }));
 
   // The members' part: the Chest asserts who asks on every request
@@ -347,6 +372,9 @@ export function createApp(appOptions: AppOptions) {
   app.onError((error, c) => {
     if (error instanceof HttpStatus && error.to) return c.redirect(error.to, c.req.method === "GET" ? 302 : 303);
     if (error instanceof HttpStatus) return html(c, errorView(viewerOf(c), error.status === 403 ? 403 : 404), viewerOf(c), error.status === 403 ? 403 : 404);
+    // fail() in a page: forbidden is 403, any other refusal 404 (the page
+    // cannot be shown as asked) — never a 500.
+    if (error instanceof AppError) return html(c, errorView(viewerOf(c), error.code === "forbidden" ? 403 : 404), viewerOf(c), error.code === "forbidden" ? 403 : 404);
     if (chestDown(error)) log.warn("the Chest did not answer", { route: routePath(c, -1), error: error.name });
     else log.error("page failed", error, { route: routePath(c, -1) });
     return html(c, errorView(viewerOf(c), 500), viewerOf(c), 500);

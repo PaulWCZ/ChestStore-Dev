@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { boardAudience } from "../lib/audience.ts";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { AppError } from "../lib/errors.ts";
-import { forgetGroups, sharingGroups, withGroups } from "../lib/groups.ts";
-import { en } from "../lib/i18n/en.ts";
-import { handlers } from "../lib/lifecycle.ts";
+import { boardAudience } from "../src/lib/audience.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { AppError } from "@argentic/chest-app";
+import { forgetGroups, sharingGroups, withGroups } from "../src/lib/groups.ts";
+import { en } from "../src/i18n/en.ts";
+import { handlers } from "../src/lib/lifecycle.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea } from "./support/members.ts";
@@ -29,7 +29,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: bare, groups: [sales, office], capabilities: ["members", "files", "notifications", "groups"] });
+  chest = await fakeChest({ network: {}, members: bare, groups: [sales, office], capabilities: ["members", "files", "notifications", "groups"] });
   forgetGroups();
 });
 after(async () => {
@@ -73,7 +73,7 @@ test("someone leaves the group: once the Chest says so, the board closes to them
 
 test("without the permission: only the groups that give Tasks, as the assertion says", async () => {
   await chest.close();
-  chest = await fakeChest({ members: everyone, groups: [{ ...office, grants: true }, sales], capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ network: {}, members: everyone, groups: [{ ...office, grants: true }, sales], capabilities: ["members", "files", "notifications"] });
   forgetGroups();
   assert.deepEqual(await sharingGroups(), [{ id: groups.office, name: "Office" }]);
   const lea0 = asMember({ ...lea, groups: [groups.office] });

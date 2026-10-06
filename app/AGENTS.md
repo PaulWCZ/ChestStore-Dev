@@ -38,11 +38,15 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   function, a Date, a Map — and carry their words (`t.home.remove`…),
   dates already written by `f`, the path if needed. An island imports only
   React, the kit, `src/components/`, and `call`, `refresh`, `navigate`,
-  `onLinkClick`, `toast`, `fill`, `plural` from
-  `@argentic/chest-app/client`. Islands do not nest. Each island is a
+  `onLinkClick`, `toast`, `fill`, `plural`, `fail` (and `send` for a form
+  it posts itself) from `@argentic/chest-app/client`. Islands do not nest. Each island is a
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
   use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
-  `id="toasts"`, so it survives `navigate()`).
+  `id="toasts"`, so it survives `navigate()`). The island's HTML sits in a
+  `<div class="island">` (give it `display: contents` in the tool's CSS,
+  as the starter does): render whole elements in an island — a list's
+  `<ul>`, not its `<li>` — and select its insides by class, not with `>`
+  from outside.
 - **Actions** are the only way to change data: `action(fields, run,
   { maxBody? })` at `POST /chest/actions/<name>`; `publicAction` at
   `/actions/<name>`. Two callers:
@@ -61,24 +65,44 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   stay; islands receive their new props. Give list items an `id` (or
   `data-key`) so they keep their place. On a 401/403 the page is loaded
   again (the Chest signs in or says "Access removed"); on another error a
-  toast says so and the page stays. `refresh()` and `navigate(path)` by
-  hand; `useAutoRefresh(refresh, 30)` (kit) on a timer.
-- **Refusals are codes**: `fail("not_found")`, `fail("too_long", { max })`;
-  each code is a sentence in `t.errors`. In a page or an action:
-  `notFound()`, `forbidden()`, `redirect("/chest/x")` (paths of the tool
-  only: anything else throws).
-- **The public part** (only with `"public": true`, a permission the owner
-  approves): any path outside `/chest`; no member; the language is the
-  visitor's (`/lang/<code>` switch). Every public write needs a bound (so
-  many a day, counted in the database) and a honeypot field.
+  toast says so and the page stays, with what is typed (the Chest's 5xx,
+  "Waking up…" included). `refresh()` and `navigate(path)` by hand
+  (`{ top: false }`: the scroll and the focus stay — a panel opened beside
+  a list); `useAutoRefresh(refresh, 30)` (kit) on a timer. A navigation is
+  never lost to a refresh or an action on its way; an island it brings is
+  live the moment it shows.
+- **Refusals are codes**, one way everywhere: `fail("not_found")`,
+  `fail("too_long", { max })`; each code is a sentence in `t.errors`. In an
+  action the caller gets the code and the sentence; in a page,
+  `fail("forbidden")` is the 403 page and any other code the 404 page.
+  `notFound()` and `forbidden()` are its shorthands. `redirect("/chest/x")`
+  takes a path of the tool only (no `//`, `\`, `.` or `..` segment:
+  anything else throws).
+- **The public part** — only with `"public": true` in `chest.json`, a
+  permission the owner approves (`checkSources` fails on a `publicAction`
+  without it, and on it with nothing public served): any path outside `/chest`, served by `publicPage()` and
+  `publicAction()`; no member; the visitor's language (`/lang/<code>`
+  switch). **Every public write needs a bound**, per visitor and overall:
+  the official SDK gives no visitor address (`visitors.address` is a studio
+  proposal), so key a visitor by a cookie the action sets
+  (`cookies.set("v", random, …)`: it slows a person, not a determined bot),
+  and keep a global ceiling a day counted in the database, so one bot can
+  slow the form but not fill the table; plus a field people never see
+  (a honeypot) that only robots fill.
 
 ## Fields of an action
 
+Each field has two types: what `run()` receives (read) and what `call()`
+may send (the wire): `money()` receives cents, a `number`, and accepts
+`"12,50"`, `"1 234,50"`, `"1,234.50"` or `12.5` on the wire — send what
+the person typed, never `Number(…)` or `parseFloat(…)` of it.
+
 `text({ min?, max })` (trimmed; `min` 1 by default: `empty`, `too_long`),
-`int({ min, max })`, `money({ min?, max })` (read in cents: "1 234,50" →
-123450; store `bigint` cents; write `f.money(cents, { cents: true })`),
-`id()` (a bigint id as text), `bool()` (a checkbox), `choice([...])`,
-`day()` (YYYY-MM-DD), `optional(f)` (absent/""/null → undefined),
+`int({ min, max })` (digits only: `""` is `empty`, `"0x5"`, `"1e1"`,
+`"1.0"` are `invalid`), `money({ min?, max })` (in cents, min and max too;
+store `bigint` cents; write `f.money(cents, { cents: true })`), `id()` (a
+bigint id as text), `bool()` (a checkbox), `choice([...])`, `day()` (a day
+that exists, YYYY-MM-DD: 2026-02-31 is `invalid`), `optional(f)` (absent/""/null → undefined),
 `nullable(f)` (absent → undefined, ""/null → null: "clear it"), `sent(f)`
 (absent → undefined, "" kept), `list(f, max)`, `keyed(/^d(\d+)$/u, f, max)`
 (fields named by a pattern), `json()` (an island's object, checked by the
@@ -90,16 +114,20 @@ fail("invalid") } }`. Who may do what is checked in `src/lib/` from
 
 `t` is the reader's catalogue; `fill(t.x, { name })` fills values;
 `f.plural(t.x, n)` picks `{ zero?, one, other }`. `f.date`, `f.time`,
-`f.dateTime` write an instant in the reader's zone; `f.day` a calendar day
-(a `date` column comes back from `db()` as "YYYY-MM-DD"); `f.number`,
-`f.money`. Never format in the browser, never `new Intl.…` per row (each
+`f.dateTime` take a `Date` (an instant, a `timestamptz`) and write it in
+the reader's zone; `f.day` takes a `"YYYY-MM-DD"` (a `date` column, which
+`db()` returns as text) and writes that day wherever the reader is;
+`f.today()` is the reader's own day (a member's personal deadline);
+the company's day is `chest.today()` (SDK), and in SQL `current_date`,
+`now()::date` and `date_trunc` run in the Chest's zone (the database
+session's), not the member's. `f.number`, `f.money`. Never format in the browser, never `new Intl.…` per row (each
 Intl object lives outside V8's heap: hundreds of MiB pile up). French: a
 narrow no-break space (U+202F) before `: ; ? !` (`checkWords` refuses
 otherwise). The catalogue must hold `tool.name`, `pages` (notFound,
 forbidden, failed, signIn, busy, language), `errors` (invalid, empty,
 too_long, too_large, forbidden, not_found, unavailable, unknown — plus the
 tool's own codes) and `kit` (the kit's words). The layout uses only those
-sections, never a page's.
+sections and its own (`nav`: the sections' labels), never a page's.
 
 ## The database
 
@@ -107,15 +135,27 @@ sections, never a page's.
 (values are always parameters; `db().unsafe` never takes input).
 `db().begin(async tx => …)` for writes that go together. Ids are `bigint
 generated always as identity` (text in JS), members `text` (`mbr_…`),
-instants `timestamptz` (Date), days `date` (text). `seen` (same module) is
+instants `timestamptz` (Date), days `date` (text). `bigint`, `numeric`
+and what `count()` and `sum()` answer come back as **text** (they may not
+fit a JS number): cast in SQL (`count(*)::int`, `sum(amount_cents)::float8`
+when it fits) or `Number(…)` once read. `seen` (same module) is
 the store `events.handle` and `schedules.handle` take; its table is
-`migrations/0001_chest.sql`. **Migrations**: `NNNN_name.sql`, run by the
+`migrations/0001_chest.sql` (`seenIn("my_table")` keeps them in a table of
+the tool's own). It grows one row per delivery: call `seen.forget()` (30
+days by default) from a schedule or after an event. **Migrations**: `NNNN_name.sql`, run by the
 Chest in name order. While the tool is an unpublished draft, its
 migrations may be rewritten; once a version is published, a migration
 that ran is never edited — a change is a new file, and the previous
 version must keep working on the new schema.
 
 ## Recipes
+
+**Optimistic state in a big island** (a board dragged, a list reordered)
+— show the server's props, unless a local state exists while a drag or a
+call is in flight: `const shown = pending ?? props.cards`; set `pending`
+when the person acts, `await call(…)` (it refreshes: the new props
+arrive), then clear `pending` — the clear and the new props land in the
+same render, with no flash of the old order.
 
 **A page** — a component in `src/pages/`, a route in `src/app.tsx`, its
 words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
@@ -151,7 +191,8 @@ location.pathname })` or a form `action="/p/abc/actions/answer"`.
 /chest request (not for /assets/ nor the look); a hook that asks the Chest
 must cache its answer a minute (600 members calls a minute per tool).
 **A look chosen at run time** (a theme the company picks) —
-`createApp({ look: viewer => ({ css, colors }) })`: pages link
+`createApp({ look: viewer => ({ css, colors, logo }) })` (the layout
+receives it as `look`: a brand's logo beside the name): pages link
 `/chest/look.css?v=<hash>` or `/look.css?v=<hash>`, served by the package;
 `chestConfig()` without `theme`. The layouts receive `look` (its `logo` in brand mode) and the page's
 `status` (an error page's public layout may draw its frame); a visitor's
@@ -209,15 +250,23 @@ their components — use the components.
 `npm test`: tsc, the server built into `dist/test`, then `test/*.test.*`.
 From `@argentic/chest-app/testing`: `testDatabase()` (TEST_DATABASE_URL —
 a server whose user may create roles: a throwaway database; else the
-preview's DATABASE_URL: a throwaway schema; else PGlite in the process,
-~500 MiB more), `checkPage(html)`, `checkWords(catalogues)`,
-`checkSources()`, `atLeast(n)` (a file whose tests were removed fails).
+preview's DATABASE_URL: a throwaway schema; else PGlite in the process:
+1.2–1.3 GiB for the test run, more than the workbench can spare beside
+the dev server), `checkPage(html)`, `checkWords(catalogues)`,
+`checkSources({ requireTests: true })` (with it, every `src/lib/` module
+is imported by a test;
+class names built at run time — `` `c-${color}` `` — need their family in
+the CSS),
+`atLeast(n)` (a file whose tests were removed fails). Run the tests as the
+workbench does too: `NODE_ENV=development npm test`.
 The SDK's `fakeChest`, `withMember` sign the member.
 
 ## Pitfalls
 
 | Symptom | Cause |
 |---|---|
+| TS7022/TS7024: `actions` "implicitly has type any" | A cycle through `Register`: an action's inferred type depends on `t` or on `fail()` in an expression. Annotate its run's return type (`async (…): Promise<{ id: string }> => …`) |
+| A migration's `create extension` fails in the tests on PGlite | Give `testDatabase({ extensions: ["unaccent", "pg_trgm"] })`, or use a server |
 | 401 on `/chest` locally | No Chest: run in the Chest's preview, or test with `fakeChest` |
 | A style or a script is ignored in the browser | It is inline (`style=`, `<script>…</script>`): the policy blocks it |
 | `call()` answers 404 | The action is not in `src/actions.ts`, or a members' action called from a public page (or the reverse) |
@@ -225,4 +274,7 @@ The SDK's `fakeChest`, `withMember` sign the member.
 | A date is a day off | Formatted without `f`, or a `date` column given to `f.date` (use `f.day`) |
 | The build warns about `node:` modules in the browser | An island imports server code |
 | A type error on `<Island props>` | A prop is a function or a Date: send data, keep the function in the island |
-| `npm test` takes 500 MiB | No TEST_DATABASE_URL nor preview database: PGlite runs in the process |
+| `npm test` takes 1.3 GiB | No TEST_DATABASE_URL nor preview database: PGlite runs in the process |
+| `npm test` passes, the tool does not build in the workbench | Tests run with the workbench's `NODE_ENV=development`: run them so too |
+| A total is "1234" (text) | `sum()`/`count()` are bigint: cast in SQL |
+| A POST answers 415 | Its body is neither a form nor JSON |

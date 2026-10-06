@@ -192,11 +192,11 @@ the tool's builders come in with the first role, `manager`.
 | `/chest/search?q=` (`&archived=1`) | members | search |
 | `/chest/export` | managers | every board, one JSON file |
 | `/chest/import` | managers, members | import |
-| `/chest/api/cards/<id>/upload` | who works on the board | authorise then record a file (POST, PUT) |
+| `/chest/actions/<name>` | members (each action checks the board) | every change, by name (`src/actions.ts`): typed fields, refusals as codes; a file is `uploadFile` then `recordFile` around the browser's own upload to the Chest |
+| `/chest/look.css?v=…` | members | the look of the page: the company's choice, else Workshop (a stylesheet, never inline) |
 | `/chest/files/<id>` (`?download`) | who sees the card | a 15-minute link to the file, signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-jobs/morning` | the Chest only (signed, Proposal (studio)) | the weekday morning |
-| `/chest-jobs/mail` | the Chest only (signed, Proposal (studio)) | every 15 minutes: the emails that waited (also sent after each action and page), and the cards done or reopened the Chest could not take yet |
+| `/chest-schedules` | the Chest only (signed `Chest-Schedule`) | the runs of `chest.json`'s schedules: `morning` (weekdays 07:30) and `mail` (every 15 minutes: the emails that waited — also sent after each action and page —, and the cards done or reopened the Chest could not take yet) |
 | `/` | anyone | "Tasks lives in your Chest" |
 
 ## On a Chest
@@ -214,9 +214,9 @@ the tool's builders come in with the first role, `manager`.
   managers (they own every board).
   **An erasure** removes their id everywhere; what they wrote stays for the
   team, signed "Former member". Then the erasure is acknowledged.
-- **Schedules** (Proposal (studio), `chest.proposals.json`): `morning`,
-  weekdays at 07:30 in the Chest's time zone, called at
-  `POST /chest-jobs/morning`. It makes any missing next card of a repeating
+- **Schedules** (contract 0.4, `chest.json`): `morning`,
+  weekdays at 07:30 in the Chest's time zone, posted to
+  `POST /chest-schedules` (with `mail`, every quarter of an hour). It makes any missing next card of a repeating
   card, sends the reminders (and takes back those no longer true), and sets
   every tile's number, since dates moved overnight, and checks every due
   date in the members' calendars again. A run delivered twice
@@ -261,8 +261,8 @@ card done at 23:55 on a cycle's last day in that cycle even when it is
 told at 00:10; older (a Chest down for a night), the Chest refuses a time
 that far back and the event goes without it (its time still in the key). **Reliable**: a trigger
 (`migrations/0006_card_events.sql`) writes each change in the same
-transaction as the card, whatever made it; `lib/card-events.ts` publishes
-after the action (Next's `after()`), and the `mail` schedule every quarter
+transaction as the card, whatever made it; `src/lib/card-events.ts` publishes
+after the action (`after()` of `@argentic/chest-app`), and the `mail` schedule every quarter
 of an hour again while the Chest cannot take them (a Chest without events
 between tools, before an admin approved them); a key the Chest already
 holds is one event, never two. What waits a week is forgotten (Goals
@@ -275,23 +275,28 @@ another.
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+Built on SDK 0.4.1 + studio proposals (`0.4.1-studio.2`), in `vendor/`,
+with `@argentic/chest-app` (the studio's server and browser machinery) and
+`@argentic/chest-ui` (the kit), packed beside it.
 
-- `member.language` (SDK 0.3.0): the interface in each member's language;
+- `member.language`: the interface in each member's language;
   `members.*` `language` for the bell and the emails in the recipient's.
-- `chest` (SDK 0.3.0): `chest.timeZone` and `chest.today()`, for "today";
-  `chest.teamUrl` — **Proposal (studio)** — the address in an email.
+- `chest`: `chest.timeZone` and `chest.today()`, for "today" (and the day of
+  a schedule's run); `chest.tool.teamUrl` (0.4.1) the address in an email;
+  `members.lookup`'s `no_access` (0.4.1): "Léa Dubois (no access)".
 - `groups` — **Proposal (studio)** (`"groups": "read"`,
   `chest.proposals.json`): a private board may be shared with any group of
   the Chest (`members.groups.all()`), not only those that give Tasks —
   usually none, as Tasks is open to everyone. Whether someone is in the
   group is asked of the Chest (`members.groups.of` for the person signed in,
-  `groups.members` for a list; `lib/groups.ts`), since 0.3.0's
+  `groups.members` for a list; `src/lib/groups.ts`), since 0.3.0's
   `member.groups` lists only the groups that give the tool. Kept a minute,
   forgotten on `member.updated` / `group.*`. Without the permission: the
   groups that give Tasks, as before.
-- `schedules` — **Proposal (studio)**: the morning run (reminders, the
-  repeats' safety net, the tiles' numbers).
+- `schedules` (0.4.1, official): the morning run (reminders, the repeats'
+  safety net, the tiles' numbers) and the mail run; each run's id is kept
+  in the database (`chest_events`, 30 days), so a run delivered twice is
+  handled once.
 - `mail` — **Proposal (studio)**: `mail.send({to: {member}})` for the
   emails of assignment, mention and the morning. Keys are passed whole
   (studio.15 hashes a long one: before, `slice(0, 64)` could give two
@@ -299,8 +304,8 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   (`members.get(id).mailPreference`, which *My tasks* reads to say it) is
   applied by `mail.send` — none of these
   emails is transactional. The grouping and the
-  hold are the tool's own (`mail_queue`), sent after each request (Next's
-  `after()`) and by a `mail` schedule every 15 minutes; with no schedule
+  hold are the tool's own (`mail_queue`), sent after each request
+  (`after()`) and by a `mail` schedule every 15 minutes; with no schedule
   and nobody using the tool, a waiting email leaves at the next visit. On a Chest without mail,
   `CapabilityNotGranted`: nothing is sent, nothing fails, the bell says it.
   `mail.available()` (studio.16): under the email switch, *My tasks* says
@@ -312,16 +317,15 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   wrong date, its 5,000 events full — is not remembered as put and is
   tried again at the next run, the rest of the batch is put)
   / `remove` of each person's due dates (keys `card:<id>`, `step:<id>`;
-  `lib/due-calendar.ts`),
-  after each change (Next's `after()`), at each visit of *My tasks* and
+  `src/lib/due-calendar.ts`),
+  after each change (`after()`), at each visit of *My tasks* and
   each morning (who sees a private board asked again). On a Chest without
   it, `CapabilityNotGranted`: remembered (`tool_state`), nothing fails, the
   link on *My tasks* is not shown.
 - **Events between tools** — **Proposal (studio)**: `events.publish` of
   `tasks.card.done` / `tasks.card.reopened` (*With the other tools*).
-- Without schedules on a real Chest today, recurring cards still work (the
-  next card is made at the moment one is done); the reminder does not come
-  and the tile's number is refreshed by use only.
+- Recurring cards do not depend on the schedules (the next card is made the
+  moment one is done); the morning run is a safety net.
 
 ## Looks
 
@@ -329,9 +333,10 @@ Tasks wears **any look the company chooses in its Chest**: its own identity
 "Workshop" (paper, ink outlines, sun yellow — the default), any theme of the
 store's catalogue (the 18 identities, "Chest", "High contrast"), or the
 company's brand imported from its guidelines — for all tools or for Tasks
-alone, with the same features. The look arrives with the page (one
-`<style>` with the page's nonce, no script); in brand mode the company's
-logo stands beside the name. Board and label colours follow the theme's
+alone, with the same features. The look is a stylesheet the tool serves,
+`/chest/look.css?v=<its hash>` (never an inline `<style>`: the pages' policy
+allows no inline style or script at all), made by the kit from the Chest's
+`chest.theme()`; in brand mode the company's logo stands beside the name. Board and label colours follow the theme's
 palette (a "sky" board stays bluish everywhere; in the "Chest" theme,
 colours are greys and the names tell them apart — label names are on the
 card faces, and late dates say *Late* with a sign; the flow checks it in
@@ -347,9 +352,33 @@ to Inès and "To do / Doing / Done" to Hugo — until someone renames one.
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run dev       # rebuilds on every change and restarts the server
+npm test          # types, the server built into dist/test, then test/*.test.*
+                  # (PGlite in the process, or TEST_DATABASE_URL for a real PostgreSQL)
+npm run build     # types, then the browser's files and the server (Vite), as the Chest does
+npm start         # the built server (dist/server/main.js), as the Chest runs it
 ```
+
+**How it is made.** A Hono server renders React pages (`src/pages/`); the
+parts that run in the browser are islands (`src/islands/`): the board with
+its drag and drop and its list, calendar and timeline views
+(`BoardView`), the card's panel (`CardPanel`), a board's settings, the
+importer, *My tasks*' ticks, the switches, the *New board* dialog, the
+search box. Every change is an action of `src/actions.ts`, called from an
+island with `call()`; the page then refreshes in place (islands keep their
+state; a drag in progress keeps its card until the move is answered).
+Opening a card, a filter, a month or a view changes the address and the
+page in place (`navigate()`). The machinery is `@argentic/chest-app`
+(`vendor/`, its `AGENTS.md`); rules and SQL are in `src/lib/`, rules shared
+with the browser (repeats, the calendar's dates, the import's reading,
+Markdown) in `src/shared/`. Measured on the studio's bench (`lab/measure`,
+6 October 2026, Node 24.21, the sample data): 75 MiB at rest (PSS of the
+process tree; the Next.js version 131), first page 382 ms after a cold start
+(782), image 32 MiB (461); the build fits the Chest's 512 MiB container.
+
+The timeline's places are classes (`src/timeline-grid.css`, made by a
+script for the 42 days of its window: `tl-from-N`, `tl-len-N`, `tl-at-N`);
+if `timelineDays` changes in `src/shared/calendar.ts`, write it again.
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
 (sample boards from `seed/sample.sql`), `node lab/chest-dev/flows/tasks.mjs`

@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import type { Run } from "@argentic/chest-sdk/schedules";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { AppError } from "../lib/errors.ts";
-import { en } from "../lib/i18n/en.ts";
-import { arrange, fromCsv, fromTrello, importBoard, importedCounts, looksDone, previewPeople } from "../lib/importers.ts";
-import { morning } from "../lib/morning.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { AppError } from "@argentic/chest-app";
+import { en } from "../src/i18n/en.ts";
+import { arrange, fromCsv, fromTrello, importBoard, importedCounts, looksDone, previewPeople } from "../src/lib/importers.ts";
+import { morning } from "../src/lib/morning.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -24,7 +24,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
 });
 after(async () => {
   await chest.close();
@@ -82,7 +82,7 @@ test("switch day: nothing finished in Trello is late the next morning, in My tas
   assert.deepEqual(mine.map(c => c.title), ["Préparer le stand du salon"]);
   assert.deepEqual((await boards.columns(sql, made.id)).map(c => [c.name, c.done]), [["À faire", false], ["En cours", false], ["Fait", true]]);
   assert.deepEqual((await boards.columns(sql, made.id, { archived: true })).map(c => c.name), ["Sprint de mars"]);
-  const run: Run = { id: "run_" + "c".repeat(26), name: "morning", scheduledAt: "2026-10-01T05:30:00.000Z", attempt: 1, timeZone: "Europe/Paris" };
+  const run: Run = { id: "run_" + "c".repeat(26), name: "morning", scheduledAt: "2026-10-01T05:30:00.000Z", attempt: 1 };
   await morning(sql, run);
   // Inès: the printer was ticked done, the Tarifs page is in Fait; her
   // newsletter is due on the 20th. No reminder at all.

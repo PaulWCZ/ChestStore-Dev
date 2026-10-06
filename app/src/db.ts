@@ -24,10 +24,22 @@ export function db(): postgres.Sql<{ date: string }> {
 
 // The ids the Chest delivered already (events and schedule runs come at
 // least once): events.handle(…, { seen }) and schedules.handle(…, { seen })
-// skip one they see again. The table is the tool's migrations/0001_chest.sql.
-export const seen = {
-  has: async (id: string) => (await db()`select 1 from chest_seen where id = ${id}`).length > 0,
-  add: async (id: string) => { await db()`insert into chest_seen (id) values (${id}) on conflict do nothing`; },
-  // Ids older than 30 days, forgotten (the Chest stops delivering long before).
-  purge: async () => { await db()`delete from chest_seen where at < now() - interval '30 days'`; },
-};
+// skip one they see again. seen keeps them in chest_seen (the tool's
+// migrations/0001_chest.sql); seenIn("my_table") in a table of the tool's
+// own (columns id text primary key, at timestamptz default now()). A
+// durable store grows one row per delivery (~96 a day for a 15-minute
+// schedule): forget() what is older than the Chest's retries (30 days by
+// default) — in a schedule, or after handling an event.
+export function seenIn(table: string) {
+  if (!/^[a-z_][a-z0-9_]{0,62}$/u.test(table)) throw new TypeError("seenIn() takes a table name");
+  const name = (sql: postgres.Sql<{ date: string }>) => sql(table);
+  const forget = async (days = 30) => { await db()`delete from ${name(db())} where at < now() - make_interval(days => ${days})`; };
+  return {
+    has: async (id: string) => (await db()`select 1 from ${name(db())} where id = ${id}`).length > 0,
+    add: async (id: string) => { await db()`insert into ${name(db())} (id) values (${id}) on conflict do nothing`; },
+    forget,
+    // The same as forget() (0.1.0-studio.1's name).
+    purge: () => forget(),
+  };
+}
+export const seen = seenIn("chest_seen");
