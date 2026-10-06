@@ -325,8 +325,9 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 }
 // bound (public actions): anyone on the Internet may call one, so each is
 // bounded, the same way in every tool:
-// - a form token: <Honeypot /> in the form carries one (the page made it,
-//   signed with a key from CHEST_TOKEN); it lasts formMinutes (120 by
+// - a form token for this action: <Honeypot action="…" /> in the form
+//   carries one (the page made it, signed with a key from CHEST_TOKEN and
+//   the action's name: another action refuses it); it lasts formMinutes (120 by
 //   default) and serves once, whatever the answer (each answer, and the
 //   page a form goes back to, brings the next) — without a fresh one,
 //   "expired"; with formSeconds, a form sent sooner than a person fills it
@@ -349,9 +350,10 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 // people coming after it then meet "limit" until tomorrow (the people who
 // wrote earlier keep the reserve). Fair public writes need the visitor's
 // address from the Chest's front — a blocker the SDK report names.
-// Refusals have a budget too (ten times perDay a day, then "limit" before
-// the run): a check that asks the Chest (members.get) must not let a flood
-// spend the tool's limits at the Chest — but a public request should never
+// Refusals are counted per visitor and for everyone: a visitor past ten
+// times their budget (at least 20) is refused before the run; everyone's
+// ceiling (ten times perDay) never refuses a call — past it, the run is
+// told (flooded) so its checks stay cheap. A public request should never
 // call the Chest at all (cache a minute, or the tool's own table).
 // Kinds of write with budgets of their own (a new booking, a change to
 // one): { budgets: { new: …, change: … } }, and run says which once it has
@@ -363,7 +365,9 @@ export type Budget = { perVisitor: number; perDay: number; perSubject?: number }
 export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number; formSeconds?: number };
 // What a public action's run gets: the visitor, and charge(kind, { subject }),
 // the budget it spends (with budgets of several kinds; once per call).
-export type PublicContext = VisitorContext & { charge(kind: string, options?: { subject?: string }): Promise<void> };
+// flooded: refusals today passed ten times the day's budget — keep the
+// checks cheap (nothing that asks the Chest; what it said a minute ago).
+export type PublicContext = VisitorContext & { charge(kind: string, options?: { subject?: string }): Promise<void>; flooded: boolean };
 export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: PublicContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false; parallel?: boolean } = {}): Action<F, R> {
   if (options.bound && !("budgets" in options.bound) && options.bound.perSubject !== undefined) throw new TypeError("publicAction: perSubject needs budgets by kind and charge(kind, { subject }) in the run");
   return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), ...(options.parallel ? { parallel: true } : {}), run: run as Action<F, R>["run"] };

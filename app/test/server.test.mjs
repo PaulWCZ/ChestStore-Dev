@@ -34,7 +34,7 @@ const actions = {
     written++;
     return null;
   }, { bound: { budgets: { new: { perVisitor: 1, perDay: 10 }, change: { perVisitor: 3, perDay: 10 } }, formMinutes: 30 } }),
-  guarded: publicAction({}, async () => fail("forbidden"), { bound: { perVisitor: 1, perDay: 1 } }),
+  guarded: publicAction({ ok: field.bool() }, async ({ ok }, { flooded }) => (ok ? { flooded } : fail("forbidden")), { bound: { perVisitor: 1, perDay: 1 } }),
   rsvp: publicAction({ link: field.text({ max: 20 }) }, async ({ link }, { charge }) => { await charge("change", { subject: link }); return null; }, { bound: { budgets: { change: { perVisitor: 50, perDay: 50, perSubject: 2 } } } }),
   chat: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 2 } }),
   patient: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 5, formSeconds: 1 } }),
@@ -74,7 +74,7 @@ app.get("/chest/own-island", page(() => ({ title: "Own", body: h(Island, { name:
 app.get("/chest/big-island", page(() => ({ title: "Big", body: h(Island, { name: "Labelled", props: { label: "x".repeat(300 * 1024) } }) })));
 app.get("/chest/versioned", page(() => { rendered++; return { title: "Versioned", body: h("p", null, versionOfPage) }; }, { version: () => versionOfPage }));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
-app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot), h("p", null, "hello")) })));
+app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot, { action: "write" }), h("p", null, "hello")) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
 app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
 app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
@@ -367,15 +367,16 @@ test("the database runs in the Chest's zone (a far one)", async () => {
 test("a public action's bound: a form token served once, then counted per visitor and for everyone; the honeypot", async () => {
   await db()`create table if not exists chest_bounds (scope text, visitor text, day date, count integer not null, primary key (scope, visitor, day))`;
   await db()`create table if not exists chest_seen (id text primary key, at timestamptz not null default now())`;
-  const send = (name, fields, { cookie, address, form = formToken() } = {}) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, ...(form ? { chest_form: form } : {}) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}), ...(address ? { "chest-visitor-address": address } : {}) } }));
-  // The public page carries a token, in its <meta> and in <Honeypot />'s field.
+  const send = (name, fields, { cookie, address, form = formToken(name) } = {}) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, ...(form ? { chest_form: form } : {}) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}), ...(address ? { "chest-visitor-address": address } : {}) } }));
+  // The public page carries a token for its form's action, in <Honeypot action="write" />.
   const home = await (await get("/", null)).text();
-  const token = /<meta name="chest-form" content="([^"]+)"/u.exec(home)?.[1];
-  assert.ok(token);
-  assert.match(home, new RegExp(`name="chest_form" value="${token.replace(/[.]/gu, "\\.")}"`, "u"));
-  assert.doesNotMatch(await (await get("/chest")).text(), /chest-form/u, "a member's page has none");
+  const token = /data-action="write" name="chest_form" value="([^"]+)"/u.exec(home)?.[1];
+  assert.ok(token, home.slice(home.indexOf("<form"), home.indexOf("</form>")));
+  assert.equal((await send("write", { text: "a" }, { form: token })).status, 200, "the page's token serves");
+  assert.equal((await (await send("write", { text: "a" }, { form: formToken("book") })).json()).error, "expired", "a token for another action does not");
+  assert.doesNotMatch(await (await get("/chest")).text(), /chest_form/u, "a member's page has none");
   // Junk costs nothing: no token, a forged one, an old one, invalid fields.
-  for (const form of [null, "1.2.3", formToken(Date.now() - 3 * 3600_000)]) {
+  for (const form of [null, "1.2.3", formToken("write", Date.now() - 3 * 3600_000)]) {
     const junk = await send("write", { text: "a" }, { form });
     assert.equal(junk.status, 400);
     assert.equal((await junk.json()).error, "expired");
@@ -383,10 +384,10 @@ test("a public action's bound: a form token served once, then counted per visito
   assert.equal((await send("write", { text: "toolong" })).status, 400);
   assert.equal((await send("write", { text: "taken" })).status, 400, "a run that refuses gives its count back");
   // A token serves once (the answer brings the next).
-  const once = formToken();
+  const once = formToken("write");
   const first = await send("write", { text: "a" }, { form: once });
   assert.equal(first.status, 200);
-  assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.[\w-]+$/u);
+  assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.write\.[\w-]+$/u);
   assert.equal((await (await send("write", { text: "a" }, { form: once })).json()).error, "expired");
   const cookie = /chest_v=[\w-]+/u.exec(first.headers.get("set-cookie") ?? "")?.[0];
   assert.ok(cookie, "a visitor cookie, for the next calls");
@@ -403,7 +404,7 @@ test("a public action's bound: a form token served once, then counted per visito
 });
 
 test("budgets by kind, charged once the request is checked; a visitor known by the front's address", async () => {
-  const send = (fields, address) => app.fetch(new Request(url("/actions/book"), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", "chest-visitor-address": address } }));
+  const send = (fields, address) => app.fetch(new Request(url("/actions/book"), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken("book") }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", "chest-visitor-address": address } }));
   for (let i = 0; i < 5; i++) assert.equal((await send({ secret: "wrong" }, "203.0.113.7")).status, 403, "a wrong secret spends nothing");
   const made = await send({}, "203.0.113.7");
   assert.equal(made.status, 200, JSON.stringify(await made.clone().json()));
@@ -412,14 +413,14 @@ test("budgets by kind, charged once the request is checked; a visitor known by t
   assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 429);
   assert.equal((await send({}, "2001:db8::1")).status, 200, "another address");
   const started = Date.now();
-  const quick = await app.fetch(new Request(url("/actions/patient"), { method: "POST", body: JSON.stringify({ chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  const quick = await app.fetch(new Request(url("/actions/patient"), { method: "POST", body: JSON.stringify({ chest_form: formToken("patient") }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
   assert.equal(quick.status, 200);
   assert.ok(Date.now() - started >= 950, "a form sent at once waits its formSeconds");
   const lines = [];
   const write = console.error;
   console.error = line => lines.push(String(line));
   try {
-    await app.fetch(new Request(url("/actions/forgot"), { method: "POST", body: JSON.stringify({ chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+    await app.fetch(new Request(url("/actions/forgot"), { method: "POST", body: JSON.stringify({ chest_form: formToken("forgot") }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
   } finally {
     console.error = write;
   }
@@ -449,12 +450,20 @@ test("download(): a file as an attachment, never cached; a refusal is a page in 
   assert.match(await invalid.text(), /Too long: 5 at most\./u);
 });
 
-test("bounds: refusals have a budget (ten times the day's), a subject its own, a visitor who wrote today a reserve", async () => {
-  const send = (name, fields = {}, cookie) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}) } }));
-  for (let i = 0; i < 10; i++) assert.equal((await send("guarded")).status, 403);
-  const stopped = await send("guarded");
-  assert.equal(stopped.status, 429, "the eleventh refusal stops before the run");
+test("bounds: a visitor's refusals close the form to them only; everyone's flood never refuses a valid call; a subject has its own; a visitor who wrote today a reserve", async () => {
+  const send = (name, fields = {}, cookie) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken(name) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}) } }));
+  // One browser's flood: past twenty refusals, refused before the run.
+  const flooder = "chest_v=flooderflooderflooderfl";
+  for (let i = 0; i < 20; i++) assert.equal((await send("guarded", { ok: false }, flooder)).status, 403);
+  const stopped = await send("guarded", { ok: false }, flooder);
+  assert.equal(stopped.status, 429, "their 21st");
   assert.equal((await stopped.json()).error, "limit");
+  // A flood without address or cookie passes everyone's ceiling (ten): a
+  // valid call still goes through, told the form is flooded.
+  for (let i = 0; i < 12; i++) assert.equal((await send("guarded", { ok: false })).status, 403);
+  const valid = await send("guarded", { ok: true });
+  assert.equal(valid.status, 200, "a valid call after the flood");
+  assert.deepEqual((await valid.json()).value, { flooded: true });
   assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
   assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
   assert.equal((await send("rsvp", { link: "guest-a" })).status, 429, "two a day for one link");

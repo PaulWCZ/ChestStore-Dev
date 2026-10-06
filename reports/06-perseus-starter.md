@@ -342,13 +342,13 @@ reviews found hand-copied figures stale four times: app's `npm test` now
 runs `sizes.mjs --check` against this paragraph):
 - The project's `AGENTS.md` is 39 lines: what Perseus rewrites
   (purpose, data model, decisions, what to delete from the example).
-- The reference page is the package's `AGENTS.md`, 473 lines, read from
+- The reference page is the package's `AGENTS.md`, 487 lines, read from
   `node_modules/@argentic/chest-app/`. It covers how the package works,
   fields, words, the database, recipes (roles, writing to another member,
   paging, imports and archives, a schedule's test…), rules, the kit's
   classes, tests and pitfalls.
-- The template is 29 files and 895 lines. The package is 2,748 lines of
-  source and 738 of tests. (The reference starter: 16 files, 311 lines.)
+- The template is 29 files and 895 lines. The package is 2,784 lines of
+  source and 859 of tests. (The reference starter: 16 files, 311 lines.)
 
 **UI quality with the kit.**
 - A: unstyled HTML.
@@ -610,6 +610,19 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
     requireTests })` sees `lib/`'s folders (breaking for a tool with an
     untested module there); types are not class names; `testDatabase`
     never takes its own earlier address for a preview's.
+  - `bound`, after the Hiring review: a form token is signed with its
+    action and refused by any other (a token harvested from one page
+    no longer opens another action); `<Honeypot action="…" />` (the
+    `action` now required) and `<FormToken action="…" />` for an action
+    an island only calls or a form shown later; the page's
+    `<meta name="chest-form">` is gone. Refusals are counted per visitor
+    and for everyone: a visitor past ten times their budget is refused
+    before the run (their flood closes the form to them only);
+    everyone's ceiling never refuses — the run is told `flooded` and a
+    call that passes its checks still writes (tested: a flood of
+    refused calls, then a valid call goes through). Polls, Booking,
+    Support and Status were changed for it (each form's or island's
+    action named; a `FormToken` where a form opens after load).
   Expenses and Timesheets use the change log (their first sequence-based
   stamp never shipped); the starter's notes page too.
 - **studio.6** (6 October; breaking). The changes:

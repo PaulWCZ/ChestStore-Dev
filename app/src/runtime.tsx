@@ -5,7 +5,7 @@ import type { flushSync } from "react-dom";
 import type { createRoot, hydrateRoot, Root } from "react-dom/client";
 import type { RegisteredActions } from "./register.ts";
 import type { Action, Outcome, SentOf } from "./tool.ts";
-import { currentForm } from "./form.tsx";
+import { currentForm, renewForm } from "./form.tsx";
 
 // The browser's side (its public part is ./client.ts, for islands; the
 // rest is for ./browser.tsx). Nothing here runs on import, and nothing
@@ -152,29 +152,17 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     history.pushState({ scroll: 0 }, "", response.url + hashOf(href, response));
   } else if (push === "replace" || response.redirected) history.replaceState({ scroll: scrollY }, "", response.url + hashOf(href, response));
   document.title = next.title;
-  const form = next.querySelector<HTMLMetaElement>('meta[name="chest-form"]')?.content;
-  if (form) setForm(form);
+  // The page's form tokens, one per action: an island's forms take them
+  // too (React owns their fields: the morph does not reach them).
+  for (const input of next.querySelectorAll<HTMLInputElement>("input[data-chest-form][data-action]")) renewForm(input.dataset["action"]!, input.value);
   const focused = document.activeElement;
   attributes(document.body, next.body);
   children(document.body, next.body);
-  // The focused element went with what changed: the page's main region.
   // The focused element went with what changed: the page's main region —
   // unless an island the change brought took the focus itself (a panel
   // opened in place focuses its own first element).
   if (focusMain(focused, document.activeElement, document.body)) document.getElementById("main")?.focus({ preventScroll: true });
   return true;
-}
-
-// The page's form token, renewed: its <meta> and every form's field.
-function setForm(token: string): void {
-  let meta = document.querySelector<HTMLMetaElement>('meta[name="chest-form"]');
-  if (!meta) {
-    meta = document.createElement("meta");
-    meta.name = "chest-form";
-    document.head.append(meta);
-  }
-  meta.content = token;
-  for (const input of document.querySelectorAll<HTMLInputElement>('input[name="chest_form"]')) input.value = token;
 }
 
 // Whether a change put in place should move the focus to <main>: the
@@ -367,13 +355,14 @@ async function request<T>(url: string, headers: Record<string, string>, body: Bo
   sending++;
   try {
     // A public page's form token (a bounded action requires it).
-    const form = currentForm();
+    const action = actionOf(url);
+    const form = action ? currentForm(action) : "";
     const response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1", ...(form ? { "x-chest-form": form } : {}) }, body });
     if (response.headers.get("content-type")?.startsWith("application/json")) {
       outcome = await response.json() as typeof outcome;
       // The token served once: the answer brings the next one.
       const next = (outcome as { form?: unknown }).form;
-      if (typeof next === "string") setForm(next);
+      if (typeof next === "string" && action) renewForm(action, next);
     } else {
       void response.body?.cancel();
       if (response.status === 401 || response.status === 403) {

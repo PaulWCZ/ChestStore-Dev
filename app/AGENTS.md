@@ -111,8 +111,8 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   switch). **Every public action is bounded** — the one way, the same in
   every tool:
   ```tsx
-  // a form of a public page or of an island: <Honeypot /> in it
-  <form method="post" action="/actions/book"><Honeypot />…</form>
+  // a form of a public page or of an island: <Honeypot action="…" /> in it
+  <form method="post" action="/actions/book"><Honeypot action="book" />…</form>
   // src/actions.ts
   book: publicAction(fields, async (input, { charge }) => {
     const slot = await freeSlot(input.slot);          // check first: a refusal costs nothing
@@ -122,8 +122,13 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   }, { bound: { budgets: { new: { perVisitor: 3, perDay: 200 }, change: { perVisitor: 10, perDay: 500 } } } }),
   // one kind of write: { bound: { perVisitor: 5, perDay: 200 } }, no charge()
   ```
-  The package then: requires the page's **form token** (`<Honeypot />`
-  carries it, `call()` sends it; 120 minutes, `formMinutes` to change;
+  The package then: requires the page's **form token for that action**
+  (`<Honeypot action="book" />` carries it in the form; an action an
+  island only calls — an upload's grant — needs `<FormToken
+  action="upload" />` on the page, and `call("upload", …)` sends it — as
+  does a form an island shows only later (a step after a choice, "Change
+  my answer"): the token must be in what the server rendered; a
+  token issued for one action is refused by another; 120 minutes, `formMinutes` to change;
   `formSeconds: 2` makes a form sent sooner than a person fills it wait
   the seconds left; it serves once whatever the answer, and the answer —
   or the page a plain form goes back to — brings the next; else the code
@@ -133,8 +138,17 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   counts back) per visitor and for everyone a day, in `chest_bounds`;
   past it, the code `limit`. `perSubject` (budgets by kind only, with
   `charge(kind, { subject: link })`) bounds one thing written to — a
-  guest link, a booking — whoever writes. Refusals have their own
-  ceiling, ten times `perDay`, then `limit` before the run.
+  guest link, a booking — whoever writes: per job, per guest link, keep
+  `perSubject` well under `perDay` (`perDay` ≥ `perSubject` × the subjects
+  busy on one day), so that one subject's flood spends its own budget and
+  leaves the rest of the day's to the others. **Refusals** (your run
+  refused: a wrong secret, a time taken) are counted per visitor and for
+  everyone: a visitor (address or cookie) past ten times their budget (at
+  least 20) is refused before the run — their flood closes the form to
+  them only; everyone's ceiling (ten times `perDay`) **never refuses**: a
+  call that passes your checks still writes, and your run is told
+  (`{ flooded }` in its context) to keep its checks cheap. A forged or
+  old token is refused from its signature alone, before any query.
   **What it does not do:** the visitor is the address the Chest's front
   gives (`Chest-Visitor-Address`, a studio proposal — no Chest gives it
   yet), else the browser's cookie; a robot that clears its cookie and
@@ -152,7 +166,7 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   members only, or a search on the server that answers a few names.
   Words: `t.errors.limit` and `t.errors.expired` ("This form expired:
   send it again.") — `checkSources` asks them in every catalogue when a
-  bounded action exists. A test sends `{ chest_form: formToken() }`.
+  bounded action exists. A test sends `{ chest_form: formToken("book") }`.
   `bound: false` only for an action that writes nothing (`checkSources`
   fails on a `publicAction` without `bound`, on budgets without
   `charge(`, on `perSubject` without a subject). A page with a bounded
