@@ -47,8 +47,9 @@ export function fileOf(p: Extract<Picture, { kind: "inside" }>, name: string): F
 // words given (`note(alt)` → the sentence; `open` → the link's words), and
 // pictures inside the clipboard are taken out and answered as files.
 export function pastedPictures(html: string, origin: string, words: { note: (alt: string) => string; open: string; name: string }): { html: string; web: number; files: File[] } {
-  if (!/<img[\s>]/iu.test(html)) return { html, web: 0, files: [] };
-  const dom = new DOMParser().parseFromString(html, "text/html");
+  if (!/<img[\s>]|\sstyle\s*=/iu.test(html)) return { html, web: 0, files: [] };
+  const dom = new DOMParser().parseFromString(unstyled(html), "text/html");
+  inlineStyles(dom);
   let web = 0;
   const files: File[] = [];
   for (const img of [...dom.querySelectorAll("img")]) {
@@ -86,4 +87,46 @@ export function pastedPictures(html: string, origin: string, words: { note: (alt
     } else img.replaceWith(aside);
   }
   return { html: dom.body.innerHTML, web, files };
+}
+
+// What a style attribute says that the page keeps — bold, italic, struck
+// through (Google Docs writes them so) — becomes the element that says it,
+// and the attribute goes. The page's policy refuses style attributes
+// wherever HTML is parsed in it (a DOMParser's document too: it says so in
+// the console, and the styles do not read), so they are renamed in the
+// text first (unstyled) and read by hand here. Google Docs' wrapper
+// <b style="font-weight: normal"> is not bold: it gives its children back.
+export function unstyled(html: string): string {
+  return html.replace(/<[a-z][^>]*>/giu, tag => tag.replace(/\sstyle\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/giu, " data-pasted-style=$1"));
+}
+
+function declarations(text: string): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const part of text.split(";")) {
+    const at = part.indexOf(":");
+    if (at > 0) found.set(part.slice(0, at).trim().toLowerCase(), part.slice(at + 1).trim().toLowerCase());
+  }
+  return found;
+}
+
+export function inlineStyles(dom: Document): void {
+  for (const el of [...dom.body.querySelectorAll<HTMLElement>("[data-pasted-style]")]) {
+    const style = declarations(el.getAttribute("data-pasted-style") ?? "");
+    el.removeAttribute("data-pasted-style");
+    const weight = style.get("font-weight") ?? "";
+    const bold = weight === "bold" || weight === "bolder" || Number(weight) >= 600;
+    const plain = weight === "normal" || (weight !== "" && Number(weight) > 0 && Number(weight) < 600);
+    const italic = style.get("font-style") === "italic";
+    const struck = /line-through/u.test(style.get("text-decoration") ?? style.get("text-decoration-line") ?? "");
+    if (plain && (el.localName === "b" || el.localName === "strong")) {
+      el.replaceWith(...el.childNodes);
+      continue;
+    }
+    const wraps = [bold && !["b", "strong", "h1", "h2", "h3", "h4", "h5", "h6"].includes(el.localName) ? "strong" : null, italic && el.localName !== "em" && el.localName !== "i" ? "em" : null, struck && el.localName !== "s" ? "s" : null].filter((w): w is string => w !== null);
+    for (const tag of wraps) {
+      const wrap = dom.createElement(tag);
+      wrap.append(...el.childNodes);
+      el.append(wrap);
+    }
+  }
 }

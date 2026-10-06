@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { pictureOf } from "../src/islands/editor/paste.ts";
+import { pictureOf, unstyled } from "../src/islands/editor/paste.ts";
 import { normalize } from "../src/lib/doc.ts";
 import * as editing from "../src/lib/editing.ts";
 import { askWhom, whoWrites } from "../src/lib/groups.ts";
@@ -188,4 +188,8 @@ test("“My pages”: everyone's own, readers included; nobody else sees it — 
   assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, chestEvents), 204);
   assert.equal((await sql`select count(*)::int as n from spaces where id = ${mine.id}`)[0]!.n, 0);
   assert.equal((await sql`select count(*)::int as n from pages where id = ${note.id}`)[0]!.n, 0);
+});
+
+test("pasted HTML: style attributes renamed before any parsing in the page (its policy refuses them)", () => {
+  assert.equal(unstyled(`<b style="font-weight:normal"><span style='font-weight:700'>Budget</span> style="kept as text"</b>`), `<b data-pasted-style="font-weight:normal"><span data-pasted-style='font-weight:700'>Budget</span> style="kept as text"</b>`);
 });

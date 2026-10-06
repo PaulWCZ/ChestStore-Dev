@@ -39,7 +39,7 @@ export const framed = (render: Render): Render => async p => {
   return {
     title: view.title,
     body: (
-      <div className="frame">
+      <div className="frame with-sidebar">
         <Island name="Sidebar" props={sidebarProps(p, spaces, nodes, path)} />
         <div className="content">{view.body}</div>
       </div>

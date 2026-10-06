@@ -113,8 +113,8 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .bar-search .ck-search { max-width: none; }
 .ck-member-name, .ck-member-role { white-space: nowrap; }
 
-.frame { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: calc(100dvh - var(--bar-h)); }
-.frame.editing, .frame:not(:has(> .sidebar)) { grid-template-columns: minmax(0, 1fr); }
+.frame { display: grid; grid-template-columns: minmax(0, 1fr); min-height: calc(100dvh - var(--bar-h)); }
+.frame.with-sidebar { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
 .content { min-width: 0; }
 .sidebar { position: sticky; top: var(--bar-h); height: calc(100dvh - var(--bar-h)); overflow-y: auto; padding: var(--space-4) var(--space-3) var(--space-7); background: var(--surface-2); border-right: var(--border-width) solid var(--line); font-size: var(--text-s); }
 .side-title { margin: var(--space-2) var(--space-2) var(--space-2); font: var(--weight-strong) var(--text-xs)/1 var(--font-body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
@@ -504,7 +504,7 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 0.1em; border
 }
 @media (max-width: 900px) {
   /* The tree is the "Pages" section: the sidebar steps aside. */
-  .frame { grid-template-columns: minmax(0, 1fr); }
+  .frame.with-sidebar { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }
   .home-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
   .history-grid { grid-template-columns: minmax(0, 1fr); }
@@ -539,7 +539,7 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 0.1em; border
   .contents > li { padding-left: 2.4rem; }
   .version { padding: var(--space-4); }
   .space-head .actions { width: 100%; }
-  .space-head .actions > .button { flex: 1; }
+  .space-head .actions .button { flex: 1; }
   .prose table { font-size: var(--text-xs); }
 }
 /* ---------- Paper ---------- */

@@ -44,6 +44,8 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
       setOffer({ text: [...text].slice(0, limits.quote).join(""), top: box.bottom + window.scrollY + 6, left: Math.max(8, Math.min(box.left + window.scrollX, document.documentElement.clientWidth - 260)) });
     };
     document.addEventListener("selectionchange", onSelect);
+    // Words selected before the page ran are offered too.
+    onSelect();
     return () => document.removeEventListener("selectionchange", onSelect);
   }, []);
   function about(text: string) {
