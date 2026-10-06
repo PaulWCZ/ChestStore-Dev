@@ -93,11 +93,22 @@ see "What it does not do yet".
     address** HR gave (not a member: an email to someone outside, see "Mail
     to people outside the company"), in the Chest's language. Hiring's
     personal address is never kept, so an arrival from Hiring without a
-    work address gets nothing.
+    work address gets nothing. The address is first matched with the
+    Chest's members (`members.matchEmails`): when it is already a member's
+    (they joined the Chest before HR linked the arrival), that member gets
+    the **notification**, never an email, and HR is asked to link the
+    arrival to them under *Arriving*. When the Chest cannot say whose the
+    address is, nothing is sent (a member is never mailed by mistake) and
+    the page says so.
   Once per checklist; not for a first day more than two weeks past. The
   start form says beforehand which it will be ("Nora finds a short welcome
-  in their Chest notifications.", "Lucie gets a short welcome email.", or
-  why no email will leave), and the page after says what happened.
+  in their Chest notifications.", "Hugo is already in the Chest: they will
+  find a short welcome in their notifications. Link their arrival…",
+  "Lucie gets a short welcome email.", or why no email will leave), and
+  the toast after says what happened ("A short welcome email is on its way
+  to lucie.garnier@…"). An email that bounces (or is marked as spam, or
+  fails) shows on the checklist for HR: "The welcome email to … could not
+  be delivered. Check their work email".
 - **Import** a CSV (a shared spreadsheet, BambooHR's reports, a Google
   Workspace users export, Lucca's export): columns recognised from their
   names in English and French — BambooHR's "Employee #" (left out), "First
@@ -420,7 +431,7 @@ Chest mails them by their own choice.
 
 | Recipient | Purpose | When | Content | Attachments | Reply-To |
 |---|---|---|---|---|---|
-| A newcomer not in the Chest yet (an expected arrival), at the work address HR typed on their arrival | Welcome them before they have access | When HR starts their welcome checklist, once; not for a first day more than two weeks past; never to Hiring's personal address | "Welcome to {company}, {name}": their first day, their manager, that their first steps will wait for them in People; signed by the HR person; plain text, in the Chest's language | None | The HR person who started the checklist (their Chest address), else the company's reply address |
+| A newcomer not in the Chest yet (an expected arrival), at the work address HR typed on their arrival — only when `members.matchEmails` says the address is no member's (a member's address: a notification instead; no answer: nothing) | Welcome them before they have access | When HR starts their welcome checklist, once; not for a first day more than two weeks past; never to Hiring's personal address; a bounce shows on the checklist (`mail.status`) | "Welcome to {company}, {name}": their first day, their manager, that their first steps will wait for them in People; signed by the HR person; plain text, in the Chest's language | None | The HR person who started the checklist (their Chest address), else the company's reply address |
 
 
 - `capabilities`: `database`, `members` (names, photos, roles: the directory
@@ -505,8 +516,15 @@ records, the morning run).
   checklist and the address (`people:welcome:<checklist>:<address>`), so a
   restored database never reuses one person's key for another. Without the
   connector nothing is sent, nothing fails, and the page does not say it
-  was sent. `mail.status(id)` would tell a bounce; People does not follow
-  it yet (HR sees the newcomer on day one anyway).
+  was sent. Before sending, `members.matchEmails([address])` (Proposal
+  (studio)): an address already a member's gets the notification instead;
+  no answer, nothing leaves. The message id is kept on the checklist
+  (migration 0009: `journeys.welcome_mail`, never the address); its fate is
+  asked with `mail.status(id)` when HR opens the checklist and every
+  morning for two weeks, and a bounce, complaint or failure shows on the
+  checklist. Limit: `matchEmails` matches only members who have People; a
+  Chest member without People whose address HR typed on an arrival would
+  still get the email (the Chest gives People no way to know them).
 - **Events between tools** — **Proposal (studio)**: receives
   `hiring.hired`, `hiring.hire_cancelled`, `leave.approved`,
   `leave.cancelled`, `equipment.returned`; emits `people.leaving`, `people.leaving_cancelled`,

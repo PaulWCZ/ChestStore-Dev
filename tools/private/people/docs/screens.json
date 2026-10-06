@@ -232,6 +232,16 @@
     ]
   },
   {
+    "name": "start-arrival",
+    "path": "/chest/checklists/new?arrival=2",
+    "member": "camille",
+    "locale": "en",
+    "only": [
+      "desktop",
+      "phone"
+    ]
+  },
+  {
     "name": "start-fr",
     "path": "/chest/checklists/new",
     "member": "camille",

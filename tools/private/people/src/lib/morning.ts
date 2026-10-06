@@ -14,11 +14,13 @@ import { everyone, people } from "./people.ts";
 import { purgeLeft } from "./profiles.ts";
 import { purgeRecords, upcoming } from "./records.ts";
 import { refreshBadges } from "./tell.ts";
+import { checkWelcomeMails } from "./welcome.ts";
 
 // The weekday morning (schedule "morning", a Proposal (studio)): everyone
 // with checklist to-dos due today or late finds one item in their bell, in
 // their own language, replacing yesterday's; HR hears of trial periods and
-// contracts about to end; every tile's number is set right; profiles of
+// contracts about to end; the welcome emails' fate is asked (a bounce
+// shows on the checklist); every tile's number is set right; profiles of
 // people gone for 30 days are purged, leaves told by Leave once past,
 // records five years after the person left, the journal after two years.
 // Idempotent: a run delivered twice sends the same items again under the
@@ -36,6 +38,7 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
     await notify([member], (t, locale) => ({ title: plural(t.bell.digest, steps.length, locale), body: cut(steps.map(s => stepText(s, t)).join(" · "), 280) }), { path: "/chest/todo", key: "digest" });
   }
   await endings(sql, day);
+  await checkWelcomeMails(sql);
   await fieldDates(sql, day);
   const holders = (await sql<{ assignee: string }[]>`
     select distinct i.assignee from journey_items i where i.assignee like 'mbr_%' and i.done_at is null limit 5000`).map(r => r.assignee);

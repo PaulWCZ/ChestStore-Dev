@@ -9,6 +9,7 @@ import { directory } from "../lib/directory.ts";
 import { listName } from "../lib/examples.ts";
 import { listTemplates } from "../lib/journeys.ts";
 import { mailState } from "../lib/mailing.ts";
+import { membersByAddress } from "../lib/welcome.ts";
 import { today } from "../lib/zone.ts";
 import { isKind, memberPattern } from "../shared/model.ts";
 import { BackLink } from "./parts.tsx";
@@ -20,6 +21,10 @@ export async function newChecklistPage({ member, locale, t, query }: PageContext
   const sql = db();
   const [{ entries }, templates, told, mailing] = await Promise.all([directory(sql, member), listTemplates(sql, member), listArrivals(sql, member), mailState()]);
   const arrivals = told.filter(a => a.status === "expected");
+  // An arrival whose work address is already a member's gets the welcome
+  // as a notification, never an email (lib/welcome.ts); null: the Chest
+  // could not say, and the form promises nothing.
+  const inChest = await membersByAddress(arrivals.map(a => a.workEmail));
   const asked = arrivals.find(a => a.id === query("arrival"));
   const personAsked = query("person") ?? "";
   const person = asked ? "arrival:" + asked.id : memberPattern.test(personAsked) ? personAsked : "";
@@ -38,7 +43,7 @@ export async function newChecklistPage({ member, locale, t, query }: PageContext
             name="StartForm"
             props={{
               people: entries.map(e => ({ id: e.id, name: e.name, startDate: e.startDate })),
-              arrivals: arrivals.map(a => ({ id: "arrival:" + a.id, name: a.name, startDate: a.startDate, managerId: a.managerId, mailable: a.workEmail !== "" && isAddress(a.workEmail) })),
+              arrivals: arrivals.map(a => ({ id: "arrival:" + a.id, name: a.name, startDate: a.startDate, managerId: a.managerId, mailable: a.workEmail !== "" && isAddress(a.workEmail), inChest: inChest === null ? null : a.workEmail in inChest })),
               templates: templates.map(x => ({ id: x.id, name: listName(x, t), kind: x.kind, steps: x.items.length })),
               initial: { person, kind, template: query("template") ?? "" },
               today: today(),

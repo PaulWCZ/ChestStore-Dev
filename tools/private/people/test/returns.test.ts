@@ -55,31 +55,31 @@ test("everything back: the return step ticks itself, by Equipment; told twice, n
   const { items } = await leaving();
   const step = (await items()).find(i => i.phrase === returnPhrase)!;
   assert.equal(step.done, false);
-  assert.equal(await returned({ "member": tom.id }), 204);
+  assert.equal(await returned({ member: tom.id }), 204);
   const after1 = (await items()).find(i => i.id === step.id)!;
   assert.equal(after1.done, true);
   assert.equal(after1.doneBy, "equipment");
   assert.deepEqual((await items()).filter(i => i.done).map(i => i.id), [step.id], "only that step");
-  assert.equal(await returned({ "member": tom.id }), 204);
+  assert.equal(await returned({ member: tom.id }), 204);
   assert.deepEqual((await items()).filter(i => i.done).map(i => i.id), [step.id]);
 });
 
 test("another tool, another shape, another person, a stopped checklist, a step HR reworded: nothing", async () => {
   const { sql } = database;
   const { id, items } = await leaving();
-  assert.deepEqual(await equipmentReturned(sql, { id: "evt_1", type: "equipment.returned", source: "rooms", occurredAt: new Date().toISOString(), data: { "member": tom.id } } as never), []);
-  assert.equal(await returned({ "member": "tom" }), 204);
+  assert.deepEqual(await equipmentReturned(sql, { id: "evt_1", type: "equipment.returned", source: "rooms", occurredAt: new Date().toISOString(), data: { member: tom.id } } as never), []);
+  assert.equal(await returned({ member: "tom" }), 204);
   assert.equal(await returned({ person: tom.id }), 204);
-  assert.equal(await returned({ "member": sofia.id }), 204);
+  assert.equal(await returned({ member: sofia.id }), 204);
   assert.equal((await items()).some(i => i.done), false);
   // Reworded by HR: HR's own step, HR's to tick.
   const step = (await items()).find(i => i.phrase === returnPhrase)!;
   await j.updateJourneyItem(sql, hr, step.id, { text: "Give back the van keys" });
-  assert.equal(await returned({ "member": tom.id }), 204);
+  assert.equal(await returned({ member: tom.id }), 204);
   assert.equal((await items()).some(i => i.done), false);
   await j.stopJourney(sql, hr, id, true);
   await sql`update journey_items set text = 'Return the laptop, badge and keys', phrase = ${returnPhrase} where id = ${step.id}`;
-  assert.equal(await returned({ "member": tom.id }), 204);
+  assert.equal(await returned({ member: tom.id }), 204);
   assert.equal((await items()).some(i => i.done), false, "a stopped checklist stays as it is");
 });
 
@@ -88,7 +88,7 @@ test("the last open step: the checklist is complete and whoever started it hears
   const { id, items } = await leaving();
   for (const i of await items()) if (i.phrase !== returnPhrase) await sql`update journey_items set done_at = now(), done_by = ${camille.id} where id = ${i.id}`;
   chest.notifications.length = 0;
-  await returned({ "member": tom.id });
+  await returned({ member: tom.id });
   assert.ok((await j.journey(sql, hr, id)).completedAt, "complete");
   assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `journey:${id}:done`), "HR told");
 });

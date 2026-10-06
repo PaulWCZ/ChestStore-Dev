@@ -83,9 +83,9 @@ test("starting a checklist gives each step to someone, tells them in their langu
     ["Fill in your profile", nora.id, addDays(start, 1)],
   ]);
   const inbox = (who: string) => chest.notifications.filter(n => n.member === who).map(n => seen(n).title);
-  assert.deepEqual(inbox(ines.id), ["Arrivée de Nora Petit : 1 tâche pour vous"]);
+  assert.deepEqual(inbox(ines.id), ["Arrivée de Nora Petit : 1 tâche pour vous"]);
   assert.deepEqual(inbox(tom.id), ["Welcome Nora Petit: 1 to-do for you"]);
-  assert.deepEqual(inbox(nora.id), ["Vos premières semaines : 1 tâche"]);
+  assert.deepEqual(inbox(nora.id), ["Vos premières semaines : 1 tâche"]);
   assert.deepEqual(inbox(camille.id), []);
   assert.equal(chest.badges.get(tom.id), 1);
   // Who sees it: HR, Nora, her manager, those with a step; not Hugo or Léa.

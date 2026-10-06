@@ -6,7 +6,7 @@ import * as arrivals from "../src/lib/arrivals.ts";
 import * as j from "../src/lib/journeys.ts";
 import { addDays } from "../src/shared/model.ts";
 import { mailState, stateOf } from "../src/lib/mailing.ts";
-import { welcome, welcomeLetter, welcomeNotice } from "../src/lib/welcome.ts";
+import { checkWelcomeMails, welcome, welcomeLetter, welcomeMail, welcomeNotice } from "../src/lib/welcome.ts";
 import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -18,7 +18,9 @@ import { camille, everyone, hugo, nora, tom } from "./support/members.ts";
 // short email through the Chest's mail connector (Proposal (studio)
 // "mail"), signed by HR, who is the reply address; once per checklist;
 // nothing for a leaving checklist, a first day long past, an arrival
-// without a work address, or a Chest without the connector.
+// without a work address, or a Chest without the connector. A work address
+// already a member's gets the notification, never an email; when the Chest
+// cannot say whose it is, nothing leaves. A bounce shows on the checklist.
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -60,7 +62,7 @@ test("a member's welcome checklist: a notification, never an email — English w
   const { welcomeList } = await templates();
   const first = addDays(today(), 5);
   const started = await j.startJourney(sql, hr, { personId: nora.id, templateId: welcomeList.id, anchor: first });
-  assert.equal(await welcome(sql, hr, started.id), "notice");
+  assert.deepEqual(await welcome(sql, hr, started.id), { by: "notice", matched: false });
   assert.equal(chest.outbox.length, 0, "no email to a member");
   const told = chest.notifications.filter(n => n.key === `welcome:${started.id}`);
   assert.deepEqual(told.map(n => n.member), [nora.id]);
@@ -71,7 +73,7 @@ test("a member's welcome checklist: a notification, never an email — English w
   assert.equal(fr.title, "Bienvenue chez Atelier Martin, Nora");
   assert.match(fr.body ?? "", /^Bienvenue chez Atelier Martin.*Votre premier jour est le .*— Camille Martin$/u);
   // Sent again (a retry): the same key, one item.
-  assert.equal(await welcome(sql, hr, started.id), "notice");
+  assert.deepEqual(await welcome(sql, hr, started.id), { by: "notice", matched: false });
   assert.equal(chest.notifications.filter(n => n.key === `welcome:${started.id}` && n.member === nora.id).length, 1);
 });
 
@@ -80,7 +82,7 @@ test("an arrival with a work address: in the Chest's language, with their manage
   const { welcomeList } = await templates();
   const coming = await arrivals.addArrival(sql, hr, { name: "Lucie Garnier", job: "Sales associate", startDate: addDays(today(), 10), managerId: hugo.id, workEmail: "lucie.garnier@atelier.test" });
   const started = await j.startJourney(sql, hr, { arrivalId: coming.id, templateId: welcomeList.id, anchor: addDays(today(), 10) });
-  assert.equal(await welcome(sql, hr, started.id), "email");
+  assert.deepEqual(await welcome(sql, hr, started.id), { by: "email", to: "lucie.garnier@atelier.test" });
   const letter = chest.outbox.at(-1)!;
   assert.deepEqual(letter.to, ["lucie.garnier@atelier.test"]);
   assert.equal(letter.subject, "Welcome to Atelier Martin, Lucie");
@@ -92,7 +94,7 @@ test("an arrival with a work address: in the Chest's language, with their manage
   assert.equal(letter.fromName, "Camille Martin");
   assert.match(letter.text, /\nSee you soon,\nCamille Martin$/u);
   // Sent again (a retry): the key names the checklist, nothing twice.
-  assert.equal(await welcome(sql, hr, started.id), "email");
+  assert.deepEqual(await welcome(sql, hr, started.id), { by: "email", to: "lucie.garnier@atelier.test" });
   assert.equal(chest.outbox.length, 1);
 
   const noAddress = await arrivals.addArrival(sql, hr, { name: "Marc Roux", startDate: addDays(today(), 3) });
@@ -109,7 +111,7 @@ test("not for a leaving checklist, nor a first day more than two weeks past", as
   const late = await j.startJourney(sql, hr, { personId: hugo.id, templateId: welcomeList.id, anchor: addDays(today(), -15) });
   assert.equal(await welcome(sql, hr, late.id), null);
   const recent = await j.startJourney(sql, hr, { personId: tom.id, templateId: welcomeList.id, anchor: addDays(today(), -3) });
-  assert.equal(await welcome(sql, hr, recent.id), "notice");
+  assert.deepEqual(await welcome(sql, hr, recent.id), { by: "notice", matched: false });
   assert.deepEqual(chest.notifications.filter(n => n.key?.startsWith("welcome:")).map(n => n.member), [tom.id]);
   assert.equal(chest.outbox.length, 0);
 });
@@ -121,7 +123,7 @@ test("a Chest without the mail connector: a member is still welcomed; an arrival
   chest = await chestWith(false);
   try {
     const started = await j.startJourney(sql, hr, { personId: nora.id, templateId: welcomeList.id, anchor: addDays(today(), 5) });
-    assert.equal(await welcome(sql, hr, started.id), "notice");
+    assert.deepEqual(await welcome(sql, hr, started.id), { by: "notice", matched: false });
     const coming = await arrivals.addArrival(sql, hr, { name: "Lucie Garnier", startDate: addDays(today(), 10), workEmail: "lucie.garnier@atelier.test" });
     const arrival = await j.startJourney(sql, hr, { arrivalId: coming.id, templateId: welcomeList.id, anchor: addDays(today(), 10) });
     assert.equal(await welcome(sql, hr, arrival.id), null);
@@ -129,6 +131,65 @@ test("a Chest without the mail connector: a member is still welcomed; an arrival
     await chest.close();
     chest = await chestWith(true);
   }
+});
+
+test("an arrival whose work address is already a member's: the member is notified, never mailed; HR is told to link them", async () => {
+  const { sql } = database;
+  const { welcomeList } = await templates();
+  // Nora joined the Chest before HR linked her arrival.
+  const coming = await arrivals.addArrival(sql, hr, { name: "Nora Petit", startDate: addDays(today(), 4), managerId: hugo.id, workEmail: address("nora") });
+  const started = await j.startJourney(sql, hr, { arrivalId: coming.id, templateId: welcomeList.id, anchor: addDays(today(), 4) });
+  assert.deepEqual(await welcome(sql, hr, started.id), { by: "notice", matched: true });
+  assert.equal(chest.outbox.length, 0, "no email to a member");
+  const told = chest.notifications.filter(n => n.key === `welcome:${started.id}`);
+  assert.deepEqual(told.map(n => n.member), [nora.id]);
+  assert.equal(told[0]!.title, "Welcome to Atelier Martin, Nora");
+  assert.match(told[0]!.body ?? "", /Hugo Bernard will be your manager\./u);
+  // Written in another case by HR: still hers (the Chest matches any case).
+  await sql`update arrivals set work_email = ${"Nora@Atelier.test"} where id = ${coming.id}`;
+  chest.notifications.length = 0;
+  assert.deepEqual(await welcome(sql, hr, started.id), { by: "notice", matched: true });
+  assert.equal(chest.outbox.length, 0);
+});
+
+test("the Chest cannot say whether the work address is a member's: nothing leaves, and it is said", async () => {
+  const { sql } = database;
+  const { welcomeList } = await templates();
+  const coming = await arrivals.addArrival(sql, hr, { name: "Lucie Garnier", startDate: addDays(today(), 10), workEmail: "lucie.garnier@atelier.test" });
+  const started = await j.startJourney(sql, hr, { arrivalId: coming.id, templateId: welcomeList.id, anchor: addDays(today(), 10) });
+  await chest.close();
+  chest = await fakeChest({ network: {}, tool: "people", members: withAddresses, capabilities: ["notifications", "mail"], mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin", language: "en" } });
+  try {
+    assert.deepEqual(await welcome(sql, hr, started.id), { by: "unchecked" });
+    assert.equal(chest.outbox.length, 0);
+  } finally {
+    await chest.close();
+    chest = await chestWith(true);
+  }
+});
+
+test("a welcome email that bounced shows on the checklist; the morning asks the Chest for two weeks", async () => {
+  const { sql } = database;
+  const { welcomeList } = await templates();
+  const coming = await arrivals.addArrival(sql, hr, { name: "Lucie Garnier", startDate: addDays(today(), 10), workEmail: "lucie.garnier@atelier.test" });
+  const started = await j.startJourney(sql, hr, { arrivalId: coming.id, templateId: welcomeList.id, anchor: addDays(today(), 10) });
+  await welcome(sql, hr, started.id);
+  const sent = chest.outbox.at(-1)!;
+  assert.equal(await welcomeMail(sql, started.id), null, "sent: nothing to say");
+  chest.bounce(sent.id, { permanent: true });
+  await checkWelcomeMails(sql);
+  const [row] = await sql<{ welcome_mail_status: string }[]>`select welcome_mail_status from journeys where id = ${started.id}`;
+  assert.equal(row!.welcome_mail_status, "bounced");
+  assert.deepEqual(await welcomeMail(sql, started.id), { status: "bounced", address: "lucie.garnier@atelier.test" });
+  // A member's welcome is a notification: no email, nothing to show.
+  const member = await j.startJourney(sql, hr, { personId: tom.id, templateId: welcomeList.id, anchor: addDays(today(), 2) });
+  await welcome(sql, hr, member.id);
+  assert.equal(await welcomeMail(sql, member.id), null);
+  // Past two weeks the Chest is not asked any more; what it said stays.
+  await sql`update journeys set created_at = now() - interval '15 days', welcome_mail_status = 'queued' where id = ${started.id}`;
+  await checkWelcomeMails(sql);
+  const [old] = await sql<{ welcome_mail_status: string }[]>`select welcome_mail_status from journeys where id = ${started.id}`;
+  assert.equal(old!.welcome_mail_status, "queued");
 });
 
 test("the letter to an arrival and the notice to a member, word for word", () => {

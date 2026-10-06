@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
 import { atLeast, checkPage } from "@argentic/chest-app/testing";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { camille, everyone, hugo, ines, lea, nora, paul, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom } from "./support/members.ts";
 
 atLeast(18);
 
@@ -136,19 +136,19 @@ test("the fields at the door: a row's id, a member's id, a choice, a day — any
   assert.equal((await call(camille, "linkArrival", { id: "1", memberId: "someone" })).error, "invalid");
   assert.equal((await call(camille, "createTemplate", { kind: "holiday", name: "x" })).error, "invalid");
   assert.equal((await call(camille, "addChecklistItem", { id: "1", text: "x", due: "2026-02-31" })).error, "invalid");
-  assert.equal((await call(camille, "saveCell", { "member": hugo.id, key: "salary", value: "1" })).error, "invalid");
+  assert.equal((await call(camille, "saveCell", { member: hugo.id, key: "salary", value: "1" })).error, "invalid");
   const long = await call(camille, "createTemplate", { kind: "onboarding", name: "x".repeat(81) });
   assert.deepEqual([long.error, long.message], ["too_long", "Trop long\u202f: 80 caractères au plus."]);
 });
 
 test("HR's job fields: a loop of managers is refused in plain words; the chart draws the tree", async () => {
   assert.equal((await call(camille, "saveProfile", { id: hugo.id, job: { title: "Sales lead", team: "Sales", office: "Lyon", managerId: lea.id, startDate: "2021-09-15" } })).ok, true);
-  assert.equal((await call(camille, "saveCell", { "member": lea.id, key: "team", value: "Sales" })).ok, true);
-  const loop = await call(camille, "saveCell", { "member": lea.id, key: "managerId", value: hugo.id });
+  assert.equal((await call(camille, "saveCell", { member: lea.id, key: "team", value: "Sales" })).ok, true);
+  const loop = await call(camille, "saveCell", { member: lea.id, key: "managerId", value: hugo.id });
   assert.equal(loop.error, "cycle");
   assert.match(loop.message ?? "", /boucle/u);
   // A member may not write job fields.
-  assert.equal((await call(hugo, "saveCell", { "member": hugo.id, key: "title", value: "Boss" })).error, "forbidden");
+  assert.equal((await call(hugo, "saveCell", { member: hugo.id, key: "title", value: "Boss" })).error, "forbidden");
   const chart = await page(hugo, "/chest/chart");
   assert.equal(chart.status, 200);
   assert.match(chart.html, /data-island="OrgChart"/u);
@@ -312,4 +312,38 @@ test("the morning schedule runs on POST /chest-schedules, at least once, and not
   assert.equal(await chest.run("nothing", to), 404);
   // Unsigned: refused.
   assert.equal((await app.fetch(new Request(url("/chest-schedules"), { method: "POST", body: "{}" }))).status, 401);
+});
+
+test("the welcome to an arrival: an address already a member's is said on the form and gets a notification; an email that bounced shows on the checklist", async () => {
+  await chest.close();
+  const withAddresses = everyone.map(p => ({ ...p, email: `${p.firstName.toLowerCase()}@atelier.test` }));
+  chest = await fakeChest({ network: {}, tool: "people", members: withAddresses, capabilities: ["database", "files", "members", "members.email", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  try {
+    const list = await call(sofia, "createTemplate", { kind: "onboarding", name: "Welcome" });
+    assert.equal(list.ok, true, list.message);
+    assert.equal((await call(sofia, "addTemplateItem", { id: list.value.id, text: "Order the laptop", role: "hr", offset: -3 })).ok, true);
+    const first = new Date(Date.now() + 9 * 86_400_000).toISOString().slice(0, 10);
+    // Hugo is in the Chest already; HR wrote his address on an arrival.
+    const known = await call(sofia, "addArrival", { input: { name: "Hugo Bernard", startDate: first, workEmail: "hugo@atelier.test" } });
+    const stranger = await call(sofia, "addArrival", { input: { name: "Lucie Garnier", startDate: first, workEmail: "lucie.garnier@atelier.test" } });
+    assert.equal(known.ok && stranger.ok, true);
+    const form = await page(sofia, "/chest/checklists/new");
+    const arrivalsOnForm = JSON.parse(/data-island="StartForm"[^>]*? data-props="([^"]*)"/u.exec(form.html)![1]!.replaceAll("&quot;", "\"").replaceAll("&#x27;", "'").replaceAll("&amp;", "&")).arrivals as { id: string; inChest: boolean | null }[];
+    assert.deepEqual(arrivalsOnForm.map(a => [a.id, a.inChest]).sort(), [["arrival:" + known.value.id, true], ["arrival:" + stranger.value.id, false]].sort());
+    const matched = await call(sofia, "startChecklist", { arrivalId: known.value.id, templateId: list.value.id, anchor: first });
+    assert.equal(matched.ok, true, matched.message);
+    assert.deepEqual(matched.value.welcomed, { by: "notice", matched: true });
+    assert.equal(chest.outbox.length, 0, "a member is never mailed");
+    assert.deepEqual(chest.notifications.filter(n => n.key === `welcome:${matched.value.id}`).map(n => n.member), [hugo.id]);
+    const mailed = await call(sofia, "startChecklist", { arrivalId: stranger.value.id, templateId: list.value.id, anchor: first });
+    assert.deepEqual(mailed.value.welcomed, { by: "email", to: "lucie.garnier@atelier.test" });
+    assert.doesNotMatch((await page(sofia, `/chest/checklists/${mailed.value.id}`)).html, /class="banner warn"/u, "nothing to say yet");
+    chest.bounce(chest.outbox.at(-1)!.id, { permanent: true });
+    const shown = await page(sofia, `/chest/checklists/${mailed.value.id}`);
+    assert.match(shown.html, /class="banner warn" role="status">The welcome email to lucie\.garnier@atelier\.test could not be delivered\./u);
+    assert.match((await page(camille, `/chest/checklists/${mailed.value.id}`)).html, /role="status">L’e-mail de bienvenue à lucie\.garnier@atelier\.test n’a pas pu être remis\./u);
+  } finally {
+    await chest.close();
+    chest = await fakeChest({ network: {}, tool: "people", members: everyone, capabilities: ["database", "files", "members", "members.email", "notifications"] });
+  }
 });
