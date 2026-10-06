@@ -40,7 +40,8 @@ const words: Omit<Catalogue, "kit"> = {
     skip: "Aller au contenu",
     nav: "Rubriques",
     directory: "Annuaire",
-    chart: "Organigramme",
+    // A soft hyphen: on a phone, five tabs share 390 px.
+    chart: "Organi\u00adgramme",
     todo: "Mes tâches",
     checklists: "Arrivées et départs",
     records: "Dossiers",
