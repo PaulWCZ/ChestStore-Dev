@@ -1,4 +1,7 @@
 import { addDays, instantOf, wall, weekdayOf } from "./zone.ts";
+import { validRanges, type Ranges } from "../shared/kinds.ts";
+
+export { validRanges, type Ranges };
 
 // The free times of a booking type: the host's weekly hours (and the days
 // they changed), minus what is booked (with buffers), from the minimum
@@ -7,7 +10,6 @@ import { addDays, instantOf, wall, weekdayOf } from "./zone.ts";
 // page shows them, the booking re-checks them (in a transaction).
 
 // Ranges of minutes in a day, [start, end).
-export type Ranges = [number, number][];
 // weekly[0] is Sunday … weekly[6] Saturday; overrides: a date's own ranges
 // ([] = a day off).
 export type Availability = { weekly: Ranges[]; overrides: Record<string, Ranges>; zone: string };
@@ -23,13 +25,6 @@ export type Rules = { duration: number; interval: number; bufferBefore: number; 
 export type Busy = { start: number; end: number; sameType?: number; own?: number };
 export type Slot = { start: string; end: string };
 
-export function validRanges(value: unknown): value is Ranges {
-  if (!Array.isArray(value) || value.length > 8) return false;
-  const ranges = value as unknown[];
-  if (!ranges.every(r => Array.isArray(r) && r.length === 2 && r.every(x => Number.isInteger(x)) && (r[0] as number) >= 0 && (r[1] as number) <= 1440 && (r[0] as number) < (r[1] as number))) return false;
-  const sorted = [...(ranges as Ranges)].sort((a, b) => a[0] - b[0]);
-  return sorted.every((r, i) => i === 0 || r[0] >= sorted[i - 1]![1]);
-}
 
 // slots lists the free starts between two dates of the host's calendar
 // (both included), never before now + notice nor after the window.

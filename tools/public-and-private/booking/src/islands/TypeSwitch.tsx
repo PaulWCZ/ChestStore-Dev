@@ -1,6 +1,6 @@
 import { Switch } from "@argentic/chest-ui/components";
 import { useEffect, useState } from "react";
-import { call } from "../core/client.tsx";
+import { call } from "@argentic/chest-app/client";
 
 // On or off, in one click (the kit's Switch; it shows the new state at
 // once, and the old one again if the server refuses): an off type keeps

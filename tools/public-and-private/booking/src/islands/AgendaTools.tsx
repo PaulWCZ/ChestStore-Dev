@@ -2,7 +2,7 @@ import { DateField, Dialog, Switch, TimeSelect } from "@argentic/chest-ui/compon
 import { moveEnd, moveStart, type DateWords, type DialogWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useState } from "react";
 import { Alert } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 
 // Blocking a time from the agenda: tap a free stretch ("Free 14:00–17:30")

@@ -2,8 +2,8 @@ import { DateField, TimeSelect } from "@argentic/chest-ui/components";
 import { moveEnd, moveStart, timeText, type DateWords } from "@argentic/chest-ui/components/logic";
 import { useState } from "react";
 import { Alert, CalendarOff, Clock } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
-import type { Outcome } from "../core/tool.ts";
+import { call, toast } from "@argentic/chest-app/client";
+import type { Outcome } from "@argentic/chest-app";
 import { plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 

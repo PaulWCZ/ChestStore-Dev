@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Alert, Check, Close, Moved } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 

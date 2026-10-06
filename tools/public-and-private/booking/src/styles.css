@@ -150,6 +150,7 @@ fieldset.bare > legend { padding: 0; }
 .swatches input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
 .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-2); border: 0; padding: 0; margin: 0; }
 .choice { position: relative; }
+fieldset.rooms { min-width: 0; }
 .choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
 .choice span { display: flex; gap: var(--space-2); align-items: center; min-height: 48px; padding: var(--space-2) var(--space-3); border: var(--edge) solid var(--line-strong); border-radius: var(--radius-m); font-weight: var(--weight-strong); background: var(--surface); }
 .choice input:checked + span { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent-text); }
@@ -296,6 +297,7 @@ details.more[open] > summary { margin-bottom: var(--space-3); }
 .calendar .month-start { position: absolute; top: -3px; left: 0; right: 0; font-size: 0.6rem; font-weight: var(--weight-strong); letter-spacing: 0.04em; text-transform: uppercase; line-height: 1; }
 
 /* The mark (components/mark.tsx), in the look's colours. */
+.mark { flex: none; }
 .mark-card { fill: var(--accent); }
 .mark-band { stroke: var(--bg); }
 .mark-pin, .mark-tick { fill: var(--ink); }

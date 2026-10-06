@@ -1,7 +1,7 @@
 import { PageHeader } from "@argentic/chest-ui/components";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import type { MemberContext } from "../core/tool.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import type { MemberContext } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
 import * as b from "../lib/booking.ts";
 import { db } from "../lib/db.ts";

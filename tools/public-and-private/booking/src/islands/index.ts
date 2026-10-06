@@ -1,5 +1,5 @@
 import { CopyButton } from "../components/copy-button.tsx";
-import { ToastHost } from "../core/client.tsx";
+import { ToastHost } from "@argentic/chest-app/client";
 import { AgendaTools, FreeToggle } from "./AgendaTools.tsx";
 import { BookTime, MoveMine } from "./BookTime.tsx";
 import { CancelMeeting } from "./CancelMeeting.tsx";

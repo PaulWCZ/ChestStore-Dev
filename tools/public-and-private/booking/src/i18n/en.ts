@@ -21,6 +21,9 @@ export const en = {
     forbidden: { title: "Not allowed", body: "Your role does not allow this. Ask an administrator of Booking." },
     failed: { title: "Something went wrong", body: "Try again in a moment. If it goes on, tell an administrator of Booking." },
     signIn: "Sign in through your Chest to open this page.",
+    busy: "Still sending…",
+    language: "Language",
+    back: "Back to Booking",
   },
   roles: {
     admin: "Administrator",
@@ -589,6 +592,7 @@ export const en = {
     invalid_phone: "Check the phone number.",
     invalid_link: "The video link must start with https://",
     too_long: "Too long: {max} characters at most.",
+    too_large: "Too large to send.",
     empty: "Write something first.",
     too_many: "Too many bookings right now. Try again in an hour.",
     too_many_types: "{max} booking types at most.",

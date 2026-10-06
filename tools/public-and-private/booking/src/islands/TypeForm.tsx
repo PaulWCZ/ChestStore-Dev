@@ -1,11 +1,12 @@
 import { Confirm } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { Alert, Bin, Close, Down, kindIcon, Plus, Up } from "../components/icons.tsx";
-import { call, navigate, toast } from "../core/client.tsx";
+import { call, navigate, toast } from "@argentic/chest-app/client";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
-import { colors, durations, locationKinds, slugify, type Color, type LocationKind } from "../lib/model.ts";
-import { newQuestionId, questionKinds, questionLimits, type Question, type QuestionKind } from "../lib/questions.ts";
+import { colors, durations, locationKinds, slugify, type Color, type LocationKind } from "../shared/kinds.ts";
+import { newQuestionId, questionKinds, questionLimits, type Question, type QuestionKind } from "../shared/kinds.ts";
+import { swatchClass } from "../shared/kinds.ts";
 
 export type TypeValues = {
   title: string; slug: string; description: string; duration: number; interval: number; locationKind: LocationKind; location: string;
@@ -155,7 +156,7 @@ export function TypeForm({ id, initial, base, locale, team, second = null, t }: 
       <fieldset className="stack-s bare">
         <legend className="label">{f.color}</legend>
         <div className="swatches">
-          {colors.map(c => <label key={c} title={t.colors[c]}><input type="radio" name="color" checked={v.color === c} onChange={() => set("color", c)} aria-label={t.colors[c]} /><span className={`sw-${c}`} /></label>)}
+          {colors.map(c => <label key={c} title={t.colors[c]}><input type="radio" name="color" checked={v.color === c} onChange={() => set("color", c)} aria-label={t.colors[c]} /><span className={swatchClass[c]} /></label>)}
         </div>
       </fieldset>
       <details className="more">

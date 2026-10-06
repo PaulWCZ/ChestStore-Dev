@@ -4,12 +4,12 @@ import { useState, type ReactNode } from "react";
 import { CopyButton } from "../components/copy-button.tsx";
 import { Alert, Arrow, Calendar, Download, Gear, Globe, Link, Moved, Person } from "../components/icons.tsx";
 import { ZoneSelect } from "../components/zone-select.tsx";
-import { call, send, toast } from "../core/client.tsx";
-import type { Outcome } from "../core/tool.ts";
+import { call, send, toast } from "@argentic/chest-app/client";
+import type { Outcome } from "@argentic/chest-app";
 import { dateFormat, format, intl, languageNames, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import type { ImportResult } from "../lib/import.ts";
-import type { ZoneGroup } from "../lib/zones.ts";
+import type { ZoneGroup } from "../shared/zones.ts";
 
 // The forms of Settings (src/pages/Settings.tsx), each an island: what the
 // host sees of their page, moving from Calendly, the company's settings,

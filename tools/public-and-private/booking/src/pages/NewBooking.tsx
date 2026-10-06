@@ -1,8 +1,8 @@
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { Back } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import type { MemberContext } from "../core/tool.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import type { MemberContext } from "@argentic/chest-app";
 import { plural } from "../i18n/index.ts";
 import * as b from "../lib/booking.ts";
 import { db } from "../lib/db.ts";

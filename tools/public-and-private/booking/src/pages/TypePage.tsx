@@ -1,9 +1,9 @@
 import { Avatar } from "@argentic/chest-ui/components";
 import { Back, Clock, kindIcon } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { after, notFound, type VisitorContext } from "../core/tool.ts";
-import { format, listFormat, plural } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { after, notFound, type VisitorContext } from "@argentic/chest-app";
+import { format, listFormat, plural, localeOf } from "../i18n/index.ts";
 import { firstFree, publicType, settings, teamOf } from "../lib/booking.ts";
 import { calendarLimits, refreshDue } from "../lib/calendars.ts";
 import { db } from "../lib/db.ts";
@@ -16,6 +16,7 @@ import { localizeType } from "../lib/texts.ts";
 import { zoneGroups } from "../lib/zones.ts";
 import { sheetOf } from "../theme.ts";
 import { PublicShell } from "./PublicShell.tsx";
+import { typeClass } from "../shared/kinds.ts";
 
 // Booking one kind of meeting (/<host>/<type>): what it is on the left,
 // when on the right (the BookTime island).
@@ -25,7 +26,7 @@ export async function typePage({ locale: wanted, param }: PageContext<VisitorCon
   const person = found ? (await people([found.host.memberId])).get(found.host.memberId) : undefined;
   if (!found || person?.status !== "member") return notFound();
   // The page in one language: the host's texts and the tool's words.
-  const { t, locale, languages } = hostWords(found.host, wanted);
+  const { t, locale, languages } = hostWords(found.host, localeOf(wanted));
   const host = found.host;
   const type = localizeType(found.type, host, locale);
   const team = await teamOf(sql, host, found.type);
@@ -44,7 +45,7 @@ export async function typePage({ locale: wanted, param }: PageContext<VisitorCon
     body: (
       <PublicShell look={sheet.look} company={s.companyName} locale={locale} languages={languages} label={t.public.language} back={`/${host.slug}/${type.slug}`}>
         <a className="back" href={`/${host.slug}`}><Back />{t.public.back}</a>
-        <div className={`sheet type-${type.color}`}>
+        <div className={`sheet ${typeClass[type.color]}`}>
           <aside className="sheet-about">
             <span className="by"><Avatar name={person.name} photo={null} size="m" />{names.length > 1 ? format(t.public.withTeam, { names: listFormat(locale, "disjunction").format(names) }) : person.name}</span>
             <h1>{type.title}</h1>

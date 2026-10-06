@@ -1,27 +1,17 @@
 import { AppError } from "./app-error.ts";
 import { clean } from "./model.ts";
+import { isQuestionKind, newQuestionId, questionKinds, questionLimits, type Answer, type Question, type QuestionKind } from "../shared/kinds.ts";
+
+export { isQuestionKind, newQuestionId, questionKinds, questionLimits, type Answer, type Question, type QuestionKind };
 
 // The host's own questions on a booking type's form, and the guest's
 // answers. Pure and browser-safe: the type form uses the same bounds, the
 // server checks them again (never trusting what a browser sends).
 
-export const questionKinds = ["short", "long", "choice", "yesno"] as const;
-export type QuestionKind = (typeof questionKinds)[number];
-export const isQuestionKind = (v: unknown): v is QuestionKind => typeof v === "string" && (questionKinds as readonly string[]).includes(v);
 
-export type Question = { id: string; label: string; kind: QuestionKind; required: boolean; options: string[] };
-// What the guest answered, with the question as they saw it (a later edit
-// of the type does not change a booking).
-export type Answer = { id: string; label: string; kind: QuestionKind; answer: string };
 
-export const questionLimits = { perType: 5, label: 200, options: 10, option: 80, short: 300, long: 2000 } as const;
 
 const idPattern = /^[a-z0-9]{4,12}$/u;
-export function newQuestionId(): string {
-  const bytes = new Uint8Array(8);
-  globalThis.crypto.getRandomValues(bytes);
-  return [...bytes].map(b => (b % 36).toString(36)).join("");
-}
 
 // cleanQuestions checks what a host sends for a type: at most five, each a
 // label, a kind, required or not; "one choice" with 2 to 10 distinct

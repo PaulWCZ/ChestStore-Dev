@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
-import { call, send } from "../core/client.tsx";
-import type { ErrorCode } from "../core/tool.ts";
+import { call, send } from "@argentic/chest-app/client";
+import type { ErrorCode } from "@argentic/chest-app";
 import { clock as clockIn, dayWords, firstUpper, format } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
-import { questionLimits, type Question } from "../lib/questions.ts";
-import { addDays, isZone, wall, weekdayOf } from "../lib/zone.ts";
-import type { ZoneGroup } from "../lib/zones.ts";
+import { questionLimits, type Question } from "../shared/kinds.ts";
+import { addDays, isZone, wall, weekdayOf } from "../shared/zone.ts";
+import type { ZoneGroup } from "../shared/zones.ts";
 import { Alert, Back, Check, Clock, Globe, Next } from "./icons.tsx";
 import { ZoneSelect } from "./zone-select.tsx";
 

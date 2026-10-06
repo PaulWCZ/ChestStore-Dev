@@ -1,4 +1,4 @@
-import type { MemberContext } from "../core/tool.ts";
+import type { MemberContext } from "@argentic/chest-app";
 import { catalogue, locales } from "../i18n/index.ts";
 import { can } from "./access.ts";
 import { ensureHost, type Host } from "./booking.ts";

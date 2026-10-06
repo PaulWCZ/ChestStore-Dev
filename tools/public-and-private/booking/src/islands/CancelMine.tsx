@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Alert, CalendarOff } from "../components/icons.tsx";
-import { call } from "../core/client.tsx";
+import { call } from "@argentic/chest-app/client";
 import { format } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 

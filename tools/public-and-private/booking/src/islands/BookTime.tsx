@@ -1,6 +1,6 @@
 import { Picker, type PickerWords } from "../components/picker.tsx";
-import type { Question } from "../lib/questions.ts";
-import type { ZoneGroup } from "../lib/zones.ts";
+import type { Question } from "../shared/kinds.ts";
+import type { ZoneGroup } from "../shared/zones.ts";
 
 // A visitor books one kind of meeting: the free days and times (in their
 // time zone), then their few fields and the host's questions

@@ -1,10 +1,10 @@
 import { EmptyState, PageHeader, Segmented, StatusBadge, Tabs } from "@argentic/chest-ui/components";
 import { timeText } from "@argentic/chest-ui/components/logic";
 import { Alert, CalendarOff, Download, kindIcon, Moved, Plus } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import type { MemberContext } from "../core/tool.ts";
-import { clock, dayWords, endClock, format, isLocale, plural, relative } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import type { MemberContext } from "@argentic/chest-app";
+import { clock, dayWords, endClock, format, isLocale, plural, relative, localeOf } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import * as b from "../lib/booking.ts";
 import * as calendars from "../lib/calendars.ts";
@@ -13,6 +13,7 @@ import { myPage } from "../lib/my-page.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { addDays, instantOf, wall } from "../lib/zone.ts";
+import { typeClass } from "../shared/kinds.ts";
 
 type Item = { kind: "booking"; at: Date; booking: b.Booking } | { kind: "block"; at: Date; block: b.Block } | { kind: "free"; at: Date; day: string; start: number; end: number } | { kind: "busy"; at: Date; day: string; start: number; end: number; source: string };
 
@@ -23,7 +24,8 @@ type Item = { kind: "booking"; at: Date; booking: b.Booking } | { kind: "block";
 // meetings — tap one to block it (the AgendaTools island) — and the busy
 // times of their other calendars as grey rows.
 export async function agendaPage(v: PageContext<MemberContext>): Promise<View> {
-  const { member, t, locale, request, query } = v;
+  const { member, t, request, query } = v;
+  const locale = localeOf(v.locale);
   const shown = query("show");
   const scope: b.Scope = shown === "past" || shown === "cancelled" ? shown : "upcoming";
   const seesAll = can(member, "bookings.all");
@@ -199,7 +201,7 @@ export async function agendaPage(v: PageContext<MemberContext>): Promise<View> {
                     const color = (x.typeId && colors.get(x.typeId)) || "slate";
                     return (
                       <li key={x.id} id={"booking-" + x.id}>
-                        <a className={`meeting type-${color}${x.status === "cancelled" ? " cancelled" : ""}`} href={`/chest/bookings/${x.id}`}>
+                        <a className={`meeting ${typeClass[color]}${x.status === "cancelled" ? " cancelled" : ""}`} href={`/chest/bookings/${x.id}`}>
                           <span className="time num">{clock(x.startsAt, zone, locale)}<small>{plural(t.minutes, x.duration, locale)}</small></span>
                           <span>
                             <span className="who-line">{x.guestName}</span>

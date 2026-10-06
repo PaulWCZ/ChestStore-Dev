@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CalendarOff } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import { format } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 

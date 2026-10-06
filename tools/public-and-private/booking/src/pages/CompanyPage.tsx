@@ -1,8 +1,8 @@
 import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import { Arrow } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import type { VisitorContext } from "../core/tool.ts";
-import { format, plural } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import type { VisitorContext } from "@argentic/chest-app";
+import { format, plural, localeOf } from "../i18n/index.ts";
 import { listedHosts, settings } from "../lib/booking.ts";
 import { db } from "../lib/db.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -10,7 +10,8 @@ import { sheetOf } from "../theme.ts";
 import { PublicShell } from "./PublicShell.tsx";
 
 // The company's booking page (/): the people who take bookings, one card each.
-export async function companyPage({ t, locale }: PageContext<VisitorContext>): Promise<View> {
+export async function companyPage({ t, locale: given }: PageContext<VisitorContext>): Promise<View> {
+  const locale = localeOf(given);
   const sql = db();
   const [s, hosts, sheet] = await Promise.all([settings(sql), listedHosts(sql), sheetOf("public")]);
   const who = await people(hosts.map(h => h.memberId));

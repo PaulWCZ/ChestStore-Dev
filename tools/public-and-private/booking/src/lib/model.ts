@@ -1,19 +1,14 @@
 import { AppError } from "./app-error.ts";
+import { colors, durations, isColor, isLocationKind, locationKinds, reserved, slugify, type Color, type LocationKind } from "../shared/kinds.ts";
+
+export { colors, durations, isColor, isLocationKind, locationKinds, slugify, type Color, type LocationKind };
 
 // The rules of what people write, pure (tested alone; the browser uses
 // them too).
 export const limits = { title: 80, description: 1000, location: 300, welcome: 300, name: 120, email: 254, note: 2000, reason: 500, typesPerHost: 20 } as const;
 
-export const colors = ["sky", "sea", "leaf", "sun", "tomato", "berry", "grape", "slate"] as const;
-export type Color = (typeof colors)[number];
-export const isColor = (v: unknown): v is Color => typeof v === "string" && (colors as readonly string[]).includes(v);
 
-export const locationKinds = ["place", "phone", "video", "other"] as const;
-export type LocationKind = (typeof locationKinds)[number];
-export const isLocationKind = (v: unknown): v is LocationKind => typeof v === "string" && (locationKinds as readonly string[]).includes(v);
 
-// Durations and steps a host picks from.
-export const durations = [15, 20, 30, 45, 60, 90, 120] as const;
 
 export function clean(value: unknown, max: number, options: { multiline?: boolean; optional?: boolean } = {}): string {
   if (typeof value !== "string") throw new AppError("invalid");
@@ -35,7 +30,6 @@ export function email(value: unknown): string {
 
 // Addresses of pages: a host's (/camille-martin) and a type's
 // (/camille-martin/first-call). Never one of the tool's own routes.
-const reserved = new Set(["chest", "chest-events", "chest-schedules", "chest-mail", "chest-checks", "chest-webhooks", "chest-jobs", "b", "feed", "lang", "api", "actions", "assets", "look.css", "_next", "_chest", "icon.svg", "favicon.ico", "robots.txt"]);
 export function slug(value: unknown): string {
   if (typeof value !== "string") throw new AppError("invalid");
   const text = value.trim().toLowerCase();
@@ -43,11 +37,6 @@ export function slug(value: unknown): string {
   return text;
 }
 
-// A slug from a name: "Léa Dubois" → "lea-dubois".
-export function slugify(text: string): string {
-  const base = text.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 40).replace(/-+$/u, "");
-  return base.length >= 1 && !reserved.has(base) ? base : "page";
-}
 
 export function minutes(value: unknown, min: number, max: number): number {
   const n = typeof value === "string" ? Number(value) : value;

@@ -1,4 +1,4 @@
-import { modernZone, type ZoneGroup } from "../lib/zones.ts";
+import { modernZone, type ZoneGroup } from "../shared/zones.ts";
 
 // A time zone picker: the groups and their words come from the server
 // (lib/zones.ts: cities, offsets, regions), so the page renders the same

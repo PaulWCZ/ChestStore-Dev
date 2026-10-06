@@ -1,10 +1,10 @@
 import * as events from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import type { Context } from "hono";
-import { createApp, page, publicPage } from "./core/http.tsx";
-import { log } from "./core/log.ts";
-import { AppError, notFound } from "./core/tool.ts";
-import { catalogue, isLocale } from "./i18n/index.ts";
+import { AppError, createApp, log, notFound, page, publicPage } from "@argentic/chest-app";
+import { actions } from "./actions.ts";
+import { catalogue, isLocale, localeOf, locales } from "./i18n/index.ts";
+import { islands } from "./islands/index.ts";
+import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { cleanup, dueReminders, exportRows, feed, bySecret, freeTimes, hostTimes, publicType, settings, typeNames } from "./lib/booking.ts";
 import { refreshDue } from "./lib/calendars.ts";
 import { toCsv } from "./lib/csv.ts";
@@ -34,8 +34,21 @@ import { sheetOf } from "./theme.ts";
 
 // Booking's routes. createApp() already serves /assets/, the actions
 // (src/actions.ts), the member of every /chest request, /lang/<code>, the
-// error pages, and answers 404 to anything else.
-const routes = createApp();
+// look as a stylesheet of its own (/chest/look.css for the team, /look.css
+// for the public pages: src/theme.ts), the error pages, and answers 404 to
+// anything else.
+const routes = createApp({
+  actions,
+  islands,
+  locales,
+  words: locale => catalogue(localeOf(locale)),
+  layouts: { members: MembersLayout, public: PublicLayout },
+  head: () => <><meta name="robots" content="noindex, nofollow" /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
+  look: async viewer => {
+    const sheet = await sheetOf(viewer.member ? "team" : "public");
+    return { css: sheet.css, colors: sheet.colors };
+  },
+});
 
 // ---- The members' part (/chest…).
 
@@ -52,7 +65,8 @@ routes.get("/chest/settings", page(settingsPage));
 // administrator), headers in the reader's language, times in the
 // company's zone as "YYYY-MM-DD HH:MM" (sortable, read by every sheet).
 routes.get("/chest/export", async c => {
-  const { member, locale, t } = c.get("viewer");
+  const { member, t } = c.get("viewer");
+  const locale = localeOf(c.get("viewer").locale);
   try {
     const all = c.req.query("who") === "all";
     const sql = db();
@@ -89,16 +103,11 @@ routes.get("/chest/api/slots", async c => {
   }
 });
 
-// The look of the team's pages: the company's choice (src/theme.ts).
-routes.get("/chest/look.css", c => look(c, "team"));
-
 // ---- The public part ("public": true in chest.json): the company's page,
 // a host's page, a type's booking page, a guest's booking, its calendar
 // file, a host's private feed, the free times the booking page asks.
 
 routes.get("/", publicPage(companyPage));
-// The look of the public pages: the company's brand, else Booking's own.
-routes.get("/look.css", c => look(c, "public"));
 
 // The free times of a booking type between two dates of the host's
 // calendar (at most six weeks): what the public calendar asks as the
@@ -215,21 +224,6 @@ routes.post("/chest-schedules", async c => {
 });
 
 // ---- Helpers of the routes above.
-
-// The look as a stylesheet: kept a year when its link names this very
-// sheet (?v=<hash>), else asked again each time; a 304 when the browser
-// has it already.
-async function look(c: Context, surface: "team" | "public"): Promise<Response> {
-  const sheet = await sheetOf(surface);
-  const etag = `"${sheet.etag}"`;
-  const headers = {
-    "Content-Type": "text/css; charset=utf-8",
-    ETag: etag,
-    "Cache-Control": c.req.query("v") === sheet.etag ? `${surface === "team" ? "private" : "public"}, max-age=31536000, immutable` : "no-cache",
-  };
-  if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers });
-  return new Response(sheet.css, { headers });
-}
 
 // The public pages may be shown in a frame by the websites an
 // administrator allowed (Settings; src/lib/embed.ts): their policy's

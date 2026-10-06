@@ -1,9 +1,9 @@
 import { Avatar } from "@argentic/chest-ui/components";
 import { CalendarCheck, CalendarOff, Check, Clock, Download, kindIcon, Person } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import type { VisitorContext } from "../core/tool.ts";
-import { format, meetingTime, plural, startsWithVowel, zoneName } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import type { VisitorContext } from "@argentic/chest-app";
+import { format, meetingTime, plural, startsWithVowel, zoneName, localeOf } from "../i18n/index.ts";
 import { bySecret, firstFree, isPublicJitsi, meetingPlace, settings, typeForMove } from "../lib/booking.ts";
 import { db } from "../lib/db.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -14,7 +14,8 @@ import { PublicShell } from "./PublicShell.tsx";
 
 // The guest's booking page (/b/<secret>): the booking, add it to a
 // calendar, move it, cancel it. The secret is the only key.
-export async function guestBookingPage({ t, locale, request, param, query }: PageContext<VisitorContext>): Promise<View> {
+export async function guestBookingPage({ t, locale: given, request, param, query }: PageContext<VisitorContext>): Promise<View> {
+  const locale = localeOf(given);
   const secret = param("secret");
   const sql = db();
   const [found, s, sheet] = await Promise.all([bySecret(sql, secret), settings(sql), sheetOf("public")]);

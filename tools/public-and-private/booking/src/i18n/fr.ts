@@ -18,6 +18,9 @@ export const fr: Catalogue = {
     forbidden: { title: "Non autorisé", body: "Votre rôle ne le permet pas. Demandez à un administrateur de Rendez-vous." },
     failed: { title: "Quelque chose s’est mal passé", body: "Réessayez dans un instant. Si cela continue, prévenez un administrateur de Rendez-vous." },
     signIn: "Connectez-vous par votre Chest pour ouvrir cette page.",
+    busy: "Envoi en cours…",
+    language: "Langue",
+    back: "Retour à Rendez-vous",
   },
   roles: {
     admin: "Administrateur",
@@ -583,6 +586,7 @@ export const fr: Catalogue = {
     invalid_phone: "Vérifiez le numéro de téléphone.",
     invalid_link: "Le lien de visio doit commencer par https://",
     too_long: "Trop long : {max} caractères au plus.",
+    too_large: "Trop volumineux pour être envoyé.",
     empty: "Écrivez d’abord quelque chose.",
     too_many: "Trop de réservations pour le moment. Réessayez dans une heure.",
     too_many_types: "{max} types de rendez-vous au plus.",

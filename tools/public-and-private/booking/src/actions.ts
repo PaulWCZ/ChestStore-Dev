@@ -1,4 +1,4 @@
-import { action, fail, field, publicAction, redirect, type Field } from "./core/tool.ts";
+import { action, fail, field, publicAction, redirect, type Field } from "@argentic/chest-app";
 import * as b from "./lib/booking.ts";
 import * as calendars from "./lib/calendars.ts";
 import { db } from "./lib/db.ts";

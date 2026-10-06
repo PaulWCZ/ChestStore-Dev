@@ -1,9 +1,9 @@
 import { Avatar, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { Back, Calendar, Chat, Check, Clock, kindIcon, Link, Mail, Person, Phone } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { AppError, notFound, type MemberContext } from "../core/tool.ts";
-import { format, isLocale, meetingTime, plural, relative, zoneName } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { AppError, notFound, type MemberContext } from "@argentic/chest-app";
+import { format, isLocale, meetingTime, plural, relative, zoneName, localeOf } from "../i18n/index.ts";
 import * as b from "../lib/booking.ts";
 import { db } from "../lib/db.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -15,7 +15,8 @@ const upcomingOf = (x: b.Booking) => x.status === "confirmed" && x.endsAt.getTim
 // One booking (/chest/bookings/<id>): who, when (in the host's zone, and the
 // guest's when it differs), where, their note and answers; moving it and
 // cancelling it tell the guest.
-export async function bookingPage({ member, t, locale, param }: PageContext<MemberContext>): Promise<View> {
+export async function bookingPage({ member, t, locale: given, param }: PageContext<MemberContext>): Promise<View> {
+  const locale = localeOf(given);
   const sql = db();
   let x: b.Booking;
   try {

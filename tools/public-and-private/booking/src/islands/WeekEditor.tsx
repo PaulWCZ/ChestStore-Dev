@@ -3,10 +3,10 @@ import { moveEnd, moveStart, timeText } from "@argentic/chest-ui/components/logi
 import { useState } from "react";
 import { Alert, Close, Copy, Globe, Plus } from "../components/icons.tsx";
 import { ZoneSelect } from "../components/zone-select.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
-import { validRanges, type Ranges } from "../lib/slots.ts";
-import type { ZoneGroup } from "../lib/zones.ts";
+import { validRanges, type Ranges } from "../shared/kinds.ts";
+import type { ZoneGroup } from "../shared/zones.ts";
 
 type Words = { hours: Catalogue["hours"]; days: Catalogue["days"]; invalid: string };
 // Monday first, as a week is read in Europe.

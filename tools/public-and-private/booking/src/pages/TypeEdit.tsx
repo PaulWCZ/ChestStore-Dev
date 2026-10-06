@@ -1,8 +1,8 @@
 import { PageHeader } from "@argentic/chest-ui/components";
 import { Back } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { AppError, notFound, type MemberContext } from "../core/tool.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { AppError, notFound, type MemberContext } from "@argentic/chest-app";
 import { languageNames } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { otherHosts, typeOf, type BookingType } from "../lib/booking.ts";

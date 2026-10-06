@@ -1,8 +1,8 @@
 import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import { Arrow, Back, Clock, kindIcon } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { notFound, type VisitorContext } from "../core/tool.ts";
-import { format, plural } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { notFound, type VisitorContext } from "@argentic/chest-app";
+import { format, plural, localeOf } from "../i18n/index.ts";
 import { publicHost, settings } from "../lib/booking.ts";
 import { db } from "../lib/db.ts";
 import { people } from "../lib/people.ts";
@@ -10,6 +10,7 @@ import { hostWords } from "../lib/session.ts";
 import { localizeType, localizeWelcome } from "../lib/texts.ts";
 import { sheetOf } from "../theme.ts";
 import { PublicShell } from "./PublicShell.tsx";
+import { typeClass } from "../shared/kinds.ts";
 
 // A host's page (/<host>): who they are, and the kinds of meeting to book
 // with them, in one language — the host's texts and the tool's words.
@@ -19,7 +20,7 @@ export async function hostPage({ locale: wanted, param }: PageContext<VisitorCon
   const person = found ? (await people([found.host.memberId])).get(found.host.memberId) : undefined;
   if (!found || person?.status !== "member") return notFound();
   const [s, sheet] = await Promise.all([settings(sql), sheetOf("public")]);
-  const { t, locale, languages } = hostWords(found.host, wanted);
+  const { t, locale, languages } = hostWords(found.host, localeOf(wanted));
   const host = found.host;
   const welcome = localizeWelcome(host, locale);
   const types = found.types.map(ty => localizeType(ty, host, locale));
@@ -40,7 +41,7 @@ export async function hostPage({ locale: wanted, param }: PageContext<VisitorCon
               const Kind = kindIcon[ty.locationKind];
               return (
                 <li key={ty.id}>
-                  <a className={`offer type-${ty.color}`} href={`/${host.slug}/${ty.slug}`}>
+                  <a className={`offer ${typeClass[ty.color]}`} href={`/${host.slug}/${ty.slug}`}>
                     <span>
                       <strong>{ty.title}</strong>
                       <span className="meta"><span><Clock />{plural(t.minutes, ty.duration, locale)}</span><span><Kind />{t.kinds[ty.locationKind]}</span></span>

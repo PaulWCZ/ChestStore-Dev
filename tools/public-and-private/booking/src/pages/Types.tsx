@@ -1,14 +1,15 @@
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { CalendarCheck, Chat, Clock, kindIcon, Pencil, Person, Plus } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import type { MemberContext } from "../core/tool.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import type { MemberContext } from "@argentic/chest-app";
 import { plural } from "../i18n/index.ts";
 import * as b from "../lib/booking.ts";
 import { db } from "../lib/db.ts";
 import { myPage } from "../lib/my-page.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { cannotHost } from "./bits.tsx";
+import { typeClass } from "../shared/kinds.ts";
 
 // The host's booking types (/chest/types): each a kind of meeting with its
 // own link, on or off in one click.
@@ -31,7 +32,7 @@ export async function typesPage(v: PageContext<MemberContext>): Promise<View> {
               const Kind = kindIcon[ty.locationKind];
               const link = `${origin}/${host.slug}/${ty.slug}`;
               return (
-                <li key={ty.id} id={"type-" + ty.id} className={`type type-${ty.color}${ty.active ? "" : " off"}`}>
+                <li key={ty.id} id={"type-" + ty.id} className={`type ${typeClass[ty.color]}${ty.active ? "" : " off"}`}>
                   <div className="spread">
                     <h3>{ty.title}</h3>
                     <Island name="TypeSwitch" props={{ id: ty.id, active: ty.active, label: { on: t.types.on, off: t.types.off }, name: ty.title }} />

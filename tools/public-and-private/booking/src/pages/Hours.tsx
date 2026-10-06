@@ -1,9 +1,9 @@
 import { PageHeader } from "@argentic/chest-ui/components";
 import { Fold } from "../components/fold.tsx";
 import { Alert, Calendar, CalendarOff } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import type { MemberContext } from "../core/tool.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import type { MemberContext } from "@argentic/chest-app";
 import { dayWords, firstUpper, plural, relative } from "../i18n/index.ts";
 import * as b from "../lib/booking.ts";
 import * as calendars from "../lib/calendars.ts";

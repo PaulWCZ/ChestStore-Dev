@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Alert, Check } from "../components/icons.tsx";
 import { Picker, When, type PickerWords } from "../components/picker.tsx";
 import { ZoneSelect } from "../components/zone-select.tsx";
-import { call, navigate, toast } from "../core/client.tsx";
+import { call, navigate, toast } from "@argentic/chest-app/client";
 import { format, languageNames } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
-import type { ZoneGroup } from "../lib/zones.ts";
+import type { ZoneGroup } from "../shared/zones.ts";
 
 type Words = PickerWords & { forGuest: Catalogue["forGuest"] };
 type TypeChoice = { id: string; label: string; phone: boolean };

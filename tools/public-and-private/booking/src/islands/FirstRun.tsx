@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, Calendar } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
-import type { Outcome } from "../core/tool.ts";
+import { call, toast } from "@argentic/chest-app/client";
+import type { Outcome } from "@argentic/chest-app";
 import type { Catalogue } from "../i18n/index.ts";
 
 type Words = { first: Catalogue["first"]; others: Catalogue["others"] };
