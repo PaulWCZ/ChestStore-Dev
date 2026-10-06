@@ -46,7 +46,7 @@ export async function exportZip(sql: Sql, actor: Member | null, t: Catalogue, lo
   // A colleague's request (a team form of Forms): named as the Chest does.
   const colleague = (x: Row) => (x.requester === "erased" ? t.people.erased : x.requester ? colleagueName(who.get(x.requester), t, locale) : "");
   const author = (x: Row, m: Said) =>
-    x.requester && m.kind === "customer" ? colleague(x) : m.kind === "customer" ? (m.mailFrom && m.mailFrom.toLowerCase() !== x.customerEmail.toLowerCase() ? m.mailFrom : x.customerName ? `${x.customerName} <${x.customerEmail}>` : x.customerEmail)
+    x.requester && m.kind === "customer" ? colleague(x) : m.kind === "customer" ? (x.customerName ? `${x.customerName} <${x.customerEmail}>` : x.customerEmail)
       : person(m.author);
   const body = (m: Said) => (m.kind === "event" && readMerged(m.body) ? format(t.ticket.mergedEvent, { number: readMerged(m.body)!.number }) : m.body);
   // A CSV file: its header (with the byte-order mark), then each batch's
@@ -70,7 +70,7 @@ export async function exportZip(sql: Sql, actor: Member | null, t: Catalogue, lo
     source: x.source ?? undefined, assignee: x.assignee ? person(x.assignee) : null,
     createdAt: x.createdAt, updatedAt: x.updatedAt, closedAt: x.closedAt, mergedInto: x.mergedInto, rating: x.rating, ratedAt: x.ratedAt,
     messages: x.messages.map(m => ({
-      kind: m.kind, at: m.at, author: author(x, m), body: body(m), automatic: m.auto || undefined,
+      kind: m.kind, at: m.at, author: author(x, m), body: body(m),
       delivery: m.delivery ?? undefined, bounce: m.bounce ?? undefined,
       files: m.attachments.map(a => ({ name: a.fileName, type: a.type, size: a.size })),
     })),

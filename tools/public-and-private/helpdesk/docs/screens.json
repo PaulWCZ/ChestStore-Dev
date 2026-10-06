@@ -9,7 +9,7 @@
   {"name":  "settings", "path":  "/chest/settings", "member":  "camille", "locale":  "en", "only":  ["desktop"]},
   {"name":  "inbox-tag", "path":  "/chest?tag=2&sort=priority", "member":  "hugo", "locale":  "en", "only":  ["desktop"]},
   {"name":  "follow-up-files", "path":  "/t/demoLampFollowUpLinkForScreens00", "member":  "hugo", "locale":  "fr", "only":  ["phone"]},
-  {"name":  "ticket-email", "path":  "/chest/tickets/1002", "member":  "hugo", "locale":  "en"},
+  {"name":  "ticket-invoice", "path":  "/chest/tickets/1002", "member":  "hugo", "locale":  "en"},
   {"name":  "ticket-bounce-fr", "path":  "/chest/tickets/1007", "member":  "ines", "locale":  "fr", "only":  ["phone"]},
   {"name":  "reports", "path":  "/chest/reports", "member":  "camille", "locale":  "en", "only":  ["desktop"]},
   {"name":  "settings-fr", "path":  "/chest/settings", "member":  "camille", "locale":  "fr", "only":  ["phone"]},

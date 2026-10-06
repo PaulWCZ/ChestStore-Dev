@@ -19,11 +19,10 @@ test("every language says every text, with the same {placeholders}; French typog
   checkWords({ en, fr });
 });
 
-test("the browser never gets the SDK nor the server's code; HTML written as text only where the Chest cleaned it", () => {
+test("the browser never gets the SDK nor the server's code; never HTML written as text", () => {
   for (const file of sources("src").filter(f => /\.tsx?$/u.test(f))) {
     const text = readFileSync(file, "utf8");
-    // A received email's HTML, as the Chest cleaned it, shown on demand.
-    if (file !== "src/islands/FormattedBody.tsx") assert.doesNotMatch(text, /dangerouslySetInnerHTML/u, `${file}: no HTML written as text`);
+    assert.doesNotMatch(text, /dangerouslySetInnerHTML/u, `${file}: no HTML written as text`);
     if (file.startsWith("src/islands/") || file === "src/entry.tsx" || file.startsWith("src/components/") || file.startsWith("src/shared/")) {
       assert.doesNotMatch(text, /^import (?!type)[^;]*from "@argentic\/chest-sdk/mu, `${file}: the SDK is for the server only`);
       assert.doesNotMatch(text, /^import (?!type)[^;]*from "\.\.\/(lib|actions|pages|theme|app|i18n)/mu, `${file}: server code in the browser`);

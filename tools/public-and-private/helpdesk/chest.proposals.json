@@ -1,9 +1,6 @@
 {
   "mail": {
-    "send": true,
-    "mailboxes": [
-      "support"
-    ]
+    "send": true
   },
   "files": {
     "publicUploads": true

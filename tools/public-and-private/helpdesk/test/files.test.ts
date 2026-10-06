@@ -18,7 +18,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, storage: { publicUploads: true } });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, storage: { publicUploads: true } });
 });
 after(async () => {
   await chest.close();
@@ -163,7 +163,7 @@ test("a member adds files to a reply (emailed with it) or a note (never on the c
   assert.match(guide, /^uploads\/team\//u);
   const done = await tickets.reply(sql, asMember(hugo), t.number, "The assembly guide is attached.", {}, memberFiles([{ ref: guide, name: "guide.pdf" }]));
   assert.deepEqual(done.files.map(f => f.fileName), ["guide.pdf"]);
-  const sent = await mailer.answer(done.ticket, "The assembly guide is attached.", asMember(hugo), "Atelier", done.threading, done.messageId, done.files);
+  const sent = await mailer.answer(done.ticket, "The assembly guide is attached.", asMember(hugo), "Atelier", "https://support.atelier.test/t/link", done.messageId, done.files);
   assert.equal(sent.delivery, "email");
   assert.deepEqual(chest.outbox.at(-1)!.attachments.map(a => [a.name, a.type]), [["guide.pdf", "application/pdf"]]);
   // The same upload cannot go on a second message.

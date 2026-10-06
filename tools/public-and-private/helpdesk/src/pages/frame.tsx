@@ -26,7 +26,7 @@ import { viewHref, type View } from "../lib/views.ts";
 // with a team form of Forms — has one section: My requests.
 export type Desk = { counts: FolderCounts; views: View[]; mine: number };
 
-export function TeamFrame({ member, t, path, query, logo, notice, desk, children }: { member: Member; t: Catalogue; path: string; query?: URLSearchParams; logo: { url: string; alt: string; dark?: string | null } | null; notice: string | null; desk: Desk | null; children: ReactNode }) {
+export function TeamFrame({ member, t, path, query, logo, notice, desk, children }: { t: Catalogue; member: Member; path: string; query?: URLSearchParams; logo: { url: string; alt: string; dark?: string | null } | null; notice: string | null; desk: Desk | null; children: ReactNode }) {
   const role = roleOf(member);
   const params = query ?? new URLSearchParams();
   const onMine = /^\/chest\/mine(\/|$)/u.test(path);

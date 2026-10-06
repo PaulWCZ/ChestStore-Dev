@@ -1,15 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Received } from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import type { Stored } from "./attachments.ts";
 import { defaultHours, parseHours, readHours, type Hours } from "../shared/hours.ts";
-import { clean, defaultLateHours, defaultSort, email, mergedEvent, readMerged, fillReply, id, isFolder, isPriority, isSort, isStatus, lateChoices, limits, numberInSubject, tagName, ticketNumber, type Folder, type Priority, type Sort, type Status } from "./model.ts";
+import { clean, defaultLateHours, defaultSort, email, mergedEvent, readMerged, fillReply, id, isFolder, isPriority, isSort, isStatus, lateChoices, limits, tagName, ticketNumber, type Folder, type Priority, type Sort, type Status } from "./model.ts";
 import { catalogue, isLocale, locales } from "../i18n/index.ts";
 import { allRules, decide } from "./rules.ts";
-import { baseSubject } from "../shared/text.ts";
 import { readerWords, shownTag, storedTag } from "./seed-words.ts";
 
 // Tickets and their messages. Team functions take (sql, actor, …) and check
@@ -24,6 +22,8 @@ export type Ticket = {
   customerEmail: string;
   customerName: string;
   assignee: string | null;
+  // "email": opened by an email an earlier version received (the Chest
+  // receives no mail any more: owner's decision, 6 October 2026).
   channel: "form" | "email" | "team" | "forms";
   language: string;
   // A colleague's request (a team form of Forms): the member who asked
@@ -46,14 +46,14 @@ export type Bounce = { permanent: boolean; reason: string; at: string; recipient
 export type Source = { form: { id: string; title: string }; answer: { id: string; path: string | null } };
 export type Tag = { id: string; name: string };
 // A message: the customer's, the team's reply, a note, or an event (a
-// merge: "merged:1005", said in the reader's words). Received by email: the
-// sender's address, the Chest's cleaned HTML, whether the original is kept,
-// the files the Chest did not keep, an automatic answer. Sent: its bounce.
+// merge: "merged:1005", said in the reader's words). A reply: how it
+// reached the customer (by email, or on their request page only) and, when
+// its email did not arrive, why.
 export type Message = {
   id: string; kind: "customer" | "reply" | "note" | "event"; author: string | null; body: string; at: string;
-  delivery: "email" | "page" | null; emailId: string | null;
+  delivery: "email" | "page" | null;
   attachments: { id: string; fileName: string; type: string; size: number }[];
-  mailFrom: string | null; html: string | null; original: boolean; dropped: { name: string; reason: string }[]; auto: boolean; bounce: Bounce | null;
+  bounce: Bounce | null;
 };
 export type TicketRow = Ticket & { last: string; lastKind: string; messages: number; tags: Tag[] };
 
@@ -184,20 +184,17 @@ async function insertTicket(sql: Query, input: { subject: string; email: string;
   return { id: String(row!.id), number: row!.number, secret };
 }
 
-// What a received email adds to its message.
-type MailParts = { mailFrom?: string | null; html?: string | null; original?: string | null; dropped?: { name: string; reason: string }[]; auto?: boolean };
-
 // insertMessage adds a message and its files. A customer's message starts
 // the wait for an answer, unless they were already waiting (a closed
-// ticket starts again) — an automatic answer (out of office) never does.
-async function insertMessage(sql: Query, ticketId: string, input: { kind: Message["kind"]; author: string | null; body: string; emailId?: string | null; delivery?: Message["delivery"]; files?: Stored[] } & MailParts): Promise<string> {
+// ticket starts again).
+async function insertMessage(sql: Query, ticketId: string, input: { kind: Message["kind"]; author: string | null; body: string; delivery?: Message["delivery"]; files?: Stored[] }): Promise<string> {
   const [row] = await sql<{ id: string }[]>`
-    insert into messages (ticket_id, kind, author, body, email_id, delivery, mail_from, html, original, dropped, auto)
-    values (${ticketId}, ${input.kind}, ${input.author}, ${input.body}, ${input.emailId ?? null}, ${input.delivery ?? null}, ${input.mailFrom ?? null}, ${input.html ?? null}, ${input.original ?? null}, ${sql.json((input.dropped ?? []) as never)}, ${input.auto ?? false})
+    insert into messages (ticket_id, kind, author, body, delivery)
+    values (${ticketId}, ${input.kind}, ${input.author}, ${input.body}, ${input.delivery ?? null})
     returning id`;
   const messageId = String(row!.id);
   for (const f of input.files ?? []) await sql`insert into attachments (message_id, object, file_name, type, size) values (${messageId}, ${f.object}, ${f.fileName}, ${f.type}, ${f.size})`;
-  if (input.kind === "customer" && !input.auto) await sql`update tickets set waiting_since = case when status in ('closed', 'spam') then now() else coalesce(waiting_since, now()) end where id = ${ticketId}`;
+  if (input.kind === "customer") await sql`update tickets set waiting_since = case when status in ('closed', 'spam') then now() else coalesce(waiting_since, now()) end where id = ${ticketId}`;
   return messageId;
 }
 
@@ -367,30 +364,8 @@ export async function fromForms(sql: Sql, r: FormsRequest): Promise<FromForms> {
   }
 }
 
-// fromEmail files an email received on the support mailbox (the Chest
-// posts it to /chest-mail: src/lib/deliveries.ts, lib/mail-in.ts). Where it belongs, most
-// certain first:
-//
-// 1. its thread address (support+t1042-…@): the tag only this tool makes,
-//    checked by the SDK — a reply to one of our emails, whoever sends it;
-// 2. its In-Reply-To and References: one of the emails we sent about a
-//    ticket (their ids are random: only who received them knows them), or
-//    one the same customer sent before, if the Chest vouches for the sender;
-// 3. last, only when the Chest vouches for the sender (authenticated): the
-//    same customer's address and either "[#1042]" in the subject, or the
-//    same subject on a ticket still open that moved in the last 14 days.
-//
-// Otherwise a new ticket: a stranger never lands in someone else's
-// conversation. An automatic answer (out of office) is kept on the ticket
-// it answers, quietly — it reopens nothing, starts no wait, tells no one —
-// and opens no ticket at all. A merged ticket's mail goes to the ticket it
-// was merged into. Spam scores 5 and above go to the spam folder (the
-// Chest keeps 8 and above in its quarantine).
-export type IncomingEmail = Pick<Received, "from" | "subject" | "text" | "html" | "original" | "messageId" | "inReplyTo" | "references" | "attachments" | "dropped" | "spam" | "thread" | "authenticated" | "auto">;
-export type Filed = { id: string; number: number; created: boolean; secret: string | null; auto: boolean; spam: boolean; assignee: string | null };
-export const spamFrom = 5;
-const recentDays = 14;
-
+// followMerges leads from a merged ticket to the one it was merged into
+// (five steps at most).
 async function followMerges(sql: Query, found: { id: string; number: number } | undefined): Promise<{ id: string; number: number } | undefined> {
   let current = found;
   for (let i = 0; current && i < 5; i++) {
@@ -401,79 +376,21 @@ async function followMerges(sql: Query, found: { id: string; number: number } | 
   return current;
 }
 
-export async function fromEmail(sql: Sql, message: IncomingEmail, language: string): Promise<Filed | null> {
-  const from = message.from.address;
-  return sql.begin(async tx => {
-    // Delivered twice: filed once.
-    const [again] = await tx<{ ticket_id: string; number: number; status: Status }[]>`select m.ticket_id, t.number, t.status from messages m join tickets t on t.id = m.ticket_id where m.email_id = ${message.messageId} and m.kind = 'customer'`;
-    if (again) return { id: String(again.ticket_id), number: again.number, created: false, secret: null, auto: message.auto, spam: again.status === "spam", assignee: null };
-    let found: { id: string; number: number } | undefined;
-    if (message.thread && /^[1-9][0-9]{0,8}$/u.test(message.thread)) [found] = await tx<{ id: string; number: number }[]>`select id, number from tickets where number = ${Number(message.thread)}`;
-    const ids = [...new Set([message.inReplyTo, ...message.references].filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 998))].slice(-50);
-    if (!found && ids.length > 0) {
-      [found] = await tx<{ id: string; number: number }[]>`
-        select t.id, t.number from messages m join tickets t on t.id = m.ticket_id
-        where m.email_id in ${tx(ids)} and (m.kind = 'reply' or (${message.authenticated} and m.kind = 'customer' and lower(coalesce(m.mail_from, t.customer_email)) = lower(${from})))
-        order by m.created_at desc limit 1`;
-      if (!found) [found] = await tx<{ id: string; number: number }[]>`select id, number from tickets where confirm_email_id in ${tx(ids)} limit 1`;
-    }
-    if (!found && message.authenticated && !message.auto) {
-      const number = numberInSubject(message.subject);
-      if (number !== null) [found] = await tx<{ id: string; number: number }[]>`select id, number from tickets where number = ${number} and lower(customer_email) = lower(${from})`;
-      const base = baseSubject(message.subject);
-      if (!found && base) {
-        const recent = await tx<{ id: string; number: number; subject: string }[]>`
-          select id, number, subject from tickets where lower(customer_email) = lower(${from}) and status in ('open', 'waiting') and merged_into is null and updated_at > now() - ${recentDays + " days"}::interval
-          order by updated_at desc limit 20`;
-        found = recent.find(r => baseSubject(r.subject) === base);
-      }
-    }
-    found = await followMerges(tx, found);
-    const body = clean(message.text || "—", limits.body, { multiline: true });
-    const parts: MailParts = { mailFrom: from, html: message.html && message.html.length <= 2 << 20 ? message.html : null, original: message.original, dropped: message.dropped.map(d => ({ name: fileNameOf(d.name), reason: d.reason })), auto: message.auto };
-    if (message.auto) {
-      if (!found) return null;
-      const messageId = await insertMessage(tx, String(found.id), { kind: "customer", author: null, body, emailId: message.messageId, ...parts });
-      await attach(tx, messageId, message.attachments);
-      return { id: String(found.id), number: found.number, created: false, secret: null, auto: true, spam: false, assignee: null };
-    }
-    let ticketId: string, number: number, created = false, secret: string | null = null, spam = false, assignee: string | null = null;
-    if (found) {
-      ticketId = String(found.id);
-      number = found.number;
-      const [t] = await tx<{ status: Status; customer_email: string }[]>`
-        update tickets set waiting_since = case when status in ('closed', 'spam') then now() else waiting_since end, status = case when status = 'spam' then 'spam' else 'open' end, closed_at = null, updated_at = now()
-        where id = ${ticketId} returning status, customer_email`;
-      spam = t?.status === "spam";
-      // Their address works again: the old bounce no longer says anything.
-      if (t && t.customer_email.toLowerCase() === from.toLowerCase()) await tx`update tickets set bounce = null where id = ${ticketId}`;
-    } else {
-      spam = message.spam >= spamFrom;
-      const subject = clean(message.subject || "—", limits.subject);
-      const t = await insertTicket(tx, { subject, email: from, name: clean(message.from.name ?? "", limits.name, { optional: true }), channel: "email", language, status: spam ? "spam" : "open" });
-      [ticketId, number, created, secret] = [t.id, t.number, true, t.secret];
-    }
-    const messageId = await insertMessage(tx, ticketId, { kind: "customer", author: null, body, emailId: message.messageId, ...parts });
-    await attach(tx, messageId, message.attachments);
-    if (created && !spam) assignee = await arrive(tx, ticketId, { subject: message.subject, body, from });
-    await refreshSearch(tx, ticketId);
-    return { id: ticketId, number, created, secret, auto: false, spam, assignee };
-  });
+// confirmed records the confirmation email sent for a new ticket: if it
+// bounces, the address is wrong (lib/mail-checks.ts asks the Chest).
+export async function confirmed(sql: Query, ticketId: string, mail: { id: string }): Promise<void> {
+  await sql`update tickets set confirm_mail_id = ${mail.id} where id = ${ticketId}`;
+  await sql`insert into mail_checks (mail_id) values (${mail.id}) on conflict do nothing`;
 }
 
-const fileNameOf = (name: string) => clean(name || "file", limits.fileName, { optional: true }).replace(/[/\\]/gu, "_") || "file";
-
-// The files the Chest kept from an email (already in the tool's files).
-async function attach(sql: Query, messageId: string, files: IncomingEmail["attachments"]): Promise<void> {
-  for (const a of files.slice(0, limits.attachmentsPerMessage)) {
-    await sql`insert into attachments (message_id, object, file_name, type, size) values (${messageId}, ${a.file}, ${fileNameOf(a.name)}, ${a.type.slice(0, 200)}, ${a.size}) on conflict (object) do nothing`;
-  }
-}
-
-// confirmed records the confirmation email sent for a new ticket: its
-// bounce says the address is wrong, a reply to it lands on the ticket.
-export async function confirmed(sql: Query, ticketId: string, mail: { id: string; messageId: string }): Promise<void> {
-  await sql`update tickets set confirm_mail_id = ${mail.id}, confirm_email_id = ${mail.messageId} where id = ${ticketId}`;
+// newLink gives a ticket one more follow-up link (its secret, said once:
+// only its SHA-256 is kept), for an email that carries it — each answer
+// sent by email says where the conversation continues. Every link of a
+// ticket opens it; they go with it.
+export async function newLink(sql: Query, ticketId: string): Promise<string> {
+  const secret = newSecret();
+  await sql`insert into ticket_links (secret_hash, ticket_id) values (${hashSecret(secret)}, ${ticketId})`;
+  return secret;
 }
 
 // confirmations counts the confirmations sent to an address in the last
@@ -483,18 +400,30 @@ export async function confirmations(sql: Query, address: string): Promise<number
   return row?.n ?? 0;
 }
 
-// bounced records that an email we sent did not arrive: on the reply it
-// was (or on the ticket, for a confirmation). Says whose ticket and reply,
-// so the one who wrote it hears of it. Null for a message we do not know.
-export async function bounced(sql: Sql, b: { message: string; recipient: string; permanent: boolean; reason: string; at: string }): Promise<{ ticketId: string; number: number; author: string | null; assignee: string | null } | null> {
-  const bounce: Bounce = { permanent: b.permanent, reason: b.reason.slice(0, 500), at: b.at, recipient: b.recipient };
+// bounced records that an email we sent did not arrive (the Chest's
+// mail.status said so: lib/mail-checks.ts): on the reply it was (or on the
+// ticket, for a confirmation). Says whose ticket and reply, so the one who
+// wrote it hears of it. Null for a message we do not know.
+export async function bounced(sql: Sql, b: { message: string; permanent: boolean; reason: string; at: string }): Promise<{ ticketId: string; number: number; author: string | null; assignee: string | null; recipient: string } | null> {
   return sql.begin(async tx => {
-    const [reply] = await tx<{ ticket_id: string; author: string | null }[]>`update messages set bounce = ${tx.json(bounce as never)} where mail_id = ${b.message} returning ticket_id, author`;
+    const [reply] = await tx<{ ticket_id: string; author: string | null }[]>`select ticket_id, author from messages where mail_id = ${b.message}`;
     const [t] = reply
-      ? await tx<{ id: string; number: number; assignee: string | null }[]>`update tickets set bounce = ${tx.json(bounce as never)} where id = ${reply.ticket_id} returning id, number, assignee`
-      : await tx<{ id: string; number: number; assignee: string | null }[]>`update tickets set bounce = ${tx.json(bounce as never)} where confirm_mail_id = ${b.message} returning id, number, assignee`;
-    return t ? { ticketId: String(t.id), number: t.number, author: reply?.author ?? null, assignee: t.assignee } : null;
+      ? await tx<{ id: string; customer_email: string }[]>`select id, customer_email from tickets where id = ${reply.ticket_id}`
+      : await tx<{ id: string; customer_email: string }[]>`select id, customer_email from tickets where confirm_mail_id = ${b.message}`;
+    if (!t) return null;
+    const bounce: Bounce = { permanent: b.permanent, reason: b.reason.slice(0, 500), at: b.at, recipient: t.customer_email };
+    if (reply) await tx`update messages set bounce = ${tx.json(bounce as never)} where mail_id = ${b.message}`;
+    const [row] = await tx<{ id: string; number: number; assignee: string | null }[]>`update tickets set bounce = ${tx.json(bounce as never)} where id = ${t.id} returning id, number, assignee`;
+    return { ticketId: String(row!.id), number: row!.number, author: reply?.author ?? null, assignee: row!.assignee, recipient: t.customer_email };
   });
+}
+
+// arrived: an email sent after the ticket's last bounce did arrive — the
+// address works again, the warning above the ticket goes.
+export async function arrived(sql: Query, mailId: string): Promise<void> {
+  await sql`
+    update tickets t set bounce = null
+    where t.bounce is not null and exists (select 1 from messages m where m.ticket_id = t.id and m.mail_id = ${mailId} and m.created_at > (t.bounce->>'at')::timestamptz)`;
 }
 
 // ---- The inbox -------------------------------------------------------------
@@ -571,14 +500,13 @@ async function messagesOf(sql: Query, ticketId: string, team: boolean): Promise<
 }
 
 // messagesOfMany reads the messages of several tickets in two queries (the
-// messages, then their files' names), grouped by ticket. The original email
-// is only said to exist (never read here); html is left out when not needed.
-async function messagesOfMany(sql: Query, ticketIds: string[], team: boolean, html = team): Promise<Map<string, Message[]>> {
+// messages, then their files' names), grouped by ticket.
+async function messagesOfMany(sql: Query, ticketIds: string[], team: boolean): Promise<Map<string, Message[]>> {
   const out = new Map<string, Message[]>(ticketIds.map(id => [id, []]));
   if (ticketIds.length === 0) return out;
-  const rows = await sql<{ id: string; ticket_id: string; kind: Message["kind"]; author: string | null; body: string; created_at: Date; delivery: Message["delivery"]; email_id: string | null; mail_from: string | null; html: string | null; has_original: boolean; dropped: { name: string; reason: string }[] | null; auto: boolean; bounce: Bounce | null }[]>`
-    select id, ticket_id, kind, author, body, created_at, delivery, email_id, mail_from, ${html ? sql`html` : sql`null::text as html`}, original is not null as has_original, dropped, auto, bounce from messages
-    where ticket_id in ${sql(ticketIds)} ${team ? sql`` : sql`and kind in ${sql(publicKinds as unknown as string[])} and not auto`}
+  const rows = await sql<{ id: string; ticket_id: string; kind: Message["kind"]; author: string | null; body: string; created_at: Date; delivery: Message["delivery"]; bounce: Bounce | null }[]>`
+    select id, ticket_id, kind, author, body, created_at, delivery, bounce from messages
+    where ticket_id in ${sql(ticketIds)} ${team ? sql`` : sql`and kind in ${sql(publicKinds as unknown as string[])}`}
     order by ticket_id, created_at, id`;
   const ids = rows.map(r => String(r.id));
   const files = new Map<string, Message["attachments"]>();
@@ -591,10 +519,10 @@ async function messagesOfMany(sql: Query, ticketIds: string[], team: boolean, ht
   }
   for (const r of rows) {
     out.get(String(r.ticket_id))?.push({
-      id: String(r.id), kind: r.kind, author: r.author, body: r.body, at: r.created_at.toISOString(), delivery: r.delivery, emailId: r.email_id,
+      id: String(r.id), kind: r.kind, author: r.author, body: r.body, at: r.created_at.toISOString(), delivery: r.delivery,
       attachments: files.get(String(r.id)) ?? [],
       // The customer's page never learns more than the words and the files.
-      mailFrom: team ? r.mail_from : null, html: team ? r.html : null, original: team && r.has_original, dropped: team ? r.dropped ?? [] : [], auto: r.auto, bounce: team ? r.bounce : null,
+      bounce: team ? r.bounce : null,
     });
   }
   return out;
@@ -619,13 +547,8 @@ export async function ticket(sql: Sql, actor: Member | null, number: unknown): P
 // ---- Answering -------------------------------------------------------------
 
 // reply adds the team's answer, with its files; the ticket then waits on
-// the customer (or closes), who no longer waits on us. Says what the mail
-// needs to send it.
-// Threading: the email it answers (the customer's last) and the whole
-// conversation's ids, the confirmation first.
-export type Threading = { inReplyTo: string | null; references: string[] };
-
-export async function reply(sql: Sql, actor: Member | null, number: unknown, body: unknown, options: { close?: boolean } = {}, files: Files = noFiles): Promise<{ ticket: Ticket; messageId: string; threading: Threading; files: Stored[] }> {
+// the customer (or closes), who no longer waits on us.
+export async function reply(sql: Sql, actor: Member | null, number: unknown, body: unknown, options: { close?: boolean } = {}, files: Files = noFiles): Promise<{ ticket: Ticket; messageId: string; files: Stored[] }> {
   if (!actor || !can(actor, "tickets.answer")) throw new AppError("forbidden");
   const text = clean(body, limits.body, { multiline: true });
   const t = await byNumber(sql, number);
@@ -636,20 +559,16 @@ export async function reply(sql: Sql, actor: Member | null, number: unknown, bod
     const status: Status = options.close ? "closed" : "waiting";
     await tx`update tickets set status = ${status}, closed_at = ${options.close ? tx`now()` : null}, updated_at = now(), waiting_since = null, assignee = coalesce(assignee, ${actor.id}) where id = ${t.id}`;
     await refreshSearch(tx, t.id);
-    const ids = await tx<{ email_id: string; kind: string }[]>`
-      select email_id, kind from messages where ticket_id = ${t.id} and email_id is not null
-      union all select confirm_email_id, 'confirm' from tickets where id = ${t.id} and confirm_email_id is not null`;
-    const ordered = [...ids.filter(r => r.kind === "confirm"), ...ids.filter(r => r.kind !== "confirm")];
-    const threading: Threading = { inReplyTo: ordered.filter(r => r.kind === "customer").at(-1)?.email_id ?? ordered.at(-1)?.email_id ?? null, references: ordered.map(r => r.email_id).slice(-20) };
-    return { ticket: { ...t, status, waitingSince: null, assignee: t.assignee ?? actor.id }, messageId, threading, files: stored };
+    return { ticket: { ...t, status, waitingSince: null, assignee: t.assignee ?? actor.id }, messageId, files: stored };
   }), files.drop);
 }
 
 // delivered records how a reply reached the customer: by email, or on the
 // follow-up page only (no mail yet, or an address the Chest refuses since
 // it bounced: said on the reply).
-export async function delivered(sql: Query, messageId: string, delivery: "email" | "page", mail?: { id: string; messageId: string }, refused?: Bounce): Promise<void> {
-  await sql`update messages set delivery = ${delivery}, mail_id = ${mail?.id ?? null}, email_id = ${mail?.messageId ?? null}, bounce = ${refused ? sql.json(refused as never) : null} where id = ${messageId}`;
+export async function delivered(sql: Query, messageId: string, delivery: "email" | "page", mail?: { id: string }, refused?: Bounce): Promise<void> {
+  await sql`update messages set delivery = ${delivery}, mail_id = ${mail?.id ?? null}, bounce = ${refused ? sql.json(refused as never) : null} where id = ${messageId}`;
+  if (mail) await sql`insert into mail_checks (mail_id) values (${mail.id}) on conflict do nothing`;
 }
 
 export async function note(sql: Sql, actor: Member | null, number: unknown, body: unknown, files: Files = noFiles): Promise<Ticket> {
@@ -1112,7 +1031,8 @@ export async function eraseCustomer(sql: Sql, actor: Member | null, address: unk
 }
 
 // The files of some tickets, to delete from the Chest with them: their
-// attachments and the original emails.
+// attachments, and the original emails an earlier version kept (when the
+// Chest still received mail in the studio's harness; none is written now).
 async function objectsOf(sql: Query, where: ReturnType<Query>): Promise<string[]> {
   const rows = await sql<{ object: string }[]>`
     select a.object from attachments a join messages m on m.id = a.message_id join tickets t on t.id = m.ticket_id where ${where}
@@ -1169,7 +1089,7 @@ export async function* exportBatches(sql: Sql, actor: Member | null, withMessage
         (select count(*)::int from messages m where m.ticket_id = t.id and m.kind <> 'event') as said
       from tickets t where t.number > ${after} order by t.number limit ${size}`;
     if (rows.length === 0) return;
-    const messages = withMessages ? await messagesOfMany(sql, rows.map(r => String(r.id)), true, false) : new Map<string, Message[]>();
+    const messages = withMessages ? await messagesOfMany(sql, rows.map(r => String(r.id)), true) : new Map<string, Message[]>();
     yield rows.map(r => ({ ...toTicket(r), tags: (r.tags ?? []).map(g => shownTag(g.name, readerWords(actor))), closedAt: r.closed_at?.toISOString() ?? null, ratedAt: r.rated_at?.toISOString() ?? null, said: r.said, messages: messages.get(String(r.id)) ?? [] }));
     if (rows.length < size) return;
     after = rows.at(-1)!.number;

@@ -48,6 +48,9 @@ export async function ticketPage({ sql, member, lang: locale, t, f }: TeamContex
   const wait = ticket.waitingSince ? waitedFor(minutes) : null;
   const customer = requester ?? (ticket.customerName || ticket.customerEmail);
   const w = t.ticket;
+  // Why an email did not arrive, as the Chest's mail.status said it (an
+  // earlier version kept the mail server's own words: shown as they are).
+  const bounceReason = (reason: string) => w.bounceReasons[reason as keyof typeof w.bounceReasons] ?? reason;
   const canAnswer = can(member, "tickets.answer");
   const canManage = can(member, "tickets.manage");
   const waiting = wait ? { text: plural(t.waiting[wait.unit], wait.count, locale), late: lateAfter(minutes, s.lateHours), lateText: format(t.waiting.late, { hours: s.lateHours }) } : null;
@@ -75,7 +78,7 @@ export async function ticketPage({ sql, member, lang: locale, t, f }: TeamContex
           </div>
           <IncidentBanner incidents={incidents} t={t.incident} />
           {ticket.bounce && (
-            <div className="notice danger" role="alert"><Alert /><div className="stack tight"><strong>{format(w.bounceBanner, { email: ticket.customerEmail })}</strong>{ticket.bounce.reason && ticket.bounce.reason !== "suppressed" && <span className="small muted">{ticket.bounce.reason}</span>}<span className="small">{w.bounceHint}</span></div></div>
+            <div className="notice danger" role="alert"><Alert /><div className="stack tight"><strong>{format(w.bounceBanner, { email: ticket.customerEmail })}</strong>{ticket.bounce.reason && ticket.bounce.reason !== "suppressed" && <span className="small muted">{bounceReason(ticket.bounce.reason)}</span>}<span className="small">{w.bounceHint}</span></div></div>
           )}
           <ol className="thread">
             {ticket.messages.map(m => {
@@ -83,19 +86,14 @@ export async function ticketPage({ sql, member, lang: locale, t, f }: TeamContex
                 const merged = readMerged(m.body);
                 return <li key={m.id} id={`m${m.id}`} className="event"><span>{merged ? format(w.mergedEvent, { number: merged.number }) : m.body}</span> <time dateTime={m.at} title={longDate(m.at)}>{relative(m.at, locale, now)}</time></li>;
               }
-              const fromOther = m.kind === "customer" && m.mailFrom && m.mailFrom.toLowerCase() !== ticket.customerEmail.toLowerCase() ? m.mailFrom : null;
-              const author = m.kind === "customer" ? fromOther ?? customer : name(m.author);
-              const email = m.emailId !== null && m.kind === "customer";
+              const author = m.kind === "customer" ? customer : name(m.author);
               return (
                 <li key={m.id} id={`m${m.id}`} className={classes(m)}>
                   <Avatar name={author} photo={m.author ? who.get(m.author)?.photo ?? null : null} />
                   <div className="bubble">
-                    <div className="who">{author}{m.kind === "note" && <span className="chip note-chip">{w.noteTag}</span>}{m.auto && <span className="chip" title={w.autoHint}>{w.auto}</span>}<time dateTime={m.at} title={longDate(m.at)}>{relative(m.at, locale, now)}</time></div>
+                    <div className="who">{author}{m.kind === "note" && <span className="chip note-chip">{w.noteTag}</span>}<time dateTime={m.at} title={longDate(m.at)}>{relative(m.at, locale, now)}</time></div>
                     {m.kind === "customer" && m.author && <p className="small muted">{format(w.typedBy, { name: name(m.author) })}</p>}
-                    {fromOther && author !== fromOther && <p className="small muted">{format(w.fromOther, { email: fromOther })}</p>}
-                    {m.html
-                      ? <Island name="FormattedBody" props={{ text: m.body, html: m.html, email, t: { quoted: w.quoted, formatted: w.formatted, plain: w.plain } }} />
-                      : <Body text={m.body} contacts {...(email ? { quotedLabel: w.quoted } : {})} />}
+                    <Body text={m.body} contacts />
                     {m.attachments.some(a => thumbnailTypes.includes(a.type)) && (
                       <div className="thumbs">
                         {m.attachments.filter(a => thumbnailTypes.includes(a.type)).map(a => <a key={a.id} href={`/chest/files/${a.id}`} target="_blank" rel="noopener"><img src={`/chest/files/${a.id}?thumbnail=1`} alt={format(w.image, { name: a.fileName })} loading="lazy" /></a>)}
@@ -106,9 +104,7 @@ export async function ticketPage({ sql, member, lang: locale, t, f }: TeamContex
                         {m.attachments.map(a => <a key={a.id} href={`/chest/files/${a.id}`} target="_blank" rel="noopener"><Clip />{a.fileName}<span className="size">{fileSize(a.size, locale)}</span></a>)}
                       </div>
                     )}
-                    {m.dropped.length > 0 && <ul className="dropped small muted">{m.dropped.map(d => <li key={d.name + d.reason}>{format(w.dropped, { name: d.name, reason: w.droppedReasons[d.reason as "count"] ?? d.reason })}</li>)}</ul>}
-                    {m.original && <p className="delivery"><a href={`/chest/messages/${m.id}/original`}><Download />{w.original}</a></p>}
-                    {m.kind === "reply" && m.bounce && <p className="delivery bounced"><Alert />{m.bounce.reason === "suppressed" ? w.suppressed : format(m.bounce.permanent ? w.bounced : w.bouncedLater, { reason: m.bounce.reason })}</p>}
+                    {m.kind === "reply" && m.bounce && <p className="delivery bounced"><Alert />{m.bounce.reason === "suppressed" ? w.suppressed : format(w.bounced, { reason: bounceReason(m.bounce.reason) })}</p>}
                     {m.kind === "reply" && !m.bounce && m.delivery && <p className="delivery">{m.delivery === "email" ? <><Mail />{w.viaEmail}</> : onPage}</p>}
                   </div>
                 </li>
@@ -144,7 +140,7 @@ export async function ticketPage({ sql, member, lang: locale, t, f }: TeamContex
 }
 
 // A message's bubble: the customer's on the left; the team's (a reply, a
-// note on the marker's yellow) on the right; an automatic answer dashed.
-function classes(m: { kind: string; auto: boolean }): string {
-  return ["msg", m.kind !== "customer" && "team", m.kind === "note" && "note", m.auto && "auto"].filter(Boolean).join(" ");
+// note on the marker's yellow) on the right.
+function classes(m: { kind: string }): string {
+  return ["msg", m.kind !== "customer" && "team", m.kind === "note" && "note"].filter(Boolean).join(" ");
 }

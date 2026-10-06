@@ -61,8 +61,9 @@ async function answers(memberId: string): Promise<boolean> {
 export const actions = {
   // ---- A ticket: answering ------------------------------------------------
 
-  // A reply (emailed when the Chest can send email, else on the
-  // customer's follow-up page), with files; Send and close. A colleague's
+  // A reply (emailed when the Chest can send email, with a link to the
+  // customer's request page where they answer; always on that page), with
+  // files; Send and close. A colleague's
   // request (a team form of Forms) gets no email — Support keeps no address
   // of theirs —: the answer stays in Support, and the colleague hears of it
   // in the bell ("colleague").
@@ -77,7 +78,8 @@ export const actions = {
       return { delivery: "colleague" as const };
     }
     const s = await tickets.settings(sql);
-    const sent = await mailer.answer(done.ticket, body.trim(), member, s.companyName, done.threading, done.messageId, done.files);
+    const link = followUpLink(await tickets.newLink(sql, done.ticket.id));
+    const sent = await mailer.answer(done.ticket, body.trim(), member, s.companyName, link, done.messageId, done.files);
     await tickets.delivered(sql, done.messageId, sent.delivery, sent.delivery === "email" ? sent.mail : undefined, sent.delivery === "page" ? sent.refused : undefined);
     await tell.answered(done.ticket);
     after("badges", () => tell.refreshBadges(sql));

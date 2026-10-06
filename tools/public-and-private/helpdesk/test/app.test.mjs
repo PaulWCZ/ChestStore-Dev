@@ -21,7 +21,7 @@ let chest, database, app;
 const logs = [];
 const log = console.log;
 before(async () => {
-  chest = await fakeChest({ tool: "helpdesk", network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, storage: { publicUploads: true }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" } });
+  chest = await fakeChest({ tool: "helpdesk", network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, storage: { publicUploads: true }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" } });
   database = await testDatabase();
   await database.sql.unsafe(readFileSync("seed/sample.sql", "utf8")).simple();
   ({ app } = await import("../dist/test/app.js"));

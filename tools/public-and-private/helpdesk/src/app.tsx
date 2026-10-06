@@ -6,8 +6,8 @@ import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { db, type Sql } from "./lib/db.ts";
-import { chestEvents, chestMail, chestSchedules, chestWebhooks } from "./lib/deliveries.ts";
-import { exportDownload, filePolicy, mineFile, originalEmail, publicFile, teamFile } from "./lib/downloads.ts";
+import { chestEvents, chestSchedules, chestWebhooks } from "./lib/deliveries.ts";
+import { exportDownload, filePolicy, mineFile, publicFile, teamFile } from "./lib/downloads.ts";
 import { frameOrigins } from "./lib/frame.ts";
 import { folderCounts, myOpenCount } from "./lib/tickets.ts";
 import { listViews } from "./lib/views.ts";
@@ -92,10 +92,8 @@ routes.get("/chest/mine", team(minePage, { mine: true }));
 routes.get("/chest/mine/:number", team(ctx => myRequestPage(ctx, ctx.param("number")), { mine: true }));
 
 // Files: an attachment (a fresh link the Chest signs; ?thumbnail=1 a
-// photo's thumbnail), a received email's original, a file of one's own
-// request, the export.
+// photo's thumbnail), a file of one's own request, the export.
 routes.get("/chest/files/:id", c => teamFile(c.get("viewer").member, c.req.param("id"), c.req.query("thumbnail") === "1"));
-routes.get("/chest/messages/:id/original", c => originalEmail(c.get("viewer").member, c.req.param("id")));
 routes.get("/chest/mine/:number/files/:id", c => mineFile(c.get("viewer").member, c.req.param("number"), c.req.param("id")));
 // The export: a file (download(): a refusal is a page in the reader's
 // words), sent as it is written; a link marked download is never fetched
@@ -111,7 +109,6 @@ routes.get("/t/:secret/files/:id", c => publicFile(c.req.param("secret"), c.req.
 // ---- What the Chest sends by itself, signed (src/lib/deliveries.ts).
 routes.post("/chest-events", c => chestEvents(c.req.raw));
 routes.post("/chest-schedules", c => chestSchedules(c.req.raw));
-routes.post("/chest-mail", c => chestMail(c.req.raw));
 routes.post("/chest-webhooks", c => chestWebhooks(c.req.raw));
 
 // ---- Two answers keep a policy of their own, set here around the

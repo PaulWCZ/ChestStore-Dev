@@ -4,12 +4,14 @@ import * as members from "@argentic/chest-sdk/members";
 import { answering } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { format, type Catalogue } from "../i18n/index.ts";
-import { badges, cut, notify, withdraw } from "./notify.ts";
+import { badges, broadcast, cut, notify, withdraw } from "./notify.ts";
 import { nameOf, people, type Person } from "./people.ts";
 import { waitingCounts, type Ticket } from "./tickets.ts";
 
 // The bell and the tile for the people who answer tickets, each in their
-// own language. Keyed by the ticket, so a new item replaces the old one.
+// own language (one notice, its translations). Keyed by the ticket, so a
+// new item replaces the old one. The Chest mails members their
+// notifications by each one's choice: Support sends members no email.
 
 export async function answerers(roles: readonly string[] = answering): Promise<string[]> {
   const found: string[] = [];
@@ -36,10 +38,12 @@ const path = (t: Pick<Ticket, "number">) => `/chest/tickets/${t.number}`;
 // A colleague's request (a team form) names them as the Chest does, in
 // each reader's language ("a colleague" when Support does not know them).
 export async function newTicket(t: Pick<Ticket, "id" | "number" | "subject" | "customerName" | "customerEmail"> & { requester?: string | null }, body: string, assignee: string | null = null): Promise<void> {
-  const recipients = assignee ? [assignee] : await answerers();
   const colleague = t.requester ? (await people([t.requester])).get(t.requester) : undefined;
   const customer = (tr: Catalogue, locale: Locale) => (t.requester ? colleagueName(colleague, tr, locale) : t.customerName || t.customerEmail);
-  await notify(recipients, (tr, locale) => ({ title: format(tr.bell.new, { customer: cut(customer(tr, locale), 40) }), body: cut(`${t.subject} — ${body}`, 280) }), { path: path(t), key: `ticket:${t.id}:new` });
+  const words = (tr: Catalogue, locale: Locale) => ({ title: format(tr.bell.new, { customer: cut(customer(tr, locale), 40) }), body: cut(`${t.subject} — ${body}`, 280) });
+  const options = { path: path(t), key: `ticket:${t.id}:new` };
+  if (assignee) await notify([assignee], words, options);
+  else await broadcast(answering, () => answerers(), words, options);
 }
 
 // How a colleague who asked is written: their name, or "a colleague" when
@@ -105,5 +109,5 @@ export async function refreshBadges(sql: Sql): Promise<void> {
 // The Chest stopped the notices to a channel (Settings, "Slack and
 // Teams"): the administrators hear of it, to fix the address.
 export async function noticeStopped(target: { id: string; label: string }): Promise<void> {
-  await notify(await answerers(["admin"]), tr => ({ title: format(tr.bell.noticeStopped, { label: cut(target.label, 40) }) }), { path: "/chest/settings#notices", key: `notices:stopped:${target.id}` });
+  await broadcast(["admin"], () => answerers(["admin"]), tr => ({ title: format(tr.bell.noticeStopped, { label: cut(target.label, 40) }) }), { path: "/chest/settings#notices", key: `notices:stopped:${target.id}` });
 }
