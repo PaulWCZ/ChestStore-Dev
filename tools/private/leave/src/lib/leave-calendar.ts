@@ -29,7 +29,7 @@ import { zonesOf, type ZoneOf } from "./zones.ts";
 // first sync — and takes back what no longer stands: cancelled, its
 // approval taken back, cut or cancelled by a last day, erased, or over for
 // a month (keepDays: the Chest keeps 5,000 events per tool). It runs after
-// every change (app/chest/actions.ts, the answer sent first), after the
+// every change (src/actions.ts, the answer sent first), after the
 // Chest's and People's events, and every morning.
 //
 // A Chest without the calendar refuses (CapabilityNotGranted): Leave
