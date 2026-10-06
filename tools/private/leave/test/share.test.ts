@@ -50,7 +50,7 @@ test("an approved absence is told once, as who and which days — never its kind
   await share.keepInLine(database.sql);
   assert.equal(told(id).length, 1);
   assert.equal(last(id)!.type, "leave.approved");
-  assert.deepEqual(last(id)!.data, { member: hugo.id, from: monday, to: addDays(monday, 4), fromHalf: "am", toHalf: "pm", request: id });
+  assert.deepEqual(last(id)!.data, { "member": hugo.id, from: monday, to: addDays(monday, 4), fromHalf: "am", toHalf: "pm", request: id });
   await share.keepInLine(database.sql);
   assert.equal(told(id).length, 1, "nothing changed, nothing told again");
 });
@@ -74,7 +74,7 @@ test("a last day HR sets cuts a leave: cancelled, then approved for the days tha
   assert.deepEqual([done.cut, done.cancelled], [[across], [afterIt]]);
   await share.keepInLine(database.sql);
   assert.deepEqual(told(across).map(e => e.type), ["leave.approved", "leave.cancelled", "leave.approved"]);
-  assert.deepEqual(last(across)!.data, { member: sofia.id, from: monday, to: end, fromHalf: "am", toHalf: "pm", request: across });
+  assert.deepEqual(last(across)!.data, { "member": sofia.id, from: monday, to: end, fromHalf: "am", toHalf: "pm", request: across });
   assert.deepEqual(told(afterIt).map(e => e.type), ["leave.approved", "leave.cancelled"]);
   // The keys are distinct: a receiver keeps each word.
   assert.equal(new Set(told(across).map(e => e.key)).size, 3);
@@ -87,14 +87,14 @@ test("the Chest's own last day (a member removed) cancels what comes after — t
   assert.equal(last(id)!.type, "leave.approved");
   assert.equal(await chest.emit({ type: "member.removed", data: { id: tom.id } }, POST), 204);
   assert.equal(last(id)!.type, "leave.cancelled");
-  assert.deepEqual(last(id)!.data, { member: tom.id, from: start, to: addDays(start, 2), fromHalf: "am", toHalf: "pm", request: id });
+  assert.deepEqual(last(id)!.data, { "member": tom.id, from: start, to: addDays(start, 2), fromHalf: "am", toHalf: "pm", request: id });
 });
 
 test("a last day People sets (people.leaving) cuts and cancels — told to the other tools", async () => {
   const monday = quietMonday(56);
   const id = await approvedLeave(lea.id, week(monday));
   await share.keepInLine(database.sql);
-  assert.equal(await chest.deliver({ type: "people.leaving", data: { member: lea.id, lastDay: addDays(monday, -3) } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "people.leaving", data: { "member": lea.id, lastDay: addDays(monday, -3) } }, POST), 204);
   assert.equal(last(id)!.type, "leave.cancelled");
 });
 

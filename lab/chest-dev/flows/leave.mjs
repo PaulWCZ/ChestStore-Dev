@@ -56,8 +56,8 @@ async function ask(start, end, options = {}) {
   return last;
 }
 
-// The fake Chest's outbox (mail proposal), as the harness's /_dev shows it:
-// the latest first, "subject … → address".
+// The fake Chest's outbox (mail to people outside), as the harness's /_dev
+// shows it: the latest first, "subject … → address". Leave sends none.
 async function outbox() {
   const back = page.url();
   await page.goto(origin + "/_dev");
@@ -76,6 +76,11 @@ async function feedOf() {
   const path = /\/_chest\/calendar\/[A-Za-z0-9_-]+\.ics/u.exec(await devPage())?.[0];
   expect(path, "the harness shows the feed's address");
   return (await (await page.request.get(origin + path)).text()).replace(/\r\n[ \t]/gu, "");
+}
+// A member's items in the harness's bell: each as "title … fr: titre …".
+async function bellOf(name) {
+  const items = (await devPage()).match(new RegExp(`<li><b>${name}</b> · [\\s\\S]*?</li>`, "gu")) ?? [];
+  return items.map(li => li.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim());
 }
 // The latest leave.busy told of someone (the Events panel, latest first).
 async function busyOf(member) {
@@ -121,10 +126,10 @@ await step("an employee asks for a week of paid leave: the cost shows as he pick
   expect((await page.locator(".request", { hasText: "Waiting" }).allInnerTexts()).some(t => t.includes("5 days")), "listed as waiting");
 });
 
-await step("the approver is emailed too (the mail proposal), in her language, with the link to answer", async () => {
-  const mails = await outbox();
-  const toInes = mails.find(m => m.includes("ines@example.test"));
-  expect(toInes && toInes.startsWith("Hugo Bernard demande un congé") && /\/chest\/requests\/\d+/u.test(toInes), "email to Inès: " + mails.join(" | "));
+await step("the approver is told in the bell — English with its French, the Chest shows her hers — with the link to answer; no email from Leave", async () => {
+  const items = await bellOf("Inès Moreau");
+  expect(items.some(i => i.includes("Hugo Bernard asks for time off") && i.includes("fr: Hugo Bernard demande un congé") && /\/chest\/requests\/\d+/u.test(i)), "Inès's item: " + items.join(" | "));
+  expect((await outbox()).length === 0, "no email: the Chest mails notifications by each one's choice");
 });
 
 await step("a half day costs half a day; a week-end costs nothing and cannot be sent", async () => {
@@ -221,9 +226,9 @@ await step("she refuses another with a word; he reads it", async () => {
   expect(await page.locator(".request", { hasText: "5 days" }).filter({ hasText: "Approved" }).count() >= 1, "the week approved");
 });
 
-await step("the requester is emailed the answers too", async () => {
-  const mails = (await outbox()).filter(m => m.includes("hugo@example.test"));
-  expect(mails.some(m => m.startsWith("Your time off is approved")) && mails.some(m => m.startsWith("Your time off is refused") && m.includes("Inventaire ce jour-là")), "emails to Hugo: " + mails.join(" | "));
+await step("the requester hears the answers in the bell, with the approver's word", async () => {
+  const items = await bellOf("Hugo Bernard");
+  expect(items.some(i => i.includes("Your time off is approved")) && items.some(i => i.includes("Your time off is refused") && i.includes("Inventaire ce jour-là")), "Hugo's items: " + items.join(" | "));
 });
 
 await step("approved: the week is in Hugo's own calendar feed as 'Off', private — never why; his home says so", async () => {
@@ -510,48 +515,13 @@ await step("paid leave never goes below zero by default: Tom asking far more tha
   expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "cannot be sent");
 });
 
-await step("email is offered as the Chest can send it (mail.available): the switch, and no sentence saying none leaves", async () => {
+await step("no email switch in Leave: My leave says, in one line, that email is chosen in the Chest; nothing was emailed", async () => {
   await as(context, origin, "tom");
-  await page.goto(origin + "/chest");
-  expect(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).count() === 1, "the switch");
-  expect(await page.getByText("Emails are not sent for now").count() === 0 && await page.getByText("Today's emails are used up").count() === 0, "no sentence: this Chest sends");
-});
-
-await step("what Tom chose in the Chest (one email a day) and a pause of the Chest's email: his home says each, in plain words", async () => {
-  await control(page, origin, "member", { member: id("tom"), mailPreference: "digest" });
-  try {
-    await page.goto(origin + "/chest");
-    expect(await page.getByText("In your Chest settings you chose one email a day").count() === 1, "one a day, said");
-    await control(page, origin, "delivery", { mail: "suspended" });
-    await page.goto(origin + "/chest");
-    expect(await page.getByText("Emails are not sent for now").count() === 1, "paused, said");
-    expect(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).count() === 1, "his own switch stays");
-  } finally {
-    await control(page, origin, "delivery", { mail: "ready" });
-    await control(page, origin, "member", { member: id("tom"), mailPreference: "all" });
-  }
-  await page.goto(origin + "/chest");
-  expect(await page.getByText("In your Chest settings you chose").count() === 0, "all: nothing to say");
-});
-
-await step("Tom turns his emails off: the next answer reaches his bell only", async () => {
-  await page.goto(origin + "/chest");
-  await flip(page, "Also send me these by email: requests to answer, answers, cancellations", false);
-  await page.reload();
-  expect(!(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).isChecked()), "saved");
-  const tuesday = day(plus(monday, 50));
-  await ask(tuesday, tuesday);
-  await send();
-  const before = (await outbox()).filter(m => m.includes("tom@example.test")).length;
-  await as(context, origin, "lea");
   await speak("en");
-  await page.goto(origin + "/chest/approvals");
-  await page.locator(".card", { hasText: "Tom Walker" }).first().getByRole("button", { name: "Approve" }).click();
-  await page.waitForTimeout(1500);
-  expect((await outbox()).filter(m => m.includes("tom@example.test")).length === before, "no email to Tom");
-  await as(context, origin, "tom");
   await page.goto(origin + "/chest");
-  await flip(page, "Also send me these by email: requests to answer, answers, cancellations", true);
+  expect(await page.getByRole("switch", { name: /email/u }).count() === 0, "no switch");
+  expect(await page.getByText("Your Chest can also email you your notifications: choose how in your Chest settings.").count() === 1, "the line");
+  expect((await outbox()).length === 0, "Leave mailed no one");
 });
 
 await step("HR changes a kind in place: saved at once, nothing to forget", async () => {
@@ -593,7 +563,7 @@ await step("payroll's balances file on the last day of next month: a projection,
 });
 
 await step("People tells Leave of Tom's record: his number and working week follow it, and HR sees where they come from", async () => {
-  await deliver("people.record", { member: id("tom"), employeeNumber: "T-0019", startDate: "2025-11-03", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
+  await deliver("people.record", { "member": id("tom"), employeeNumber: "T-0019", startDate: "2025-11-03", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
   await page.goto(origin + "/chest/people/" + id("tom"));
   expect((await page.locator("main").innerText()).includes("Kept up to date from their HR record in People"), "said where it comes from");
   expect((await page.getByLabel("Employee number").inputValue()) === "T-0019", "number from People");
@@ -601,11 +571,11 @@ await step("People tells Leave of Tom's record: his number and working week foll
 
 await step("People tells Leave that Hugo leaves: his last day is set, the leave after it cancelled, HR told; stopped in People, the day goes", async () => {
   const last = day(plus(monday, 30));
-  await deliver("people.leaving", { member: id("hugo"), lastDay: last });
+  await deliver("people.leaving", { "member": id("hugo"), lastDay: last });
   await page.goto(origin + "/chest/people/" + id("hugo"));
   expect((await page.locator("main").innerText()).includes("Last day:"), "last day shown");
   expect(await page.locator(".ledger tr", { hasText: "After their last day" }).count() >= 1, "the leave after it came back");
-  await deliver("people.leaving_cancelled", { member: id("hugo") });
+  await deliver("people.leaving_cancelled", { "member": id("hugo") });
   await page.goto(origin + "/chest/people/" + id("hugo"));
   expect(!(await page.locator("main").innerText()).includes("Last day:"), "cleared");
 });
@@ -626,11 +596,11 @@ await step("a last day People sets in the middle of Nora's approved week: told a
   expect(week, "Nora's approved week");
   noraWeek = week.id;
   const last = day(plus(new Date(week.start + "T00:00:00Z"), 2));
-  await deliver("people.leaving", { member: id("nora"), lastDay: last });
+  await deliver("people.leaving", { "member": id("nora"), lastDay: last });
   const told = await toldOf(week.id, t => t.length >= 2 && t[0].type === "leave.approved" && t[0].data.to === last);
   expect(told[0]?.type === "leave.approved" && told[0].data.from === week.start && told[0].data.to === last && told[0].data.toHalf === "pm", "approved up to the last day: " + JSON.stringify(told[0]));
   expect(told[1]?.type === "leave.cancelled" && told[1].data.to === week.end, "the whole week taken back first: " + JSON.stringify(told[1]));
-  await deliver("people.leaving_cancelled", { member: id("nora") });
+  await deliver("people.leaving_cancelled", { "member": id("nora") });
 });
 
 await step("the shortened week's approval is told with the time of the change, strictly after its cancellation (occurredAt, SDK studio.16)", async () => {

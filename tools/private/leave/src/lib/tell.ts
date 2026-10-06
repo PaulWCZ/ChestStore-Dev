@@ -11,11 +11,11 @@ import { leaveType } from "./rules.ts";
 import { staffRow } from "./staff.ts";
 import { typeName } from "../shared/type-name.ts";
 import { canBeApprover } from "./access.ts";
-import { email } from "./mail.ts";
-import type { Catalogue, Locale } from "../i18n/index.ts";
 
 // What Leave tells people through the Chest's bell, each in their own
 // language, and the number on approvers' tiles (requests waiting for them).
+// Leave sends no email: the Chest mails each member their notifications
+// as they chose in the Chest (each one, once or twice a day, or off).
 // A request's item for its answerers is keyed by the request and withdrawn
 // once it is answered; the requester's answer has a key of its own.
 const path = (r: { id: string }) => `/chest/requests/${r.id}`;
@@ -30,18 +30,6 @@ async function directory(): Promise<Directory | null> {
     if (!(error instanceof ChestError)) throw error;
     return null;
   }
-}
-
-// tellBoth: the bell item, and the same words by email (the mail
-// proposal) to those who have not turned emails off. The email's key
-// carries the moment: the same step done again later is a new email.
-// transactional: the answer to the person's own request (lib/mail.ts).
-async function tellBoth(sql: Query, to: string[], words: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key: string; transactional?: boolean }): Promise<void> {
-  await notify(to, words, { path: options.path, key: options.key });
-  await email(sql, to, (t, locale) => {
-    const w = words(t, locale);
-    return { subject: w.title, lines: w.body ? w.body.split("\n") : [] };
-  }, { path: options.path, key: `${options.key}:${Date.now().toString(36)}`, transactional: options.transactional === true });
 }
 
 async function describe(sql: Query, r: LeaveRequest) {
@@ -62,7 +50,7 @@ export async function asked(sql: Query, actor: Member, r: LeaveRequest): Promise
   const body = await describe(sql, r);
   const to = (await answerersOf(sql, r, dir)).filter(a => a !== actor.id);
   const declared = r.status === "approved";
-  await tellBoth(sql, to, (t, locale) => ({ title: format(declared ? (type.key === "sick" ? t.bell.declared : t.bell.declaredOther) : t.bell.asked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
+  await notify(to, (t, locale) => ({ title: format(declared ? (type.key === "sick" ? t.bell.declared : t.bell.declaredOther) : t.bell.asked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
   await refreshBadges(sql, dir);
 }
 
@@ -70,7 +58,7 @@ export async function asked(sql: Query, actor: Member, r: LeaveRequest): Promise
 // in their language.
 export async function recorded(sql: Query, actor: Member, r: LeaveRequest): Promise<void> {
   const body = await describe(sql, r);
-  await tellBoth(sql, [r.memberId], (t, locale) => ({ title: format(t.bell.recorded, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) + ":answer" });
+  await notify([r.memberId], (t, locale) => ({ title: format(t.bell.recorded, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) + ":answer" });
   await refreshBadges(sql);
 }
 
@@ -79,10 +67,10 @@ export async function answered(sql: Query, actor: Member, r: LeaveRequest): Prom
   await withdraw(key(r));
   const body = await describe(sql, r);
   if (r.memberId !== actor.id) {
-    await tellBoth(sql, [r.memberId], (t, locale) => ({
+    await notify([r.memberId], (t, locale) => ({
       title: r.status === "approved" ? t.bell.approved : t.bell.refused,
       body: body(t, locale) + (r.reason ? "\n" + r.reason : "") + "\n" + format(t.bell.by, { name: actor.name }),
-    }), { path: path(r), key: key(r) + ":answer", transactional: true });
+    }), { path: path(r), key: key(r) + ":answer" });
   }
   await refreshBadges(sql);
 }
@@ -108,7 +96,7 @@ export async function cancelAsked(sql: Query, actor: Member, r: LeaveRequest): P
   const dir = await directory();
   if (!dir) return;
   const body = await describe(sql, r);
-  await tellBoth(sql, (await answerersOf(sql, r, dir)).filter(a => a !== actor.id), (t, locale) => ({ title: format(t.bell.cancelAsked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
+  await notify((await answerersOf(sql, r, dir)).filter(a => a !== actor.id), (t, locale) => ({ title: format(t.bell.cancelAsked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
   await refreshBadges(sql, dir);
 }
 
@@ -116,10 +104,10 @@ export async function cancelSettled(sql: Query, actor: Member, r: LeaveRequest):
   await withdraw(key(r));
   const body = await describe(sql, r);
   if (r.memberId !== actor.id) {
-    await tellBoth(sql, [r.memberId], (t, locale) => ({
+    await notify([r.memberId], (t, locale) => ({
       title: r.status === "cancelled" ? t.bell.cancelled : t.bell.kept,
       body: body(t, locale) + (r.reason ? "\n" + r.reason : "") + "\n" + format(t.bell.by, { name: actor.name }),
-    }), { path: path(r), key: key(r) + ":answer", transactional: true });
+    }), { path: path(r), key: key(r) + ":answer" });
   }
   await refreshBadges(sql);
 }

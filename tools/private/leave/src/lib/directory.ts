@@ -50,11 +50,11 @@ export async function roleNow(memberId: string): Promise<string | null> {
   return (await members.get(memberId))?.role ?? null;
 }
 
-// The Chest's groups the team calendar is filtered by. With the "groups"
-// permission (Proposal (studio): "groups": "read") every group of the
-// Chest — Sales, Tech, the workshop — even when Leave is open to everyone,
-// which gives it no group; without it, only the groups that give Leave.
-// None when the Chest does not answer (the page still renders).
+// The Chest's groups the team calendar is filtered by. With the capability
+// "members.groups" (Proposal (studio), announced for 0.5) every group of
+// the Chest — Sales, Tech, the workshop — even when Leave is open to
+// everyone, which gives it no group; without it, only the groups that give
+// Leave. None when the Chest does not answer (the page still renders).
 export async function groups(): Promise<{ id: string; name: string }[]> {
   try {
     return (await members.groups.all()).map(g => ({ id: g.id, name: g.name }));
@@ -70,26 +70,19 @@ export async function groups(): Promise<{ id: string; name: string }[]> {
   }
 }
 
-// Who is in a group, among those who have Leave (up to 2,000 people);
-// null for a group the Chest does not have, or when it does not answer.
+// Who is in a group, among those who have Leave (members.list({group}):
+// any group of the Chest with "members.groups", a group that gives Leave
+// without it); null when the Chest does not answer or refuses the group.
 export async function groupMembers(id: string): Promise<string[] | null> {
   try {
     const found: string[] = [];
     let after: string | undefined;
-    for (let page = 0; page < 2; page++) {
-      const answer = await members.groups.members(id, { limit: 1000, ...(after ? { after } : {}) });
-      if (!answer) return null;
-      found.push(...answer.members);
-      if (!answer.next) break;
-      after = answer.next;
-    }
+    do {
+      const answer = await members.list({ group: id, limit: 500, ...(after ? { after } : {}) });
+      found.push(...answer.members.map(m => m.id));
+      after = answer.next ?? undefined;
+    } while (after);
     return found;
-  } catch (error) {
-    if (!(error instanceof ChestError)) throw error;
-    if (!(error instanceof CapabilityNotGranted)) return null;
-  }
-  try {
-    return (await members.groups.list()).find(g => g.id === id)?.members ?? null;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     return null;

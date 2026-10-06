@@ -9,7 +9,7 @@ import { setApprover } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, sofia } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, sofia, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -33,7 +33,7 @@ test("the weekday morning reminds approvers of requests waiting more than two da
   await sql`update requests set created_at = now() - make_interval(days => ${reminderAfterDays + 1}) where id = ${old.id}`;
   await requests.createRequest(sql, asMember(sofia), { typeId: paid, ...week(quietMonday(30)) }); // new: no reminder yet
   assert.equal(await chest.run("morning", POST), 204);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key, n.path]), [[ines.id, "1 demande attend votre réponse", "reminder", "/chest/approvals"]]);
+  assert.deepEqual(chest.notifications.map(seen).map(n => [n.member, n.title, n.key, n.path]), [[ines.id, "1 demande attend votre réponse", "reminder", "/chest/approvals"]]);
   assert.equal(chest.badges.get(ines.id), 1);
   assert.equal(chest.badges.get(camille.id), 1); // Sofia's, which goes to HR
   // Delivered again: the same item replaced, not a second one.

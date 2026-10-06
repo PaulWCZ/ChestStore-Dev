@@ -15,7 +15,7 @@ import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, sofia } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, sofia, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -84,10 +84,10 @@ test("asking to cancel reaches the approver; the answer reaches the requester", 
   const [mine] = await requests.mine(sql, asMember(hugo));
   await requests.cancel(sql, asMember(hugo), mine!.id);
   await tell.cancelAsked(sql, asMember(hugo), await requests.request(sql, asMember(hugo), mine!.id));
-  assert.equal(chest.notifications.find(n => n.member === ines.id)?.title, "Hugo Bernard demande l’annulation d’un congé");
+  assert.equal(seen(chest.notifications.find(n => n.member === ines.id))?.title, "Hugo Bernard demande l’annulation d’un congé");
   const settled = await requests.settleCancel(sql, asMember(ines), mine!.id, { accept: true });
   await tell.cancelSettled(sql, asMember(ines), settled);
-  assert.equal(chest.notifications.find(n => n.member === hugo.id)?.title, "Your leave is cancelled");
+  assert.equal(seen(chest.notifications.find(n => n.member === hugo.id))?.title, "Your leave is cancelled");
 });
 
 test("the balances CSV: paid leave N-1 and N as the pay slip shows them, leave to come apart, those who left included; HR only", async () => {

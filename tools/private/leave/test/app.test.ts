@@ -179,12 +179,12 @@ test("a kind of leave: only what changed is sent, and changes sent at once all l
 });
 
 test("an action sent from another site, or not as a form or JSON, is refused", async () => {
-  const cross = await call(camille, "setEmail", { on: false }, { "sec-fetch-site": "cross-site" });
+  const cross = await call(camille, "saveSettings", { counting: "ouvres" }, { "sec-fetch-site": "cross-site" });
   assert.equal(cross.status, 403);
-  const text = await app.fetch(withMember(new Request(`${team}/chest/actions/setEmail`, { method: "POST", body: "on", headers: { "content-type": "text/plain", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }), camille));
+  const text = await app.fetch(withMember(new Request(`${team}/chest/actions/saveSettings`, { method: "POST", body: "counting=ouvres", headers: { "content-type": "text/plain", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }), camille));
   assert.equal(text.status, 415);
   // A form sent without JavaScript: back to the page it came from.
-  const form = await app.fetch(withMember(new Request(`${team}/chest/actions/setEmail`, { method: "POST", body: new URLSearchParams({ on: "on" }), headers: { "sec-fetch-site": "same-origin", referer: `${team}/chest` } }), camille));
+  const form = await app.fetch(withMember(new Request(`${team}/chest/actions/saveSettings`, { method: "POST", body: new URLSearchParams({ counting: "ouvres" }), headers: { "sec-fetch-site": "same-origin", referer: `${team}/chest` } }), camille));
   assert.equal(form.status, 303);
   assert.equal(form.headers.get("location"), "/chest");
 });

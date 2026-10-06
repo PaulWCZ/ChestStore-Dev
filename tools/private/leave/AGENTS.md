@@ -12,13 +12,13 @@ actions, words, the database, tests, recipes, pitfalls — is
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest (contract 0.4): roles `hr`, `manager`, `employee`; `database`, `members`, `notifications`; `receives`; the `morning` schedule; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Manifest keys of SDK proposals (`mail`, `calendar`, `groups`, `emits` incl. `leave.busy`, `receives` from People, `translations`) |
+| `chest.proposals.json` | Manifest keys of SDK proposals (`calendar`, `capabilities: ["members.groups"]`, `emits` incl. `leave.busy`, `receives` from People, `translations`) |
 | `src/app.tsx` | **Every route**: the pages (`members()` runs a page only for a member with a role, and counts what waits for an approver: the layout's "To answer"), payroll's two downloads, `/chest-events`, `/chest-schedules`, the host's root |
 | `src/actions.ts` | **Every mutation**, by name (`call("askLeave", …)` from an island). Thin: the services check everything; `keepInLine()` after each change |
 | `src/calls.ts` | What the Chest posts by itself: events (`events.handle`) and schedule runs (`schedules.handle`, `morning`), with the durable `seen` |
 | `src/downloads.ts` | Payroll's CSVs: the month's absences, everyone's balances on a day (served by the package's `download()`: a refusal is a page in the reader's words) |
 | `src/pages/` | The pages, rendered on the server: Home, NewRequest, Request, Approvals, Calendar, People, Person, Import, Payroll, Settings, PublicHome |
-| `src/islands/` | What runs in the browser (`index.ts` lists them): the request form, the approval cards, a request's actions, my requests (Cancel + Undo), HR's forms, the people table, the settings, the email switch, AutoRefresh |
+| `src/islands/` | What runs in the browser (`index.ts` lists them): the request form, the approval cards, a request's actions, my requests (Cancel + Undo), HR's forms, the people table, the settings, AutoRefresh |
 | `src/layout.tsx` | The kit's shell and sections, NoAccess, the toasts; the public layout |
 | `src/shared/` | **Browser-safe rules** islands share with the server: `calendar.ts` (days, French public holidays, the cost of a span with the person's week, overlaps, months earned), `left.ts` (the one "days left"), `model.ts` (input rules, limits, colours), `normalize.ts`, `status.ts`, `type-name.ts` |
 | `src/lib/access.ts` | **Who may do what**: abilities (`can`), what one sees of someone's leave (`sightOf`: own, approver, team), who may answer (`mayDecide`) |
@@ -30,19 +30,18 @@ actions, words, the database, tests, recipes, pitfalls — is
 | `src/lib/last-day.ts` | A last day set: leave after it cancelled, leave across it cut, days given back (reason key `afterLastDay`) — by the Chest's leaving event and by HR |
 | `src/lib/setup.ts` | HR's first-run checklist |
 | `src/lib/routing.ts` | Who answers a person's requests, given the directory (pure) |
-| `src/lib/directory.ts` | The members who have the tool, from the Chest; the Chest's groups for *Who's away* (`groups.all`/`groups.members` with the groups proposal, else the groups that give Leave) |
+| `src/lib/directory.ts` | The members who have the tool, from the Chest; the Chest's groups for *Who's away* (`members.groups.all()` / `members.list({ group })` with `members.groups`, else the groups that give Leave) |
 | `src/lib/import.ts`, `src/shared/normalize.ts`, `src/lib/csv.ts` | The two imports (pure plans: people and balances; approved leave), header recognition and HR's mapping, Lucca's columns; CSV read/write (formula-safe). Fixtures in `test/fixtures/` |
 | `src/lib/payroll.ts` | The month's approved absences for payroll (`src/downloads.ts`: the CSVs) |
 | `src/lib/tell.ts`, `src/lib/notify.ts` | The bell (each recipient's language) and approvers' tile numbers |
 | `src/lib/lifecycle.ts` | Leaving and erasure; `tools()`: the handlers of other tools' events |
 | `src/lib/from-people.ts` | People → Leave (events between tools): `people.record` (number, first day, week, last day), `people.leaving(_cancelled)`; checked field by field, older events ignored, a last day People set is the only one People clears (`staff.end_by`) |
-| `src/lib/mail.ts` | Emails beside the bell (mail proposal): `email()` in each reader's language, the person's switch (`staff.email_off`); the Chest's choice (`mail.preference()`, `mailPreference()` for the home) applies in `mail.send`; only answers to one's own request are `transactional` |
 | `src/lib/leave-calendar.ts`, `src/lib/spans.ts` | Approved leave in each person's Chest calendar feed (calendar proposal): `sync()` puts what changed (`putMany`, 100 a call) and takes back what no longer stands (`calendar_events`); title "Off", private, never the kind. `spans.ts`: a leave as instants in a zone (noon for halves); `src/lib/zones.ts`: each person's zone (members API, else the Chest's) for the hours of their days off |
 | `src/lib/busy.ts`, `src/lib/busy-snapshot.ts` | `leave.busy` for Booking/Hiring: each member's approved leave, 90 days, times only, told when it changed (`shared_busy`). `busy-snapshot.ts` is the same file as Booking's and Hiring's — keep them equal |
 | `src/lib/share.ts` | Events to Rooms and People (`leave.approved`/`cancelled`): `plan()` compares approved absences with what was told (`shared_leave`) and writes what differs to the outbox (`leave_outbox`), `publish()` sends it (retried at the next run); absences only (`away`), a cut is cancelled + approved. `keepInLine()`: these events, calendar and busy times after each change, event and morning |
 | `src/lib/morning.ts` | The weekday reminder (schedule `morning` of `chest.json`, run by `src/calls.ts`) |
 | `src/lib/today.ts` | **Today** = `chest.today()`, the Chest's day (= the database's `current_date`; server only). Never a day from UTC or the browser |
-| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work; `0003` payroll codes, family events on worked days, ledger reason keys, `after_last_day`/`cut` history steps; `0004` who set a last day (`end_by`), when People last told, the email switch, paid leave not below zero by default; `0005` what is in the calendar feeds, the calendar's state, the busy times last told; `0006` what Rooms and People were told (`shared_leave`) and the events' outbox. Never edit a shipped file; add `0007_…` |
+| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work; `0003` payroll codes, family events on worked days, ledger reason keys, `after_last_day`/`cut` history steps; `0004` who set a last day (`end_by`), when People last told, the email switch, paid leave not below zero by default; `0005` what is in the calendar feeds, the calendar's state, the busy times last told; `0006` what Rooms and People were told (`shared_leave`) and the events' outbox; `0007` the email switch dropped (email is the Chest's). Never edit a shipped file; add `0008_…` |
 | `seed/sample.sql` | A seven-person company, dates around today |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (`TEST_DATABASE_URL`, else PGlite: one connection, `DATABASE_POOL_MAX=1`); `app.test.ts` asks the built server (`dist/test`), `sources.test.ts` runs the package's checks |
 | `src/theme.ts` | **The look**: the identity "Seaside" (`defineTheme`, equal to the catalogue's) and `sheetOf()`/`lookFor()` (the company's choice from `chest.theme()`, else the identity, served as `/chest/look.css`) |
@@ -78,8 +77,11 @@ NODE_ENV=development npm test        # as the workbench runs them
   UTC+14 with a member in Montréal.
 - **A line the tool writes itself has a `reason_key`** (`opening`, `rttYear`, `afterLastDay`), written in the reader's language (`team.reasonKeys`); never write an English sentence into `reason` from code or seed.
 - **A last day never leaves leave after it counting**: every way of setting one goes through `settleAfterLastDay` (`src/lib/last-day.ts`), in the same transaction.
-- **Every bell item about a request goes through `tellBoth`** (lib/tell.ts):
-  the same words by email, never the note.
+- **Every bell item goes through `notify`** (lib/notify.ts): English with
+  its French as `translations`, never the note. Leave sends no email (the
+  owner's decision, 6 October 2026): the Chest mails members their
+  notifications by their choice — never `mail.send`, a digest or an
+  "email me" setting.
 - **What leaves the tool about approved leave says "Off", never why**: the
   calendar event's title is `feed.title` for every kind, private; the
   busy times are times only. A change to requests' status must be
@@ -88,9 +90,6 @@ NODE_ENV=development npm test        # as the workbench runs them
   `keepInLine` finds every change itself (a last day that cuts or cancels
   leave included), so a new way of changing leave needs no event code.
   Only kinds with `away` are told to Rooms and People.
-- **Mail keys are given whole** (the SDK hashes long ones; never
-  `.slice`); `transactional` only for the answer to the person's own
-  request.
 - **A last day People told is People's**: set with `end_by` 'record' or
   'leaving'; People never clears 'hr' or 'chest'. HR's own setter writes
   'hr'.

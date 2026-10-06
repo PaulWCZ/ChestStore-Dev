@@ -140,11 +140,7 @@ export const en = {
     declared: "Recorded",
   },
   home: {
-    email: "Also send me these by email: requests to answer, answers, cancellations",
-    emailNone: "In your Chest settings you chose no email: only the answers to your own requests still come.",
-    emailDigest: "In your Chest settings you chose one email a day: these wait for it, except the answers to your own requests.",
-    emailOff: "Emails are not sent for now: ask your Chest’s owner. The bell still tells you.",
-    emailQuota: "Today's emails are used up: they go out again tomorrow. The bell still tells you.",
+    emailHint: "Your Chest can also email you your notifications: choose how in your Chest settings.",
     feed: "Your approved leave is in your calendar",
     hello: "Hello {name}",
     summary: "{days} of {type} left.",
@@ -523,10 +519,6 @@ export const en = {
     save: "Save",
     saved: "Saved.",
     builtIn: "Name in each language: leave empty",
-  },
-  mail: {
-    open: "Open it in Leave: {link}",
-    why: "You get this email because you use Leave in your company’s Chest. To stop these emails, turn them off on your Leave page.",
   },
   bell: {
     leavesOn: "{name} leaves on {date}: leave after that day no longer counts",

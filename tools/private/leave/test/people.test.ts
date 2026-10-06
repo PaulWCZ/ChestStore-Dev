@@ -19,7 +19,7 @@ import * as tell from "../src/lib/tell.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom, seen } from "./support/members.ts";
 
 // People as payroll needs them: last days, weeks, employee numbers; leave
 // recorded for someone; the imports from Lucca's files; HR's first run.
@@ -98,7 +98,7 @@ test("HR, or the person's approver, records leave for them: approved at once, th
   assert.equal(r.decidedBy, camille.id);
   assert.deepEqual((await requests.history(sql, asMember(camille), r.id)).map(s => [s.kind, s.actor]), [["recorded", camille.id]]);
   await tell.recorded(sql, asMember(camille), r);
-  assert.equal(chest.notifications.find(n => n.member === nora.id)?.title, "Camille Martin recorded leave for you");
+  assert.equal(seen(chest.notifications.find(n => n.member === nora.id))?.title, "Camille Martin recorded leave for you");
   // Ines answers Hugo's requests: she records his; not Tom's.
   const h = await requests.createRequest(sql, asMember(ines), { typeId: paid, ...week(monday), memberId: hugo.id });
   assert.equal(h.status, "approved");

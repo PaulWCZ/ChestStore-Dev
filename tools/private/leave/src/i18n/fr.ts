@@ -135,11 +135,7 @@ export const fr: Catalogue = {
     declared: "Enregistré",
   },
   home: {
-    email: "M’envoyer aussi tout cela par e-mail : demandes à valider, réponses, annulations",
-    emailNone: "Dans les réglages de votre Chest, vous avez choisi de ne recevoir aucun e-mail : seules les réponses à vos propres demandes arrivent encore.",
-    emailDigest: "Dans les réglages de votre Chest, vous avez choisi un e-mail par jour : ceux-ci l’attendent, sauf les réponses à vos propres demandes.",
-    emailOff: "Aucun e-mail n’est envoyé pour l’instant : demandez au propriétaire de votre Chest. La cloche vous prévient toujours.",
-    emailQuota: "Les e-mails du jour sont épuisés : ils repartent demain. La cloche vous prévient toujours.",
+    emailHint: "Votre Chest peut aussi vous envoyer vos notifications par e-mail : choisissez-le dans les réglages de votre Chest.",
     feed: "Vos congés acceptés sont dans votre agenda",
     hello: "Bonjour {name}",
     summary: "Il vous reste {days} de {type}.",
@@ -518,10 +514,6 @@ export const fr: Catalogue = {
     save: "Enregistrer",
     saved: "Enregistré.",
     builtIn: "Nom dans chaque langue : laisser vide",
-  },
-  mail: {
-    open: "L’ouvrir dans Congés : {link}",
-    why: "Vous recevez cet e-mail parce que vous utilisez Congés dans le Chest de votre entreprise. Pour ne plus les recevoir, désactivez-les sur votre page Congés.",
   },
   bell: {
     leavesOn: "{name} part le {date} : les congés après ce jour ne comptent plus",

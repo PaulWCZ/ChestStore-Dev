@@ -9,7 +9,6 @@ import { balancesOf } from "../lib/balances.ts";
 import { addDays, weekday } from "../shared/calendar.ts";
 import { db } from "../lib/db.ts";
 import { feedPage, state as calendarState } from "../lib/leave-calendar.ts";
-import { emailOn, mailNotice, mailPreference } from "../lib/mail.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { between, mine, waiting } from "../lib/requests.ts";
 import { types } from "../lib/rules.ts";
@@ -39,17 +38,14 @@ export async function homePage({ member, locale, t, query }: PageContext<MemberC
   const now = today();
   const thisYear = now.slice(0, 4);
   const monday = addDays(now, -((weekday(now) + 6) % 7));
-  const [all, myBalances, myRequests, week, open, steps, notice, chosen, feed, emails] = await Promise.all([
+  const [all, myBalances, myRequests, week, open, steps, feed] = await Promise.all([
     types(sql, { archived: true }),
     balancesOf(sql, [member.id]).then(m => m.get(member.id) ?? []),
     mine(sql, member),
     between(sql, member, monday, addDays(monday, 6)),
     can(member, "approve") ? waiting(sql, member) : Promise.resolve([]),
     can(member, "settings") ? setupSteps(sql) : Promise.resolve(null),
-    mailNotice(),
-    mailPreference(member.id),
     calendarState(sql),
-    emailOn(sql, member),
   ]);
   const typeOf = new Map(all.map(ty => [ty.id, ty]));
   const others = week.filter(e => e.memberId !== member.id && e.status === "approved" && e.away);
@@ -173,11 +169,9 @@ export async function homePage({ member, locale, t, query }: PageContext<MemberC
 
         <div className="home-footer">
           {feed === "on" && <p className="feed-link"><a href={feedPage}><Calendar />{t.home.feed}</a></p>}
-          {notice !== "none" && <Island name="EmailSwitch" props={{ on: emails, label: t.home.email }} />}
-          {notice === "off" && <p className="small muted email-choice">{t.home.emailOff}</p>}
-          {notice === "quota" && <p className="small muted email-choice">{t.home.emailQuota}</p>}
-          {notice === null && chosen === "none" && <p className="small muted email-choice">{t.home.emailNone}</p>}
-          {notice === null && chosen === "digest" && <p className="small muted email-choice">{t.home.emailDigest}</p>}
+          {/* Email is the Chest's: each member chooses there how their
+              notifications reach them (Leave sends none). */}
+          <p className="small muted email-choice">{t.home.emailHint}</p>
         </div>
       </div>
     ),

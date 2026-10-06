@@ -1,7 +1,6 @@
 import { ToastHost } from "@argentic/chest-app/client";
 import { Approvals } from "./Approvals.tsx";
 import { AutoRefresh } from "./AutoRefresh.tsx";
-import { EmailSwitch } from "./EmailSwitch.tsx";
 import { Importer } from "./Importer.tsx";
 import { MyRequests } from "./MyRequests.tsx";
 import { OnDay, OnMonth } from "./OnDay.tsx";
@@ -20,7 +19,7 @@ import { SettingsView } from "./SettingsView.tsx";
 export const islands = {
   ToastHost, AutoRefresh,
   // Home and requests.
-  MyRequests, EmailSwitch, RequestForm, RequestActions, Approvals,
+  MyRequests, RequestForm, RequestActions, Approvals,
   // People (HR and approvers).
   PeopleTable, GiveEveryone, ApproverPicker, DayField, NumberField, WorkWeek, BalanceForms, Importer, OnDay, OnMonth,
   // Settings (HR).

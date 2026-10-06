@@ -14,7 +14,7 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { addDays, holidaysBetween } from "../src/shared/calendar.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, tom, lea, sofia } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, tom, lea, sofia, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -66,7 +66,7 @@ test("approved leave after the last day no longer counts: cancelled, its days ba
   const back = (await balances.ledger(sql, asMember(camille), sofia.id)).find(l => l.kind === "returned");
   assert.deepEqual(back && { days: back.days, reasonKey: back.reasonKey, requestId: back.requestId }, { days: 0.5, reasonKey: "afterLastDay", requestId: half.id });
   // HR is told, in HR's language; nothing shows on the calendar any more.
-  const told = chest.notifications.find(n => n.member === camille.id);
+  const told = seen(chest.notifications.find(n => n.member === camille.id));
   assert.match(told?.title ?? "", /^Départ de Sofia Rossi( \(ancien membre\))?[\u202f ]: les congés après son dernier jour ne comptent plus$/u);
   assert.equal(told?.path, `/chest/people/${sofia.id}`);
   assert.ok(!(await requests.between(sql, asMember(camille), wednesday, wednesday)).some(e => e.id === half.id));

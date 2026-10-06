@@ -125,21 +125,18 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   whatever their accents, case or order; nothing is guessed (an unknown or
   ambiguous person, a number that is someone else's, an unreadable date is
   shown, not imported). No address needed.
-- **Emails beside the bell** (the `mail` proposal): the approver gets
-  "Hugo Bernard asks for time off" (the kind, the days, the cost, and the
-  link to answer it), the requester the answer (with the approver's word),
-  the approver a request to cancel, the requester its outcome, the person
-  leave recorded for them — each in the reader's language, sent by the
-  Chest to their address (the tool never knows it). Never the note. One
-  switch at the foot of *My leave* turns them off. The choice each person
-  made once in the Chest for every tool (all, one a day, none;
-  `mailPreference` in the members API, applied by `mail.send`) holds too, and *My
-  leave* says so under the switch. Only **the answer to the person's own
-  request** (approved, refused, their cancellation settled) is sent
-  `transactional` — it reaches them whatever they chose in the Chest (not
-  if they turned Leave's own switch off); a request to answer and leave
-  recorded for someone follow their choice. On a Chest without mail
-  nothing is sent and nothing fails.
+- **Email is the Chest's, not Leave's** (the owner's decision of 6
+  October 2026): Leave sends no email. The approver's "Hugo Bernard asks
+  for time off" (the kind, the days, and the link to answer it), the
+  requester's answer (with the approver's word), a request to cancel and
+  its outcome, leave recorded for someone, the morning reminder of
+  requests waiting — each is a notification, written in English with its
+  French (`translations`): the Chest shows each person their language and
+  **mails them their notifications by their own choice in the Chest**
+  (each one, once or twice a day, or off; off for Leave alone). Never the
+  note. *My leave* says where email is chosen, in one line. What changed:
+  the email switch of *My leave* and Leave's own emails are gone; the
+  moments people are told are the same.
 - **My leave in my calendar** (the `calendar` proposal): each approved
   absence — asked and approved, declared, recorded by HR, imported; not
   remote work nor another kind that is not an absence — is an
@@ -312,12 +309,22 @@ complete when someone joins or leaves (payroll prorates it); months not
 worked (unpaid leave) that do not earn leave; the "never less favourable"
 comparison of ouvrés with ouvrables.
 
+## Mail to people outside the company
+
+None. Leave writes to no one outside the company: its public page only
+says it lives in the Chest, and every message is a notification to a
+member (above). It declares no `mail`.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| — | — | — | — | — | — |
+
 ## On a Chest
 
 - `capabilities`: `database`; `members` (names, photos, roles and groups
-  for the calendar, the approvers and the import — no addresses; emails go
-  to `{member}` through the `mail` proposal);
-  proposals (`chest.proposals.json`): `mail` (send), `calendar`, `emits`
+  for the calendar, the approvers and the import — no addresses);
+  proposals (`chest.proposals.json`): `calendar`, `capabilities:
+  ["members.groups"]`, `emits`
   (`leave.approved`, `leave.cancelled`, `leave.busy`), `receives` (People),
   `schedules` (`morning`);
   `notifications` (the bell and the tile's number); `receives: ["member.*"]`.
@@ -444,7 +451,7 @@ once, in People's HR record:
 
 ## Needs from the SDK
 
-Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`,
+Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`,
 with a manifest of contract 0.4 (`"chest": "0.4"`; `chest check` says OK).
 Official: `member(request)` with the member's `language` (the interface
 and the bell in each member's language) and `timeZone`; `chest.today()`,
@@ -452,7 +459,7 @@ the company's day — the same as the database's `current_date`, since the
 Chest makes its zone the TimeZone of the tool's database sessions;
 `members.lookup` with each member's zone (the hours of their leave), and
 `no_access` for someone still in the Chest who lost access to Leave
-("Léa Dubois (no access)"); `chest.tool.teamUrl` (the link in an email);
+("Léa Dubois (no access)");
 **schedules** (`chest.json`: `morning`, weekdays at 08:30 in the Chest's
 zone, posted to `POST /chest-schedules`): the reminder of requests waiting
 more than two days, every tile set right, the feeds and busy times kept in
@@ -461,10 +468,11 @@ still reach approvers through the bell and the tile.
 
 - `chest.theme()` — **Proposal (studio)**: the look the company chose
   (see "Looks"). Without it, Leave wears Seaside.
-- **The Chest's groups** — **Proposal (studio)** (`chest.proposals.json`
-  `"groups": "read"`): *Who's away* filtered by any group of the Chest
-  (`members.groups.all`, `members.groups.members`). Without it, only the
-  groups that give Leave (none when it is open to everyone).
+- **The Chest's groups** — **Proposal (studio)**, announced for 0.5
+  (`chest.proposals.json` `"capabilities": ["members.groups"]`): *Who's
+  away* filtered by any group of the Chest (`members.groups.all()`, who is
+  in it with `members.list({ group })`). Without it, only the groups that
+  give Leave (none when it is open to everyone).
 - **Events between tools** — **Proposal (studio)**: `leave.approved` /
   `leave.cancelled` to Rooms and People (payload unchanged: member, from,
   to, halves, request — never the kind, the note or the family event;
@@ -476,13 +484,10 @@ still reach approvers through the bell and the tile.
   again at the next run): approved leave in each person's feed (see "What
   it does"); a half day at the person's own hours, put again when their
   zone changes.
-- **Mail** — **Proposal (studio)** (`chest.proposals.json` `"mail":
-  {"send": true}`): emails beside the bell (see "What it does"), keys
-  given whole, the member's choice in the Chest (`mail.preference()`)
-  and `transactional`. The home asks `mail.available()` before promising
-  anything: no switch on a Chest without mail, and a sentence when the
-  owner has not connected email, has paused it, or the day's emails are
-  used. Without it, the bell and the tile only.
+- **Notifications** (0.4.1) with `translations` (Proposal (studio),
+  announced for 0.5): every item in English and French in one call; a key
+  per request replaces or withdraws it. No `mail`: Leave mails no one
+  (see "Mail to people outside the company").
 - **Events from People** — **Proposal (studio)**: receives
   `people.record`, `people.leaving`, `people.leaving_cancelled`.
 - Wished, not built: a **shared feed** of a team's absences ("Away", never

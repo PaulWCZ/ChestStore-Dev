@@ -23,7 +23,7 @@ import { afterLastDay, refreshBadges } from "./tell.ts";
 // Chest's own when the person left, is never undone by People. A last day
 // from the record (the legal one) wins over a leaving checklist's.
 // Weekly hours are not used: Leave counts days (the week's days are).
-export type RecordEvent = { member: string; employeeNumber: string | null; startDate: Day | null; lastDay: Day | null; workDays: number[] | null };
+export type RecordEvent = { "member": string; employeeNumber: string | null; startDate: Day | null; lastDay: Day | null; workDays: number[] | null };
 
 const memberPattern = /^mbr_[a-z2-7]{26}$/u;
 const dayOrNull = (v: unknown): v is Day | null => v === null || isDay(v);
@@ -44,15 +44,15 @@ export function readRecord(data: unknown): RecordEvent | null {
   if (hours !== null && (typeof hours !== "number" || !Number.isFinite(hours) || hours <= 0 || hours > 60)) return null;
   // People's days are ISO (1 Monday … 7 Sunday); Leave's are 0 Sunday … 6.
   const workDays = days === null ? null : (days as number[]).map(n => n % 7).sort((a, b) => a - b);
-  return { member: d["member"], employeeNumber: number === null ? null : number.trim(), startDate, lastDay, workDays };
+  return { "member": d["member"], employeeNumber: number === null ? null : number.trim(), startDate, lastDay, workDays };
 }
 
-export function readLeaving(data: unknown): { member: string; lastDay: Day | null } | null {
+export function readLeaving(data: unknown): { "member": string; lastDay: Day | null } | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const d = data as Record<string, unknown>;
   if (typeof d["member"] !== "string" || !memberPattern.test(d["member"])) return null;
-  if (d["lastDay"] === undefined) return { member: d["member"], lastDay: null };
-  return isDay(d["lastDay"]) ? { member: d["member"], lastDay: d["lastDay"] } : null;
+  if (d["lastDay"] === undefined) return { "member": d["member"], lastDay: null };
+  return isDay(d["lastDay"]) ? { "member": d["member"], lastDay: d["lastDay"] } : null;
 }
 
 type Staffed = { end_date: string | null; end_by: string | null; record_at: Date | null; leaving_at: Date | null };

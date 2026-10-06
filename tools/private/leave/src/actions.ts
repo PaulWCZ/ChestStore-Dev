@@ -6,7 +6,6 @@ import { db } from "./lib/db.ts";
 import { everyone } from "./lib/directory.ts";
 import { catalogue, locales } from "./i18n/index.ts";
 import { planImport, planLeave, type ImportPlan, type KindMap, type KindNames, type LeavePlan, type Mapping, type Person } from "./lib/import.ts";
-import * as mail from "./lib/mail.ts";
 import * as requests from "./lib/requests.ts";
 import * as rules from "./lib/rules.ts";
 import * as share from "./lib/share.ts";
@@ -232,13 +231,6 @@ export const actions = {
   archiveType: action({ ...one, archived: field.bool() }, async ({ id, archived }, { member }): Promise<null> => {
     await rules.archiveType(db(), member, id, archived);
     keepInLine();
-    return null;
-  }),
-
-  // ——— Emails beside the bell: the person's own switch. ———
-
-  setEmail: action({ on: field.bool() }, async ({ on }, { member }): Promise<null> => {
-    await mail.setEmail(db(), member, on);
     return null;
   }),
 };

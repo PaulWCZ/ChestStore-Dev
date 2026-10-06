@@ -12,7 +12,7 @@ import { today } from "../src/lib/today.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -183,14 +183,16 @@ test("the bell: the approver hears of a request in their language, the requester
   const monday = quietMonday(220);
   const r = await requests.createRequest(sql, asMember(hugo), { typeId: paid, ...week(monday) });
   await tell.asked(sql, asMember(hugo), r);
-  const toInes = chest.notifications.find(n => n.member === ines.id)!;
+  const toInes = seen(chest.notifications.find(n => n.member === ines.id)!);
   assert.equal(toInes.title, "Hugo Bernard demande un congé");
+  // One notice: English, with its French for the Chest to show her; no email from Leave.
+  assert.equal(chest.notifications.find(n => n.member === ines.id)!.title, "Hugo Bernard asks for time off");
   assert.match(toInes.body ?? "", /^Congés payés · .+ · 5 jours$/u);
   assert.equal(toInes.path, `/chest/requests/${r.id}`);
   assert.ok((chest.badges.get(ines.id) ?? 0) >= 1);
   const answered = await requests.decide(sql, asMember(ines), r.id, { verdict: "refuse", reason: "Inventory" });
   await tell.answered(sql, asMember(ines), answered);
-  const toHugo = chest.notifications.find(n => n.member === hugo.id)!;
+  const toHugo = seen(chest.notifications.find(n => n.member === hugo.id)!);
   assert.equal(toHugo.title, "Your time off is refused");
   assert.match(toHugo.body ?? "", /Inventory\nby Inès Moreau$/u);
   assert.ok(!chest.notifications.some(n => n.member === ines.id && n.key === `req:${r.id}`));

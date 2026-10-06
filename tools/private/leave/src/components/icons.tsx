@@ -23,4 +23,3 @@ export const Clock = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 
 export const Gift = () => <Icon><rect x="3.5" y="8" width="17" height="4" rx="1.5" /><path d="M5 12v7a1.5 1.5 0 001.5 1.5h11A1.5 1.5 0 0019 19v-7M12 8v12.5M12 8S10.5 3.5 8 4.5 9 8 12 8zM12 8s1.5-4.5 4-3.5S15 8 12 8z" /></Icon>;
 export const Info = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5M12 8h.01" /></Icon>;
 export const Pencil = () => <Icon><path d="M4 20l1-4L16 5l3 3L8 19z" /><path d="M14 7l3 3" /></Icon>;
-export const Mail = () => <Icon><rect x="3.5" y="5.5" width="17" height="13" rx="2.5" /><path d="M4 7.5l8 6 8-6" /></Icon>;
