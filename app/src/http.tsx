@@ -1,12 +1,12 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { compress } from "hono/compress";
 import { getCookie, setCookie } from "hono/cookie";
 import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
@@ -147,6 +147,8 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   // A public page of a tool with bounded actions carries a form token
   // (<Honeypot /> puts it in a form; call() sends it).
   const form = viewer.member === null && hasBounds(options) ? formToken() : "";
+  // The actions call() sends at once (beside the queue): this part's.
+  const parallel = Object.entries(options.actions).filter(([, a]) => a.parallel && a.access === (viewer.member !== null ? "member" : "public")).map(([name]) => name);
   setRenderingForm(form);
   const page = renderToString(
     <html lang={viewer.locale}>
@@ -158,6 +160,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
         {options.head?.(viewer)}
         {view.head}
         {form && <meta name="chest-form" content={form} />}
+        {parallel.length > 0 && <meta name="chest-parallel" content={parallel.join(",")} />}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
         <script type="module" src={`/assets/${script}`} />
@@ -490,12 +493,20 @@ function formFields(data: FormData): Record<string, unknown> {
 
 // The look's stylesheet: linked with ?v=<its hash> it never changes (a
 // new look is a new address); without, revalidated by its ETag.
+// If-None-Match against a tag, weakly (W/"x" and "x" are the same).
+function weakMatch(header: string | undefined, tag: string): boolean {
+  if (!header) return false;
+  const strip = (t: string) => t.trim().replace(/^W\//u, "");
+  return header.split(",").some(t => t.trim() === "*" || strip(t) === strip(tag));
+}
+
 function stylesheet(c: Context, css: string) {
   const hash = createHash("sha256").update(css).digest("base64url");
   const tag = `"${hash.slice(0, 27)}"`;
   c.header("ETag", tag);
   c.header("Cache-Control", c.req.query("v") === hash.slice(0, 16) ? "private, max-age=31536000, immutable" : "private, no-cache");
-  if (c.req.header("if-none-match") === tag) return c.body(null, 304);
+  // Compared weakly: gzipped on its way, the tag becomes W/"…".
+  if (weakMatch(c.req.header("if-none-match"), tag)) return c.body(null, 304);
   c.header("Content-Type", "text/css; charset=utf-8");
   return c.body(css);
 }
@@ -506,7 +517,53 @@ function stylesheet(c: Context, css: string) {
 // them. call(name, input, { at: "/p/abc" }) sends there.
 export const publicActionsAt = () => (c: Context<Env>) => runAction(c, false);
 
-const gzip = compress({ encoding: "gzip", threshold: 1024 });
+// gzip from 1 KiB, measured: a page or JSON (c.html, c.json) has no
+// Content-Length, so the body's first KiB is read before choosing — a
+// short answer goes as it is, a long one (a stream too) gzipped as it goes.
+const compressible = /^(text\/|application\/(json|javascript|xml|[\w.+-]*\+(json|xml))|image\/svg\+xml)/u;
+async function gzip(c: Context, next: () => Promise<void>): Promise<void> {
+  await next();
+  const res = c.res;
+  if (!res.body || c.req.method === "HEAD" || res.status === 204 || res.status === 304 || res.headers.has("Content-Encoding") || !compressible.test(res.headers.get("Content-Type") ?? "")) return;
+  const vary = () => { if (!/accept-encoding/iu.test(c.res.headers.get("Vary") ?? "")) c.res.headers.append("Vary", "Accept-Encoding"); };
+  const length = res.headers.get("Content-Length");
+  if (!/\bgzip\b/u.test(c.req.header("Accept-Encoding") ?? "") || (length !== null && Number(length) < 1024)) return vary();
+  const reader = res.body.getReader();
+  const head: Uint8Array[] = [];
+  let size = 0;
+  let ended = false;
+  while (size < 1024) {
+    const read = await reader.read();
+    if (read.done) {
+      ended = true;
+      break;
+    }
+    head.push(read.value);
+    size += read.value.byteLength;
+  }
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of head) controller.enqueue(chunk);
+      if (ended) controller.close();
+    },
+    async pull(controller) {
+      const read = await reader.read();
+      if (read.done) controller.close();
+      else controller.enqueue(read.value);
+    },
+    cancel: reason => reader.cancel(reason),
+  });
+  if (ended && size < 1024) {
+    c.res = new Response(body, res);
+    return vary();
+  }
+  c.res = new Response(body.pipeThrough(new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>), res);
+  c.res.headers.delete("Content-Length");
+  c.res.headers.set("Content-Encoding", "gzip");
+  const tag = c.res.headers.get("ETag");
+  if (tag && !tag.startsWith("W/")) c.res.headers.set("ETag", `W/${tag}`);
+  vary();
+}
 
 export function createApp(options: AppOptions) {
   const app = new Hono<Env>();
@@ -543,14 +600,50 @@ export function createApp(options: AppOptions) {
   // compressed at build (chestConfig) and served as they are.
   app.use(async (c, next) => (c.req.path.startsWith("/assets/") ? next() : gzip(c, next)));
 
+  // A link the browser follows in place (navigate(): x-tool-navigate) that
+  // leads to a file: 204, its body never sent (a stream cancelled at its
+  // start), and the browser then loads it plainly — the file made once.
+  app.use(async (c, next) => {
+    await next();
+    if (c.req.header("x-tool-navigate") !== "1" || c.req.method !== "GET" || c.res.status !== 200) return;
+    if ((c.res.headers.get("Content-Type") ?? "").startsWith("text/html")) return;
+    await c.res.body?.cancel().catch(() => undefined);
+    c.res = new Response(null, { status: 204, headers: { "x-tool-file": "1", "Cache-Control": "no-store" } });
+    c.res.headers.delete("Content-Type");
+    c.res.headers.delete("Content-Disposition");
+    c.res.headers.delete("Content-Length");
+  });
+
   // The browser's files (dist/client/assets, from src/ and public/assets/):
   // linked with ?v=…, or named by their hash (the script, its chunks),
   // they never change; any other, an hour.
   // (Set once the file is served: a header set in serveStatic's onFound
   // never reached the browser — the files went out "no-store".)
+  // A file without a name that changes (an icon, a font) has its ETag and
+  // Last-Modified, answered 304 when the browser has it; every file says
+  // Vary: Accept-Encoding (a .br or .gz may be served for it).
   app.use("/assets/*", async (c, next) => {
+    const forever = Boolean(c.req.query("v")) || hashed.test(c.req.path);
+    let tag: string | null = null;
+    let modified: Date | null = null;
+    if (!forever && !c.req.path.includes("..")) {
+      try {
+        const stat = statSync(join("dist/client", c.req.path));
+        if (stat.isFile()) {
+          tag = `W/"${stat.size.toString(36)}-${Math.floor(stat.mtimeMs).toString(36)}"`;
+          modified = stat.mtime;
+        }
+      } catch { /* not there: serveStatic's 404 */ }
+      if (tag && weakMatch(c.req.header("if-none-match"), tag)) return c.body(null, 304, { ETag: tag, "Cache-Control": "public, max-age=3600", Vary: "Accept-Encoding" });
+    }
     await next();
-    if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") || hashed.test(c.req.path) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+    if (!c.res.ok) return;
+    c.res.headers.set("Cache-Control", forever ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+    if (!/accept-encoding/iu.test(c.res.headers.get("Vary") ?? "")) c.res.headers.append("Vary", "Accept-Encoding");
+    if (tag && modified) {
+      c.res.headers.set("ETag", tag);
+      c.res.headers.set("Last-Modified", modified.toUTCString());
+    }
   }, serveStatic({ root: "./dist/client", precompressed: true }));
 
   // The members' part: the Chest asserts who asks on every request

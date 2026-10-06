@@ -74,7 +74,9 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
   let response: Response;
   let html: string | null = null;
   try {
-    response = await fetch(href, { headers: { accept: "text/html" } });
+    // x-tool-navigate: the server answers a file with 204 (its body never
+    // made), and it is then loaded plainly — once.
+    response = await fetch(href, { headers: { accept: "text/html", "x-tool-navigate": "1" } });
     if (response.headers.get("content-type")?.startsWith("text/html")) html = await response.text();
   } catch {
     if (ticket === latest) toast({ id: "refresh", text: words.unavailable, tone: "error" });
@@ -97,6 +99,7 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
   }
   // Not a page (a file?): loaded plainly.
   if (html === null) {
+    void response.body?.cancel();
     if (push) location.assign(href);
     else location.reload();
     return false;
@@ -111,8 +114,8 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
   // The page left keeps its scroll in its history entry (Back finds it).
   if (push === "push") {
     history.replaceState({ scroll: scrollY }, "");
-    history.pushState({ scroll: 0 }, "", response.url);
-  } else if (push === "replace" || response.redirected) history.replaceState({ scroll: scrollY }, "", response.url);
+    history.pushState({ scroll: 0 }, "", response.url + hashOf(href, response));
+  } else if (push === "replace" || response.redirected) history.replaceState({ scroll: scrollY }, "", response.url + hashOf(href, response));
   document.title = next.title;
   const form = next.querySelector<HTMLMetaElement>('meta[name="chest-form"]')?.content;
   if (form) setForm(form);
@@ -147,6 +150,10 @@ export function focusMain(before: Focusable, now: Focusable, body: Focusable): b
   return !now || now === body || !now.isConnected;
 }
 
+// The #place of the address asked, kept (a fetch's response.url has none),
+// unless the server sent elsewhere.
+const hashOf = (href: string, response: Response) => (response.redirected ? "" : new URL(href, location.href).hash);
+
 // ---- navigate(): another page of the same part without loading it again:
 // its HTML put in place as refresh() does, the address in the history,
 // the top of the page in view, the layout's islands (a toast and its
@@ -171,6 +178,14 @@ export async function navigate(to: string, { replace = false, top = true }: { re
   if (target.origin !== location.origin || members(target.pathname) !== members(location.pathname)) return location.assign(target.href);
   if (!(await load(target.href, replace ? "replace" : "push"))) return;
   if (!top) return;
+  // A #place: there, as a page load would.
+  const place = target.hash ? document.getElementById(decodeURIComponent(target.hash.slice(1))) : null;
+  if (place) {
+    place.scrollIntoView();
+    if (!place.hasAttribute("tabindex") && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/u.test(place.tagName)) place.setAttribute("tabindex", "-1");
+    place.focus({ preventScroll: true });
+    return;
+  }
   scrollTo(0, 0);
   // Focus at the new page's start: a screen reader reads its heading.
   const main = document.getElementById("main");
@@ -185,7 +200,8 @@ export async function navigate(to: string, { replace = false, top = true }: { re
 // listens): no page load, the layout's islands kept (a toast's Undo).
 // A link stays a plain page load when: another site or part, a target or
 // download, a modifier key or another button, a link to a place on the
-// same page (#…), a file of /assets/, or data-reload on the link (or an
+// same page (#…), a file of /assets/ or an address ending with a file's
+// extension (.csv, .zip, .ics…), or data-reload on the link (or an
 // ancestor) — the opt-out.
 export function intercepts(event: MouseEvent): HTMLAnchorElement | null {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
@@ -195,6 +211,8 @@ export function intercepts(event: MouseEvent): HTMLAnchorElement | null {
   const members = (path: string) => path.split("/")[1]?.toLowerCase() === "chest";
   if (to.origin !== location.origin || members(to.pathname) !== members(location.pathname)) return null;
   if (to.pathname.startsWith("/assets/") || to.pathname.startsWith("/lang/")) return null;
+  // A file (export.csv, archive.zip, invite.ics): the browser downloads it.
+  if (/\.[A-Za-z0-9]{1,5}$/u.test(to.pathname)) return null;
   if (to.hash && to.pathname === location.pathname && to.search === location.search) return null;
   return link;
 }
@@ -293,15 +311,24 @@ export function call<N extends Name>(name: N, input: In<RegisteredActions[N]>, o
 // actions were): two that read then write (a position, a count) never
 // interleave. parallel: true sends one at once, for calls that touch
 // nothing in common (a search, a preview).
+// An action declared parallel on the server (action(…, { parallel: true }):
+// a slow one — AI, an import, an upload) is listed in the page's
+// <meta name="chest-parallel">; a form says data-parallel. The queue moves
+// on once an action is answered (its refresh does not hold the next), and
+// after 30 seconds at most.
 let queue: Promise<unknown> = Promise.resolve();
+const parallelActions = (): string[] => (document.querySelector<HTMLMetaElement>('meta[name="chest-parallel"]')?.content ?? "").split(",").filter(Boolean);
+const actionOf = (url: string) => /\/actions\/([A-Za-z0-9_]+)$/u.exec(new URL(url, location.href).pathname)?.[1] ?? "";
 export function send<T>(url: string, headers: Record<string, string>, body: BodyInit, options: { refresh?: boolean; quiet?: boolean; parallel?: boolean } = {}): Promise<Outcome<T> & { redirect?: string }> {
-  if (options.parallel) return sendNow<T>(url, headers, body, options);
-  const next = queue.then(() => sendNow<T>(url, headers, body, options));
-  queue = next.catch(() => undefined);
-  return next;
+  const parallel = options.parallel ?? parallelActions().includes(actionOf(url));
+  if (parallel) return request<T>(url, headers, body).then(outcome => answered(outcome, options));
+  const asked = queue.then(() => request<T>(url, headers, body));
+  queue = Promise.race([asked.catch(() => undefined), new Promise(resolve => setTimeout(resolve, 30_000))]);
+  return asked.then(outcome => answered(outcome, options));
 }
-async function sendNow<T>(url: string, headers: Record<string, string>, body: BodyInit, options: { refresh?: boolean; quiet?: boolean }): Promise<Outcome<T> & { redirect?: string }> {
+async function request<T>(url: string, headers: Record<string, string>, body: BodyInit): Promise<Outcome<T> & { redirect?: string }> {
   let outcome: Outcome<T> & { redirect?: string };
+  const refused = (message: string, error = "unavailable") => ({ ok: false, error, message }) as typeof outcome;
   sending++;
   try {
     // A public page's form token (a bounded action requires it).
@@ -312,17 +339,24 @@ async function sendNow<T>(url: string, headers: Record<string, string>, body: Bo
       // The token served once: the answer brings the next one.
       const next = (outcome as { form?: unknown }).form;
       if (typeof next === "string") setForm(next);
+    } else {
+      void response.body?.cancel();
+      if (response.status === 401 || response.status === 403) {
+        // Signed out, or the Chest's "Access removed": its page, loaded again.
+        location.reload();
+        outcome = refused(words.unavailable);
+      } else if (response.status === 413) outcome = refused(words.tooLarge ?? words.unavailable, "too_large");
+      else if (response.status === 429) outcome = refused(words.limit ?? words.unavailable, "limit");
+      else outcome = refused(words.unavailable);
     }
-    else if (response.status === 401 || response.status === 403) {
-      // Signed out, or the Chest's "Access removed": its page, loaded again.
-      location.reload();
-      outcome = { ok: false, error: "unavailable", message: words.unavailable } as typeof outcome;
-    } else outcome = { ok: false, error: "unavailable", message: words.unavailable } as typeof outcome;
   } catch {
-    outcome = { ok: false, error: "unavailable", message: words.unavailable } as typeof outcome;
+    outcome = refused(words.unavailable);
   } finally {
     sending--;
   }
+  return outcome;
+}
+async function answered<T>(outcome: Outcome<T> & { redirect?: string }, options: { refresh?: boolean; quiet?: boolean }): Promise<Outcome<T> & { redirect?: string }> {
   if (outcome.ok && outcome.redirect) await navigate(outcome.redirect);
   else if (outcome.ok && options.refresh !== false) await refresh();
   if (!outcome.ok && !options.quiet) toast({ text: outcome.message, tone: "error" });
@@ -333,7 +367,9 @@ async function sendNow<T>(url: string, headers: Record<string, string>, body: Bo
 // browser. <ToastHost> is an island of every layout.
 let show: ShowToast | null = null;
 const waiting: Parameters<ShowToast>[0][] = [];
-let words = { unavailable: "The Chest did not answer. Try again in a moment.", busy: "Still sending…" };
+// tooLarge, limit: what a refusal of the Chest's front (413, 429, not the
+// tool's JSON) says; the layout passes t.errors.too_large (and limit).
+let words: { unavailable: string; busy: string; tooLarge?: string; limit?: string } = { unavailable: "The Chest did not answer. Try again in a moment.", busy: "Still sending…" };
 export const busyText = () => words.busy;
 export function toast(input: Parameters<ShowToast>[0]): void {
   if (show) show(input);
@@ -348,7 +384,7 @@ function Bridge() {
   return null;
 }
 // labels: t.kit.toast; words: { unavailable: t.errors.unavailable, busy: t.pages.busy }.
-export function ToastHost({ labels, words: said }: { labels: ToastWords; words: { unavailable: string; busy: string } }) {
+export function ToastHost({ labels, words: said }: { labels: ToastWords; words: { unavailable: string; busy: string; tooLarge?: string; limit?: string } }) {
   words = said;
   return <Toasts labels={labels}><Bridge /></Toasts>;
 }

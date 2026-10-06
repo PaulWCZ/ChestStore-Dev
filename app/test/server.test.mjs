@@ -25,6 +25,7 @@ const actions = {
   go: action({}, async () => redirect("/chest/elsewhere")),
   big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
   refuse: action({}, async () => fail("forbidden")),
+  summarise: action({}, async () => null, { parallel: true }),
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
   write: publicAction({ text: field.text({ max: 5 }) }, async ({ text }) => { if (text === "taken") fail("invalid"); written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
   book: publicAction({ secret: field.text({ min: 0, max: 20 }) }, async ({ secret }, { charge }) => {
@@ -64,6 +65,10 @@ app.get("/chest/export.csv", download(({ query }) => {
   if (query("year") === "1900") fail("too_long", { max: 5 });
   return { name: "Absences été 2026.csv", type: "text/csv; charset=utf-8", body: "a,b\r\n" };
 }));
+let pulled = 0;
+app.get("/chest/archive.zip", download(() => ({ name: "archive.zip", type: "application/zip", body: new ReadableStream({ pull(controller) { pulled++; controller.enqueue(new Uint8Array(4096)); if (pulled > 50) controller.close(); } }) })));
+app.get("/chest/short", page(() => ({ title: "Short", body: "x" })));
+app.get("/chest/long", page(() => ({ title: "Long", body: h("p", null, "word ".repeat(2000)) })));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot), h("p", null, "hello")) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
@@ -441,4 +446,27 @@ test("bounds: refusals have a budget (ten times the day's), a subject its own, a
   assert.equal((await send("chat", {}, c)).status, 429, "everyone's two");
   assert.equal((await send("chat", {}, a)).status, 200, "one who wrote today: the reserve");
   assert.equal((await send("chat", {}, a)).status, 429, "a reserve of one");
+});
+
+test("compression measured (a short page as it is, a long one gzipped), the look's tag compared weakly, a file asked in place answered 204 unmade, parallel actions listed", async () => {
+  const gz = { "accept-encoding": "gzip, br" };
+  const at = (path, headers = {}, who = member) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
+  const short = await at("/nothing", gz, null);
+  assert.equal(short.headers.get("content-encoding"), null, "under 1 KiB: as it is");
+  const long = await at("/chest/long", gz);
+  assert.equal(long.headers.get("content-encoding"), "gzip");
+  assert.match(long.headers.get("vary") ?? "", /Accept-Encoding/u);
+  const sheet = await at("/look.css", gz, null);
+  const tag = sheet.headers.get("etag");
+  await sheet.arrayBuffer();
+  assert.equal((await at("/look.css", { ...gz, "if-none-match": tag }, null)).status, 304, `304 for ${tag}`);
+  const before = pulled;
+  const file = await at("/chest/archive.zip", { "x-tool-navigate": "1" });
+  assert.equal(file.status, 204);
+  assert.equal(file.headers.get("x-tool-file"), "1");
+  assert.ok(pulled - before <= 2, `the archive was not made: ${pulled - before} chunks`);
+  const whole = await at("/chest/archive.zip");
+  assert.equal(whole.headers.get("content-disposition"), `attachment; filename="archive.zip"; filename*=UTF-8''archive.zip`);
+  assert.ok((await whole.arrayBuffer()).byteLength > 4096, "followed plainly, the file comes whole");
+  assert.match(await (await at("/chest")).text(), /<meta name="chest-parallel" content="summarise"\/>/u);
 });

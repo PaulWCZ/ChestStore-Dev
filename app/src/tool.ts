@@ -246,6 +246,9 @@ export type Action<F extends Fields = Fields, R = unknown> = {
   readonly maxBody: number;
   // A public action's bound (publicAction's options).
   readonly bound?: Bound | false;
+  // Sent at once by call() and forms, beside the queue of actions (a slow
+  // one: AI, an import, an upload).
+  readonly parallel?: boolean;
   run(input: InputOf<F>, context: never): Promise<R>; // its context: by access
 };
 
@@ -254,8 +257,10 @@ export type Action<F extends Fields = Fields, R = unknown> = {
 // Both are called from an island (call()) or by a
 // <form method="post" action="/chest/actions/<name>">. What run returns
 // goes back to the island as JSON: plain data only.
-export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number } = {}): Action<F, R> {
-  return { access: "member", input, maxBody: options.maxBody ?? 1 << 20, run: run as Action<F, R>["run"] };
+// parallel: true — a slow action (AI, an import, an upload) does not hold
+// the others the page sends (they go one at a time otherwise).
+export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number; parallel?: boolean } = {}): Action<F, R> {
+  return { access: "member", input, maxBody: options.maxBody ?? 1 << 20, ...(options.parallel ? { parallel: true } : {}), run: run as Action<F, R>["run"] };
 }
 // bound (public actions): anyone on the Internet may call one, so each is
 // bounded, the same way in every tool:
@@ -298,9 +303,9 @@ export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & {
 // What a public action's run gets: the visitor, and charge(kind, { subject }),
 // the budget it spends (with budgets of several kinds; once per call).
 export type PublicContext = VisitorContext & { charge(kind: string, options?: { subject?: string }): Promise<void> };
-export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: PublicContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false } = {}): Action<F, R> {
+export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: PublicContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false; parallel?: boolean } = {}): Action<F, R> {
   if (options.bound && !("budgets" in options.bound) && options.bound.perSubject !== undefined) throw new TypeError("publicAction: perSubject needs budgets by kind and charge(kind, { subject }) in the run");
-  return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), run: run as Action<F, R>["run"] };
+  return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), ...(options.parallel ? { parallel: true } : {}), run: run as Action<F, R>["run"] };
 }
 
 // An outcome as an island receives it: the value, or the code and the
