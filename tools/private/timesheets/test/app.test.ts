@@ -3,6 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
 import { atLeast, checkPage } from "@argentic/chest-app/testing";
 import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
+import { stamp } from "../src/lib/stamp.ts";
 import { fetchApp } from "./support/app.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
@@ -50,9 +51,26 @@ test("a member's page: their language, the policy, no inline script or style, th
   assert.match(html, /<link rel="stylesheet" href="\/chest\/look.css\?v=[\w-]+"\/>/u);
   assert.match(html, /data-island="TimerBar"/u);
   assert.match(html, /data-island="WeekView"/u);
-  assert.match(html, new RegExp(`id="week-${monday}"`, "u"), "the week's island is keyed by its Monday");
+  assert.match(html, new RegExp(`id="island-week-${monday}"`, "u"), "the week's island is keyed by its Monday");
   // An empty tool speaks to a manager as such.
   assert.match(html, /Ajouter un projet|Commencez par un projet/u);
+});
+
+test("a page left open: a read with nothing new is a 304, any write changes its version", async () => {
+  const versionOf = (html: string) => /<meta name="chest-version" content="([^"]+)"/u.exec(html)?.[1];
+  for (const [who, path] of [[hugo, "/chest"], [camille, "/chest/team"], [camille, "/chest/reports"]] as const) {
+    const version = versionOf(await (await get(who, path)).text());
+    assert.ok(version, `${path} has a version`);
+    assert.equal((await get(who, path, { "x-tool-version": version })).status, 304, `${path}: nothing new`);
+    await database.sql`update settings set locked_until = locked_until`;
+    const again = await get(who, path, { "x-tool-version": version });
+    assert.equal(again.status, 200, `${path}: a write since`);
+    assert.notEqual(versionOf(await again.text()), version);
+  }
+  // The stamp itself: the day and the quarter hour count too.
+  const at = new Date("2026-10-06T08:00:00Z");
+  assert.equal(await stamp(database.sql, "d", at), await stamp(database.sql, "d", new Date(at.getTime() + 14 * 60_000)));
+  assert.notEqual(await stamp(database.sql, "d", at), await stamp(database.sql, "d", new Date(at.getTime() + 15 * 60_000)));
 });
 
 test("the look: the company's choice as a stylesheet with the tool's own fonts; its address is the hash of its text", async () => {

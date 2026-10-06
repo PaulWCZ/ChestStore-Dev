@@ -7,6 +7,9 @@ import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
+import { stamp } from "./lib/stamp.ts";
+import { clock, today, zone } from "./lib/clock.ts";
+import { todayIn } from "./shared/days.ts";
 import { importPage } from "./pages/Import.tsx";
 import { peoplePage } from "./pages/People.tsx";
 import { personWeekPage } from "./pages/PersonWeek.tsx";
@@ -39,11 +42,13 @@ export const app = createApp({
 // role gives nothing sees why (the layout's NoAccess), and the page itself
 // does not run; otherwise the page, and the timer above it (the layout's
 // island, src/timer-view.ts).
+// Every page has a version (src/lib/stamp.ts): read again while nothing
+// changed (the layout's AutoRefresh), it is a 304, nothing rendered.
 const members = (render: (p: PageContext<MemberContext>) => Promise<View>) => page(async p => {
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: null };
   const [view, timer] = await Promise.all([render(p), timerView(db(), p.member, p.locale, p.t, p.url.pathname)]);
   return { ...view, layout: { timer } };
-});
+}, { version: ({ member }) => (roleOf(member) ? stamp(db(), `${today()}|${todayIn(member.timeZone ?? zone(), clock.now())}`, clock.now()) : null) });
 
 // My week (?week= a Monday, ?day= the day listed).
 app.get("/chest", members(weekPage));

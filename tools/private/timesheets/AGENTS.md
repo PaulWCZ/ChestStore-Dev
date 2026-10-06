@@ -87,7 +87,7 @@ Used: `AppShell`/`Nav` (via `components/shell.tsx`), `BrandMark`, `NoAccess`,
 `Confirm` (forgetting a former member's name), `DateField` (lock date, rate
 dates), `DateRangeField` (a report's own dates), `Segmented`, `FilePicker` (import), `DataTable`
 (the team's weeks, the report's breakdown), `StatusBadge`, `Avatar`,
-`EmptyState`, `LanguageSwitch`, `useAutoRefresh`, `useFloat` (the project
+`EmptyState`, `LanguageSwitch`, `useFloat` (the project
 picker's list over a box that scrolls); `listKey`/`matches` from
 `/components/logic`. Links are plain `<a href>`: the package moves between pages in place. The panel is
 `--inverse` with its own pairs (`src/tokens.css`): put only `--panel-ink`

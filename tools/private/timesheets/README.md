@@ -224,14 +224,17 @@ there is a project" (a member reads that a manager opens projects).
 - **Nothing runs in the background**: deleted entries are purged after 30
   days on a later request. No WebSocket: a page reads itself again when
   its tab is shown again or its window focused (the timer's state from
-  another device) — never on a timer, so an open tab does not keep the
-  tool awake.
+  another device), and every minute while its reader was active in the
+  last ten (the package's `useAutoRefresh`) — idle, never, so an open tab
+  does not keep the tool awake. Each page has a version (every row
+  written bumps a sequence, `migrations/0006`): a read with nothing new
+  is a 304, the Reports' and Team's queries not run again.
 - A day holds 24 hours at most, per person, checked in one transaction per
   person (two tabs saving at once cannot overflow it).
 
 ## Needs from the SDK
 
-Timesheets runs on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in
+Timesheets runs on SDK 0.4.1 + studio proposals (0.4.1-studio.4) and `@argentic/chest-app` 0.1.0-studio.6, in
 `vendor/`. Official: `member(request)` with the member's `language` (the
 interface and the bell in each member's language) and `timeZone` (when a
 week was sent, approved or locked, shown at their own hour);
