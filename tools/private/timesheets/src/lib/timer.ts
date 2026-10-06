@@ -68,7 +68,7 @@ async function close(tx: Query, memberId: string, running: Running, end: Date): 
   await tx`delete from timers where member_id = ${memberId}`;
   if (minutes < 1) return null;
   const day = wall(started, zone()).day;
-  if (isLocked(await settings(tx), day)) throw new AppError("locked");
+  if (isLocked(await settings(tx, { share: true }), day)) throw new AppError("locked");
   await weekLock(tx, memberId, day);
   const [row] = await tx<{ id: string }[]>`
     insert into entries (member_id, project_id, task_id, day, minutes, note, billable, started_at, ended_at, source)
@@ -194,7 +194,7 @@ export async function stopForLeaver(tx: Query, memberId: string): Promise<void> 
   const day = wall(started, zone()).day;
   const [row] = await tx<{ total: string }[]>`select coalesce(sum(minutes), 0)::text as total from entries where member_id = ${memberId} and day = ${day} and deleted_at is null`;
   const [closed] = await tx`select 1 from weeks where member_id = ${memberId} and week = date_trunc('week', ${day}::date)::date and status in ('submitted', 'approved')`;
-  const fits = Number(row?.total ?? 0) + minutes <= 1440 && !isLocked(await settings(tx), day) && !closed;
+  const fits = Number(row?.total ?? 0) + minutes <= 1440 && !isLocked(await settings(tx, { share: true }), day) && !closed;
   if (isForgotten({ startedAt: started.toISOString() }, end) || !fits || minutes < 1) {
     await tx`delete from timers where member_id = ${memberId}`;
     return;

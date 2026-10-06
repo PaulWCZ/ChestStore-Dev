@@ -8,7 +8,7 @@ import type { LineRow } from "../islands/ReportViews.tsx";
 import { can } from "../lib/access.ts";
 import { currency, today } from "../lib/clock.ts";
 import { db } from "../lib/db.ts";
-import { recentHandoffs, sendable } from "../lib/handoff.ts";
+import { linked, recentHandoffs, sendable } from "../lib/handoff.ts";
 import { nameFor, people } from "../lib/people.ts";
 import { billableFilters, foundEntries, foundLimit, groups, isGroup, report, reportPeople, searchWords, type Line } from "../lib/reports.ts";
 import { settings } from "../lib/settings.ts";
@@ -38,16 +38,20 @@ export async function reportsPage({ member, locale: lang, t, query }: PageContex
   // entries found all follow them.
   const words = searchWords(query("q")) ?? "";
   const sql = db();
-  // Billable time to Quotes: when Quotes is installed beside Timesheets.
-  const quotes = all && kind === "uninvoiced" && chest.tools.get("quotes") !== null;
-  const [r, candidates, s, found, toSend, handed] = await Promise.all([
+  // Billable time to Quotes: offered when a tool receives it now (Quotes
+  // installed AND linked by an admin); installed only, the panel says so;
+  // the hand-offs made are listed either way (to take one back).
+  const offer = all && kind === "uninvoiced";
+  const [linkedNow, r, candidates, s, found, handed] = await Promise.all([
+    offer ? linked() : Promise.resolve(false),
     report(sql, member, { from: p.from, to: p.to, group, person: person || undefined, billable: kind, q: words }),
     all ? reportPeople(sql, member) : Promise.resolve([]),
     settings(sql),
     foundEntries(sql, member, { from: p.from, to: p.to, person: person || undefined, billable: kind, q: words }),
-    quotes ? sendable(sql, member, p.from, p.to) : Promise.resolve([]),
-    quotes ? recentHandoffs(sql, member) : Promise.resolve([]),
+    offer ? recentHandoffs(sql, member) : Promise.resolve([]),
   ]);
+  const toSend = linkedNow ? await sendable(sql, member, p.from, p.to) : [];
+  const quotes = offer && (linkedNow || chest.tools.get("quotes") !== null || handed.length > 0);
   const h = (minutes: number) => (s.hoursStyle === "decimal" ? decimal(decimalHours(minutes), locale) : formatDuration(minutes));
   const who = await people([...candidates, ...r.lines.flatMap(l => (l.memberId ? [l.memberId] : [])), ...found.map(f => f.memberId)]);
   const code = currency();
@@ -86,7 +90,9 @@ export async function reportsPage({ member, locale: lang, t, query }: PageContex
       budget: l.budget && share !== null ? {
         share,
         state: share > 1 ? "over" : share >= 0.8 ? "near" : "",
-        text: format(t.reports.budgetOf, { used: l.budget.kind === "hours" ? h(l.budget.used) : money(l.budget.used, code, locale, { whole: true }), total: l.budget.kind === "hours" ? h(l.budget.of) : money(l.budget.of, code, locale, { whole: true }) }),
+        // A member sees a money budget's share, never an amount.
+        text: l.budget.kind === "share" ? format(t.reports.budgetShare, { percent: percent(share, locale) })
+          : format(t.reports.budgetOf, { used: l.budget.kind === "hours" ? h(l.budget.used) : money(l.budget.used, code, locale, { whole: true }), total: l.budget.kind === "hours" ? h(l.budget.of) : money(l.budget.of, code, locale, { whole: true }) }),
       } : null,
     };
   });
@@ -172,6 +178,7 @@ export async function reportsPage({ member, locale: lang, t, query }: PageContex
               })),
               from: p.from,
               to: p.to,
+              linked: linkedNow,
               locale,
               t: { reports: t.reports, errors: t.errors },
             }}
@@ -227,7 +234,8 @@ export async function reportsPage({ member, locale: lang, t, query }: PageContex
                   rows: lines,
                   show: { money: showMoney, cost: showCost, budget: group === "project" },
                   heading: t.reports.groups[group],
-                  totals: { hours: h(r.minutes), billable: h(r.billableMinutes), amount: money(r.cents, code, locale), cost: money(r.costCents, code, locale), margin: r.cents || r.costCents ? margin(r.cents, r.costCents) : "–" },
+                  // Money only for whoever sees it (a member's page carries none).
+                  totals: { hours: h(r.minutes), billable: h(r.billableMinutes), amount: showMoney ? money(r.cents, code, locale) : "", cost: showCost ? money(r.costCents, code, locale) : "", margin: showCost && (r.cents || r.costCents) ? margin(r.cents, r.costCents) : "" },
                   t: { ...t.reports, over: t.projects.over, near: t.projects.near },
                   labels: t.kit.table,
                 }}

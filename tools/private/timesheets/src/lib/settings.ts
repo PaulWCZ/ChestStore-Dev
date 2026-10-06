@@ -26,10 +26,14 @@ export type HoursStyle = (typeof hoursStyles)[number];
 
 type Row = { locked_until: string | null; locked_by: string | null; locked_at: Date | null; reminder_enabled: boolean; reminder_minutes: number; approvals: boolean; hours_style: string };
 
-export async function settings(sql: Query): Promise<Settings> {
+// share: inside a write's transaction, the row is read FOR SHARE — a lock
+// a manager sets meanwhile waits for that write to end, and a write that
+// comes after a lock reads it (a save in flight never lands in a period
+// just locked).
+export async function settings(sql: Query, options: { share?: boolean } = {}): Promise<Settings> {
   const [r] = await sql<Row[]>`
     select to_char(locked_until, 'YYYY-MM-DD') as locked_until, locked_by, locked_at, reminder_enabled, reminder_minutes, approvals, hours_style
-    from settings where id`;
+    from settings where id ${options.share ? sql`for share` : sql``}`;
   if (!r) return { lockedUntil: null, lockedBy: null, lockedAt: null, reminder: { enabled: true, minutes: 2100 }, approvals: true, hoursStyle: "clock" };
   return {
     lockedUntil: r.locked_until,

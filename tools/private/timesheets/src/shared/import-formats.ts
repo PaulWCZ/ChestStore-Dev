@@ -174,9 +174,9 @@ export function parseExport(text: string, options: { order?: DateOrder } = {}): 
     if (source === "harvest" && currency === null) currency = codeOf(col(row, "currency"));
     const rateText = rateColumn ? col(row, rateColumn).trim() : "";
     const costText = costColumn ? col(row, costColumn).trim() : "";
-    let rateCents = rateText ? readAmount(rateText) : null;
+    let rateCents = rateText ? readExportAmount(rateText) : null;
     if (source === "toggl" && rateCents !== null) rateCents = Math.round((rateCents * 60) / minutes);
-    const costCents = costText ? readAmount(costText) : null;
+    const costCents = costText ? readExportAmount(costText) : null;
     rows.push({
       line,
       person,
@@ -215,7 +215,7 @@ export function foldText(name: string): string {
 // separator is the decimal one when two decimals or fewer follow it. More
 // lenient than a person's form (src/shared/amounts.ts): an export is
 // written by a program, in one convention per file.
-export function readAmount(input: string): number | null {
+export function readExportAmount(input: string): number | null {
   let text = input.trim().replace(/[\s\u00a0\u202f]/gu, "").replace(/[€$£]|chf|eur|usd|gbp|cad/giu, "");
   if (text === "") return null;
   const last = Math.max(text.lastIndexOf(","), text.lastIndexOf("."));

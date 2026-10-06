@@ -4,7 +4,7 @@ import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
 import { addDays, daysBetween, isDay, mondayOf } from "../shared/days.ts";
 import { isColor, limits, memberPattern, numeric, optionalId, type Color } from "../shared/model.ts";
-import { billRateOf, costOf, costRateOf, revenueOf } from "./rates.ts";
+import { billRateOf, costOf, costRateOf, entryAmount, revenueOf } from "./rates.ts";
 
 // Where the time went, over a period: totals, billable or not, amounts at
 // the rates in force on each entry's day, what the time cost and the margin
@@ -35,7 +35,9 @@ export type Line = {
   billableMinutes: number;
   cents: number;
   costCents: number;
-  budget: { kind: "hours" | "money"; used: number; of: number } | null;
+  // A money budget for a reader who may not see money: its share only
+  // (used of 1000), never an amount (an amount over hours gives the rate).
+  budget: { kind: "hours" | "money" | "share"; used: number; of: number } | null;
 };
 export type Bar = { day: string; billable: number; other: number };
 export type Report = {
@@ -129,8 +131,11 @@ export async function report(sql: Query, actor: Member | null, q: ReportQuery): 
         (select coalesce(sum(e.minutes), 0) from entries e where e.project_id = p.id and e.deleted_at is null)::text as minutes,
         (select ${revenueOf(sql)} from entries e where e.project_id = p.id and e.deleted_at is null) as cents
       from projects p where p.id = any(${lines.map(l => l.key)}::bigint[]) and p.budget_kind <> 'none'`;
+    const managers = can(actor, "reports.all");
     for (const r of rows) {
-      budgets.set(r.id, r.budget_kind === "hours" ? { kind: "hours", used: numeric(r.minutes), of: r.budget_minutes ?? 0 } : { kind: "money", used: Math.round(numeric(r.cents)), of: numeric(r.budget_cents) });
+      if (r.budget_kind === "hours") budgets.set(r.id, { kind: "hours", used: numeric(r.minutes), of: r.budget_minutes ?? 0 });
+      else if (managers) budgets.set(r.id, { kind: "money", used: Math.round(numeric(r.cents)), of: numeric(r.budget_cents) });
+      else budgets.set(r.id, { kind: "share", used: Math.round((numeric(r.cents) / Math.max(1, numeric(r.budget_cents))) * 1000), of: 1000 });
     }
   }
   const bars: Bar[] = [];
@@ -198,8 +203,8 @@ function exportRow(r: ExportSql): ExportRow {
   const costRate = r.cost_cents === null ? null : Number(r.cost_cents);
   return {
     day: r.day, memberId: r.member_id, clientName: r.client_name, projectName: r.project_name, taskName: r.task_name, note: r.note, minutes: r.minutes, billable: r.billable,
-    rateCents: r.billable ? rate : null, cents: r.billable && rate !== null ? Math.round((r.minutes * rate) / 60) : 0,
-    costRateCents: costRate, costCents: costRate === null ? 0 : Math.round((r.minutes * costRate) / 60), invoiced: r.invoiced,
+    rateCents: r.billable ? rate : null, cents: r.billable && rate !== null ? entryAmount(r.minutes, rate) : 0,
+    costRateCents: costRate, costCents: costRate === null ? 0 : entryAmount(r.minutes, costRate), invoiced: r.invoiced,
     startedAt: r.started_at ? new Date(r.started_at).toISOString() : null, endedAt: r.ended_at ? new Date(r.ended_at).toISOString() : null,
   };
 }

@@ -16,7 +16,7 @@ atLeast(12);
 let chest: FakeChest, database: TestDatabase;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, tool: "timesheets", members: everyone, capabilities: ["database", "members", "notifications"], chest: { publicUrl: null } });
+  chest = await fakeChest({ network: {}, tool: "timesheets", members: everyone, capabilities: ["database", "members", "notifications"], chest: { publicUrl: null }, tools: { quotes: true } });
 });
 after(async () => {
   await chest.close();
@@ -90,7 +90,11 @@ test("a project made as the form sends it: its rate as typed, in French", async 
   assert.match(page, /data-island="ProjectForm"/u);
   const refused = await call(camille, "createProject", { project: { name: "Ambigu", color: "teal", billable: true, rate: "1.234", budget: { kind: "none" }, everyone: true, people: [] } });
   assert.equal(refused.status, 400);
-  assert.equal(refused.error, "invalid");
+  assert.equal(refused.error, "amount_ambiguous");
+  assert.equal(refused.message, "Ce montant peut se lire de deux façons : écrivez 1200, ou 1 200,00.");
+  // A currency typed beside the amount is set aside.
+  const euros = await call(camille, "createProject", { project: { name: "En euros", color: "teal", billable: true, rate: "€80", budget: { kind: "money", text: "9 000 €" }, everyone: true, people: [] } });
+  assert.equal(euros.ok, true, euros.message);
   assert.equal((await call(hugo, "createProject", { project: { name: "Mine", color: "teal", billable: true, rate: "", budget: { kind: "none" }, everyone: true, people: [] } })).status, 403);
   assert.equal((await get(camille, "/chest/projects/999999")).status, 404);
 });
@@ -107,6 +111,24 @@ test("a cell takes the duration as typed: French 1,5 and English 1.5 are both an
   const minutes = (await database.sql<{ minutes: number }[]>`select sum(minutes)::int as minutes from entries where deleted_at is null`)[0]?.minutes;
   assert.equal(minutes, 180);
   assert.match(await (await get(ines, "/chest")).text(), /1:30/u);
+});
+
+test("a member never sees money: a money budget is a share in their reports, no amount", async () => {
+  const [row] = await database.sql<{ id: string }[]>`select id::text from projects where name = 'En euros'`;
+  assert.equal((await call(ines, "saveCell", { projectId: row!.id, taskId: null, day: monday, duration: "4" })).ok, true);
+  const mine = await (await get(ines, "/chest/reports?preset=week")).text();
+  assert.match(mine, /du budget consommé/u);
+  const found = /.{120}(€|9[\s\u202f\u00a0]000).{40}/su.exec(mine);
+  assert.equal(found?.[0] ?? null, null, "no amount, no budget in money");
+  // A manager reads the amounts.
+  assert.match(await (await get(camille, "/chest/reports?preset=week")).text(), /€/u);
+});
+
+test("Quotes installed but not linked: the panel says an administrator links them, and offers nothing to send", async () => {
+  const html = await (await get(camille, "/chest/reports?preset=week&kind=uninvoiced")).text();
+  assert.match(html, /pas encore relié à Temps/u);
+  assert.doesNotMatch(html, /Brouillon de facture dans Devis :/u);
+  assert.equal((await call(camille, "sendToQuotes", { projectId: "1", from: monday, to: addDays(monday, 6) })).error, "quotes_unavailable");
 });
 
 test("the timer: started, shown on every page with its project, stopped into an entry", async () => {
@@ -128,6 +150,8 @@ test("people's usual week and rates as typed: hours with a comma, an amount from
   const rate = await call(camille, "setRate", { kind: "cost", memberId: hugo.id, rate: "45,00", from: todayIn("UTC") });
   assert.equal(rate.ok, true, rate.message);
   assert.equal((await call(camille, "setCapacity", { memberId: hugo.id, hours: "1,234" })).error, "invalid");
+  // The grid's grammar: "7h30" a day, "37h30" a week.
+  assert.equal((await call(camille, "setCapacity", { memberId: hugo.id, hours: "37h30" })).ok, true);
   const page = await (await get(camille, "/chest/people")).text();
   assert.match(page, /data-island="PeopleList"/u);
 });
@@ -151,7 +175,7 @@ test("the report's CSV: streamed, in the reader's language, formulas defused, a 
   assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf], "a byte-order mark: a spreadsheet reads it as UTF-8");
   const text = new TextDecoder().decode(bytes);
   const lines = text.trim().split("\r\n");
-  assert.equal(lines.length, 1 + 2, "a header and the two cells (the timer stopped under a minute recorded nothing)");
+  assert.equal(lines.length, 1 + 3, "a header and the three cells (the timer stopped under a minute recorded nothing)");
   assert.match(lines[0]!, /;/u);
   assert.match(text, /'=HYPERLINK/u);
   assert.match(text, /;1,5;/u);
