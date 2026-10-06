@@ -12,7 +12,7 @@ import { stateColours } from "./states.ts";
 // text at 4.5:1 or more (test/states.test.ts); a picture has no theme, so
 // they are written in it. The label's ground is near-black, or the
 // company's own colour when the Chest gives its brand and white text reads
-// on it (app/badge.svg/route.ts). The words are measured roughly, then
+// on it (src/app.tsx, /badge.svg). The words are measured roughly, then
 // fitted with textLength so no font on the reader's side can overflow them.
 
 export const badgeColours: Record<State | "none", string> = {

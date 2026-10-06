@@ -2,11 +2,13 @@ import { chest } from "@argentic/chest-sdk/chest";
 import { Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Query } from "./db.ts";
+import { chestPublicUrl } from "./public-origin.ts";
 
 // What the tool remembers about its Chest: the public address seen last
-// (for links in emails sent outside a request, when the Chest does not
-// say it — chest.publicUrl), and whether the Chest could send email the
-// last time it tried.
+// (for links in emails sent outside a request, only where the Chest does
+// not say it — outside a Chest: chest.tool.publicUrl, SDK 0.4, is the
+// address, the company's own domain included), and whether the Chest could
+// send email the last time it tried.
 
 async function read<T>(sql: Query, key: string): Promise<T | null> {
   const [row] = await sql<{ value: T }[]>`select value from settings where key = ${key}`;
@@ -23,11 +25,11 @@ export function company(): string {
 }
 
 export async function publicOrigin(sql: Query): Promise<string> {
-  return chest.publicUrl ?? (await read<string>(sql, "public_origin")) ?? "";
+  return chestPublicUrl() ?? (await read<string>(sql, "public_origin")) ?? "";
 }
 
 export async function rememberPublicOrigin(sql: Query, origin: string | null): Promise<void> {
-  if (!origin || chest.publicUrl) return;
+  if (!origin || chestPublicUrl()) return;
   if ((await read<string>(sql, "public_origin")) !== origin) await write(sql, "public_origin", origin);
 }
 

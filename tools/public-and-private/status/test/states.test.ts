@@ -4,9 +4,9 @@ import { catalogue as themes } from "@argentic/chest-ui/themes";
 import { contrast } from "@argentic/chest-ui/color";
 import { deriveTheme } from "@argentic/chest-ui/derive";
 import type { Theme } from "@argentic/chest-ui/contract";
-import { badgeColours } from "../lib/badge.ts";
-import { stateColours, stateCss, stateNames } from "../lib/states.ts";
-import { identity } from "../lib/theme.ts";
+import { badgeColours } from "../src/lib/badge.ts";
+import { stateColours, stateCss, stateNames } from "../src/lib/states.ts";
+import { identity } from "../src/lib/theme.ts";
 
 // The five state colours are meaning: the same in every look. So they must
 // read on every look's grounds — each theme of the catalogue, light and

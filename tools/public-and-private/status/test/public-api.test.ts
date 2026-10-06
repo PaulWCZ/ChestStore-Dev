@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { api, apiHeaders, indicatorOf } from "../lib/api.ts";
-import { badge } from "../lib/badge.ts";
-import { addComponent, updateComponent } from "../lib/components.ts";
-import * as incidents from "../lib/incidents.ts";
-import { embedSite, pageSettings, savePageSettings, supportAddress, webAddress } from "../lib/page-settings.ts";
-import { AppError } from "../lib/app-error.ts";
+import { api, apiHeaders, indicatorOf } from "../src/lib/api.ts";
+import { badge } from "../src/lib/badge.ts";
+import { addComponent, updateComponent } from "../src/lib/components.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { embedSite, pageSettings, savePageSettings, supportAddress, webAddress } from "../src/lib/page-settings.ts";
+import { AppError } from "../src/lib/app-error.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, nora } from "./support/members.ts";
@@ -20,7 +20,7 @@ let website = "", checkout = "", payments = "", shop = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();

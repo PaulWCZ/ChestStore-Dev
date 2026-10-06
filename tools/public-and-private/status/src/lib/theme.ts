@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import { chest } from "@argentic/chest-sdk/chest";
 import { defineTheme } from "@argentic/chest-ui";
-import { resolveTheme, type Look } from "@argentic/chest-ui/runtime";
-import { cache } from "react";
+import { lookColors, lookCss, resolveTheme, type Look } from "@argentic/chest-ui/runtime";
+import { log } from "@argentic/chest-app";
+import { stateCss } from "./states.ts";
 
 // The tool's own identity (DESIGN.md), "Control room": calm and exact —
 // cool grey paper, near-black ink, and state colours that never go alone.
@@ -9,9 +11,9 @@ import { cache } from "react";
 // (test/theme.test.ts), and the very same source as the catalogue's
 // "control-room" theme (the test holds the two equal), so Status in its own
 // look and another tool wearing "Control room" look alike. Its fonts are
-// the tool's own files in public/fonts/ (served at /fonts). Every colour of
+// the tool's own files in public/assets/fonts/ (served at /assets/fonts). Every colour of
 // the look is here; the CSS names only the contract's tokens (and
-// app/tokens.css, defined from them). The five state colours are not part
+// src/tokens.css, defined from them). The five state colours are not part
 // of any look: they are meaning, fixed in every theme (lib/states.ts).
 export const identity = defineTheme({
   id: "control-room", tool: "status",
@@ -32,24 +34,57 @@ export const identity = defineTheme({
     dark: { 1: { solid: "#5b9cf0", soft: "#111f33", ink: "#8bbaf6" }, 2: { solid: "#3fbf8a", soft: "#10261d", ink: "#5fd3a2" }, 3: { solid: "#f08a3c", soft: "#2d1b0f", ink: "#f6a769" }, 7: { solid: "#e0b33a", soft: "#2a2210", ink: "#eac767" } },
   },});
 
-// The look of this request, for every page of the tool. The team's pages
-// (a member is asserted): the company's choice as the Chest tells it (for
-// all its tools, or for this one), else the identity above. The public
-// pages (the status page, its incidents and history, /embed, the badge):
-// the company's brand when it has one, else Status's own look — never a
+// The look of a surface. The team's pages (a member is asserted): the
+// company's choice as the Chest tells it (for all its tools, or for this
+// one), else the identity above. The public pages (the status page, its
+// incidents and history, the subscription pages, /embed, the badge): the
+// company's brand when it has one, else Status's own look — never a
 // catalogue theme chosen for the team's tools, never the Chest's sheet
 // (kit 0.2.3, `surface: "public"`; critique round 2, N5). Never throws:
 // the Chest unreachable, or a choice the kit cannot honour, is the
-// identity. Asked once per request, however many components need it.
-export async function lookOf(surface: "team" | "public"): Promise<Look> {
-  const look = resolveTheme(await chest.theme(), identity, { surface });
-  if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);
-  return look;
+// identity. chest.theme() keeps the Chest's answer a minute.
+export async function lookOf(surface: Surface): Promise<Look> {
+  return (await sheetOf(surface)).look;
 }
 
-// (session.ts is loaded here, not at the top: it needs a request, and the
-// tests read lookOf without one.)
-export const currentLook = cache(async (): Promise<Look> => {
-  const { currentMember } = await import("./session.ts");
-  return lookOf((await currentMember()) ? "team" : "public");
-});
+// The look is a stylesheet the tool serves itself — /chest/look.css for
+// the team's pages, /look.css for the public ones (createApp's look,
+// src/app.tsx) —, never an inline <style>: the strictest policy admits it.
+// It carries the theme's tokens and the five state colours, fixed in every
+// look (lib/states.ts). Its link carries the sheet's hash (?v=…), so a
+// browser keeps it until the company chooses another look. The sheet of
+// one answer of the Chest is written once and kept beside it.
+export type Surface = "team" | "public";
+export type Sheet = { look: Look; css: string; etag: string; colors: { media: string; color: string }[] };
+const written = new WeakMap<object, Partial<Record<Surface, Sheet>>>();
+
+export async function sheetOf(surface: Surface): Promise<Sheet> {
+  const choice = await chest.theme();
+  const kept = written.get(choice) ?? {};
+  const found = kept[surface];
+  if (found) return found;
+  const look = resolveTheme(choice, identity, { surface, ownFonts: "/assets/fonts" });
+  if (look.problem) log.warn("theme not usable: the tool's own look is used", { problem: look.problem });
+  const css = lookCss(look) + stateCss(look.theme.modes);
+  const sheet: Sheet = { look, css, etag: createHash("sha256").update(css).digest("base64url").slice(0, 16), colors: lookColors(look) };
+  written.set(choice, { ...kept, [surface]: sheet });
+  return sheet;
+}
+
+// The look as createApp serves it: the sheet, the browser bar's colours,
+// the company's logo (brand mode) for the layouts — and where the look
+// comes from ("own", "catalogue", "brand"): the layouts mark the page with
+// it (data-look), so the identity's own touches (the dark control panel of
+// the team's header) apply to the identity only. The layouts receive this
+// very object (LayoutProps.look).
+export type ServedLook = { css: string; colors: { media: string; color: string }[]; logo: Look["logo"]; source: Look["source"] };
+
+export async function servedLook(surface: Surface): Promise<ServedLook> {
+  const sheet = await sheetOf(surface);
+  return { css: sheet.css, colors: sheet.colors, logo: sheet.look.logo, source: sheet.look.source };
+}
+
+// The source of a look a layout received (null: none, a page outside a look).
+export function sourceOf(look: unknown): string | null {
+  return look && typeof look === "object" && "source" in look && typeof look.source === "string" ? look.source : null;
+}

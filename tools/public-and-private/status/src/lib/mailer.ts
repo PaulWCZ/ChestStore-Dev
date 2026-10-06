@@ -2,7 +2,7 @@ import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Query, Sql } from "./db.ts";
-import { catalogue, format, isLocale, stamp, type Catalogue } from "./i18n/index.ts";
+import { catalogue, format, isLocale, stamp, type Catalogue } from "../i18n/index.ts";
 import type { Step } from "./model.ts";
 import { company, publicOrigin, setMailState } from "./settings.ts";
 import type { Subscriber } from "./subscribers.ts";

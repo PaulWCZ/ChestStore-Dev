@@ -1,30 +1,30 @@
 import { chest } from "@argentic/chest-sdk/chest";
-import { headers } from "next/headers";
 import { db } from "./db.ts";
 import { atom, rss, type Feed } from "./feed.ts";
 import { calendar } from "./ics.ts";
-import { format, stamp } from "./i18n/index.ts";
+import { catalogue, format, stamp, type Locale } from "../i18n/index.ts";
 import { recentActivity, upcomingMaintenance } from "./incidents.ts";
 import { pick } from "./texts.ts";
 import { publicOrigin } from "./public-origin.ts";
-import { publicWords } from "./session.ts";
 import { rememberPublicOrigin } from "./settings.ts";
 
 // The public feeds: incidents (Atom and RSS) and planned maintenance (a
 // calendar). Anonymous, like the page, cached as briefly.
 export const feedHeaders = (type: string) => ({ "Content-Type": type, "Cache-Control": "public, max-age=60", Vary: "Accept-Language, Cookie", "X-Content-Type-Options": "nosniff" });
 
-async function origin(): Promise<string> {
+async function origin(headers: Headers): Promise<string> {
   const sql = db();
-  const found = publicOrigin(await headers()) ?? "";
+  const found = publicOrigin(headers) ?? "";
   await rememberPublicOrigin(sql, found || null);
   return found;
 }
 
-export async function incidentFeed(): Promise<Feed> {
-  const { t, locale } = await publicWords();
+// Each in the visitor's language (the switch's cookie, the browser's),
+// its links on the public address (lib/public-origin.ts).
+export async function incidentFeed(headers: Headers, locale: Locale): Promise<Feed> {
+  const t = catalogue(locale);
   const sql = db();
-  const base = await origin();
+  const base = await origin(headers);
   const zone = chest.timeZone;
   const now = new Date();
   const company = chest.organization.name || t.mail.team;
@@ -46,19 +46,19 @@ export async function incidentFeed(): Promise<Feed> {
   };
 }
 
-export async function atomFeed(): Promise<string> {
-  return atom(await incidentFeed());
+export async function atomFeed(headers: Headers, locale: Locale): Promise<string> {
+  return atom(await incidentFeed(headers, locale));
 }
 
-export async function rssFeed(): Promise<string> {
-  const feed = await incidentFeed();
+export async function rssFeed(headers: Headers, locale: Locale): Promise<string> {
+  const feed = await incidentFeed(headers, locale);
   return rss({ ...feed, self: feed.self.replace(/feed\.atom$/u, "feed.rss") });
 }
 
-export async function maintenanceCalendar(): Promise<string> {
-  const { t, locale } = await publicWords();
+export async function maintenanceCalendar(headers: Headers, locale: Locale): Promise<string> {
+  const t = catalogue(locale);
   const sql = db();
-  const base = await origin();
+  const base = await origin(headers);
   const company = chest.organization.name || t.mail.team;
   const host = (() => {
     try {

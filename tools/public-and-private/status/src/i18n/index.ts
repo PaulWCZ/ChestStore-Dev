@@ -1,4 +1,4 @@
-import type { DateWords } from "@argentic/chest-ui/components/logic";
+import type { DateWords, KitWords } from "@argentic/chest-ui/components/logic";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -14,10 +14,10 @@ export const defaultLocale: Locale = "en";
 export const languageNames: Record<Locale, string> = { en: "English", fr: "Français" };
 
 // A catalogue has the shape of the English one, every leaf a string —
-// except the UI kit's date words, which carry a date order and a first
-// day of the week (the kit's DateWords type).
+// except the UI kit's words (kit, and the date words, which carry a date
+// order and a first day of the week).
 type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
-export type Catalogue = Shape<Omit<typeof en, "date">> & { readonly date: DateWords };
+export type Catalogue = Shape<Omit<typeof en, "date" | "kit">> & { readonly date: DateWords; readonly kit: KitWords };
 
 const catalogues: Record<Locale, Catalogue> = { en, fr };
 
@@ -25,17 +25,24 @@ export function isLocale(value: unknown): value is Locale {
   return typeof value === "string" && (locales as readonly string[]).includes(value);
 }
 
+// localeOf narrows any language ("de", "fr-CA", null) to one the tool
+// speaks: English otherwise.
+export const localeOf = (value: unknown): Locale => (isLocale(value) ? value : defaultLocale);
+
 export function catalogue(locale: Locale): Catalogue {
   return catalogues[locale] ?? catalogues[defaultLocale];
 }
 
+// The reader's words, as @argentic/chest-app asks them (createApp's words).
+export const words = (locale: string): Catalogue => catalogue(localeOf(locale));
+
 // publicLocale is the language of a page of the public part, where there is
 // no member: the visitor's choice (a cookie set by the switch), otherwise the
-// first language of Accept-Language the tool speaks, otherwise English.
-export function publicLocale(cookie: string | undefined, acceptLanguage: string | null | undefined): Locale {
+// first language of Accept-Language the tool speaks, otherwise the Chest's
+// own language, otherwise English.
+export function publicLocale(cookie: string | undefined, acceptLanguage: string | null | undefined, chestLanguage?: string | null): Locale {
   if (isLocale(cookie)) return cookie;
-  if (!acceptLanguage) return defaultLocale;
-  const ranked = acceptLanguage
+  const ranked = (acceptLanguage ?? "")
     .split(",")
     .slice(0, 32)
     .map((part, index) => {
@@ -46,7 +53,7 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
     })
     .filter(r => r.weight > 0)
     .sort((a, b) => b.weight - a.weight || a.index - b.index);
-  return ranked.map(r => r.language).find(isLocale) ?? defaultLocale;
+  return ranked.map(r => r.language).find(isLocale) ?? localeOf(chestLanguage);
 }
 
 export { clock, day, duration, format, intl, moment, month, percent, plural, relative, stamp, zoneAbbreviation, zoneName } from "./format.ts";

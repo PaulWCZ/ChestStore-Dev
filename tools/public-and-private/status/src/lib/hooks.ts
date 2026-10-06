@@ -7,7 +7,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import { allComponents, inLocale } from "./components.ts";
 import type { Query, Sql } from "./db.ts";
-import { catalogue, format, isLocale, stamp, type Catalogue } from "./i18n/index.ts";
+import { catalogue, format, isLocale, stamp, type Catalogue } from "../i18n/index.ts";
 import { chestLanguage } from "./languages.ts";
 import type { Step } from "./model.ts";
 import { company, publicOrigin } from "./settings.ts";

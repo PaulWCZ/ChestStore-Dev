@@ -3,17 +3,17 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addComponent, allComponents, updateComponent } from "../lib/components.ts";
-import { exportAll, subscribersCsv } from "../lib/export.ts";
-import { importStatuspage, readExport } from "../lib/importer.ts";
-import * as incidents from "../lib/incidents.ts";
-import { flush } from "../lib/mailer.ts";
-import { followOptions } from "../lib/options.ts";
-import { statusView } from "../lib/status-view.ts";
-import * as subs from "../lib/subscribers.ts";
-import { listTemplates, removeTemplate, saveTemplate } from "../lib/templates.ts";
-import { pick } from "../lib/texts.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addComponent, allComponents, updateComponent } from "../src/lib/components.ts";
+import { exportAll, subscribersCsv } from "../src/lib/export.ts";
+import { importStatuspage, readExport } from "../src/lib/importer.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { flush } from "../src/lib/mailer.ts";
+import { followOptions } from "../src/lib/options.ts";
+import { statusView } from "../src/lib/status-view.ts";
+import * as subs from "../src/lib/subscribers.ts";
+import { listTemplates, removeTemplate, saveTemplate } from "../src/lib/templates.ts";
+import { pick } from "../src/lib/texts.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, nora } from "./support/members.ts";
@@ -27,7 +27,7 @@ const fixture = (name: string) => readFileSync(join(import.meta.dirname, "fixtur
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 50 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 50 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();
@@ -300,7 +300,7 @@ test("download everything: services, incidents with removed updates and the log,
 
 test("heartbeats: a secret address a job calls; silence past its deadline is told once, a call brings it back", async () => {
   const { sql } = database;
-  const { createHeartbeat, removeHeartbeat, listHeartbeats, beat, silent } = await import("../lib/heartbeats.ts");
+  const { createHeartbeat, removeHeartbeat, listHeartbeats, beat, silent } = await import("../src/lib/heartbeats.ts");
   const { token } = await createHeartbeat(sql, editor, website, 60);
   assert.match(token, /^[A-Za-z0-9_-]{43}$/u);
   const [stored] = await sql<{ token_hash: string }[]>`select token_hash from heartbeats`;

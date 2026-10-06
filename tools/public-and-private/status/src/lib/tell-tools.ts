@@ -3,7 +3,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
 import { allComponents } from "./components.ts";
 import type { Query } from "./db.ts";
-import { locales } from "./i18n/index.ts";
+import { locales } from "../i18n/index.ts";
 import { toldIncident, touched, type Incident } from "./incidents.ts";
 import { publicOrigin } from "./settings.ts";
 import { impactOf } from "./status-view.ts";

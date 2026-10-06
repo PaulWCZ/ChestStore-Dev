@@ -5,12 +5,6 @@
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "updates",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "emits": [
     "status.incident"
   ],

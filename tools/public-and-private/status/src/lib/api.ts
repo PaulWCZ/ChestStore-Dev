@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { chest } from "@argentic/chest-sdk/chest";
 import { db, type Query } from "./db.ts";
-import { catalogue } from "./i18n/index.ts";
+import { catalogue } from "../i18n/index.ts";
 import { latestIncidents, upcomingMaintenance, type Incident, type Update } from "./incidents.ts";
 import { chestLanguage } from "./languages.ts";
 import { severity, worst, type Impact, type State } from "./model.ts";
@@ -232,16 +232,3 @@ export const apiHeaders = {
   "Cache-Control": "public, max-age=30",
   "X-Content-Type-Options": "nosniff",
 };
-
-export function apiRoute(endpoint: Endpoint) {
-  return {
-    async GET(request: Request): Promise<Response> {
-      const origin = publicOrigin(request.headers) ?? "";
-      await rememberPublicOrigin(db(), origin || null);
-      return new Response(JSON.stringify(await api(endpoint, { origin })), { headers: apiHeaders });
-    },
-    OPTIONS(): Response {
-      return new Response(null, { status: 204, headers: { ...apiHeaders, "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "text/plain" } });
-    },
-  };
-}

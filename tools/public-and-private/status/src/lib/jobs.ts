@@ -1,5 +1,5 @@
 import type { Sql } from "./db.ts";
-import { catalogue, isLocale } from "./i18n/index.ts";
+import { catalogue, isLocale } from "../i18n/index.ts";
 import { autoPost } from "./incidents.ts";
 import { purge } from "./checks.ts";
 import { allComponents } from "./components.ts";

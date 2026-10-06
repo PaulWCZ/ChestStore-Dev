@@ -1,7 +1,7 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { AppError } from "./app-error.ts";
-import { isLocale, locales, type Locale } from "./i18n/index.ts";
+import { isLocale, locales, type Locale } from "../i18n/index.ts";
 
 // The languages of an incident's texts.
 //

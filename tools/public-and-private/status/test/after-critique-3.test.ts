@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as hooksRoute } from "../app/chest-webhooks/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { addComponent, allComponents, inLocale, updateComponent } from "../lib/components.ts";
-import * as hooks from "../lib/hooks.ts";
-import * as incidents from "../lib/incidents.ts";
-import { statusView } from "../lib/status-view.ts";
-import { tellTools } from "../lib/tell-tools.ts";
+import { toApp as hooksRoute } from "./support/app.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addComponent, allComponents, inLocale, updateComponent } from "../src/lib/components.ts";
+import * as hooks from "../src/lib/hooks.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { statusView } from "../src/lib/status-view.ts";
+import { tellTools } from "../src/lib/tell-tools.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, nora, tom } from "./support/members.ts";
@@ -27,7 +27,7 @@ before(async () => {
   // Events are named after the tool that publishes them.
   process.env["CHEST_TOOL"] = "status";
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" }, webhooks: { max: 200, to: hooksRoute }, emits: ["status.incident"], receivers: 1 });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://status.atelier-martin.test" }, webhooks: { max: 200, to: hooksRoute }, emits: ["status.incident"], receivers: 1 });
 });
 after(async () => {
   await chest.close();
@@ -185,7 +185,7 @@ test("keys survive a restore: an update id given again to another update still r
 
 test("a Chest without webhooks: refused in words, and the page stops offering it", async () => {
   const { sql } = database;
-  const plain = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members"] });
+  const plain = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members"] });
   try {
     await refuses("no_hooks", () => hooks.subscribeHook(sql, { kind: "slack", url: slack, language: "en", components: "all" }));
     assert.equal(await hooks.hooksState(sql), "none");

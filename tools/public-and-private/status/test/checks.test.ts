@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-checks/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { checkName, listWatches, measured, purge, record, saveWatches, statuses, syncChest } from "../lib/checks.ts";
-import { addComponent } from "../lib/components.ts";
-import { pass } from "../lib/jobs.ts";
-import { statusView } from "../lib/status-view.ts";
+import { toApp as POST } from "./support/app.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { checkName, listWatches, measured, purge, record, saveWatches, statuses, syncChest } from "../src/lib/checks.ts";
+import { addComponent } from "../src/lib/components.ts";
+import { pass } from "../src/lib/jobs.ts";
+import { statusView } from "../src/lib/status-view.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, lea, nora, tom } from "./support/members.ts";
@@ -18,7 +18,7 @@ let website = "", shop = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"], checks: { max: 10 } });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"], checks: { max: 10 } });
 });
 after(async () => {
   await chest.close();
@@ -67,7 +67,7 @@ test("addresses and settings are bounded; only editors may set them", async () =
 
 test("a Chest that cannot run checks: the addresses are kept, the tool says so and works on", async () => {
   const { sql } = database;
-  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     await saveWatches(sql, editor, [{ componentId: website, url: "https://atelier-martin.fr/" }]);
     assert.equal(await syncChest(sql), "unavailable");

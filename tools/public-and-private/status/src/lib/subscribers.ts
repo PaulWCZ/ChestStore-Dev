@@ -117,12 +117,15 @@ export const formLimits = { perVisitorHour: 5, perHour: 100, minimumSeconds: 2 }
 
 export async function guard(sql: Query, visitor: string, now = new Date()): Promise<void> {
   const hour = new Date(Math.floor(now.getTime() / 3600000) * 3600000);
-  const key = "v:" + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
+  // A visitor the Chest's front did not name ("unknown": no
+  // Chest-Visitor-Address) is everyone at once: only the ceiling for
+  // everyone counts then, or five strangers an hour would close the form.
+  const key = visitor === "unknown" ? "all" : "v:" + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
   const counts = await sql<{ key: string; count: number }[]>`
-    insert into form_counts (key, hour, count) values (${key}, ${hour}, 1), ('all', ${hour}, 1)
+    insert into form_counts (key, hour, count) select k, ${hour}, 1 from unnest(${[...new Set([key, "all"])]}::text[]) as k
     on conflict (key, hour) do update set count = form_counts.count + 1
     returning key, count`;
-  const mine = counts.find(c => c.key === key)?.count ?? 0;
+  const mine = key === "all" ? 0 : counts.find(c => c.key === key)?.count ?? 0;
   const all = counts.find(c => c.key === "all")?.count ?? 0;
   if (mine > formLimits.perVisitorHour || all > formLimits.perHour) throw new AppError("too_many", { max: formLimits.perVisitorHour });
   await sql`delete from form_counts where hour < ${new Date(hour.getTime() - 86400000)}`;

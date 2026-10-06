@@ -1,8 +1,23 @@
+import { en as kit } from "@argentic/chest-ui/components/logic";
+
 // English: the source catalogue, the default and the fallback. Every word the
 // tool shows is here, and in every other catalogue with the same keys
 // (test/i18n.test.ts). {name} marks a value filled by format(); an entry
 // with one/other is a plural (plural()).
 export const en = {
+  // What @argentic/chest-app needs: the tool's name, its error pages and
+  // refusals, the kit's words.
+  kit,
+  tool: { name: "Status" },
+  pages: {
+    notFound: { title: "Nothing here", body: "This page does not exist, or it was removed.", publicBody: "This page does not exist, or it was removed. The status page is one click away." },
+    forbidden: { title: "Not allowed", body: "Your role does not allow this. Ask whoever manages Status." },
+    failed: { title: "Something went wrong", body: "Try again in a moment. If it goes on, tell whoever manages Status." },
+    signIn: "Sign in through your Chest to open this page.",
+    busy: "Still sending…",
+    language: "Language",
+    back: "Back to Now",
+  },
   meta: {
     lang: "en",
     name: "Status",
@@ -202,6 +217,7 @@ export const en = {
   },
   people: {
     former: "{name} (former member)",
+    noAccess: "{name} (no access)",
     erased: "Former member",
     unknown: "Unknown member",
     you: "You",
@@ -524,6 +540,7 @@ export const en = {
     invalid_url: "Give a full web address starting with https://.",
     empty: "Write something first.",
     too_long: "This is too long ({max} characters at most).",
+    too_large: "This is too large to send.",
     too_many: "Too many at once. Try again in an hour.",
     too_fast: "That was fast. Wait two seconds and send again.",
     no_components: "Choose at least one service.",

@@ -1,8 +1,20 @@
+import { fr as kit } from "@argentic/chest-ui/components/logic";
 import type { Catalogue } from "./index.ts";
 
 // Français : la deuxième langue, complète. Mêmes clés et mêmes {valeurs}
 // que l'anglais (test/i18n.test.ts).
 export const fr: Catalogue = {
+  kit,
+  tool: { name: "État des services" },
+  pages: {
+    notFound: { title: "Rien ici", body: "Cette page n’existe pas, ou elle a été retirée.", publicBody: "Cette page n’existe pas, ou elle a été retirée. La page d’état est à un clic." },
+    forbidden: { title: "Non autorisé", body: "Votre rôle ne le permet pas. Demandez à qui gère l’état des services." },
+    failed: { title: "Un problème est survenu", body: "Réessayez dans un instant. Si cela continue, prévenez qui gère l’état des services." },
+    signIn: "Connectez-vous à votre Chest pour ouvrir cette page.",
+    busy: "Envoi en cours…",
+    language: "Langue",
+    back: "Retour à « En ce moment »",
+  },
   meta: {
     lang: "fr",
     name: "État des services",
@@ -202,6 +214,7 @@ export const fr: Catalogue = {
   },
   people: {
     former: "{name} (ancien membre)",
+    noAccess: "{name} (sans accès)",
     erased: "Ancien membre",
     unknown: "Membre inconnu",
     you: "Vous",
@@ -524,6 +537,7 @@ export const fr: Catalogue = {
     invalid_url: "Donnez une adresse web complète commençant par https://.",
     empty: "Écrivez d’abord quelque chose.",
     too_long: "C’est trop long ({max} caractères au plus).",
+    too_large: "C’est trop volumineux pour être envoyé.",
     too_many: "Trop de demandes à la fois. Réessayez dans une heure.",
     too_fast: "C’était rapide. Attendez deux secondes et renvoyez.",
     no_components: "Choisissez au moins un service.",

@@ -1,49 +1,37 @@
-"use client";
-
-import { useToast } from "@argentic/chest-ui/components";
-import { useRouter } from "next/navigation";
+import { call, toast } from "@argentic/chest-app/client";
 import { useCallback, useState } from "react";
-import type { ErrorCode } from "../lib/app-error.ts";
-import type { Result } from "../lib/errors.ts";
-import { format } from "../lib/i18n/format.ts";
 
-// useRun calls a server action, says what went wrong in words (an error
-// toast, the kit's: read at once by screen readers), refreshes the page's
-// data, and tells whether it is still running — so every button of the
+// useRun calls an action of src/actions.ts (call(): a refusal is said in
+// words, a toast in the reader's language, read at once by screen readers;
+// the page is read again after a success), says a success when given its
+// words, and tells whether it is still running — so every button of the
 // team's part behaves the same.
-export function useRun(errors: Record<ErrorCode, string>) {
-  const toast = useToast();
-  const router = useRouter();
+type Name = Parameters<typeof call>[0];
+type Input<N extends Name> = Parameters<typeof call<N>>[1];
+type Value<N extends Name> = Extract<Awaited<ReturnType<typeof call<N>>>, { ok: true }>["value"];
+
+export function useRun() {
   const [pending, setPending] = useState(false);
-  const run = useCallback(async <T,>(action: () => Promise<Result<T>>, done?: string | ((value: T) => void)): Promise<Result<T>> => {
+  // done: the words of a success (a toast), or what to do with its value.
+  // refresh: false when done goes to another page (navigate()).
+  const run = useCallback(async <N extends Name>(name: N, input: Input<N>, done?: string | ((value: Value<N>) => void), options: { refresh?: boolean } = {}) => {
     setPending(true);
     try {
-      const result = await action();
-      if (!result.ok) toast({ text: format(errors[result.error] ?? errors.unknown, result.values ?? {}), tone: "error" });
-      else {
+      const outcome = await call(name, input, options);
+      if (outcome.ok) {
         if (typeof done === "string") toast(done);
-        else if (done) done(result.value);
-        router.refresh();
+        else done?.(outcome.value as Value<N>);
       }
-      return result;
-    } catch {
-      toast({ text: errors.unavailable, tone: "error" });
-      return { ok: false, error: "unavailable" };
+      return outcome;
     } finally {
       setPending(false);
     }
-  }, [errors, router, toast]);
+  }, []);
   // The Undo of a toast (the kit's): runs the action that puts things
-  // back, refreshes the page, and says in words why it could not.
-  const undo = useCallback((action: () => Promise<Result<unknown>>) => async (): Promise<true | string> => {
-    try {
-      const result = await action();
-      if (!result.ok) return format(errors[result.error] ?? errors.unknown, result.values ?? {});
-      router.refresh();
-      return true;
-    } catch {
-      return errors.unavailable;
-    }
-  }, [errors, router]);
+  // back (the page is read again), and says in words why it could not.
+  const undo = useCallback(<N extends Name>(name: N, input: Input<N>) => async (): Promise<true | string> => {
+    const outcome = await call(name, input, { quiet: true });
+    return outcome.ok || outcome.message;
+  }, []);
   return { run, pending, undo };
 }

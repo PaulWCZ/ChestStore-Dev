@@ -1,7 +1,7 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { catalogue, type Catalogue } from "./i18n/index.ts";
+import { catalogue, type Catalogue } from "../i18n/index.ts";
 import { people } from "./people.ts";
 
 // Items in the Chest's bell, each written in its recipient's language. A

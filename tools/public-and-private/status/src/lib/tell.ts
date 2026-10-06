@@ -4,7 +4,7 @@ import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { roles } from "./access.ts";
 import type { Query } from "./db.ts";
-import { catalogue, format, locales, type Catalogue } from "./i18n/index.ts";
+import { catalogue, format, locales, type Catalogue } from "../i18n/index.ts";
 import { openCount } from "./incidents.ts";
 import { badges, cut } from "./notify.ts";
 import { checkError } from "./check-words.ts";
