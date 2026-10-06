@@ -60,7 +60,7 @@ confirmation; nobody is ever booked twice.
   booked in ("Visite du showroom" for Inès, who reads French, for an
   English and a French guest alike), the guest's language as a small tag
   ("EN") when it is not the reader's; the same on a booking's page, in the
-  bell, the Chest's calendar, the host's email copy and the CSV (a *Guest's
+  bell, the Chest's calendar and the CSV (a *Guest's
   language* column). The coming week's **busy times from elsewhere** show
   as grey rows within the host's hours — "Busy · In your Google calendar
   16:00–17:00", "An interview in Hiring", "Off" (a day of leave, told by
@@ -137,8 +137,9 @@ confirmation; nobody is ever booked twice.
   calendar file and their answers, new time, cancellation, and a reminder
   the day before (Proposal *schedules*); their replies go to the
   company's address (see *Mail to people outside the company*). The host
-  hears of bookings, moves and cancellations in the Chest's bell, in
-  their language and time zone (a new booking's bell shows the note and
+  hears of bookings, moves and cancellations in the Chest's bell — a
+  guest's, or a colleague's who manages every booking (with who did
+  it) — in their language and time zone (a new booking's bell shows the note and
   the answers, as far as it fits); the Chest mails it to them if they
   chose so in the Chest — Booking itself never emails a member.
 - **A host books for a customer** (*New booking*: a type, a free time —
@@ -362,10 +363,20 @@ to my calendar* first and says no email goes out, the host's toast says
 
 **Changed on 6 October 2026** (the owner's mail decisions): the host's
 email copy with the calendar file and its *Email me* switch in Settings
-are gone (the Chest's calendar and the bell replace them); guest
-mails need no special flag any more; the bell is one notice with its French translation.
-The `hosts.email_me` column is no longer read and stays for the previous
-version during an update.
+are gone. The host is told in the bell at the same moments — a guest
+books, moves or cancels; a colleague who manages every booking moves or
+cancels theirs (with who did it); a booking reassigned to them — and has
+every booking in the Chest's calendar. What the host loses: the copy put
+the meeting in their calendar app at once, while a calendar app reads
+the Chest's calendar at its own pace (Google: every few hours, up to a
+day); Settings says so under the calendar, and the Bookings page and the
+bell are always up to date. Guest mails need no special flag any more;
+the bell is one notice with its French translation.
+The `hosts.email_me` column is no longer read and stays so that the
+previous version keeps working during a rolling update (it is
+`not null default true`: new hosts need nothing from this version); a
+later version drops it (`alter table hosts drop column email_me`) once
+no instance runs 0.2.0.
 
 ## Needs from the SDK
 

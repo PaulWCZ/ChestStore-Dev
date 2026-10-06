@@ -37,7 +37,9 @@ export const actions = {
   cancelBooking: action({ ...one, reason: text(500) }, async ({ id, reason }, { member, request }) => {
     const sql = db();
     const done = await b.cancelByHost(sql, member, id, reason);
-    await tell.quiet(done);
+    // Their own: no bell. A colleague's: the host hears who cancelled it.
+    if (done.memberId === member.id) await tell.quiet(done);
+    else await tell.changedFor("cancelled", done, member.name, (await b.hostOf(sql, done.memberId))?.zone ?? done.guestZone, await b.titlesOf(sql, done));
     await publish.unpublish(sql, done);
     await share.changed(sql, "cancelled", done);
     const origin = publicOrigin(request.headers);
@@ -67,6 +69,9 @@ export const actions = {
     const origin = publicOrigin(request.headers);
     await b.rememberPublicOrigin(sql, origin);
     const delivery = await email(sql, "moved", booking, origin);
+    // Moved by a colleague, or to another host of the type: the host it
+    // now belongs to hears of it.
+    if (booking.memberId !== member.id) await tell.changedFor("moved", booking, member.name, (await b.hostOf(sql, booking.memberId))?.zone ?? booking.guestZone, await b.titlesOf(sql, booking));
     await publish.publish(sql, booking);
     await share.changed(sql, "moved", booking, { previousHost: from });
     return { delivery };

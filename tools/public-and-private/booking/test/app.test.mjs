@@ -332,3 +332,17 @@ test("the Chest's events and schedule runs, signed, each handled once", async ()
   assert.equal(await chest.emit(left, to), 204);
   assert.equal((await get(null, "/hugo-bernard")).status, 404);
 });
+
+test("a colleague cancels a host's booking: the guest is emailed, the host hears who did it; their own cancel needs no bell", async () => {
+  const [row] = await database.sql`select id::text as id from bookings where member_id = ${ines.id} and status = 'confirmed' and starts_at > now() order by starts_at limit 1`;
+  assert.ok(row, "a booking of Inès still to come in the sample");
+  chest.notifications.length = 0;
+  const response = await call(camille, "cancelBooking", { id: row.id, reason: "The shop is closed that day" });
+  assert.equal(response.status, 200);
+  const told = chest.notifications.filter(n => n.member === ines.id && n.key === `booking:${row.id}`);
+  assert.equal(told.length, 1, "Inès is told in the bell");
+  assert.match(told[0].title, /^Camille Martin cancelled your booking with /u);
+  assert.match(told[0].translations?.fr?.title ?? "", /^Camille Martin a annulé votre rendez-vous avec /u);
+  assert.equal(told[0].body, "The shop is closed that day");
+  assert.ok(!chest.notifications.some(n => n.member === camille.id), "no bell for the one who acted");
+});
