@@ -10,7 +10,7 @@ else holds.
 ## Tokens: the identity is a theme
 
 Rooms' look is **Blueprint**, a theme of the UI kit (`@argentic/chest-ui`),
-defined with `defineTheme` in **`lib/theme.ts`** — every colour of the tool
+defined with `defineTheme` in **`src/theme.ts`** — every colour of the tool
 is there, nowhere else — and identical to the catalogue's `blueprint` (a
 test holds them equal). `checkTheme` measures every pair of the token
 contract (`ui/tokens/CONTRACT.md`) in light and dark: WCAG AA for text, 3:1
@@ -28,7 +28,7 @@ blueprint: deep blue paper, pale lines.
 | `--cat-3` (solid / soft / ink) | `#c2410c` / `#fdebe0` / `#b93d0b` | `#ff8a4c` / `#3a2a26` / `#ff8a4c` | **yours or taken** (the signal orange) |
 | `--danger` | `#b3261e` | `#ff8a80` | errors, delete |
 
-`app/tokens.css` holds only Rooms' own names, each defined from contract
+`src/tokens.css` holds only Rooms' own names, each defined from contract
 tokens: `--mine` / `--mine-ink` (a filled "mine": the slot-3 ink as ground,
 the surface as text), `--mine-soft` / `--mine-text`, `--mine-line` (the
 "now" line, a selection: 3:1), `--grid` / `--grid-major` (the paper's grid,
@@ -57,7 +57,7 @@ one quarter hour is 14 px; hours are full lines, quarters faint ones.
 ## Components
 
 The shared pieces are the kit's (`@argentic/chest-ui/components`, restyled
-in `app/globals.css` only where Blueprint needs it: a navy rule under the
+in `src/styles.css` only where Blueprint needs it: a navy rule under the
 header, mono capitals on the day tiles): the shell with its labelled tabs,
 toasts, dialogs and the in-page Confirm, the people picker, date fields and
 24-hour time lists, the day strip, tabs and segmented choices, filters and

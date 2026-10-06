@@ -107,7 +107,7 @@ export async function exportPage(p: PageContext): Promise<View> {
                       ) : (
                         <>
                           <td className="load-bar">
-                            <svg className="bar" width={`${Math.max(1, Math.round((1000 * r.people) / top) / 10)}%`} height="18" aria-hidden="true" focusable="false"><rect width="100%" height="100%" rx="3" /></svg>
+                            <svg className="bar" viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect className="bar-track" width="100" height="18" rx="3" /><rect width={Math.max(1, (100 * r.people) / top)} height="18" rx="3" /></svg>
                             <span className="load-value">{plural(t.export.load.peopleValue, tenth(r.people), locale)}</span>
                           </td>
                           <td className="load-desks">{load.desks > 0 ? plural(t.export.load.desksValue, tenth(r.desks), locale, { total: load.desks }) : ""}</td>
