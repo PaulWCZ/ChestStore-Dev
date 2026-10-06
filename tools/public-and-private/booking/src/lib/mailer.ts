@@ -4,6 +4,7 @@ import { meetingPlace, type Booking } from "./booking.ts";
 import { calendar } from "./ics.ts";
 import { catalogue, format, isLocale, meetingTime } from "../i18n/index.ts";
 import { answerText } from "./questions.ts";
+import { addDays, wall } from "./zone.ts";
 
 // Email to guests through the Chest's mail (Proposal (studio): the "mail"
 // capability, chest.proposals.json). On a Chest without mail yet, nothing
@@ -63,7 +64,7 @@ export function invitation(b: Booking, c: Pick<Context, "hostName" | "link">, ca
   return calendar(
     [
       {
-        uid: `booking-${b.id}@chest`,
+        uid: b.uid,
         sequence: b.moves + (cancelled ? 1 : 0),
         start: b.startsAt,
         end: b.endsAt,
@@ -121,10 +122,14 @@ export async function cancelled(b: Booking, c: Context): Promise<Delivery> {
   return send({ to: b.guestEmail, subject: format(t.cancelledSubject, v), text: format(body, v), fromName: from(c), attachments: [attachment(b, c, true)], key: `cancelled:${b.id}:${b.guestEmail}`, transactional: true });
 }
 
-export async function reminder(b: Booking, c: Context): Promise<Delivery> {
+export async function reminder(b: Booking, c: Context, now = Date.now()): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = values(b, c);
-  return send({ to: b.guestEmail, subject: format(t.reminderSubject, v), text: format(t.reminderBody, v), fromName: from(c), key: `reminder:${b.id}:${b.moves}:${b.guestEmail}` });
+  // "Tomorrow" only when it is tomorrow in the guest's zone (a run missed
+  // and sent again later may fall on the day itself).
+  const today = wall(now, b.guestZone).date, day = wall(b.startsAt, b.guestZone).date;
+  const subject = day === today ? t.reminderSubjectToday : day === addDays(today, 1) ? t.reminderSubject : t.reminderSubjectLater;
+  return send({ to: b.guestEmail, subject: format(subject, v), text: format(t.reminderBody, v), fromName: from(c), key: `reminder:${b.id}:${b.moves}:${b.guestEmail}` });
 }
 
 // The host's copy: an email with the booking's calendar file, which their
@@ -133,10 +138,13 @@ export async function reminder(b: Booking, c: Context): Promise<Delivery> {
 export async function toHost(kind: "booked" | "moved" | "cancelled", b: Booking, c: { locale: string; zone: string; link: string }): Promise<Delivery> {
   const words = wordsFor(c.locale);
   const t = words.mail;
-  const v = { guest: b.guestName, title: b.title, when: meetingTime(b.startsAt, c.zone, c.locale), where: where(b, "", t), link: c.link };
+  // A phone call is the host's to make: "Call Alex at +33…", never the
+  // guest's sentence ("… will call you").
+  const place = b.locationKind === "phone" ? format(t.hostWherePhone, { guest: b.guestName, phone: b.guestPhone }) : where(b, "", t);
+  const v = { guest: b.guestName, title: b.title, when: meetingTime(b.startsAt, c.zone, c.locale), where: place, link: c.link };
   const subject = format(kind === "booked" ? t.hostBookedSubject : kind === "moved" ? t.hostMovedSubject : t.hostCancelledSubject, v);
   const file = calendar(
-    [{ uid: `booking-${b.id}@chest`, sequence: b.moves + (kind === "cancelled" ? 1 : 0), start: b.startsAt, end: b.endsAt, summary: format(words.calendar.title, { title: b.title, guest: b.guestName }), description: c.link, ...(meetingPlace(b) && b.locationKind !== "phone" ? { location: meetingPlace(b) } : {}), url: c.link, cancelled: kind === "cancelled" }],
+    [{ uid: b.uid, sequence: b.moves + (kind === "cancelled" ? 1 : 0), start: b.startsAt, end: b.endsAt, summary: format(words.calendar.title, { title: b.title, guest: b.guestName }), description: c.link, ...(meetingPlace(b) && b.locationKind !== "phone" ? { location: meetingPlace(b) } : {}), url: c.link, cancelled: kind === "cancelled" }],
     { method: kind === "cancelled" ? "CANCEL" : "PUBLISH", name: words.tool.name },
   );
   return send({ to: { member: b.memberId }, subject, text: format(t.hostBody, v), attachments: [{ name: t.fileName, type: "text/calendar; charset=utf-8", content: file }], key: `host:${kind}:${b.id}:${b.moves}:${b.memberId}` });

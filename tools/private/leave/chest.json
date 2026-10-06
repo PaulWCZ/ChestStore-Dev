@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "leave",
   "title": "Leave",
   "description": "Ask for time off, get an answer in one click, see who is away. French rules built in: jours ouvrés or ouvrables, public holidays, earned leave.",
@@ -23,6 +23,12 @@
   "receives": [
     "member.*"
   ],
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "30 8 * * 1-5"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
@@ -30,7 +36,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

@@ -102,9 +102,6 @@ legend { padding: 0; }
    which carries where its look comes from (data-look) and adds no box. */
 .public { background: var(--bg); }
 .look { display: contents; }
-/* An island's wrapper (@argentic/chest-app): its content takes its place
-   in the page's layout, as if the wrapper were not there. */
-.island { display: contents; }
 .public-head { background: var(--surface); border-bottom: 1px solid var(--line); }
 .public-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 72px; flex-wrap: wrap; padding-top: var(--space-3); padding-bottom: var(--space-3); }
 .company { display: inline-flex; align-items: center; gap: var(--space-3); color: var(--ink); text-decoration: none; min-width: 0; }

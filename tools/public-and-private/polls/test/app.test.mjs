@@ -167,16 +167,21 @@ test("the guest page: a visitor's words, no member, an answer by a form without 
   assert.match(html, /Kick-off/u);
   assert.match(html, /data-island="GuestForm"/u);
   assert.doesNotMatch(html, /Claire Leroy|Marc Petit/u, "never the other answers");
-  const token = /&quot;token&quot;:&quot;([^&]+)&quot;/u.exec(html)[1];
+  const token = /<meta name="chest-form" content="([^"]+)"/u.exec(html)[1];
+  assert.match(html, /name="chest_form" value="/u, "the token in the form too (no script)");
   const dates = [...html.matchAll(/&quot;id&quot;:&quot;(\d+)&quot;,&quot;month&quot;/gu)].map(m => m[1]);
   assert.ok(dates.length >= 2);
-  // A robot fills the field people never see: refused, nothing kept.
-  const robot = await form(null, `/p/${link}/actions/answerGuest`, { link, started: token, website: "spam.test", name: "Bot", [`d${dates[0]}`]: "2" }, `/p/${link}`);
+  // A robot fills the field people never see: answered as if done, nothing kept.
+  const robot = await form(null, `/p/${link}/actions/answerGuest`, { link, chest_form: token, website: "spam.test", name: "Bot", [`d${dates[0]}`]: "2" }, `/p/${link}`);
   assert.equal(robot.status, 303);
-  assert.match(robot.headers.get("location"), /\?error=invalid$/u);
+  assert.doesNotMatch(robot.headers.get("location"), /sent=|error=/u);
+  assert.equal((await database.sql`select count(*)::int from participants where guest_name = 'Bot'`)[0].count, 0);
+  // A form without the page's token is refused.
+  const forged = await form(null, `/p/${link}/actions/answerGuest`, { link, chest_form: "1.2.3", name: "Jean Martin", [`d${dates[0]}`]: "2" }, `/p/${link}`);
+  assert.match(forged.headers.get("location"), /\?error=expired$/u);
   // A person, a few seconds later: answered, a cookie for this poll's page only.
   await new Promise(r => setTimeout(r, 2100));
-  const sent = await form(null, `/p/${link}/actions/answerGuest`, { link, started: token, website: "", name: "Jean Martin", email: "", [`d${dates[0]}`]: "2", [`d${dates[1]}`]: "1" }, `/p/${link}`, { "chest-visitor-address": "203.0.113.7" });
+  const sent = await form(null, `/p/${link}/actions/answerGuest`, { link, chest_form: token, name: "Jean Martin", email: "", [`d${dates[0]}`]: "2", [`d${dates[1]}`]: "1" }, `/p/${link}`, { "chest-visitor-address": "203.0.113.7" });
   assert.equal(sent.status, 303);
   assert.equal(sent.headers.get("location"), `/p/${link}?sent=1`);
   const cookie = sent.headers.get("set-cookie");
@@ -185,9 +190,12 @@ test("the guest page: a visitor's words, no member, an answer by a form without 
   assert.match(back, /Jean Martin/u, "their own answer, from this browser");
   // Changed from the same browser: the cookie reaches the action under the
   // page's path, the answer is the same guest's, updated.
-  const token2 = /&quot;token&quot;:&quot;([^&]+)&quot;/u.exec(back)[1];
+  const token2 = /<meta name="chest-form" content="([^"]+)"/u.exec(back)[1];
+  // A token serves once.
+  const reused = await form(null, `/p/${link}/actions/answerGuest`, { link, poll: "11", chest_form: token, name: "Jean Martin", [`d${dates[0]}`]: "0" }, `/p/${link}`, { cookie: cookie.split(";")[0] });
+  assert.match(reused.headers.get("location"), /\?error=expired$/u);
   await new Promise(r => setTimeout(r, 2100));
-  const again = await form(null, `/p/${link}/actions/answerGuest`, { link, poll: "11", started: token2, website: "", name: "Jean Martin", email: "", [`d${dates[0]}`]: "0", [`d${dates[1]}`]: "2" }, `/p/${link}`, { cookie: cookie.split(";")[0] });
+  const again = await form(null, `/p/${link}/actions/answerGuest`, { link, poll: "11", chest_form: token2, name: "Jean Martin", email: "", [`d${dates[0]}`]: "0", [`d${dates[1]}`]: "2" }, `/p/${link}`, { cookie: cookie.split(";")[0] });
   assert.equal(again.headers.get("location"), `/p/${link}?sent=2`);
   const [{ count }] = await database.sql`select count(*)::int from participants where poll_id = 11 and guest_name = 'Jean Martin'`;
   assert.equal(count, 1, "one guest, not two");

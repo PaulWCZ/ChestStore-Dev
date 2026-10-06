@@ -25,10 +25,10 @@ import { closeDue, load, placesTaken, rights, type Poll } from "./polls.ts";
 // - A guest sees the poll's words and their own answer, never the others'
 //   answers or names (the team's names stay in the Chest). Once a date is
 //   chosen, the page shows it, with a calendar file.
-// - The public host is guarded like Forms' and Booking's forms: a signed
-//   "shown at" token and a field only robots fill (src/actions.ts, answerGuest), the
-//   Chest's visitor counters (src/lib/guard.ts), and at most limits.guests guests per
-//   poll.
+// - The public host is guarded by the package's bound on answerGuest
+//   (src/actions.ts): a single-use form token, a form sent faster than a
+//   person waits, a field only robots fill, answers counted per visitor
+//   and for everyone a day; and at most limits.guests guests per poll.
 // - Results mark guests ("Guest") in the grid, the participation count
 //   gives them apart, the CSV says so; a manager may remove a guest's
 //   answer (spam, or the guest asked).

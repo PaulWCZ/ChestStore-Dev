@@ -43,8 +43,10 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
   use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
   `id="toasts"`, so it survives `navigate()`). The island's HTML sits in a
-  `<div class="island">` (give it `display: contents` in the tool's CSS,
-  as the starter does): render whole elements in an island — a list's
+  `<div class="island">` (`display: contents`, first in `client.css` from
+  `chestConfig()`: it takes no room, an empty island leaves no gap; an
+  island sized as a flex item gets its box back: `.bar > .island {
+  display: block; flex: … }`): render whole elements in an island — a list's
   `<ul>`, not its `<li>` — and select its insides by class, not with `>`
   from outside.
 - **Actions** are the only way to change data: `action(fields, run,
@@ -71,6 +73,24 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   a list); `useAutoRefresh(refresh, 30)` (kit) on a timer. A navigation is
   never lost to a refresh or an action on its way; an island it brings is
   live the moment it shows.
+- **Links** between pages of the same part go in place too (`start()`
+  intercepts a plain click on `<a href>`): no page load, the layout's
+  islands kept (a toast's Undo), focus on the new page's `<h1>`, Back and
+  Forward restoring the page and its scroll. A link stays a page load for
+  another part or site, a `target`, a `download`, a modifier key, a `#`
+  on the same page, `/assets/`, or `data-reload` on the link or an
+  ancestor (the opt-out: a page that must start afresh).
+- **Actions run one at a time**, in the order asked, from `call()` and
+  from forms (as Next.js's server actions did): two that read then write
+  (a position, a count) never interleave. `call(name, input, { parallel:
+  true })` for one that touches nothing in common (a search, a preview).
+  Rules that compute from existing rows must still be safe in SQL: two
+  people act at once too (`db().begin(…)` with a lock, or a unique
+  constraint).
+- **Compressed**: pages, JSON and downloads of 1 KiB and more are gzipped
+  as they go; the browser's files are compressed at build (`.br`, `.gz`
+  beside each, served by `Accept-Encoding`). The Chest's front compresses
+  nothing itself.
 - **Refusals are codes**, one way everywhere: `fail("not_found")`,
   `fail("too_long", { max })`; each code is a sentence in `t.errors`. In an
   action the caller gets the code and the sentence; in a page,
@@ -82,13 +102,38 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   permission the owner approves (`checkSources` fails on a `publicAction`
   without it, and on it with nothing public served): any path outside `/chest`, served by `publicPage()` and
   `publicAction()`; no member; the visitor's language (`/lang/<code>`
-  switch). **Every public write needs a bound**, per visitor and overall:
-  the official SDK gives no visitor address (`visitors.address` is a studio
-  proposal), so key a visitor by a cookie the action sets
-  (`cookies.set("v", random, …)`: it slows a person, not a determined bot),
-  and keep a global ceiling a day counted in the database, so one bot can
-  slow the form but not fill the table; plus a field people never see
-  (a honeypot) that only robots fill.
+  switch). **Every public action is bounded** — the one way, the same in
+  every tool:
+  ```tsx
+  // a form of a public page or of an island: <Honeypot /> in it
+  <form method="post" action="/actions/book"><Honeypot />…</form>
+  // src/actions.ts
+  book: publicAction(fields, async (input, { charge }) => {
+    const slot = await freeSlot(input.slot);          // check first: a refusal costs nothing
+    if (!slot) fail("invalid");
+    await charge(input.secret ? "change" : "new");    // then spend the budget it uses
+    …write…
+  }, { bound: { budgets: { new: { perVisitor: 3, perDay: 200 }, change: { perVisitor: 10, perDay: 500 } } } }),
+  // one kind of write: { bound: { perVisitor: 5, perDay: 200 } }, no charge()
+  ```
+  The package then: requires the page's **form token** (`<Honeypot />`
+  carries it, `call()` sends it; 120 minutes, `formMinutes` to change;
+  `formSeconds: 2` makes a form sent sooner than a person fills it wait
+  the seconds left;
+  serves once, the answer brings the next; else the code `expired`);
+  answers "done" without running to a robot that fills the honeypot;
+  counts the call **only once it is valid** (token, fields, and in your
+  run, what you check before `charge()`; a run that throws gives its count
+  and token back) per visitor and for everyone a day, in `chest_bounds`;
+  past it, the code `limit`. The visitor is the address the Chest's front
+  gives (`Chest-Visitor-Address`, a studio proposal: none today), else
+  the browser's cookie; one with neither counts in `perDay` only. Words:
+  `t.errors.limit` and `t.errors.expired` ("This form expired: send it
+  again."). A test sends `{ chest_form: formToken() }`. `bound: false`
+  only for an action that writes nothing (`checkSources` fails on a
+  `publicAction` without `bound`, and on budgets without `charge(`).
+  A page with a bounded form is never cached by a shared cache (its
+  token would be everyone's).
 
 ## Fields of an action
 
@@ -159,11 +204,37 @@ same render, with no flash of the old order.
 
 **A page** — a component in `src/pages/`, a route in `src/app.tsx`, its
 words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
+**A page that tells the layout something** (a tab shown only when the
+page found it has content, a count in the nav) — return `{ title, body,
+layout: { trash: true } }`; the layout reads `data.trash` (`{}` on an
+error page: give each a default). Its shape: `layout: { trash: boolean }`
+in `src/register.ts`'s `Register`. Never a module-level or per-member
+cache: two requests run at once.
 **A table** — `migrations/0003_tags.sql`, its rules and SQL in `src/lib/`.
+**Roles** — `"roles": ["manager", "member"]` in `chest.json` (the first
+is the default a new member gets; `"role_labels": { "manager": "Manager" }`
+for the Chest's screens); `member.role` says which, `member.isAdmin` too.
+Who may do what is one function in `src/lib/` (`can(member, "x")`), used
+by pages (to show the button) and actions (to refuse with `forbidden`).
+**Writing to another member** (a notification, a digest), outside their
+request: their language and zone from `members.get(id)` or
+`members.lookup(ids)` (`members` capability), then `words(member.language)`
+(the tool's `src/i18n/index.ts`) and `formatter(language, member.timeZone,
+chest.currency)` from `@argentic/chest-app`. A notification's title is 80
+characters at most and its body 280 (the SDK refuses longer, and a
+schedule that sends one fails at every run): `cutText(title, 80)`. Send
+it in `after("notify", () => notifications.notify(…))` from an action: a
+Chest hiccup then never fails an action whose data is written.
+**Long lists** — page them: `order by created_at desc, id desc limit
+${pageSize + 1}` after the last row's `(created_at, id)` from the address
+(`?after=…`); the extra row says whether a next page exists. Never a
+silent `limit 500`.
 **A schedule** — `"schedules": [{"name": "digest", "cron": "0 7 * * 1-5"}]`
 in `chest.json` (the Chest's zone; 15 minutes apart at least), a handler
 `digest: async run => …` in `schedules.handle` of `src/app.tsx`; within 5
-minutes, idempotent (a failed run comes again with the same id).
+minutes, idempotent (a failed run comes again with the same id). Test it:
+`await chest.run("digest", request => app.fetch(request))` (the SDK's
+`fakeChest`) answers the status; `chest.notifications` lists what it sent.
 **Members' lifecycle** — `"receives": ["member.*"]` (with `members`), a
 handler in `events.handle`: on `member.erased`, delete or anonymise, then
 `acknowledgeErasure`.
@@ -171,6 +242,16 @@ handler in `events.handle`: on `member.erased`, delete or anonymise, then
 `@argentic/chest-app/members` (`members` capability).
 **A download** — a route returning a `Response`, or `stream(c, …)` from
 `hono/streaming` with a cursor; `csvLine([...])` quotes and defuses formulas.
+**An archive** (an export with the files) — `zipStream(entries())` from
+`@argentic/chest-app`, given an async generator that yields `{ name,
+data }` one file at a time (`(await files.get(name)).data`, or a stream):
+the zip is written as it is read, never whole in memory (256 MiB per
+tool). Stored, not compressed; up to 65,535 files and 4 GiB.
+**An import** (a body the tool reads itself) — `app.post("/chest/import",
+rawRoute({ maxBytes: 20 << 20 }, async (body, { viewer, c }) => …))`:
+same-origin checked, the body counted while read (chunked too), 413 past
+`maxBytes`. An action takes `{ maxBody }` instead when its input is a form
+or JSON. `sameOrigin(request)` is exported for a route of the tool's own.
 **An upload** (`files`) — an action answers `await files.uploadUrl("photos/",
 { maxSize, types })`; the island `PUT`s there, then a second action checks
 `files.stat(name)` before recording it.
@@ -273,6 +354,9 @@ The SDK's `fakeChest`, `withMember` sign the member.
 
 | Symptom | Cause |
 |---|---|
+| An island shows a new thing with the old one's state (a draft, an open menu) after a refresh or a navigation | Same island, same place, other subject: give it an id, `<Island id={"card-" + card.id} …/>` (in development the browser warns when a prop `id` changes under an island without one) |
+| Two quick actions reorder rows | Calls with `parallel: true`, or two people at once: serialise in SQL (a transaction with a lock) |
+| Pasted HTML loses its bold and italics, the console reports a refused style | A `DOMParser` document inherits the page's policy: its `style=""` attributes are refused. Rename them in the text before parsing and read them by hand (Wiki's `src/islands/editor/paste.ts`, `unstyled()` and `inlineStyles()`) |
 | TS7022/TS7024: `actions` "implicitly has type any" | A cycle through `Register`: an action's inferred type depends on `t` or on `fail()` in an expression. Annotate its run's return type (`async (…): Promise<{ id: string }> => …`) |
 | A migration's `create extension` fails in the tests on PGlite | Give `testDatabase({ extensions: ["unaccent", "pg_trgm"] })`, or use a server |
 | 401 on `/chest` locally | No Chest: run in the Chest's preview, or test with `fakeChest` |

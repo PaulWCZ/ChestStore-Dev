@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addDays, holidaysBetween, weekday } from "../lib/calendar.ts";
-import { payroll } from "../lib/payroll.ts";
-import * as requests from "../lib/requests.ts";
-import { archiveType, daysOff, saveType, settings, types, updateSettings } from "../lib/rules.ts";
-import { setApprover } from "../lib/staff.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addDays, holidaysBetween, weekday } from "../src/shared/calendar.ts";
+import { payroll } from "../src/lib/payroll.ts";
+import * as requests from "../src/lib/requests.ts";
+import { archiveType, daysOff, saveType, settings, types, updateSettings } from "../src/lib/rules.ts";
+import { setApprover } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, hugo, ines, sofia } from "./support/members.ts";
@@ -15,7 +15,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
 });
 after(async () => {
   await chest.close();

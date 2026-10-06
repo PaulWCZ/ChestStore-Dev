@@ -674,7 +674,10 @@ function front(request, response, host) {
   // Proposal (studio, SDK report §4.8): on the public host, the front tells
   // the tool the visitor's address — the connection it accepted —, which
   // visitors.address() reads; no client can send it (Chest-* removed above).
-  if (host === "public") headers["chest-visitor-address"] = String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "");
+  // A contract-0.4 Chest names no visitor: the header is a proposal (SDK
+  // report §4.8), sent only with --visitor-address, so public forms are
+  // tested as they will run today (every visitor unknown).
+  if (host === "public" && flag("visitor-address")) headers["chest-visitor-address"] = String(request.socket.remoteAddress ?? "").replace(/^::ffff:/u, "");
   if (decision.member) headers["chest-member"] = testing.signAssertion(current(request));
   void toTool(host, request, response, headers);
 }

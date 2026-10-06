@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lines, normalize, plainText, references, safeHref, slug } from "../lib/doc.ts";
-import { fromMarkdown, takeTitle, toMarkdown } from "../lib/markdown.ts";
-import { render } from "../lib/render.ts";
+import { lines, normalize, plainText, references, safeHref, slug } from "../src/lib/doc.ts";
+import { fromMarkdown, takeTitle, toMarkdown } from "../src/lib/markdown.ts";
+import { render } from "../src/lib/render.ts";
 
 const words = { title: (id: string) => (id === "7" ? "Holidays" : undefined), missing: "Page removed" };
 

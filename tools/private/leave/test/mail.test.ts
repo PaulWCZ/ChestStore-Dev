@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { emailOn, mailNotice, mailPreference, setEmail } from "../lib/mail.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { setApprover } from "../lib/staff.ts";
-import * as tell from "../lib/tell.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { emailOn, mailNotice, mailPreference, setEmail } from "../src/lib/mail.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { setApprover } from "../src/lib/staff.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -23,7 +23,7 @@ const withEmail = everyone.map(m => ({ ...m, email: m.firstName.toLowerCase().no
 before(async () => {
   database = await testDatabase();
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" } });
   paid = (await types(database.sql)).find(t => t.key === "paid")!.id;
   await setApprover(database.sql, asMember(camille), hugo.id, ines.id);
 });
@@ -101,7 +101,7 @@ test("the person's choice in the Chest holds too: no email means none — but th
 test("on a Chest without mail nothing is sent and nothing fails", async () => {
   const { sql } = database;
   await chest.close();
-  chest = await fakeChest({ members: withEmail, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: withEmail, groups: fakeGroups });
   const r = await requests.createRequest(sql, asMember(hugo), { typeId: paid, ...week(quietMonday(60)) });
   await tell.asked(sql, asMember(hugo), r);
   assert.equal(chest.outbox.length, 0);
@@ -111,13 +111,13 @@ test("on a Chest without mail nothing is sent and nothing fails", async () => {
 test("the home says the truth about email before anything is sent: none, not connected or paused, the day's quota", async () => {
   assert.equal(await mailNotice(), "none", "a Chest without mail: no switch promising it");
   await chest.close();
-  chest = await fakeChest({ members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" } });
   assert.equal(await mailNotice(), null, "ready: the switch, nothing more");
   for (const [state, notice] of [["not_connected", "off"], ["suspended", "off"]] as const) {
     chest.delivery.mail = state;
     assert.equal(await mailNotice(), notice);
   }
   await chest.close();
-  chest = await fakeChest({ members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test", perDay: 0 } });
+  chest = await fakeChest({ network: {}, members: withEmail, groups: fakeGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test", perDay: 0 } });
   assert.equal(await mailNotice(), "quota");
 });
