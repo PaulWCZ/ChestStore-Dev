@@ -42,7 +42,11 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   `@argentic/chest-app/client`. Islands do not nest. Each island is a
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
   use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
-  `id="toasts"`, so it survives `navigate()`).
+  `id="toasts"`, so it survives `navigate()`). The island's HTML sits in a
+  `<div class="island">` (give it `display: contents` in the tool's CSS,
+  as the starter does): render whole elements in an island — a list's
+  `<ul>`, not its `<li>` — and select its insides by class, not with `>`
+  from outside.
 - **Actions** are the only way to change data: `action(fields, run,
   { maxBody? })` at `POST /chest/actions/<name>`; `publicAction` at
   `/actions/<name>`. Two callers:
@@ -136,13 +140,22 @@ and what `count()` and `sum()` answer come back as **text** (they may not
 fit a JS number): cast in SQL (`count(*)::int`, `sum(amount_cents)::float8`
 when it fits) or `Number(…)` once read. `seen` (same module) is
 the store `events.handle` and `schedules.handle` take; its table is
-`migrations/0001_chest.sql`. **Migrations**: `NNNN_name.sql`, run by the
+`migrations/0001_chest.sql` (`seenIn("my_table")` keeps them in a table of
+the tool's own). It grows one row per delivery: call `seen.forget()` (30
+days by default) from a schedule or after an event. **Migrations**: `NNNN_name.sql`, run by the
 Chest in name order. While the tool is an unpublished draft, its
 migrations may be rewritten; once a version is published, a migration
 that ran is never edited — a change is a new file, and the previous
 version must keep working on the new schema.
 
 ## Recipes
+
+**Optimistic state in a big island** (a board dragged, a list reordered)
+— show the server's props, unless a local state exists while a drag or a
+call is in flight: `const shown = pending ?? props.cards`; set `pending`
+when the person acts, `await call(…)` (it refreshes: the new props
+arrive), then clear `pending` — the clear and the new props land in the
+same render, with no flash of the old order.
 
 **A page** — a component in `src/pages/`, a route in `src/app.tsx`, its
 words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
@@ -237,7 +250,9 @@ a server whose user may create roles: a throwaway database; else the
 preview's DATABASE_URL: a throwaway schema; else PGlite in the process:
 1.2–1.3 GiB for the test run, more than the workbench can spare beside
 the dev server), `checkPage(html)`, `checkWords(catalogues)`,
-`checkSources()` (also: every `src/lib/` module is imported by a test),
+`checkSources()` (also: every `src/lib/` module is imported by a test;
+class names built at run time — `` `c-${color}` `` — need their family in
+the CSS),
 `atLeast(n)` (a file whose tests were removed fails). Run the tests as the
 workbench does too: `NODE_ENV=development npm test`.
 The SDK's `fakeChest`, `withMember` sign the member.
@@ -246,6 +261,8 @@ The SDK's `fakeChest`, `withMember` sign the member.
 
 | Symptom | Cause |
 |---|---|
+| TS7022/TS7024: `actions` "implicitly has type any" | A cycle through `Register`: an action's inferred type depends on `t` or on `fail()` in an expression. Annotate its run's return type (`async (…): Promise<{ id: string }> => …`) |
+| A migration's `create extension` fails in the tests on PGlite | Give `testDatabase({ extensions: ["unaccent", "pg_trgm"] })`, or use a server |
 | 401 on `/chest` locally | No Chest: run in the Chest's preview, or test with `fakeChest` |
 | A style or a script is ignored in the browser | It is inline (`style=`, `<script>…</script>`): the policy blocks it |
 | `call()` answers 404 | The action is not in `src/actions.ts`, or a members' action called from a public page (or the reverse) |

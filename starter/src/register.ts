@@ -1,5 +1,5 @@
 import type { actions } from "./actions.ts";
-import type { Catalogue } from "./i18n/index.ts";
+import type { Catalogue, Locale } from "./i18n/index.ts";
 import type { islands } from "./islands/index.ts";
 
 // What the tool tells @argentic/chest-app about itself: every page,
@@ -8,6 +8,7 @@ import type { islands } from "./islands/index.ts";
 declare module "@argentic/chest-app" {
   interface Register {
     words: Catalogue;
+    locale: Locale;
     actions: typeof actions;
     islands: typeof islands;
   }

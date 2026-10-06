@@ -9,7 +9,7 @@ export { action, publicAction, field, fail, notFound, forbidden, redirect, after
 export { fill, formatter, localeIn, publicLocale, dateFormat, numberFormat, type Format, type Plural } from "./i18n.ts";
 export { csvLine } from "./csv.ts";
 export { log } from "./log.ts";
-export type { Register, CoreWords, Words, ErrorCode } from "./register.ts";
+export type { Register, CoreWords, Words, ErrorCode, Locale } from "./register.ts";
 
 // serve(app): the server on PORT (the Chest sets it and relays its
 // requests there). SIGTERM (the tool goes to sleep, or a new version

@@ -5,7 +5,7 @@ import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
 import { action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { applies, AppError as BrowserError } from "../dist/client.js";
-import { db } from "../dist/db.js";
+import { db, seenIn } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
 // A tool of a few lines on the built package, asked as the Chest asks.
@@ -223,4 +223,17 @@ test("two apps keep their own options", async () => {
   other.get("/chest", page(({ t }) => ({ title: t.tool.name, body: "x" })));
   assert.match(await (await other.fetch(withMember(new Request(url("/chest")), member))).text(), /<title>Other<\/title>/u);
   assert.match(await (await get("/chest")).text(), /Probe/u);
+});
+
+test("seen: any table of the tool's, forgotten after so many days", async () => {
+  assert.throws(() => seenIn("x; drop table y"), TypeError);
+  await db()`create table if not exists my_seen (id text primary key, at timestamptz not null default now())`;
+  const mine = seenIn("my_seen");
+  assert.equal(await mine.has("evt_1"), false);
+  await mine.add("evt_1");
+  await mine.add("evt_1");
+  assert.equal(await mine.has("evt_1"), true);
+  await db()`update my_seen set at = now() - interval '40 days'`;
+  await mine.forget();
+  assert.equal(await mine.has("evt_1"), false);
 });

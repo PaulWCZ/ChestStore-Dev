@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Format } from "./i18n.ts";
 import { log } from "./log.ts";
-import type { ErrorCode, Words } from "./register.ts";
+import type { ErrorCode, Locale, Words } from "./register.ts";
 
 // What pages and actions use: refusals, redirects, the fields of an
 // action's input, the actions themselves.
@@ -203,8 +203,8 @@ export type Cookies = { get(name: string): string | undefined; set(name: string,
 
 // Who acts and in which words: a member on /chest, a visitor on the public
 // part. The request is there for what the rest does not say.
-export type MemberContext = { member: Member; locale: string; t: Words; f: Format; request: Request; cookies: Cookies };
-export type VisitorContext = { member: null; locale: string; t: Words; f: Format; request: Request; cookies: Cookies };
+export type MemberContext = { member: Member; locale: Locale; t: Words; f: Format; request: Request; cookies: Cookies };
+export type VisitorContext = { member: null; locale: Locale; t: Words; f: Format; request: Request; cookies: Cookies };
 
 export type Action<F extends Fields = Fields, R = unknown> = {
   readonly access: "member" | "public";

@@ -4,7 +4,7 @@ import type { ComponentType } from "react";
 // What a tool tells the package about itself, once, in src/register.ts:
 //
 //   declare module "@argentic/chest-app" {
-//     interface Register { words: Catalogue; actions: typeof actions; islands: typeof islands }
+//     interface Register { words: Catalogue; locale: Locale; actions: typeof actions; islands: typeof islands }
 //   }
 //
 // Every page, action, call() and <Island> is then typed with the tool's own
@@ -42,5 +42,8 @@ export type CoreWords = {
 type Registered<K extends string, Fallback> = Register extends { [P in K]: infer T } ? T : Fallback;
 export type Words = Registered<"words", CoreWords> & CoreWords;
 export type ErrorCode = Extract<keyof Words["errors"], string>;
+// The tool's languages ("en" | "fr"), from Register's locale; any string
+// otherwise.
+export type Locale = Registered<"locale", string> & string;
 export type RegisteredActions = Registered<"actions", Record<string, unknown>>;
 export type RegisteredIslands = Registered<"islands", Record<string, ComponentType<any>>>;

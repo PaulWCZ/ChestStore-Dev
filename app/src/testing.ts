@@ -22,7 +22,11 @@ export type TestDatabase = { sql: postgres.Sql; kind: "server" | "preview" | "pg
 const chestShape = /^postgres:\/\/(t_[a-z][a-z0-9_]{0,47}|pb_[a-z2-7]{26}):[^@]+@127\.0\.0\.1:\d+\/\1\?sslmode=disable$/u;
 const quiet = { onnotice: () => {} };
 
-export async function testDatabase({ migrations = "migrations" }: { migrations?: string } = {}): Promise<TestDatabase> {
+// extensions: what the migrations create (unaccent, pg_trgm…), for
+// PGlite, which loads each from its own contrib module; a server has them.
+// PGlite serves every connection from one session: work after() still
+// does may run between a test's queries — another reason to prefer a server.
+export async function testDatabase({ migrations = "migrations", extensions = [] }: { migrations?: string; extensions?: string[] } = {}): Promise<TestDatabase> {
   const files = existsSync(migrations) ? readdirSync(migrations).filter(f => /^\d{4}_[a-z0-9_-]+\.sql$/u.test(f)).sort().map(f => readFileSync(join(migrations, f), "utf8")) : [];
   const name = `t_test_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const server = process.env["TEST_DATABASE_URL"];
@@ -66,7 +70,13 @@ export async function testDatabase({ migrations = "migrations" }: { migrations?:
   }
   const { PGlite } = await import("@electric-sql/pglite");
   const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
-  const pg = await PGlite.create();
+  const loaded: Record<string, unknown> = {};
+  for (const name of extensions) {
+    if (!/^[a-z_][a-z0-9_]*$/u.test(name)) throw new TypeError(`extension ${name}`);
+    const module = await import(`@electric-sql/pglite/contrib/${name}`) as Record<string, unknown>;
+    loaded[name] = module[name];
+  }
+  const pg: InstanceType<typeof PGlite> = await (PGlite.create as (options: object) => Promise<InstanceType<typeof PGlite>>)({ extensions: loaded });
   const socket = new PGLiteSocketServer({ db: pg, host: "127.0.0.1", port: 0, maxConnections: 8 });
   await socket.start();
   const port = (socket as unknown as { server: { address(): { port: number } } }).server.address().port;

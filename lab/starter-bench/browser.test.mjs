@@ -140,9 +140,13 @@ test("a second send while the first is on its way says so", async () => {
   await close();
 });
 
-test("the browser's files are cached: for ever with ?v=, an hour without", async () => {
-  assert.equal((await fetch(`${tool.origin}/assets/client.js?v=x`)).headers.get("cache-control"), "public, max-age=31536000, immutable");
-  assert.equal((await fetch(`${tool.origin}/assets/client.js`)).headers.get("cache-control"), "public, max-age=3600");
+test("the browser's files are cached: for ever when named by hash or ?v=, an hour without", async () => {
+  const page = await (await fetch(`${tool.origin}/chest`)).text();
+  const script = /src="(\/assets\/client-[\w-]+\.js)"/u.exec(page)?.[1];
+  assert.ok(script, "the entry, named by its hash");
+  assert.equal((await fetch(`${tool.origin}${script}`)).headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal((await fetch(`${tool.origin}/assets/client.css?v=x`)).headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal((await fetch(`${tool.origin}/assets/client.css`)).headers.get("cache-control"), "public, max-age=3600");
 });
 
 test("a 502 that is not a page keeps the page and what is typed; call() on the Chest's 403 loads the page again", async () => {
