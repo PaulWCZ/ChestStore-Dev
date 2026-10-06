@@ -1,12 +1,12 @@
 import { call, navigate, toast } from "@argentic/chest-app/client";
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Avatar, Dialog, SearchBox } from "@argentic/chest-ui/components";
 import { StatusStamp } from "../components/bits.tsx";
 import { CategoryIcon, Check, Close, Give, Inbox } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format } from "../i18n/format.ts";
-import { fold, limits } from "../shared/model.ts";
-import type { Row } from "../lib/view.ts";
+import { limits } from "../shared/model.ts";
+import { useOffer } from "./offer.ts";
 
 type Words = { overview: Catalogue["overview"]; requests: Catalogue["requests"]; common: Catalogue["common"]; dialog: Catalogue["dialog"]; search: Catalogue["search"] };
 export type WaitingRequest = { id: string; member: string; name: string; photo: string | null; body: string; kind: string | null; categoryId: string | null; approved: boolean; when: string; gone: boolean };
@@ -14,21 +14,17 @@ export type WaitingRequest = { id: string; member: string; name: string; photo: 
 // The requests waiting for the managers, on the overview: give something
 // from the stock (the request is done), approve it (to buy; it stays here
 // until given), or refuse it with a reason. The person hears each answer.
-export function RequestsPanel({ requests, offer, t }: { requests: WaitingRequest[]; offer: (Row & { categoryId: string })[]; t: Words }) {
+export function RequestsPanel({ requests, t }: { requests: WaitingRequest[]; t: Words }) {
   const [pending, start] = useTransition();
   const [giving, setGiving] = useState<WaitingRequest | null>(null);
   const [refusing, setRefusing] = useState<WaitingRequest | null>(null);
   const [reason, setReason] = useState("");
-  const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const w = t.requests;
-  const shown = useMemo(() => {
-    if (!giving) return [];
-    const k = fold(q);
-    const same = offer.filter(o => !giving.categoryId || o.categoryId === giving.categoryId);
-    const pool = k ? offer : same.length > 0 ? same : offer;
-    return pool.filter(o => !k || fold(`${o.name} ${o.tag} ${o.category} ${o.serial ?? ""}`).includes(k)).slice(0, 60);
-  }, [offer, giving, q]);
+  // Things in stock, free seats, supplies left: read when the dialog opens
+  // (the request's kind first), then as the manager types.
+  const offer = useOffer(giving !== null, { categoryId: giving?.categoryId ?? null, consumables: true });
+  const shown = offer.rows;
 
   const run = (step: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string, after?: () => void) => start(async () => {
     setError(null);
@@ -52,7 +48,7 @@ export function RequestsPanel({ requests, offer, t }: { requests: WaitingRequest
             </div>
             <p className="quote">{r.body}</p>
             <div className="row">
-              {!r.gone && <button type="button" className="button small" disabled={pending} onClick={() => { setQ(""); setError(null); setGiving(r); }}><Give />{w.give}</button>}
+              {!r.gone && <button type="button" className="button small" disabled={pending} onClick={() => { setError(null); setGiving(r); }}><Give />{w.give}</button>}
               {!r.approved && !r.gone && <button type="button" className="button small quiet" disabled={pending} onClick={() => run(() => call("approveRequest", { id: r.id }, { quiet: true }), format(w.approvedDone, { name: r.name }))}><Check />{w.approve}</button>}
               <button type="button" className="button small link" disabled={pending} onClick={() => { setReason(""); setError(null); setRefusing(r); }}><Close />{w.refuse}</button>
             </div>
@@ -63,9 +59,9 @@ export function RequestsPanel({ requests, offer, t }: { requests: WaitingRequest
       <Dialog open={giving !== null} title={format(w.giveTitle, { name: giving?.name ?? "" })} labels={t.dialog} onClose={() => setGiving(null)}>
         <div className="stack">
           {giving && <p className="quote">{giving.body}</p>}
-          <SearchBox action="/chest/items" onSearch={setQ} shortcut={false} labels={{ ...t.search, label: w.findStock, placeholder: w.findStock }} maxLength={limits.search} />
-          {shown.length === 0 ? <p className="muted">{w.noStock}</p> : (
-            <ul className="pick-list">
+          <SearchBox action="/chest/items" onSearch={offer.setQ} shortcut={false} labels={{ ...t.search, label: w.findStock, placeholder: w.findStock }} maxLength={limits.search} />
+          {shown.length === 0 ? (offer.loading ? null : <p className="muted">{w.noStock}</p>) : (
+            <ul className="pick-list" aria-busy={offer.loading}>
               {shown.map(o => (
                 <li key={o.id}>
                   <button type="button" className="pick" disabled={pending} onClick={() => giving && run(() => call("fulfilRequest", { id: giving.id, itemId: o.id }, { quiet: true }), format(w.givenDone, { name: giving.name }), () => setGiving(null))}>

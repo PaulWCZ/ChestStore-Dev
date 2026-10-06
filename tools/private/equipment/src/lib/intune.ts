@@ -5,7 +5,7 @@ import { can } from "./access.ts";
 import { AppError, type ErrorCode } from "@argentic/chest-app";
 import { toCsv } from "./csv.ts";
 import type { Query, Sql } from "./db.ts";
-import { everyone, people, plainName } from "./people.ts";
+import { everyone, people } from "./people.ts";
 import { personByName } from "./importer.ts";
 
 // Microsoft Intune, read only — the first MDM connector (critique round 3).
@@ -211,7 +211,14 @@ export async function refresh(sql: Sql, actor: Member | null | "schedule", env: 
     if (outcome) await sql`insert into intune_reads (by, outcome) values (${by}, ${outcome})`;
     throw error;
   }
-  const memberOf = await membersOf(devices);
+  let memberOf: Map<Device, string | null>;
+  try {
+    memberOf = await membersOf(devices);
+  } catch (error) {
+    // The Chest did not answer the match: the read failed, and says so.
+    if (error instanceof AppError && error.code === "unavailable") await sql`insert into intune_reads (by, outcome) values (${by}, 'unavailable')`;
+    throw error;
+  }
   const now = new Date();
   // One line per serial number: a device enrolled twice keeps its latest
   // check-in.
@@ -289,8 +296,9 @@ export async function status(sql: Query, actor: Member | null, env: Env = proces
 
 // The devices of Intune (just read) no item has the serial number of, as a
 // spreadsheet the importer reads (its preview, then its import: the same
-// checks, nothing added twice). "Assigned to" is the name, today, of the
-// member the device's address matched; a device no member matched keeps
+// checks, nothing added twice). "Assigned to" is the id of the member the
+// device's address matched (the preview shows their name); a device no
+// member matched keeps
 // the name Intune gives, which the preview shows the manager as found or
 // not before anything is imported. Columns in
 // English, which the importer knows; the operating system and the IMEI go
@@ -307,8 +315,10 @@ export async function missingAsCsv(sql: Query, actor: Member | null, devices: (D
     if (known.has(key) || seen.has(key)) continue;
     seen.add(key);
     const name = [d.manufacturer, d.model].filter(Boolean).join(" ") || d.deviceName || d.serial;
+    // The member the address matched, by id (the importer reads it as
+    // such); else the name Intune gives, found or not by the preview.
     const matched = d.member ? who.get(d.member) : undefined;
-    const holder = matched?.status === "member" ? plainName(matched, "en") : d.user ?? "";
+    const holder = matched?.status === "member" ? matched.id : d.user ?? "";
     rows.push([name, kindOf(d.os), d.serial, holder, [d.os, d.osVersion].filter(Boolean).join(" "), d.imei ?? ""]);
   }
   return { text: toCsv([["Name", "Category", "Serial number", "Assigned to", "Operating system", "IMEI"], ...rows]), count: rows.length };

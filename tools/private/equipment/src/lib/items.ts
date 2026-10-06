@@ -155,6 +155,15 @@ export async function load(sql: Query, itemId: unknown, options: { lock?: boolea
   return shape(rows[0]);
 }
 
+// Several items at once, by id (one query: a page listing 100 things never
+// asks 100 times). Deleted ones are left out.
+export async function loadMany(sql: Query, ids: string[]): Promise<Map<string, Item>> {
+  const wanted = [...new Set(ids.map(String))].filter(x => /^[1-9][0-9]{0,17}$/u.test(x));
+  if (wanted.length === 0) return new Map();
+  const rows = await sql<Row[]>`${select(sql)} where i.id = any(${wanted}) and i.deleted_at is null`;
+  return new Map(rows.map(shape).map(item => [item.id, item]));
+}
+
 export type Entry = {
   item: string; actor: string; kind: string; member?: string | null; place?: string | null; status?: string | null; note?: string | null; day?: string | null;
   qty?: number | null; costCents?: number | null; ref?: string | null; due?: string | null;
@@ -471,10 +480,17 @@ export async function restoreItem(sql: Sql, actor: Member | null, itemId: unknow
 function holding(value: unknown): Holding {
   if (value && typeof value === "object") {
     const v = value as { member?: unknown; place?: unknown };
-    if (v.member !== undefined) return { member: memberId(v.member) };
+    if (v.member !== undefined) return { member: v.member === "erased" ? "erased" : memberId(v.member) };
     if (v.place !== undefined) return { place: clean(v.place, limits.place) };
   }
   throw new AppError("invalid");
+}
+
+// Whether an item is where someone saw it: with that member, at that
+// place, or (null) with no one.
+function sameHolding(item: Pick<Item, "holder" | "place">, seen: Holding | null): boolean {
+  if (seen === null) return item.holder === null && item.place === null;
+  return "member" in seen ? item.holder === seen.member : item.holder === null && item.place === seen.place;
 }
 
 function onDay(value: unknown): string {
@@ -493,9 +509,15 @@ function onDay(value: unknown): string {
 // received it (a receipt). quiet is an Undo: the item goes back to whom
 // just had it, without a bell, and their receipt counts again. bell: false
 // leaves the telling to the caller (a request answered).
-export async function give(sql: Sql, actor: Member | null, itemId: unknown, input: { to?: unknown; note?: unknown; day?: unknown }, options: { quiet?: boolean; bell?: boolean } = {}): Promise<Item> {
+// from: where the person giving saw it when they chose (null: in stock, no
+// one has it). Two managers giving the same laptop at once: the second
+// finds it moved (the row is locked, then compared) and is refused
+// "moved" — it never silently takes it from whom the first just gave it.
+// Absent: no check (an Undo, which puts back what was just true).
+export async function give(sql: Sql, actor: Member | null, itemId: unknown, input: { to?: unknown; note?: unknown; day?: unknown; from?: unknown }, options: { quiet?: boolean; bell?: boolean } = {}): Promise<Item> {
   const who = manager(actor);
   const to = holding(input.to);
+  const expected = input.from === undefined ? undefined : input.from === null ? null : holding(input.from);
   const note = optional(input.note, limits.condition, { multiline: true });
   const when = onDay(input.day);
   if ("member" in to && !(await present([to.member])).has(to.member)) throw new AppError("not_member");
@@ -504,6 +526,7 @@ export async function give(sql: Sql, actor: Member | null, itemId: unknown, inpu
     if (before.category.kind === "licence") throw new AppError("is_licence");
     if (before.category.kind === "consumable") throw new AppError("is_consumable");
     if (before.status === "retired") throw new AppError("not_available");
+    if (expected !== undefined && !sameHolding(before, expected)) throw new AppError("moved");
     if (("member" in to && before.holder === to.member) || ("place" in to && before.place === to.place)) throw new AppError("already_there");
     if (before.holder || before.place) await record(tx, { item: before.id, actor: who.id, kind: "returned", member: before.holder, place: before.place, day: when });
     const member = "member" in to ? to.member : null;
@@ -522,8 +545,9 @@ export async function give(sql: Sql, actor: Member | null, itemId: unknown, inpu
 
 // takeBack ends a holding: the item goes back in stock (or to repair), with
 // its condition noted.
-export async function takeBack(sql: Sql, actor: Member | null, itemId: unknown, input: { note?: unknown; status?: unknown; day?: unknown } = {}): Promise<{ item: Item; from: Holding }> {
+export async function takeBack(sql: Sql, actor: Member | null, itemId: unknown, input: { note?: unknown; status?: unknown; day?: unknown; from?: unknown } = {}): Promise<{ item: Item; from: Holding }> {
   const who = manager(actor);
+  const expected = input.from === undefined ? undefined : input.from === null ? null : holding(input.from);
   const note = optional(input.note, limits.condition, { multiline: true });
   const status: ChosenStatus = input.status === undefined || input.status === null || input.status === "" ? "in_stock" : isChosenStatus(input.status) ? input.status : "in_stock";
   if (input.status !== undefined && input.status !== null && input.status !== "" && !isChosenStatus(input.status)) throw new AppError("invalid");
@@ -531,6 +555,7 @@ export async function takeBack(sql: Sql, actor: Member | null, itemId: unknown, 
   const result = await sql.begin(async tx => {
     const before = await load(tx, itemId, { lock: true });
     if (!before.holder && !before.place) throw new AppError("not_held");
+    if (expected !== undefined && !sameHolding(before, expected)) throw new AppError("moved");
     await tx`update items set holder = null, place = null, held_since = null, status = ${status}, updated_at = now() where id = ${before.id}`;
     await record(tx, { item: before.id, actor: who.id, kind: "returned", member: before.holder, place: before.place, status, note, day: when });
     await closeReceipts(tx, before.id);
@@ -600,16 +625,39 @@ export async function setStatus(sql: Sql, actor: Member | null, itemId: unknown,
 // The repair an item is in now: since when, the repairer's reference, the
 // day it is expected back (the last word of the history on it).
 export async function repairOf(sql: Query, itemId: string): Promise<{ since: string; ref: string | null; due: string | null } | null> {
-  const rows = await sql<{ at: Date; status: string; ref: string | null; due: string | null }[]>`
-    select at, status, ref, to_char(due, 'YYYY-MM-DD') as due from history
-    where item_id = ${itemId} and ((kind = 'status') or (kind = 'returned' and status is not null)) order by id desc limit 20`;
-  if (rows[0]?.status !== "in_repair") return null;
-  // The first word of this repair gives its start; the latest words its
-  // reference and its day.
-  let k = 0;
-  while (rows[k + 1]?.status === "in_repair") k++;
-  const span = rows.slice(0, k + 1);
-  return { since: new Date(rows[k]!.at).toISOString(), ref: span.find(r => r.ref !== null)?.ref ?? null, due: span.find(r => r.due !== null)?.due ?? null };
+  return (await repairsOf(sql, [itemId])).get(String(itemId)) ?? null;
+}
+
+// The repairs under way of several items, read in one query: each item's
+// last 20 status words.
+type RepairNow = { since: string; ref: string | null; due: string | null };
+export async function repairsOf(sql: Query, itemIds: string[]): Promise<Map<string, RepairNow | null>> {
+  const ids = [...new Set(itemIds.map(String))];
+  const out = new Map<string, RepairNow | null>();
+  if (ids.length === 0) return out;
+  type Word = { item_id: string; at: Date; status: string; ref: string | null; due: string | null };
+  const rows = await sql<Word[]>`
+    select item_id, at, status, ref, due from (
+      select item_id, id, at, status, ref, to_char(due, 'YYYY-MM-DD') as due, row_number() over (partition by item_id order by id desc) as n
+      from history where item_id = any(${ids}) and ((kind = 'status') or (kind = 'returned' and status is not null))
+    ) x where n <= 20 order by item_id, id desc`;
+  const byItem = new Map<string, Word[]>();
+  for (const r of rows) {
+    const list = byItem.get(String(r.item_id)) ?? [];
+    list.push(r);
+    byItem.set(String(r.item_id), list);
+  }
+  for (const id of ids) {
+    const words = byItem.get(id) ?? [];
+    if (words[0]?.status !== "in_repair") { out.set(id, null); continue; }
+    // The first word of this repair gives its start; the latest words its
+    // reference and its day.
+    let k = 0;
+    while (words[k + 1]?.status === "in_repair") k++;
+    const span = words.slice(0, k + 1);
+    out.set(id, { since: new Date(words[k]!.at).toISOString(), ref: span.find(r => r.ref !== null)?.ref ?? null, due: span.find(r => r.due !== null)?.due ?? null });
+  }
+  return out;
 }
 
 // What repairs cost an item, all told.
@@ -742,9 +790,11 @@ export async function unconfirmedReceipts(sql: Query, actor: Member | null, befo
     select r.item_id, r.member_id, to_char(r.given_on, 'YYYY-MM-DD') as given_on, coalesce(r.reminded_at > now() - interval '20 hours', false) as reminded from receipts r join items i on i.id = r.item_id
     where r.confirmed_at is null and r.closed_at is null and r.given_on <= ${before} and i.holder = r.member_id and i.deleted_at is null
     order by r.given_on, r.id limit 50`;
-  const out: { item: Item; member: string; givenOn: string; remindedToday: boolean }[] = [];
-  for (const r of rows) out.push({ item: await load(sql, r.item_id), member: r.member_id, givenOn: r.given_on, remindedToday: r.reminded });
-  return out;
+  const loaded = await loadMany(sql, rows.map(r => String(r.item_id)));
+  return rows.flatMap(r => {
+    const item = loaded.get(String(r.item_id));
+    return item ? [{ item, member: r.member_id, givenOn: r.given_on, remindedToday: r.reminded }] : [];
+  });
 }
 
 // The receipts of what a person holds now, by item id.
@@ -821,15 +871,24 @@ export async function giveBackEverything(sql: Sql, actor: Member | null, holder:
   const list = (v: unknown) => (Array.isArray(v) ? v.slice(0, 1000).map(x => id(x)) : []);
   const when = chest.today();
   await sql.begin(async tx => {
+    // Only what was just taken back from them: the item's last word in its
+    // history says so (the ids come from the page; never a way to give
+    // anyone anything). Never supplies (counted, not held).
+    const lastWord = async (itemId: string, kind: string) => {
+      const [last] = await tx<{ kind: string; member: string | null }[]>`select kind, member from history where item_id = ${itemId} order by at desc, id desc limit 1`;
+      return last?.kind === kind && last.member === h;
+    };
     for (const itemId of list(taken.items)) {
+      if (!(await lastWord(itemId, "returned"))) continue;
       const moved = await tx`update items set holder = ${h}, held_since = ${when}, status = 'in_use', updated_at = now()
-        where id = ${itemId} and holder is null and place is null and deleted_at is null and seats is null and status <> 'retired' returning id`;
+        where id = ${itemId} and holder is null and place is null and deleted_at is null and seats is null and quantity is null and status <> 'retired' returning id`;
       if (moved.length > 0) {
         await record(tx, { item: itemId, actor: who.id, kind: "given", member: h, day: when });
         await reopenReceipt(tx, itemId, h);
       }
     }
     for (const itemId of list(taken.seats)) {
+      if (!(await lastWord(itemId, "seat_taken"))) continue;
       const [item] = await tx<{ seats: number | null; used: number }[]>`
         select seats, (select count(*)::int from seats s where s.item_id = i.id) as used from items i where id = ${itemId} and deleted_at is null and status <> 'retired' for update`;
       if (!item || item.seats === null || item.used >= item.seats) continue;
@@ -881,9 +940,11 @@ export async function openProblems(sql: Query, actor: Member | null): Promise<(P
   const rows = await sql<{ id: string; item_id: string; reported_by: string; body: string; created_at: Date }[]>`
     select p.id, p.item_id, p.reported_by, p.body, p.created_at from problems p join items i on i.id = p.item_id
     where p.solved_at is null and i.deleted_at is null order by p.id desc limit 100`;
-  const out: (Problem & { item: Item })[] = [];
-  for (const p of rows) out.push({ id: String(p.id), itemId: String(p.item_id), reportedBy: p.reported_by, body: p.body, createdAt: new Date(p.created_at).toISOString(), item: await load(sql, p.item_id) });
-  return out;
+  const loaded = await loadMany(sql, rows.map(p => String(p.item_id)));
+  return rows.flatMap(p => {
+    const item = loaded.get(String(p.item_id));
+    return item ? [{ id: String(p.id), itemId: String(p.item_id), reportedBy: p.reported_by, body: p.body, createdAt: new Date(p.created_at).toISOString(), item }] : [];
+  });
 }
 
 // ---- Photos ---------------------------------------------------------------
@@ -945,15 +1006,39 @@ export type InRepair = Item & { repair: { since: string; ref: string | null; due
 
 export async function overview(sql: Query, actor: Member | null, now = chest.today()): Promise<{ ending: Item[]; repair: InRepair[]; problems: (Problem & { item: Item })[]; low: Item[] }> {
   manager(actor);
-  const repair: InRepair[] = [];
-  for (const item of (await sql<Row[]>`${select(sql)} where i.deleted_at is null and i.status = 'in_repair' order by i.updated_at limit 100`).map(shape)) {
-    repair.push({ ...item, repair: await repairOf(sql, item.id) });
-  }
+  const inRepair = (await sql<Row[]>`${select(sql)} where i.deleted_at is null and i.status = 'in_repair' order by i.updated_at limit 100`).map(shape);
+  const repairs = await repairsOf(sql, inRepair.map(i => i.id));
+  const repair: InRepair[] = inRepair.map(item => ({ ...item, repair: repairs.get(item.id) ?? null }));
   return { ending: await endingSoon(sql, now), repair, problems: await openProblems(sql, actor), low: await runningLow(sql, actor) };
 }
 
 // For the form: the tag a new item would get, and the suppliers already
 // named (a list to pick from).
+// What can be given now, found as a manager types (the Give dialogs of a
+// request and of a person's page): things in stock, licences with a free
+// seat (not one this person already has), supplies left (when asked).
+// Read when the dialog opens, never sent with the page: 60 at most.
+export const offerSize = 60;
+export async function stockOffer(sql: Query, actor: Member | null, options: { q?: string; categoryId?: string | null; consumables?: boolean; exceptSeatOf?: string | null } = {}): Promise<Item[]> {
+  const who = manager(actor);
+  const q = (options.q ?? "").trim().slice(0, limits.search);
+  const like = "%" + q.replace(/[\\%_]/gu, m => "\\" + m) + "%";
+  const category = options.categoryId && /^[1-9][0-9]{0,17}$/u.test(options.categoryId) ? options.categoryId : null;
+  const except = options.exceptSeatOf && (options.exceptSeatOf === "erased" || /^mbr_[a-z2-7]{26}$/u.test(options.exceptSeatOf)) ? options.exceptSeatOf : null;
+  const rows = await sql<{ id: string }[]>`
+    select i.id from items i join categories c on c.id = i.category_id
+    where i.deleted_at is null and (
+      (i.status = 'in_stock' and (c.kind = 'asset' or (c.kind = 'consumable' and ${options.consumables === true} and coalesce(i.quantity, 0) > 0)))
+      or (c.kind = 'licence' and i.status <> 'retired' and i.seats > (select count(*) from seats s where s.item_id = i.id)
+        ${except ? sql`and not exists (select 1 from seats s where s.item_id = i.id and s.member_id = ${except})` : sql``}))
+    ${category ? sql`and i.category_id = ${category}` : sql``}
+    ${q ? sql`and (i.tag ilike ${like} or i.name ilike ${like} or i.serial ilike ${like} or c.name ilike ${like})` : sql``}
+    order by lower(i.name), i.id limit ${offerSize}`;
+  if (rows.length === 0) return [];
+  const found = await listItems(sql, who, { ids: rows.map(r => String(r.id)) }, offerSize);
+  return found.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || Number(a.id) - Number(b.id));
+}
+
 export async function formHints(sql: Query, actor: Member | null): Promise<{ nextTag: string; suppliers: string[] }> {
   manager(actor);
   const suppliers = (await sql<{ supplier: string }[]>`select distinct supplier from items where supplier is not null and deleted_at is null order by supplier limit 200`).map(r => r.supplier);

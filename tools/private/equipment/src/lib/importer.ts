@@ -290,12 +290,14 @@ export type Context = { people: Colleague[]; tags: Set<string>; serials: Set<str
 export type Options = { keep?: string[] };
 
 export function plan(text: unknown, source: Source, context: Context, options: Options = {}): Plan {
-  if (typeof text !== "string" || text.length > limits.importBytes) throw new AppError("import_invalid");
+  if (typeof text !== "string") throw new AppError("import_invalid");
+  if (text.length > limits.importBytes) throw new AppError("import_too_large", { max: Math.round(limits.importBytes / (1 << 20)) });
   // A cell a spreadsheet would run as a formula was written behind a quote
   // (this tool's export, lib/csv.ts, and spreadsheets' own habit): the
   // value is what follows the quote.
   const table = parseCsv(text, limits.importRows + 1).map(row => row.map(c => (/^'[=+\-@\t\r]/u.test(c) ? c.slice(1) : c)));
-  if (table.length < 2 || table.length > limits.importRows + 1) throw new AppError("import_invalid");
+  if (table.length > limits.importRows + 1) throw new AppError("import_too_many_rows", { max: limits.importRows });
+  if (table.length < 2) throw new AppError("import_invalid");
   const { found, ignored: skippedColumns, custom } = readHeader(table[0]!, source);
   // Other columns: one named as an existing field is always read; the rest
   // when kept (all by default).
@@ -376,14 +378,19 @@ export function plan(text: unknown, source: Source, context: Context, options: O
 
     // Who has it.
     const first = cell(row, "holderFirst"), last = cell(row, "holderLast");
-    const holderText = (cell(row, "holder") || [first, last].filter(Boolean).join(" ")).replace(/\s*\((former member|ancien membre)\)\s*$/iu, "").replace(/^([^,]+),\s*(.+)$/u, "$2 $1").trim();
+    // Intune's list names the member its address matched by their id (the
+    // Chest's match, never redone by name: two people may share one).
+    const matchedId = source === "intune" && /^mbr_[a-z2-7]{26}$/u.test(cell(row, "holder")) ? cell(row, "holder") : null;
+    const matchedPerson = matchedId ? context.people.find(p => p.id === matchedId) ?? null : null;
+    const holderText = matchedPerson ? matchedPerson.name : (cell(row, "holder") || [first, last].filter(Boolean).join(" ")).replace(/\s*\((former member|ancien membre)\)\s*$/iu, "").replace(/^([^,]+),\s*(.+)$/u, "$2 $1").trim();
     const addressName = (cell(row, "holderEmail").split("@")[0] || cell(row, "holderUser")).replace(/[._-]+/gu, " ");
     let holder: string | null = null;
     // Checked out to a location (Snipe-IT) is a place; to another asset, nobody.
     const target = plain(cell(row, "checkoutType"));
     const toPlace = target === "location" || target === "emplacement" || target === "lieu";
     const toAsset = target === "asset" || target === "materiel";
-    if (!licence && !consumable && !toPlace && !toAsset && (holderText || addressName)) {
+    if (matchedPerson && !licence && !consumable) holder = matchedPerson.id;
+    else if (!licence && !consumable && !toPlace && !toAsset && (holderText || addressName)) {
       const byName = holderText ? people.get(plain(holderText)) ?? [] : [];
       const byAddress = !byName.length && addressName ? people.get(plain(addressName)) ?? [] : [];
       const matches = byName.length ? byName : byAddress;
@@ -511,6 +518,27 @@ function readOptions(value: unknown): Options {
   if (keep === undefined) return {};
   if (!Array.isArray(keep) || keep.length > 200 || !keep.every(k => typeof k === "string" && k.length <= 200)) throw new AppError("invalid");
   return { keep: keep as string[] };
+}
+
+// What the page shows before importing: the counts and the first 50 rows
+// (a whole 5,000-row plan was 7 MB of JSON to the browser).
+export const previewRows = 50;
+export type Preview = {
+  source: Source; rows: PlanRow[]; total: number; usable: number; given: number; placed: number;
+  newCategories: string[]; offered: string[]; newFields: string[]; ignored: string[];
+};
+export function previewOf(p: Plan): Preview {
+  let usable = 0, given = 0, placed = 0;
+  for (const r of p.rows) {
+    if (r.skip) continue;
+    usable++;
+    if (r.holder) given++;
+    if (r.place) placed++;
+  }
+  return {
+    source: p.source, rows: p.rows.slice(0, previewRows), total: p.rows.length, usable, given, placed,
+    newCategories: p.newCategories, offered: p.offered, newFields: [...new Set(p.newFields.map(f => f.name))], ignored: p.ignored,
+  };
 }
 
 export async function previewImport(sql: Sql, actor: Member | null, source: unknown, text: unknown, options?: unknown): Promise<Plan> {

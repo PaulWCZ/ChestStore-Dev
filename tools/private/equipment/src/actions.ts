@@ -1,11 +1,11 @@
 import { TooLarge } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
-import { action, fail, field, type Field, type Fields, type InputOf, type MemberContext } from "@argentic/chest-app";
+import { action, AppError, fail, field, log, type Field, type Fields, type InputOf, type MemberContext } from "@argentic/chest-app";
 import { can } from "./lib/access.ts";
 import { addCategory, removeCategory, restoreCategory, setMembersSee as setSee, updateCategory } from "./lib/categories.ts";
 import { db } from "./lib/db.ts";
 import { addField, removeField, renameField, restoreField } from "./lib/fields.ts";
-import { applyImport, previewImport, type Plan } from "./lib/importer.ts";
+import { applyImport, previewImport, previewOf, type Preview } from "./lib/importer.ts";
 import { missingAsCsv, refresh } from "./lib/intune.ts";
 import * as inventory from "./lib/inventory.ts";
 import * as items from "./lib/items.ts";
@@ -13,6 +13,9 @@ import { confirm, remind, setCharter } from "./lib/receipts.ts";
 import * as requests from "./lib/requests.ts";
 import { tellPeople } from "./lib/returned.ts";
 import { remindReceipt } from "./lib/tell.ts";
+import { rowOf, type Row } from "./lib/view.ts";
+import { localeOf } from "./i18n/index.ts";
+import { chest } from "@argentic/chest-sdk/chest";
 import { limits } from "./shared/model.ts";
 
 // Every mutation of Equipment, by name: POST /chest/actions/<name>, called
@@ -79,12 +82,14 @@ export const actions = {
   }),
 
   // ---- Give and take back.
-  giveItem: act({ id: id(), to: field.json(), note: maybe<string>(), day: maybe<string>() }, async ({ id, to, note, day }, { member }): Promise<null> => {
-    await items.give(db(), member, id, { to, note, day });
+  // from: where the person saw it (null: in stock): refused "moved" when
+  // someone else gave it or took it back meanwhile.
+  giveItem: act({ id: id(), to: field.json(), from: maybe<Holding | null>(), note: maybe<string>(), day: maybe<string>() }, async ({ id, to, from, note, day }, { member }): Promise<null> => {
+    await items.give(db(), member, id, { to, note, day, from: from === undefined ? null : from });
     return null;
   }),
-  takeBackItem: act({ id: id(), note: maybe<string>(), status: maybe<string>(), day: maybe<string>() }, async ({ id, note, status, day }, { member }): Promise<Holding> =>
-    (await items.takeBack(db(), member, id, { note, status, day })).from),
+  takeBackItem: act({ id: id(), from: field.json(), note: maybe<string>(), status: maybe<string>(), day: maybe<string>() }, async ({ id, from, note, status, day }, { member }): Promise<Holding> =>
+    (await items.takeBack(db(), member, id, { note, status, day, from })).from),
   // Undo of a take-back: the same holder has it again, without a new bell item.
   undoTakeBack: act({ id: id(), to: field.json() }, async ({ id, to }, { member }): Promise<null> => {
     await items.give(db(), member, id, { to }, { quiet: true });
@@ -111,6 +116,17 @@ export const actions = {
     await items.giveSeat(db(), member, id, holder, { quiet: true });
     return null;
   }),
+  // What a Give dialog offers, read when it opens and as the manager types
+  // (never sent with the page): things in stock, free seats, supplies left.
+  // A request's kind first, when nothing is typed and some are in stock.
+  stockOffer: action({ q: maybe<string>(), categoryId: maybe<string>(), consumables: field.bool(), person: maybe<string>() },
+    async ({ q, categoryId, consumables, person }, { member, t, locale }): Promise<(Row & { categoryId: string })[]> => {
+      const read = (category: unknown) => items.stockOffer(db(), member, { q: typeof q === "string" ? q : "", categoryId: typeof category === "string" ? category : null, consumables, exceptSeatOf: typeof person === "string" ? person : null });
+      let found = await read(q ? null : categoryId);
+      if (found.length === 0 && categoryId && !q) found = await read(null);
+      const today = chest.today();
+      return found.map(i => ({ ...rowOf(i, new Map(), t, localeOf(locale), today, member.id), categoryId: i.category.id }));
+    }, { parallel: true }),
   takeEverythingBack: act({ holder: raw<string>() }, async ({ holder }, { member }): Promise<items.Taken> => items.takeEverythingBack(db(), member, holder)),
   giveBackEverything: act({ holder: raw<string>(), taken: field.json() }, async ({ holder, taken }, { member }): Promise<null> => {
     await items.giveBackEverything(db(), member, holder, taken as { items?: unknown; seats?: unknown });
@@ -228,14 +244,19 @@ export const actions = {
   // service refuses more); checkImport reads it and answers what would
   // come, runImport writes it. checkIntune reads Microsoft Intune now and
   // shows what it knows that is not here yet, as a file would be shown.
-  checkImport: act({ source: raw<string>(), text: raw<string>(), keep: maybe<string[]>() }, async ({ source, text, keep }, { member }): Promise<Plan> =>
-    previewImport(db(), member, source, text, keep === undefined ? undefined : { keep }), { maxBody: limits.importBytes * 2 + 65_536, parallel: true }),
+  checkImport: act({ source: raw<string>(), text: raw<string>(), keep: maybe<string[]>() }, async ({ source, text, keep }, { member }): Promise<Preview> =>
+    previewOf(await previewImport(db(), member, source, text, keep === undefined ? undefined : { keep })), { maxBody: limits.importBytes * 2 + 65_536, parallel: true }),
   runImport: act({ source: raw<string>(), text: raw<string>(), keep: maybe<string[]>() }, async ({ source, text, keep }, { member }): Promise<{ imported: number; skipped: number; fields: number }> =>
     applyImport(db(), member, source, text, keep === undefined ? undefined : { keep }), { maxBody: limits.importBytes * 2 + 65_536, parallel: true }),
-  checkIntune: act({}, async (_input, { member }): Promise<{ devices: number; text: string | null; plan: Plan | null }> => {
-    const read = await refresh(db(), member);
+  checkIntune: act({}, async (_input, { member }): Promise<{ devices: number; text: string | null; plan: Preview | null }> => {
+    // A refusal is said to the manager, and its code goes to the log (an
+    // operator reading "status=400" would not know Microsoft refused).
+    const read = await refresh(db(), member).catch((error: unknown) => {
+      if (error instanceof AppError) log.warn("intune read refused", { code: error.code });
+      throw error;
+    });
     const { text, count } = await missingAsCsv(db(), member, read.list);
-    return { devices: read.devices, text: count > 0 ? text : null, plan: count > 0 ? await previewImport(db(), member, "intune", text) : null };
+    return { devices: read.devices, text: count > 0 ? text : null, plan: count > 0 ? previewOf(await previewImport(db(), member, "intune", text)) : null };
   }, { parallel: true }),
 
   // ---- An item's photo and its purchase invoice, in the Chest's files

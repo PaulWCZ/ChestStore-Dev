@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
 import { atLeast, checkPage } from "@argentic/chest-app/testing";
@@ -57,8 +58,9 @@ test("a manager's first page: their language, the policy, no inline script or st
   const sheet = await get(camille, /href="(\/chest\/look\.css\?v=[^"]+)"/u.exec(page)![1]!);
   assert.equal(sheet.status, 200);
   assert.match(await sheet.text(), /\/assets\/fonts\/ibm-plex-sans-latin-wght-normal\.woff2/u);
-  assert.equal((await get(null, "/assets/icon.svg")).status, 200);
-  assert.equal((await get(null, "/assets/fonts/ibm-plex-sans-latin-wght-normal.woff2")).status, 200);
+  // The files it names are the tool's own, under /assets/ (served from
+  // the browser's build: npm run build; the flow loads them).
+  assert.ok(existsSync("public/assets/icon.svg") && existsSync("public/assets/fonts/ibm-plex-sans-latin-wght-normal.woff2"));
 });
 
 test("items made by an action; refusals are a code and the reader's words", async () => {
@@ -81,8 +83,21 @@ test("items made by an action; refusals are a code and the reader's words", asyn
 });
 
 test("give and take back from the item's page: the island's actions, the history, Undo", async () => {
-  const given = await call(sofia, "giveItem", { id: mac, to: { member: hugo.id }, note: "Like new" });
-  assert.equal(given.ok, true);
+  // Two managers give the same laptop at once, both from the stock: one
+  // succeeds, the other is refused "moved" — never a silent transfer.
+  const [first, second] = await Promise.all([
+    call(sofia, "giveItem", { id: mac, to: { member: hugo.id }, from: null, note: "Like new" }),
+    call(camille, "giveItem", { id: mac, to: { member: ines.id }, from: null }),
+  ]);
+  assert.deepEqual([first.ok, second.ok].sort(), [false, true]);
+  const loser = first.ok ? second : first;
+  assert.deepEqual([loser.status, loser.error], [400, "moved"]);
+  const winner = first.ok ? hugo.id : ines.id;
+  assert.equal((await database.sql<{ holder: string }[]>`select holder from items where id = ${mac}`)[0]!.holder, winner);
+  // Given to someone else, from where it was seen: a transfer, on purpose.
+  if (winner !== hugo.id) assert.equal((await call(sofia, "giveItem", { id: mac, to: { member: hugo.id }, from: { member: winner } })).ok, true);
+  assert.equal((await call(sofia, "giveItem", { id: mac, to: { member: ines.id }, from: { member: hugo.id } })).ok, true);
+  assert.equal((await call(sofia, "giveItem", { id: mac, to: { member: hugo.id }, from: { member: ines.id }, note: "Like new" })).ok, true);
   const page = await html(sofia, `/chest/items/${mac}`);
   assert.match(page, /data-island="ItemControls"/u);
   assert.match(page, new RegExp(`id="i-item-${mac}"`, "u"));
@@ -90,7 +105,10 @@ test("give and take back from the item's page: the island's actions, the history
   assert.match(page, /Like new/u);
   // The label's QR code opens the item's page on the Chest's team host.
   assert.match(page, /role="img" aria-label="https:\/\/equipment-chest\.chest\.test\/chest\/items\/\d+"/u);
-  const back = await call(sofia, "takeBackItem", { id: mac, note: "Scratched" });
+  // Taken back by someone who saw it elsewhere: refused, nothing changes.
+  const stale = await call(sofia, "takeBackItem", { id: mac, from: { member: ines.id } });
+  assert.deepEqual([stale.status, stale.error], [400, "moved"]);
+  const back = await call(sofia, "takeBackItem", { id: mac, from: { member: hugo.id }, note: "Scratched" });
   assert.deepEqual(back.value, { member: hugo.id });
   const undo = await call(sofia, "undoTakeBack", { id: mac, to: back.value });
   assert.equal(undo.ok, true);
@@ -171,10 +189,15 @@ test("the export: CSV in the reader's language, written as it is read, formulas 
   assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf], "a byte-order mark: spreadsheets read UTF-8");
   const text = new TextDecoder().decode(bytes.slice(3));
   const h = catalogue("fr").export.headers;
-  assert.ok(text.startsWith([h.tag, h.name, h.category].join(",")), text.slice(0, 40));
-  assert.match(text, /EQ-0001,MacBook Pro 14,/u);
-  assert.match(text, /"'=HYPERLINK\(""x""\)"/u);
-  assert.match(text, /2399\.00,EUR/u);
+  // French: ";" between cells (Excel set to French reads a comma file as
+  // one column); a cell holding ";" quoted.
+  assert.ok(text.startsWith([h.tag, h.name, h.category].join(";")), text.slice(0, 40));
+  assert.match(text, /EQ-0001;MacBook Pro 14;/u);
+  assert.match(text, /'=HYPERLINK\(""x""\)/u);
+  assert.match(text, /2399\.00;EUR/u);
+  // English: commas.
+  const english = await (await get(sofia, "/chest/export?sort=name")).text();
+  assert.match(english, /EQ-0001,MacBook Pro 14,/u);
 });
 
 test("the photo: one upload granted, the file sent to the Chest, recorded, then a signed link", async () => {
@@ -204,7 +227,11 @@ test("an import: the file's text checked, then written; the same file twice adds
   const run = await call(sofia, "runImport", { source: "csv", text });
   assert.equal(run.value.imported, 2);
   assert.equal((await call(sofia, "runImport", { source: "csv", text })).value.imported, 0);
-  assert.equal((await call(sofia, "checkImport", { source: "csv", text: "x".repeat(6 << 20) })).status, 400);
+  // Over the bounds: the limit said, not "can't be read".
+  const large = await call(sofia, "checkImport", { source: "csv", text: "x".repeat(6 << 20) });
+  assert.deepEqual([large.status, large.error, large.message], [400, "import_too_large", "This file is too large: 5 MB at most. Split it into several files."]);
+  const rows = "Name\n" + "Laptop\n".repeat(5001);
+  assert.equal((await call(sofia, "checkImport", { source: "csv", text: rows })).error, "import_too_many_rows");
   assert.equal((await call(sofia, "checkIntune", {})).error, "intune_not_connected");
 });
 

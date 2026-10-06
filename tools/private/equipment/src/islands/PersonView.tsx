@@ -1,11 +1,12 @@
-import { call, navigate, toast } from "@argentic/chest-app/client";
+import { call, navigate, refresh, toast } from "@argentic/chest-app/client";
 import { Dialog, EmptyState, SearchBox } from "@argentic/chest-ui/components";
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { ItemLine, StatusStamp } from "../components/bits.tsx";
 import { CategoryIcon, Give, Print, TakeBack } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, plural } from "../i18n/format.ts";
-import { fold, limits } from "../shared/model.ts";
+import { limits } from "../shared/model.ts";
+import { useOffer } from "./offer.ts";
 import type { Row } from "../lib/view.ts";
 import { undoing } from "./undo.ts";
 
@@ -13,8 +14,10 @@ type Words = { person: Catalogue["person"]; common: Catalogue["common"]; give: C
 
 // A person's equipment as a checklist: take one thing back, or everything
 // at once (Undo gives it all back); give them something from the stock.
-export function PersonView({ holder, name, present, gone, items, seats, offer, count, leaving = null, receipt = {}, sheets = null, t, locale }: {
-  holder: string; name: string; present: boolean; gone: boolean; items: Row[]; seats: Row[]; offer: Row[]; count: number;
+export function PersonView({ holder, name, present, gone, items, seats, more = 0, count, leaving = null, receipt = {}, sheets = null, t, locale }: {
+  holder: string; name: string; present: boolean; gone: boolean; items: Row[]; seats: Row[]; count: number;
+  // Held beyond the rows the page shows: the list has them.
+  more?: number;
   // "Last day: Monday 12 October…", when People told Equipment they leave.
   leaving?: string | null;
   // Per item held: did they confirm receiving it?
@@ -25,12 +28,11 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
 }) {
   const [pending, start] = useTransition();
   const [giving, setGiving] = useState(false);
-  const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const shown = useMemo(() => {
-    const k = fold(q);
-    return offer.filter(o => !k || fold(`${o.name} ${o.tag} ${o.category} ${o.serial ?? ""}`).includes(k)).slice(0, 60);
-  }, [offer, q]);
+  // What can be given them: read when the dialog opens, then as one types
+  // (no supplies; no seat of a licence they already have).
+  const offer = useOffer(giving, { consumables: false, person: holder });
+  const shown = offer.rows;
   function takeAll() {
     start(async () => {
       const r = await call("takeEverythingBack", { holder });
@@ -46,7 +48,7 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
         if (!r.ok) return;
         toast({ id: `seat-${row.id}-${holder}`, text: t.takeBack.seatDone, ...(holder.startsWith("mbr_") ? { undo: undoing(() => call("undoTakeSeat", { id: row.id, member: holder }, { quiet: true })) } : {}) });
       } else {
-        const r = await call("takeBackItem", { id: row.id });
+        const r = await call("takeBackItem", { id: row.id, from: { member: holder } });
         if (!r.ok) return;
         const from = r.value;
         toast({ id: `back-${row.id}`, text: format(t.takeBack.done, { name: row.name }), undo: undoing(() => call("undoTakeBack", { id: row.id, to: from }, { quiet: true })) });
@@ -56,8 +58,11 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
   function give(row: Row) {
     setError(null);
     start(async () => {
-      const r = row.holder.kind === "seats" ? await call("giveSeat", { id: row.id, member: holder }, { quiet: true }) : await call("giveItem", { id: row.id, to: { member: holder } }, { quiet: true });
-      if (!r.ok) return setError(r.message);
+      const r = row.holder.kind === "seats" ? await call("giveSeat", { id: row.id, member: holder }, { quiet: true }) : await call("giveItem", { id: row.id, to: { member: holder }, from: null }, { quiet: true });
+      if (!r.ok) {
+        if (r.error === "moved") void refresh();
+        return setError(r.message);
+      }
       setGiving(false);
       toast(row.holder.kind === "seats" ? format(t.give.seatDone, { name }) : format(t.give.done, { name }));
     });
@@ -78,7 +83,7 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
       {!gone && leaving && count > 0 && <p className="notice warn">{leaving}</p>}
       <div className="row">
         {count > 0 && <button type="button" className="button" disabled={pending} onClick={takeAll}><TakeBack />{t.person.takeAll}</button>}
-        {present && <button type="button" className={count > 0 ? "button quiet" : "button"} onClick={() => { setError(null); setQ(""); setGiving(true); }}><Give />{t.person.give}</button>}
+        {present && <button type="button" className={count > 0 ? "button quiet" : "button"} onClick={() => { setError(null); setGiving(true); }}><Give />{t.person.give}</button>}
         {sheets && count > 0 && <a className="button quiet" href={sheets.handover}><Print />{t.person.handover}</a>}
         {sheets && <a className="button quiet" href={sheets.back}><Print />{t.person.returnSheet}</a>}
       </div>
@@ -95,10 +100,11 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
           <ul className="lines checklist">{seats.map(r => <ItemLine key={r.id} row={r} extra={back(r)} />)}</ul>
         </section>
       )}
+      {more > 0 && <p><a href={`/chest/items?holder=${encodeURIComponent(holder)}`}>{plural(t.person.more, more, locale)}</a></p>}
       <Dialog open={giving} title={format(t.person.giveTitle, { name })} labels={t.dialog} onClose={() => setGiving(false)}>
         <div className="stack">
-          <SearchBox action="/chest/items" onSearch={setQ} shortcut={false} maxLength={limits.search} labels={{ ...t.search, label: t.person.findItem, placeholder: t.person.findItem }} />
-          {shown.length === 0 ? <p className="muted">{t.person.noStock}</p> : (
+          <SearchBox action="/chest/items" onSearch={offer.setQ} shortcut={false} maxLength={limits.search} labels={{ ...t.search, label: t.person.findItem, placeholder: t.person.findItem }} />
+          {shown.length === 0 ? (offer.loading ? null : <p className="muted">{t.person.noStock}</p>) : (
             <ul className="pick-list">
               {shown.map(o => (
                 <li key={o.id}>

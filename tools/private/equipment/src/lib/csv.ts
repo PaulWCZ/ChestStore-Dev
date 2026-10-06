@@ -52,3 +52,17 @@ function cell(value: unknown): string {
 export function toCsv(rows: unknown[][]): string {
   return "﻿" + rows.map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
 }
+
+// One line of the export, with the separator the reader's spreadsheet
+// expects: ";" in French (Excel set to French reads a comma file as one
+// column), "," otherwise. Quoted when it holds the separator, a quote or a
+// line break; a cell that would run as a formula is written behind a
+// quote.
+export const separatorOf = (locale: string): "," | ";" => (locale === "fr" ? ";" : ",");
+export function csvRow(cells: readonly unknown[], separator: "," | ";" = ","): string {
+  return cells.map(value => {
+    let text = value === null || value === undefined ? "" : String(value);
+    if (typeof value === "string" && /^[=+\-@\t\r]/u.test(text)) text = "'" + text;
+    return text.includes(separator) || /["\n\r]/u.test(text) ? '"' + text.replace(/"/gu, '""') + '"' : text;
+  }).join(separator) + "\r\n";
+}

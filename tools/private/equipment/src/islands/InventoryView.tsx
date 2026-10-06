@@ -8,18 +8,30 @@ import { format, plural } from "../i18n/format.ts";
 import type { Row } from "../lib/view.ts";
 import { undoing } from "./undo.ts";
 
-type Words = { inventory: Catalogue["inventory"]; common: Catalogue["common"] };
+type Words = { inventory: Catalogue["inventory"]; common: Catalogue["common"]; search: Catalogue["search"] };
 
 // The inventory under way. The box takes what a barcode scanner types (a
 // tag, or the label's link) and Enter; each tick in the list does the same.
 // The box keeps the focus, so a scanner can go on and on.
-export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolean; seen: Row[]; notSeen: Row[]; t: Words; locale: string }) {
+// The page carries the counts, the last things seen and one page of what is
+// not seen yet (searchable, in pages of 200): never 20,000 items at once.
+export type InventoryCounts = { total: number; seen: number; notSeen: number; page: number; pages: number; size: number; q: string };
+const pageHref = (q: string, page: number) => {
+  const p = new URLSearchParams();
+  if (q) p.set("q", q);
+  if (page > 1) p.set("page", String(page));
+  const query = p.toString();
+  return `/chest/inventory${query ? "?" + query : ""}`;
+};
+
+export function InventoryView({ open, counts, seen, notSeen, t, locale }: { open: boolean; counts: InventoryCounts; seen: Row[]; notSeen: Row[]; t: Words; locale: string }) {
   const [pending, start] = useTransition();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLInputElement>(null);
   const w = t.inventory;
-  const total = seen.length + notSeen.length;
+  const total = counts.total;
+  const from = (counts.page - 1) * counts.size + 1;
 
 
   // A scanner types the next label while the last one is still on its
@@ -64,8 +76,8 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
     <div className="stack">
       <div className="panel scan-panel">
         <div className="seats-head">
-          <p className="holder-line"><strong>{format(w.progress, { seen: seen.length, total })}</strong></p>
-          <meter className="seats-meter" min={0} max={Math.max(total, 1)} value={seen.length} aria-label={format(w.progress, { seen: seen.length, total })} />
+          <p className="holder-line"><strong>{format(w.progress, { seen: counts.seen, total })}</strong></p>
+          <meter className="seats-meter" min={0} max={Math.max(total, 1)} value={counts.seen} aria-label={format(w.progress, { seen: counts.seen, total })} />
         </div>
         <form className="filter-q" onSubmit={e => { e.preventDefault(); if (text.trim()) scan({ text }); }}>
           <label htmlFor="scan-box" className="visually-hidden">{w.scan}</label>
@@ -76,8 +88,15 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
         {error && <p className="error" role="alert">{error}</p>}
       </div>
       <section aria-labelledby="not-seen">
-        <h2 id="not-seen" className="section-title">{w.notSeen} · {notSeen.length}</h2>
-        {notSeen.length === 0 ? <p className="all-clear"><span aria-hidden="true">✓</span> {w.allSeen}</p> : (
+        <h2 id="not-seen" className="section-title">{w.notSeen} · {total - counts.seen}</h2>
+        {total - counts.seen > counts.size || counts.q ? (
+          <form className="filter-q" method="get" action="/chest/inventory" role="search">
+            <label htmlFor="not-seen-q" className="visually-hidden">{w.find}</label>
+            <input id="not-seen-q" name="q" type="search" className="field" defaultValue={counts.q} placeholder={w.find} maxLength={100} autoComplete="off" />
+            <button type="submit" className="button quiet">{t.search.submit}</button>
+          </form>
+        ) : null}
+        {notSeen.length === 0 ? (counts.q ? <p className="muted">{format(w.noMatch, { q: counts.q })}</p> : <p className="all-clear"><span aria-hidden="true">✓</span> {w.allSeen}</p>) : (
           <ul className="lines">
             {notSeen.map(r => (
               <ItemLine key={r.id} row={r} lead={
@@ -89,10 +108,18 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
             ))}
           </ul>
         )}
+        {counts.pages > 1 && (
+          <nav className="pager" aria-label={w.notSeen}>
+            {counts.page > 1 ? <a className="button quiet small" href={pageHref(counts.q, counts.page - 1)}>{t.common.previous}</a> : <span />}
+            <span className="small muted">{format(w.range, { from, to: from + notSeen.length - 1, total: counts.notSeen })}</span>
+            {counts.page < counts.pages ? <a className="button quiet small" href={pageHref(counts.q, counts.page + 1)}>{t.common.next}</a> : <span />}
+          </nav>
+        )}
       </section>
       {seen.length > 0 && (
         <details className="seen-list">
-          <summary className="section-title">{w.seen} · {seen.length}</summary>
+          <summary className="section-title">{w.seen} · {counts.seen}</summary>
+          {seen.length < counts.seen && <p className="small muted">{format(w.latest, { count: seen.length })}</p>}
           <ul className="lines">
             {seen.map(r => (
               <ItemLine key={r.id} row={r} lead={

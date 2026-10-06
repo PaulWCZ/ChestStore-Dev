@@ -244,10 +244,16 @@ test("what Intune knows and Equipment does not goes through the importer: its pr
   assert.ok(detail.full && detail.history.some(h => h.kind === "imported" && h.note === "Intune"));
   // No bell for an import.
   assert.equal(chest.notifications.some(n => n.member === hugo.id), false);
-  // A device its address matched goes to that member's name today,
-  // whatever name Intune gives.
+  // A device its address matched goes to that member — by id, never
+  // matched again by name (two people may share one) — and the preview
+  // shows their name today, whatever name Intune gives.
   const matched = { ...intune.readDevice(device("8", "TAB-8", { userDisplayName: "Nora P." }))!, member: nora.id };
-  assert.match((await intune.missingAsCsv(sql, M, [matched])).text, /TAB-8,Nora Petit,/u);
+  const csv = (await intune.missingAsCsv(sql, M, [matched])).text;
+  assert.match(csv, new RegExp(`TAB-8,${nora.id},`, "u"));
+  const [row] = (await previewImport(sql, M, "intune", csv)).rows;
+  assert.deepEqual([row?.holder, row?.holderText, row?.problems], [nora.id, "Nora Petit", []]);
+  // In a spreadsheet, an id is not a name: not found.
+  assert.equal((await previewImport(sql, M, "csv", csv)).rows[0]?.holder, null);
   // Again: nothing left to add.
   assert.equal((await intune.missingAsCsv(sql, M, devices.map(d => intune.readDevice(d)!))).count, 0);
 });

@@ -10,7 +10,7 @@ import { db } from "../lib/db.ts";
 import { leavingList, purgeDepartures } from "../lib/departures.ts";
 import { status as intuneStatus } from "../lib/intune.ts";
 import { openInventory } from "../lib/inventory.ts";
-import { holderCounts, listItems, overview, unconfirmedReceipts } from "../lib/items.ts";
+import { holderCounts, overview, unconfirmedReceipts } from "../lib/items.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { waitingRequests } from "../lib/requests.ts";
 import { holderIds, rowOf } from "../lib/view.ts";
@@ -55,12 +55,6 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
 
   const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length + leaving.length + requests.length + ov.low.length + unconfirmed.length
     + intune.differ.length + (intune.missing > 0 ? 1 : 0);
-  // What a request may be answered with: things in stock, supplies left,
-  // licences with a free seat.
-  const offer = requests.length === 0 ? [] : [
-    ...(await listItems(sql, member, { status: "in_stock" }, 300)),
-    ...(await listItems(sql, member, { status: "in_use" }, 300)).filter(i => i.seats !== null && i.seatsUsed < i.seats),
-  ].filter(i => i.category.kind !== "consumable" || (i.quantity ?? 0) > 0).map(i => ({ ...rowOf(i, names, t, locale, today, member.id), categoryId: i.category.id }));
   const kindName = new Map(counts.map(c => [c.id, categoryName(c, t)]));
   return { title: t.overview.title, body: (
     <div className="wide">
@@ -118,7 +112,6 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
                   when: relative(r.createdAt, locale, now), gone: person?.status !== "member",
                 };
               }),
-              offer,
               t: { overview: t.overview, requests: t.requests, common: t.common, dialog: t.dialog, search: t.search },
             }} />
           )}

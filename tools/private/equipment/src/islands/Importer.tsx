@@ -2,13 +2,12 @@ import { call, navigate, toast } from "@argentic/chest-app/client";
 import { DataTable, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
 import { AssetTag } from "../components/bits.tsx";
-import type { Plan } from "../lib/importer.ts";
+import type { PlanRow, Preview } from "../lib/importer.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, plural } from "../i18n/format.ts";
 import { categoryName } from "../shared/words.ts";
 
 type Words = { importer: Catalogue["importer"]; status: Catalogue["status"]; categories: Catalogue["categories"]; files: Catalogue["files"]; table: Catalogue["table"] };
-type PlanRow = Plan["rows"][number];
 type Source = "snipe" | "csv" | "intune";
 type FileSource = "snipe" | "csv";
 // Microsoft Intune, as the page found it: connected (its administrator set
@@ -21,7 +20,7 @@ export type IntuneInfo = { connected: boolean; last: string | null; lastFailed: 
 // Nothing is added before the button.
 export function Importer({ t, locale, intune }: { t: Words; locale: string; intune: IntuneInfo }) {
   const w = t.importer;
-  const [picked, setPicked] = useState<{ source: Source; text: string; plan: Plan; keep: string[] | undefined } | null>(null);
+  const [picked, setPicked] = useState<{ source: Source; text: string; plan: Preview; keep: string[] | undefined } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<number | null>(null);
   const [pending, start] = useTransition();
@@ -110,8 +109,8 @@ export function Importer({ t, locale, intune }: { t: Words; locale: string; intu
     { source: "csv", title: w.csv, how: w.csvHow },
   ];
   const rows = picked?.plan.rows ?? [];
-  const usable = rows.filter(r => !r.skip);
-  const skipped = rows.length - usable.length;
+  const usable = picked?.plan.usable ?? 0;
+  const skipped = (picked?.plan.total ?? 0) - usable;
   return (
     <div className="stack">
       <div className="sources">
@@ -141,7 +140,7 @@ export function Importer({ t, locale, intune }: { t: Words; locale: string; intu
       {picked && (
         <section className="summary-box" aria-labelledby="check">
           <h2 id="check">{w.check}</h2>
-          <p className="strong">{format(w.summary, { items: usable.length, given: usable.filter(r => r.holder).length, placed: usable.filter(r => r.place).length })}</p>
+          <p className="strong">{format(w.summary, { items: usable, given: picked.plan.given, placed: picked.plan.placed })}</p>
           {picked.plan.newCategories.length > 0 && <p>{format(w.newCategories, { names: picked.plan.newCategories.join(", ") })}</p>}
           {picked.plan.offered.length > 0 && (
             <fieldset className="keep">
@@ -154,12 +153,12 @@ export function Importer({ t, locale, intune }: { t: Words; locale: string; intu
               </div>
             </fieldset>
           )}
-          {picked.plan.newFields.length > 0 && <p>{format(w.newFields, { names: [...new Set(picked.plan.newFields.map(f => f.name))].join(", ") })}</p>}
+          {picked.plan.newFields.length > 0 && <p>{format(w.newFields, { names: picked.plan.newFields.join(", ") })}</p>}
           {picked.plan.ignored.length > 0 && <p className="small muted">{format(w.ignored, { names: picked.plan.ignored.join(", ") })}</p>}
           {skipped > 0 && <p className="small">{plural(w.skipped, skipped, locale)}</p>}
           <div className="preview-table">
             <DataTable<PlanRow>
-              caption={format(w.rowsShown, { count: Math.min(rows.length, 50) })}
+              caption={format(w.rowsShown, { count: rows.length })}
               showCaption
               rows={rows.slice(0, 50)}
               rowKey={r => String(r.line)}
@@ -179,7 +178,7 @@ export function Importer({ t, locale, intune }: { t: Words; locale: string; intu
           </div>
           <div className="row end">
             <button type="button" className="button quiet" onClick={() => { setPicked(null); setFiles({ snipe: [], csv: [] }); }}>{w.cancel}</button>
-            <button type="button" className="button" disabled={pending || usable.length === 0} onClick={submit}>{pending ? w.importing : plural(w.submit, usable.length, locale)}</button>
+            <button type="button" className="button" disabled={pending || usable === 0} onClick={submit}>{pending ? w.importing : plural(w.submit, usable, locale)}</button>
           </div>
         </section>
       )}
