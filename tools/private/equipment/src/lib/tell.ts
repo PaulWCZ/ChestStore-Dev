@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { format, formatDay, plural } from "../i18n/index.ts";
-import { badges, cut, notify, withdraw } from "./notify.ts";
+import { badges, cut, notify, withdraw, cutLines } from "./notify.ts";
 import { managers } from "./people.ts";
 
 // What Equipment tells people through the Chest's bell, each in their own
@@ -31,7 +31,7 @@ export async function takenBack(holder: string, itemId: string): Promise<void> {
 
 export async function reported(sql: Query, reporter: Member, item: Named, problem: { id: string; body: string }): Promise<void> {
   const to = (await managers()).filter(id => id !== reporter.id);
-  await notify(to, t => ({ title: format(t.bell.reported, { name: reporter.firstName || reporter.name, item: cut(item.name, 30), tag: item.tag }), body: cut(problem.body, 280) }), { path: itemPath(item.id), key: `problem:${problem.id}` });
+  await notify(to, t => ({ title: format(t.bell.reported, { name: reporter.firstName || reporter.name, item: cut(item.name, 30), tag: item.tag }), body: cutLines(problem.body, 280) }), { path: itemPath(item.id), key: `problem:${problem.id}` });
   await refreshBadges(sql);
 }
 
@@ -90,7 +90,7 @@ export async function endingSoon(names: string[]): Promise<void> {
     return;
   }
   const to = await managers();
-  await notify(to, (t, locale) => ({ title: plural(t.bell.ending, names.length, locale), body: cut(names.join(" · "), 280) }), { path: "/chest#ending", key: "ending" });
+  await notify(to, (t, locale) => ({ title: plural(t.bell.ending, names.length, locale), body: cutLines(names.join(" · "), 280) }), { path: "/chest#ending", key: "ending" });
 }
 
 // The number on the tool's tile: for managers, the problems and requests
@@ -126,14 +126,14 @@ export async function stockLevel(after: Stocked, before: Stocked): Promise<void>
 // managers hear it (the remark is kept on the receipt and in the history).
 export async function receivedWithRemark(person: Member, item: Named, remark: string): Promise<void> {
   const to = (await managers()).filter(id => id !== person.id);
-  await notify(to, t => ({ title: format(t.bell.remark, { name: person.firstName || person.name, item: cut(item.name, 30), tag: item.tag }), body: cut(remark, 280) }), { path: itemPath(item.id), key: `remark:${item.id}` });
+  await notify(to, t => ({ title: format(t.bell.remark, { name: person.firstName || person.name, item: cut(item.name, 30), tag: item.tag }), body: cutLines(remark, 280) }), { path: itemPath(item.id), key: `remark:${item.id}` });
 }
 
 // A request for equipment: the managers hear it; the one who asked hears the
 // answer. Each bell item goes once settled.
 export async function requested(sql: Query, person: Member, request: { id: string; body: string }): Promise<void> {
   const to = (await managers()).filter(id => id !== person.id);
-  await notify(to, t => ({ title: format(t.bell.requested, { name: person.firstName || person.name }), body: cut(request.body, 280) }), { path: "/chest#requests", key: `request:${request.id}` });
+  await notify(to, t => ({ title: format(t.bell.requested, { name: person.firstName || person.name }), body: cutLines(request.body, 280) }), { path: "/chest#requests", key: `request:${request.id}` });
   await refreshBadges(sql);
 }
 
@@ -144,7 +144,7 @@ export async function answered(sql: Query, actor: Member, request: { id: string;
   const status = request.status;
   await notify([request.member], t => ({
     title: format(t.bell.answer[status], { name: actor.firstName || actor.name, what: cut(request.body, 40), item: request.item ? cut(request.item.name, 40) : "" }),
-    ...(request.answer ? { body: cut(request.answer, 280) } : {}),
+    ...(request.answer ? { body: cutLines(request.answer, 280) } : {}),
   }), { path: status === "done" && request.item ? itemPath(request.item.id) : "/chest", key: `request:${request.id}:answer` });
 }
 
