@@ -58,7 +58,7 @@ export async function subscribePage(context: PublicContext, origin: string, quer
           <h1>{w.title}</h1>
           <p className="lead">{w.intro}</p>
           <form method="post" action="/actions/subscribe" className="stack form">
-            <Honeypot />
+            <Honeypot action="subscribe" />
             <div>
               <label className="label" htmlFor="email">{w.email}</label>
               <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} defaultValue={values["email"] ?? ""} aria-invalid={error === "invalid_email" || undefined} aria-describedby={error ? "form-error" : undefined} />

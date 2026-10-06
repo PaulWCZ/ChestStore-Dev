@@ -1,4 +1,4 @@
-import { call } from "@argentic/chest-app/client";
+import { call, FormToken } from "@argentic/chest-app/client";
 import { useState } from "react";
 import type { Catalogue } from "../i18n/index.ts";
 
@@ -25,6 +25,8 @@ export function Rate({ secret, number, rating, team, t }: { secret?: string; num
   const good = chosen === "good", bad = chosen === "bad";
   return (
     <section className="rate" aria-labelledby="rate-title">
+      {/* The public page's token for rate (a member rates with rateMine). */}
+      {number === undefined && <FormToken action="rate" />}
       <h2 id="rate-title">{t.rateTitle}</h2>
       <div className="row">
         <button type="button" className={good ? strong : quiet} aria-pressed={good} disabled={pending} onClick={() => void choose("good")}>{t.rateGood}</button>

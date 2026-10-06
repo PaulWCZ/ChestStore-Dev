@@ -1,4 +1,4 @@
-import { call, fill, Honeypot, send } from "@argentic/chest-app/client";
+import { call, fill, FormToken, Honeypot, send } from "@argentic/chest-app/client";
 import { useState, type FormEvent } from "react";
 import { Attachments, filesPending, readyFiles, type PickedFile } from "../components/attachments.tsx";
 import type { Catalogue } from "../i18n/index.ts";
@@ -44,7 +44,9 @@ export function ContactForm({ filesOn, locale, embed, error: given, t }: { files
     <form method="post" action="/actions/sendRequest" className="stack" onSubmit={event => void submit(event)}>
       <input type="hidden" name="lang" value={locale} />
       {embed && <input type="hidden" name="embed" value="1" />}
-      <Honeypot />
+      {/* The token an upload asks with (call("visitorUpload")). */}
+      <FormToken action="visitorUpload" />
+      <Honeypot action="sendRequest" />
       <div className="two">
         <div>
           <label className="label" htmlFor="name">{w.name}</label>

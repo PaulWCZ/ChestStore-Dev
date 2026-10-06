@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Check, Cross, Maybe, Party } from "../components/icons.tsx";
-import { Honeypot, send } from "@argentic/chest-app/client";
+import { FormToken, Honeypot, send } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import { fill as format, plural, type Plural } from "./words.ts";
 
@@ -42,6 +42,8 @@ export function GuestForm({ link, pollId, options, signup, mailOn, mine, sent, l
     const said = options.filter(o => mine.dates[o.id] === 2 || mine.dates[o.id] === 1).map(o => `${o.weekday} ${o.day} ${o.month} · ${o.hours} · ${mine.dates[o.id] === 2 ? t.poll.yes : t.poll.maybe}`);
     return (
       <div className="thanks" role="status">
+        {/* "Change my answer" opens the form: its token is on the page already. */}
+        <FormToken action="answerGuest" />
         <h2><Party /> {format(sent === "2" ? t.guest.updated : t.guest.thanks, { name: mine.name })}</h2>
         {said.length > 0 ? (
           <div className="said" aria-label={t.poll.youSaid}>{said.map((s, i) => <span key={i} className="chip">{s}</span>)}</div>
@@ -71,7 +73,7 @@ export function GuestForm({ link, pollId, options, signup, mailOn, mine, sent, l
       <input type="hidden" name="link" value={link} />
       <input type="hidden" name="poll" value={pollId} />
       {/* The field only robots fill, and the form's token (the package's guard). */}
-      <Honeypot />
+      <Honeypot action="answerGuest" />
       <h2>{t.guest.title}</h2>
       <p className="hint">{t.guest.intro}</p>
       <div className="guest-fields">

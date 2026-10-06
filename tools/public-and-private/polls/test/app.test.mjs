@@ -167,8 +167,8 @@ test("the guest page: a visitor's words, no member, an answer by a form without 
   assert.match(html, /Kick-off/u);
   assert.match(html, /data-island="GuestForm"/u);
   assert.doesNotMatch(html, /Claire Leroy|Marc Petit/u, "never the other answers");
-  const token = /<meta name="chest-form" content="([^"]+)"/u.exec(html)[1];
-  assert.match(html, /name="chest_form" value="/u, "the token in the form too (no script)");
+  // The form's token for answerGuest, in its <Honeypot /> (no script needed).
+  const token = /data-action="answerGuest"[^>]*value="([^"]+)"/u.exec(html)[1];
   const dates = [...html.matchAll(/&quot;id&quot;:&quot;(\d+)&quot;,&quot;month&quot;/gu)].map(m => m[1]);
   assert.ok(dates.length >= 2);
   // A robot fills the field people never see: answered as if done, nothing kept.
@@ -190,7 +190,7 @@ test("the guest page: a visitor's words, no member, an answer by a form without 
   assert.match(back, /Jean Martin/u, "their own answer, from this browser");
   // Changed from the same browser: the cookie reaches the action under the
   // page's path, the answer is the same guest's, updated.
-  const token2 = /<meta name="chest-form" content="([^"]+)"/u.exec(back)[1];
+  const token2 = /data-action="answerGuest"[^>]*value="([^"]+)"/u.exec(back)[1];
   // A token serves once.
   const reused = await form(null, `/p/${link}/actions/answerGuest`, { link, poll: "11", chest_form: token, name: "Jean Martin", [`d${dates[0]}`]: "0" }, `/p/${link}`, { cookie: cookie.split(";")[0] });
   assert.match(reused.headers.get("location"), /\?error=expired$/u);

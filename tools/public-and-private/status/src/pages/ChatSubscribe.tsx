@@ -36,7 +36,7 @@ export async function chatSubscribePage(context: PublicContext, query: { error: 
           <h1>{w.title}</h1>
           <p className="lead">{w.intro}</p>
           <form method="post" action="/actions/subscribeChat" className="stack form">
-            <Honeypot />
+            <Honeypot action="subscribeChat" />
             <fieldset className="choices">
               <legend>{w.where}</legend>
               {hookKinds.map(k => <label key={k} className="choice"><input type="radio" name="kind" value={k} defaultChecked={k === chosen} />{w.kinds[k]}</label>)}

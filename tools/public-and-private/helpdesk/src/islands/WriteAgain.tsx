@@ -1,4 +1,4 @@
-import { call, Honeypot, send } from "@argentic/chest-app/client";
+import { call, FormToken, Honeypot, send } from "@argentic/chest-app/client";
 import { useRef, useState, type FormEvent } from "react";
 import { Attachments, filesPending, readyFiles, type PickedFile } from "../components/attachments.tsx";
 import type { Catalogue } from "../i18n/index.ts";
@@ -32,7 +32,9 @@ export function WriteAgain({ secret, filesOn, t }: { secret: string; filesOn: bo
   return (
     <form ref={form} method="post" action="/actions/writeAgain" className="stack" onSubmit={event => void submit(event)}>
       <input type="hidden" name="secret" value={secret} />
-      <Honeypot />
+      {/* The token an upload asks with (call("visitorUpload")). */}
+      <FormToken action="visitorUpload" />
+      <Honeypot action="writeAgain" />
       <label htmlFor="message" className="visually-hidden">{t.public.reply}</label>
       <textarea id="message" name="message" className="field" rows={5} required maxLength={10000} placeholder={t.public.replyPlaceholder} />
       {takesFiles ? (

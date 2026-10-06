@@ -483,14 +483,15 @@ await step("guests outside the Chest: the organiser turns the link off and on, a
   await guest.p.getByRole("button", { name: "Update my answer" }).click();
   await guest.p.waitForSelector(".thanks:has-text('Your answer is updated.')");
   await guest.c.close();
-  // A robot filling the field people never see is refused, and nothing is kept.
+  // A robot filling the field people never see is answered as if done (the
+  // package's honeypot), and nothing is kept.
   const robot = await fresh();
   await robot.p.goto(link);
   await robot.p.getByLabel("Your name").fill("Bot");
   await robot.p.locator(".date-row").nth(0).locator("label.yes").click();
-  await robot.p.evaluate(() => { document.getElementById("website").value = "http://spam.example"; });
-  await robot.p.getByRole("button", { name: "Send my answer" }).click();
-  await robot.p.locator(".guest-form .error").waitFor();
+  await robot.p.evaluate(() => { document.querySelector("[name=website]").value = "http://spam.example"; });
+  const [answered] = await Promise.all([robot.p.waitForResponse(r => r.url().includes("/actions/answerGuest")), robot.p.getByRole("button", { name: "Send my answer" }).click()]);
+  expect((await answered.json()).ok === true, "the robot is told it is done");
   await robot.c.close();
   // The team's side: the guest in the grid, marked; counted apart.
   await page.reload();

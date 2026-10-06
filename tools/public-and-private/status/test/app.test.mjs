@@ -100,7 +100,7 @@ test("the public pages render without script and stay apart from the team's: his
 
 // A form's token as a page carries it, old enough not to wait the form's
 // two seconds.
-const token = () => formToken(Date.now() - 3000);
+const token = (action = "subscribe") => formToken(action, Date.now() - 3000);
 const subscribeForm = (fields, headers = {}) => form("/actions/subscribe", { website: "", scope: "all", chest_form: token(), ...fields }, "/subscribe", headers);
 
 test("subscribing by email without script: the form's token, the same answer whoever, the address never kept by a cache or passed on", async () => {
@@ -109,7 +109,7 @@ test("subscribing by email without script: the form's token, the same answer who
   assert.equal(shown.headers.get("referrer-policy"), "no-referrer");
   const html = checkPage(await shown.text());
   assert.match(html, /<form [^>]*action="\/actions\/subscribe" method="post"/u);
-  const pageToken = /name="chest_form" value="([^"]+)"/u.exec(html)[1];
+  const pageToken = /data-action="subscribe" name="chest_form" value="([^"]+)"/u.exec(html)[1];
   // A refused address comes back to the form, typed, with the reason.
   const wrong = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example" }, "/subscribe");
   assert.equal(wrong.status, 303);
@@ -122,7 +122,7 @@ test("subscribing by email without script: the form's token, the same answer who
   // to carries the next one.
   const spentToken = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example.com" }, "/subscribe");
   assert.match(spentToken.headers.get("location"), /^\/subscribe\?error=expired/u);
-  const nextToken = /name="chest_form" value="([^"]+)"/u.exec(refilled)[1];
+  const nextToken = /data-action="subscribe" name="chest_form" value="([^"]+)"/u.exec(refilled)[1];
   const sent = await form("/actions/subscribe", { website: "", scope: "all", chest_form: nextToken, email: "ana@example.com" }, "/subscribe");
   assert.equal(sent.headers.get("location"), "/subscribe?sent=1");
   // The field only robots fill: "done", and nothing done.

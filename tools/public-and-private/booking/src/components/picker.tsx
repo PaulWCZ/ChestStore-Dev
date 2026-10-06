@@ -249,7 +249,7 @@ function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, com
       <input type="hidden" name="start" value={start} />
       <input type="hidden" name="zone" value={zone} />
       {/* The package's form token and the field only robots fill. */}
-      <Honeypot />
+      <Honeypot action="bookTime" />
       <div><label className="label" htmlFor="name">{p.name}</label><input id="name" name="name" className="field" autoComplete="name" maxLength={120} required autoFocus /></div>
       <div><label className="label" htmlFor="email">{p.email}</label><input id="email" name="email" type="email" className="field" autoComplete="email" maxLength={254} required aria-describedby="email-hint" /><p id="email-hint" className="hint">{mailing ? p.emailHint : p.emailHintNoMail}</p></div>
       {phone && <div><label className="label" htmlFor="phone">{p.phone}</label><input id="phone" name="phone" type="tel" className="field" autoComplete="tel" maxLength={40} required aria-describedby="phone-hint" /><p id="phone-hint" className="hint">{format(p.phoneHint, { name: hostName })}</p></div>}
