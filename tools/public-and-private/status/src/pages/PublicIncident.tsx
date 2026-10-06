@@ -17,7 +17,7 @@ export async function publicIncidentPage(context: PublicContext, id: string): Pr
   if (!incident || (incident.kind === "maintenance" && incident.updates.length === 0)) return notFound();
   const view = await statusView(sql, zone, now, { locale });
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
-  return { title: siteTitle(context, titleIn(incident, locale).text), exactTitle: true, head: indexed(), body: (
+  return { title: siteTitle(context, titleIn(incident, locale).text), exactTitle: true, head: indexed(t), body: (
     <PublicShell context={context} path={`/incidents/${incident.id}`} offerMail={offerUpdates}>
       <p className="crumb"><a href="/"><Back />{t.public.back}</a></p>
       <IncidentCard incident={incident} impact={impactOf(incident, now)} affected={touchedNames(incident, view.names)} zone={zone} locale={locale} t={words} now={now} heading="h1" link={false} />

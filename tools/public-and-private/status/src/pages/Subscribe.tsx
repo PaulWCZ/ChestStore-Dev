@@ -1,25 +1,35 @@
-import type { View } from "@argentic/chest-app";
+import { Honeypot, type View } from "@argentic/chest-app";
 import { Back, Chat, Mail, Rss } from "../components/icons.tsx";
 import { format } from "../i18n/index.ts";
 import { errorCodes, type ErrorCode } from "../lib/app-error.ts";
-import { formToken } from "../lib/guard.ts";
 import { followOptions } from "../lib/options.ts";
 import type { PublicContext } from "../lib/public-page.ts";
 import { ChoiceFields } from "./parts/choice-fields.tsx";
 import { siteTitle, unindexed } from "./parts/meta.tsx";
 import { PublicShell } from "./parts/public-shell.tsx";
 
-// A refusal a public action put in the address (?error=…), if it is one
-// of the tool's codes.
+// A refusal a public action put in the address (?error=<code>, one of the
+// tool's codes), and the values it sent back (?values=…: the words' values
+// and what the visitor typed).
 export const refusal = (value: string | undefined): ErrorCode | null => ((errorCodes as readonly string[]).includes(value ?? "") ? (value as ErrorCode) : null);
+export function sentBack(raw: string | undefined): Record<string, string> {
+  try {
+    const parsed = JSON.parse(raw ?? "{}") as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(Object.entries(parsed).flatMap(([k, v]) => (/^\w{1,32}$/u.test(k) && (typeof v === "string" || typeof v === "number") && String(v).length < 100 ? [[k, String(v)]] : [])));
+  } catch {
+    return {};
+  }
+}
 
 // Get updates by email: an address, what to follow, one button. The email
 // that confirms it follows; without email on this Chest, the page gives the
 // feeds instead. The form works without JavaScript (src/actions.ts,
 // subscribe).
-export async function subscribePage(context: PublicContext, origin: string, query: { sent: string | undefined; error: string | undefined }): Promise<View> {
+export async function subscribePage(context: PublicContext, origin: string, query: { sent: string | undefined; error: string | undefined; values: string | undefined }): Promise<View> {
   const { t, locale, sql, offerMail, offerChat } = context;
   const error = refusal(query.error);
+  const values = sentBack(query.values);
   const w = t.subscribe;
   const noMail = !offerMail || error === "no_mail";
   // Slack, Teams or a web address, beside email — only when the Chest would
@@ -48,17 +58,13 @@ export async function subscribePage(context: PublicContext, origin: string, quer
           <h1>{w.title}</h1>
           <p className="lead">{w.intro}</p>
           <form method="post" action="/actions/subscribe" className="stack form">
-            <input type="hidden" name="started" value={formToken()} />
-            <div className="honey" aria-hidden="true">
-              <label htmlFor="website">{w.website}</label>
-              <input id="website" name="website" tabIndex={-1} autoComplete="off" />
-            </div>
+            <Honeypot />
             <div>
               <label className="label" htmlFor="email">{w.email}</label>
-              <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} aria-invalid={error === "invalid_email" || undefined} aria-describedby={error ? "form-error" : undefined} />
+              <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} defaultValue={values["email"] ?? ""} aria-invalid={error === "invalid_email" || undefined} aria-describedby={error ? "form-error" : undefined} />
             </div>
             <ChoiceFields options={await followOptions(sql, locale)} chosen={null} t={w} />
-            {error && <p id="form-error" className="error" role="alert">{format(t.errors[error], { max: 5 })}</p>}
+            {error && <p id="form-error" className="error" role="alert">{format(t.errors[error], values)}</p>}
             <div><button type="submit" className="button">{w.submit}</button></div>
             <p className="fine">{w.privacy}</p>
           </form>

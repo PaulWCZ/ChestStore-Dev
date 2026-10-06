@@ -6,7 +6,7 @@ import { useDateProblems } from "../components/date-problems.tsx";
 import { LanguagePick, SecondField, SecondToggle, secondOf, type Languages } from "../components/second-field.tsx";
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format } from "../i18n/format.ts";
+import { format } from "../components/format.ts";
 import { MaintenanceFields, type WindowValue } from "../components/maintenance-fields.tsx";
 
 // Plan a maintenance in one screen: what, when, what goes down, what

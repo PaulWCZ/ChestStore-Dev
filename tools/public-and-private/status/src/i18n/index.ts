@@ -56,4 +56,4 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
   return ranked.map(r => r.language).find(isLocale) ?? localeOf(chestLanguage);
 }
 
-export { clock, day, duration, format, intl, moment, month, percent, plural, relative, stamp, zoneAbbreviation, zoneName } from "./format.ts";
+export { clock, day, duration, format, intl, moment, month, percent, plural, relative, stamp, zoneAbbreviation, zoneName } from "../components/format.ts";

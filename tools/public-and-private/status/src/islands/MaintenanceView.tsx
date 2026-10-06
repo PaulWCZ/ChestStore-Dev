@@ -5,7 +5,7 @@ import type { PickerGroup } from "../components/component-picker.tsx";
 import { useDateProblems } from "../components/date-problems.tsx";
 import { SecondField, SecondToggle } from "../components/second-field.tsx";
 import { useRun } from "../components/use-run.ts";
-import { format } from "../i18n/format.ts";
+import { format } from "../components/format.ts";
 import { MaintenanceFields, type WindowValue } from "../components/maintenance-fields.tsx";
 import { Head, Missing, RemoveIncident, type Languages, type Words } from "./IncidentView.tsx";
 import { TimelineView, type UpdateView } from "../components/timeline-view.tsx";

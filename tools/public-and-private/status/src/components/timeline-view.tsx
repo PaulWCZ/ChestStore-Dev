@@ -4,7 +4,7 @@ import { Pencil, Trash } from "./icons.tsx";
 import { SecondField } from "./second-field.tsx";
 import { useRun } from "./use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format } from "../i18n/format.ts";
+import { format } from "./format.ts";
 import { stepClass, tone } from "./classes.ts";
 
 // The timeline as editors see it: each update with who posted it, its

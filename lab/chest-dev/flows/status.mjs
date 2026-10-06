@@ -499,8 +499,12 @@ await step("a customer's team gets updates in Slack: connected on “Get updates
   await page.getByLabel("Slack").check();
   await page.locator("#url").fill("https://example.com/not-a-slack-hook");
   await page.getByRole("button", { name: "Connect" }).click();
-  await page.waitForSelector("#form-error");
-  expect((await page.locator("#form-error").innerText()).includes("Paste the address Slack gave you"), "a wrong address is said");
+  // With JavaScript the refusal is a toast and the form keeps what was
+  // typed (without it, the page comes back filled in, the reason beside).
+  const said = page.locator(".ck-toast", { hasText: "Paste the address Slack gave you" });
+  await said.waitFor();
+  expect(await said.count() === 1, "a wrong address is said");
+  expect((await page.locator("#url").inputValue()) === "https://example.com/not-a-slack-hook", "what was typed stays");
   await page.waitForTimeout(2200);
   await page.getByLabel("Slack").check();
   await page.locator("#url").fill("https://hooks.slack.com/services/T0CUST/B0CUST/customerSecret0123456789");

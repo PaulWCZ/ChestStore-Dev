@@ -9,12 +9,15 @@ export function siteTitle({ t, company }: Pick<PublicContext, "t" | "company">, 
 }
 
 // What search engines may do: index the status page, its history and its
-// incidents; never a subscriber's page or a form (the team's part says
-// noindex for all of it: src/app.tsx).
-export const indexed = (description?: string) => (
+// incidents — which also name their feeds, for a reader that finds them
+// from the page —; never a subscriber's page or a form (the team's part
+// says noindex for all of it: src/app.tsx).
+export const indexed = (t: PublicContext["t"], description?: string) => (
   <>
     <meta name="robots" content="index, follow" />
     {description && <meta name="description" content={description} />}
+    <link rel="alternate" type="application/atom+xml" href="/feed.atom" title={t.public.atom} />
+    <link rel="alternate" type="application/rss+xml" href="/feed.rss" title={t.public.rss} />
   </>
 );
 export const unindexed = <meta name="robots" content="noindex, nofollow" />;

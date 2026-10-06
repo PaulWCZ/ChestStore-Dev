@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { stamp, zoneName } from "../i18n/format.ts";
+import { stamp, zoneName } from "../components/format.ts";
 
 // Times are written by the server in the Chest's time zone, with its short
 // name ("14:05 CEST"): readable without JavaScript. Once the page is in the

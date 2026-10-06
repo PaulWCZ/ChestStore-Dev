@@ -1,4 +1,5 @@
-// Formatting helpers, free of the catalogues: client components import
+// Formatting helpers, free of the catalogues (here, among the browser-safe
+// modules, not in src/i18n/, which holds catalogues): islands import
 // these without shipping every language's words. Every date is written in
 // a time zone the caller names (the Chest's, or the visitor's).
 type Locale = string;

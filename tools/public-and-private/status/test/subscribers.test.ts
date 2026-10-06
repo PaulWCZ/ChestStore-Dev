@@ -3,7 +3,6 @@ import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
 import { addComponent, updateComponent } from "../src/lib/components.ts";
-import { admit, checkForm, formToken } from "../src/lib/guard.ts";
 import * as incidents from "../src/lib/incidents.ts";
 import { flush, updateEmail, welcome } from "../src/lib/mailer.ts";
 import { mailDelivery, mailState, setMailState } from "../src/lib/settings.ts";
@@ -27,7 +26,7 @@ after(async () => {
 });
 beforeEach(async () => {
   const { sql } = database;
-  await sql`truncate incidents, components, subscribers, mail_queue, form_counts, settings restart identity cascade`;
+  await sql`truncate incidents, components, subscribers, mail_queue, settings restart identity cascade`;
   chest.outbox.length = 0;
   website = (await addComponent(sql, editor, { name: "Website" })).id;
   checkout = (await addComponent(sql, editor, { name: "Checkout" })).id;
@@ -93,25 +92,20 @@ test("the form refuses bad addresses; unconfirmed addresses are forgotten after 
   assert.deepEqual(rows.map(r => r.email), ["new@example.com"]);
 });
 
-test("the form's guard: a signed time, then counts — the Chest's, else the tool's own", async () => {
+test("the form spends its budget only on a good request — \"new\" for an unknown address, \"again\" for a known one — and mails an address three times a day at most", async () => {
   const { sql } = database;
-  const token = formToken();
-  assert.throws(() => checkForm(token), (e: unknown) => e instanceof AppError && e.code === "too_fast");
-  assert.throws(() => checkForm("forged.value"), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  assert.throws(() => checkForm(undefined), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  const headers = new Headers({ "chest-visitor-address": "203.0.113.9" });
-  for (let i = 0; i < subs.formLimits.perVisitorHour; i++) await admit(sql, headers);
-  await refuses("too_many", () => admit(sql, headers));
-  await admit(sql, new Headers({ "chest-visitor-address": "203.0.113.10" }));
-  // The tool's own counters (a Chest that does not count visitors).
-  for (let i = 0; i < subs.formLimits.perVisitorHour; i++) await subs.guard(sql, "198.51.100.1");
-  await refuses("too_many", () => subs.guard(sql, "198.51.100.1"));
-  // A visitor the Chest's front does not name is everyone at once: only the
-  // ceiling for everyone counts, never five an hour for the whole world.
-  const later = new Date(Date.now() + 3 * 3600000);
-  for (let i = 0; i < subs.formLimits.perVisitorHour * 3; i++) await subs.guard(sql, "unknown", later);
-  for (let i = subs.formLimits.perVisitorHour * 3; i < subs.formLimits.perHour; i++) await subs.guard(sql, "198.51.100." + (i % 200), later).catch(() => {});
-  await refuses("too_many", () => subs.guard(sql, "unknown", later));
+  const spent: string[] = [];
+  const charge = async (kind: "new" | "again", _subject: string) => { spent.push(kind); };
+  await refuses("invalid_email", () => subs.subscribe(sql, { email: "not an address", language: "en", components: "all" }, new Date(), charge));
+  assert.deepEqual(spent, [], "a refused request costs nothing");
+  const day = new Date("2026-10-06T08:00:00Z");
+  const first = await subs.subscribe(sql, { email: "ana@example.com", language: "en", components: "all" }, day, charge);
+  assert.equal(first.send, true);
+  const sends: boolean[] = [first.send];
+  for (let k = 1; k <= 6; k++) sends.push((await subs.subscribe(sql, { email: "Ana@Example.com", language: "en", components: "all" }, new Date(day.getTime() + k * 11 * 60000), charge)).send);
+  assert.deepEqual(spent, ["new", "again", "again", "again", "again", "again", "again"]);
+  assert.deepEqual(sends, [true, true, true, false, false, false, false], "three confirmation emails a day, whoever asks");
+  assert.equal((await subs.subscribe(sql, { email: "ana@example.com", language: "en", components: "all" }, new Date(day.getTime() + 86400000), charge)).send, true, "the next day, one more");
 });
 
 test("editors see and remove subscribers; nobody else", async () => {

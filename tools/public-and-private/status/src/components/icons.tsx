@@ -70,3 +70,31 @@ export const Gear = () => <Icon><circle cx="12" cy="12" r="3" /><path d="M12 3v2
 // A padlock: for the team only.
 export const Lock = () => <Icon><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Icon>;
 export const Chat = () => <Icon><path d="M4 5.5h16v10H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></Icon>;
+
+// The states' shapes once per page (StateSprite), drawn where needed by
+// reference (StateUse): a 90-day bar shows a state in each day's tooltip,
+// and 90 copies of a drawing per service weighed most of the status page.
+// The glyph's colour comes from --glyph (the surface's by default, the
+// tooltip's ink inside one): the copies inherit it.
+const shapes: Record<string, ReactNode> = {
+  operational: (<><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none" /><path d="m7.8 12.3 2.9 2.9 5.5-5.9" className="glyph" strokeWidth="2.4" /></>),
+  maintenance: (<><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none" /><path d="M14.6 8.1a2.6 2.6 0 0 0-3.4 3.3l-3.6 3.6 1.4 1.4 3.6-3.6a2.6 2.6 0 0 0 3.3-3.4l-1.6 1.6-1.3-.3-.3-1.3z" className="glyph glyph-fill" strokeWidth="1" /></>),
+  degraded: (<><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="currentColor" stroke="none" /><path d="M7.5 12h9" className="glyph" strokeWidth="2.6" /></>),
+  partial: (<><path d="M12 2.6 22.2 20.4H1.8z" fill="currentColor" stroke="currentColor" strokeWidth="1.6" /><path d="M12 9v5" className="glyph" strokeWidth="2.4" /><circle cx="12" cy="17.2" r="1.3" className="glyph-fill" stroke="none" /></>),
+  major: (<><path d="M8.1 2.5h7.8l5.6 5.6v7.8l-5.6 5.6H8.1l-5.6-5.6V8.1z" fill="currentColor" stroke="none" /><path d="m8.6 8.6 6.8 6.8m0-6.8-6.8 6.8" className="glyph" strokeWidth="2.4" /></>),
+  none: (<circle cx="12" cy="12" r="8.5" strokeDasharray="3 3" />),
+};
+export function StateSprite() {
+  return (
+    <svg className="sprite" aria-hidden="true" focusable="false">
+      {Object.entries(shapes).map(([state, shape]) => (
+        <symbol key={state} id={`state-${state}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{shape}</symbol>
+      ))}
+    </svg>
+  );
+}
+// Inside something already hidden from screen readers (a tooltip of the
+// bar): nothing more than the reference.
+export const StateUse = ({ state }: { state: string }) => (
+  <svg><use href={`#state-${Object.hasOwn(shapes, state) ? state : "none"}`} /></svg>
+);

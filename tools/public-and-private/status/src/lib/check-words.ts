@@ -1,4 +1,4 @@
-import { format } from "../i18n/format.ts";
+import { format } from "../components/format.ts";
 
 // A failed check in words: "unexpected answer (HTTP 503)". Browser-safe.
 type Words = { errorTimeout: string; errorDns: string; errorTls: string; errorRefused: string; errorStatus: string; errorSlow: string };

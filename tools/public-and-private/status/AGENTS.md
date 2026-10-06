@@ -21,7 +21,7 @@ no `style={}` — the look is a stylesheet the tool serves.
 | Path | What it is |
 |---|---|
 | `src/app.tsx` | **Every route**: the team's pages (`team()`: a member without a role gets the team's status page), the public pages, feeds, the API (`/api/v2/…`), `/badge.svg` (and `/chest/badge.svg` for Settings), `/embed` + `/embed.css`, `/heartbeat/:token`, downloads, caching headers, `/chest-events`, `/chest-schedules`, `/chest-checks`, `/chest-webhooks` |
-| `src/actions.ts` | **Every mutation**: the team's (from islands, `call(name, input)`) and the public forms' (`/actions/subscribe`…, posted without JavaScript; each ends on a page with `?error=` or `?done=`) |
+| `src/actions.ts` | **Every mutation**: the team's (from islands, `call(name, input)`) and the public forms' (`/actions/subscribe`…, posted without JavaScript). `subscribe` and `subscribeChat` are bounded by the package (`bound`: `<Honeypot />` in the form, single-use token, budgets `formBudgets`/`chatBudgets` spent by `charge()` once the request is good; a refusal comes back to the form with what was typed); the others act on a secret link (`bound: false`) |
 | `src/layout.tsx` | The team's frame (kit `AppShell`, five sections, the public page link, `data-look`), the public error frame, the toasts |
 | `src/pages/` | Pages, rendered on the server (one function each, returning `{ title, body }`); `src/pages/parts/` server-only parts (`PublicShell`, `IncidentCard`, `HistoryBar`, `When`, `meta.tsx`) |
 | `src/islands/` | What runs in the browser: forms and views of the team's part (`IncidentForm`, `IncidentView`, `MaintenanceView`, `ComponentsView`, `ChecksForm`, `HeartbeatsView`, `SettingsView`, `SubscriberList`/`HookList`, `SetupEmpty`), `AutoRefresh`, `LocalTimes` (times in the visitor's zone — the only island of the public pages besides the toasts) |
@@ -30,8 +30,8 @@ no `style={}` — the look is a stylesheet the tool serves.
 | `src/lib/theme.ts`, `src/lib/states.ts`, `src/tokens.css`, `src/styles.css` | The look: the "Control room" identity, the company's choice (`chest.theme()`), served as `/chest/look.css` and `/look.css` (with the five fixed state colours), cached by its hash |
 | `src/lib/public-origin.ts` | The public address: `chest.tool.publicUrl` (the company's own domain once connected); the visitor's address only from `visitors.address()` |
 | `src/lib/public-page.ts` | What every public page reads: language, settings, look, whether mail and chats are offered (kept 30 s) |
-| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts`, `format.ts` (dates, numbers; Intl objects made once) |
-| `migrations/` | `0001_status.sql` … `0004_after_critique_3.sql` (published shape: never edit one that ran; add a file) |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts`; dates and numbers in `src/components/format.ts` (Intl objects made once) |
+| `migrations/` | `0001_status.sql` … `0005_bounds.sql` (the package's `chest_seen`, `chest_bounds`; three confirmation emails a day per address) (published shape: never edit one that ran; add a file) |
 | `test/` | `app.test.mjs` (the built server: pages, actions, forms, API, files, deliveries), `stack.test.ts`, and the rules' tests (`*.test.ts`, as before) |
 
 ## Commands

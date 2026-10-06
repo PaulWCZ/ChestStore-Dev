@@ -6,10 +6,9 @@ import { AppError, type ErrorCode } from "./lib/app-error.ts";
 import * as checks from "./lib/checks.ts";
 import * as components from "./lib/components.ts";
 import { db } from "./lib/db.ts";
-import { admit, checkForm } from "./lib/guard.ts";
 import * as heartbeats from "./lib/heartbeats.ts";
 import * as hooks from "./lib/hooks.ts";
-import { chooseHook, flushHooks, retryHook, subscribeHook, unsubscribeHook } from "./lib/hooks.ts";
+import { chatBudgets, chooseHook, flushHooks, retryHook, subscribeHook, unsubscribeHook } from "./lib/hooks.ts";
 import { importStatuspage } from "./lib/importer.ts";
 import * as incidents from "./lib/incidents.ts";
 import { otherLanguage, writerLanguage } from "./lib/languages.ts";
@@ -19,7 +18,7 @@ import { savePageSettings } from "./lib/page-settings.ts";
 import { publicOrigin } from "./lib/public-origin.ts";
 import { rememberPublicOrigin, setChecksState } from "./lib/settings.ts";
 import * as subscribers from "./lib/subscribers.ts";
-import { choose, confirm, subscribe, unsubscribe } from "./lib/subscribers.ts";
+import { choose, confirm, formBudgets, subscribe, unsubscribe } from "./lib/subscribers.ts";
 import * as templates from "./lib/templates.ts";
 import * as tell from "./lib/tell.ts";
 import { tellTools } from "./lib/tell-tools.ts";
@@ -73,17 +72,15 @@ function loose(max: number): Field<string> {
   return field.text({ min: 0, max });
 }
 
-// What every public form carries besides its fields: a field people never
-// see (website: only robots fill it) and the signed time it was shown.
-const guarded = { website: loose(200), started: loose(200) };
-
-// The guard of a public form: the robots' field, the signed time (refused
-// when sent faster than a person types, or never shown), then the
-// visitor's counts (the Chest's, else the tool's own).
-async function guard(input: { website: string; started: string }, headers: Headers): Promise<void> {
-  if (input.website !== "") throw new AppError("invalid");
-  checkForm(input.started);
-  await admit(db(), headers);
+// A refusal of a public form, sent back with what the visitor typed (a
+// form posted without JavaScript comes back to its page filled in: the
+// package puts the values in the address, ?error=<code>&values=…, which
+// the page reads; the request log never has them). Its count and its form
+// token are given back (the package releases them on a refusal).
+function refuseWith(error: unknown, typed: Record<string, string>): never {
+  if (!(error instanceof AppError)) throw error;
+  const kept = Object.fromEntries(Object.entries(typed).filter(([, v]) => v !== "" && v.length < 100));
+  throw new AppError(error.code as ErrorCode, { ...error.values, ...kept });
 }
 
 // A subscription's token as an address may hold it.
@@ -286,8 +283,9 @@ export const actions = {
 
   // Import from Statuspage (lib/importer.ts): the files an editor chose,
   // read in the browser and sent as text (several at once: one JSON array
-  // of their texts), at most 20 MiB.
-  importStatuspage: action({ text: checked<string>() }, async ({ text }, { member }) => importStatuspage(db(), member, typeof text === "string" ? text : ""), { maxBody: 20 << 20 }),
+  // of their texts), at most 10 MiB — read whole, so kept small (five
+  // files of 2 MiB: a Statuspage page's API answers are far smaller).
+  importStatuspage: action({ text: checked<string>() }, async ({ text }, { member }) => importStatuspage(db(), member, typeof text === "string" ? text : ""), { maxBody: 10 << 20 }),
 
   // ---- Heartbeats -----------------------------------------------------------
 
@@ -302,38 +300,32 @@ export const actions = {
   }),
 
   // ---- The public part -------------------------------------------------------
-  // Anyone on the Internet may call these. They hold no member; they check
-  // the form's guard, bound everything, and answer the same whoever the
-  // address belongs to. Each ends on a page (redirect), so the forms work
+  // Anyone on the Internet may call these. They hold no member, bound
+  // everything, and answer the same whoever the address belongs to. Each ends on a page (redirect), so the forms work
   // the same with or without JavaScript; what went wrong is in the
   // address (?error=<code>), said by that page beside the form.
-  // The public actions guard themselves for now (subscribe and
-  // subscribeChat: the tool's own counters and form time; the others: a
-  // secret token in the address): bound: false says so to checkSources.
-  // They move to the package's bound (a single-use form token, counted
-  // only once valid, per visitor by address or cookie) in Status's next
-  // step.
-  subscribe: publicAction({ ...guarded, email: loose(400), scope: loose(10), component: field.list(loose(20), 200) }, async (input, { locale, request }) => {
-    let target = "/subscribe?sent=1";
+  // subscribe and subscribeChat are bounded by the package (a single-use
+  // form token, the field robots fill, budgets a day counted only once the
+  // request is known good, per visitor — the Chest's address of them, else
+  // their browser's cookie — and in all). The others act on a secret link
+  // (a subscriber's or a chat subscription's token, 32 random characters):
+  // they write nothing a stranger could fill, so bound: false.
+  subscribe: publicAction({ email: loose(400), scope: loose(10), component: field.list(loose(20), 200) }, async (input, { locale, request, charge }) => {
+    const sql = db();
     try {
-      const sql = db();
-      await guard(input, request.headers);
-      const result = await subscribe(sql, { email: input.email, language: localeOf(locale), components: input.scope === "some" ? input.component : "all" });
+      const result = await subscribe(sql, { email: input.email, language: localeOf(locale), components: input.scope === "some" ? input.component : "all" }, new Date(), (kind, subject) => charge(kind, { subject }));
       const origin = publicOrigin(request.headers) ?? "";
       await rememberPublicOrigin(sql, origin || null);
-      if (result.send) {
-        const outcome = await welcome(sql, result.subscriber, result.state, origin);
-        if (outcome === "none") {
-          // No mail on this Chest: nothing is kept of the address.
-          if (result.state !== "confirmed") await sql`delete from subscribers where id = ${result.subscriber.id} and confirmed_at is null`;
-          target = "/subscribe?error=no_mail";
-        }
+      if (result.send && (await welcome(sql, result.subscriber, result.state, origin)) === "none") {
+        // No mail on this Chest: nothing is kept of the address.
+        if (result.state !== "confirmed") await sql`delete from subscribers where id = ${result.subscriber.id} and confirmed_at is null`;
+        throw new AppError("no_mail");
       }
     } catch (error) {
-      target = `/subscribe?error=${failed(error)}`;
+      refuseWith(error, { email: input.email });
     }
-    redirect(target);
-  }, { bound: false }),
+    redirect("/subscribe?sent=1");
+  }, { bound: { budgets: formBudgets, formSeconds: 2 } }),
 
   confirmSubscription: publicAction({ token: loose(80) }, async ({ token: given }) => {
     const token = tokenOf(given);
@@ -371,22 +363,23 @@ export const actions = {
 
   // ---- Updates in a chat (Proposal (studio): webhooks) ----------------------
 
-  // Connects a Slack or Teams channel, or a web address: the same guard as
-  // the email form; the Chest checks the address before anything is kept.
+  // Connects a Slack or Teams channel, or a web address: bounded as the
+  // email form; the Chest checks the address before anything is kept.
   // The subscription's page follows (its link is its key).
-  subscribeChat: publicAction({ ...guarded, kind: loose(20), url: loose(4096), scope: loose(10), component: field.list(loose(20), 200) }, async (input, { locale, request }) => {
-    let target: string;
+  subscribeChat: publicAction({ kind: loose(20), url: loose(4096), scope: loose(10), component: field.list(loose(20), 200) }, async (input, { locale, request, charge }) => {
+    const sql = db();
+    let token: string;
     try {
-      const sql = db();
-      await guard(input, request.headers);
       await rememberPublicOrigin(sql, publicOrigin(request.headers) || null);
-      const hook = await subscribeHook(sql, { kind: input.kind, url: input.url, language: localeOf(locale), components: input.scope === "some" ? input.component : "all" });
-      target = `/w/${hook.token}?new=1`;
+      // Counted before the Chest is asked to check the address; a refusal
+      // (the Chest's, the rules') gives the count back.
+      await charge("new");
+      token = (await subscribeHook(sql, { kind: input.kind, url: input.url, language: localeOf(locale), components: input.scope === "some" ? input.component : "all" })).token;
     } catch (error) {
-      target = `/subscribe/chat?error=${failed(error)}${/^(slack|teams|generic)$/u.test(input.kind) ? `&kind=${input.kind}` : ""}`;
+      refuseWith(error, { kind: /^(slack|teams|generic)$/u.test(input.kind) ? input.kind : "", url: input.url });
     }
-    redirect(target);
-  }, { bound: false }),
+    redirect(`/w/${token}?new=1`);
+  }, { bound: { budgets: chatBudgets, formSeconds: 2 } }),
 
   chooseChatFollowed: publicAction({ token: loose(80), scope: loose(10), component: field.list(loose(20), 200) }, async ({ token: given, scope, component }) => {
     const token = tokenOf(given);
