@@ -81,7 +81,7 @@ export function SettingsView({ origin, settings, look, subscribers, templates, t
             <p id="support-hint" className="hint">{w.supportHint}</p>
           </div>
           <p className="note">{look === "brand" ? w.brandOn : look === "catalogue" ? w.themeOn : w.brandOff}</p>
-          <p className="note">{w.domain}</p>
+          <p className="note">{format(w.domain!, { address: origin })}</p>
           <div><button type="submit" className="button" disabled={pending}>{w.save}</button></div>
         </form>
       </section>
@@ -90,10 +90,11 @@ export function SettingsView({ origin, settings, look, subscribers, templates, t
         <h2 id="share-title">{w.shareTitle}</h2>
         <h3>{w.badgeTitle}</h3>
         <p className="hint">{w.badgeHint}</p>
-        <p><img src="/badge.svg" alt={w.badgeAlt} height={20} /></p>
+        <p><img src="/chest/badge.svg" alt={w.badgeAlt} height={20} /></p>
         <Snippet id="badge-code" label={w.badgeCode!} code={badge} t={t} />
         <h3>{w.widgetTitle}</h3>
         <p className="hint">{w.widgetHint}</p>
+        <p className="note warn">{w.frameBlocked}</p>
         <Snippet id="widget-code" label={w.widgetCode!} code={frame} t={t} />
         <form className="stack" onSubmit={save}>
           <div>

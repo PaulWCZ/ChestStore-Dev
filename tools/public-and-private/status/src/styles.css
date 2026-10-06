@@ -102,6 +102,9 @@ legend { padding: 0; }
    which carries where its look comes from (data-look) and adds no box. */
 .public { background: var(--bg); }
 .look { display: contents; }
+/* An island's wrapper (@argentic/chest-app): its content takes its place
+   in the page's layout, as if the wrapper were not there. */
+.island { display: contents; }
 .public-head { background: var(--surface); border-bottom: 1px solid var(--line); }
 .public-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 72px; flex-wrap: wrap; padding-top: var(--space-3); padding-bottom: var(--space-3); }
 .company { display: inline-flex; align-items: center; gap: var(--space-3); color: var(--ink); text-decoration: none; min-width: 0; }
@@ -374,7 +377,7 @@ details[open] > .summary-button { margin-bottom: var(--space-4); }
 
 /* Settings */
 .snippet { display: grid; gap: var(--space-1); }
-.snippet-row { display: flex; gap: var(--space-2); align-items: center; }
+.snippet-row { display: flex; gap: var(--space-2); align-items: flex-start; }
 .snippet-row .field { flex: 1; min-width: 0; }
 .field.mono { font-family: var(--font-mono); font-size: var(--text-s); }
 .plain-list { list-style: none; margin: 0; padding: 0; }

@@ -8,7 +8,7 @@ import { AppError, createApp, log, page, publicPage, type MemberContext, type Vi
 import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 import { actions } from "./actions.ts";
-import { catalogue, isLocale, locales, publicLocale, words, type Locale } from "./i18n/index.ts";
+import { catalogue, isLocale, localeOf, locales, publicLocale, words, type Locale } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
@@ -166,9 +166,9 @@ for (const [path, endpoint] of Object.entries(endpoints)) {
 // when the Chest gives its brand (and white reads on it). ?lang=fr or
 // ?lang=en chooses its words; without it, the reader's browser languages
 // do. Kept a minute by caches, per language. A picture: its own policy.
-app.get("/badge.svg", async c => {
+const badgeRoute = (members: boolean) => async (c: Context) => {
   const asked = c.req.query("lang");
-  const locale: Locale = isLocale(asked) ? asked : publicLocale(undefined, c.req.header("accept-language"));
+  const locale: Locale = isLocale(asked) ? asked : members ? localeOf((c as Context<{ Variables: { viewer: MemberContext } }>).get("viewer").locale) : publicLocale(undefined, c.req.header("accept-language"));
   const t = catalogue(locale);
   const [{ state }, look] = await Promise.all([publicSummary(), lookOf("public")]);
   const message = state === "none" ? t.public.badgeSetup : t.banner[state];
@@ -181,7 +181,11 @@ app.get("/badge.svg", async c => {
       "Content-Security-Policy": "default-src 'none'; style-src 'none'; frame-ancestors 'none'",
     },
   });
-});
+};
+app.get("/badge.svg", badgeRoute(false));
+// The same picture inside the team's part: Settings shows it (an image
+// from the public host would be another origin there).
+app.get("/chest/badge.svg", badgeRoute(true));
 
 // The banner for the company's own site (lib/embed.ts), framed only by the
 // sites an editor listed: its own policy, their frame-ancestors. Its

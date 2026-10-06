@@ -13,7 +13,7 @@ export const fr: Catalogue = {
     signIn: "Connectez-vous à votre Chest pour ouvrir cette page.",
     busy: "Envoi en cours…",
     language: "Langue",
-    back: "Retour à « En ce moment »",
+    back: "Retour à « En ce moment »",
   },
   meta: {
     lang: "fr",
@@ -575,7 +575,8 @@ export const fr: Catalogue = {
     supportPlaceholder: "support@exemple.fr",
     brandOn: "Le logo et les couleurs de votre entreprise, réglés dans votre Chest, sont sur la page.",
     brandOff: "Votre logo et vos couleurs apparaîtront dès que l’administrateur de votre Chest lui aura donné votre marque.",
-    domain: "Une adresse à vous (status.votre-entreprise.fr) dépend de votre Chest : il ne le permet pas encore.",
+    domain: "Vos clients trouvent cette page à l’adresse {address}. Pour une adresse à vous (status.votre-entreprise.fr), demandez à qui gère votre Chest de la connecter : les liens des e-mails, des flux et de l’API suivent d’eux-mêmes.",
+    frameBlocked: "Votre Chest ne laisse pas encore d’autres sites afficher ses pages dans un cadre : d’ici là, le bandeau n’apparaît pas sur votre site. Le badge fonctionne partout.",
     save: "Enregistrer",
     saved: "Enregistré.",
     shareTitle: "Montrer votre état sur d’autres sites",
