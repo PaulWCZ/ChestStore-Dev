@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { inline, markdown } from "../lib/markdown.ts";
+import { inline, markdown } from "../src/shared/markdown.ts";
 
 test("the description's Markdown: headings, lists, bold, italic, code, links", () => {
   const blocks = markdown("# Plan\nCall **the client** at *3pm*.\nSee https://example.com/a.\n\n- one\n- two with `code`\n1. first\n2. second");

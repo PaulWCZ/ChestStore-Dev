@@ -562,7 +562,7 @@ await step("the calendar: my due dates are in my Chest calendar feed; My tasks s
   const ics = await (await page.request.get(origin + feed)).text();
   expect(/SUMMARY:Due: Préparer le stand du salon/u.test(ics), "the stand's due date is in Hugo's feed");
   expect(!/Publier l’offre de stage/u.test(ics), "finished work is not");
-  expect(/URL:http:\/\/[^\r\n]*\/chest\/cards\/\d+/u.test(ics), "the event opens the card by its id");
+  expect(/URL:https?:\/\/[^\r\n]*\/chest\/cards\/\d+/u.test(ics), "the event opens the card by its id");
 });
 
 await step("the Chest look: late says so in a word, labels show their names", async () => {

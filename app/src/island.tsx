@@ -10,10 +10,9 @@ export type Plain<T> = T extends string | number | boolean | null | undefined ? 
   : T extends readonly (infer U)[] ? readonly Plain<U>[]
   : { [K in keyof T]: Plain<T[K]> };
 
+// The islands of the page being rendered (renderToString is synchronous:
+// one page at a time).
 let registry: Record<string, ComponentType<object>> = {};
-export function setIslands(islands: Record<string, ComponentType<never>>): void {
-  registry = islands as typeof registry;
-}
 
 // Each island is rendered as a React root of its own, as the browser
 // hydrates it: the ids React makes (useId: a label's htmlFor, a dialog's
@@ -22,7 +21,8 @@ export function setIslands(islands: Record<string, ComponentType<never>>): void 
 // refresh adds never takes the prefix of one already there.
 let count = 0;
 let mark = "";
-export function startRender(): void {
+export function startRender(islands: Record<string, ComponentType<never>>): void {
+  registry = islands as typeof registry;
   count = 0;
   mark = Math.random().toString(36).slice(2, 6);
 }

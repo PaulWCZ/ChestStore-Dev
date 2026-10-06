@@ -27,7 +27,6 @@ export const en = {
     not_found: "This no longer exists.",
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
-    busy: "Too many messages today. Try again tomorrow.",
   },
   // EXAMPLE (Notes)
   people: { former: "{name} (former member)", noAccess: "{name} (no access)", erased: "Former member", unknown: "Unknown member" },
@@ -44,14 +43,6 @@ export const en = {
     removed: "Note deleted.",
     export: "Download as CSV",
     by: "{name}, {date}",
-    fromVisitor: "From the public page, {date}",
     empty: { title: "No notes yet", body: "Post the first one: everyone who has the tool sees it." },
-  },
-  contact: {
-    title: "Write to the team",
-    intro: "Your message reaches the team's notes. Do not write personal details.",
-    label: "Your message",
-    send: "Send",
-    sent: "Thank you: the team has your message.",
   },
 };

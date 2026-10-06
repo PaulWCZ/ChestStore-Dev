@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { between, isPosition, sequence } from "../lib/position.ts";
+import { between, isPosition, sequence } from "../src/shared/position.ts";
 
 test("a key between any two keys, in order, however often we insert", () => {
   const keys = sequence(50);

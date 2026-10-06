@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { everyone as readers } from "../lib/audience.ts";
-import { AppError } from "../lib/errors.ts";
-import { forgetGroups, withGroups } from "../lib/groups.ts";
-import * as posts from "../lib/posts.ts";
+import { everyone as readers } from "../src/lib/audience.ts";
+import { AppError } from "@argentic/chest-app";
+import { forgetGroups, withGroups } from "../src/lib/groups.ts";
+import * as posts from "../src/lib/posts.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, workshop } from "./support/members.ts";
@@ -23,7 +23,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({
+  chest = await fakeChest({ network: {},
     chest: { timeZone: zone },
     members: everyone,
     groups: [{ ...workshop, members: [hugo.id, lea.id] }],

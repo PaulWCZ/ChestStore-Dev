@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
-import { POST as job } from "../app/chest-jobs/[name]/route.ts";
-import { continueDigest, digestKey, mondayOf, seenDigest, startDigest } from "../lib/digest.ts";
-import { leave } from "../lib/lifecycle.ts";
-import * as posts from "../lib/posts.ts";
+import { chestSchedules as job } from "../src/calls.ts";
+import { continueDigest, digestKey, mondayOf, seenDigest, startDigest } from "../src/lib/digest.ts";
+import { leave } from "../src/lib/lifecycle.ts";
+import * as posts from "../src/lib/posts.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, groups, hugo, ines, lea, nora, sofia, stranger } from "./support/members.ts";
@@ -24,7 +24,7 @@ beforeEach(async () => {
   await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, groups: fakeGroups, capabilities: ["members", "files", "notifications"], schedules: [{ name: "publish", cron: "*/15 * * * *" }, { name: "digest", cron: "30 8 * * 1" }] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, groups: fakeGroups, capabilities: ["members", "files", "notifications"], network: {} });
   return chest;
 };
 const zone = "Europe/Paris";
@@ -53,7 +53,7 @@ test("each person gets one item: the posts of the week they have not seen, in th
     await posts.visit(database.sql, asMember(hugo), daysAgo(4));
     await posts.confirm(database.sql, asMember(hugo), imp.id);
     await posts.visit(database.sql, asMember(lea), daysAgo(0.5));
-    await startDigest(database.sql, { scheduledAt: monday.toISOString(), timeZone: zone });
+    await startDigest(database.sql, { scheduledAt: monday.toISOString() });
 
     // Hugo (English, Sales): the printer and the Sales post, not the move (seen), not the drill (confirmed).
     const [h] = digestOf(hugo.id);
@@ -77,7 +77,7 @@ test("each person gets one item: the posts of the week they have not seen, in th
 
     // Delivered again (at least once): the same items, never two.
     const count = chest.notifications.filter(n => n.key === digestKey).length;
-    await startDigest(database.sql, { scheduledAt: monday.toISOString(), timeZone: zone });
+    await startDigest(database.sql, { scheduledAt: monday.toISOString() });
     assert.equal(chest.notifications.filter(n => n.key === digestKey).length, count);
     assert.equal(await continueDigest(database.sql, new Date(monday.getTime() + 60_000)), "none");
 
@@ -94,14 +94,14 @@ test("next week replaces this week's item; with nothing new, last week's goes", 
   await open();
   try {
     await write({ kind: "info", title: "Week one" }, daysAgo(2));
-    await startDigest(database.sql, { scheduledAt: monday.toISOString(), timeZone: zone });
+    await startDigest(database.sql, { scheduledAt: monday.toISOString() });
     assert.equal(digestOf(nora.id).length, 1);
     const next = new Date(monday.getTime() + 7 * 864e5);
     await write({ kind: "info", title: "Week two" }, new Date(next.getTime() - 864e5));
     // Nora came in between, after "Week one" and before "Week two"; Léa after both.
     await posts.visit(database.sql, asMember(nora), new Date(monday.getTime() + 864e5));
     await posts.visit(database.sql, asMember(lea), new Date(next.getTime() - 3600e3));
-    await startDigest(database.sql, { scheduledAt: next.toISOString(), timeZone: zone }, next);
+    await startDigest(database.sql, { scheduledAt: next.toISOString() }, next);
     const [n] = digestOf(nora.id);
     assert.equal(n!.body, "Week two");
     assert.equal(digestOf(nora.id).length, 1);
@@ -119,7 +119,7 @@ test("a deleted or scheduled post is never in the digest; with nothing at all, n
     const gone = await write({ kind: "info", title: "Oops" }, daysAgo(2));
     await posts.deletePost(database.sql, asMember(camille), gone.id);
     await write({ kind: "info", title: "Tomorrow", publishAt: { day: "2026-09-29", time: "09:00" } }, daysAgo(1));
-    await startDigest(database.sql, { scheduledAt: monday.toISOString(), timeZone: zone });
+    await startDigest(database.sql, { scheduledAt: monday.toISOString() });
     assert.deepEqual(chest.notifications.filter(n => n.key === digestKey), []);
   } finally {
     await chest.close();
@@ -157,7 +157,7 @@ test("someone who leaves is forgotten by the digest", async () => {
   await open();
   try {
     await write({ kind: "info", title: "Week one" }, daysAgo(2));
-    await startDigest(database.sql, { scheduledAt: monday.toISOString(), timeZone: zone });
+    await startDigest(database.sql, { scheduledAt: monday.toISOString() });
     assert.equal((await database.sql`select 1 from digests where member = ${nora.id}`).length, 1);
     await leave(database.sql, nora.id);
     assert.equal((await database.sql`select 1 from digests where member = ${nora.id}`).length, 0);

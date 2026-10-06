@@ -71,7 +71,8 @@ test("refusals: a code and the reader's words, nothing written", async () => {
   const long = await (await call(sam, "addNote", { body: "x".repeat(2001) })).json();
   assert.equal(long.message, "Too long: 2000 characters at most.");
   assert.equal((await call(sam, "noSuchAction", {})).status, 404);
-  assert.equal((await call(sam, "sendMessage", { body: "hi", website: "" })).status, 404, "a public action is not a members' one");
+  const plain = withMember(new Request(url("/chest/actions/addNote"), { method: "POST", body: "body=x", headers: { "content-type": "text/plain", "sec-fetch-site": "same-origin", "x-tool-action": "1" } }), sam);
+  assert.equal((await app.fetch(plain)).status, 415, "neither a form nor JSON");
   const [{ count }] = await database.sql`select count(*)::int from notes`;
   assert.equal(count, 1);
 });
@@ -120,24 +121,20 @@ test("a download streams the rows as CSV, formulas defused", async () => {
   assert.match(text, /"'=HYPERLINK\(""x""\)"/u);
 });
 
-test("the public part: a visitor's words and form, no member", async () => {
-  const page = await get(null, "/", { "accept-language": "fr-CH, en;q=0.5" });
-  assert.equal(page.status, 200);
-  assert.match(await page.text(), /Écrire à l’équipe/u);
-  const sent = await form(null, "/actions/sendMessage", { body: "Hello team", website: "" }, "/");
-  assert.equal(sent.headers.get("location"), "/?sent=1");
-  const robot = await form(null, "/actions/sendMessage", { body: "Buy now", website: "spam.test" }, "/");
-  assert.equal(robot.status, 303);
-  const html = await (await get(sam, "/chest")).text();
-  assert.match(html, /Hello team/u);
-  assert.doesNotMatch(html, /Buy now/u);
+test("no public part: visitors get 404, and nothing sends them elsewhere", async () => {
+  assert.equal((await get(null, "/", { "accept-language": "fr-CH, en;q=0.5" })).status, 404);
   assert.equal((await call(null, "addNote", { body: "x" })).status, 404, "a members' action is not a public one");
   const lang = await get(null, "/lang/fr?back=/");
   assert.match(lang.headers.get("set-cookie"), /^lang=fr;/u);
-  // Never back to another site: //evil, /\evil, /<tab>/evil.
-  for (const evil of ["//evil.example", "/%5Cevil.example", "/%09/evil.example", "https://evil.example"]) {
+  // Never back to another site: //, /\, /<tab>/, dot segments raw or encoded.
+  for (const evil of ["//evil.example", "/%5Cevil.example", "/%09/evil.example", "https://evil.example", "/..//evil.example", "/.//evil.example", "/%2e%2e//evil.example", "/./%5Cevil.example", "/chest/..//evil.example"]) {
+    assert.equal((await get(null, `/lang/fr?back=${encodeURIComponent(evil)}`)).headers.get("location"), "/", evil);
     assert.equal((await get(null, `/lang/fr?back=${evil}`)).headers.get("location"), "/", evil);
   }
+});
+
+test("a page that refuses: fail() is a 404 or 403 page, never a 500", async () => {
+  assert.equal((await get(sam, "/chest/notes/999999")).status, 404);
 });
 
 test("errors: the reader's page, the right status", async () => {
@@ -157,12 +154,4 @@ test("the Chest's events and schedules, each delivered at least once", async () 
   const [{ authors }] = await database.sql`select count(*)::int as authors from notes where author = ${sam.id}`;
   assert.equal(authors, 0);
   assert.equal(await chest.run("nothing", to), 404, "a schedule without a handler");
-});
-
-test("a public write is bounded: so many a day", async () => {
-  await database.sql`insert into notes (body, author) select 'visitor ' || n, null from generate_series(1, 60) n`;
-  const refused = await form(null, "/actions/sendMessage", { body: "One more", website: "" }, "/");
-  assert.equal(refused.headers.get("location"), "/?error=busy");
-  const [{ count }] = await database.sql`select count(*)::int from notes where body = 'One more'`;
-  assert.equal(count, 0);
 });

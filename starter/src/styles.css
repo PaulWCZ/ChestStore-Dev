@@ -13,12 +13,9 @@ a { color: var(--accent-text); }
 .notice { margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); border: var(--border-width) solid var(--danger); background: var(--danger-soft); color: var(--danger-ink); }
 form[aria-busy="true"] { opacity: 0.7; }
 
-/* The public part */
+/* The public part (its layout: error pages outside /chest) */
 .public-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); max-width: 40rem; margin: 0 auto; padding: var(--space-4); }
 .public main { max-width: 40rem; margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-7); }
-.narrow { display: grid; gap: var(--space-4); }
-.sent { padding: var(--space-3) var(--space-4); background: var(--ok-soft); color: var(--ok-ink); }
-.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 
 /* Notes */
 .composer { display: grid; gap: var(--space-2); margin: var(--space-5) 0; }
@@ -28,6 +25,8 @@ form[aria-busy="true"] { opacity: 0.7; }
 .note { display: grid; gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--line); border-radius: var(--radius-l); background: var(--surface); }
 .note.pinned { border-color: var(--line-strong); }
 .note p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-link { color: inherit; text-decoration: none; }
+.note-link:hover { text-decoration: underline; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--ink-2); font-size: var(--text-s); }
 .meta .actions { display: flex; gap: var(--space-2); margin-left: auto; }
 
