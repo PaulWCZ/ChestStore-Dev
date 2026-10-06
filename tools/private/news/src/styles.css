@@ -33,7 +33,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ck-bar { background: var(--bg); }
 .ck-brand { font-weight: var(--weight-heavy); font-size: 1.25rem; letter-spacing: -0.01em; }
 .ck-brand .mark { width: 30px; height: 30px; }
-.ck-bar-end .ck-search { flex: 0 1 280px; }
+.ck-bar-end > .island { flex: 0 1 280px; } /* the search, an island */
+.ck-bar-end > .island .ck-search { width: 100%; max-width: none; }
 .ck-bar-end .write { flex: none; }
 .ck-bar-end .ck-member-text { white-space: nowrap; }
 .narrow { max-width: 720px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
@@ -422,7 +423,7 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
   .ck-bar-end { display: contents; }
   .ck-bar-end .write, .ck-bar-end .ck-member { margin-left: auto; }
   .ck-bar-end .write + .ck-member { margin-left: 0; }
-  .ck-bar-end .ck-search { order: 4; flex: 1 0 100%; max-width: none; margin: 0 0 var(--space-2); }
+  .ck-bar-end > .island { order: 4; flex: 1 0 100%; max-width: none; margin: 0 0 var(--space-2); }
 }
 @media (max-width: 900px) {
   .front-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "side" "rest"; }
