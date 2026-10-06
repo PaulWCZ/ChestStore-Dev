@@ -120,24 +120,40 @@ const spaces = /[\s\u00a0\u202f]/gu;
 // "amount_ambiguous": an English reader means 1250, a French one 1.25. At
 // most two decimals, numbers included (12.345 and 1.005 refused, never
 // rounded).
-function cents(value: unknown): number | null {
+// readMoney(value, decimals): what field.money reads, for an amount whose
+// currency is known only at run time (an expense in any currency, an
+// island showing what will be saved): minor units, or a refusal (fail:
+// "invalid", "amount_ambiguous"). The same in the browser.
+export function readMoney(value: unknown, decimals = 2): number {
+  return cents(value, decimals) ?? fail("invalid");
+}
+
+// decimals: the currency's minor unit (2: euros and cents; 0: yen, CFA
+// francs; 3: Kuwaiti or Tunisian dinars) — the amount is read in those
+// units. With 0 decimals, "1,250" and "1.250" are both 1250 (no decimal
+// part to mistake them for).
+function cents(value: unknown, places = 2): number | null {
+  const scale = 10 ** places;
   if (typeof value === "number") {
     if (!Number.isFinite(value) || Math.abs(value) >= 1e13) return null;
-    const n = Math.round(value * 100);
-    return Math.abs(n / 100 - value) < 1e-9 ? n : null;
+    const n = Math.round(value * scale);
+    return Math.abs(n / scale - value) < 1e-9 ? n : null;
   }
   let s = text(value).trim();
+  const part = places > 0 ? `(?:[.,]\\d{1,${places}})?` : "";
   // Spaces (any kind) only as group separators: "1 234,50", never "12 50".
   if (/[\s\u00a0\u202f]/u.test(s)) {
-    if (!/^-?\d{1,3}(?:[\s\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?$/u.test(s)) return null;
+    if (!new RegExp(`^-?\\d{1,3}(?:[\\s\\u00a0\\u202f]\\d{3})+${part}$`, "u").test(s)) return null;
     s = s.replace(spaces, "");
   }
-  const plain = /^(-?)(\d{1,13})(?:[.,](\d{1,2}))?$/u.exec(s);
+  const plain = places > 0 ? new RegExp(`^(-?)(\\d{1,13})(?:[.,](\\d{1,${places}}))?$`, "u").exec(s) : /^(-?)(\d{1,13})()$/u.exec(s);
   // Groups of three with one and the same mark.
-  const grouped = /^(-?)(\d{1,3}([.,])\d{3}(?:\3\d{3})*)([.,])(\d{1,2})$/u.exec(s);
-  const whole3 = /^(-?)(\d{1,3}([.,])\d{3}(?:\3\d{3})+)$/u.exec(s);
+  const grouped = places > 0 ? new RegExp(`^(-?)(\\d{1,3}([.,])\\d{3}(?:\\3\\d{3})*)([.,])(\\d{1,${places}})$`, "u").exec(s) : null;
+  const whole3 = new RegExp(`^(-?)(\\d{1,3}([.,])\\d{3}(?:\\3\\d{3})${places > 0 ? "+" : "*"})$`, "u").exec(s);
   let sign: string, whole: string, decimals: string;
-  if (plain) [, sign = "", whole = "", decimals = ""] = plain;
+  // A plain number with as many decimals as a group has digits ("1,250"
+  // with 3 decimals) is the ambiguity below, not a plain amount.
+  if (plain && !(places === 3 && /^-?[1-9]\d{0,2}[.,]\d{3}$/u.test(s))) [, sign = "", whole = "", decimals = ""] = plain;
   else if (grouped && grouped[3] !== grouped[4] && !/^-?0[.,]/u.test(s)) {
     sign = grouped[1] ?? "";
     whole = (grouped[2] ?? "").replace(/[.,]/gu, "");
@@ -146,10 +162,10 @@ function cents(value: unknown): number | null {
     sign = whole3[1] ?? "";
     whole = (whole3[2] ?? "").replace(/[.,]/gu, "");
     decimals = "";
-  } else if (/^-?[1-9]\d{0,2}[.,]\d{3}$/u.test(s)) return fail("amount_ambiguous" as ErrorCode);
+  } else if (places > 0 && /^-?[1-9]\d{0,2}[.,]\d{3}$/u.test(s)) return fail("amount_ambiguous" as ErrorCode);
   else return null;
   if (whole.length > 13) return null;
-  const n = Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
+  const n = Number(whole) * scale + (places > 0 ? Number(decimals.padEnd(places, "0")) : 0);
   return sign ? -n : n;
 }
 
@@ -189,12 +205,13 @@ export const field = {
       return n >= min && n <= max ? n : fail("invalid");
     },
   }),
-  // An amount, read in cents (above): store it as bigint cents, write it
-  // with f.money(cents, { cents: true }). min and max are in cents.
-  money: ({ min = 0, max }: { min?: number; max: number }): Field<number, number | string> => ({
+  // An amount, read in its currency's minor units (cents with decimals 2,
+  // the default; above): store it as bigint, write it with f.money(n, {
+  // cents: true }) for 2 decimals. min and max are in the same units.
+  money: ({ min = 0, max, decimals = 2 }: { min?: number; max: number; decimals?: 0 | 1 | 2 | 3 | 4 }): Field<number, number | string> => ({
     read(value) {
       if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) fail("empty");
-      const n = cents(value);
+      const n = cents(value, decimals);
       return n !== null && n >= min && n <= max ? n : fail("invalid");
     },
   }),

@@ -342,13 +342,13 @@ reviews found hand-copied figures stale four times: app's `npm test` now
 runs `sizes.mjs --check` against this paragraph):
 - The project's `AGENTS.md` is 39 lines: what Perseus rewrites
   (purpose, data model, decisions, what to delete from the example).
-- The reference page is the package's `AGENTS.md`, 438 lines, read from
+- The reference page is the package's `AGENTS.md`, 464 lines, read from
   `node_modules/@argentic/chest-app/`. It covers how the package works,
   fields, words, the database, recipes (roles, writing to another member,
   paging, imports and archives, a schedule's test…), rules, the kit's
   classes, tests and pitfalls.
-- The template is 29 files and 847 lines. The package is 2,639 lines of
-  source and 708 of tests. (The reference starter: 16 files, 311 lines.)
+- The template is 29 files and 847 lines. The package is 2,663 lines of
+  source and 733 of tests. (The reference starter: 16 files, 311 lines.)
 
 **UI quality with the kit.**
 - A: unstyled HTML.

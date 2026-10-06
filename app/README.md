@@ -17,8 +17,8 @@ node scripts/add-app.mjs starter                 # or tools/private/<name>
 
 | Import | Gives |
 |---|---|
-| `@argentic/chest-app` | `createApp`, `serve`, `page`, `publicPage`, `download`, `publicDownload`, `publicActionsAt`, `rawRoute`, `sameOrigin`, `policy`, `formToken`, `zipStream`, `Island`, `Honeypot`, `action`, `publicAction`, `field`, `fail`, `notFound`, `forbidden`, `redirect`, `after`, `toolPath`, `cutText`, `fill`, `formatter`, `localeIn`, `publicLocale`, `csvLine`, `textStream`, `log`, types (`Bound`, `Budget`, `Download`, `LayoutData`, `PublicContext`, `Register`, `CoreWords`, `MemberContext`, `VisitorContext`, `LayoutProps`, `Format`…) |
-| `@argentic/chest-app/client` | `call`, `refresh`, `navigate`, `onLinkClick`, `toast`, `ToastHost`, `Honeypot`, `fill`, `plural`, `send`, `AppError`, `fail`; types `Outcome`, `SentOf`, `ErrorCode`, `Words`, `Plain` (for islands) |
+| `@argentic/chest-app` | `createApp`, `serve`, `page`, `publicPage`, `download`, `publicDownload`, `publicActionsAt`, `rawRoute`, `sameOrigin`, `policy`, `formToken`, `zipStream`, `Island`, `Honeypot`, `action`, `publicAction`, `field`, `fail`, `notFound`, `forbidden`, `redirect`, `after`, `toolPath`, `cutText`, `readMoney`, `fill`, `formatter`, `localeIn`, `publicLocale`, `csvLine`, `textStream`, `log`, types (`Bound`, `Budget`, `Download`, `LayoutData`, `PublicContext`, `Register`, `CoreWords`, `MemberContext`, `VisitorContext`, `LayoutProps`, `Format`…) |
+| `@argentic/chest-app/client` | `call`, `refresh`, `navigate`, `onLinkClick`, `toast`, `ToastHost`, `Honeypot`, `fill`, `plural`, `send`, `AppError`, `fail`, `readMoney`, `useAutoRefresh`; types `Outcome`, `SentOf`, `ErrorCode`, `Words`, `Plain` (for islands) |
 | `@argentic/chest-app/browser` | `start(islands)` (the tool's `src/entry.tsx`) |
 | `@argentic/chest-app/db` | `db`, `seen`, `seenIn` |
 | `@argentic/chest-app/members` | `names` |

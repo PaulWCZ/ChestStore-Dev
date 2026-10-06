@@ -169,7 +169,10 @@ the person typed, never `Number(…)` or `parseFloat(…)` of it.
 `max` in code points; control characters `invalid`, bidirectional
 overrides removed, only invisible characters `empty`),
 `int({ min, max })` (digits only: `""` is `empty`, `"0x5"`, `"1e1"`,
-`"1.0"` are `invalid`), `money({ min?, max })` (in cents, min and max too;
+`"1.0"` are `invalid`), `money({ min?, max, decimals? })` (in minor units — cents with the
+default `decimals: 2`; 0 for yen, 3 for dinars — min and max too; a
+currency known only at run time: `readMoney(text, decimals)`, the same
+rules, in an action or an island;
 store `bigint` cents; write `f.money(cents, { cents: true })`; spaces
 only between groups of three; `"1,250"` or `"1.234"` alone is
 `amount_ambiguous` — say it in the catalogue, "Write 1250 or 1,25", else
@@ -244,6 +247,29 @@ its reader was active in the last ten (idle, it stops: the Chest may
 put the tool to sleep), less often while nothing changes, and a read
 with the same version is a 304 — nothing rendered. The version is keyed
 by the reader and their language; include what only they see.
+**A page's version from one change number** (the cheapest `version` for
+a tool whose pages read many tables) — a sequence every write bumps, by
+trigger, in a migration:
+```sql
+create sequence change_stamp;
+create function bump_change_stamp() returns trigger language plpgsql as $$
+begin perform nextval('change_stamp'); return null; end; $$;
+-- per ROW (insert, update, delete), plus truncate: a statement that
+-- changes nothing (a purge run as a page is read) must not change it
+create trigger notes_stamp after insert or update or delete on notes
+  for each row execute function bump_change_stamp();
+create trigger notes_stamp_all after truncate on notes
+  for each statement execute function bump_change_stamp();
+```
+then, with what else the page depends on — the day, the quarter hour
+(the names of people come from the Chest and follow then):
+```ts
+const stamp = async () => (await db()<{ v: string }[]>`select last_value || ':' || is_called as v from change_stamp`)[0]!.v;
+app.get("/chest", page(render, { version: async () => `${await stamp()}.${chest.today()}.${Math.floor(Date.now() / 900_000)}` }));
+```
+A sequence takes no lock: writers never wait for it. (A per-statement
+trigger also fires for an `update`/`delete` that matched no row: a page
+that runs one as it is read never gets its 304.)
 **A big list in an island** (an inventory, a directory) — never the whole
 table in its props: they are rendered and sent twice in the page (7,045
 items made 14 MB of HTML and 272 MiB, past the tool's 256). Give the

@@ -62,8 +62,10 @@ export async function testDatabase({ migrations = "migrations", extensions = [] 
       },
     };
   }
+  // A DATABASE_URL this function set itself (an earlier test database of
+  // the process: PGlite's t_test, a server's t_test_…) is not a preview's.
   const preview = process.env["DATABASE_URL"];
-  if (preview && chestShape.test(preview)) {
+  if (preview && chestShape.test(preview) && !/^postgres:\/\/t_test(_[a-z0-9]+)?:/u.test(preview)) {
     const schema = name.replace(/^t_/u, "");
     const sql = postgres(preview, { max: 2, connection: { search_path: schema, ...inZone }, ...quiet });
     await sql.unsafe(`create schema ${schema}`);
@@ -233,9 +235,11 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   // requireTests: every rule module is imported by a test.
   if (requireTests) {
     const tests = walk(join(root, "test")).filter(f => /\.test\.(m?[jt]s|tsx)$/u.test(f)).map(f => readFileSync(f, "utf8")).join("\n");
-    for (const file of walk(join(root, "src", "lib")).filter(f => /\.tsx?$/u.test(f))) {
-      const base = file.split(/[/\\]/u).pop()!.replace(/\.tsx?$/u, "");
-      if (!new RegExp(`from "[^"]*lib/${base}(\\.tsx?|\\.js)?"`, "u").test(tests)) problems.push(`${file}: no test imports it — a rule without a test`);
+    const lib = join(root, "src", "lib");
+    for (const file of walk(lib).filter(f => /\.tsx?$/u.test(f))) {
+      // Its path under lib/ (lib/pricing/vat.ts: "pricing/vat").
+      const path = file.slice(lib.length + 1).split(/[/\\]/u).join("/").replace(/\.tsx?$/u, "");
+      if (!new RegExp(`from "[^"]*lib/${path.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(\\.tsx?|\\.js)?"`, "u").test(tests)) problems.push(`${file}: no test imports it — a rule without a test`);
     }
   }
   const handlesEvents = /events\.handle\(/u.test(all);
@@ -296,6 +300,9 @@ function classLiterals(expression: string): string[] {
       at = open + 2;
     }
   }
+  // Types are not classes: `x as Pick<T, "a" | "b">`, `satisfies …`, a
+  // call's type arguments (f<"a">(…)).
+  text = text.replace(/\b(as|satisfies)\s+[A-Za-z_$][\w$.]*(\s*<[^<>]*(<[^<>]*>[^<>]*)*>)?(\[[^\]]*\])*/gu, "").replace(/([A-Za-z_$][\w$]*)\s*<[^<>()]*(<[^<>()]*>[^<>()]*)*>(?=\s*\()/gu, "$1");
   // A value compared is not a class.
   text = text.replace(/(===?|!==?)\s*("[^"]*"|'[^']*')|("[^"]*"|'[^']*')\s*(===?|!==?)/gu, "");
   const names: string[] = [];

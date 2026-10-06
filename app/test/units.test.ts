@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { csvLine } from "../src/csv.ts";
 import { formatter, publicLocale } from "../src/i18n.ts";
 import { checkPage, checkSources, checkWords } from "../src/testing.ts";
-import { AppError, cutText, field, toolPath } from "../src/tool.ts";
+import { AppError, cutText, field, readMoney, toolPath } from "../src/tool.ts";
 
 test("fields read forms and JSON alike, and refuse with a code", () => {
   const refused = (f: () => unknown, code: string) => assert.throws(f, (e: unknown) => e instanceof AppError && e.code === code);
@@ -44,6 +44,22 @@ test("fields read forms and JSON alike, and refuse with a code", () => {
   assert.equal(field.money({ max: 1e12 }).read("1,234,567"), 123456700, "two group marks: whole");
   assert.equal(field.money({ max: 1e12 }).read("1.000.000"), 100000000);
   assert.equal(field.money({ max: 1e12 }).read("12 345 678,90"), 1234567890);
+  // Other minor units: yen (0 decimals), dinars (3).
+  const yen = field.money({ max: 1e12, decimals: 0 }), dinar = field.money({ max: 1e12, decimals: 3 });
+  assert.equal(yen.read("1,250"), 1250, "no decimals: a group mark");
+  assert.equal(yen.read("1.250"), 1250);
+  assert.equal(yen.read("1 250"), 1250);
+  assert.equal(yen.read(1250), 1250);
+  for (const odd of ["12,5", "12.50", "1,25", 12.5]) refused(() => yen.read(odd), "invalid");
+  refused(() => dinar.read("12,345"), "amount_ambiguous");
+  assert.equal(dinar.read("12,34"), 12340, "three decimals");
+  assert.equal(dinar.read("0,345"), 345);
+  assert.equal(dinar.read("1.234,567"), 1234567);
+  assert.equal(dinar.read("0,5"), 500);
+  assert.equal(dinar.read(1.25), 1250);
+  refused(() => dinar.read("1.2345"), "invalid");
+  assert.equal(readMoney("1 250", 0), 1250);
+  refused(() => readMoney("1,250"), "amount_ambiguous");
   for (const odd of [12.345, 1.005, Infinity]) refused(() => field.money({ max: 1e12 }).read(odd), "invalid");
   refused(() => field.money({ max: 1e9 }).read(undefined), "empty");
   refused(() => field.int({ min: 0, max: 9 }).read(undefined), "empty");
@@ -147,6 +163,9 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = ({ s, on, c, k }: { s: Set<string>; on: boolean; c: string; k: string }) => <><div className={s.has("merchant") ? "on" : "off"} /><div className={cx("note", on && "on")} /><div className={`note ${on ? "on" : "off"} c-${c}`} /><div className={k === "weird" ? "on" : ""} /></>;');
   checkSources({ root: dir });
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = ({ on }: { on: boolean }) => <div className={`note ${on ? "nowhere" : ""}`} />;', /"nowhere"/u);
+  // Types are not classes.
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = ({ k }: { k: string }) => <div className={(k as Pick<Record<string, string>, "zz" | "yy">["zz"]) ?? "note"} />;');
+  checkSources({ root: dir });
   write("src/styles.css", ".note { color: var(--ink); }");
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = () => <div className="note" />;');
   write("chest.json", JSON.stringify({ capabilities: ["database"], public: true }));
@@ -173,6 +192,12 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   assert.throws(() => checkSources({ root: dir, requireTests: true }), /no test imports it/u);
   mkdirSync(join(dir, "test"));
   write("test/units.test.ts", 'import { x } from "../src/lib/rules.ts";');
+  checkSources({ root: dir, requireTests: true });
+  // A module in a folder of lib/ needs its test too.
+  mkdirSync(join(dir, "src", "lib", "pricing"));
+  write("src/lib/pricing/vat.ts", "export const vat = 1;");
+  assert.throws(() => checkSources({ root: dir, requireTests: true }), /pricing[/\\]vat\.ts: no test imports it/u);
+  write("test/units.test.ts", 'import { x } from "../src/lib/rules.ts";\nimport { vat } from "../src/lib/pricing/vat.ts";');
   checkSources({ root: dir, requireTests: true });
 });
 
