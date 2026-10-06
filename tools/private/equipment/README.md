@@ -455,7 +455,7 @@ browser — the studio's starter, its machinery the vendored package
 - At its largest (`test/scale.test.ts`, the built server in a process of
   its own, on PostgreSQL; 2026-10-06): 20,000 items, a person holding 700,
   an inventory under way, a 5 MB import of 5,000 rows × 30 columns — the
-  server's peak resident memory 167–177 MiB over runs (91 MiB at rest; a tool has 256),
+  server's peak resident memory 159–177 MiB over runs (91 MiB at rest; a tool has 256),
   the inventory page 473 KB, a person's 541 KB, the import's preview
   answer 81 KB.
 
