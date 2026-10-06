@@ -131,3 +131,27 @@ test("the log names the route, never the path or the query", async () => {
   assert.match(text, /route=\/chest\/day status=200/u);
   assert.match(text, /route=\(none\) status=404/u);
 });
+
+test("the script is linked by its hashed name, never with a query: a chunk an island imports later finds the same module", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = mkdtempSync(join(tmpdir(), "chest-app-assets-"));
+  mkdirSync(join(root, "dist", "client", "assets"), { recursive: true });
+  writeFileSync(join(root, "dist", "client", "assets", "client-Ab3_x9Zq.js"), "export {};");
+  writeFileSync(join(root, "dist", "client", "assets", "client.css"), "");
+  const [cwd, mode] = [process.cwd(), process.env.NODE_ENV];
+  process.chdir(root);
+  process.env.NODE_ENV = "development"; // read again on every page
+  try {
+    const html = await (await get("/chest")).text();
+    assert.match(html, /<script type="module" src="\/assets\/client-Ab3_x9Zq\.js"><\/script>/u);
+    assert.match(html, /<link rel="stylesheet" href="\/assets\/client\.css\?v=\w+"\/>/u);
+    const script = await app.fetch(new Request(url("/assets/client-Ab3_x9Zq.js")));
+    assert.equal(script.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  } finally {
+    process.chdir(cwd);
+    if (mode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = mode;
+  }
+});

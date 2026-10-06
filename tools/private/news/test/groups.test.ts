@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { everyone as readers } from "../src/lib/audience.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { forgetGroups, withGroups } from "../src/lib/groups.ts";
 import * as posts from "../src/lib/posts.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";

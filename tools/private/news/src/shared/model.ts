@@ -1,7 +1,7 @@
-// Safe in the browser: no SDK here.
+// Safe in the browser: no SDK, no server code here (the rules that read
+// what a person sends are src/lib/input.ts).
 // The rules of what a person writes, and the shapes pages receive. No
 // framework, no database: tested alone.
-import { AppError } from "../core/tool.ts";
 
 export const limits = {
   title: 140,
@@ -51,65 +51,11 @@ export const isEmoji = (value: unknown): value is Emoji => typeof value === "str
 export const coverTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 export const isCoverType = (type: string): boolean => (coverTypes as readonly string[]).includes(type);
 
-// clean trims a text and bounds it; line breaks are kept only where the
-// text may have several lines; other control characters are dropped.
-export function clean(value: unknown, max: number, options: { multiline?: boolean; optional?: boolean } = {}): string {
-  if (typeof value !== "string") throw new AppError("invalid");
-  let text = value.replace(/\r\n?/gu, "\n");
-  text = options.multiline ? text.replace(/[^\P{Cc}\n\t]/gu, "") : text.replace(/[^\S\u00a0\u202f]+/gu, " ").replace(/\p{Cc}/gu, "");
-  text = options.multiline ? text.replace(/\n{3,}/gu, "\n\n").trim() : text.trim();
-  if (text === "" && !options.optional) throw new AppError("empty");
-  if ([...text].length > max) throw new AppError("too_long", { max });
-  return text;
-}
-
-const idPattern = /^[1-9][0-9]{0,17}$/u;
-// id reads an identifier of a row; anything else names nothing.
-export function id(value: unknown): string {
-  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return String(value);
-  if (typeof value !== "string" || !idPattern.test(value)) throw new AppError("not_found");
-  return value;
-}
-
+// What ids look like: a row's (bigint), a member's, a group's
+// (src/lib/input.ts reads them).
+export const idPattern = /^[1-9][0-9]{0,17}$/u;
 export const memberPattern = /^mbr_[a-z2-7]{26}$/u;
-export function memberId(value: unknown): string {
-  if (typeof value !== "string" || !memberPattern.test(value)) throw new AppError("no_person");
-  return value;
-}
-
-// ids reads a list of row identifiers, each once, at most max.
-export function ids(value: unknown, max: number): string[] {
-  if (!Array.isArray(value)) throw new AppError("invalid");
-  const list = [...new Set(value.map(v => id(v)))];
-  if (list.length > max) throw new AppError("too_many", { max });
-  return list;
-}
-
-// A file name as a person may see it: no path, no control characters.
-export function fileName(value: unknown): string {
-  return clean(typeof value === "string" ? value.replace(/[/\\]/gu, "_") : value, limits.fileName);
-}
-
 export const groupPattern = /^grp_[a-z2-7]{26}$/u;
-// groupIds reads the groups a post is kept to: each once, sorted, at most
-// limits.groupsPerPost; anything else is no group.
-export function groupIds(value: unknown): string[] {
-  if (!Array.isArray(value)) throw new AppError("invalid");
-  if (value.some(v => typeof v !== "string" || !groupPattern.test(v))) throw new AppError("no_group");
-  const list = [...new Set(value as string[])].sort();
-  if (list.length > limits.groupsPerPost) throw new AppError("too_many", { max: limits.groupsPerPost });
-  return list;
-}
-
-// peopleIds reads the people a post is kept to: member ids, each once,
-// sorted, at most limits.peoplePerPost.
-export function peopleIds(value: unknown): string[] {
-  if (!Array.isArray(value)) throw new AppError("invalid");
-  if (value.some(v => typeof v !== "string" || !memberPattern.test(v))) throw new AppError("no_person");
-  const list = [...new Set(value as string[])].sort();
-  if (list.length > limits.peoplePerPost) throw new AppError("too_many", { max: limits.peoplePerPost });
-  return list;
-}
 
 // Audience. A post is for everyone (no groups, no people), or for the
 // members of some of the Chest's groups and some people picked by hand:

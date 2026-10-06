@@ -2,12 +2,12 @@ import { PeoplePicker } from "@argentic/chest-ui/components";
 import { localSearch, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { Cross, Info, Picture, Star } from "../components/icons.tsx";
-import { call, refresh, toast } from "../core/client.tsx";
-import type { ErrorCode } from "../core/tool.ts";
+import { call, refresh, toast } from "@argentic/chest-app/client";
+import type { ErrorCode } from "@argentic/chest-app";
 import type { Catalogue } from "../i18n/index.ts";
 import { coverTypes, limits } from "../shared/model.ts";
 import { upload as uploadFile } from "./upload.ts";
-import { format } from "./words.ts";
+import { fill } from "@argentic/chest-app/client";
 
 // "Share something": a shout-out to a colleague, or a piece of news with a
 // picture if one likes. One screen, two choices, then a few words; it goes
@@ -30,15 +30,15 @@ export function ProposeForm({ colleagues, start, waitingMax, locale, t }: { coll
   const [error, setError] = useState<{ text: string; field: "colleague" | "title" | null } | null>(null);
   const [saving, startSave] = useTransition();
   const find = useMemo(() => localSearch(colleagues.map(c => ({ kind: "member" as const, id: c.id, name: c.name }))), [colleagues]);
-  const say = (code: ErrorCode, values: Record<string, string | number> = {}) => format(t.errors[code], values);
+  const say = (code: ErrorCode, values: Record<string, string | number> = {}) => fill(t.errors[code], values);
 
   function choose(next: Kind) {
     setKind(next);
-    if (!typed.current) setTitle(next === "shoutout" && colleague ? format(w.shoutoutTitle, { name: first(colleague.name) }) : "");
+    if (!typed.current) setTitle(next === "shoutout" && colleague ? fill(w.shoutoutTitle, { name: first(colleague.name) }) : "");
   }
   function pick(next: Colleague | null) {
     setColleague(next);
-    if (!typed.current) setTitle(next ? format(w.shoutoutTitle, { name: first(next.name) }) : "");
+    if (!typed.current) setTitle(next ? fill(w.shoutoutTitle, { name: first(next.name) }) : "");
   }
 
   async function upload(file: File) {
@@ -59,7 +59,7 @@ export function ProposeForm({ colleagues, start, waitingMax, locale, t }: { coll
     setError(null);
     startSave(async () => {
       const r = await call("proposePost", { input: { kind, title, body, colleague: kind === "shoutout" ? colleague?.id ?? null : null, cover } }, { refresh: false, quiet: true });
-      if (!r.ok) return setError({ text: r.error === "too_many" ? format(w.full, { max: waitingMax }) : r.message, field: r.error === "no_person" || r.error === "yourself" ? "colleague" : null });
+      if (!r.ok) return setError({ text: r.error === "too_many" ? fill(w.full, { max: waitingMax }) : r.message, field: r.error === "no_person" || r.error === "yourself" ? "colleague" : null });
       toast({ id: "proposed", text: w.sent });
       typed.current = false;
       setColleague(null);

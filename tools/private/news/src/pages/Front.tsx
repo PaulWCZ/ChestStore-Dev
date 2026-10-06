@@ -1,8 +1,8 @@
 import { EmptyState } from "@argentic/chest-ui/components";
 import { Alarm, Clock, Pen, Star } from "../components/icons.tsx";
-import { Island } from "../core/island.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { format, orList, plural } from "../i18n/index.ts";
+import { Island } from "@argentic/chest-app";
+import type { PageContext, View } from "@argentic/chest-app";
+import { format, localeOf, orList, plural } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { whoPublishes } from "../lib/audience.ts";
 import { dates } from "../lib/dates.ts";
@@ -21,7 +21,8 @@ import { Story, type Byline } from "./Story.tsx";
 // The front page: the lead story, then the others, newest first (pinned on
 // top); what is coming up; for publishers, what is scheduled. What asks the
 // reader something (Important posts not yet confirmed) comes first.
-export async function frontPage({ member, locale, t, query }: PageContext): Promise<View> {
+export async function frontPage({ member, locale: language, t, query }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   const zone = chestZone();
   const asked = query("kind");
   const kind = asked !== undefined && (kinds as readonly string[]).includes(asked) ? asked : null;

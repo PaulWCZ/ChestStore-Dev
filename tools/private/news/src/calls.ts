@@ -1,15 +1,15 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import * as events from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import { log } from "./core/log.ts";
-import { AppError } from "./core/tool.ts";
+import { log } from "@argentic/chest-app";
+import { AppError } from "@argentic/chest-app";
 import { checkToken, isChoice } from "./lib/answer-links.ts";
 import { answerEvent } from "./lib/answering.ts";
 import { db } from "./lib/db.ts";
 import { startDigest } from "./lib/digest.ts";
 import { handlers, seen } from "./lib/lifecycle.ts";
 import { pass } from "./lib/tell.ts";
-import { id } from "./shared/model.ts";
+import { id } from "./lib/input.ts";
 
 // What src/app.tsx answers at the addresses the Chest calls by itself, and
 // at the one-tap links of an email — plain functions of a Request, so the

@@ -1,8 +1,8 @@
 import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
 import { storeLanguages } from "@argentic/chest-ui/components/logic";
 import { Mark } from "../components/mark.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import type { VisitorContext } from "../core/tool.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import type { VisitorContext } from "@argentic/chest-app";
 import { sheetOf } from "../theme.ts";
 
 // The host's root. This tool has no public part (a Chest answers 404 on

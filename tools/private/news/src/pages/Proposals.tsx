@@ -1,9 +1,9 @@
 import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import { Star } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { notFound } from "../core/tool.ts";
-import { format } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { notFound } from "@argentic/chest-app";
+import { format, localeOf } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { dates } from "../lib/dates.ts";
 import { db } from "../lib/db.ts";
@@ -15,7 +15,8 @@ import { plain } from "../shared/markdown.ts";
 // "To approve" (publishers): what colleagues proposed, oldest first, as it
 // will read — its picture, headline, words, whom it thanks — with Publish
 // and Decline. One's own proposal waits for another publisher.
-export async function proposalsPage({ member, locale, t }: PageContext): Promise<View> {
+export async function proposalsPage({ member, locale: language, t }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   if (!can(member, "publish")) return notFound();
   const zone = chestZone();
   const list = await waiting(db(), member);

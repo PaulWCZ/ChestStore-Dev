@@ -1,6 +1,6 @@
 import { useOptimistic, useTransition } from "react";
 import { Mail } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 
 // The weekly digest by email too, or only in the bell: one switch, at the

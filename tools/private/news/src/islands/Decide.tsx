@@ -1,8 +1,8 @@
 import { useState, useTransition } from "react";
 import { Check } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
-import { format } from "./words.ts";
+import { fill } from "@argentic/chest-app/client";
 
 // A publisher's two answers to a proposal: Publish (it goes on the front
 // page, signed by its author; the toast opens it), or Decline with a
@@ -26,7 +26,7 @@ export function Decide({ id, author, t }: { id: string; author: string; t: Catal
           },
         });
       }); }}>
-        <label htmlFor={`reason-${id}`}>{format(t.reason, { name: author })}</label>
+        <label htmlFor={`reason-${id}`}>{fill(t.reason, { name: author })}</label>
         <textarea id={`reason-${id}`} className="field" rows={2} maxLength={300} value={reason} onChange={e => setReason(e.target.value)} autoFocus />
         <div className="row">
           <button type="submit" className="button danger small" disabled={busy}>{t.decline}</button>
@@ -36,7 +36,7 @@ export function Decide({ id, author, t }: { id: string; author: string; t: Catal
     );
   }
   return (
-    <div className="row decide">
+    <div className="row">
       <button type="button" className="button small" disabled={busy} onClick={() => start(async () => {
         const r = await call("approveProposal", { proposalId: id });
         if (!r.ok) return;

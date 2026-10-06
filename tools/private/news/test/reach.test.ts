@@ -5,7 +5,7 @@ import { chestEvents } from "../src/calls.ts";
 import { eventKey, syncEvent } from "../src/lib/agenda.ts";
 import { everyone as everyoneWithNews, tally } from "../src/lib/audience.ts";
 import { forgetViewer, freezeViews, recordView, shown, views } from "../src/lib/views.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { chestGroups, forgetGroups } from "../src/lib/groups.ts";
 import { setDigestEmail } from "../src/lib/preferences.ts";
 import * as posts from "../src/lib/posts.ts";

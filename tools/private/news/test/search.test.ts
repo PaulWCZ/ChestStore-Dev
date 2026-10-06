@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { fold, highlight, snippet, terms } from "../src/lib/highlight.ts";
 import * as posts from "../src/lib/posts.ts";
 import { search, type Hit } from "../src/lib/search.ts";

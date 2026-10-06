@@ -1,10 +1,10 @@
 import { FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import type { FileWords } from "@argentic/chest-ui/components/logic";
 import { useState } from "react";
-import { call, toast } from "../core/client.tsx";
-import type { ErrorCode } from "../core/tool.ts";
+import { call, toast } from "@argentic/chest-app/client";
+import type { ErrorCode } from "@argentic/chest-app";
 import type { Catalogue } from "../i18n/index.ts";
-import { format, plural } from "./words.ts";
+import { fill, plural } from "@argentic/chest-app/client";
 
 // A Slack export: choose the ZIP (the kit's file picker: the button or a
 // drop, the limit said first; the file stays in the browser and is read
@@ -18,7 +18,7 @@ export function SlackImport({ t, errors, files: words, maxSize, locale }: { t: C
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const say = (code: ErrorCode, values: Record<string, number | string> = {}) => format(errors[code], values);
+  const say = (code: ErrorCode, values: Record<string, number | string> = {}) => fill(errors[code], values);
   const file = files[0]?.file ?? null;
 
   async function send(f: File, channel: string | null) {
@@ -36,7 +36,7 @@ export function SlackImport({ t, errors, files: words, maxSize, locale }: { t: C
     if (f && f !== file) void read(f);
   }
   async function read(f: File) {
-    setBusy(format(t.reading, { name: f.name }));
+    setBusy(fill(t.reading, { name: f.name }));
     try {
       const answer = await send(f, null);
       setChannels(answer.channels ?? []);
@@ -49,17 +49,17 @@ export function SlackImport({ t, errors, files: words, maxSize, locale }: { t: C
   }
   async function bring() {
     if (!file || !chosen) return;
-    setBusy(format(t.reading, { name: file.name }));
+    setBusy(fill(t.reading, { name: file.name }));
     setError(null);
     try {
       const answer = await send(file, chosen);
       const added = answer.added ?? 0;
       const batch = answer.batch;
-      setNote(answer.unmatched?.length ? format(t.unmatched, { names: answer.unmatched.join(", ") }) : null);
+      setNote(answer.unmatched?.length ? fill(t.unmatched, { names: answer.unmatched.join(", ") }) : null);
       // Nobody was told of an import: it can be taken back whole.
       toast({
         id: `import-${batch ?? chosen}`,
-        text: plural(t.imported, added, locale),
+        text: plural(locale, t.imported, added),
         ...(added > 0 && batch ? {
           undo: async () => {
             const r = await call("undoSlackImport", { batch }, { quiet: true });
@@ -85,10 +85,10 @@ export function SlackImport({ t, errors, files: words, maxSize, locale }: { t: C
           {channels.map(c => (
             <label key={c.id} className="check">
               <input type="radio" name="channel" checked={chosen === c.id} onChange={() => setChosen(c.id)} />
-              <span><strong>#{c.name}</strong><small>{plural(t.messages, c.messages, locale)}</small></span>
+              <span><strong>#{c.name}</strong><small>{plural(locale, t.messages, c.messages)}</small></span>
             </label>
           ))}
-          <p><button type="button" className="button" disabled={busy !== null || count === 0} onClick={() => void bring()}>{plural(t.importButton, count, locale)}</button></p>
+          <p><button type="button" className="button" disabled={busy !== null || count === 0} onClick={() => void bring()}>{plural(locale, t.importButton, count)}</button></p>
         </fieldset>
       )}
       {note && <p className="notice">{note}</p>}

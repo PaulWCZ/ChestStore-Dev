@@ -1,9 +1,9 @@
 import { EmptyState } from "@argentic/chest-ui/components";
 import { Highlighted } from "../components/highlighted.tsx";
 import { Speech } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { format, isLocale, plural } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { format, isLocale, localeOf, plural } from "../i18n/index.ts";
 import { dates } from "../lib/dates.ts";
 import { db } from "../lib/db.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -14,7 +14,8 @@ import { limits } from "../shared/model.ts";
 // Search: one box, then the posts found — their headline and the passage
 // that matched, the comments that matched — the words found marked. Only
 // what the member may see is searched (src/lib/search.ts).
-export async function searchPage({ member, locale, t, query: read }: PageContext): Promise<View> {
+export async function searchPage({ member, locale: lang, t, query: read }: PageContext): Promise<View> {
+  const locale = localeOf(lang);
   const zone = chestZone();
   const query = (read("q") ?? "").slice(0, limits.query).trim();
   const hits = query ? await search(db(), member, query) : [];
@@ -28,7 +29,7 @@ export async function searchPage({ member, locale, t, query: read }: PageContext
     <div className="search-page narrow">
       <h1>{t.search.title}</h1>
       <div className="search-box">
-        <Island name="Search" props={{ id: "q", value: query, maxLength: limits.query, autoFocus: !query, labels: t.searchBox }} />
+        <Island name="Search" props={{ id: "q", value: query, maxLength: limits.query, autoFocus: !query, labels: t.kit.search }} />
       </div>
       {!query ? <p className="quiet-text">{t.search.start}</p> : hits.length === 0 ? (
         <div role="status">

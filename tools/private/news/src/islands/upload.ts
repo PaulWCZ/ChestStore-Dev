@@ -1,4 +1,4 @@
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 
 // A file sent from the browser to the Chest itself, in three steps: News

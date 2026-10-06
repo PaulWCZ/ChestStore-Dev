@@ -7,7 +7,7 @@ import { withGroups } from "../src/lib/groups.ts";
 import { answerToken } from "../src/lib/answer-links.ts";
 import { whoPublishes } from "../src/lib/audience.ts";
 import { startDigest } from "../src/lib/digest.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { erase, leave } from "../src/lib/lifecycle.ts";
 import * as posts from "../src/lib/posts.ts";
 import * as proposals from "../src/lib/proposals.ts";

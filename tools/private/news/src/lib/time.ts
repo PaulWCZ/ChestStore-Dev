@@ -2,7 +2,7 @@
 // Days and times on the Chest's clock. People type a day and a time as they
 // read them on the office wall (the Chest's time zone, chest.timeZone); the database keeps instants (UTC). Pure, tested
 // across daylight-saving changes.
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 
 const dayPattern = /^(\d{4})-(\d{2})-(\d{2})$/u;
 const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/u;

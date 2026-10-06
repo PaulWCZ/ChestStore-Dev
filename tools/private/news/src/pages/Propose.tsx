@@ -1,5 +1,5 @@
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
 import { format } from "../i18n/index.ts";
 import { everyone } from "../lib/audience.ts";
 import { dates } from "../lib/dates.ts";
@@ -21,7 +21,7 @@ export async function proposePage({ member, locale, t, query }: PageContext): Pr
     <div className="narrow propose">
       <h1>{w.title}</h1>
       <p className="lead">{w.lead}</p>
-      <Island name="ProposeForm" props={{ colleagues, start: query("kind") === "info" ? "info" : "shoutout", waitingMax: proposalLimits.waitingPerAuthor, locale, t: { propose: w, errors: t.errors, peoplePicker: t.peoplePicker } }} />
+      <Island name="ProposeForm" props={{ colleagues, start: query("kind") === "info" ? "info" : "shoutout", waitingMax: proposalLimits.waitingPerAuthor, locale, t: { propose: w, errors: t.errors, peoplePicker: t.kit.peoplePicker } }} />
       {own.length > 0 && (
         <section className="side-card proposals-mine">
           <h2>{w.yours}</h2>

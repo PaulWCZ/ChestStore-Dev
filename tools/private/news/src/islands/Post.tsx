@@ -1,8 +1,8 @@
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Check, Clock, Pen, Pin, Trash } from "../components/icons.tsx";
-import { call, navigate, refresh, toast } from "../core/client.tsx";
+import { call, navigate, refresh, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
-import { format, plural } from "./words.ts";
+import { fill, plural } from "@argentic/chest-app/client";
 
 // The parts of a post a person acts on. Each changes the screen at once
 // (optimistic), then the server confirms; a refusal puts it back and says
@@ -80,7 +80,7 @@ export function SendingNotice({ id, until, t }: { id: string; until: string; t: 
   return (
     <p className="notice sending" role="status">
       <Clock />
-      <span>{left === null ? t.goingOut : format(t.goingOutIn, { seconds: left })}</span>
+      <span>{left === null ? t.goingOut : fill(t.goingOutIn, { seconds: left })}</span>
       <button type="button" className="button small" disabled={busy} onClick={() => start(async () => {
         const r = await call("recallPost", { postId: id }, { refresh: false });
         if (!r.ok) return;
@@ -124,9 +124,9 @@ export function Reactions({ id, list, t, locale }: { id: string; list: ReactionV
       {shown.map(r => {
         const label = t[r.emoji as "thumbs"];
         const others = r.count - r.names.length;
-        const names = r.names.join(", ") + (others > 0 ? " " + plural(t.more, others, locale) : "");
+        const names = r.names.join(", ") + (others > 0 ? " " + plural(locale, t.more, others) : "");
         return (
-          <button key={r.emoji} type="button" className={"reaction" + (r.mine ? " mine" : "")} aria-pressed={r.mine} title={r.count > 0 ? format(t.by, { emoji: label, names }) : label} onClick={() => start(async () => {
+          <button key={r.emoji} type="button" className={"reaction" + (r.mine ? " mine" : "")} aria-pressed={r.mine} title={r.count > 0 ? fill(t.by, { emoji: label, names }) : label} onClick={() => start(async () => {
             toggle(r.emoji);
             await call("react", { postId: id, emoji: r.emoji, on: !r.mine });
           })}>
@@ -146,7 +146,7 @@ export function RemindButton({ id, t, locale }: { id: string; t: Catalogue["read
     <button type="button" className="button small" disabled={busy} onClick={() => start(async () => {
       const r = await call("remind", { postId: id });
       // The reminders left (bell and email): the toast says so, with no Undo.
-      if (r.ok) toast({ id: `remind-${id}`, text: plural(t.reminded, r.value.count, locale), sent: true });
+      if (r.ok) toast({ id: `remind-${id}`, text: plural(locale, t.reminded, r.value.count), sent: true });
     })}>{t.remind}</button>
   );
 }

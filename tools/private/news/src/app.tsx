@@ -1,12 +1,12 @@
+import { AppError, createApp, dateFormat, log, page, publicPage, type ErrorCode } from "@argentic/chest-app";
 import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
-import type { Context } from "hono";
+import { actions } from "./actions.ts";
 import { answerLink, chestEvents, chestSchedules } from "./calls.ts";
-import { createApp, page, publicPage } from "./core/http.tsx";
-import { log } from "./core/log.ts";
-import { AppError, type ErrorCode } from "./core/tool.ts";
-import { catalogue, dateFormat, format, intl, localeOf } from "./i18n/index.ts";
+import { catalogue, format, intl, localeOf, locales, words } from "./i18n/index.ts";
+import { islands } from "./islands/index.ts";
+import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { can, roleOf } from "./lib/access.ts";
 import { everyone, tally } from "./lib/audience.ts";
 import { toCsv } from "./lib/csv.ts";
@@ -26,15 +26,26 @@ import { publicHome } from "./pages/PublicHome.tsx";
 import { searchPage } from "./pages/Search.tsx";
 import { transferPage } from "./pages/Transfer.tsx";
 import { plain } from "./shared/markdown.ts";
-import { sheetOf } from "./theme.ts";
+import { lookFor } from "./theme.ts";
 
 // News's routes. createApp() already serves /assets/, the actions
-// (src/actions.ts), the member of every /chest request — with every group
+// (src/actions.ts), the look (/chest/look.css), the member of every /chest request — with every group
 // they are in, asked of the Chest once per request (src/lib/groups.ts: the
 // assertion names only the groups that give News, and a post may be kept
 // to any) —, /lang/<code>, the error pages, and answers 404 to anything
 // else.
-export const app = createApp({ complete: withGroups });
+export const app = createApp({
+  actions,
+  islands,
+  locales,
+  words,
+  layouts: { members: MembersLayout, public: PublicLayout },
+  complete: withGroups,
+  // The look: the company's choice, else Newsprint (src/theme.ts), served
+  // by the package at /chest/look.css and /look.css.
+  look: lookFor,
+  head: () => <><meta name="robots" content="noindex, nofollow" /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
+});
 
 // ---- The members' part (/chest…).
 
@@ -154,7 +165,7 @@ app.get("/chest/transfer/export", async c => {
 // holds; with: that channel imported (publishers). Sent by the page
 // itself only (Sec-Fetch-Site, or an Origin of this host), as the actions.
 app.post("/chest/transfer/import", async c => {
-  const t = catalogue(c.get("viewer").locale);
+  const t = words(c.get("viewer").locale);
   const refuse = (error: ErrorCode, status: 400 | 403 | 413, values?: Record<string, number | string>) => c.json({ error, message: format(t.errors[error], values) }, status, { "Cache-Control": "no-store" });
   if (!sameOrigin(c.req.raw)) return c.text("Cross-site request refused.", 403);
   try {
@@ -174,13 +185,9 @@ app.post("/chest/transfer/import", async c => {
   }
 });
 
-// The look of the team's pages: the company's choice (src/theme.ts).
-app.get("/chest/look.css", c => look(c, "team"));
-
 // ---- The host's root: News has no public part (a Chest answers 404 on its
 // public host); outside a Chest, it says where News lives.
 app.get("/", publicPage(publicHome));
-app.get("/look.css", c => look(c, "public"));
 
 // ---- What the Chest sends by itself, signed (src/calls.ts): the members'
 // lifecycle and the groups' changes, and the runs of chest.json's
@@ -207,19 +214,4 @@ function sameOrigin(request: Request): boolean {
   } catch {
     return false;
   }
-}
-
-// The look as a stylesheet: kept a year when its link names this very
-// sheet (?v=<hash>), else asked again each time; a 304 when the browser
-// has it already.
-async function look(c: Context, surface: "team" | "public"): Promise<Response> {
-  const sheet = await sheetOf(surface);
-  const etag = `"${sheet.etag}"`;
-  const headers = {
-    "Content-Type": "text/css; charset=utf-8",
-    ETag: etag,
-    "Cache-Control": c.req.query("v") === sheet.etag ? `${surface === "team" ? "private" : "public"}, max-age=31536000, immutable` : "no-cache",
-  };
-  if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers });
-  return new Response(sheet.css, { headers });
 }

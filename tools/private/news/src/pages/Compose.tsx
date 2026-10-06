@@ -1,6 +1,7 @@
-import { Island } from "../core/island.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { AppError, notFound } from "../core/tool.ts";
+import { Island } from "@argentic/chest-app";
+import type { PageContext, View } from "@argentic/chest-app";
+import { localeOf } from "../i18n/index.ts";
+import { AppError, notFound } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
 import { everyone } from "../lib/audience.ts";
 import { db } from "../lib/db.ts";
@@ -17,7 +18,8 @@ import { isKind } from "../shared/model.ts";
 // or a post to edit. The island (src/islands/Composer.tsx) holds the whole
 // form; the page gives it who has News, the Chest's groups, the languages,
 // what News knows of the Chest's email, and the days it starts from.
-export async function newPostPage({ member, locale, t, query }: PageContext): Promise<View> {
+export async function newPostPage({ member, locale: language, t, query }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   if (!can(member, "publish")) return notFound();
   const zone = chestZone();
   const asked = query("kind");
@@ -40,14 +42,15 @@ export async function newPostPage({ member, locale, t, query }: PageContext): Pr
           mail: await mailNow(db()),
           defaults: { day: tomorrow.day, time: "09:00", today: today(zone) },
           locale,
-          t: { composer: t.composer, kinds: t.kinds, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker },
+          t: { composer: t.composer, kinds: t.kinds, errors: t.errors, date: t.kit.date, peoplePicker: t.kit.peoplePicker },
         }} />
       </div>
     ),
   };
 }
 
-export async function editPostPage({ member, locale, t, param }: PageContext): Promise<View> {
+export async function editPostPage({ member, locale: language, t, param }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   if (!can(member, "publish")) return notFound();
   const zone = chestZone();
   const id = param("id");
@@ -76,7 +79,7 @@ export async function editPostPage({ member, locale, t, param }: PageContext): P
     title: t.composer.editTitle,
     body: (
       <div className="desk">
-        <Island name="Composer" props={{ postId: id, initial: draft, author: draft.author, people, groups, languages: composerLanguages(locale), mail: await mailNow(sql), defaults: { day: tomorrow.day, time: "09:00", today: today(zone) }, locale, t: { composer: t.composer, kinds: t.kinds, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker } }} />
+        <Island name="Composer" props={{ postId: id, initial: draft, author: draft.author, people, groups, languages: composerLanguages(locale), mail: await mailNow(sql), defaults: { day: tomorrow.day, time: "09:00", today: today(zone) }, locale, t: { composer: t.composer, kinds: t.kinds, errors: t.errors, date: t.kit.date, peoplePicker: t.kit.peoplePicker } }} />
       </div>
     ),
   };

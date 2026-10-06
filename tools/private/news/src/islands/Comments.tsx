@@ -1,9 +1,9 @@
 import { Avatar } from "@argentic/chest-ui/components";
 import { useEffect, useId, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Reply } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
-import { format, plural } from "./words.ts";
+import { fill, plural } from "@argentic/chest-app/client";
 
 // The comments of a post and one level of replies: written, edited and
 // deleted (with Undo) in place, at once on the screen (optimistic), then
@@ -120,7 +120,7 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
 
   return (
     <section className="comments" id="comments" aria-labelledby="comments-title" data-ready={ready ? "" : undefined}>
-      <h2 id="comments-title">{plural(t.title, shown.length, locale)}</h2>
+      <h2 id="comments-title">{plural(locale, t.title, shown.length)}</h2>
       {shown.length === 0 && <p className="quiet-text">{t.empty}</p>}
       <ol className="thread">
         {top.map(c => (
@@ -131,7 +131,7 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
             </ol>
             {replyTo === c.id && (
               <div className="reply-form">
-                <Writer postId={id} label={format(t.replyTo, { name: c.author })} initial={{ text: "", chosen: new Map() }} submit={t.reply} onSubmit={(body, chosen) => send(body, chosen, c.id)} onCancel={() => setReplyTo(null)} t={t} errors={errors} autoFocus />
+                <Writer postId={id} label={fill(t.replyTo, { name: c.author })} initial={{ text: "", chosen: new Map() }} submit={t.reply} onSubmit={(body, chosen) => send(body, chosen, c.id)} onCancel={() => setReplyTo(null)} t={t} errors={errors} autoFocus />
               </div>
             )}
           </li>

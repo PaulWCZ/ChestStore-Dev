@@ -1,6 +1,6 @@
 import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
 // Copied from the studio's Wiki tool (same licence, MIT, © 2026 Argentic).
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 
 // A small ZIP reader and writer, in memory (the Chest gives no disk), for
 // the imports (a Notion export is a zip) and the exports (a space as

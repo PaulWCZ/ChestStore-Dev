@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { en } from "../src/i18n/en.ts";
-import { catalogue, format, locales, plural, publicLocale } from "../src/i18n/index.ts";
+import { publicLocale } from "@argentic/chest-app";
+import { checkWords } from "@argentic/chest-app/testing";
+import { catalogue, format, locales, plural } from "../src/i18n/index.ts";
 import { cut } from "../src/lib/notify.ts";
 
 // Every catalogue has exactly the keys of the English one, no empty word,
@@ -27,11 +29,15 @@ test("every language has every word of English, none empty, with the same placeh
   }
 });
 
+test("the package's rules of words: the same texts and placeholders everywhere, French typography", () => {
+  checkWords({ en: catalogue("en"), fr: catalogue("fr") });
+});
+
 test("the public part's language: the visitor's choice, then the browser's, then English", () => {
-  assert.equal(publicLocale("fr", "en-GB"), "fr");
-  assert.equal(publicLocale(undefined, "de-DE,fr;q=0.8,en;q=0.5"), "fr");
-  assert.equal(publicLocale("xx", "de"), "en");
-  assert.equal(publicLocale(undefined, null), "en");
+  assert.equal(publicLocale(locales, "fr", "en-GB"), "fr");
+  assert.equal(publicLocale(locales, undefined, "de-DE,fr;q=0.8,en;q=0.5"), "fr");
+  assert.equal(publicLocale(locales, "xx", "de"), "en");
+  assert.equal(publicLocale(locales, undefined, undefined), "en");
 });
 
 test("plurals and placeholders follow the language", () => {

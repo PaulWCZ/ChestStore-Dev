@@ -1,10 +1,10 @@
 import { Avatar } from "@argentic/chest-ui/components";
 import { Back, Calendar, Clip, Clock, Download, Globe, Group, History, Mail, Pin, Place } from "../components/icons.tsx";
 import { RichText } from "../components/rich-text.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { AppError, notFound } from "../core/tool.ts";
-import { catalogue, format, isLocale, plural } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { AppError, notFound } from "@argentic/chest-app";
+import { catalogue, format, isLocale, localeOf, plural } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { calendarPage } from "../lib/agenda.ts";
 import { audienceSize, everyone, tally } from "../lib/audience.ts";
@@ -23,7 +23,8 @@ import { Kicker } from "./Story.tsx";
 // (confirm, answer), its text, pictures and files, reactions and comments.
 // For its publishers: who confirmed an Important post, how far it reached
 // (counts only), and its earlier versions.
-export async function postPage({ member, locale, t, param, query }: PageContext): Promise<View> {
+export async function postPage({ member, locale: language, t, param, query }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   const zone = chestZone();
   const id = param("id");
   const sql = db();
@@ -104,7 +105,7 @@ export async function postPage({ member, locale, t, param, query }: PageContext)
         {/* What the post asks of its reader, right under the headline: on a
             phone the main action of the page is never below the picture. */}
         {p.important && !p.scheduled && (p.forMe || p.author === member.id) && (
-          <div lang={locale} className="confirm-slot">
+          <div lang={locale}>
             <Island name="ConfirmBox" props={{
               id: p.id,
               own: p.author === member.id,

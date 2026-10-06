@@ -2,13 +2,13 @@ import { Checkbox, DateField, PeoplePicker, Tabs, TimeSelect } from "@argentic/c
 import { localSearch, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clip, Clock, Cross, Globe, Group, Person, Picture, Play, Plus, kindIcons } from "../components/icons.tsx";
-import { call, navigate, refresh, toast } from "../core/client.tsx";
-import type { ErrorCode } from "../core/tool.ts";
+import { call, navigate, refresh, toast } from "@argentic/chest-app/client";
+import type { ErrorCode } from "@argentic/chest-app";
 import type { Catalogue } from "../i18n/index.ts";
 import { coverTypes, inAudience, kinds, limits, videoTypes, type Kind, type Version } from "../shared/model.ts";
 import { TextEditor } from "./TextEditor.tsx";
 import { upload as send, type FileInfo, type UploadRole } from "./upload.ts";
-import { format, plural } from "./words.ts";
+import { fill, plural } from "@argentic/chest-app/client";
 
 // Writing a post: what it is, its headline and text (in one language or
 // two), what the kind needs (days and a place, a colleague), who it is for,
@@ -69,7 +69,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
     }
   };
   const editable = postId === null || initial.scheduled;
-  const say = (code: ErrorCode, values: Record<string, number | string> = {}) => format(t.errors[code], values);
+  const say = (code: ErrorCode, values: Record<string, number | string> = {}) => fill(t.errors[code], values);
   const failed = (code: ErrorCode, values: Record<string, number | string> = {}) => ({ text: say(code, values), tone: "error" as const });
   const update = (patch: Partial<ComposerDraft>) => setD(current => ({ ...current, ...patch }));
   const nameOf = (code: string) => languages.find(l => l.code === code)?.name ?? code;
@@ -211,7 +211,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
       let undone = false;
       toast({
         id: toastId,
-        text: plural(w.sendingToast, reach, locale),
+        text: plural(locale, w.sendingToast, reach),
         duration: ms,
         undo: async () => {
           undone = true;
@@ -245,10 +245,10 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   // What the main button says: what will happen.
   const tells = d.important && (postId === null || !initial.important || (textChanged && reconfirm) || audienceChanged(initial, audience));
   const action = saving ? w.saving
-    : postId !== null ? (tells && !initial.scheduled ? plural(w.saveTell, reach, locale) : w.save)
+    : postId !== null ? (tells && !initial.scheduled ? plural(locale, w.saveTell, reach) : w.save)
     : later ? w.schedule
-    : d.important ? plural(mail === "off" ? w.publishTellBell : w.publishTell, reach, locale)
-    : kept ? plural(w.publishFor, reach, locale)
+    : d.important ? plural(locale, mail === "off" ? w.publishTellBell : w.publishTell, reach)
+    : kept ? plural(locale, w.publishFor, reach)
     : w.publish;
 
   const kindName = (k: Kind) => t.kinds[k];
@@ -305,7 +305,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   // The headline and the text of the language shown.
   const textPanel = (
             <div id="text-panel" className="text-panel">
-              {tab !== d.locale && <p className="hint">{format(w.versionHint, { language: said(tab) })}</p>}
+              {tab !== d.locale && <p className="hint">{fill(w.versionHint, { language: said(tab) })}</p>}
               <div className="field-group">
                 <label htmlFor="title">{w.title}</label>
                 <input
@@ -367,7 +367,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
             })}
           </fieldset>
 
-          <div className="languages-bar">
+          <div>
             {d.versions.length === 0 && (
               <label className="language-pick"><Globe /><span>{w.writtenIn}</span>
                 <select className="field" value={d.locale} onChange={e => { update({ locale: e.target.value }); setTab(e.target.value); }}>
@@ -376,10 +376,10 @@ export function Composer({ postId, initial, author, people, groups, languages, m
               </label>
             )}
             {others.map(l => (
-              <button key={l.code} type="button" className="link-button" onClick={() => { update({ versions: [...d.versions, { locale: l.code, title: "", body: "" }] }); setTab(l.code); }}><Plus />{format(w.addVersion, { language: l.said })}</button>
+              <button key={l.code} type="button" className="link-button" onClick={() => { update({ versions: [...d.versions, { locale: l.code, title: "", body: "" }] }); setTab(l.code); }}><Plus />{fill(w.addVersion, { language: l.said })}</button>
             ))}
             {tab !== d.locale && (
-              <button type="button" className="link-button" onClick={() => { update({ versions: d.versions.filter(v => v.locale !== tab) }); setTab(d.locale); }}><Cross />{format(w.removeVersion, { language: said(tab) })}</button>
+              <button type="button" className="link-button" onClick={() => { update({ versions: d.versions.filter(v => v.locale !== tab) }); setTab(d.locale); }}><Cross />{fill(w.removeVersion, { language: said(tab) })}</button>
             )}
           </div>
 
@@ -418,7 +418,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
                 </div>
               </div>
             )}
-            <p id="audience-count" className="count" aria-live="polite"><Person />{plural(w.audienceCount, reach, locale)}</p>
+            <p id="audience-count" className="count" aria-live="polite"><Person />{plural(locale, w.audienceCount, reach)}</p>
           </fieldset>
 
           <section className="side-card">
@@ -459,7 +459,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
                 {d.gallery.map(g => (
                   <li key={g.id}>
                     {g.type.startsWith("video/") ? <span className="video-thumb"><Play /></span> : <img src={`/chest/files/${g.id}?size=256`} alt="" />}
-                    <button type="button" className="icon-button" onClick={() => update({ gallery: d.gallery.filter(x => x.id !== g.id) })}><Cross /><span className="visually-hidden">{format(w.removeFile, { name: g.fileName })}</span></button>
+                    <button type="button" className="icon-button" onClick={() => update({ gallery: d.gallery.filter(x => x.id !== g.id) })}><Cross /><span className="visually-hidden">{fill(w.removeFile, { name: g.fileName })}</span></button>
                   </li>
                 ))}
               </ul>
@@ -484,7 +484,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
                 {d.attachments.map(a => (
                   <li key={a.id}>
                     <Clip /><span>{a.fileName}</span>
-                    <button type="button" className="icon-button" onClick={() => update({ attachments: d.attachments.filter(x => x.id !== a.id) })}><Cross /><span className="visually-hidden">{format(w.removeFile, { name: a.fileName })}</span></button>
+                    <button type="button" className="icon-button" onClick={() => update({ attachments: d.attachments.filter(x => x.id !== a.id) })}><Cross /><span className="visually-hidden">{fill(w.removeFile, { name: a.fileName })}</span></button>
                   </li>
                 ))}
               </ul>
@@ -495,7 +495,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
                 <input type="file" onChange={async e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) { const saved = await upload(f, "attachment"); if (saved) setD(current => ({ ...current, attachments: [...current.attachments, saved] })); } }} />
               </label>
             )}
-            {sending && <p className="hint" role="status">{format(w.uploading, { name: sending })}</p>}
+            {sending && <p className="hint" role="status">{fill(w.uploading, { name: sending })}</p>}
           </section>
         </div>
       </div>

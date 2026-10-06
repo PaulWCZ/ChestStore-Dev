@@ -1,7 +1,7 @@
 import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { fold, hasHit, highlight, snippet, terms, type Segment } from "./highlight.ts";
 import { plain } from "../shared/markdown.ts";
 import { limits, mentionToken, pick, withNames, type Kind, type Version } from "../shared/model.ts";

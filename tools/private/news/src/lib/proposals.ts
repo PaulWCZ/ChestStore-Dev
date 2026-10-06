@@ -2,8 +2,9 @@ import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { hasTool } from "./audience.ts";
 import type { Query, Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
-import { clean, id, isCoverType, memberId } from "../shared/model.ts";
+import { AppError } from "@argentic/chest-app";
+import { isCoverType } from "../shared/model.ts";
+import { clean, id, memberId } from "./input.ts";
 
 // Posts from everyone (Workvivo's feed, moderated). Any member with a role
 // proposes a shout-out — thanks to a colleague — or a piece of news, with

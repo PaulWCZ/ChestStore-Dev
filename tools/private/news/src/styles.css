@@ -122,7 +122,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .welcome-line { display: flex; align-items: center; gap: var(--space-3); font-weight: var(--weight-bold); }
 .digest-switch { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-7); padding-top: var(--space-3); border-top: 1px solid var(--rule); color: var(--ink-2); font-size: var(--text-s); }
 /* After an empty front page, whose own rule closes it: no second rule (nothing between two lines). */
-.ck-empty + .digest-switch { border-top: 0; margin-top: var(--space-5); padding-top: 0; }
+.ck-empty + .island > .digest-switch { border-top: 0; margin-top: var(--space-5); padding-top: 0; }
 
 .side-title { font-family: var(--font-body); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.14em; font-weight: var(--weight-label); padding-top: var(--space-2); border-top: 3px solid var(--rule); margin-bottom: var(--space-3); }
 .agenda, .scheduled { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -388,6 +388,7 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
 .result-comments a:hover { border-left-color: var(--accent-line); }
 .flag.audience { color: var(--ink-2); }
 .audience-groups { display: grid; gap: 0; padding-left: 34px; }
+.audience-groups .people-picker { display: block; }
 
 /* ── Narrow screens ────────────────────────────────────── */
 /* The kit's header wraps under 760 px: the search gets a row of its own. */

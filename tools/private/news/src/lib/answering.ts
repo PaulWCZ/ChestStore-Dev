@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { syncEvent } from "./agenda.ts";
 import type { Sql } from "./db.ts";
-import { id } from "../shared/model.ts";
+import { id } from "./input.ts";
 import { answer } from "./posts.ts";
 import { promoted } from "./tell.ts";
 import { chestZone } from "./zone.ts";

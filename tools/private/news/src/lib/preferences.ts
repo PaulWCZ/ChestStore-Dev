@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { roleOf } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 
 // Each person's choice: the weekly digest by email as well as in the bell
 // (on unless they turn it off). Important posts always go by email: they

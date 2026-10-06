@@ -22,7 +22,9 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     emptyOutDir: true,
     rolldownOptions: {
       input: { client: "src/entry.tsx" },
-      output: { entryFileNames: "assets/[name].js", chunkFileNames: "assets/[name].js", assetFileNames: asset => (asset.names[0]?.endsWith(".css") ? "assets/client.css" : "assets/[name][extname]") },
+      // The script and its chunks named by their hash: a chunk imports the
+      // entry under the very name the page links (http.tsx, browserFiles).
+      output: { entryFileNames: "assets/[name]-[hash].js", chunkFileNames: "assets/[name]-[hash].js", assetFileNames: asset => (asset.names[0]?.endsWith(".css") ? "assets/client.css" : "assets/[name][extname]") },
       onLog,
     },
   };

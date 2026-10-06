@@ -1,7 +1,7 @@
 import { ChestError, TooLarge } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import * as members from "@argentic/chest-sdk/members";
-import { action, fail, type Field } from "./core/tool.ts";
+import { action, fail, type Field } from "@argentic/chest-app";
 import { inAudience } from "./lib/access.ts";
 import { syncEvent } from "./lib/agenda.ts";
 import * as answering from "./lib/answering.ts";
@@ -15,7 +15,8 @@ import * as tell from "./lib/tell.ts";
 import { today } from "./lib/time.ts";
 import { undoImport } from "./lib/transfer.ts";
 import { chestZone } from "./lib/zone.ts";
-import { coverTypes, fileName, limits, videoTypes } from "./shared/model.ts";
+import { fileName } from "./lib/input.ts";
+import { coverTypes, limits, videoTypes } from "./shared/model.ts";
 
 // Every mutation of News, by name, served at POST /chest/actions/<name>
 // and called from an island with call("pinPost", { postId, pinned }). The
@@ -35,7 +36,7 @@ const post = { postId: as<string>() };
 // is its uploader's until they save the post (src/lib/posts.ts).
 const roles = ["cover", "attachment", "image", "inline"] as const;
 type Role = (typeof roles)[number];
-const role: Field<Role> = { read: value => ((roles as readonly unknown[]).includes(value) ? value as Role : fail("invalid")) };
+const role: Field<Role> = { read: (value): Role => ((roles as readonly unknown[]).includes(value) ? value as Role : fail("invalid")) };
 const folder = "uploads/";
 const uploaded = /^uploads\/[0-9a-f]{20}(\.[a-z0-9]{1,8})?$/u;
 
@@ -55,8 +56,8 @@ export const actions = {
   savePost: action({ postId: as<string | null>(), input: as<posts.PostInput>() }, async ({ postId, input }, { member }) => {
     const sql = db();
     const options = { zone: chestZone() };
-    const given = input !== null && typeof input === "object" ? input : fail("invalid");
-    const saved = postId === null || postId === undefined ? await posts.createPost(sql, member, given, { ...options, hold: true }) : await posts.updatePost(sql, member, postId, given, options);
+    const given: posts.PostInput = input !== null && typeof input === "object" ? input : fail("invalid");
+    const saved: posts.Saved = postId === null || postId === undefined ? await posts.createPost(sql, member, given, { ...options, hold: true }) : await posts.updatePost(sql, member, postId, given, options);
     await removeObjects(saved.removed);
     // No longer Important, or for another audience: its items go from
     // every bell (the next lines tell the new audience again).
@@ -168,8 +169,8 @@ export const actions = {
 
   // Coming or not: the calendar follows (Proposal (studio)); a seat freed
   // goes to the first waiting, who is told.
-  answerEvent: action({ ...post, answer: as<"yes" | "no" | null>() }, async ({ postId, answer }, { member }) => {
-    const value = answer === "yes" || answer === "no" ? answer : answer === null || answer === undefined ? null : fail("invalid");
+  answerEvent: action({ ...post, answer: as<"yes" | "no" | null>() }, async ({ postId, answer }, { member }): Promise<{ answer: "yes" | "no" | "wait" | null }> => {
+    const value: "yes" | "no" | null = answer === "yes" || answer === "no" ? answer : answer === null || answer === undefined ? null : fail("invalid");
     return { answer: (await answering.answerEvent(db(), member, String(postId), value)).answer };
   }),
 
@@ -199,7 +200,8 @@ export const actions = {
   // src/lib/tell.ts.
   proposePost: action({ input: as<proposals.ProposalInput>() }, async ({ input }, { member }) => {
     const sql = db();
-    const made = await proposals.propose(sql, member, input !== null && typeof input === "object" ? input : fail("invalid"));
+    const given: proposals.ProposalInput = input !== null && typeof input === "object" ? input : fail("invalid");
+    const made = await proposals.propose(sql, member, given);
     await tell.proposalsWaiting(sql);
     return made;
   }),

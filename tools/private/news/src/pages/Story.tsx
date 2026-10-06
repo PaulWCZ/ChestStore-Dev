@@ -47,7 +47,7 @@ export function Story({ post, lead = false, author, welcome, isNew, audience = n
     post.kind === "event" && post.going > 0 ? plural(t.front.going, post.going, locale) : null,
   ].filter(Boolean);
   return (
-    <article className={"story" + (lead ? " lead" : "") + (picture ? " has-picture" : "") + (post.important && !post.confirmed ? " asks" : "")}>
+    <article className={"story" + (lead ? " lead" : "") + (picture ? " has-picture" : "")}>
       {picture && <div className="story-picture">{picture}</div>}
       <div className="story-text">
         <Kicker post={post} isNew={isNew} audience={audience} t={t} />

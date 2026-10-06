@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { chest } from "@argentic/chest-sdk/chest";
 import { defineTheme } from "@argentic/chest-ui";
 import { lookColors, lookCss, resolveTheme, type Look } from "@argentic/chest-ui/runtime";
-import { log } from "./core/log.ts";
+import { log } from "@argentic/chest-app";
 
 // The tool's own identity (DESIGN.md), "Newsprint": newsprint paper, black
 // rules, a headline serif, one press red. It is a theme of the kit's
@@ -33,7 +33,7 @@ export const identity = defineTheme({
 // surface "public"), never a catalogue theme chosen for the team.
 //
 // The look is a stylesheet the tool serves itself — /chest/look.css for
-// the team's pages, /look.css for the root (src/app.tsx) —, never an
+// the team's pages, /look.css for the root (served by the package) —, never an
 // inline <style>: the strictest policy admits it. Its link carries the
 // sheet's hash (?v=…), so a browser keeps it until the company chooses
 // another look. chest.theme() keeps the Chest's answer a minute; the sheet
@@ -54,3 +54,15 @@ export async function sheetOf(surface: Surface): Promise<Sheet> {
   written.set(choice, { ...kept, [surface]: sheet });
   return sheet;
 }
+
+// What createApp({ look }) asks for each page (src/app.tsx): the sheet of
+// the page's surface. The layout shows the company's logo in brand mode:
+// the look of the page it renders is kept here, by its viewer, for it
+// (the package gives a layout no look of its own).
+const shown = new WeakMap<object, Look>();
+export async function lookFor(viewer: { member: unknown }): Promise<{ css: string; colors: { media: string; color: string }[] }> {
+  const sheet = await sheetOf(viewer.member === null ? "public" : "team");
+  shown.set(viewer, sheet.look);
+  return { css: sheet.css, colors: sheet.colors };
+}
+export const logoOf = (viewer: object): Look["logo"] => shown.get(viewer)?.logo ?? null;

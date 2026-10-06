@@ -65,10 +65,11 @@ test("the look: a stylesheet with its hash, kept a year when linked by it, 304 w
   assert.equal(sheet.status, 200);
   assert.equal(sheet.headers.get("content-type"), "text/css; charset=utf-8");
   assert.equal(sheet.headers.get("cache-control"), "private, max-age=31536000, immutable");
+  const etag = sheet.headers.get("etag");
   const css = await sheet.text();
   assert.match(css, /--accent:\s*#c4121a/u, "News's own identity: Newsprint");
   assert.match(css, /url\(\/assets\/fonts\/fraunces-latin-wght-normal\.woff2\)/u);
-  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": `"${v}"` })).status, 304);
+  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": etag })).status, 304);
   assert.equal((await get(null, "/chest/look.css")).status, 401, "the team's look is the team's");
   chest.theme.all = { mode: "catalogue", theme: "library" };
   forgetTheme();

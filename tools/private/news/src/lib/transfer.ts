@@ -5,7 +5,7 @@ import { localeOf, type Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { groupNames } from "./groups.ts";
 import { catalogue, format } from "../i18n/index.ts";
 import { withNames, type Version } from "../shared/model.ts";
