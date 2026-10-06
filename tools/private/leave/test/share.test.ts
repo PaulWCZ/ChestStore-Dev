@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { addDays } from "../lib/calendar.ts";
-import { today } from "../lib/today.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import * as share from "../lib/share.ts";
-import { setApprover, setEndDate } from "../lib/staff.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { addDays } from "../src/shared/calendar.ts";
+import { today } from "../src/lib/today.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import * as share from "../src/lib/share.ts";
+import { setApprover, setEndDate } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -23,7 +23,7 @@ let paid: string, remote: string;
 before(async () => {
   database = await testDatabase();
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 2 });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 2 });
   const all = await types(database.sql);
   paid = all.find(t => t.key === "paid")!.id;
   remote = all.find(t => t.key === "remote")!.id;
@@ -141,7 +141,7 @@ test("a kind marked 'not away' afterwards: its approved leave is taken back from
 test("a Chest that cannot take the events yet: they wait in order, and go at the next run", async () => {
   const monday = quietMonday(112);
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups });
   const id = await approvedLeave(hugo.id, week(monday));
   await share.keepInLine(database.sql);
   await requests.reopen(database.sql, asMember(camille), id);
@@ -149,7 +149,7 @@ test("a Chest that cannot take the events yet: they wait in order, and go at the
   assert.equal(told(id).length, 0);
   assert.equal((await database.sql`select 1 from leave_outbox where published_at is null and data->>'request' = ${id}`).length, 2);
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 2 });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 2 });
   await share.keepInLine(database.sql);
   assert.deepEqual(told(id).map(e => e.type), ["leave.approved", "leave.cancelled"]);
   assert.equal((await database.sql`select 1 from leave_outbox where published_at is null`).length, 0);
@@ -192,7 +192,7 @@ test("each word carries the time of its change; a shortened leave's approval is 
 test("a word that waited: its time while the Chest takes it (under 23 hours), the Chest's own after", async () => {
   const monday = quietMonday(147);
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups });
   const late = await approvedLeave(camille.id, week(addDays(monday, 7)));
   const old = await approvedLeave(camille.id, week(monday));
   await share.keepInLine(database.sql);
@@ -200,7 +200,7 @@ test("a word that waited: its time while the Chest takes it (under 23 hours), th
   await database.sql`update leave_outbox set at = ${twentyMinutes} where published_at is null and data->>'request' = ${late}`;
   await database.sql`update leave_outbox set at = now() - interval '25 hours' where published_at is null and data->>'request' = ${old}`;
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 2 });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 2 });
   const before = Date.now();
   await share.publish(database.sql);
   assert.equal(last(late)!.occurredAt, twentyMinutes.toISOString());
