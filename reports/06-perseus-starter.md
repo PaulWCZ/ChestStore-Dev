@@ -387,7 +387,7 @@ Checked in Chromium only.
 - 15 tests in the starter: 11 against the built server, with the SDK's
   fakeChest and a real PostgreSQL, and 4 on the sources — passing with and
   without `NODE_ENV=development`;
-- 30 tests in the package: its fields, redirects, formats and checks, and
+- 31 tests in the package: its fields, redirects, formats and checks, and
   a small tool built on the packaged code (the pilots' own included; and
   bounds — junk spends nothing, a token serves once, budgets by kind,
   a visitor by the front's address —, `rawRoute`, `zipStream` read by `unzip`, the database in a far
@@ -559,9 +559,9 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
 - `node scripts/chest-check.mjs starter`: OK for contract 0.4; the tool
   asks for database, members and receives.
 - `npm run dev` (run by the workbench bench) and `npm start` serve the tool.
-- In `app/`: `npm test` (30 tests, also under `NODE_ENV=development`; its peak 277 MiB RSS on the local
+- In `app/`: `npm test` (31 tests, also under `NODE_ENV=development`; its peak 277 MiB RSS on the local
   server, against 1.2 GiB on PGlite).
-- The six tools on the package, re-vendored to chest-app 0.1.0-studio.3
+- The seven tools on the package, re-vendored to chest-app 0.1.0-studio.3
   and SDK 0.4.1-studio.3 and adapted (one commit each); each passes
   `tsc`, its build, its tests on the local PostgreSQL and on PGlite, and
   `chest check`:
@@ -572,6 +572,7 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
   | News | 112 | its search island gets `display: block` (a flex item) |
   | Polls | 102 | the guest form on the package's `bound` (its own guard, `guard.ts`, removed; migration 0006 adds `chest_bounds` and `chest_seen`; `guest_counts` no longer written). Checked in Chromium on the built tool: the island sends the page's token, the answer renews it, a second send goes |
   | Wiki | 118 | the Trash tab told to the layout by `View.layout` (its per-request `WeakMap` gone) |
+  | Leave | 135 | payroll's two CSVs through `download()` (a refusal is now a page in the reader's words, not a bare text); islands take `Outcome` from `/client` |
   | Support | 103 | its four public actions say `bound: false` (they still guard themselves) until its agent adopts `bound` |
   | Status | 105 | the same for its eight; `Vary` now ends with `Accept-Encoding` (the page is gzipped) |
 
