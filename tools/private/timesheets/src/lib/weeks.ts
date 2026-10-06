@@ -18,9 +18,9 @@ import { transaction } from "./tx.ts";
 // (it locks: nobody changes it any more) or sends it back with a word (it
 // opens again). While it waits, the person may take it back. Nobody
 // approves (or sends back) their own week: a manager's week waits for
-// another manager. The bell and an email tell the leads of the projects the
-// week holds (every manager when none has a lead) of a week to approve, and
-// the person of the answer.
+// another manager. A notification tells the leads of the projects the week
+// holds (every manager when none has a lead) of a week to approve, and the
+// person of the answer.
 // The company may turn approvals off (Settings): then nobody submits.
 //
 // Beside it, each person's usual week (their capacity, the company's by

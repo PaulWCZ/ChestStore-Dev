@@ -122,7 +122,7 @@ test("the team's weeks against each usual week; Remind rings those short of it, 
   chest.notifications.length = 0;
   assert.equal(await weeks.remind(sql, m, [hugo.id, ines.id, tom.id], lastWeek), 2);
   assert.deepEqual(chest.notifications.map(n => [n.member, seen(n).title, n.key]).sort(), [
-    [ines.id, `Votre semaine du ${frDay(lastWeek)} compte 10:00 sur 35:00 — compléter le reste ?`, `remind:${lastWeek}`],
+    [ines.id, `Votre semaine du ${frDay(lastWeek)} compte 10:00 sur 35:00 — compléter le reste\u202f?`, `remind:${lastWeek}`],
     [tom.id, `Your week of ${enDay(lastWeek)} has 9:00 of 10:00 — fill in the rest?`, `remind:${lastWeek}`],
   ].sort());
   // Reminded again: the same item, replaced, not a second one.

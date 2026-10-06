@@ -1,5 +1,7 @@
 // Timesheets, as people use it, in a real browser: node lab/chest-dev/flows/timesheets.mjs [port]
-// (the harness runs the tool with --reset: Atelier Martin's sample data is there).
+// (the harness runs the tool with --reset --tools quotes --linked: Atelier
+// Martin's sample data is there, and Quotes is installed and linked for the
+// hand-off of billable time — without them the two Quotes steps fail).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
