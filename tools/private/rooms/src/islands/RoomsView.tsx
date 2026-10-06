@@ -15,6 +15,18 @@ export type GridRoom = { id: string; name: string; capacity: number; equipment: 
 type Person = { id: string; name: string; photo: string | null };
 // checkable: check-in is on, it is mine, and it starts within ten minutes or is under way.
 export type GridBooking = { id: string; roomId: string; start: number; end: number; title: string; series: string | null; organiser: Person; attendees: Person[]; mine: boolean; canChange: boolean; checkedIn: boolean; checkable: boolean };
+// What the page sends (props are rendered and sent twice in a page, and an
+// office may hold hundreds of rooms, its day as many bookings): each
+// person once in `who` ([id, name, photo]), each booking a row naming them
+// by their place in it — [id, room, start, end, title, organiser, guests,
+// flags (1 mine, 2 may change, 4 checked in, 8 may check in), series].
+export type Who = [string, string, string | null][];
+export type SentBooking = [string, string, number, number, string, number, number[], number, string | null];
+const personOf = (who: Who, i: number): Person => ({ id: who[i]?.[0] ?? "", name: who[i]?.[1] ?? "", photo: who[i]?.[2] ?? null });
+export function expand([id, room, start, end, title, by, guests, flags, series]: SentBooking, who: Who): GridBooking {
+  return { id, roomId: room, start, end, title, series, organiser: personOf(who, by), attendees: guests.map(g => personOf(who, g)), mine: (flags & 1) !== 0, canChange: (flags & 2) !== 0, checkedIn: (flags & 4) !== 0, checkable: (flags & 8) !== 0 };
+}
+
 export type RoomWords = { rooms: Catalogue["rooms"]; booking: Catalogue["booking"]; equipment: Catalogue["equipment"]; closedDay: string; dialog: Catalogue["kit"]["dialog"]; peoplePicker: Catalogue["kit"]["peoplePicker"]; date: Catalogue["kit"]["date"] };
 type Words = RoomWords;
 type Draft = { roomId: string; day: string; start: number; end: number; title: string; attendees: string[]; weekly: boolean; weeks: number; for: string };
@@ -23,7 +35,7 @@ type Open = { mode: "new"; draft: Draft } | { mode: "detail"; id: string } | { m
 // (beyond how far ahead one may book; opensOn says when it opens).
 export type Locked = { why: "past" | "closed" | "notYet"; opensOn?: string } | null;
 
-export function RoomsView({ head, strip, notice, lockedHint, day, days, today, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings, people, bookFor, initial, told, calendarPage, locale, t }: {
+export function RoomsView({ head, strip, notice, lockedHint, day, days, today, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings: sent, who, people: team, bookFor, initial, told, calendarPage, locale, t }: {
   // The page's title and the line under it; the office picker; the days.
   // Here, so that the page's one action, "Book a room", sits at the top.
   head: { title: string; intro: string; offices: OfficePickerProps | null };
@@ -43,8 +55,11 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
   close: number;
   maxWeeks: number;
   rooms: GridRoom[];
-  bookings: GridBooking[];
-  people: Person[];
+  bookings: SentBooking[];
+  // The people named by the bookings and the pickers.
+  who: Who;
+  // Whom the pickers offer (places in who).
+  people: number[];
   // An admin may book for someone else.
   bookFor: boolean;
   initial: string | null;
@@ -55,6 +70,8 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
   locale: string;
   t: Words;
 }) {
+  const bookings = useMemo(() => sent.map(b => expand(b, who)), [sent, who]);
+  const people = useMemo(() => team.map(id => personOf(who, id)), [team, who]);
   const [dialog, setDialog] = useState<Open>(initial ? { mode: "detail", id: initial } : null);
   const [dirty, setDirty] = useState(false);
   // The earliest a new booking may start: now's quarter on today.
@@ -444,7 +461,8 @@ function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close
   const [busy, setBusy] = useState(false);
   // Whatever was typed or chosen: closing the form now asks first.
   const setD = (next: Draft) => { setDraft(next); onDirty(true); };
-  const personOf = (id: string) => people.find(p => p.id === id) ?? { id, name: id, photo: null };
+  const named = useMemo(() => new Map(people.map(p => [p.id, p])), [people]);
+  const personOf = (id: string) => named.get(id) ?? { id, name: id, photo: null };
   const chosen = d.attendees.map(personOf);
   // The kit's picker searches the team the page holds (accents and case
   // aside, any word of the name); neither the organiser nor the person

@@ -18,6 +18,9 @@ import { myVisitors } from "../lib/visits.ts";
 import { formatDay, formatSpan, formatTime } from "../i18n/index.ts";
 import type { WeekDay } from "../islands/WeekView.tsx";
 
+// The faces a day shows (the island's stack shows four, "+n" included).
+const faces = 4;
+
 // Home, "My week": for each working day of this week and the next, where I
 // am (one tap), who else is at the office — my teams first —, and what I
 // booked. The one obvious action: say where you will be. "My usual week"
@@ -63,9 +66,14 @@ export async function weekPage(p: PageContext): Promise<View> {
       isToday: d === c.today,
       past: d < c.today,
       me: mine?.get(d)?.status ?? null,
-      others: at.filter(id => id !== member.id)
-        .sort((a, b) => Number(shared(b)) - Number(shared(a)))
-        .map(id => ({ id, name: nameOf(who.get(id), locale), photo: who.get(id)?.photo ?? null, team: shared(id) })),
+      ...(() => {
+        const others = at.filter(id => id !== member.id).sort((a, b) => Number(shared(b)) - Number(shared(a)));
+        return {
+          others: others.slice(0, faces).map(id => ({ id, name: nameOf(who.get(id), locale), photo: who.get(id)?.photo ?? null, team: shared(id) })),
+          othersCount: others.length,
+          teamCount: others.filter(shared).length,
+        };
+      })(),
       desks: myDesks.filter(b => b.day === d).map(b => ({ id: b.id, name: b.deskName, area: placeName(b.areaName, b.areaPreset, t.presets), part: b.part })),
       rooms: rooms.map(b => ({
         id: b.id,

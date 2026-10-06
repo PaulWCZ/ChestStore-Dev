@@ -7,7 +7,7 @@ import { atLeast, checkPage, settled } from "@argentic/chest-app/testing";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
 
-atLeast(11);
+atLeast(12);
 
 // The server as built for the tests (npm test: dist/test), asked as the
 // Chest asks it: members signed by a fake Chest, a real PostgreSQL (PGlite,
@@ -120,6 +120,15 @@ test("every page renders for those who may see it, with nothing the policy block
   assert.match(checkPage(await lost.text()), /href="\/chest"/u, "the way back");
 });
 
+test("a page read again while nothing changed is a 304 (its version); a change anyone makes renders it again", async () => {
+  const first = await get(hugo, "/chest/rooms");
+  const version = first.headers.get("x-tool-version") ?? /<meta name="chest-version" content="([^"]+)"/u.exec(await first.text())?.[1];
+  assert.ok(version, "the page has a version");
+  assert.equal((await get(hugo, "/chest/rooms", { "x-tool-version": version })).status, 304);
+  assert.equal((await call(sofia, "setPresence", { day: workday(5), status: "remote", officeId: null })).ok, true);
+  assert.equal((await get(hugo, "/chest/rooms", { "x-tool-version": version })).status, 200, "someone else's change shows");
+});
+
 test("a member whose role gives nothing is told why, and no page runs for them", async () => {
   for (const path of ["/chest", "/chest/desks", "/chest/rooms"]) {
     const html = await page(nora, path);
@@ -195,7 +204,7 @@ test("a room booked for a guest: the guest hears it in the bell after the answer
   assert.match(told.title, /Inès Moreau/u);
   const opened = props(await page(hugo, `/chest/rooms?day=${d}&booking=${booked.value.ids[0]}`), "RoomsView");
   assert.equal(opened.initial, booked.value.ids[0]);
-  assert.equal(opened.bookings.find((b: any) => b.id === booked.value.ids[0]).title, "Café");
+  assert.equal(opened.bookings.find((b: any) => b[0] === booked.value.ids[0])[4], "Café");
 });
 
 test("the files: my calendar, my data, one booking; the admins' exports refused to others with a page", async () => {

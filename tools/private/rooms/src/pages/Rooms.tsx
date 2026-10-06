@@ -12,7 +12,7 @@ import { addDays, minutesNow } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { roomDay } from "../lib/room-bookings.ts";
 import { format, formatDay, formatTime } from "../i18n/index.ts";
-import type { GridBooking, GridRoom } from "../islands/RoomsView.tsx";
+import type { GridRoom, SentBooking, Who } from "../islands/RoomsView.tsx";
 
 // Book a room: find a free one by size, time and equipment, or use the
 // day's grid of rooms and hours (on a phone, each room with its free
@@ -36,22 +36,26 @@ export async function roomsPage(p: PageContext): Promise<View> {
   })));
   const [bookings, everyone, how] = office ? await Promise.all([roomDay(sql, member, office.id, day, c.zone), directory(), told(sql)]) : [[], [], await told(sql)];
   const who = await people(bookings.flatMap(b => [b.memberId, ...b.attendees]));
-  const shown: GridBooking[] = bookings.map(b => ({
-    id: b.id,
-    roomId: b.roomId,
-    start: b.start,
-    end: b.end,
-    title: b.title,
-    series: b.series,
-    organiser: { id: b.memberId, name: b.memberId === member.id ? t.people.you : nameOf(who.get(b.memberId), locale), photo: who.get(b.memberId)?.photo ?? null },
-    attendees: b.attendees.map(a => ({ id: a, name: nameOf(who.get(a), locale), photo: who.get(a)?.photo ?? null })),
-    mine: b.memberId === member.id || b.attendees.includes(member.id),
-    canChange: mayChange(member, b.memberId),
-    checkedIn: b.checkedIn,
-    checkable: c.rules.checkIn && !b.checkedIn && (b.memberId === member.id || b.attendees.includes(member.id)) && day === c.today && nowMinutes >= b.start - checkInOpens && nowMinutes < b.end,
-  }));
+  // Each person once (who), the bookings naming them by their place in
+  // it: an office of hundreds of rooms stays within the props an island
+  // may carry (src/islands/RoomsView.tsx, SentBooking).
+  const sentWho: Who = [];
+  const places = new Map<string, number>();
+  const place = (id: string, name: () => string, photo: string | null) => {
+    let i = places.get(id);
+    if (i === undefined) places.set(id, (i = sentWho.push([id, name(), photo]) - 1));
+    return i;
+  };
+  const person = (id: string) => place(id, () => (id === member.id ? t.people.you : nameOf(who.get(id), locale)), who.get(id)?.photo ?? null);
+  const shown: SentBooking[] = bookings.map(b => {
+    const mine = b.memberId === member.id || b.attendees.includes(member.id);
+    const checkable = c.rules.checkIn && !b.checkedIn && mine && day === c.today && nowMinutes >= b.start - checkInOpens && nowMinutes < b.end;
+    const flags = (mine ? 1 : 0) | (mayChange(member, b.memberId) ? 2 : 0) | (b.checkedIn ? 4 : 0) | (checkable ? 8 : 0);
+    return [b.id, b.roomId, b.start, b.end, b.title, person(b.memberId), b.attendees.map(person), flags, b.series];
+  });
+  const team = everyone.filter(x => x.id !== member.id).map(x => place(x.id, () => x.name, x.photo));
   const open = p.query("booking");
-  const initial = open !== undefined && shown.some(b => b.id === open) ? open : null;
+  const initial = open !== undefined && shown.some(b => b[0] === open) ? open : null;
   const lock = lockOf(c, day, exempt);
   const long = { weekday: "long", day: "numeric", month: "long" } as const;
   const intro = formatDay(day, locale, long) + (office ? " · " + office.name : "") + zoneNote(c.zone, member.timeZone, t.rooms.officeTime);
@@ -89,7 +93,8 @@ export async function roomsPage(p: PageContext): Promise<View> {
             maxWeeks: exempt ? 52 : c.rules.repeatWeeks,
             rooms,
             bookings: shown,
-            people: everyone.filter(x => x.id !== member.id).map(x => ({ id: x.id, name: x.name, photo: x.photo })),
+            who: sentWho,
+            people: team,
             bookFor: exempt,
             initial,
             told: how.told,

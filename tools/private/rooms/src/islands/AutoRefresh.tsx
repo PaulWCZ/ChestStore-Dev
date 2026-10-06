@@ -1,11 +1,12 @@
-import { refresh } from "@argentic/chest-app/client";
-import { useAutoRefresh } from "@argentic/chest-ui/components";
+import { useAutoRefresh } from "@argentic/chest-app/client";
 
-// The Chest has no WebSocket: a page others change re-reads itself every
-// few seconds while it is visible, and at once when it becomes visible
-// again (the kit's useAutoRefresh; refresh() keeps what is typed, the
-// focus and the scroll).
+// The Chest has no WebSocket: a page others change is read again when its
+// tab comes back, and every few seconds while its reader was active in the
+// last ten minutes (the package's useAutoRefresh: it backs off while
+// nothing changes and stops when the reader is idle, so the Chest may put
+// the tool to sleep). A read that finds the page's version unchanged is a
+// 304: nothing rendered (src/lib/stamp.ts).
 export function AutoRefresh({ seconds = 20 }: { seconds?: number }) {
-  useAutoRefresh(() => void refresh(), seconds);
+  useAutoRefresh(seconds);
   return null;
 }

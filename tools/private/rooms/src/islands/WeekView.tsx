@@ -14,8 +14,12 @@ export type WeekDay = {
   isToday: boolean;
   past: boolean;
   me: Status | null;
-  // Colleagues at the office, my teams first (team: shares a group with me).
+  // Colleagues at the office, my teams first (team: shares a group with
+  // me): the first faces only (an office of hundreds would weigh the
+  // page), and how many there are, and of my teams.
   others: { id: string; name: string; photo: string | null; team: boolean }[];
+  othersCount: number;
+  teamCount: number;
   desks: { id: string; name: string; area: string; part: Part }[];
   rooms: { id: string; room: string; span: string; title: string; by: string | null; checkable: boolean }[];
   usualFree: boolean;
@@ -141,9 +145,11 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
           <ol className="days">
             {days.filter(d => d.week === w).map(d => {
               const me = chosen[d.day] !== undefined ? chosen[d.day]! : d.me;
-              const count = d.others.length + (me === "office" ? 1 : 0);
-              // Me first (ringed in orange), then my teams, then the others.
-              const faceList = [...(me === "office" ? [{ id: "me", name: self.name, photo: self.photo }] : []), ...d.others];
+              const count = d.othersCount + (me === "office" ? 1 : 0);
+              // Me first (ringed in orange), then my teams, then the others;
+              // the faces not sent stand for the stack's "+n".
+              const shownFaces = [...(me === "office" ? [{ id: "me", name: self.name, photo: self.photo }] : []), ...d.others];
+              const faceList = [...shownFaces, ...Array.from({ length: Math.max(0, count - shownFaces.length) }, (_, i) => ({ id: "more-" + i, name: "", photo: null }))];
               const names = [...(me === "office" ? [t.you] : []), ...d.others.map(p => p.name)].join(", ");
               return (
                 <li key={d.day} id={"day-" + d.day} className={"day-card" + (d.isToday ? " is-today" : "") + (d.past ? " is-past" : "") + (me ? " is-" + me : "") + (focus === d.day ? " is-focus" : "")}>
@@ -160,7 +166,7 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
                     {faceList.length > 0 && <AvatarStack people={faceList} max={faces} size="s" label={names} />}
                     <a href={`/chest/people?day=${d.day}`} className="present-link">
                       {plural(t.week.inOffice, count, locale)}
-                      {d.others.some(p => p.team) && <span className="team-count"> · {plural(t.week.team, d.others.filter(p => p.team).length, locale)}</span>}
+                      {d.teamCount > 0 && <span className="team-count"> · {plural(t.week.team, d.teamCount, locale)}</span>}
                     </a>
                   </div>
                   {(d.desks.length > 0 || d.rooms.length > 0 || d.visitors.length > 0) && (

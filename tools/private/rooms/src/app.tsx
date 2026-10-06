@@ -15,6 +15,7 @@ import { forgetSeen, handlers, seen } from "./lib/lifecycle.ts";
 import { teamOrigin } from "./lib/mail.ts";
 import { bookingIcs, myCsv, myIcs, origin } from "./lib/mine.ts";
 import { photoLink } from "./lib/photos.ts";
+import { stamp } from "./lib/stamp.ts";
 import { rules } from "./lib/settings.ts";
 import * as tell from "./lib/tell.ts";
 import { zone } from "./lib/zone.ts";
@@ -45,16 +46,19 @@ export const app = createApp({
 
 // ---- The members' part (/chest…).
 
+// The pages others change read themselves again while open: their version
+// (src/lib/stamp.ts) makes a read that finds nothing new a 304.
+const changing = { version: ({ member }: { member: Parameters<typeof stamp>[1] }) => stamp(db(), member, zone()) };
 // My week (?day= highlights a day: the bell's links; ?office=).
-app.get("/chest", page(weekPage));
+app.get("/chest", page(weekPage, changing));
 // Book a desk (?day, part, view=list, f=screen,window, office, for).
-app.get("/chest/desks", page(desksPage));
+app.get("/chest/desks", page(desksPage, changing));
 // The rooms' day (?day, booking=<id> opens one, office).
-app.get("/chest/rooms", page(roomsPage));
+app.get("/chest/rooms", page(roomsPage, changing));
 // Who's where (?day, q, team).
-app.get("/chest/people", page(peoplePage));
+app.get("/chest/people", page(peoplePage, changing));
 // Visitors of a day (?day, office).
-app.get("/chest/visitors", page(visitorsPage));
+app.get("/chest/visitors", page(visitorsPage, changing));
 // Admins: offices, rules, export.
 app.get("/chest/places", page(placesPage));
 app.get("/chest/places/rules", page(rulesPage));

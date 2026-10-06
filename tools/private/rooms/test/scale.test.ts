@@ -71,6 +71,9 @@ async function timed(path: string): Promise<{ ms: number; size: number }> {
   const ms = performance.now() - at;
   assert.equal(response.status, 200, path);
   checkPage(html);
+  // An island's props are rendered and sent twice in the page: each stays
+  // under the package's 256 KB.
+  for (const m of html.matchAll(/data-island="(\w+)"[^>]*? data-props="([^"]*)"/gu)) assert.ok(m[2]!.length < 256 << 10, `${path}: ${m[1]}'s props are ${Math.round(m[2]!.length / 1024)} KiB`);
   return { ms, size: html.length };
 }
 const monday = async () => (await database.sql<{ day: string }[]>`select to_char(min(day), 'YYYY-MM-DD') as day from scale_week`)[0]!.day;
