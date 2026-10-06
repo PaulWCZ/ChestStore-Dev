@@ -1,0 +1,1112 @@
+{
+ "tool": "crm",
+ "label": "after-hono",
+ "source": "/home/user/wt/crm/tools/private/crm",
+ "date": "2026-10-06T06:55:35.900Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "529dd95 2026-10-06 (with uncommitted changes)",
+ "load": {
+  "atStart": {
+   "one": 4.63,
+   "five": 5.42,
+   "fifteen": 3.03
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 142,
+    "rssMiB": 349,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 41.1,
+    "rssMiB": 64,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 12.1,
+    "rssMiB": 603,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.8,
+    "rssMiB": 100,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 1.1,
+    "rssMiB": 81,
+    "command": "MainThread"
+   }
+  ],
+  "atEnd": {
+   "one": 1.49,
+   "five": 3.01,
+   "fifteen": 2.7
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 70.8,
+    "rssMiB": 136,
+    "command": "chrome"
+   },
+   {
+    "cpu": 12.2,
+    "rssMiB": 612,
+    "command": "claude"
+   },
+   {
+    "cpu": 12.1,
+    "rssMiB": 184,
+    "command": "chrome"
+   },
+   {
+    "cpu": 4.1,
+    "rssMiB": 176,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 3.4,
+    "rssMiB": 113,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 10.7,
+  "apparentMiB": 10.1,
+  "files": 228
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 2541,
+  "peakRssMiB": 222,
+  "peakPssMiB": 174.1,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 285.7,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 4.74,
+   "five": 5.43,
+   "fifteen": 3.05
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 113.9,
+   "apparentMiB": 104.8,
+   "files": 2766
+  },
+  "pruned": {
+   "diskMiB": 19,
+   "apparentMiB": 13.9,
+   "files": 1409
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 4495,
+   "peakRssMiB": 364.5,
+   "peakPssMiB": 317.9,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 305.8,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "one": 4.6,
+    "five": 5.39,
+    "fifteen": 3.05
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 3649,
+   "peakRssMiB": 392.5,
+   "peakPssMiB": 315.1,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 303.7,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 4.6,
+    "five": 5.39,
+    "fifteen": 3.05
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 2.7,
+  "apparentMiB": 2.6,
+  "files": 25,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 32.4
+ },
+ "sdk": "0.4.1-studio.4",
+ "pages": {
+  "source": "lab/measure/pages/crm.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/deals",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/deals/1",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/contacts/1",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/companies/1",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/deals?view=list&status=any",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=durand",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/deals/4",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/team",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings/fields",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/companies",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/contacts/17",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings/forms",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/contacts/2",
+    "member": "ines",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 264.8,
+    "firstMs": 471.9,
+    "statuses": [
+     200
+    ],
+    "load": 5.12
+   },
+   {
+    "portMs": 293.9,
+    "firstMs": 400.9,
+    "statuses": [
+     200
+    ],
+    "load": 5.08
+   },
+   {
+    "portMs": 429.5,
+    "firstMs": 561,
+    "statuses": [
+     200
+    ],
+    "load": 4.78
+   },
+   {
+    "portMs": 317.2,
+    "firstMs": 444,
+    "statuses": [
+     200
+    ],
+    "load": 4.36
+   },
+   {
+    "portMs": 427.4,
+    "firstMs": 574.8,
+    "statuses": [
+     200
+    ],
+    "load": 3.84
+   },
+   {
+    "portMs": 296.9,
+    "firstMs": 416.6,
+    "statuses": [
+     200
+    ],
+    "load": 4.05
+   },
+   {
+    "portMs": 272.4,
+    "firstMs": 392.2,
+    "statuses": [
+     200
+    ],
+    "load": 3.98
+   },
+   {
+    "portMs": 265.3,
+    "firstMs": 358.7,
+    "statuses": [
+     200
+    ],
+    "load": 3.39
+   },
+   {
+    "portMs": 278.1,
+    "firstMs": 377.9,
+    "statuses": [
+     200
+    ],
+    "load": 3.43
+   },
+   {
+    "portMs": 282.2,
+    "firstMs": 386.9,
+    "statuses": [
+     200
+    ],
+    "load": 3.45
+   }
+  ],
+  "port": {
+   "median": 288.04999999999995,
+   "min": 264.8,
+   "max": 429.5
+  },
+  "first200": {
+   "median": 408.75,
+   "min": 358.7,
+   "max": 574.8
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 169.6,
+     "pss": 66.1
+    },
+    "peakMiB": {
+     "rss": 180.5,
+     "pss": 75.1,
+     "cgroup": 72.6
+    },
+    "afterRequestsMiB": {
+     "rss": 177.8,
+     "pss": 72.4
+    },
+    "restMiB": {
+     "rss": 173,
+     "pss": 67.6,
+     "pssAnon": 59.6,
+     "pssFile": 8,
+     "cgroupAnon": 59.6,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.5,
+      "pssMiB": 21
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103.7,
+      "pssMiB": 46.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 81236,
+      "ms": 21
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 61444,
+      "ms": 20.9
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 87342,
+      "ms": 23.1
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 110798,
+      "ms": 26.4
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 125292,
+      "ms": 29
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 67125,
+      "ms": 13.7
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 9754,
+      "ms": 18
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 50268,
+      "ms": 8.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 24714,
+      "ms": 7.5
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 79348,
+      "ms": 12.7
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 32367,
+      "ms": 15.1
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 27320,
+      "ms": 7.2
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 64943,
+      "ms": 10.7
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 106472,
+      "ms": 12.2
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 19942,
+      "ms": 9.3
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 109108,
+      "ms": 17.3
+     }
+    ],
+    "load": {
+     "mean": 2.6,
+     "max": 3.18
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 179.4,
+     "pss": 75.9
+    },
+    "peakMiB": {
+     "rss": 182.4,
+     "pss": 76.8,
+     "cgroup": 73.9
+    },
+    "afterRequestsMiB": {
+     "rss": 182.4,
+     "pss": 76.8
+    },
+    "restMiB": {
+     "rss": 174.6,
+     "pss": 69.9,
+     "pssAnon": 61.3,
+     "pssFile": 8.6,
+     "cgroupAnon": 61.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 20.8
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 105.6,
+      "pssMiB": 49
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 81236,
+      "ms": 24.9
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 61444,
+      "ms": 28.3
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 87342,
+      "ms": 26.1
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 110798,
+      "ms": 69.7
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 125292,
+      "ms": 95
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 67125,
+      "ms": 26.3
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 9754,
+      "ms": 28.4
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 50268,
+      "ms": 9.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 24714,
+      "ms": 12.9
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 79348,
+      "ms": 16.1
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 32367,
+      "ms": 23
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 27320,
+      "ms": 9.1
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 64943,
+      "ms": 25
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 106472,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 19942,
+      "ms": 10.1
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 109108,
+      "ms": 18.8
+     }
+    ],
+    "load": {
+     "mean": 1.66,
+     "max": 1.83
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 169.3,
+     "pss": 68.3
+    },
+    "peakMiB": {
+     "rss": 183.1,
+     "pss": 80.5,
+     "cgroup": 74.7
+    },
+    "afterRequestsMiB": {
+     "rss": 181.5,
+     "pss": 78.9
+    },
+    "restMiB": {
+     "rss": 176.5,
+     "pss": 72.1,
+     "pssAnon": 63.1,
+     "pssFile": 8.9,
+     "cgroupAnon": 63.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.4,
+      "pssMiB": 21.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 107.2,
+      "pssMiB": 50.7
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 81236,
+      "ms": 27.2
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 61444,
+      "ms": 25.4
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 87342,
+      "ms": 29.8
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 110798,
+      "ms": 23.3
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 125292,
+      "ms": 50.8
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 67125,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 9754,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 50268,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 24714,
+      "ms": 5.7
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 79348,
+      "ms": 12.4
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 32367,
+      "ms": 18
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 27320,
+      "ms": 5.8
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 64943,
+      "ms": 10.9
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 106472,
+      "ms": 15
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 19942,
+      "ms": 18.4
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 109108,
+      "ms": 13.7
+     }
+    ],
+    "load": {
+     "mean": 1.32,
+     "max": 1.47
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 172.3,
+     "pss": 69.8
+    },
+    "peakMiB": {
+     "rss": 182.2,
+     "pss": 77.7,
+     "cgroup": 73.8
+    },
+    "afterRequestsMiB": {
+     "rss": 182.2,
+     "pss": 77.7
+    },
+    "restMiB": {
+     "rss": 174.6,
+     "pss": 72.2,
+     "pssAnon": 61.1,
+     "pssFile": 11,
+     "cgroupAnon": 61.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.3,
+      "pssMiB": 21.9
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 105.4,
+      "pssMiB": 50.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 81236,
+      "ms": 23.5
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 61444,
+      "ms": 31.5
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 87342,
+      "ms": 29.2
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 110798,
+      "ms": 29.2
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 125292,
+      "ms": 27.8
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 67125,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 9754,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 50268,
+      "ms": 9.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 24714,
+      "ms": 6.6
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 79348,
+      "ms": 18
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 32367,
+      "ms": 19.8
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 27320,
+      "ms": 5.2
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 64943,
+      "ms": 12.9
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 106472,
+      "ms": 12.5
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 19942,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 109108,
+      "ms": 16.2
+     }
+    ],
+    "load": {
+     "mean": 1.54,
+     "max": 1.9
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 170.3,
+     "pss": 69.8
+    },
+    "peakMiB": {
+     "rss": 182.5,
+     "pss": 80.2,
+     "cgroup": 74.1
+    },
+    "afterRequestsMiB": {
+     "rss": 180.2,
+     "pss": 78
+    },
+    "restMiB": {
+     "rss": 175.8,
+     "pss": 73.6,
+     "pssAnon": 62.5,
+     "pssFile": 11,
+     "cgroupAnon": 62.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 68,
+      "pssMiB": 22.6
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 106,
+      "pssMiB": 50.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 81236,
+      "ms": 23.4
+     },
+     {
+      "path": "/chest/deals",
+      "status": 200,
+      "bytes": 61444,
+      "ms": 34.8
+     },
+     {
+      "path": "/chest/deals/1",
+      "status": 200,
+      "bytes": 87342,
+      "ms": 23.5
+     },
+     {
+      "path": "/chest/contacts/1",
+      "status": 200,
+      "bytes": 110798,
+      "ms": 47.3
+     },
+     {
+      "path": "/chest/companies/1",
+      "status": 200,
+      "bytes": 125292,
+      "ms": 34.1
+     },
+     {
+      "path": "/chest/deals?view=list&status=any",
+      "status": 200,
+      "bytes": 67125,
+      "ms": 14.2
+     },
+     {
+      "path": "/chest/search?q=durand",
+      "status": 200,
+      "bytes": 9754,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 50268,
+      "ms": 8.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 24714,
+      "ms": 7.5
+     },
+     {
+      "path": "/chest/deals/4",
+      "status": 200,
+      "bytes": 79348,
+      "ms": 13.9
+     },
+     {
+      "path": "/chest/team",
+      "status": 200,
+      "bytes": 32367,
+      "ms": 11.9
+     },
+     {
+      "path": "/chest/settings/fields",
+      "status": 200,
+      "bytes": 27320,
+      "ms": 5.1
+     },
+     {
+      "path": "/chest/companies",
+      "status": 200,
+      "bytes": 64943,
+      "ms": 10.1
+     },
+     {
+      "path": "/chest/contacts/17",
+      "status": 200,
+      "bytes": 106472,
+      "ms": 11.6
+     },
+     {
+      "path": "/chest/settings/forms",
+      "status": 200,
+      "bytes": 19942,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/contacts/2",
+      "status": 200,
+      "bytes": 109108,
+      "ms": 11.5
+     }
+    ],
+    "load": {
+     "mean": 1.78,
+     "max": 1.99
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 174.6,
+    "min": 173,
+    "max": 176.5
+   },
+   "pss": {
+    "median": 72.1,
+    "min": 67.6,
+    "max": 73.6
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 182.4,
+    "min": 180.5,
+    "max": 183.1
+   },
+   "pss": {
+    "median": 77.7,
+    "min": 75.1,
+    "max": 80.5
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 107.5,
+    "min": 105.6,
+    "max": 109.1
+   },
+   "pss": {
+    "median": 50.3,
+    "min": 46.6,
+    "max": 51
+   }
+  }
+ }
+}
