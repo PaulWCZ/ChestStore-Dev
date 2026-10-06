@@ -224,22 +224,46 @@ test("the host's root says where Leave lives; any other path is a 404 in the vis
   assert.equal(missing.status, 404);
 });
 
-// The official 0.4.1 parsers refuse a member in more than 16 groups (the
-// SDK fix lifts it): who is in Sales, with Hugo in 17 groups, cannot be read.
-test("Who's away filtered by a group the Chest does not say: said plainly, and no one listed under the chip", async () => {
+// SDK 0.4.1-studio.7 lifts 0.4.1's cap of 16 groups a member: Hugo, in
+// 17 groups, signs in and is listed under Sales.
+test("a member in 17 groups signs in and is listed under a group's chip", async () => {
   await chest.close();
   const many = Array.from({ length: 16 }, (_, i) => ({ id: "grp_x" + "abcdefghijklmnop"[i]! + "a".repeat(24), name: `Extra ${i}`, members: [hugo.id] }));
   const crowded = everyone.map(p => (p.id === hugo.id ? { ...p, groups: [...p.groups, ...many.map(g => g.id)] } : p));
   chest = await fakeChest({ network: {}, tool: "leave", members: crowded, groups: [...fakeGroups, ...many], capabilities: ["members", "files", "notifications", "members.groups"], chest: { publicUrl: null } });
   try {
+    await page(crowded.find(p => p.id === hugo.id)!, "/chest");
     const sales = await page(sofia, `/chest/calendar?show=${fakeGroups[1]!.id}`);
-    assert.match(sales, /Could not read who is in Sales right now\. Try again in a moment\./u);
-    assert.doesNotMatch(sales, /<table class="grid"|class="ck-empty/u, "no one under the chip, not everyone");
+    assert.doesNotMatch(sales, /Could not read/u);
+    assert.match(sales, /Hugo Bernard/u);
+  } finally {
+    await chest.close();
+    chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, chest: { publicUrl: null } });
+  }
+});
+
+// When the Chest does not say who is in a group (here it answers 503 for
+// Sales), the page says so and lists no one under that chip.
+test("Who's away filtered by a group the Chest does not say: said plainly, and no one listed under the chip", async () => {
+  await chest.close();
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications", "members.groups"], chest: { publicUrl: null } });
+  const real = globalThis.fetch;
+  const sales = fakeGroups[1]!.id;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const address = new URL(input instanceof Request ? input.url : String(input));
+    if (address.pathname.endsWith("/members") && address.searchParams.get("group") === sales) return new Response(JSON.stringify({ error: "unavailable" }), { status: 503, headers: { "content-type": "application/json" } });
+    return real(input, init);
+  }) as typeof fetch;
+  try {
+    const shown = await page(sofia, `/chest/calendar?show=${sales}`);
+    assert.match(shown, /Could not read who is in Sales right now\. Try again in a moment\./u);
+    assert.doesNotMatch(shown, /<table class="grid"|class="ck-empty/u, "no one under the chip, not everyone");
     const office = await page(sofia, `/chest/calendar?show=${fakeGroups[0]!.id}`);
-    assert.doesNotMatch(office, /Could not read/u, "who is in Office is read: it has no crowded member");
-    const fr = await page(camille, `/chest/calendar?show=${fakeGroups[1]!.id}`);
+    assert.doesNotMatch(office, /Could not read/u, "who is in Office is read");
+    const fr = await page(camille, `/chest/calendar?show=${sales}`);
     assert.match(fr, /Impossible de lire qui fait partie de Sales pour le moment/u);
   } finally {
+    globalThis.fetch = real;
     await chest.close();
     chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, chest: { publicUrl: null } });
   }
