@@ -435,7 +435,7 @@ once, in People's HR record:
 
 ## Needs from the SDK
 
-Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`,
+Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`,
 with a manifest of contract 0.4 (`"chest": "0.4"`; `chest check` says OK).
 Official: `member(request)` with the member's `language` (the interface
 and the bell in each member's language) and `timeZone`; `chest.today()`,
