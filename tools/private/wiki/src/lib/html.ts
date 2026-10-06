@@ -1,5 +1,6 @@
 import { parseDocument } from "htmlparser2";
 import type { Doc, DocNode, Mark } from "./doc.ts";
+import { unwrapRedirect } from "../shared/doc.ts";
 
 // HTML in: the pages of a Confluence space export ("Export space → HTML"),
 // a Google Docs "Web page (.html, zipped)" download, or any saved web page,
@@ -83,17 +84,6 @@ export type HtmlOptions = {
   // The file of another exported page, by Confluence's page id.
   pageFile?: (pageId: string) => string | null;
 };
-
-// Google wraps every link of an exported document in a redirect.
-function unwrap(href: string): string {
-  const m = /^https?:\/\/(?:www\.)?google\.[a-z.]+\/url\?(.*)$/iu.exec(href);
-  if (!m) return href;
-  try {
-    return new URLSearchParams(m[1]).get("q") ?? href;
-  } catch {
-    return href;
-  }
-}
 
 const skipped = new Set(["script", "style", "head", "title", "meta", "link", "noscript", "iframe", "object", "embed", "form", "input", "button", "select", "textarea", "svg", "canvas", "video", "audio", "template", "nav"]);
 const calloutTone: Record<string, string> = { information: "info", note: "warning", tip: "tip", warning: "warning" };
@@ -271,7 +261,7 @@ function inline(n: Nd, marks: Mark[], o: HtmlOptions): DocNode[] {
     case "s": case "del": case "strike": add("strike"); break;
     case "code": case "tt": case "kbd": add("code"); break;
     case "a": {
-      let href = unwrap(e.attribs["href"] ?? "");
+      let href = unwrapRedirect(e.attribs["href"] ?? "");
       // A link to another page of the space, by its id (Confluence).
       const pageId = e.attribs["data-linked-resource-type"] === "page" ? e.attribs["data-linked-resource-id"] : undefined;
       const local = pageId && o.pageFile ? o.pageFile(pageId) : null;

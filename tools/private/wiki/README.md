@@ -314,8 +314,17 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
 - **Bounds**: 5,000 pages, 200 spaces, 12 levels deep, 200 files of 25 MiB
   per page, a page's content 400,000 characters (2 MB of JSON); 12 pinned pages, 100 groups
   and people naming a space's editors; imports up to 60 MB and 500 pages
-  (an HTML page up to 8 MiB), zip entries bounded (5,000 entries, 32 MiB each,
-  256 MiB in all, sizes checked before inflating, paths cleaned).
+  (an HTML page up to 8 MiB), zip entries bounded (5,000 entries, 25 MiB each,
+  96 MiB inflated in all — one allowance for an archive and the archives
+  inside it —, sizes checked before inflating, paths cleaned). An import
+  fits the tool's 256 MiB: the upload is held once, the zips are read one
+  entry at a time, the pages planned from one page's HTML at a time and
+  written one at a time; exports are streamed, a page and its files at a
+  time. Measured in a 256 MiB cgroup (the Chest's default; the built server
+  with a fake Chest and PostgreSQL, 6 October 2026): a 37 MiB Confluence
+  export of 490 pages and 25 pictures of 1.5 MB peaks at 138 MiB, a 54 MiB
+  one at 143 MiB; "Download everything" of the result (47–64 MB) at
+  141–163 MiB. Before, the first was killed for memory.
 - **Security**: content is ProseMirror JSON checked on the server against
   the schema of `src/lib/doc.ts` (unknown nodes, marks and attributes dropped;
   links http, https, mailto or the wiki's own pages and files; images only
@@ -388,7 +397,13 @@ in `src/app.tsx`; every change goes through a named action of
 runs in the browser (`src/islands/`: the sidebar's tree, dialogs, a page's
 actions, comments, the editor). **Tiptap**, the editor, is a script of its
 own fetched only when the editor opens: the other pages never load it,
-and the server never holds it. `AGENTS.md` maps the folders.
+and the server never holds it (its chunk is left out of the server's
+build). Pages stay light: the sidebar is sent the top pages and the open
+branch only (a closed branch comes when it opens), a page's "Move" dialog
+asks where it may go when it opens, and an open page asks every minute —
+while it is seen and its reader active in the last ten minutes — whether
+what it shows changed (a stamp of a few bytes), re-reading itself only
+then: a tab left open lets the tool sleep. `AGENTS.md` maps the folders.
 
 Moved from Next.js 16 in October 2026, with every feature, word, test and
 screen kept: the browser flow passes its 39 steps unchanged in what it

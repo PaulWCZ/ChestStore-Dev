@@ -156,8 +156,8 @@ export const actions = {
   // Every change, a few seconds after the last one (the editor's draft):
   // refreshes nothing (the editor is the only one showing it).
   saveDraft: action({ ...page, title: as<string>(), doc: as<string>(), baseVersion: as<number>() }, async ({ pageId, title, doc, baseVersion }, context) => {
-    const { lock } = await editing.saveDraft(db(), context.member, pageId, { title, doc, baseVersion });
-    return { holder: lock ? await holder(lock, context) : null, time: moment(new Date(), context.locale, context.member.timeZone) };
+    const { lock, held } = await editing.saveDraft(db(), context.member, pageId, { title, doc, baseVersion });
+    return { holder: lock ? await holder(lock, context) : null, held, time: moment(new Date(), context.locale, context.member.timeZone) };
   }, { maxBody: 3 << 20 }),
 
   publishPage: action({ ...page, title: as<string>(), doc: as<string>(), baseVersion: as<number>() }, async ({ pageId, title, doc, baseVersion }, { member }) => {
@@ -166,12 +166,12 @@ export const actions = {
     return done;
   }, { maxBody: 3 << 20 }),
 
-  // The open editor, every 30 seconds: the lock stays the member's (or
-  // comes back, if it lapsed and nobody took it); someone else's comes
-  // with a name.
+  // The open editor, every 30 seconds: the lock stays the member's;
+  // someone else's comes with a name; held: false when theirs is gone (the
+  // editor asks for it again with openEditor — never this call).
   keepEditing: action(page, async ({ pageId }, context) => {
-    const { lock } = await editing.heartbeat(db(), context.member, pageId);
-    return { holder: lock ? await holder(lock, context) : null };
+    const { lock, held } = await editing.heartbeat(db(), context.member, pageId);
+    return { holder: lock ? await holder(lock, context) : null, held };
   }),
 
   // Unsaved changes dropped from the page itself; Undo puts them back.
@@ -310,6 +310,25 @@ export const actions = {
   saveSynonyms: action({ groupId: as<string | null>(), words: as<string>() }, async ({ groupId, words }, { member }) => synonyms.saveSynonyms(db(), member, groupId, words)),
 
   deleteSynonyms: action({ groupId: as<string>() }, async ({ groupId }, { member }) => synonyms.deleteSynonyms(db(), member, groupId)),
+
+  // ---- What a page asks for when it needs it, not with every page.
+  // The pages right inside a page, when its branch opens in the tree.
+  treeBranch: action(page, async ({ pageId }, { member }) => pages.branchOf(db(), member, pageId)),
+
+  // The page's mark (src/lib/pages.ts, pageStamp): it re-reads itself
+  // only when what its reader sees changed.
+  pageStamp: action(page, async ({ pageId }, { member }) => pages.pageStamp(db(), member, pageId)),
+
+  // Where a page may move (its "Move" dialog, when it opens): the spaces
+  // the editor writes in and their pages — a shared page never into "My
+  // pages" (src/lib/pages.ts, movePage).
+  movePlaces: action(page, async ({ pageId }, { member }) => {
+    const sql = db();
+    const p = await pages.page(sql, member, pageId, "write");
+    const writable = (await spaces.listSpaces(sql, member)).filter(s => s.access === "write" && (s.visibility !== "private" || p.space.visibility === "private"));
+    const all = await pages.tree(sql, member, writable.map(s => s.id));
+    return { spaces: writable.map(s => ({ id: s.id, name: s.name })), nodes: all.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title })) };
+  }),
 
   // ---- Pinning a page to the home page.
   setPinned: action({ ...page, on: as<boolean>() }, async ({ pageId, on }, { member }) => pins.setPinned(db(), member, pageId, on)),

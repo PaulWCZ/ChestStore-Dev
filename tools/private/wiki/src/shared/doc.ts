@@ -47,3 +47,15 @@ export function safeImage(value: unknown): string | null {
 
 export const pageIdOfHref = (href: string): string | null => pagePath.exec(href)?.[1] ?? null;
 export const fileIdOfHref = (href: string): string | null => filePath.exec(href)?.[1] ?? /^\/chest\/files\/([1-9][0-9]{0,17})$/u.exec(href)?.[1] ?? null;
+
+// Google wraps every link of a document (an export, a paste from Google
+// Docs) in a redirect: the address it leads to.
+export function unwrapRedirect(href: string): string {
+  const m = /^https?:\/\/(?:www\.)?google\.[a-z.]+\/url\?(.*)$/iu.exec(href);
+  if (!m) return href;
+  try {
+    return new URLSearchParams(m[1]).get("q") ?? href;
+  } catch {
+    return href;
+  }
+}

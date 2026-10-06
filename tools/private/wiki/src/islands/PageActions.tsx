@@ -1,6 +1,6 @@
 import { call, fill as format, navigate, plural, toast } from "@argentic/chest-app/client";
 import { Dialog, Menu, type MenuItem } from "@argentic/chest-ui/components";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Calendar, Check, Clock, Dots, Download, Eye, Move, Pen, People, Pin, Plus, Printer, Seal, Stamp, Trash } from "../components/icons.tsx";
 import { NewPageDialog, type NewPageWords, type PageTarget } from "../components/new-page.tsx";
 import type { Catalogue } from "../i18n/index.ts";
@@ -14,7 +14,7 @@ export type MovePlace = { spaces: { id: string; name: string }[]; nodes: { id: s
 
 // The actions of a page: "Edit" first (editors), then a menu for the rest —
 // a page inside, move, history, print, download, delete (with undo).
-export function PageActions({ page, writer, editHref, t, places, state, groups = [] }: { page: { id: string; title: string; spaceId: string; parentId: string | null; hasChildren: boolean }; writer: boolean; editHref: string; t: Words; places?: MovePlace; state: PageState; groups?: { id: string; name: string }[] }) {
+export function PageActions({ page, writer, editHref, t, state, groups = [] }: { page: { id: string; title: string; spaceId: string; parentId: string | null; hasChildren: boolean }; writer: boolean; editHref: string; t: Words; state: PageState; groups?: { id: string; name: string }[] }) {
   const [moving, setMoving] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -80,7 +80,7 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
       {writer && <a className="button" href={editHref}><Pen />{t.page.edit}</a>}
       <Menu label={t.page.more} icon={<Dots />} showLabel size="m" items={[
         ...(writer ? [{ label: t.shell.newSubpage, icon: <Plus />, onSelect: () => setChild({ spaceId: page.spaceId, spaceName: t.spaceName, parentId: page.id, parentTitle: page.title }) }] : []),
-        ...(writer && places ? [{ label: t.page.move, icon: <Move />, onSelect: () => setMoving(true) }] : []),
+        ...(writer ? [{ label: t.page.move, icon: <Move />, onSelect: () => setMoving(true) }] : []),
         ...(writer ? [{ label: state.pinned ? t.page.unpin : t.page.pin, icon: <Pin />, disabled: pending, onSelect: pin }] : []),
         ...(writer ? [{ label: state.template ? t.marks.unmark : t.marks.mark, icon: <Stamp />, disabled: pending, onSelect: template }] : []),
         // Nobody else reads a page of "My pages": nobody to ask.
@@ -93,7 +93,7 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
         ...(page.hasChildren ? [{ label: t.page.exportZip, icon: <Download />, href: `/chest/pages/${page.id}/export?format=zip`, download: true }] : []),
         ...(writer ? [{ label: t.page.delete, icon: <Trash />, tone: "danger" as const, disabled: pending, onSelect: remove }] : []),
       ] satisfies MenuItem[]} />
-      {places && <MoveDialog open={moving} onClose={() => setMoving(false)} page={page} places={places} t={t} />}
+      {writer && <MoveDialog open={moving} onClose={() => setMoving(false)} page={page} t={t} />}
       {writer && <AskReadDialog open={asking} onClose={() => setAsking(false)} page={page} groups={groups} mail={state.mail !== false} t={t} />}
       {writer && <ReviewDialog open={reviewing} onClose={() => setReviewing(false)} page={page} review={state.review} t={t} />}
       <NewPageDialog target={child} onClose={() => setChild(null)} t={t} />
@@ -104,7 +104,16 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
 // Where to move a page: a space, then the top of it or inside one of its
 // pages (never the page itself nor its own pages). Works with a keyboard
 // and on a phone, where dragging in the sidebar does not.
-function MoveDialog({ open, onClose, page, places, t }: { open: boolean; onClose: () => void; page: { id: string; title: string; spaceId: string; parentId: string | null }; places: MovePlace; t: Words }) {
+function MoveDialog({ open, onClose, page, t }: { open: boolean; onClose: () => void; page: { id: string; title: string; spaceId: string; parentId: string | null }; t: Words }) {
+  // Where it may go, asked when the dialog opens (the whole tree is not
+  // sent with every page).
+  const [places, setPlaces] = useState<MovePlace>({ spaces: [], nodes: [] });
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void call("movePlaces", { pageId: page.id }, { refresh: false }).then(r => { if (live && r.ok) setPlaces(r.value); });
+    return () => { live = false; };
+  }, [open, page.id]);
   const [spaceId, setSpaceId] = useState(page.spaceId);
   const [parent, setParent] = useState<string>(page.parentId ?? "");
   const [error, setError] = useState<string | null>(null);
