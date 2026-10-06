@@ -84,6 +84,28 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
   }, [setSlash]);
   const trackRef = useRef(track);
   trackRef.current = track;
+  // The menu follows its "/" when the page scrolls (it is placed on the
+  // screen, not in the text).
+  const open = slash !== null;
+  useEffect(() => {
+    if (!open) return;
+    const follow = () => {
+      const at = slashRef.current;
+      const e = editorRef.current;
+      if (!at || !e) return;
+      try {
+        setSlash({ ...at, ...placeAt(e.view.coordsAtPos(at.from)) });
+      } catch {
+        setSlash(null);
+      }
+    };
+    window.addEventListener("scroll", follow, { passive: true });
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", follow);
+      window.removeEventListener("resize", follow);
+    };
+  }, [open, setSlash]);
 
   useEffect(() => {
     if (start.restored) toast({ id: `draft-${page.id}`, text: format(t.editor.restored, { time: start.restored }) });
@@ -106,11 +128,7 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
         if (before !== "" && !/\s/u.test(before)) return false;
         // Opened at once (a fast typist's next letters filter it), where
         // the "/" goes: below the line, or above it when the screen ends first.
-        const box = view.coordsAtPos(from);
-        const x = Math.max(8, Math.min(box.left, window.innerWidth - 272));
-        const tall = Math.min(340, window.innerHeight / 2);
-        const y = box.bottom + 6 + tall > window.innerHeight ? Math.max(8, box.top - 6 - tall) : box.bottom + 6;
-        setSlash({ from, query: "", index: 0, x, y });
+        setSlash({ from, query: "", index: 0, ...placeAt(view.coordsAtPos(from)) });
         return false;
       },
       handleKeyDown: (_view, event) => {
@@ -334,6 +352,14 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
       {editor && <PagePicker open={pickOpen} pages={pages.filter(p => p.id !== page.id)} onClose={() => setPickOpen(false)} onPick={id => { editor.chain().focus().insertPageRef(id).run(); setPickOpen(false); }} t={t} />}
     </div>
   );
+}
+
+// Where the "/" menu goes for the "/" at this box: below the line, or above
+// it when the screen ends first.
+function placeAt(box: { left: number; top: number; bottom: number }): { x: number; y: number } {
+  const x = Math.max(8, Math.min(box.left, window.innerWidth - 272));
+  const tall = Math.min(340, window.innerHeight / 2);
+  return { x, y: box.bottom + 6 + tall > window.innerHeight ? Math.max(8, box.top - 6 - tall) : box.bottom + 6 };
 }
 
 // The formatting bar: what most pages need, in plain words for screen

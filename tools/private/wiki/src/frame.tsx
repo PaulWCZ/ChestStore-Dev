@@ -34,7 +34,7 @@ export const framed = (render: Render): Render => async p => {
   const canWrite = can(member, "write");
   const spaces = await listSpaces(db(), member);
   sections.set(member, { trash: canWrite || spaces.some(s => s.visibility === "private") });
-  if (editing || contents || (spaces.length === 0 && !canWrite)) return { title: view.title, body: <div className={editing ? "frame editing" : "frame"}><div className="content">{view.body}</div></div> };
+  if (editing || contents || (spaces.length === 0 && !canWrite)) return { title: view.title, body: <div className="frame"><div className="content">{view.body}</div></div> };
   const nodes = await tree(db(), member, spaces.map(s => s.id));
   return {
     title: view.title,
