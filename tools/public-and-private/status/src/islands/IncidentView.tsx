@@ -94,7 +94,7 @@ export function RemoveIncident({ id, t }: { id: string; t: Words }) {
 
 function Steps({ name, value, onChange, t }: { name: string; value: string; onChange: (value: string) => void; t: Words }) {
   return (
-    <fieldset className="steps-pick compact">
+    <fieldset className="steps-pick">
       <legend className="label">{t.incident.updateStatus}</legend>
       {["investigating", "identified", "monitoring"].map(s => (
         <label key={s} className={`step-option${value === s ? " on" : ""}`}>

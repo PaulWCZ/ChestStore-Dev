@@ -13,6 +13,7 @@ import { publicOrigin } from "../lib/public-origin.ts";
 import { impactOf, statusView, touchedNames } from "../lib/status-view.ts";
 import { refreshBadge } from "../lib/tell.ts";
 import { phaseOf, stepOf, titleIn } from "./parts/incident-card.tsx";
+import { incidentTone, stepClass, tone } from "../components/classes.ts";
 
 // Now: what is open, what is planned, and the page as customers see it,
 // with the one thing an editor comes for — "Post an incident" — first.
@@ -85,11 +86,11 @@ export async function overview({ member, locale: language, t, request }: MemberC
                   const impact = impactOf(i, now);
                   const last = i.updates.find(u => u.removedAt === null);
                   return (
-                    <li key={i.id} className={`card open-item s-${impact}`}>
+                    <li key={i.id} className={`card open-item ${tone(impact)}`}>
                       <div className="open-main">
                         <a className="open-title" href={`/chest/incidents/${i.id}`}>{title(i)}</a>
                         <p className="muted">
-                          <span className={`chip step-${i.status}`}>{t.steps[stepOf(i, now)]}</span>{" "}
+                          <span className={`chip ${stepClass(i.status)}`}>{t.steps[stepOf(i, now)]}</span>{" "}
                           {touchedNames(i, view.names).join(", ")}
                         </p>
                         {last && <p className="muted small">{format(t.overview.lastUpdate, { time: relative(last.postedAt, locale, now) })}</p>}
@@ -110,7 +111,7 @@ export async function overview({ member, locale: language, t, request }: MemberC
                   <li key={m.id} className="row-incident s-maintenance">
                     <div className="row-head">
                       <a href={`/chest/incidents/${m.id}`}>{title(m)}</a>
-                      <span className={`chip step-${phaseOf(m, now)}`}>{t.steps[phaseOf(m, now)]}</span>
+                      <span className={`chip ${stepClass(phaseOf(m, now))}`}>{t.steps[phaseOf(m, now)]}</span>
                     </div>
                     <p className="row-meta">{format(t.time.range, { from: when(m.startedAt), to: m.endsAt ? when(m.endsAt) : "" })} · {touchedNames(m, view.names).join(", ")}</p>
                   </li>
@@ -126,7 +127,7 @@ export async function overview({ member, locale: language, t, request }: MemberC
             </div>
             {customers.entries.length === 0 ? <p className="quiet-line">{t.public.setupTitle}</p> : (
             <>
-            <div className={`banner small s-${customers.overall}`}>
+            <div className={`banner small ${tone(customers.overall)}`}>
               <StateLabel state={customers.overall} word={t.banner[customers.overall]} />
             </div>
             <ul className="mini card">
@@ -146,10 +147,10 @@ export async function overview({ member, locale: language, t, request }: MemberC
               <h2 id="recent" className="section-title">{t.overview.recent}</h2>
               <ul className="rows card">
                 {view.recent.map(i => (
-                  <li key={i.id} className={`row-incident s-${i.kind === "maintenance" ? "maintenance" : impactOf(i, now)}`}>
+                  <li key={i.id} className={`row-incident ${incidentTone(i.kind, impactOf(i, now))}`}>
                     <div className="row-head">
                       <a href={`/chest/incidents/${i.id}`}>{title(i)}</a>
-                      <span className={`chip step-${stepOf(i, now)}`}>{t.steps[stepOf(i, now)]}</span>
+                      <span className={`chip ${stepClass(stepOf(i, now))}`}>{t.steps[stepOf(i, now)]}</span>
                     </div>
                     <p className="row-meta">{when(i.startedAt)}</p>
                   </li>

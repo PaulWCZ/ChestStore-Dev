@@ -12,6 +12,7 @@ import { IncidentCard, IncidentRow, titleIn } from "./parts/incident-card.tsx";
 import { indexed, siteTitle } from "./parts/meta.tsx";
 import { PublicShell } from "./parts/public-shell.tsx";
 import { When } from "./parts/when.tsx";
+import { entry, tone } from "../components/classes.ts";
 
 // The status page: one line that says whether everything works, what is
 // happening now, each component with its last 90 days, the maintenance
@@ -47,7 +48,7 @@ export async function statusPage(context: PublicContext): Promise<View> {
   }
   return { title: siteTitle(context), exactTitle: true, head, body: (
     <PublicShell context={context} path="/" offerMail={offerUpdates}>
-      <section className={`banner s-${view.overall}`} aria-labelledby="overall">
+      <section className={`banner ${tone(view.overall)}`} aria-labelledby="overall">
         <StateIcon state={view.overall} />
         <div>
           <h1 id="overall">{t.banner[view.overall]}</h1>
@@ -68,7 +69,7 @@ export async function statusPage(context: PublicContext): Promise<View> {
         <h2 id="components" className="visually-hidden">{t.public.now}</h2>
         <ul className="components card">
           {view.entries.map(e => (
-            <li key={e.id} className={`entry entry-${e.kind}`}>
+            <li key={e.id} className={`entry ${entry(e.kind)}`}>
               {e.kind === "group" ? (
                 <>
                   <div className="entry-head group-head">

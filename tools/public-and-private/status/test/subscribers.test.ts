@@ -106,6 +106,12 @@ test("the form's guard: a signed time, then counts — the Chest's, else the too
   // The tool's own counters (a Chest that does not count visitors).
   for (let i = 0; i < subs.formLimits.perVisitorHour; i++) await subs.guard(sql, "198.51.100.1");
   await refuses("too_many", () => subs.guard(sql, "198.51.100.1"));
+  // A visitor the Chest's front does not name is everyone at once: only the
+  // ceiling for everyone counts, never five an hour for the whole world.
+  const later = new Date(Date.now() + 3 * 3600000);
+  for (let i = 0; i < subs.formLimits.perVisitorHour * 3; i++) await subs.guard(sql, "unknown", later);
+  for (let i = subs.formLimits.perVisitorHour * 3; i < subs.formLimits.perHour; i++) await subs.guard(sql, "198.51.100." + (i % 200), later).catch(() => {});
+  await refuses("too_many", () => subs.guard(sql, "unknown", later));
 });
 
 test("editors see and remove subscribers; nobody else", async () => {

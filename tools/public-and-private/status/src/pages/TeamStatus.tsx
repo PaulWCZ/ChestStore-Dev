@@ -6,6 +6,7 @@ import { localeOf } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
 import { impactOf, statusView, touchedNames } from "../lib/status-view.ts";
 import { IncidentCard } from "./parts/incident-card.tsx";
+import { tone } from "../components/classes.ts";
 
 // The team's own status page: what a member without a role sees in the
 // tool — every service, those for the team only included (the office
@@ -28,7 +29,7 @@ export async function teamStatus({ locale: language, t }: MemberContext): Promis
         <EmptyState title={t.public.setupTitle} body={t.public.setupBody} />
       ) : (
         <>
-          <div className={`banner small s-${view.overall}`}>
+          <div className={`banner small ${tone(view.overall)}`}>
             <StateLabel state={view.overall} word={t.banner[view.overall]} />
           </div>
           <section aria-labelledby="team-now" className="stack">

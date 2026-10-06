@@ -1,6 +1,7 @@
 "use client";
 
 import type { Impact } from "../lib/model.ts";
+import { tone } from "./classes.ts";
 
 // The affected components of an incident, each with its impact: a box to
 // tick, then how bad it is. Grouped as the page shows them.
@@ -29,7 +30,7 @@ export function ImpactPicker({ groups, value, onChange, t }: { groups: PickerGro
                   <span>{c.name}</span>
                 </label>
                 {on && (
-                  <select className={`field impact s-${value[c.id]}`} aria-label={t.impact.replace("{component}", c.name)} value={value[c.id]} onChange={e => onChange({ ...value, [c.id]: e.target.value as Impact })}>
+                  <select className={`field impact ${tone(value[c.id]!)}`} aria-label={t.impact.replace("{component}", c.name)} value={value[c.id]} onChange={e => onChange({ ...value, [c.id]: e.target.value as Impact })}>
                     <option value="degraded">{t.states["degraded"]}</option>
                     <option value="partial">{t.states["partial"]}</option>
                     <option value="major">{t.states["major"]}</option>

@@ -2,6 +2,7 @@ import type { Catalogue } from "../../i18n/index.ts";
 import { day, format, percent, plural } from "../../i18n/format.ts";
 import type { Day } from "../../lib/timeline.ts";
 import { Pulse, StateIcon } from "../../components/icons.tsx";
+import { tone } from "../../components/classes.ts";
 
 // The last 90 days of one component: one tick a day, coloured by its worst
 // state. Pointing at a tick (or focusing one of the days with an incident)
@@ -33,22 +34,22 @@ export function HistoryBar({ id, name, days, uptime, since = null, measured = nu
           const tip = (
             <span className={`tip${edge}`}>
               <strong>{day(d.date, locale, { weekday: "short", day: "numeric", month: "short" })}</strong>
-              <span className={`tip-state s-${d.state}`}><StateIcon state={d.state} />{d.state === "none" ? w.noData : d.incidents.length === 0 && d.state === "operational" ? w.noIncident : t.states[d.state]}</span>
+              <span className={`tip-state ${tone(d.state)}`}><StateIcon state={d.state} />{d.state === "none" ? w.noData : d.incidents.length === 0 && d.state === "operational" ? w.noIncident : t.states[d.state]}</span>
               {d.incidents.slice(0, 3).map(inc => <span key={inc} className="tip-incident">{titles.get(inc) ?? ""}</span>)}
               {d.incidents.length > 3 && <span className="tip-incident">{plural(w.tickMore, d.incidents.length - 3, locale)}</span>}
             </span>
           );
-          if (d.incidents.length === 0) return <li key={d.date} className={`tick s-${d.state}`} aria-hidden="true">{tip}</li>;
+          if (d.incidents.length === 0) return <li key={d.date} className={`tick ${tone(d.state)}`} aria-hidden="true">{tip}</li>;
           const label = format(w.tickLabel, { day: day(d.date, locale, { day: "numeric", month: "long" }), state: t.states[d.state], incidents: d.incidents.map(inc => titles.get(inc) ?? "").join(", ") });
           return (
-            <li key={d.date} className={`tick s-${d.state}`}>
+            <li key={d.date} className={`tick ${tone(d.state)}`}>
               <a href={`/incidents/${d.incidents[0]}`} aria-label={label}>{tip}</a>
             </li>
           );
         })}
       </ol>
       <div className="history-legend" aria-hidden="true">
-        <span className="far wide">{w.daysAgo}</span><span className="far narrow">{w.daysAgoPhone}</span>
+        <span className="wide">{w.daysAgo}</span><span className="narrow">{w.daysAgoPhone}</span>
         <span className="rule" />
         <span className="uptime">{uptimeText}{slowerText && <span className="slower"> · {slowerText}</span>}</span>
         <span className="rule" />
@@ -65,7 +66,7 @@ export function HistoryBar({ id, name, days, uptime, since = null, measured = nu
               {bad.slice().reverse().map(d => (
                 <tr key={d.date}>
                   <th scope="row">{day(d.date, locale, { day: "numeric", month: "long", year: "numeric" })}</th>
-                  <td><span className={`state-label s-${d.state}`}><StateIcon state={d.state} /><span>{d.state === "none" ? w.noData : t.states[d.state]}</span></span></td>
+                  <td><span className={`state-label ${tone(d.state)}`}><StateIcon state={d.state} /><span>{d.state === "none" ? w.noData : t.states[d.state]}</span></span></td>
                   <td>{d.incidents.map((inc, k) => <span key={inc}>{k > 0 ? ", " : ""}<a href={`/incidents/${inc}`}>{titles.get(inc) ?? inc}</a></span>)}</td>
                 </tr>
               ))}

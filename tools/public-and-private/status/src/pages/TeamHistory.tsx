@@ -6,6 +6,7 @@ import { db } from "../lib/db.ts";
 import { allFor } from "../lib/incidents.ts";
 import { impactOf } from "../lib/status-view.ts";
 import { phaseOf, stepOf, titleIn } from "./parts/incident-card.tsx";
+import { incidentTone, stepClass } from "../components/classes.ts";
 
 // Every incident and maintenance, removed ones included, newest first —
 // fifty a page.
@@ -23,12 +24,12 @@ export async function teamHistory({ member, locale: language, t }: MemberContext
             const step = i.kind === "maintenance" ? phaseOf(i, now) : stepOf(i, now);
             const title = titleIn(i, locale);
             return (
-              <li key={i.id} className={`row-incident s-${i.kind === "maintenance" ? "maintenance" : impactOf(i, now)}${i.removedAt ? " removed" : ""}`}>
+              <li key={i.id} className={`row-incident ${incidentTone(i.kind, impactOf(i, now))}${i.removedAt ? " removed" : ""}`}>
                 <div className="row-head">
                   <a href={`/chest/incidents/${i.id}`} lang={title.lang === locale ? undefined : title.lang}>{title.text}</a>
                   {i.kind === "maintenance" && <span className="tag">{t.public.maintenanceTag}</span>}
                   {i.removedAt && <span className="tag muted">{t.historyPrivate.removed}</span>}
-                  <span className={`chip step-${step}`}>{t.steps[step]}</span>
+                  <span className={`chip ${stepClass(step)}`}>{t.steps[step]}</span>
                 </div>
                 <p className="row-meta">{stamp(i.startedAt, zone, locale, now)}</p>
               </li>

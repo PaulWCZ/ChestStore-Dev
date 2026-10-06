@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
 import { format, plural } from "../i18n/format.ts";
+import { tone } from "../components/classes.ts";
 
 // One line per service: the address to check (empty: not checked), how
 // often, the expected answer and when it is too slow. One button saves
@@ -33,7 +34,7 @@ export function ChecksForm({ rows, everyChoices, limit, locale, t }: { rows: Che
             <div className="check-head">
               <strong>{r.name}</strong>
               {r.group && <span className="muted small">{format(w.group!, { group: r.group })}</span>}
-              <span className={`check-standing s-${r.tone}`}>{r.standing}</span>
+              <span className={`check-standing ${tone(r.tone)}`}>{r.standing}</span>
             </div>
             <div className="check-fields">
               <div className="grow">

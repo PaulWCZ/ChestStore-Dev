@@ -16,7 +16,7 @@ export function SecondField({ id, label, value, onChange, lang, multiline = true
   placeholder?: string;
 }) {
   return (
-    <div className="second">
+    <div>
       <label className="label" htmlFor={id}>{label}</label>
       {multiline
         ? <textarea id={id} className="field" rows={rows} maxLength={max} lang={lang} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} />

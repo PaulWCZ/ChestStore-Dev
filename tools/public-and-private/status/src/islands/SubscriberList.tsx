@@ -15,7 +15,7 @@ export function SubscriberList({ rows, t }: { rows: SubscriberRow[]; t: { subscr
   const [erasing, setErasing] = useState<SubscriberRow | null>(null);
   return (
     <>
-      <ul className="rows card subscribers">
+      <ul className="rows card">
         {rows.map(r => (
           <li key={r.id} className="subscriber">
             <div>
@@ -52,7 +52,7 @@ export function HookList({ rows, t }: { rows: HookRow[]; t: { subscribers: Recor
   const [removing, setRemoving] = useState<HookRow | null>(null);
   return (
     <>
-      <ul className="rows card subscribers">
+      <ul className="rows card">
         {rows.map(r => (
           <li key={r.id} className="subscriber">
             <div>

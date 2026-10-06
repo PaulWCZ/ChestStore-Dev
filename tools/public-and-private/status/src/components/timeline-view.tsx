@@ -5,6 +5,7 @@ import { SecondField } from "./second-field.tsx";
 import { useRun } from "./use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
 import { format } from "../i18n/format.ts";
+import { stepClass, tone } from "./classes.ts";
 
 // The timeline as editors see it: each update with who posted it, its
 // corrections (the earlier text one click away) and removals. Correct or
@@ -33,7 +34,7 @@ function Entry({ u, languages, t }: { u: UpdateView; languages: Languages; t: Wo
   const [second, setSecond] = useState(u.bodySecond ?? "");
   const remove = () => run("removeUpdate", { updateId: u.id }, () => toast({ id: `remove-${u.id}`, text: w.removedUpdate!, undo: undo("restoreUpdate", { updateId: u.id }) }));
   return (
-    <li className={`step step-${u.status}${u.removed ? " removed" : ""}`}>
+    <li className={`step ${stepClass(u.status)}${u.removed ? " removed" : ""}`}>
       <div className="step-head">
         <strong>{t.steps[u.status]}</strong>
         <span className="muted">{u.time}</span>
@@ -63,7 +64,7 @@ function Entry({ u, languages, t }: { u: UpdateView; languages: Languages; t: Wo
       )}
       {u.states.length > 0 && (
         <p className="step-states">
-          {u.states.map(s => <span key={s.name} className={`state-pill s-${s.state}`}>{s.name} · {t.states[s.state]}</span>)}
+          {u.states.map(s => <span key={s.name} className={`state-pill ${tone(s.state)}`}>{s.name} · {t.states[s.state]}</span>)}
         </p>
       )}
       {u.removed && <p className="log">{u.removed}</p>}

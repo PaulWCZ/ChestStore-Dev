@@ -37,16 +37,18 @@ export async function subscribersPage({ member, locale: language, t }: MemberCon
   const hooksLine = delivering.state === "ok" && delivering.targets !== null && delivering.max !== null ? format(w.hooksOk, { count: delivering.targets, max: delivering.max })
     : delivering.state === "paused" ? w.hooksPaused
     : delivering.state === "none" ? w.hooksOff : null;
+  const mailWarn = mailing.state === "none" || mailing.state === "paused";
+  const hooksWarn = delivering.state !== "ok";
   return { title: t.subscribers.title, body: (
     <div className="narrow stack-l">
       <p className="crumb"><a href="/chest/settings"><Back />{t.subscribers.back}</a></p>
       <PageHeader size="m" title={t.subscribers.title} intro={t.subscribers.intro} secondary={<span className="count">{plural(t.subscribers.count, confirmed.length, locale)}</span>} />
-      <p className={`note${mailing.state === "none" || mailing.state === "paused" ? " warn" : ""}`}>{mailLine}</p>
+      <p className={mailWarn ? "note warn" : "note"}>{mailLine}</p>
       {waiting > 0 && <p className="hint">{plural(t.subscribers.queue, waiting, locale)}</p>}
       {rows.length === 0 ? <EmptyState title={t.subscribers.emptyTitle} body={t.subscribers.empty} /> : <Island name="SubscriberList" props={{ rows, t: { subscribers: { follows: t.subscribers.follows, pending: t.subscribers.pending, removed: t.subscribers.removed, remove: t.subscribers.remove, erase: t.subscribers.erase, eraseTitle: t.subscribers.eraseTitle, eraseBody: t.subscribers.eraseBody, cancel: t.subscribers.cancel }, errors: t.errors } }} />}
       <section aria-labelledby="chats" className="stack">
         <h2 id="chats" className="section-title">{t.subscribers.hooksTitle}</h2>
-        {hooksLine && <p className={`note${delivering.state === "ok" ? "" : " warn"}`}>{hooksLine}</p>}
+        {hooksLine && <p className={hooksWarn ? "note warn" : "note"}>{hooksLine}</p>}
         {chatsWaiting > 0 && <p className="hint">{plural(t.subscribers.hooksQueue, chatsWaiting, locale)}</p>}
         {chats.length === 0 ? <p className="quiet-line">{t.subscribers.hooksNone}</p> : (
           <Island name="HookList" props={{

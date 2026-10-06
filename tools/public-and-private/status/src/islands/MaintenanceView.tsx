@@ -31,6 +31,7 @@ export function MaintenanceView({ incident, form, updates, publicLink, languages
   const open = incident.phase === "scheduled" || incident.phase === "in_progress";
   const [body, setBody] = useState("");
   const [ending, setEnding] = useState<{ status: "completed" | "cancelled"; text: string } | null>(null);
+  const finishing = ending?.status === "completed";
   const [value, setValue] = useState<WindowValue>({ title: incident.title, start: form.start, end: form.end, components: form.components, autoPosts: incident.autoPosts });
   // A day the kit refused leaves the previous one in `value`: the change
   // waits, on the field and its sentence.
@@ -103,7 +104,7 @@ export function MaintenanceView({ incident, form, updates, publicLink, languages
         labels={t.dialog}
         footer={<>
           <button type="button" className="button link" onClick={() => { setEnding(null); setEndSecond(""); }}>{t.incident.cancelEdit}</button>
-          <button type="submit" form="end-form" className={ending?.status === "completed" ? "button resolve" : "button"} disabled={pending}>{ending?.status === "completed" ? w.finish : w.cancelIt}</button>
+          <button type="submit" form="end-form" className={finishing ? "button resolve" : "button"} disabled={pending}>{ending?.status === "completed" ? w.finish : w.cancelIt}</button>
         </>}
       >
         {ending && (

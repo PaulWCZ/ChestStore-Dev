@@ -19,7 +19,7 @@ export async function publicHistory(context: PublicContext, raw: string | undefi
       <p className="crumb"><a href="/"><Back />{t.public.back}</a></p>
       <h1 className="page-title">{t.history.title}</h1>
       {months.map(m => (
-        <section key={m.month} className="section month" aria-labelledby={`m-${m.month}`}>
+        <section key={m.month} className="section" aria-labelledby={`m-${m.month}`}>
           <h2 id={`m-${m.month}`} className="section-title">{month(m.month, locale)}</h2>
           {m.incidents.length === 0 ? <p className="quiet-line">{t.history.emptyMonth}</p> : (
             <ul className="rows card">

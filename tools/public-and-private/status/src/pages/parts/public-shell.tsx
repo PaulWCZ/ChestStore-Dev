@@ -20,8 +20,9 @@ export function PublicShell({ context, path, offerMail, children }: { context: P
   const initial = [...name.trim()][0]?.toLocaleUpperCase(locale) ?? "";
   const note = format(t.time.zoneNote, { zone: `${zoneName(zone)} (${zoneAbbreviation(new Date(), zone, locale)})` });
   const site = settings.website ? siteName(settings.website) : null;
+  const branded = look.source === "brand";
   return (
-    <div className={`public${look.source === "brand" ? " branded" : ""}`} data-look={look.source}>
+    <div className={branded ? "public branded" : "public"} data-look={look.source}>
       <a className="ck-skip" href="#main">{t.shell.skip}</a>
       <header className="public-head">
         <div className="wrap public-bar">
@@ -58,7 +59,7 @@ export function PublicShell({ context, path, offerMail, children }: { context: P
           <a href="/feed.atom"><Rss />{t.public.atom}</a>
           <a href="/maintenance.ics"><Calendar />{t.public.calendar}</a>
         </nav>
-        <p className="zone-note" data-zone-note="">{note}</p>
+        <p data-zone-note="">{note}</p>
       </footer>
       <Island name="LocalTimes" props={{ locale, note: t.time.zoneNote }} />
     </div>

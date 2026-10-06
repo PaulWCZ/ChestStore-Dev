@@ -7,6 +7,7 @@ import { LanguagePick, SecondField, SecondToggle, secondOf, type Languages } fro
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
 import { format } from "../i18n/format.ts";
+import { tone } from "../components/classes.ts";
 
 // A service as written — name and description in `language`, their
 // optional versions in the other language — and `shown`, its name as the
@@ -100,7 +101,7 @@ function Line({ row, first, last, groups, languages, t }: { row: Row; first: boo
             {row.description && <span className="muted small" lang={row.language}>{row.description}</span>}
             {row.nameSecond && <span className="muted small">{format(w.inBoth!, { language: secondOf(row.language, languages.options).name, name: row.nameSecond })}</span>}
           </div>
-          {row.kind === "component" && <span className={`state-label quiet s-${row.state}`} title={format(w.now!, { state: t.states[row.state] ?? "" })}><StateIcon state={row.state} /><span className="visually-hidden">{format(w.now!, { state: t.states[row.state] ?? "" })}</span></span>}
+          {row.kind === "component" && <span className={`state-label quiet ${tone(row.state)}`} title={format(w.now!, { state: t.states[row.state] ?? "" })}><StateIcon state={row.state} /><span className="visually-hidden">{format(w.now!, { state: t.states[row.state] ?? "" })}</span></span>}
           <span className="line-actions">
             <button type="button" className="button quiet small" aria-label={`${w.edit} — ${row.shown}`} onClick={() => setEditing(true)}><Pencil />{w.edit}</button>
             <Menu label={format(w.more!, { name: row.shown })} items={items} />
@@ -125,7 +126,7 @@ function AddForm({ kind, groups, languages, t }: { kind: "component" | "group"; 
   const id = `add-${kind}`;
   const other = secondOf(language, languages.options);
   return (
-    <form className="card pad stack add-form" onSubmit={async e => { e.preventDefault(); const r = await run("addComponent", { name, description, kind, parentId: parentId || null, teamOnly, language, ...(both ? { second: { name: nameSecond, description: descriptionSecond } } : {}) }, w.added); if (r.ok) { setName(""); setDescription(""); setTeamOnly(false); setNameSecond(""); setDescriptionSecond(""); } }}>
+    <form className="card pad stack" onSubmit={async e => { e.preventDefault(); const r = await run("addComponent", { name, description, kind, parentId: parentId || null, teamOnly, language, ...(both ? { second: { name: nameSecond, description: descriptionSecond } } : {}) }, w.added); if (r.ok) { setName(""); setDescription(""); setTeamOnly(false); setNameSecond(""); setDescriptionSecond(""); } }}>
       <h2 className="h3">{kind === "group" ? w.addGroup : w.add}</h2>
       <div className="two">
         <div>

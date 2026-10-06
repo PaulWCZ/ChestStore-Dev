@@ -6,6 +6,7 @@ import { pick } from "../../lib/texts.ts";
 import { maintenancePhase } from "../../lib/timeline.ts";
 import { RichText } from "./rich-text.tsx";
 import { When } from "./when.tsx";
+import { incidentTone, stepClass } from "../../components/classes.ts";
 
 // An incident or a maintenance as customers read it: what, what it
 // touches, where it stands, and its timeline — newest first.
@@ -39,7 +40,7 @@ export function Timeline({ incident, zone, locale, t, now }: { incident: Inciden
   return (
     <ol className="timeline">
       {incident.updates.filter(u => u.removedAt === null && u.status !== "postmortem" && u.postedAt.getTime() <= now.getTime()).map(u => (
-        <li key={u.id} className={`step step-${u.status}`}>
+        <li key={u.id} className={`step ${stepClass(u.status)}`}>
           <div className="step-head">
             <strong>{t.steps[u.status]}</strong>
             <When at={u.postedAt} zone={zone} locale={locale} now={now} />
@@ -72,10 +73,10 @@ export function IncidentCard({ incident: i, impact, affected, zone, locale, t, n
   const lang = named.lang === locale ? undefined : named.lang;
   const title = link ? <a href={`/incidents/${i.id}`} lang={lang}>{named.text}</a> : <span lang={lang}>{named.text}</span>;
   return (
-    <article className={`card incident s-${i.kind === "maintenance" ? "maintenance" : impact}`}>
+    <article className={`card incident ${incidentTone(i.kind, impact)}`}>
       <header className="incident-head">
         <H className="incident-title">{title}</H>
-        <span className={`chip step-${step}`}>{t.steps[step]}</span>
+        <span className={`chip ${stepClass(step)}`}>{t.steps[step]}</span>
       </header>
       <p className="incident-meta">
         {i.kind === "maintenance" && i.endsAt ? (
@@ -97,11 +98,11 @@ export function IncidentRow({ incident: i, impact, zone, locale, t, now }: { inc
   const text = last ? pick(last.body, last.bodySecond, i, locale) : null;
   const hasPostmortem = i.updates.some(u => u.status === "postmortem" && u.removedAt === null);
   return (
-    <li className={`row-incident s-${i.kind === "maintenance" ? "maintenance" : impact}`}>
+    <li className={`row-incident ${incidentTone(i.kind, impact)}`}>
       <div className="row-head">
         <a href={`/incidents/${i.id}`} lang={named.lang === locale ? undefined : named.lang}>{named.text}</a>
         {i.kind === "maintenance" && <span className="tag">{t.public.maintenanceTag}</span>}
-        <span className={`chip step-${step}`}>{t.steps[step]}</span>
+        <span className={`chip ${stepClass(step)}`}>{t.steps[step]}</span>
       </div>
       {text && <p className="row-text" lang={text.lang === locale ? undefined : text.lang}>{text.text.length > 240 ? text.text.slice(0, 239) + "…" : text.text}</p>}
       {hasPostmortem && <p className="row-meta"><a href={`/incidents/${i.id}#postmortem`}>{t.public.readPostmortem}</a></p>}
