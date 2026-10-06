@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
@@ -64,6 +64,8 @@ export type AppOptions = {
 };
 
 type Env = { Variables: { viewer: MemberContext } };
+// A file the build names by its content (client-<hash>.js, a chunk).
+const hashed = /^\/assets\/[\w.-]+-[\w-]{8}\.js$/u;
 const firstSegment = (path: string) => path.split("/")[1]?.toLowerCase() ?? "";
 const isMembers = (path: string) => firstSegment(path) === "chest";
 
@@ -81,18 +83,25 @@ function visitor(c: Context): VisitorContext {
 }
 const viewerOf = (c: Context<Env>): Viewer => (isMembers(c.req.path) && c.get("viewer")) || visitor(c);
 
-// The browser's files are linked with their build time (?v=…): a new
-// build is fetched at once, an unchanged one comes from the cache. Read
-// once at start; on every page in development (npm run dev rebuilds them).
-let version: string | undefined;
-function assetVersion(): string {
-  if (version && process.env["NODE_ENV"] !== "development") return version;
+// The browser's files. The script is named by its content's hash
+// (client-<hash>.js, vite.ts): a chunk loaded later by an island's
+// import() imports it under that very name, so the entry — React with
+// it — runs once (a "?v=" on the page's link would be another URL, and a
+// second React). The stylesheet is linked with the build's time (?v=…).
+// A new build is fetched at once, an unchanged one comes from the cache.
+// Read once at start; on every page in development (npm run dev rebuilds).
+const assets = "dist/client/assets";
+let built: { script: string; version: string } | undefined;
+function browserFiles(): { script: string; version: string } {
+  if (built && process.env["NODE_ENV"] !== "development") return built;
   try {
-    version = Math.round(statSync("dist/client/assets/client.js").mtimeMs + statSync("dist/client/assets/client.css").mtimeMs).toString(36);
+    // The newest entry (a watching build leaves the earlier ones).
+    const script = readdirSync(assets).filter(f => /^client-[\w-]+\.js$/u.test(f)).map(f => ({ f, at: statSync(`${assets}/${f}`).mtimeMs })).sort((a, b) => b.at - a.at)[0]?.f ?? "client.js";
+    built = { script, version: Math.round(statSync(`${assets}/client.css`).mtimeMs).toString(36) };
   } catch {
-    version = "none";
+    built = { script: "client.js", version: "none" };
   }
-  return version;
+  return built;
 }
 
 // A refusal of a form sent without JavaScript comes back in the address:
@@ -109,7 +118,7 @@ function noticeOf(c: Context, t: Words): string | null {
 }
 
 async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 403 | 404 | 500 = 200) {
-  const v = assetVersion();
+  const { script, version: v } = browserFiles();
   const look = options.look ? await options.look(viewer) : null;
   const lookTag = look ? createHash("sha256").update(look.css).digest("base64url").slice(0, 16) : "";
   const name = viewer.t.tool.name;
@@ -126,7 +135,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
         {options.head?.(viewer)}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
-        <script type="module" src={`/assets/client.js?v=${v}`} />
+        <script type="module" src={`/assets/${script}`} />
       </head>
       <body>
         {viewer.member !== null
@@ -297,12 +306,13 @@ export function createApp(appOptions: AppOptions) {
   });
 
   // The browser's files (dist/client/assets, from src/ and public/assets/):
-  // linked with ?v=… they never change; any other, an hour.
+  // linked with ?v=…, or named by their hash (the script, its chunks),
+  // they never change; any other, an hour.
   // (Set once the file is served: a header set in serveStatic's onFound
   // never reached the browser — the files went out "no-store".)
   app.use("/assets/*", async (c, next) => {
     await next();
-    if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+    if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") || hashed.test(c.req.path) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
   }, serveStatic({ root: "./dist/client" }));
 
   // The members' part: the Chest asserts who asks on every request

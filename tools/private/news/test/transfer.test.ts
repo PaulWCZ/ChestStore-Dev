@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import * as posts from "../lib/posts.ts";
-import { exportAll, fromSlack, headline, importSlack, readSlack, undoImport } from "../lib/transfer.ts";
-import { readZip, writeZip } from "../lib/zip.ts";
+import { AppError } from "@argentic/chest-app";
+import * as posts from "../src/lib/posts.ts";
+import { exportAll, fromSlack, headline, importSlack, readSlack, undoImport } from "../src/lib/transfer.ts";
+import { readZip, writeZip } from "../src/lib/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, sofia } from "./support/members.ts";
@@ -19,7 +19,7 @@ let chest: FakeChest;
 const hermione = { ...hugo, id: "mbr_hermioneaaaaaaaaaaaaaaaaaa", firstName: "Hermione", lastName: "Granger", name: "Hermione Granger", locale: "en" as const };
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: [...everyone, hermione], capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: [...everyone, hermione], capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();

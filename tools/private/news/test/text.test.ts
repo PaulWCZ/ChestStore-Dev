@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { calendar, escape, fold } from "../lib/ics.ts";
-import { dropCap, excerpt, inline, isSafeHref, parse, plain } from "../lib/markdown.ts";
-import { day, local, nextDay, time, today, zoned } from "../lib/time.ts";
+import { calendar, escape, fold } from "../src/lib/ics.ts";
+import { dropCap, excerpt, inline, isSafeHref, parse, plain } from "../src/shared/markdown.ts";
+import { day, local, nextDay, time, today, zoned } from "../src/lib/time.ts";
 
 // The text of a post: a few marks, never HTML.
 test("paragraphs, subheadings, lists and quotes", () => {
