@@ -57,7 +57,12 @@ export async function publicUploadUrl(name: string, options: { maxSize?: number;
   // (0.4.1's rule for links, api.ts chestLink).
   const token = body ? chestLink(body.url, publicUploadPath) : undefined;
   if (!body || token === undefined || token.length > 2048 || body.method !== "PUT" || typeof body.expires_in !== "number" || !Number.isInteger(body.expires_in) || body.expires_in < 1 || body.expires_in > publicLimits.expiresIn) throw new Unavailable();
-  return { url: body.url as string, method: "PUT", expiresIn: body.expires_in };
+  // A path, not an address: the visitor's browser sends the file to the
+  // host it is on — the tool's public host, or the company's own domain
+  // once connected (chest.tool.publicUrl) —, whose /_chest/upload/ the
+  // Chest serves; an address of another host would be refused by the
+  // page's own policy (connect-src 'self').
+  return { url: publicUploadPath + token, method: "PUT", expiresIn: body.expires_in };
 }
 
 // claim takes a visitor's public upload for the tool, once: the object, as
