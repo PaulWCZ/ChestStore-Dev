@@ -1,39 +1,40 @@
+import { Island, type LayoutProps, type MemberContext, type VisitorContext } from "@argentic/chest-app";
 import { AppShell, LanguageSwitch } from "@argentic/chest-ui/components";
-import type { ReactNode } from "react";
-import { Island } from "./core/island.tsx";
-import type { MemberContext, VisitorContext } from "./core/tool.ts";
 import { languageNames, locales } from "./i18n/index.ts";
 
 // What goes around every page: the kit's shell for members (the tool's
-// name, its sections as tabs, who is signed in), a plain header for
-// visitors; the toasts; a refusal of a form sent without JavaScript
-// (notice). A new section is one line of nav.
-type Props<V> = { viewer: V; path: string; notice: string | null; children: ReactNode };
+// name, its sections, who is signed in), a plain header for visitors; the
+// toasts (outside <main>, with a stable id: they survive a move to another
+// page); a refusal of a form sent without JavaScript (notice). Only the
+// words of t.tool, t.pages and t.kit here — never a page's own.
+// Sections: one { href, label } each in nav, when the tool has two or more.
+const nav: { href: string; label: string }[] = [];
 
-export function MembersLayout({ viewer: { member, t }, path, notice, children }: Props<MemberContext>) {
-  const nav = [{ href: "/chest", label: t.nav.notes }];
+export function MembersLayout({ viewer: { member, t }, path, notice, children }: LayoutProps<MemberContext>) {
   return (
-    <AppShell brand={<a className="brand" href="/chest">{t.tool.name}</a>} nav={nav} path={path} labels={t.kit.shell} member={{ name: member.name, photo: member.photo }}>
-      {notice && <p className="notice" role="alert">{notice}</p>}
-      {children}
-      <Island name="ToastHost" props={{ labels: t.kit.toast, unavailable: t.errors.unavailable }} />
-    </AppShell>
+    <>
+      <AppShell brand={<a className="brand" href="/chest">{t.tool.name}</a>} nav={nav} path={path} labels={t.kit.shell} member={{ name: member.name, photo: member.photo }}>
+        {notice && <p className="notice" role="alert">{notice}</p>}
+        {children}
+      </AppShell>
+      <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy } }} />
+    </>
   );
 }
 
-export function PublicLayout({ viewer: { locale, t }, path, notice, children }: Props<VisitorContext>) {
+export function PublicLayout({ viewer: { locale, t }, path, notice, children }: LayoutProps<VisitorContext>) {
   return (
     <div className="public">
       <a className="ck-skip" href="#main">{t.kit.shell.skip}</a>
       <header className="public-head">
         <span className="brand">{t.tool.name}</span>
-        <LanguageSwitch languages={locales.map(code => ({ code, name: languageNames[code] }))} current={locale} label={t.contact.language} back={path} />
+        <LanguageSwitch languages={locales.map(code => ({ code, name: languageNames[code] }))} current={locale} label={t.pages.language} back={path} />
       </header>
       <main id="main" tabIndex={-1}>
         {notice && <p className="notice" role="alert">{notice}</p>}
         {children}
       </main>
-      <Island name="ToastHost" props={{ labels: t.kit.toast, unavailable: t.errors.unavailable }} />
+      <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy } }} />
     </div>
   );
 }
