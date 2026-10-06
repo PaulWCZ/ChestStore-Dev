@@ -2,12 +2,11 @@ import { Island, type PageContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { Building } from "../components/icons.tsx";
 import { can } from "../lib/access.ts";
-import { feedPage } from "../lib/calendar.ts";
+import { feedPage, state } from "../lib/calendar.ts";
 import { checkInOpens } from "../lib/check-in.ts";
 import { context } from "../lib/context.ts";
 import { deskBookingsOf, deskBookingsOn, usualDesk } from "../lib/desk-bookings.ts";
 import { groupsOf } from "../lib/groups.ts";
-import { told } from "../lib/mail.ts";
 import { addDays, minutesNow, mondayOf, overlaps, placeName, twoWeeks } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { atOffice, presenceOf } from "../lib/presence.ts";
@@ -31,14 +30,14 @@ export async function weekPage(p: PageContext): Promise<View> {
   const days = twoWeeks(c.today, c.rules.weekdays);
   const from = mondayOf(c.today);
   const to = addDays(from, 13);
-  const [said, present, myDesks, myRooms, usual, pattern, how, visitors, myGroups] = await Promise.all([
+  const [said, present, myDesks, myRooms, usual, pattern, calendarState, visitors, myGroups] = await Promise.all([
     presenceOf(sql, [member.id], from, to),
     atOffice(sql, office?.id ?? null, from, to),
     deskBookingsOf(sql, [member.id], from, to),
     myRoomBookings(sql, member, from, to, c.zone),
     office ? usualDesk(sql, member, office.id) : null,
     usualWeek(sql, member),
-    told(sql),
+    state(sql),
     myVisitors(sql, member, from, to),
     groupsOf(member),
   ]);
@@ -122,7 +121,7 @@ export async function weekPage(p: PageContext): Promise<View> {
           pattern,
           weekdays: c.rules.weekdays.map(w => ({ day: w, name: formatDay(addDays("2024-01-01", w - 1), locale, { weekday: "long" }) })),
           desks: choices,
-          calendarPage: how.calendarOn ? feedPage : null,
+          calendarPage: calendarState === "on" ? feedPage : null,
           self: { name: member.name, photo: member.photo },
           zone: c.zone,
           now,

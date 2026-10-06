@@ -883,7 +883,7 @@ export const fr: Catalogue = {
     stepGiven: "{name} vous a confié une prochaine étape",
     stepBody: "{text} — {day} · {on}",
     stepBodySelf: "{text} — {day}",
-    digest: { one: "{count} prochaine étape pour aujourd’hui", other: "{count} prochaines étapes pour aujourd’hui" },
+    dueToday: { one: "{count} prochaine étape pour aujourd’hui", other: "{count} prochaines étapes pour aujourd’hui" },
     left: "{name} est parti : ses clients n’ont plus de responsable",
     leftDeals: { zero: "aucune affaire", one: "{count} affaire", other: "{count} affaires" },
     leftSteps: { zero: "aucune étape", one: "{count} prochaine étape", other: "{count} prochaines étapes" },

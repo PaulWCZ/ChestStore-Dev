@@ -12,13 +12,12 @@ import { quarter, remind } from "./lib/check-in.ts";
 import { db } from "./lib/db.ts";
 import { bookingsCsv, occupancyCsv } from "./lib/export.ts";
 import { forgetSeen, handlers, seen } from "./lib/lifecycle.ts";
-import { teamOrigin } from "./lib/mail.ts";
 import { bookingIcs, myCsv, myIcs, origin } from "./lib/mine.ts";
 import { photoLink } from "./lib/photos.ts";
 import { stamp } from "./lib/stamp.ts";
 import { purge, rules } from "./lib/settings.ts";
 import * as tell from "./lib/tell.ts";
-import { zone } from "./lib/zone.ts";
+import { zone, teamOrigin } from "./lib/zone.ts";
 import { desksPage } from "./pages/Desks.tsx";
 import { peoplePage } from "./pages/People.tsx";
 import { exportPage, placesPage, rulesPage } from "./pages/Places.tsx";
@@ -68,7 +67,7 @@ app.get("/chest/places/export", page(exportPage));
 // .ics file for any calendar app; everything Rooms keeps about me (CSV);
 // the admins' exports (?kind=bookings|occupancy&from&to).
 app.get("/chest/calendar/room/:id", download(async ({ member, locale, t, param }) => ({
-  name: `${t.mail.file}-${param("id")}.ics`,
+  name: `${t.calendar.file}-${param("id")}.ics`,
   type: "text/calendar; charset=utf-8",
   body: await bookingIcs(db(), member, param("id"), localeOf(locale), origin(teamOrigin())),
 })));

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { builtServer, type Handler } from "./support/server.ts";
 import * as desks from "../src/lib/desk-bookings.ts";
 import { addDays, today } from "../src/shared/model.ts";
@@ -49,8 +49,8 @@ test("someone who leaves: their coming bookings are cancelled and their guests t
   // Inès, invited to Hugo's meeting, hears it is cancelled, in French.
   const told = chest.notifications.filter(n => n.member === ines.id);
   assert.equal(told.length, 1);
-  assert.equal(told[0]!.title, "Réunion annulée : Hugo's review");
-  assert.match(told[0]!.body ?? "", /L’organisateur est parti/u);
+  assert.equal(shownTo(told[0]!, "fr").title, "Réunion annulée\u202f: Hugo's review");
+  assert.match(shownTo(told[0]!, "fr").body ?? "", /L’organisateur est parti/u);
   assert.equal(told[0]!.key, `room:${mine.bookings[0]!.id}`);
 });
 

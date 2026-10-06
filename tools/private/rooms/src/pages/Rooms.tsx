@@ -2,11 +2,10 @@ import { Island, type PageContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { Door } from "../components/icons.tsx";
 import { can, mayChange } from "../lib/access.ts";
-import { feedPage } from "../lib/calendar.ts";
+import { feedPage, state } from "../lib/calendar.ts";
 import { bookableDays, context, formDays, lockOf, shownDay } from "../lib/context.ts";
 import { directory } from "../lib/directory.ts";
 import { chestGroups, groupsOf } from "../lib/groups.ts";
-import { told } from "../lib/mail.ts";
 import { addDays, minutesNow } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { roomDay } from "../lib/room-bookings.ts";
@@ -33,7 +32,10 @@ export async function roomsPage(p: PageContext): Promise<View> {
     id: r.id, name: r.name, capacity: r.capacity, equipment: r.equipment, note: r.note, photo: r.photo, floor: f.name,
     group: r.groupId ? { name: groups.get(r.groupId) ?? t.rooms.aGroup, mine: exempt || mine.includes(r.groupId) } : null,
   })));
-  const [bookings, everyone, how] = office ? await Promise.all([roomDay(sql, member, office.id, day, c.zone), directory(), told(sql)]) : [[], [], await told(sql)];
+  // How guests hear of a booking: their bell (which the Chest mails them
+  // if they chose so), and their calendar when the Chest has one.
+  const [bookings, everyone, calendarState] = office ? await Promise.all([roomDay(sql, member, office.id, day, c.zone), directory(), state(sql)]) : [[], [], await state(sql)];
+  const calendarOn = calendarState === "on";
   const who = await people(bookings.flatMap(b => [b.memberId, ...b.attendees]));
   // Each person once (who), the bookings naming them by their place in
   // it: an office of hundreds of rooms stays within the props an island
@@ -98,8 +100,8 @@ export async function roomsPage(p: PageContext): Promise<View> {
             people: team,
             bookFor: exempt,
             initial,
-            told: how.told,
-            calendarPage: how.calendarOn ? feedPage : null,
+            told: calendarOn ? "calendar" : "bell",
+            calendarPage: calendarOn ? feedPage : null,
             locale,
             t: { rooms: t.rooms, booking: t.booking, equipment: t.equipment, closedDay: t.errors.closed_day, dialog: t.kit.dialog, peoplePicker: t.kit.peoplePicker, date: t.kit.date },
           }} />

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { onEvent as POST } from "../src/lib/deliveries.ts";
 import * as activities from "../src/lib/activities.ts";
 import * as companies from "../src/lib/companies.ts";
@@ -69,7 +69,7 @@ test("a new person: a contact of nobody's, at the company of that name (added), 
   // Camille, the manager, is told in French (the Chest writes a bell's
   // narrow spaces as plain ones).
   const bell = chest.notifications.filter(n => n.key === formKey("5", data.answer.id));
-  assert.deepEqual(bell.map(n => [n.member, n.title, n.body, n.path]), [[camille.id, "Nouveau contact : Nina Roux a rempli le formulaire « Contact us »", "Six oak chairs, please.", `/chest/contacts/${id}`]]);
+  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body, n.path]), [[camille.id, "Nouveau contact\u202f: Nina Roux a rempli le formulaire «\u202fContact us\u202f»", "Six oak chairs, please.", `/chest/contacts/${id}`]]);
 });
 
 test("the line reads in each reader's language", () => {
@@ -170,7 +170,7 @@ test("privacy: Nina Roux's answer, whose phone is Claire Durand's, is never file
   // Claire's owner is not told; the managers are, of a new contact that
   // may be Claire.
   const bell = chest.notifications.filter(n => n.key === formKey("101", "s54tfe3tahshinv1"));
-  assert.deepEqual(bell.map(n => [n.member, n.title, n.body]), [[camille.id, "Nouveau contact : Nina Roux a rempli le formulaire « Contactez-nous »", "Peut-être la même personne que Claire Durand (même téléphone) : vérifiez avant d’appeler. Bonjour, je voudrais un devis pour six chaises en chêne. Merci"]], "(the bell writes a message on one line)");
+  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body]), [[camille.id, "Nouveau contact\u202f: Nina Roux a rempli le formulaire «\u202fContactez-nous\u202f»", "Peut-être la même personne que Claire Durand (même téléphone)\u202f: vérifiez avant d’appeler. Bonjour, je voudrais un devis pour six chaises en chêne. Merci"]], "(the bell writes a message on one line)");
   // She is a lead in My day.
   assert.ok((await leads(sql, asMember(hugo))).rows.some(l => l.id === ninaId && l.maybe?.name === "Claire Durand"));
 

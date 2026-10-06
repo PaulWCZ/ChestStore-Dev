@@ -1,15 +1,11 @@
-import { chest } from "@argentic/chest-sdk/chest";
-import { ChestError } from "@argentic/chest-sdk/errors";
-import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { format, formatDay, plural } from "../i18n/index.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
-import { managers, people } from "./people.ts";
-import { catalogue } from "../i18n/index.ts";
+import { managers } from "./people.ts";
 
 // What Equipment tells people through the Chest's bell, each in their own
-// language, and the number on the managers' tile (open problems). Every
+// language (one notice with its translations: lib/notify.ts), and the number on the managers' tile (open problems). Every
 // item is keyed, so a new one replaces the old one, and it is withdrawn
 // once settled (the item taken back, the problem solved, the person's
 // equipment all returned).
@@ -152,30 +148,14 @@ export async function answered(sql: Query, actor: Member, request: { id: string;
   }), { path: status === "done" && request.item ? itemPath(request.item.id) : "/chest", key: `request:${request.id}:answer` });
 }
 
-// "Remind them": the holder of a receipt still waiting hears it again, in
-// the bell (the same item as when it was given, rung again) and — where
-// the Chest sends email (the "mail" proposal, chest.proposals.json) — by
-// email to their address, which the tool never knows. Says whether the
-// email left: on a Chest without mail, the bell alone, and nothing fails.
-export async function remindReceipt(actor: Member, holder: string, item: Named, givenOn: string): Promise<boolean> {
+// "Remind them": the holder of a receipt still waiting hears it again —
+// the same item as when it was given, rung again (its key), now with the
+// day it was given. The Chest mails it to them if they chose so; Equipment
+// never mails a member.
+export async function remindReceipt(actor: Member, holder: string, item: Named, givenOn: string): Promise<void> {
   const by = actor.firstName || actor.name;
-  await notify([holder], t => ({ title: format(t.bell.remind, { name: by, item: cut(item.name, 40), tag: item.tag }), body: t.bell.givenBody }), { path: "/chest/mine", key: `item:${item.id}:given` });
-  const person = (await people([holder])).get(holder);
-  if (!person || person.status !== "member") return false;
-  const t = catalogue(person.locale);
-  const date = formatDay(givenOn, person.locale, { day: "numeric", month: "long", year: "numeric" });
-  try {
-    await mail.send({
-      to: { member: holder },
-      subject: cut(format(t.mail.remindSubject, { item: item.name }), 120),
-      text: [format(t.mail.remindText, { name: actor.name, item: item.name, tag: item.tag, date }), "", "—", t.mail.why].join("\n"),
-      // The recipient in the key (studio.16): after a restore from a
-      // backup, an item's id can name another thing given to someone else.
-      key: `remind:${item.id}:${holder}:${givenOn}:${chest.today()}`,
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof ChestError) return false;
-    throw error;
-  }
+  await notify([holder], (t, locale) => ({
+    title: format(t.bell.remind, { name: by, item: cut(item.name, 40), tag: item.tag }),
+    body: format(t.bell.remindBody, { date: formatDay(givenOn, locale, { day: "numeric", month: "long", year: "numeric" }) }),
+  }), { path: "/chest/mine", key: `item:${item.id}:given` });
 }

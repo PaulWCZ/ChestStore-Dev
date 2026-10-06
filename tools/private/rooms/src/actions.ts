@@ -11,6 +11,7 @@ import * as desks from "./lib/desk-bookings.ts";
 import { matchable } from "./lib/directory.ts";
 import * as example from "./lib/example.ts";
 import * as imports from "./lib/import.ts";
+import * as invitations from "./lib/invitations.ts";
 import { authorisePhoto, recordPhoto } from "./lib/photos.ts";
 import * as places from "./lib/places.ts";
 import { setPresence as savePresence } from "./lib/presence.ts";
@@ -38,7 +39,7 @@ const id = field.id;
 function calendars(): void {
   after("calendar flush", () => flush(db(), zone()));
 }
-// A message to the bell (or a guest's email), sent after the answer.
+// A message to the bell (or a visitor's email), sent after the answer.
 function told(name: string, task: () => Promise<unknown>): void {
   after(name, task);
 }
@@ -263,7 +264,7 @@ export const actions = {
   importRooms: action({ officeId: id(), text: field.text({ max: 2 << 20 }) }, async (input, { member }): Promise<imports.RoomsImported> =>
     imports.importRooms(db(), member, input.officeId, input.text), { parallel: true, maxBody: 3 << 20 }),
   importDesks: action({ officeId: id(), text: field.text({ max: 2 << 20 }) }, async (input, { member }): Promise<Omit<imports.DesksImported, "cancelled"> & { cancelled: number }> => {
-    const done = await imports.importDesks(db(), member, input.officeId, input.text, await matchable());
+    const done = await imports.importDesks(db(), member, input.officeId, input.text, await matchable(input.text));
     told("desks given", () => tell.desksCancelled(member, done.cancelled, "given"));
     calendars();
     return { ...done, cancelled: done.cancelled.length };
@@ -273,7 +274,7 @@ export const actions = {
   // then the import; Undo takes the whole import back.
   readRoomCalendar: action({ roomId: id(), text: field.text({ max: 4 << 20 }), commit: field.bool() },
     async (input, { member }): Promise<calendarImport.CalendarImport> => {
-      const done = await calendarImport.importRoomCalendar(db(), member, { roomId: input.roomId, text: input.text, commit: input.commit }, await matchable(), zone());
+      const done = await calendarImport.importRoomCalendar(db(), member, { roomId: input.roomId, text: input.text, commit: input.commit }, await matchable(input.text), zone());
       if (input.commit) calendars();
       return done;
     }, { parallel: true, maxBody: 5 << 20 }),
@@ -285,11 +286,14 @@ export const actions = {
 
   // ---------- Visitors ----------
 
-  announceVisit: action({ officeId: id(), day: field.day(), at: given<number>(), name: given<string>(), company: given<string>(), host: given<string | null>() },
-    async (input, { member }): Promise<{ id: string; name: string; day: string; at: number }> => {
+  // The visitor's invitation goes before the answer, so that the announcer
+  // is told the truth: sent, or not (then they tell the visitor themself).
+  announceVisit: action({ officeId: id(), day: field.day(), at: given<number>(), name: given<string>(), company: given<string>(), host: given<string | null>(), email: field.optional(given<string>()) },
+    async (input, { member }): Promise<{ id: string; name: string; day: string; at: number; invitation: "sent" | "not_sent" | null }> => {
       const v = await visits.announce(db(), member, input, zone());
+      const invitation = await invitations.send(db(), v.id, "invite", zone());
       told("visit announced", () => tell.visitAnnounced(member, v));
-      return { id: v.id, name: v.name, day: v.day, at: v.at };
+      return { id: v.id, name: v.name, day: v.day, at: v.at, invitation };
     }),
   visitorArrived: action({ visitId: id() }, async (input, { member }): Promise<{ first: boolean }> => {
     const { visit, first } = await visits.arrive(db(), member, input.visitId, zone());
@@ -307,12 +311,19 @@ export const actions = {
   }),
   cancelVisit: action({ visitId: id() }, async (input, { member }): Promise<null> => {
     const v = await visits.cancelVisit(db(), member, input.visitId, zone());
-    told("visit cancelled", () => tell.visitCancelled(member, v));
+    told("visit cancelled", async () => {
+      await tell.visitCancelled(member, v);
+      if (v.invitation === "sent") await invitations.send(db(), v.id, "cancel", zone());
+    });
     return null;
   }),
   restoreVisit: action({ visitId: id() }, async (input, { member }): Promise<null> => {
     const v = await visits.restoreVisit(db(), member, input.visitId);
-    told("visit restored", () => tell.visitAnnounced(member, v));
+    told("visit restored", async () => {
+      await tell.visitAnnounced(member, v);
+      // A visitor told of the cancellation is invited again.
+      if (v.invitation === "sent") await invitations.send(db(), v.id, "invite", zone());
+    });
     return null;
   }),
 };

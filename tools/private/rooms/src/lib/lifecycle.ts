@@ -6,6 +6,7 @@ import type { Sql } from "./db.ts";
 import { forgetGroups } from "./groups.ts";
 import { cancelDeskBookings } from "./places.ts";
 import { cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
+import { send } from "./invitations.ts";
 import { cancelled } from "./tell.ts";
 import { zone } from "./zone.ts";
 
@@ -16,11 +17,13 @@ import { zone } from "./zone.ts";
 //   rooms are free again and the people they invited are told —, they leave
 //   the meetings they were invited to, the desk given to them is free, and
 //   what they said about coming days goes, and so do the visitors coming
-//   to see them. The past stays, for the export.
+//   to see them (those who got an invitation hear it by email). The past
+//   stays, for the export.
 // - Erasure: the same, then every trace of their id goes: past bookings
 //   read "Former member" ('erased'), their presence and preferences are
 //   deleted. Then the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string, tz = zone()): Promise<RoomBooking[]> {
+  let invited: string[] = [];
   const rooms = await sql.begin(async tx => {
     const gone = await cancelRoomBookings(tx, "chest", tz, tx`member_id = ${memberId} and upper(during) > now()`);
     await cancelDeskBookings(tx, "chest", tx`b.member_id = ${memberId} and upper(b.during) > now()`);
@@ -35,10 +38,15 @@ export async function leave(sql: Sql, memberId: string, tz = zone()): Promise<Ro
     await tx`delete from usual_applied where member_id = ${memberId}`;
     await tx`update member_prefs set usual_desk = null where member_id = ${memberId}`;
     // Their coming visitors: nobody is there to see them.
-    await tx`update visits set cancelled_at = now() where host = ${memberId} and day >= (now() at time zone ${tz})::date and cancelled_at is null`;
+    const off = await tx<{ id: string; invitation: string | null }[]>`
+      update visits set cancelled_at = now() where host = ${memberId} and day >= (now() at time zone ${tz})::date and cancelled_at is null returning id, invitation`;
+    invited = off.filter(v => v.invitation === "sent").map(v => String(v.id));
     return gone;
   });
   await cancelled(null, rooms, "left");
+  // Visitors who got an invitation hear it is cancelled (by email: they
+  // are outside the company).
+  for (const id of invited) await send(sql, id, "cancel", tz);
   await flush(sql, tz);
   return rooms;
 }
@@ -81,7 +89,7 @@ export async function erase(sql: Sql, memberId: string, tz = zone()): Promise<vo
 export function handlers(sql: Sql): events.Handlers {
   return {
     // Someone moved in or out of a group, or a group changed or went
-    // (Proposal (studio): "groups": "read", "receives": ["group.*"]): what
+    // (Proposal (studio): "members.groups", "receives": ["group.*"]): what
     // is kept of the groups goes.
     "member.updated": async () => { forgetGroups(); },
     "group.changed": async () => { forgetGroups(); },

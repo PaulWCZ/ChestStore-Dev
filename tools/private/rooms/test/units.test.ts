@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo } from "@argentic/chest-sdk/testing";
 import { atLeast } from "@argentic/chest-app/testing";
 import { conflict } from "../src/lib/booking-rules.ts";
 import { bookableDays, formDays, lockOf, shownDay } from "../src/lib/context.ts";
@@ -73,14 +73,15 @@ test("an imported calendar's times: zones read by name or by Windows' name; wall
   assert.equal(wall(instantOf("2026-03-29", 150, "Europe/Paris"), "Europe/Paris").minutes, 210);
 });
 
-test("the people who have Rooms, by name, for the pickers; the importers' list keeps addresses on the server", async () => {
-  const chest = await fakeChest({ network: {}, tool: "rooms", members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members", "members.email"] });
+test("the people who have Rooms, by name, for the pickers; the importers' list knows only the addresses the file carries, matched by the Chest", async () => {
+  const chest = await fakeChest({ network: {}, tool: "rooms", members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members"] });
   try {
     const found = await directory();
     assert.ok(found.some(p => p.id === hugo.id));
     assert.ok(!found.some(p => p.id === nora.id), "without a role: not offered");
     assert.ok(found.every(p => !("email" in p)), "no address in what pages receive");
-    assert.ok((await matchable()).some(p => p.email === "hugo@atelier.test"));
+    assert.ok((await matchable()).every(p => !p.email), "no file, no address");
+    assert.deepEqual((await matchable("ATTENDEE:mailto:hugo@atelier.test")).filter(p => p.email).map(p => [p.id, p.email]), [[hugo.id, "hugo@atelier.test"]]);
   } finally {
     await chest.close();
   }

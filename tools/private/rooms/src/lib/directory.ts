@@ -27,19 +27,43 @@ export async function directory(q?: string, group?: string): Promise<Person[]> {
 }
 
 // The same people for an importer to match names and addresses against
-// (lib/match.ts): server-side only, never sent to a browser — the
-// addresses (with "members.email") are read for matching, not shown or
-// kept.
-export async function matchable(): Promise<Matchable[]> {
+// (lib/match.ts): server-side only, never sent to a browser. Rooms never
+// reads the members' addresses (no "members.email"): the addresses the
+// file carries are sent to the Chest, which answers those that are members
+// who have Rooms (members.matchEmails, SDK studio.15); each found address
+// is set on its member for the matcher, nothing else is learnt or kept.
+// When the Chest cannot match, the file is matched by names alone.
+const addressIn = /[^\s@<>()[\]\\,;:"'=]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}/gu;
+
+export async function matchable(text = ""): Promise<Matchable[]> {
   const found: Matchable[] = [];
   let after: string | undefined;
   for (let page = 0; page < 4; page++) {
     const answer = await members.list({ limit: 500, ...(after ? { after } : {}) });
     for (const m of answer.members) {
-      if (m.role !== null) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, ...(m.email ? { email: m.email } : {}) });
+      if (m.role !== null) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName });
     }
     if (!answer.next) break;
     after = answer.next;
   }
-  return found;
+  // Folded lines (an .ics file's) are unfolded first: an address may span two.
+  const addresses = [...new Set((text.replace(/\r?\n[ \t]/gu, "").match(addressIn) ?? []).map(a => a.toLowerCase()))];
+  if (addresses.length === 0) return found;
+  let matched: Record<string, string> = {};
+  try {
+    matched = await members.matchEmails(addresses);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return found;
+  }
+  const byId = new Map(found.map(p => [p.id, p]));
+  const extra: Matchable[] = [];
+  for (const [address, id] of Object.entries(matched)) {
+    const person = byId.get(id);
+    // A member with two matched addresses (two spellings in the file) is
+    // listed once more for the second.
+    if (person && !person.email) person.email = address;
+    else if (person) extra.push({ ...person, email: address });
+  }
+  return [...found, ...extra];
 }

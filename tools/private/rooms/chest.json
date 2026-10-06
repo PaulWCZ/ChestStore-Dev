@@ -19,7 +19,6 @@
     "database",
     "files",
     "members",
-    "members.email",
     "notifications"
   ],
   "receives": [

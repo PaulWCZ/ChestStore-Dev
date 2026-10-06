@@ -6,6 +6,7 @@ import { bookableDays, context, shownDay } from "../lib/context.ts";
 import { directory } from "../lib/directory.ts";
 import { minutesNow, step } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
+import { reach } from "../lib/invitations.ts";
 import { visitsOn } from "../lib/visits.ts";
 import { formatDay, formatTime } from "../i18n/index.ts";
 
@@ -33,7 +34,7 @@ export async function visitorsPage(p: PageContext): Promise<View> {
       ),
     };
   }
-  const [list, everyone] = await Promise.all([visitsOn(sql, member, office.id, day), reception ? directory() : Promise.resolve([])]);
+  const [list, everyone, mail] = await Promise.all([visitsOn(sql, member, office.id, day), reception ? directory() : Promise.resolve([]), reach()]);
   const who = await people(list.map(v => v.host));
   const days = [...new Set([c.today, ...bookableDays(c)])].sort();
   const now = minutesNow(c.zone);
@@ -59,6 +60,8 @@ export async function visitorsPage(p: PageContext): Promise<View> {
           // today, 10:00 on another day.
           defaultAt: day === c.today ? soonest : 10 * 60,
           reception,
+          // Whether an invitation can go by email now, and where replies land.
+          mail,
           me: { id: member.id, name: member.name, photo: member.photo },
           visits: list.map(v => ({
             id: v.id,
@@ -70,6 +73,7 @@ export async function visitorsPage(p: PageContext): Promise<View> {
             hostId: v.host,
             arrivedAt: v.arrivedAt ? formatTime(minutesNow(c.zone, new Date(v.arrivedAt)), locale) : null,
             mayArrive: reception || v.host === member.id,
+            invitation: v.invitation,
           })),
           people: everyone.map(x => ({ id: x.id, name: x.name, photo: x.photo })),
           locale,

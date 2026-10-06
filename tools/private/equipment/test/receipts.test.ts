@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { chest as chestSettings } from "@argentic/chest-sdk/chest";
-import * as mail from "@argentic/chest-sdk/mail";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { initials } from "@argentic/chest-ui/components/logic";
 import { AppError } from "@argentic/chest-app";
 import { listCategories } from "../src/lib/categories.ts";
@@ -165,7 +163,7 @@ test("the example rules speak each reader's language; saved unchanged in French 
   await setCharter(sql, M, "");
 });
 
-test("remind them: the holder hears it in the bell, and by email where the Chest sends it; once a day; managers only", async () => {
+test("remind them: the holder hears it in the bell (the same item, rung again, with the day it was given), never by a mail of the tool; once a day; managers only", async () => {
   const { sql } = database;
   const phone = await items.createItem(sql, M, { categoryId: phones, name: "Pixel 7" });
   await items.give(sql, M, phone.id, { to: { member: hugo.id } });
@@ -173,37 +171,22 @@ test("remind them: the holder hears it in the bell, and by email where the Chest
   chest.notifications.length = 0;
   const r = await remind(sql, M, phone.id);
   assert.deepEqual([r.holder, r.item.id], [hugo.id, phone.id]);
-  const mailed = await remindReceipt(M!, r.holder, r.item, r.givenOn);
-  const bell = chest.notifications.find(n => n.member === hugo.id);
-  assert.equal(bell?.title, `${camille.firstName} asks: did you receive Pixel 7 ${phone.tag}?`);
-  assert.equal(bell?.path, "/chest/mine");
-  // Mail is a proposal: sent where the Chest grants it, the bell alone otherwise.
-  assert.equal(mailed, chest.outbox.some(m => m.subject === "Did you receive Pixel 7?"));
+  await remindReceipt(M!, r.holder, r.item, r.givenOn);
+  const bell = chest.notifications.filter(n => n.member === hugo.id);
+  assert.equal(bell.length, 1);
+  assert.equal(bell[0]!.title, `${camille.firstName} asks: did you receive Pixel 7 ${phone.tag}?`);
+  assert.match(bell[0]!.body ?? "", /^Given on \d+ \S+ \d{4}\. Open My equipment/u);
+  assert.equal(shownTo(bell[0]!, "fr").title, `${camille.firstName} vous demande\u202f: avez-vous reçu Pixel 7 ${phone.tag}\u202f?`);
+  assert.match(shownTo(bell[0]!, "fr").body ?? "", /^Remis le \d+ \S+ \d{4}\. Ouvrez Mon matériel/u);
+  assert.equal(bell[0]!.path, "/chest/mine");
+  assert.equal(bell[0]!.key, `item:${phone.id}:given`);
+  // A member is told by the Chest (their own choice of mail), never by the tool.
+  assert.equal(chest.outbox.length, 0);
   await refused(remind(sql, M, phone.id), "reminded_today");
   assert.equal((await unconfirmedReceipts(sql, M, "2999-01-01")).find(u => u.item.id === phone.id)?.remindedToday, true);
   await confirm(sql, H, phone.id);
   await sql`update receipts set reminded_at = null where item_id = ${phone.id}`;
   await refused(remind(sql, M, phone.id), "already_confirmed");
-});
-
-test("a reminder by email carries its recipient in its key (studio.16): an item's id can name another thing after a restore from a backup", async () => {
-  const { sql } = database;
-  const phone = await items.createItem(sql, M, { categoryId: phones, name: "Pixel 8" });
-  await items.give(sql, M, phone.id, { to: { member: hugo.id } });
-  const r = await remind(sql, M, phone.id);
-  await chest.close();
-  chest = await fakeChest({ network: {}, members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: [] }, chest: { timeZone: "Pacific/Kiritimati" } });
-  // The key's day is the Chest's (UTC+14 here), not UTC's.
-  const chestDay = (): string => chestSettings.today();
-  try {
-    assert.equal(await remindReceipt(M!, r.holder, r.item, r.givenOn), true, "sent where the Chest sends email");
-    const sent = chest.outbox.at(-1)!;
-    assert.equal(sent.subject, "Did you receive Pixel 8?");
-    assert.equal(sent.key, mail.idempotencyKey(`remind:${phone.id}:${hugo.id}:${r.givenOn}:${chestDay()}`));
-  } finally {
-    await chest.close();
-    chest = await fakeChest({ network: {}, members: everyone });
-  }
 });
 
 test("a sheet writes a person who left by their name, with the day they left apart", async () => {

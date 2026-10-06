@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { builtServer, type Handler } from "./support/server.ts";
 import { checkIn } from "../src/lib/check-in.ts";
 import * as places from "../src/lib/places.ts";
@@ -44,7 +44,7 @@ test("a quarter of an hour before, its people are reminded, once", async () => {
   assert.equal(await chest.run("quarter", POST), 204);
   const told = chest.notifications.filter(n => n.key === `room:${soon}`);
   assert.deepEqual(told.map(n => n.member).sort(), [hugo.id, ines.id].sort());
-  assert.match(told.find(n => n.member === ines.id)!.title, /^Commence à \d\d:\d\d : Sync$/u);
+  assert.match(shownTo(told.find(n => n.member === ines.id)!, "fr").title, /^Commence à \d\d:\d\d\u202f: Sync$/u);
   chest.notifications.length = 0;
   await chest.run("quarter", POST);
   assert.equal(chest.notifications.filter(n => n.key === `room:${soon}`).length, 0, "once");
@@ -66,7 +66,7 @@ test("check-in off: nobody's room is freed; on: a room nobody checked in to is f
   const freed = (await sql<{ id: string }[]>`select id from room_bookings where cancelled_at is not null`).map(r => String(r.id));
   assert.deepEqual(freed, [ghost]);
   assert.ok(chest.notifications.some(n => n.member === hugo.id && /Atlas/u.test(n.title)), "the organiser hears it");
-  assert.ok(chest.notifications.some(n => n.member === ines.id && /Personne n’a pointé/u.test(n.body ?? "")), "the guest too, in French");
+  assert.ok(chest.notifications.some(n => n.member === ines.id && /Personne n’a pointé/u.test(shownTo(n, "fr").body ?? "")), "the guest too, in French");
   await setRules(sql, asMember(camille), { checkIn: false });
   await sql`delete from room_bookings`;
 });

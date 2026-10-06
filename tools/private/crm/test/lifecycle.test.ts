@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { onEvent as POST } from "../src/lib/deliveries.ts";
 import * as activities from "../src/lib/activities.ts";
 import * as companies from "../src/lib/companies.ts";
@@ -40,7 +40,7 @@ test("someone who leaves: their deals, clients and next steps go unassigned, the
   assert.equal(history[0]?.kind, "unassigned");
   assert.ok(history.some(a => a.id === note.id && a.author === hugo.id), "what they wrote stays theirs");
   // Camille (a manager) is told, in French.
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body, n.path]), [[camille.id, "Hugo Bernard est parti : ses clients n’ont plus de responsable", "1 affaire · 1 prochaine étape · 2 entreprises ou contacts", "/chest/deals?view=list&owner=none"]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body, n.path]), [[camille.id, "Hugo Bernard est parti\u202f: ses clients n’ont plus de responsable", "1 affaire · 1 prochaine étape · 2 entreprises ou contacts", "/chest/deals?view=list&owner=none"]]);
 });
 
 test("an erasure: their id is gone everywhere, their notes stay for the team, acknowledged once", async () => {

@@ -1,6 +1,8 @@
 {
   "calendar": true,
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "mail": {
     "send": true
   },

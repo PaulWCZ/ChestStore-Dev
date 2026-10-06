@@ -149,9 +149,10 @@ export const actions = {
     await confirm(db(), member, id, { remark, charterId });
     return null;
   }),
-  remindHolder: act({ id: id() }, async ({ id }, { member }): Promise<{ mailed: boolean }> => {
+  remindHolder: act({ id: id() }, async ({ id }, { member }): Promise<null> => {
     const r = await remind(db(), member, id);
-    return { mailed: await remindReceipt(member, r.holder, r.item, r.givenOn) };
+    await remindReceipt(member, r.holder, r.item, r.givenOn);
+    return null;
   }),
   saveCharter: act({ body: raw<string>() }, async ({ body }, { member }): Promise<null> => {
     await setCharter(db(), member, body);

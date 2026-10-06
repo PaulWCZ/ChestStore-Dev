@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as desks from "../src/lib/desk-bookings.ts";
 import * as rooms from "../src/lib/room-bookings.ts";
 import * as tell from "../src/lib/tell.ts";
@@ -28,15 +28,15 @@ test("people invited hear of it in their own language; a change replaces the ite
   const done = await rooms.bookRoom(sql, asMember(hugo), { roomId: o.atlas, day: workday(1), start: 600, end: 660, title: "Budget", attendees: [ines.id, camille.id] }, zone);
   await tell.invited(asMember(hugo), done.bookings[0]!.attendees, done.bookings);
   const key = `room:${done.bookings[0]!.id}`;
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key]).sort(), [[camille.id, "Hugo Bernard vous invite : Budget", key], [ines.id, "Hugo Bernard vous invite : Budget", key]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title, n.key]).sort(), [[camille.id, "Hugo Bernard vous invite\u202f: Budget", key], [ines.id, "Hugo Bernard vous invite\u202f: Budget", key]]);
   assert.match(chest.notifications[0]!.body ?? "", /^Atlas · .* 10:00–11:00$/u);
   assert.equal(chest.notifications[0]!.path, `/chest/rooms?day=${workday(1)}&booking=${done.bookings[0]!.id}`);
   const { before: b, after: a } = await rooms.updateRoomBooking(sql, asMember(hugo), done.bookings[0]!.id, { start: 630, end: 690, attendees: [ines.id, lea.id] }, zone);
   await tell.changed(asMember(hugo), b, a);
   const byMember = new Map(chest.notifications.map(n => [n.member, n]));
-  assert.equal(byMember.get(ines.id)?.title, "Réunion modifiée : Budget");
-  assert.equal(byMember.get(lea.id)?.title, "Hugo Bernard vous invite : Budget");
-  assert.equal(byMember.get(camille.id)?.title, "Réunion annulée : Budget");
+  assert.equal(shownTo(byMember.get(ines.id)!, "fr").title, "Réunion modifiée\u202f: Budget");
+  assert.equal(shownTo(byMember.get(lea.id)!, "fr").title, "Hugo Bernard vous invite\u202f: Budget");
+  assert.equal(shownTo(byMember.get(camille.id)!, "fr").title, "Réunion annulée\u202f: Budget");
   assert.equal(chest.notifications.filter(n => n.member === ines.id).length, 1);
   // An admin cancels it: the organiser hears it too.
   const gone = await rooms.cancelRoomBooking(sql, asMember(camille), a.id, "one", zone);

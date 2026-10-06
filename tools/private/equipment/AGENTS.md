@@ -12,7 +12,7 @@ own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | The manifest (contract 0.4: roles, capabilities, the three schedules, Microsoft's two hosts, Intune's settings); the SDK proposals it uses (mail, events between tools, the French tile) |
+| `chest.json`, `chest.proposals.json` | The manifest (contract 0.4: roles, capabilities, the three schedules, Microsoft's two hosts, Intune's settings); the SDK proposals it uses (events between tools, the French tile); no mail: members hear everything in the bell |
 | `src/app.tsx` | Every route: pages (`equipment()`: a role is needed; `managers()`: 403 with the kit's NoAccess otherwise), the photo and invoice links, the streamed CSV export, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | Every change, by name (`call("giveItem", …)` from an island); after each, `equipment.returned` is told (`lib/returned.ts`) |
 | `src/pages/` | The pages, rendered on the server (`Overview`, `Mine`, `Items`, `Item`, `NewItem`/`EditItem`, `People`, `Person`, `Handover`/`ReturnSheet` with `sheet.tsx`, `Inventory`, `InventoryReport`, `Labels`, `Import`, `Settings`) |

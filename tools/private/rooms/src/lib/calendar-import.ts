@@ -28,7 +28,7 @@ import { wall } from "./wall-clock.ts";
 // back (`undoCalendarImport`, by its batch).
 //
 // The organiser and guests are matched to the people who have Rooms by
-// address (when the Chest gives addresses: "members.email") and by name,
+// address (those the Chest matched: members.matchEmails) and by name,
 // in the forms Google and Outlook write them ("Martin, Camille" too:
 // lib/match.ts). A booking whose organiser nobody matches stays in the
 // importing admin's name; the preview says how many, and which guests it

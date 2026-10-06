@@ -2,8 +2,8 @@
 // an .ics export, a desk holder of a sheet — from what the file carries:
 // an address, a name, or both. Pure, used by the importers.
 //
-// - An address is matched first, to the member's address (only when the
-//   Chest gives addresses: the "members.email" permission).
+// - An address is matched first, to the member's address (the addresses
+//   of the file the Chest matched: members.matchEmails, lib/directory.ts).
 // - A name is matched in the forms real exports write it: "Camille
 //   Martin", Outlook's "Martin, Camille" (Exchange's default in many
 //   companies), "MARTIN Camille", with or without accents, and with a

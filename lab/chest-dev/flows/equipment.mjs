@@ -294,25 +294,24 @@ await step("the manager sees the receipt on the item and prints Hugo's handover 
   expect(await page.locator(".paper-who dt", { hasText: "Printed on" }).count() === 1, "Printed on, a term of its own");
 });
 
-await step("the overview: remind the holder of a receipt nobody confirmed (bell, email where the Chest sends it); once a day", async () => {
+await step("the overview: remind the holder of a receipt nobody confirmed (a notification; the Chest mails it if they chose so); once a day", async () => {
   await as(context, origin, "sofia");
   await english();
   await page.goto(origin + "/chest");
   const row = page.locator("#unconfirmed li").first();
   const who = await row.innerText();
   await row.getByRole("button", { name: /^Remind .+ about .+/u }).click();
-  await page.locator(".ck-toast", { hasText: /Reminded in their bell/u }).waitFor();
+  await page.locator(".ck-toast", { hasText: /Reminded\. They will see it in their notifications/u }).waitFor();
   expect(await page.locator(".ck-toast", { hasText: /Reminded/u }).getByRole("button", { name: "Undo" }).count() === 0, "sent: no Undo");
   await page.reload();
   expect((await page.locator("#unconfirmed li").first().innerText()).includes("Reminded today"), "once a day: " + who.slice(0, 80));
   expect(/asks: did you receive|vous demande[\u202f\u00a0 ]?: avez-vous reçu/u.test(await dev()), "the holder's bell, in their language");
 });
 
-await step("the reminder also went by email, where this Chest sends it: one message to the holder's own address, which Equipment never knows (its key carries the holder, SDK studio.16)", async () => {
+await step("the reminder is a notice in the holder's bell, its French beside it, with the day it was given; Equipment sends no email (the outbox stays empty)", async () => {
   const board = await dev();
-  const mail = board.slice(board.indexOf("Mail (proposal)"));
-  const sent = mail.match(/<b>Did you receive [^<]+\?<\/b><br><small>[^<]*→ [a-z]+@example\.test/gu) ?? mail.match(/<b>Avez-vous reçu [^<]+<\/b><br><small>[^<]*→ [a-z]+@example\.test/gu) ?? [];
-  expect(sent.length === 1, "one reminder email, to the holder: " + sent.join(" | ").slice(0, 300));
+  expect(/asks: did you receive [^<]+<br><small>Given on [^<]+<\/small><br><small lang="fr">fr: [^<]+ vous demande/u.test(board), "English words, the French translation");
+  expect(!board.includes("Mail to people outside") && !/Did you receive|Avez-vous reçu/u.test(board), "no mail panel, no reminder email");
 });
 
 await step("Hugo asks for a privacy filter; Sofia gives one from the stock from the overview; Inès's request is refused with a reason", async () => {

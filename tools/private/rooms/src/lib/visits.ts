@@ -1,6 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
+import * as mail from "@argentic/chest-sdk/mail";
 import * as members from "@argentic/chest-sdk/members";
 import { can, roleOf } from "./access.ts";
+import { localeOf } from "../i18n/index.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, day, daysBetween, id, int, memberId, step, today } from "../shared/model.ts";
@@ -14,12 +16,14 @@ import { presenceHorizon } from "./presence.ts";
 // in the bell (the caller tells them: lib/tell.ts).
 //
 // Privacy: a visitor is not a member, so the tool keeps only what the
-// reception needs — a name and a company, no address, no phone —, shows
-// them to their host, to whoever announced them and to the reception, and
-// deletes them with the past bookings (lib/settings.ts purge). Nobody else
-// sees who visits whom.
+// reception needs — a name and a company, no phone —, shows them to their
+// host, to whoever announced them and to the reception, and deletes them
+// with the past bookings (lib/settings.ts purge). Nobody else sees who
+// visits whom. Their email address is optional, only for their invitation
+// (lib/invitations.ts): shown to nobody, not kept when the invitation
+// could not go, and erased once the day of the visit is over.
 
-export const visitLimits = { name: 120, company: 120 } as const;
+export const visitLimits = { name: 120, company: 120, email: 254 } as const;
 
 export type Visit = {
   id: string;
@@ -31,13 +35,15 @@ export type Visit = {
   host: string;
   createdBy: string;
   arrivedAt: string | null;
+  // What became of the visitor's invitation: sent, not sent, or none asked.
+  invitation: "sent" | "not_sent" | null;
 };
 
-type Row = { id: string; office_id: string | null; day: string; at_minute: number; name: string; company: string; host: string; created_by: string; arrived_at: Date | null };
-const columns = (sql: Query) => sql`id, office_id, to_char(day, 'YYYY-MM-DD') as day, at_minute, name, company, host, created_by, arrived_at`;
+type Row = { id: string; office_id: string | null; day: string; at_minute: number; name: string; company: string; host: string; created_by: string; arrived_at: Date | null; invitation: "sent" | "not_sent" | null };
+const columns = (sql: Query) => sql`id, office_id, to_char(day, 'YYYY-MM-DD') as day, at_minute, name, company, host, created_by, arrived_at, invitation`;
 const toVisit = (r: Row): Visit => ({
   id: String(r.id), officeId: r.office_id === null ? null : String(r.office_id), day: r.day, at: Number(r.at_minute), name: r.name, company: r.company,
-  host: r.host, createdBy: r.created_by, arrivedAt: r.arrived_at ? new Date(r.arrived_at).toISOString() : null,
+  host: r.host, createdBy: r.created_by, arrivedAt: r.arrived_at ? new Date(r.arrived_at).toISOString() : null, invitation: r.invitation ?? null,
 });
 
 // Who sees a visit: its host, whoever announced it, the reception.
@@ -52,7 +58,18 @@ async function hostOf(actor: Member, value: unknown): Promise<string> {
   return target.id;
 }
 
-export type VisitInput = { officeId?: unknown; day?: unknown; at?: unknown; name?: unknown; company?: unknown; host?: unknown };
+export type VisitInput = { officeId?: unknown; day?: unknown; at?: unknown; name?: unknown; company?: unknown; host?: unknown; email?: unknown };
+
+// A visitor's address, when one is given: a plain address the Chest would
+// send to, or nothing.
+export function visitorEmail(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new AppError("invalid_email");
+  const text = value.trim();
+  if (text === "") return null;
+  if (text.length > visitLimits.email || !mail.isAddress(text)) throw new AppError("invalid_email");
+  return text;
+}
 
 export async function announce(sql: Sql, actor: Member | null, input: VisitInput, zone: string): Promise<Visit> {
   if (!actor || !can(actor, "book")) throw new AppError("forbidden");
@@ -66,11 +83,12 @@ export async function announce(sql: Sql, actor: Member | null, input: VisitInput
   const company = clean(input.company ?? "", visitLimits.company, { optional: true });
   const office = id(input.officeId);
   const host = await hostOf(actor, input.host);
+  const email = visitorEmail(input.email);
   const [found] = await sql`select 1 from offices where id = ${office}`;
   if (!found) throw new AppError("not_found");
   const [row] = await sql<Row[]>`
-    insert into visits (office_id, day, at_minute, name, company, host, created_by)
-    values (${office}, ${d}, ${at}, ${name}, ${company}, ${host}, ${actor.id})
+    insert into visits (office_id, day, at_minute, name, company, host, created_by, email, language)
+    values (${office}, ${d}, ${at}, ${name}, ${company}, ${host}, ${actor.id}, ${email}, ${localeOf(actor.language)})
     returning ${columns(sql)}`;
   return toVisit(row!);
 }

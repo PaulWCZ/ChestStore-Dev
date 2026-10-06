@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { erase, leave } from "../src/lib/lifecycle.ts";
 import { myCsv } from "../src/lib/mine.ts";
 import { catalogue } from "../src/i18n/index.ts";
@@ -46,7 +46,7 @@ test("a member announces their own visitor; only they and the reception see it; 
   chest.notifications.length = 0;
   await tell.visitAnnounced(asMember(tom), forInes);
   await tell.visitAnnounced(asMember(hugo), mine);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title]), [[ines.id, "Tom Walker a annoncé votre visiteur Marie Leroy"]], "announcing one's own visitor is silent");
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title]), [[ines.id, "Tom Walker a annoncé votre visiteur Marie Leroy"]], "announcing one's own visitor is silent");
 });
 
 test("refusals: no role, a member announcing for someone else, a past day, too far, an odd time, no name, an unknown office or host", async () => {
@@ -80,8 +80,8 @@ test("the reception marks an arrival on the day, the host hears it once; Undo; a
   await tell.visitorHere(asMember(tom), first.visit, "Paris");
   assert.equal(chest.notifications.length, 1);
   assert.equal(chest.notifications[0]!.member, lea.id);
-  assert.equal(chest.notifications[0]!.title, "Anna Weber (Weber GmbH) est là pour vous");
-  assert.equal(chest.notifications[0]!.body, "Paris · rendez-vous de 23:45");
+  assert.equal(shownTo(chest.notifications[0]!, "fr").title, "Anna Weber (Weber GmbH) est là pour vous");
+  assert.equal(shownTo(chest.notifications[0]!, "fr").body, "Paris · rendez-vous de 23:45");
   assert.equal((await visits.unarrive(sql, asMember(tom), v.id)).arrivedAt, null);
   // The host marks it themselves: nobody else to tell.
   const own = await visits.arrive(sql, asMember(lea), v.id, zone);
