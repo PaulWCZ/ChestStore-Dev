@@ -35,13 +35,13 @@ export const limits = {
   purgeDays: 30,
   // Guests from outside the Chest on a date poll (lib/guests.ts): answers
   // per poll, a guest's name and email, answers per visitor and for
-  // everyone per hour, and the seconds a person takes at least to fill
-  // the form.
+  // everyone a day (the package's bound on answerGuest), and the seconds a
+  // person takes at least to fill the form.
   guests: 300,
   guestName: 80,
   guestEmail: 254,
-  guestsPerVisitorHour: 20,
-  guestsPerHour: 600,
+  guestsPerVisitorDay: 40,
+  guestsPerDay: 2000,
   guestSeconds: 2,
   // Replies to an anonymous free text: messages in one conversation.
   replies: 20,

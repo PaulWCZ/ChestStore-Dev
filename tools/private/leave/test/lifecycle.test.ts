@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as balances from "../lib/balances.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { setApprover, setEndDate, staffRow } from "../lib/staff.ts";
-import { AppError } from "../lib/app-error.ts";
-import { today } from "../lib/today.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import * as balances from "../src/lib/balances.ts";
+import { settleAfterLastDay } from "../src/lib/last-day.ts";
+import { forgetSeen } from "../src/lib/lifecycle.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { setApprover, setEndDate, staffRow } from "../src/lib/staff.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { today } from "../src/lib/today.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { addDays, holidaysBetween } from "../lib/calendar.ts";
+import { addDays, holidaysBetween } from "../src/shared/calendar.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, hugo, ines, tom, lea, sofia } from "./support/members.ts";
@@ -22,7 +24,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
   paid = (await types(database.sql)).find(t => t.key === "paid")!.id;
 });
 after(async () => {
@@ -124,4 +126,21 @@ test("an erasure: the person disappears, the days of HR's records stay, signed '
 test("an event not signed by the Chest is refused", async () => {
   const response = await POST(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
   assert.equal(response.status, 401);
+});
+
+test("every way of setting a last day settles the leave after it in the same transaction (settleAfterLastDay)", async () => {
+  const { sql } = database;
+  const monday = quietMonday(140);
+  const after = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: tom.id, ...week(monday) });
+  const settled = await sql.begin(tx => settleAfterLastDay(tx, tom.id, addDays(monday, -1), camille.id));
+  assert.deepEqual(settled.cancelled, [after.id]);
+  assert.deepEqual(settled.cut, []);
+  assert.equal((await requests.request(sql, asMember(camille), after.id)).status, "cancelled");
+});
+
+test("deliveries older than the Chest's retries are forgotten (the morning run), newer ones kept", async () => {
+  const { sql } = database;
+  await sql`insert into chest_events (id, handled_at) values ('old-delivery', now() - interval '31 days'), ('new-delivery', now())`;
+  assert.ok(await forgetSeen(sql) >= 1);
+  assert.deepEqual((await sql`select id from chest_events where id in ('old-delivery', 'new-delivery')`).map(r => r["id"]), ["new-delivery"]);
 });

@@ -275,7 +275,7 @@ another.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (`0.4.1-studio.2`), in `vendor/`,
+Built on SDK 0.4.1 + studio proposals (`0.4.1-studio.3`), in `vendor/`,
 with `@argentic/chest-app` (the studio's server and browser machinery) and
 `@argentic/chest-ui` (the kit), packed beside it.
 

@@ -19,9 +19,6 @@ strong, b { font-weight: var(--weight-strong); }
 button, input, textarea, select { font: inherit; color: inherit; }
 ul, ol { margin: 0; padding: 0; list-style: none; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
-/* An island (a part of the page that runs in the browser) is no box of its
-   own: its content takes its place in the page's layout. */
-.island { display: contents; }
 /* A form sent in place, while it is on its way. */
 form[aria-busy="true"] { opacity: 0.7; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

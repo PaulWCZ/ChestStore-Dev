@@ -62,7 +62,7 @@ export function createTool({ cwd, argv, env, port, logFile, sleepAfter = 0, echo
     child.stdout.on("data", lines("out"));
     child.stderr.on("data", lines("err"));
     const me = child;
-    me.on("exit", (code, signal) => {
+    me.on("exit", (code, exitSignal) => {
       if (mine !== generation) return;
       const wanted = state === "stopping";
       child = null;
@@ -72,7 +72,7 @@ export function createTool({ cwd, argv, env, port, logFile, sleepAfter = 0, echo
       // What it left behind goes with it, as with a container.
       signal(me.pid, "SIGKILL");
       if (Date.now() - upSince > 10 * 60e3) restartDelay = 1000;
-      write("chest", `Stopped: the tool exited (${signal ?? "code " + code}); started again in ${restartDelay / 1000} s`);
+      write("chest", `Stopped: the tool exited (${exitSignal ?? "code " + code}); started again in ${restartDelay / 1000} s`);
       restartTimer = setTimeout(() => { start("Started again after a stop").catch(() => {}); }, restartDelay);
       restartDelay = Math.min(restartDelay * 2, 5 * 60e3);
     });

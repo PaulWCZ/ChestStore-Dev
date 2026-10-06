@@ -58,6 +58,20 @@ export type Format = ReturnType<typeof formatter>;
 export function formatter(locale: string, timeZone: string, currency = "EUR") {
   // English as written in Europe (day month year, 24-hour clock).
   const tag = locale === "en" ? "en-GB" : locale;
+  const today = (at: Date = new Date()) => {
+    const parts = Object.fromEntries(dateFormat("en-US", timeZone, { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at).map(p => [p.type, p.value]));
+    return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
+  };
+  // The year is written when it is not the reader's current one.
+  const otherYear = (year: string) => year !== today().slice(0, 4);
+  const yearOf = (value: Date) => dateFormat("en-US", timeZone, { year: "numeric" }).format(value);
+  // A wall time that happens twice (the hour clocks go back) says its zone.
+  const ambiguous = (value: Date) => {
+    const clock = dateFormat("en-US", timeZone, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    const shown = clock.format(value);
+    return clock.format(new Date(value.getTime() - 3_600_000)) === shown || clock.format(new Date(value.getTime() + 3_600_000)) === shown;
+  };
+  const clockStyle = (value: Date): Intl.DateTimeFormatOptions => ({ hour: "2-digit", minute: "2-digit", ...(ambiguous(value) ? { timeZoneName: "short" } : {}) });
   return {
     locale,
     timeZone,
@@ -65,18 +79,15 @@ export function formatter(locale: string, timeZone: string, currency = "EUR") {
     // day ("2026-10-05", a date column) is f.day's, never these: a day read
     // as an instant shifts in zones west of UTC.
     date: (value: Date) => dateFormat(tag, timeZone, { day: "numeric", month: "short", year: "numeric" }).format(value),
-    time: (value: Date) => dateFormat(tag, timeZone, { hour: "2-digit", minute: "2-digit" }).format(value),
-    dateTime: (value: Date) => dateFormat(tag, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(value),
+    time: (value: Date) => dateFormat(tag, timeZone, clockStyle(value)).format(value),
+    dateTime: (value: Date) => dateFormat(tag, timeZone, { day: "numeric", month: "short", ...(otherYear(yearOf(value)) ? { year: "numeric" } : {}), ...clockStyle(value) }).format(value),
     // A calendar day, "YYYY-MM-DD" (a date column, a field.day): the same
-    // day everywhere.
-    day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)),
+    // day everywhere; its year when it is not the reader's current one.
+    day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short", ...(otherYear(iso.slice(0, 4)) ? { year: "numeric" } : {}) }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)),
     // Today in the reader's zone, "YYYY-MM-DD" (a member's own day; the
     // company's is chest.today(), and SQL's current_date and now()::date are
     // the company's too — the database session runs in the Chest's zone).
-    today: (at: Date = new Date()) => {
-      const parts = Object.fromEntries(dateFormat("en-US", timeZone, { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at).map(p => [p.type, p.value]));
-      return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
-    },
+    today,
     number: (n: number) => numberFormat(tag).format(n),
     // An amount in cents (field.money stores cents) or units: money(1250, { cents: true }).
     money: (amount: number, options: { cents?: boolean } = {}) => numberFormat(tag, { style: "currency", currency }).format(options.cents ? amount / 100 : amount),

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { addDays } from "../lib/calendar.ts";
-import { readLeaving, readRecord } from "../lib/from-people.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { setEmployeeNumber, setEndDate, setWorkDays, staffRow } from "../lib/staff.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { addDays } from "../src/shared/calendar.ts";
+import { readLeaving, readRecord } from "../src/lib/from-people.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { setEmployeeNumber, setEndDate, setWorkDays, staffRow } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -21,7 +21,7 @@ let paid: string;
 before(async () => {
   database = await testDatabase();
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups });
   paid = (await types(database.sql)).find(t => t.key === "paid")!.id;
 });
 after(async () => {

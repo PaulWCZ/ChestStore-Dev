@@ -15,11 +15,11 @@ import { listSpaces } from "./lib/spaces.ts";
 // to list, none to make) gets no sidebar. A member whose role gives
 // nothing sees why, and the page itself does not run.
 
-// What the layout's sections depend on, found while framing a page: the
-// Trash tab shows to whoever writes, and to a reader whose "My pages"
-// exists (its deleted pages are theirs). Kept for this request only.
-const sections = new WeakMap<Member, { trash: boolean }>();
-export const trashShown = (member: Member): boolean => sections.get(member)?.trash ?? can(member, "write");
+// What the layout's sections depend on, found while framing a page, told
+// to the layout (View.layout → its data): the Trash tab shows to whoever
+// writes, and to a reader whose "My pages" exists (its deleted pages are
+// theirs). A page without it (an error page): whoever writes.
+export const trashShown = (member: Member, data: { trash?: boolean }): boolean => data.trash ?? can(member, "write");
 
 type Render = (p: PageContext<MemberContext>) => Promise<View | Response> | View | Response;
 
@@ -33,11 +33,12 @@ export const framed = (render: Render): Render => async p => {
   const contents = path === "/chest/pages";
   const canWrite = can(member, "write");
   const spaces = await listSpaces(db(), member);
-  sections.set(member, { trash: canWrite || spaces.some(s => s.visibility === "private") });
-  if (editing || contents || (spaces.length === 0 && !canWrite)) return { title: view.title, body: <div className="frame"><div className="content">{view.body}</div></div> };
+  const layout = { trash: canWrite || spaces.some(s => s.visibility === "private") };
+  if (editing || contents || (spaces.length === 0 && !canWrite)) return { title: view.title, layout, body: <div className="frame"><div className="content">{view.body}</div></div> };
   const nodes = await tree(db(), member, spaces.map(s => s.id));
   return {
     title: view.title,
+    layout,
     body: (
       <div className="frame with-sidebar">
         <Island name="Sidebar" props={sidebarProps(p, spaces, nodes, path)} />

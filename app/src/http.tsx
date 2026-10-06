@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
@@ -6,15 +6,17 @@ import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { compress } from "hono/compress";
 import { getCookie, setCookie } from "hono/cookie";
 import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
+import { setRenderingForm } from "./form.tsx";
 import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
-import type { ErrorCode, Words } from "./register.ts";
-import { AppError, HttpStatus, readInput, toolPath, type Action, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
+import type { ErrorCode, LayoutData, Words } from "./register.ts";
+import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
 
 // The server of a tool: security headers and a log line on every answer,
 // the browser's files under /assets/, the member of every /chest request,
@@ -35,12 +37,16 @@ export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; para
 // head: more in the <head> of this page (robots, a feed's link); exactTitle:
 // the title as given, without " · <tool>" (a public page in the company's
 // name).
-export type View = { title: string; body: ReactNode; locale?: string; head?: ReactNode; exactTitle?: boolean };
+// layout: what this page tells the layout around it (the nav's state it
+// found while reading — a tab shown, a count), as LayoutProps.data; its
+// shape is the tool's Register's layout.
+export type View = { title: string; body: ReactNode; locale?: string; head?: ReactNode; exactTitle?: boolean; layout?: Partial<LayoutData> };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
 // look: the request's look when createApp has one (its logo, in brand
 // mode); status: the page's (an error page's layout may draw more frame).
-export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; look: Look | null; status: number; children: ReactNode };
+// data: what the page told it (View.layout; {} on an error page).
+export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; look: Look | null; status: number; data: Partial<LayoutData>; children: ReactNode };
 // A look served as a stylesheet of its own (/chest/look.css, /look.css),
 // for a look that depends on the request; the browser bar's colours.
 // logo: the company's (brand mode), for the layout to show.
@@ -124,7 +130,7 @@ function noticeOf(c: Context, t: Words): string | null {
     // Numbers only: a value in the address is anyone's to write.
     if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && typeof v === "number" && Number.isFinite(v)));
   } catch { /* no values */ }
-  const said = fill(t.errors[code as ErrorCode], values);
+  const said = fill(t.errors[code as ErrorCode] ?? t.errors.unavailable, values);
   // A value missing (an address written by hand): the plain refusal.
   return /\{\w+\}/u.test(said) ? t.errors.invalid : said;
 }
@@ -138,6 +144,10 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   const notice = noticeOf(c, viewer.t);
   const { members: Members, public: Public } = options.layouts;
   startRender(options.islands);
+  // A public page of a tool with bounded actions carries a form token
+  // (<Honeypot /> puts it in a form; call() sends it).
+  const form = viewer.member === null && hasBounds(options) ? formToken() : "";
+  setRenderingForm(form);
   const page = renderToString(
     <html lang={viewer.locale}>
       <head>
@@ -147,14 +157,15 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
         {look?.colors?.map(m => <meta key={m.media} name="theme-color" media={m.media} content={m.color} />)}
         {options.head?.(viewer)}
         {view.head}
+        {form && <meta name="chest-form" content={form} />}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
         <script type="module" src={`/assets/${script}`} />
       </head>
       <body>
         {viewer.member !== null
-          ? <Members viewer={viewer} path={c.req.path} notice={notice} look={look} status={status}>{view.body}</Members>
-          : <Public viewer={viewer} path={c.req.path} notice={notice} look={look} status={status}>{view.body}</Public>}
+          ? <Members viewer={viewer} path={c.req.path} notice={notice} look={look} status={status} data={view.layout ?? {}}>{view.body}</Members>
+          : <Public viewer={viewer} path={c.req.path} notice={notice} look={look} status={status} data={view.layout ?? {}}>{view.body}</Public>}
       </body>
     </html>,
   );
@@ -205,7 +216,7 @@ function speaking(c: Context, viewer: VisitorContext, locale: string | undefined
 
 // A mutation is sent by the page itself: the browser says so
 // (Sec-Fetch-Site), or, for an older one, its Origin is this host.
-function sameOrigin(request: Request): boolean {
+export function sameOrigin(request: Request): boolean {
   const site = request.headers.get("sec-fetch-site");
   if (site) return site === "same-origin";
   const origin = request.headers.get("origin");
@@ -245,8 +256,9 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const definition = Object.hasOwn(options.actions, name) ? options.actions[name] : undefined;
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
-  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
-    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code], values) }, status) : c.redirect(back(c, members, code, values), 303);
+  let renew: Record<string, string> = {};
+  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
+    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code] ?? viewer.t.errors.unavailable, values), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
   const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -256,15 +268,51 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   // post anything to a public action).
   if (!json && type !== "application/x-www-form-urlencoded" && type !== "multipart/form-data") return refuse(415, "invalid");
   let answer: Response | undefined;
+  const bound = definition.access === "public" ? definition.bound ?? false : false;
+  // A bounded action's answer brings the next form token (the one sent
+  // served once).
+  const next = bound ? { form: formToken() } : {};
+  renew = next;
+  const ok = (value: unknown) => (fetched ? c.json({ ok: true, value: value ?? null, ...next }) : c.redirect(back(c, members), 303));
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
     try {
       const raw = json ? await c.req.json<Record<string, unknown>>() : formFields(await c.req.formData());
-      const value = await definition.run(readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {}) as never, { ...viewer, cookies: cookiesOf(c), request: c.req.raw } as never);
-      answer = fetched ? c.json({ ok: true, value: value ?? null }) : c.redirect(back(c, members), 303);
+      let spent: Spent | null = null;
+      let charged = false;
+      const charge = async (kind: string) => {
+        if (!bound || !("budgets" in bound) || !Object.hasOwn(bound.budgets, kind)) throw new Error(`charge("${kind}"): ${name} has no such budget`);
+        if (charged) throw new Error(`charge(): ${name} spends one budget a call`);
+        charged = true;
+        spent = await spend(c, `${name}:${kind}`, bound.budgets[kind]!, spent);
+      };
+      try {
+        if (bound) {
+          // A robot filled the field people never see: "done", nothing done.
+          if (typeof raw?.["website"] === "string" && raw["website"] !== "") {
+            answer = ok(null);
+            return;
+          }
+          spent = await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120, Math.min(bound.formSeconds ?? 0, 30));
+        }
+        const input = readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {});
+        if (bound && !("budgets" in bound)) spent = await spend(c, name, bound, spent);
+        const value = await definition.run(input as never, { ...viewer, cookies: cookiesOf(c), request: c.req.raw, ...(definition.access === "public" ? { charge } : {}) } as never);
+        if (bound && "budgets" in bound && !charged) {
+          // Written without a budget: a bug of the tool's, said loudly.
+          log.error("public action ran without charge()", new Error("charge() not called"), { action: name });
+          if (process.env.NODE_ENV === "development") throw new Error(`${name}: a public action with budgets must call charge(kind)`);
+        }
+        answer = ok(value);
+      } catch (error) {
+        // Refused or failed (a redirect is done): its count and its token
+        // given back.
+        if (!(error instanceof HttpStatus && error.to)) await (spent as Spent | null)?.release();
+        throw error;
+      }
     } catch (error) {
-      if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to }) : c.redirect(error.to, 303);
+      if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to, ...next }) : c.redirect(error.to, 303);
       else if (error instanceof HttpStatus) answer = refuse(error.status === 403 ? 403 : 404, error.status === 403 ? "forbidden" : "not_found");
-      else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : 400, error.code, error.values);
+      else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : error.code === "limit" ? 429 : 400, error.code, error.values);
       else if (error instanceof SyntaxError || (error instanceof TypeError && /form|body|parse/iu.test(error.message))) answer = refuse(400, "invalid");
       else if (chestDown(error)) {
         log.warn("the Chest did not answer", { action: name, error: (error as Error).name });
@@ -276,6 +324,81 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
     }
   });
   return refused ?? answer ?? refuse(500, "unknown");
+}
+
+// ---- Public actions' bounds (tool.ts, publicAction, says what and why).
+const hasBounds = (options: AppOptions) => Object.values(options.actions).some(a => a.access === "public" && a.bound);
+
+// What a call took (its form token, its counts), given back when it fails.
+type Spent = { release(): Promise<void> };
+const chain = (first: Spent | null, then: () => Promise<void>): Spent => ({ release: async () => { await then(); await first?.release(); } });
+
+// A form token: "<ms>.<nonce>.<signature>", the signature under a key
+// derived from CHEST_TOKEN (never sent anywhere).
+function formKey(): Buffer {
+  const token = process.env["CHEST_TOKEN"];
+  if (!token) throw new Error("CHEST_TOKEN is not set");
+  return createHmac("sha256", token).update("chest-app form token 1 " + (process.env["CHEST_TOOL"] ?? "")).digest();
+}
+const formSignature = (value: string) => createHmac("sha256", formKey()).update(value).digest("base64url");
+// formToken(): a fresh token, as a public page carries (a test that calls
+// a bounded action sends one: { chest_form: formToken() }).
+export function formToken(now = Date.now()): string {
+  const value = `${Math.floor(now)}.${randomBytes(12).toString("base64url")}`;
+  return `${value}.${formSignature(value)}`;
+}
+// A token ours, younger than its minutes and never served: taken (in
+// chest_seen) until the call fails. Otherwise "expired".
+async function takeForm(token: unknown, minutes: number, seconds: number): Promise<Spent> {
+  const parts = typeof token === "string" && token.length <= 128 ? token.split(".") : [];
+  const [time = "", nonce = "", signature = ""] = parts;
+  const expected = parts.length === 3 && /^\d{13}$/u.test(time) ? formSignature(`${time}.${nonce}`) : "";
+  const age = Date.now() - Number(time);
+  if (!expected || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) || age < -60_000 || age > minutes * 60_000) fail("expired" as ErrorCode);
+  // Sent sooner than a person fills it: the seconds left, waited.
+  if (age < seconds * 1000) await new Promise(resolve => setTimeout(resolve, seconds * 1000 - Math.max(0, age)));
+  const { db } = await import("./db.ts");
+  const sql = db();
+  const id = `form:${nonce}`;
+  if ((await sql`insert into chest_seen (id) values (${id}) on conflict do nothing returning id`).length === 0) fail("expired" as ErrorCode);
+  if (Math.random() < 0.02) await sql`delete from chest_seen where id like 'form:%' and at < now() - interval '2 days'`;
+  return { release: async () => { await sql`delete from chest_seen where id = ${id}`; } };
+}
+
+// The visitor a budget counts: the address the Chest's front gives
+// (Chest-Visitor-Address: the client cannot send a Chest-* header, the
+// front removes them), else this browser's cookie (set at its first call);
+// null for one with neither — counted with everyone only.
+function visitorKey(c: Context): string | null {
+  const address = (c.req.header("chest-visitor-address") ?? "").trim();
+  if (/^[0-9a-fA-F:.]{2,45}$/u.test(address) && /[.:]/u.test(address)) return "a:" + createHash("sha256").update(address).digest("base64url").slice(0, 22);
+  const cookie = getCookie(c, "chest_v");
+  if (cookie && /^[\w-]{16,64}$/u.test(cookie)) return "c:" + cookie;
+  setCookie(c, "chest_v", randomBytes(18).toString("base64url"), { path: "/", maxAge: 365 * 86_400, sameSite: "Lax", secure: true, httpOnly: true });
+  return null;
+}
+
+// One more in a budget, today (the Chest's day), for this visitor and for
+// everyone, in chest_bounds; past either, refused ("limit") and not kept.
+async function spend(c: Context, scope: string, budget: Budget, before: Spent | null): Promise<Spent> {
+  const { db } = await import("./db.ts");
+  const sql = db();
+  const who = visitorKey(c);
+  const add = async (key: string, by: number) => (await sql<{ count: number }[]>`
+    insert into chest_bounds (scope, visitor, day, count) values (${scope}, ${key}, current_date, ${by})
+    on conflict (scope, visitor, day) do update set count = chest_bounds.count + ${by} returning count`)[0]!.count;
+  const keys = who === null ? ["*"] : [who, "*"];
+  const taken: string[] = [];
+  const release = async () => { for (const key of taken) await add(key, -1); };
+  for (const key of keys) {
+    taken.push(key);
+    if ((await add(key, 1)) > (key === "*" ? budget.perDay : budget.perVisitor)) {
+      await release();
+      fail("limit" as ErrorCode);
+    }
+  }
+  if (Math.random() < 0.02) await sql`delete from chest_bounds where day < current_date - 1`;
+  return chain(before, release);
 }
 
 // A form's fields; a name sent several times (checkboxes) is a list.
@@ -305,6 +428,8 @@ function stylesheet(c: Context, css: string) {
 // cookie kept for that path only (a guest's secret for one poll) reaches
 // them. call(name, input, { at: "/p/abc" }) sends there.
 export const publicActionsAt = () => (c: Context<Env>) => runAction(c, false);
+
+const gzip = compress({ encoding: "gzip", threshold: 1024 });
 
 export function createApp(options: AppOptions) {
   const app = new Hono<Env>();
@@ -336,6 +461,11 @@ export function createApp(options: AppOptions) {
     }
   });
 
+  // Pages, JSON and downloads of 1 KiB and more, gzipped as they are sent
+  // (the Chest's front does not compress); the browser's files are
+  // compressed at build (chestConfig) and served as they are.
+  app.use(async (c, next) => (c.req.path.startsWith("/assets/") ? next() : gzip(c, next)));
+
   // The browser's files (dist/client/assets, from src/ and public/assets/):
   // linked with ?v=…, or named by their hash (the script, its chunks),
   // they never change; any other, an hour.
@@ -344,7 +474,7 @@ export function createApp(options: AppOptions) {
   app.use("/assets/*", async (c, next) => {
     await next();
     if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") || hashed.test(c.req.path) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
-  }, serveStatic({ root: "./dist/client" }));
+  }, serveStatic({ root: "./dist/client", precompressed: true }));
 
   // The members' part: the Chest asserts who asks on every request
   // (member(): the only source of identity); without it, 401.
@@ -384,8 +514,46 @@ export function createApp(options: AppOptions) {
     // cannot be shown as asked) — never a 500.
     if (error instanceof AppError) return html(c, errorView(viewerOf(c), error.code === "forbidden" ? 403 : 404), viewerOf(c), error.code === "forbidden" ? 403 : 404);
     if (chestDown(error)) log.warn("the Chest did not answer", { route: routePath(c, -1), error: error.name });
-    else log.error("page failed", error, { route: routePath(c, -1) });
+    else {
+      const route = routePath(c, -1);
+      log.error(route === "/chest-schedules" ? "schedule failed" : route === "/chest-events" ? "event failed" : "page failed", error, { route });
+    }
     return html(c, errorView(viewerOf(c), 500), viewerOf(c), 500);
   });
   return app;
+}
+
+// rawRoute(): a POST that takes its body as bytes (an import, a file the
+// tool keeps itself), bounded and same-origin like an action:
+//   app.post("/chest/import", rawRoute({ maxBytes: 20 << 20 }, async (body, { viewer }) => …))
+// The body is counted while it is read — a chunked one without
+// Content-Length too — and refused with 413 past maxBytes; a cross-site
+// request is refused with 403. viewer: the member on /chest, the visitor
+// elsewhere. The handler answers a Response (c.json(…), a redirect…).
+export function rawRoute(options: { maxBytes: number }, handler: (body: Uint8Array, context: { viewer: Viewer; c: Context }) => Response | Promise<Response>) {
+  return async (c: Context<Env>) => {
+    if (!sameOrigin(c.req.raw)) return c.text("Cross-site request refused.", 403);
+    const declared = Number(c.req.header("content-length") ?? NaN);
+    if (Number.isFinite(declared) && declared > options.maxBytes) return c.text("Too large.", 413);
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const reader = c.req.raw.body?.getReader();
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > options.maxBytes) {
+        await reader.cancel();
+        return c.text("Too large.", 413);
+      }
+      chunks.push(value);
+    }
+    const body = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) {
+      body.set(chunk, at);
+      at += chunk.byteLength;
+    }
+    return handler(body, { viewer: viewerOf(c), c });
+  };
 }

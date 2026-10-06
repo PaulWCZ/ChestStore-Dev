@@ -909,7 +909,7 @@ MIT (`LICENSE`), © 2026 Argentic.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the README of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.2**: that release,
+0.4.1, word for word. This package is **0.4.1-studio.3**: that release,
 unchanged, plus the studio's proposals — what the store's tools needed that
 0.4.1 does not give. Each is designed as it would ship: a module or an
 export, its route on the Chest's API, a fake in `testing`, its tests. On a
@@ -917,6 +917,13 @@ real Chest these routes do not exist yet: a call throws
 `CapabilityNotGranted` or `Unavailable` (or, for `chest.theme()`, answers
 the tool's own look), and the tool stays useful without them. Nothing here
 is published.
+
+Studio versions: **studio.3** — `visitors.count()` counts a visitor
+without an address in the ceiling for everyone only; `fakeChest`'s
+`publicApi` (the origin of `files.publicUploadUrl`'s addresses).
+**studio.2** — the review fixes (the visitor's address from the front
+only, the fake's fidelity, a narrower surface). **studio.1** — the
+proposals on 0.4.1.
 
 ## How the proposals sit on 0.4.1
 
@@ -1739,8 +1746,8 @@ that does not set it yet) it is null, `visitor()` is `"unknown"`, and
 `count()` applies to such a visitor only the ceiling per hour for
 everyone (`perHour`), never `perVisitor` nor the Chest's ceiling per
 address: counting every unknown visitor as one would let a few requests
-close a public form for everybody (found by the Booking review,
-0.4.1-studio.2). A tool that needs a per-visitor limit before the front
+close a public form for everybody (found by the Booking review;
+0.4.1-studio.3). A tool that needs a per-visitor limit before the front
 gives addresses keeps its own (a token per form, a code by email).
 
 

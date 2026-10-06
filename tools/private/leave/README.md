@@ -9,7 +9,7 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
 ## What it does
 
 - **My leave** (home): my balances as big cards — one "days left" number,
-  the same on every screen (`lib/left.ts`); for paid leave, below it, the
+  the same on every screen (`src/shared/left.ts`); for paid leave, below it, the
   days **to take now (N-1)** and those **being earned (N)**, as a French pay
   slip shows them; days waiting for an answer beside it, never taken off
   it — one button *Ask for time off*, who is away this week, and my requests
@@ -77,7 +77,7 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   the person's start date or their opening balance, **until their last
   day**: 25 days a year (2.08 a month) in jours ouvrés, 30 (2.5) in jours
   ouvrables.
-- **Leave years** (`lib/balances.ts`, `compute`): paid leave earned during
+- **Leave years** (`src/lib/balances.ts`, `compute`): paid leave earned during
   a reference period (1 June – 31 May by default, the month is a setting)
   is *being earned* (CP N); on the next 1 June it becomes *acquired* (CP
   N-1) — computed from the dates, no job at night. Days taken come out of
@@ -193,7 +193,7 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
 The owner, the admins and the tool's builders come in with the first role,
 `hr`. Nobody answers their own request — except the only HR person of the
 company, when nobody was named their approver. Rights are enforced on the
-server (`lib/access.ts`), tested for each role (`test/access.test.ts`,
+server (`src/lib/access.ts`), tested for each role (`test/access.test.ts`,
 `test/requests.test.ts`, `test/balances.test.ts`).
 
 ## First minute
@@ -272,7 +272,7 @@ tool ships):
   The child's-wedding and parents'-death amounts are from the studio's
   knowledge of the article, **not** in the summaries read.
 
-Built in and tested (`lib/calendar.ts`, `lib/balances.ts`,
+Built in and tested (`src/shared/calendar.ts`, `src/lib/balances.ts`,
 `test/calendar.test.ts`, `test/years.test.ts`):
 
 - The 11 public holidays of the Code du travail (art. L3133-1), computed for
@@ -337,7 +337,7 @@ comparison of ouvrés with ouvrables.
 - **Nothing runs in the background**: earned leave is computed when read;
   the tile's numbers, the calendar feeds and the busy times are set right
   after a request changes (after the answer is sent: `after()` in
-  `app/chest/actions.ts`), after the Chest's and People's events, and each
+  `src/actions.ts`), after the Chest's and People's events, and each
   weekday morning with the schedule proposal (the busy times' 90-day window
   moves on; a month-old leave leaves the feeds).
 - No WebSocket: the pages re-read themselves every 30–60 s while visible.
@@ -345,17 +345,18 @@ comparison of ouvrés with ouvrables.
 ## Looks
 
 Leave wears its own look, **Seaside** (a pastel sky, peach and mint, big
-rounded cards; `lib/theme.ts`, DESIGN.md) — or any theme of the Chest's
+rounded cards; `src/theme.ts`, DESIGN.md) — or any theme of the Chest's
 catalogue (the store's 17 identities, "Chest", "High contrast"), or the
 **company's brand** (its colours, fonts, corners and logo), as the company
 chooses in its Chest for all its tools or for Leave alone (`chest.theme()`,
-**Proposal (studio)** of SDK 0.3.0 + studio proposals (0.3.1-studio.1)). Every feature is the same in
+**Proposal (studio)**, SDK 0.4.1-studio.2). Every feature is the same in
 every look, and every text stays readable (WCAG AA, light and dark): the
 kinds of leave keep their colour family (sky stays bluish, peach
 orange-ish…) in every theme, and are told by their name where a theme has
 no colour (the "Chest" theme). In brand mode the company's logo stands
-beside "Leave". The look is resolved on the server, one `<style>` with the
-page's nonce; nothing runs in the browser for it.
+beside "Leave". The look is resolved on the server and served as a stylesheet of its own
+(`/chest/look.css?v=<its hash>`): nothing inline, nothing runs in the
+browser for it.
 
 The pages are built from the store's UI kit (`@argentic/chest-ui`, in
 `vendor/`): its shell, toasts, dialogs, date fields, people picker, table,
@@ -369,7 +370,7 @@ it no longer stands (**Proposal (studio)**: events between tools;
 once an administrator linked them: **Rooms** then shows the person "Off"
 those days and frees their desk; **People** shows "Away · back on …" on
 their card. What is told: the person (their member id), the first and last
-day and the halves — never the kind of leave nor the note (`lib/share.ts`).
+day and the halves — never the kind of leave nor the note (`src/lib/share.ts`).
 Without events between tools, nothing changes here.
 
 | | |
@@ -385,7 +386,7 @@ Without events between tools, nothing changes here.
 not bookable, and an interviewer who is off is not offered to a
 candidate. Booking and Hiring already tell each other their busy times
 (`booking.busy`, `hiring.busy`); Leave speaks the same snapshot, version 1
-(`lib/busy-snapshot.ts`, the same file as theirs; `lib/busy.ts`):
+(`src/lib/busy-snapshot.ts`, the same file as theirs; `src/lib/busy.ts`):
 
 ```json
 { "v": 1, "member": "mbr_…", "at": "2026-09-30T08:31:02.114Z",
@@ -434,12 +435,20 @@ once, in People's HR record:
 
 ## Needs from the SDK
 
-Leave runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
-From 0.3.0: `member(request)` with the member's `language` (the interface
+Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`,
+with a manifest of contract 0.4 (`"chest": "0.4"`; `chest check` says OK).
+Official: `member(request)` with the member's `language` (the interface
 and the bell in each member's language) and `timeZone`; `chest.today()`,
 the company's day — the same as the database's `current_date`, since the
 Chest makes its zone the TimeZone of the tool's database sessions;
-`members.lookup` with each member's zone (the hours of their leave).
+`members.lookup` with each member's zone (the hours of their leave), and
+`no_access` for someone still in the Chest who lost access to Leave
+("Léa Dubois (no access)"); `chest.tool.teamUrl` (the link in an email);
+**schedules** (`chest.json`: `morning`, weekdays at 08:30 in the Chest's
+zone, posted to `POST /chest-schedules`): the reminder of requests waiting
+more than two days, every tile set right, the feeds and busy times kept in
+line, deliveries older than 30 days forgotten. Without a run, requests
+still reach approvers through the bell and the tile.
 
 - `chest.theme()` — **Proposal (studio)**: the look the company chose
   (see "Looks"). Without it, Leave wears Seaside.
@@ -447,9 +456,6 @@ Chest makes its zone the TimeZone of the tool's database sessions;
   `"groups": "read"`): *Who's away* filtered by any group of the Chest
   (`members.groups.all`, `members.groups.members`). Without it, only the
   groups that give Leave (none when it is open to everyone).
-- **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`,
-  `app/chest-jobs/[name]/route.ts`): the weekday morning reminder at 08:30.
-  Without it, requests still reach approvers through the bell and the tile.
 - **Events between tools** — **Proposal (studio)**: `leave.approved` /
   `leave.cancelled` to Rooms and People (payload unchanged: member, from,
   to, halves, request — never the kind, the note or the family event;
@@ -463,8 +469,8 @@ Chest makes its zone the TimeZone of the tool's database sessions;
   zone changes.
 - **Mail** — **Proposal (studio)** (`chest.proposals.json` `"mail":
   {"send": true}`): emails beside the bell (see "What it does"), keys
-  given whole, the member's `mailPreference` (members API) and
-  `transactional`. The home asks `mail.available()` before promising
+  given whole, the member's choice in the Chest (`mail.preference()`)
+  and `transactional`. The home asks `mail.available()` before promising
   anything: no switch on a Chest without mail, and a sentence when the
   owner has not connected email, has paused it, or the day's emails are
   used. Without it, the bell and the tile only.
@@ -476,12 +482,39 @@ Chest makes its zone the TimeZone of the tool's database sessions;
   instead). The counting of days follows French rules whatever the
   Chest's zone.
 
+## How it is made
+
+The studio's starter stack: a **Hono** server that renders **React** pages
+(`src/pages/`), with a few **islands** that also run in the browser
+(`src/islands/`: the request form, the approval cards, the settings, the
+people table and HR's forms), built by **Vite**; the machinery is the
+vendored package `@argentic/chest-app` (routes, typed actions callable from
+an island or a form, a refresh that keeps what is typed, the member's
+words, the strict policy, logs). No inline script or style: the look is a
+stylesheet Leave serves itself (`/chest/look.css`, cached by its hash), so
+no `"csp"` permission is asked. Static files are under `/assets/`
+(`build.static`). `AGENTS.md` maps the files.
+
+Measured on 6 October 2026 with `lab/measure` (Node 24.21, production
+build, 10 cold starts, 5 rests of 30 s after 10 pages; PSS of the process
+tree), against the Next.js 16 version (`before-next16`):
+
+| | Next.js 16 | Hono + React SSR + islands |
+|---|--:|--:|
+| Memory at rest (PSS) | 121.3 MiB | 68.2 MiB |
+| First 200 after a cold start | 749 ms | 474 ms |
+| Image (`node_modules` after prune + build) | 455 MiB | 27 MiB |
+| Build in 512 MiB, 1 CPU | out of memory | fits (peak 263 MiB, 4.7 s) |
+
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run dev       # rebuilds on every change, restarts the server
+npm test          # tsc, the server built into dist/test, then node:test:
+                  # TEST_DATABASE_URL (a PostgreSQL server) or PGlite
+npm run build     # tsc, the browser's files, the server — as the Chest does
+npm start         # the built server (PORT)
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/leave --prod --reset --port 4400`

@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { balancesOf } from "../lib/balances.ts";
-import { addDays } from "../lib/calendar.ts";
-import { sync } from "../lib/leave-calendar.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { keepInLine } from "../lib/share.ts";
-import { zoned } from "../lib/spans.ts";
-import { setApprover } from "../lib/staff.ts";
-import { today } from "../lib/today.ts";
+import { balancesOf } from "../src/lib/balances.ts";
+import { addDays } from "../src/shared/calendar.ts";
+import { sync } from "../src/lib/leave-calendar.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { keepInLine } from "../src/lib/share.ts";
+import { zoned } from "../src/lib/spans.ts";
+import { setApprover } from "../src/lib/staff.ts";
+import { today } from "../src/lib/today.ts";
+import { zonesOf } from "../src/lib/zones.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -26,7 +27,7 @@ let chest: FakeChest;
 let paid: string, rtt: string;
 before(async () => {
   database = await testDatabase({ timeZone: zone });
-  chest = await fakeChest({
+  chest = await fakeChest({ network: {},
     tool: "leave", chest: { timeZone: zone },
     members: everyone.map(m => (m.id === tom.id ? { ...m, timeZone: montreal } : m)), groups: fakeGroups,
     capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" },
@@ -104,4 +105,11 @@ test("payroll's balances on a day end at the Chest's midnight, not UTC's", async
     values (${nora.id}, ${rtt}, 'adjustment', 3, ${day}, 'Given', ${camille.id}, ${new Date(zoned(day, 0, zone).getTime() + 60_000)})`;
   const left = async (on: string) => (await balancesOf(sql, [nora.id], on)).get(nora.id)!.find(b => b.typeId === rtt)!.left;
   assert.equal((await left(day)) - (await left(addDays(day, -1))), 3);
+});
+
+test("each person's zone is the Chest's answer for them; someone it does not answer for keeps the Chest's", async () => {
+  const zoneOf = await zonesOf([tom.id, hugo.id, "mbr_" + "z".repeat(26)]);
+  assert.equal(zoneOf(tom.id), montreal);
+  assert.equal(zoneOf(hugo.id), zone);
+  assert.equal(zoneOf("mbr_" + "z".repeat(26)), zone);
 });

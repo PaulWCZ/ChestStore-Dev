@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET } from "../app/chest/people/export/route.ts";
-import * as requests from "../lib/requests.ts";
-import { saveType, types } from "../lib/rules.ts";
-import { AppError } from "../lib/app-error.ts";
-import { setApprover, setEmployeeNumber, setStartDate } from "../lib/staff.ts";
-import { GET as balancesCsv } from "../app/chest/people/balances/route.ts";
-import * as balances from "../lib/balances.ts";
-import { lastPayrollDay } from "../lib/model.ts";
-import { today } from "../lib/today.ts";
-import { addDays, addMonths } from "../lib/calendar.ts";
-import * as tell from "../lib/tell.ts";
+import { member } from "@argentic/chest-sdk/member";
+import { absencesFile, balancesFile } from "../src/downloads.ts";
+import * as requests from "../src/lib/requests.ts";
+import { saveType, types } from "../src/lib/rules.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { setApprover, setEmployeeNumber, setStartDate } from "../src/lib/staff.ts";
+import * as balances from "../src/lib/balances.ts";
+import { lastPayrollDay } from "../src/shared/model.ts";
+import { today } from "../src/lib/today.ts";
+import { addDays, addMonths } from "../src/shared/calendar.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -25,7 +25,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
   const { sql } = database;
   await setApprover(sql, asMember(camille), hugo.id, ines.id);
   const paid = (await types(sql)).find(t => t.key === "paid")!.id;
@@ -39,6 +39,15 @@ after(async () => {
   await chest.close();
   await database.close();
 });
+
+// The two files as src/app.tsx answers them, for the member the Chest
+// asserts (without one, the package answers 401 before: test/app.test.ts).
+const asked = (file: typeof absencesFile) => (request: Request) => {
+  const who = member(request);
+  return who ? file(request, who) : Promise.resolve(new Response(null, { status: 401 }));
+};
+const GET = asked(absencesFile);
+const balancesCsv = asked(balancesFile);
 
 const get = (who: typeof camille | null, query: string) => {
   const request = new Request("http://tool.test/chest/people/export" + query);
