@@ -49,9 +49,13 @@ host", and `reference/sdk/contract/README.md`) enforces the Chest's rules:
 Toward the tool: path, query and `Host` unchanged, every `Chest-*` header
 from the client removed, and `X-Forwarded-For`, `Forwarded` and
 `X-Real-IP` too (never trusted: the Chest adds none), `X-Forwarded-Proto:
-https` and `X-Forwarded-Host` set; on the public host, **`Chest-Visitor-Address`**,
-the address of the connection the front accepted (proposal, SDK report
-§4.8: what `visitors.address()` reads; here always `127.0.0.1`). Toward the browser: the **CSP the Chest adds** — on the team host
+https` and `X-Forwarded-Host` set; on the public host, only with
+`--visitor-address`, **`Chest-Visitor-Address`**, the address of the
+connection the front accepted (proposal, SDK report §4.8: what
+`visitors.address()` reads; here always `127.0.0.1`). **By default no
+visitor is named, as on a contract-0.4 Chest today**: a public form's
+bounds must hold with every visitor unknown (a cookie key, never one shared
+"unknown" bucket). Toward the browser: the **CSP the Chest adds** — on the team host
 `frame-ancestors 'none'` to an answer without a policy; on the public host
 its default policy on every answer, or only the floor policy
 (`frame-ancestors 'none'; base-uri 'self'; object-src 'none'`) beside the
@@ -174,7 +178,7 @@ Paul Lefèvre (`mbr_paulaaaa…`) is a former member who left three weeks ago
 `--port N` (the team host; the tool runs on N+1, the public host on N+2;
 the database is `t_<tool>` on 4000, `t_<tool>_<N>` on another port, so two
 harnesses of one tool never share it),
-`--reset` (a new database), `--seed` (load `seed/sample.sql` again),
+`--visitor-address` (name the visitor, the proposal), `--reset` (a new database), `--seed` (load `seed/sample.sql` again),
 `--empty` (never load it), `--prod` (serve the last `build.command` output
 with `build.start`; refused when sources are newer, unless `--stale-ok`),
 `--build` (with `--prod`: `npm ci` when needed and `build.command` first),
