@@ -1,0 +1,993 @@
+{
+ "tool": "booking",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/tools/public-and-private/booking",
+ "date": "2026-10-06T10:19:57.057Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "1b5f65b 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.38,
+   "five": 0.36,
+   "fifteen": 0.66
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 42.3,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 12.2,
+    "rssMiB": 577,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 80,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 144,
+    "command": "postgres"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ],
+  "atEnd": {
+   "one": 0.36,
+   "five": 0.47,
+   "fifteen": 0.63
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 200,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 12.1,
+    "rssMiB": 579,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.4,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 0.9,
+    "rssMiB": 80,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 80,
+    "command": "environment-man"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 12.7,
+  "apparentMiB": 12.1,
+  "files": 210
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 3122,
+  "peakRssMiB": 562.2,
+  "peakPssMiB": 530,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.38,
+   "five": 0.36,
+   "fifteen": 0.66
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 8413,
+  "peakRssMiB": 716.9,
+  "peakPssMiB": 684.7,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1205.9,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.51,
+   "max": 0.51
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 137,
+   "signal": null,
+   "ms": 32081,
+   "peakRssMiB": 630.4,
+   "peakPssMiB": 554.8,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 512,
+    "failcnt": 0,
+    "oomKills": 1
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 1.04,
+    "max": 1.31
+   },
+   "tail": "\n> chest-booking@0.1.0 build\n> NEXT_TELEMETRY_DISABLED=1 next typegen && tsc -p tsconfig.json --noEmit && NEXT_TELEMETRY_DISABLED=1 next build --webpack\n\nGenerating route types...\n✓ Types generated successfully\n▲ Next.js 16.3.6 (webpack)\n✓ Running next.config.ts took 24ms\n- Experiments (use with caution):\n  · cpus: 1\n  ⨯ webpackBuildWorker\n  ✓ webpackMemoryOptimizations\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 16.0s\n  Skipping validation of types\n  Finished TypeScript config validation in 5ms ...\n  Collecting page data using 1 worker ...\n  Generating static pages using 1 worker (0/6) ...\n  Generating static pages using 1 worker (1/6) \r\n  Generating static pages using 1 worker (2/6) \r\n  Generating static pages using 1 worker (4/6) \r\n✓ Generating static pages using 1 worker (6/6) in 404ms\n  Finalizing page optimization ...\n  Collecting build traces ...\nKilled\n",
+   "fits": false
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 15642,
+   "peakRssMiB": 1131.1,
+   "peakPssMiB": 1055.4,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 1033.2,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 1.49,
+    "max": 1.53
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 5.2,
+  "apparentMiB": 4.3,
+  "files": 198,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 460.5
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/booking.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/bookings/2",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/ines-moreau",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/ines-moreau/project-call",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/b/demoGuestLinkForTheScreens000000",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/chest/types",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/hours",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/hugo-bernard/measurement",
+    "public": true,
+    "language": "fr"
+   },
+   {
+    "path": "/chest?who=all",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/camille-martin/discovery",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "ines",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 368.6,
+    "firstMs": 748.3,
+    "statuses": [
+     200
+    ],
+    "load": 1.41
+   },
+   {
+    "portMs": 311.2,
+    "firstMs": 689.2,
+    "statuses": [
+     200
+    ],
+    "load": 1.19
+   },
+   {
+    "portMs": 262.2,
+    "firstMs": 624.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.01
+   },
+   {
+    "portMs": 295.4,
+    "firstMs": 670.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.93
+   },
+   {
+    "portMs": 259.4,
+    "firstMs": 822.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.78
+   },
+   {
+    "portMs": 281,
+    "firstMs": 675.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.61
+   },
+   {
+    "portMs": 252.9,
+    "firstMs": 626.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.52
+   },
+   {
+    "portMs": 281.9,
+    "firstMs": 635.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.44
+   },
+   {
+    "portMs": 266.3,
+    "firstMs": 623,
+    "statuses": [
+     200
+    ],
+    "load": 0.37
+   },
+   {
+    "portMs": 271.3,
+    "firstMs": 625.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.31
+   }
+  ],
+  "port": {
+   "median": 276.15,
+   "min": 252.9,
+   "max": 368.6
+  },
+  "first200": {
+   "median": 652.7,
+   "min": 623,
+   "max": 822.8
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 233.7,
+     "pss": 149
+    },
+    "peakMiB": {
+     "rss": 279.7,
+     "pss": 191.8,
+     "cgroup": 151.4
+    },
+    "afterRequestsMiB": {
+     "rss": 279.7,
+     "pss": 191.8
+    },
+    "restMiB": {
+     "rss": 242.9,
+     "pss": 148.3,
+     "pssAnon": 108.6,
+     "pssFile": 39.7,
+     "cgroupAnon": 108.6,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.7,
+      "pssMiB": 24.9
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 173.3,
+      "pssMiB": 123.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 62134,
+      "ms": 49
+     },
+     {
+      "path": "/chest/bookings/2",
+      "status": 200,
+      "bytes": 70288,
+      "ms": 63.9
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 21100,
+      "ms": 36.6
+     },
+     {
+      "path": "/ines-moreau",
+      "status": 200,
+      "bytes": 26521,
+      "ms": 18.1
+     },
+     {
+      "path": "/ines-moreau/project-call",
+      "status": 200,
+      "bytes": 91547,
+      "ms": 45.3
+     },
+     {
+      "path": "/b/demoGuestLinkForTheScreens000000",
+      "status": 200,
+      "bytes": 32546,
+      "ms": 18.4
+     },
+     {
+      "path": "/chest/types",
+      "status": 200,
+      "bytes": 39696,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/hours",
+      "status": 200,
+      "bytes": 181579,
+      "ms": 35.5
+     },
+     {
+      "path": "/hugo-bernard/measurement",
+      "status": 200,
+      "bytes": 92336,
+      "ms": 24.2
+     },
+     {
+      "path": "/chest?who=all",
+      "status": 200,
+      "bytes": 40981,
+      "ms": 15.6
+     },
+     {
+      "path": "/camille-martin/discovery",
+      "status": 200,
+      "bytes": 91364,
+      "ms": 43
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 120656,
+      "ms": 24
+     }
+    ],
+    "load": {
+     "mean": 0.6,
+     "max": 0.77
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 232.3,
+     "pss": 138.1
+    },
+    "peakMiB": {
+     "rss": 279.1,
+     "pss": 184.5,
+     "cgroup": 150.7
+    },
+    "afterRequestsMiB": {
+     "rss": 279.1,
+     "pss": 184.5
+    },
+    "restMiB": {
+     "rss": 242.5,
+     "pss": 147.9,
+     "pssAnon": 108.2,
+     "pssFile": 39.7,
+     "cgroupAnon": 108.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 24.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 173.6,
+      "pssMiB": 123.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 62134,
+      "ms": 30.4
+     },
+     {
+      "path": "/chest/bookings/2",
+      "status": 200,
+      "bytes": 70288,
+      "ms": 68.3
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 21100,
+      "ms": 34.5
+     },
+     {
+      "path": "/ines-moreau",
+      "status": 200,
+      "bytes": 26521,
+      "ms": 15.7
+     },
+     {
+      "path": "/ines-moreau/project-call",
+      "status": 200,
+      "bytes": 91547,
+      "ms": 40.1
+     },
+     {
+      "path": "/b/demoGuestLinkForTheScreens000000",
+      "status": 200,
+      "bytes": 32546,
+      "ms": 14.8
+     },
+     {
+      "path": "/chest/types",
+      "status": 200,
+      "bytes": 39696,
+      "ms": 15.9
+     },
+     {
+      "path": "/chest/hours",
+      "status": 200,
+      "bytes": 181579,
+      "ms": 33.4
+     },
+     {
+      "path": "/hugo-bernard/measurement",
+      "status": 200,
+      "bytes": 92336,
+      "ms": 23.4
+     },
+     {
+      "path": "/chest?who=all",
+      "status": 200,
+      "bytes": 40981,
+      "ms": 35
+     },
+     {
+      "path": "/camille-martin/discovery",
+      "status": 200,
+      "bytes": 91364,
+      "ms": 52.6
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 120656,
+      "ms": 22
+     }
+    ],
+    "load": {
+     "mean": 0.53,
+     "max": 0.68
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 232.9,
+     "pss": 138.7
+    },
+    "peakMiB": {
+     "rss": 280.9,
+     "pss": 186.3,
+     "cgroup": 152.6
+    },
+    "afterRequestsMiB": {
+     "rss": 280.9,
+     "pss": 186.3
+    },
+    "restMiB": {
+     "rss": 244,
+     "pss": 149.9,
+     "pssAnon": 109.8,
+     "pssFile": 40.1,
+     "cgroupAnon": 109.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.2,
+      "pssMiB": 24.6
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 174.9,
+      "pssMiB": 125.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 62134,
+      "ms": 31.1
+     },
+     {
+      "path": "/chest/bookings/2",
+      "status": 200,
+      "bytes": 70288,
+      "ms": 80
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 21100,
+      "ms": 34.7
+     },
+     {
+      "path": "/ines-moreau",
+      "status": 200,
+      "bytes": 26521,
+      "ms": 16.7
+     },
+     {
+      "path": "/ines-moreau/project-call",
+      "status": 200,
+      "bytes": 91547,
+      "ms": 43.1
+     },
+     {
+      "path": "/b/demoGuestLinkForTheScreens000000",
+      "status": 200,
+      "bytes": 32546,
+      "ms": 16.1
+     },
+     {
+      "path": "/chest/types",
+      "status": 200,
+      "bytes": 39696,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/hours",
+      "status": 200,
+      "bytes": 181579,
+      "ms": 33.4
+     },
+     {
+      "path": "/hugo-bernard/measurement",
+      "status": 200,
+      "bytes": 92336,
+      "ms": 25.5
+     },
+     {
+      "path": "/chest?who=all",
+      "status": 200,
+      "bytes": 40981,
+      "ms": 17.6
+     },
+     {
+      "path": "/camille-martin/discovery",
+      "status": 200,
+      "bytes": 91364,
+      "ms": 49.6
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 120656,
+      "ms": 23.3
+     }
+    ],
+    "load": {
+     "mean": 0.46,
+     "max": 0.54
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 230.9,
+     "pss": 137.2
+    },
+    "peakMiB": {
+     "rss": 279.2,
+     "pss": 185,
+     "cgroup": 150.8
+    },
+    "afterRequestsMiB": {
+     "rss": 279.2,
+     "pss": 185
+    },
+    "restMiB": {
+     "rss": 244.1,
+     "pss": 149.9,
+     "pssAnon": 109.8,
+     "pssFile": 40.1,
+     "cgroupAnon": 109.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.3,
+      "pssMiB": 24.7
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 174.9,
+      "pssMiB": 125.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 62134,
+      "ms": 41.4
+     },
+     {
+      "path": "/chest/bookings/2",
+      "status": 200,
+      "bytes": 70288,
+      "ms": 71
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 21100,
+      "ms": 46.8
+     },
+     {
+      "path": "/ines-moreau",
+      "status": 200,
+      "bytes": 26521,
+      "ms": 23.2
+     },
+     {
+      "path": "/ines-moreau/project-call",
+      "status": 200,
+      "bytes": 91547,
+      "ms": 65.1
+     },
+     {
+      "path": "/b/demoGuestLinkForTheScreens000000",
+      "status": 200,
+      "bytes": 32546,
+      "ms": 16.8
+     },
+     {
+      "path": "/chest/types",
+      "status": 200,
+      "bytes": 39696,
+      "ms": 33.5
+     },
+     {
+      "path": "/chest/hours",
+      "status": 200,
+      "bytes": 181579,
+      "ms": 40
+     },
+     {
+      "path": "/hugo-bernard/measurement",
+      "status": 200,
+      "bytes": 92336,
+      "ms": 24.9
+     },
+     {
+      "path": "/chest?who=all",
+      "status": 200,
+      "bytes": 40981,
+      "ms": 18
+     },
+     {
+      "path": "/camille-martin/discovery",
+      "status": 200,
+      "bytes": 91364,
+      "ms": 62
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 120656,
+      "ms": 44.7
+     }
+    ],
+    "load": {
+     "mean": 0.32,
+     "max": 0.39
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 233.2,
+     "pss": 156.7
+    },
+    "peakMiB": {
+     "rss": 277.6,
+     "pss": 200.9,
+     "cgroup": 149.1
+    },
+    "afterRequestsMiB": {
+     "rss": 277.6,
+     "pss": 200.9
+    },
+    "restMiB": {
+     "rss": 241.5,
+     "pss": 165,
+     "pssAnon": 107.3,
+     "pssFile": 57.8,
+     "cgroupAnon": 107.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 30.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 172.5,
+      "pssMiB": 133.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 62134,
+      "ms": 27.2
+     },
+     {
+      "path": "/chest/bookings/2",
+      "status": 200,
+      "bytes": 70288,
+      "ms": 71.6
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 21100,
+      "ms": 35
+     },
+     {
+      "path": "/ines-moreau",
+      "status": 200,
+      "bytes": 26521,
+      "ms": 19.6
+     },
+     {
+      "path": "/ines-moreau/project-call",
+      "status": 200,
+      "bytes": 91547,
+      "ms": 41.3
+     },
+     {
+      "path": "/b/demoGuestLinkForTheScreens000000",
+      "status": 200,
+      "bytes": 32546,
+      "ms": 15.7
+     },
+     {
+      "path": "/chest/types",
+      "status": 200,
+      "bytes": 39696,
+      "ms": 18.8
+     },
+     {
+      "path": "/chest/hours",
+      "status": 200,
+      "bytes": 181579,
+      "ms": 54.7
+     },
+     {
+      "path": "/hugo-bernard/measurement",
+      "status": 200,
+      "bytes": 92336,
+      "ms": 44.4
+     },
+     {
+      "path": "/chest?who=all",
+      "status": 200,
+      "bytes": 40981,
+      "ms": 18.2
+     },
+     {
+      "path": "/camille-martin/discovery",
+      "status": 200,
+      "bytes": 91364,
+      "ms": 48.6
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 120656,
+      "ms": 24.2
+     }
+    ],
+    "load": {
+     "mean": 0.5,
+     "max": 0.55
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 242.9,
+    "min": 241.5,
+    "max": 244.1
+   },
+   "pss": {
+    "median": 149.9,
+    "min": 147.9,
+    "max": 165
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 279.2,
+    "min": 277.6,
+    "max": 280.9
+   },
+   "pss": {
+    "median": 186.3,
+    "min": 184.5,
+    "max": 200.9
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 175.5,
+    "min": 174.4,
+    "max": 176.8
+   },
+   "pss": {
+    "median": 125.3,
+    "min": 123.5,
+    "max": 134.2
+   }
+  }
+ }
+}

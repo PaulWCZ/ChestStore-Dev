@@ -1,0 +1,1272 @@
+{
+ "tool": "forms",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/tools/public-and-private/forms",
+ "date": "2026-10-06T10:26:14.586Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "5305ba7 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.36,
+   "five": 0.47,
+   "fifteen": 0.63
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 50,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 12.1,
+    "rssMiB": 579,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 80,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 144,
+    "command": "postgres"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ],
+  "atEnd": {
+   "one": 1.27,
+   "five": 1.02,
+   "fifteen": 0.84
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 400,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 187,
+    "rssMiB": 94,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 12.1,
+    "rssMiB": 562,
+    "command": "claude"
+   },
+   {
+    "cpu": 4.7,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 1.4,
+    "rssMiB": 76,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 20.4,
+  "apparentMiB": 19.7,
+  "files": 248
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 4578,
+  "peakRssMiB": 561,
+  "peakPssMiB": 528.9,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.41,
+   "five": 0.47,
+   "fifteen": 0.63
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 8811,
+  "peakRssMiB": 723.1,
+  "peakPssMiB": 690.9,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1214.4,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.46,
+   "max": 0.46
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 39001,
+   "peakRssMiB": 637.3,
+   "peakPssMiB": 535.1,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 512,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.83,
+    "max": 0.95
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 17599,
+   "peakRssMiB": 1167.6,
+   "peakPssMiB": 1076.2,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 1076,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 1.07,
+    "max": 1.2
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 6.1,
+  "apparentMiB": 5,
+  "files": 233,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 469.1
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/forms.json",
+  "list": [
+   {
+    "path": "/chest/forms/1",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/new",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/k7m2fq9d",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/p4x8vn2c",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/chest/f/t9r3hw6b",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/1/answers",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/2/answers/seed00000000000s",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/1/summary",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/4/summary",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/forms/1/settings",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/2/share",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/3",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/privacy?q=paul.durand%40example.org",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/3/answers",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/3/answers/seed000000000014",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/sent/seed000000000013",
+    "member": "hugo",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/f/v6m3tq8r",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/7/summary",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/forms/4/answers",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest/forms/1",
+  "runs": [
+   {
+    "portMs": 279.5,
+    "firstMs": 718,
+    "statuses": [
+     200
+    ],
+    "load": 1.2
+   },
+   {
+    "portMs": 273,
+    "firstMs": 699.9,
+    "statuses": [
+     200
+    ],
+    "load": 1.02
+   },
+   {
+    "portMs": 305.5,
+    "firstMs": 702.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.93
+   },
+   {
+    "portMs": 286.1,
+    "firstMs": 694.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.79
+   },
+   {
+    "portMs": 287.8,
+    "firstMs": 714,
+    "statuses": [
+     200
+    ],
+    "load": 0.67
+   },
+   {
+    "portMs": 370.1,
+    "firstMs": 825.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.56
+   },
+   {
+    "portMs": 324.7,
+    "firstMs": 813,
+    "statuses": [
+     200
+    ],
+    "load": 0.72
+   },
+   {
+    "portMs": 376.9,
+    "firstMs": 945.9,
+    "statuses": [
+     200
+    ],
+    "load": 1.01
+   },
+   {
+    "portMs": 309.1,
+    "firstMs": 744.2,
+    "statuses": [
+     200
+    ],
+    "load": 1.25
+   },
+   {
+    "portMs": 292.3,
+    "firstMs": 726.3,
+    "statuses": [
+     200
+    ],
+    "load": 1.05
+   }
+  ],
+  "port": {
+   "median": 298.9,
+   "min": 273,
+   "max": 376.9
+  },
+  "first200": {
+   "median": 722.15,
+   "min": 694.7,
+   "max": 945.9
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 234.3,
+     "pss": 145.2
+    },
+    "peakMiB": {
+     "rss": 271.8,
+     "pss": 182.9,
+     "cgroup": 145
+    },
+    "afterRequestsMiB": {
+     "rss": 271.7,
+     "pss": 182.6
+    },
+    "restMiB": {
+     "rss": 236.7,
+     "pss": 144.1,
+     "pssAnon": 102.5,
+     "pssFile": 41.6,
+     "cgroupAnon": 102.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 24.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 168,
+      "pssMiB": 119.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest/forms/1",
+      "status": 200,
+      "bytes": 82909,
+      "ms": 33.1
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 53485,
+      "ms": 38.1
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 45039,
+      "ms": 20.5
+     },
+     {
+      "path": "/k7m2fq9d",
+      "status": 200,
+      "bytes": 30831,
+      "ms": 34.8
+     },
+     {
+      "path": "/p4x8vn2c",
+      "status": 200,
+      "bytes": 35189,
+      "ms": 15.1
+     },
+     {
+      "path": "/chest/f/t9r3hw6b",
+      "status": 200,
+      "bytes": 37685,
+      "ms": 20.2
+     },
+     {
+      "path": "/chest/forms/1/answers",
+      "status": 200,
+      "bytes": 91938,
+      "ms": 47.2
+     },
+     {
+      "path": "/chest/forms/2/answers/seed00000000000s",
+      "status": 200,
+      "bytes": 43351,
+      "ms": 25.1
+     },
+     {
+      "path": "/chest/forms/1/summary",
+      "status": 200,
+      "bytes": 60227,
+      "ms": 24.8
+     },
+     {
+      "path": "/chest/forms/4/summary",
+      "status": 200,
+      "bytes": 52206,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/forms/1/settings",
+      "status": 200,
+      "bytes": 65488,
+      "ms": 36.8
+     },
+     {
+      "path": "/chest/forms/2/share",
+      "status": 200,
+      "bytes": 44388,
+      "ms": 21.2
+     },
+     {
+      "path": "/chest/forms/3",
+      "status": 200,
+      "bytes": 73302,
+      "ms": 14.2
+     },
+     {
+      "path": "/chest/privacy?q=paul.durand%40example.org",
+      "status": 200,
+      "bytes": 31887,
+      "ms": 18.3
+     },
+     {
+      "path": "/chest/forms/3/answers",
+      "status": 200,
+      "bytes": 60884,
+      "ms": 23.9
+     },
+     {
+      "path": "/chest/forms/3/answers/seed000000000014",
+      "status": 200,
+      "bytes": 42964,
+      "ms": 16.3
+     },
+     {
+      "path": "/chest/sent/seed000000000013",
+      "status": 200,
+      "bytes": 28130,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/f/v6m3tq8r",
+      "status": 200,
+      "bytes": 38694,
+      "ms": 12.3
+     },
+     {
+      "path": "/chest/forms/7/summary",
+      "status": 200,
+      "bytes": 44727,
+      "ms": 34
+     },
+     {
+      "path": "/chest/forms/4/answers",
+      "status": 200,
+      "bytes": 37057,
+      "ms": 31
+     }
+    ],
+    "load": {
+     "mean": 0.97,
+     "max": 0.98
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 233.6,
+     "pss": 145
+    },
+    "peakMiB": {
+     "rss": 267.7,
+     "pss": 175.8,
+     "cgroup": 140.6
+    },
+    "afterRequestsMiB": {
+     "rss": 267.7,
+     "pss": 175.8
+    },
+    "restMiB": {
+     "rss": 235,
+     "pss": 149.9,
+     "pssAnon": 100.9,
+     "pssFile": 49,
+     "cgroupAnon": 100.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 26.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 166.2,
+      "pssMiB": 122.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest/forms/1",
+      "status": 200,
+      "bytes": 82909,
+      "ms": 29.6
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 53367,
+      "ms": 45.9
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 45039,
+      "ms": 22.7
+     },
+     {
+      "path": "/k7m2fq9d",
+      "status": 200,
+      "bytes": 30831,
+      "ms": 40
+     },
+     {
+      "path": "/p4x8vn2c",
+      "status": 200,
+      "bytes": 35189,
+      "ms": 21.1
+     },
+     {
+      "path": "/chest/f/t9r3hw6b",
+      "status": 200,
+      "bytes": 37685,
+      "ms": 22.1
+     },
+     {
+      "path": "/chest/forms/1/answers",
+      "status": 200,
+      "bytes": 91938,
+      "ms": 37.1
+     },
+     {
+      "path": "/chest/forms/2/answers/seed00000000000s",
+      "status": 200,
+      "bytes": 43351,
+      "ms": 24.2
+     },
+     {
+      "path": "/chest/forms/1/summary",
+      "status": 200,
+      "bytes": 60227,
+      "ms": 23.3
+     },
+     {
+      "path": "/chest/forms/4/summary",
+      "status": 200,
+      "bytes": 52206,
+      "ms": 17.2
+     },
+     {
+      "path": "/chest/forms/1/settings",
+      "status": 200,
+      "bytes": 65488,
+      "ms": 34.7
+     },
+     {
+      "path": "/chest/forms/2/share",
+      "status": 200,
+      "bytes": 44388,
+      "ms": 19.1
+     },
+     {
+      "path": "/chest/forms/3",
+      "status": 200,
+      "bytes": 73302,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/privacy?q=paul.durand%40example.org",
+      "status": 200,
+      "bytes": 31887,
+      "ms": 34.4
+     },
+     {
+      "path": "/chest/forms/3/answers",
+      "status": 200,
+      "bytes": 60884,
+      "ms": 27.2
+     },
+     {
+      "path": "/chest/forms/3/answers/seed000000000014",
+      "status": 200,
+      "bytes": 42964,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/sent/seed000000000013",
+      "status": 200,
+      "bytes": 28130,
+      "ms": 12.3
+     },
+     {
+      "path": "/chest/f/v6m3tq8r",
+      "status": 200,
+      "bytes": 38694,
+      "ms": 13.6
+     },
+     {
+      "path": "/chest/forms/7/summary",
+      "status": 200,
+      "bytes": 44727,
+      "ms": 26.8
+     },
+     {
+      "path": "/chest/forms/4/answers",
+      "status": 200,
+      "bytes": 37057,
+      "ms": 16.4
+     }
+    ],
+    "load": {
+     "mean": 1.27,
+     "max": 1.5
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 232.9,
+     "pss": 141.3
+    },
+    "peakMiB": {
+     "rss": 267.7,
+     "pss": 175.6,
+     "cgroup": 140.8
+    },
+    "afterRequestsMiB": {
+     "rss": 267.7,
+     "pss": 175.6
+    },
+    "restMiB": {
+     "rss": 234,
+     "pss": 151,
+     "pssAnon": 99.9,
+     "pssFile": 51.1,
+     "cgroupAnon": 99.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 27.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 165.1,
+      "pssMiB": 123
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest/forms/1",
+      "status": 200,
+      "bytes": 82909,
+      "ms": 49.4
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 53367,
+      "ms": 49.5
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 45039,
+      "ms": 25.3
+     },
+     {
+      "path": "/k7m2fq9d",
+      "status": 200,
+      "bytes": 30831,
+      "ms": 36.9
+     },
+     {
+      "path": "/p4x8vn2c",
+      "status": 200,
+      "bytes": 35189,
+      "ms": 16
+     },
+     {
+      "path": "/chest/f/t9r3hw6b",
+      "status": 200,
+      "bytes": 37685,
+      "ms": 16.9
+     },
+     {
+      "path": "/chest/forms/1/answers",
+      "status": 200,
+      "bytes": 91938,
+      "ms": 32.1
+     },
+     {
+      "path": "/chest/forms/2/answers/seed00000000000s",
+      "status": 200,
+      "bytes": 43351,
+      "ms": 32.4
+     },
+     {
+      "path": "/chest/forms/1/summary",
+      "status": 200,
+      "bytes": 60227,
+      "ms": 25.8
+     },
+     {
+      "path": "/chest/forms/4/summary",
+      "status": 200,
+      "bytes": 52206,
+      "ms": 18
+     },
+     {
+      "path": "/chest/forms/1/settings",
+      "status": 200,
+      "bytes": 65488,
+      "ms": 60.4
+     },
+     {
+      "path": "/chest/forms/2/share",
+      "status": 200,
+      "bytes": 44388,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/forms/3",
+      "status": 200,
+      "bytes": 73302,
+      "ms": 21.8
+     },
+     {
+      "path": "/chest/privacy?q=paul.durand%40example.org",
+      "status": 200,
+      "bytes": 31887,
+      "ms": 22.1
+     },
+     {
+      "path": "/chest/forms/3/answers",
+      "status": 200,
+      "bytes": 60884,
+      "ms": 34.7
+     },
+     {
+      "path": "/chest/forms/3/answers/seed000000000014",
+      "status": 200,
+      "bytes": 42964,
+      "ms": 16.3
+     },
+     {
+      "path": "/chest/sent/seed000000000013",
+      "status": 200,
+      "bytes": 28130,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/f/v6m3tq8r",
+      "status": 200,
+      "bytes": 38694,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/forms/7/summary",
+      "status": 200,
+      "bytes": 44727,
+      "ms": 13.6
+     },
+     {
+      "path": "/chest/forms/4/answers",
+      "status": 200,
+      "bytes": 37057,
+      "ms": 21
+     }
+    ],
+    "load": {
+     "mean": 1.32,
+     "max": 1.41
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 232.3,
+     "pss": 140.6
+    },
+    "peakMiB": {
+     "rss": 267.9,
+     "pss": 178.7,
+     "cgroup": 141.4
+    },
+    "afterRequestsMiB": {
+     "rss": 267.9,
+     "pss": 178.7
+    },
+    "restMiB": {
+     "rss": 234.5,
+     "pss": 149,
+     "pssAnon": 100.3,
+     "pssFile": 48.7,
+     "cgroupAnon": 100.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.7,
+      "pssMiB": 26.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 166,
+      "pssMiB": 122.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest/forms/1",
+      "status": 200,
+      "bytes": 82909,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 53367,
+      "ms": 41
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 45039,
+      "ms": 18.2
+     },
+     {
+      "path": "/k7m2fq9d",
+      "status": 200,
+      "bytes": 30831,
+      "ms": 31.3
+     },
+     {
+      "path": "/p4x8vn2c",
+      "status": 200,
+      "bytes": 35189,
+      "ms": 36.4
+     },
+     {
+      "path": "/chest/f/t9r3hw6b",
+      "status": 200,
+      "bytes": 37685,
+      "ms": 17.5
+     },
+     {
+      "path": "/chest/forms/1/answers",
+      "status": 200,
+      "bytes": 91938,
+      "ms": 41.7
+     },
+     {
+      "path": "/chest/forms/2/answers/seed00000000000s",
+      "status": 200,
+      "bytes": 43351,
+      "ms": 22.6
+     },
+     {
+      "path": "/chest/forms/1/summary",
+      "status": 200,
+      "bytes": 60227,
+      "ms": 27.7
+     },
+     {
+      "path": "/chest/forms/4/summary",
+      "status": 200,
+      "bytes": 52206,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/forms/1/settings",
+      "status": 200,
+      "bytes": 65488,
+      "ms": 51.4
+     },
+     {
+      "path": "/chest/forms/2/share",
+      "status": 200,
+      "bytes": 44388,
+      "ms": 19.7
+     },
+     {
+      "path": "/chest/forms/3",
+      "status": 200,
+      "bytes": 73302,
+      "ms": 14.4
+     },
+     {
+      "path": "/chest/privacy?q=paul.durand%40example.org",
+      "status": 200,
+      "bytes": 31887,
+      "ms": 20.8
+     },
+     {
+      "path": "/chest/forms/3/answers",
+      "status": 200,
+      "bytes": 60884,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/forms/3/answers/seed000000000014",
+      "status": 200,
+      "bytes": 42964,
+      "ms": 14
+     },
+     {
+      "path": "/chest/sent/seed000000000013",
+      "status": 200,
+      "bytes": 28130,
+      "ms": 11
+     },
+     {
+      "path": "/chest/f/v6m3tq8r",
+      "status": 200,
+      "bytes": 38694,
+      "ms": 11
+     },
+     {
+      "path": "/chest/forms/7/summary",
+      "status": 200,
+      "bytes": 44727,
+      "ms": 19
+     },
+     {
+      "path": "/chest/forms/4/answers",
+      "status": 200,
+      "bytes": 37057,
+      "ms": 19.7
+     }
+    ],
+    "load": {
+     "mean": 1.26,
+     "max": 1.36
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 232.8,
+     "pss": 143.8
+    },
+    "peakMiB": {
+     "rss": 268.9,
+     "pss": 181.6,
+     "cgroup": 141.9
+    },
+    "afterRequestsMiB": {
+     "rss": 268.9,
+     "pss": 181.6
+    },
+    "restMiB": {
+     "rss": 233.1,
+     "pss": 141,
+     "pssAnon": 98.9,
+     "pssFile": 42.1,
+     "cgroupAnon": 98.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 25.2
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.1,
+      "pssMiB": 115.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest/forms/1",
+      "status": 200,
+      "bytes": 82839,
+      "ms": 33.2
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 53367,
+      "ms": 86.4
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 45039,
+      "ms": 22.8
+     },
+     {
+      "path": "/k7m2fq9d",
+      "status": 200,
+      "bytes": 32271,
+      "ms": 47.3
+     },
+     {
+      "path": "/p4x8vn2c",
+      "status": 200,
+      "bytes": 35189,
+      "ms": 14.8
+     },
+     {
+      "path": "/chest/f/t9r3hw6b",
+      "status": 200,
+      "bytes": 37685,
+      "ms": 52.8
+     },
+     {
+      "path": "/chest/forms/1/answers",
+      "status": 200,
+      "bytes": 91938,
+      "ms": 32.3
+     },
+     {
+      "path": "/chest/forms/2/answers/seed00000000000s",
+      "status": 200,
+      "bytes": 43351,
+      "ms": 25.1
+     },
+     {
+      "path": "/chest/forms/1/summary",
+      "status": 200,
+      "bytes": 60227,
+      "ms": 21.7
+     },
+     {
+      "path": "/chest/forms/4/summary",
+      "status": 200,
+      "bytes": 52206,
+      "ms": 19.7
+     },
+     {
+      "path": "/chest/forms/1/settings",
+      "status": 200,
+      "bytes": 65488,
+      "ms": 30.6
+     },
+     {
+      "path": "/chest/forms/2/share",
+      "status": 200,
+      "bytes": 44388,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/forms/3",
+      "status": 200,
+      "bytes": 73302,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/privacy?q=paul.durand%40example.org",
+      "status": 200,
+      "bytes": 31887,
+      "ms": 25.7
+     },
+     {
+      "path": "/chest/forms/3/answers",
+      "status": 200,
+      "bytes": 60884,
+      "ms": 18
+     },
+     {
+      "path": "/chest/forms/3/answers/seed000000000014",
+      "status": 200,
+      "bytes": 42964,
+      "ms": 15.2
+     },
+     {
+      "path": "/chest/sent/seed000000000013",
+      "status": 200,
+      "bytes": 28130,
+      "ms": 12.2
+     },
+     {
+      "path": "/chest/f/v6m3tq8r",
+      "status": 200,
+      "bytes": 38694,
+      "ms": 30.4
+     },
+     {
+      "path": "/chest/forms/7/summary",
+      "status": 200,
+      "bytes": 44727,
+      "ms": 12.2
+     },
+     {
+      "path": "/chest/forms/4/answers",
+      "status": 200,
+      "bytes": 37057,
+      "ms": 22.9
+     }
+    ],
+    "load": {
+     "mean": 1.35,
+     "max": 1.38
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 234.5,
+    "min": 233.1,
+    "max": 236.7
+   },
+   "pss": {
+    "median": 149,
+    "min": 141,
+    "max": 151
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 267.9,
+    "min": 267.7,
+    "max": 271.8
+   },
+   "pss": {
+    "median": 178.7,
+    "min": 175.6,
+    "max": 182.9
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 167.9,
+    "min": 166,
+    "max": 169.9
+   },
+   "pss": {
+    "median": 122.6,
+    "min": 115.8,
+    "max": 123.3
+   }
+  }
+ }
+}
