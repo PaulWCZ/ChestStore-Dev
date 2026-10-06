@@ -5,7 +5,7 @@ import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, distanceTenths, id, ids, limits, memberId, paidByValues, spentOn, type PaidBy, type Status } from "../shared/model.ts";
 import { today } from "./today.ts";
-import { convert, isCurrency, parseAmount, parseRate } from "../shared/money.ts";
+import { amountRefusal, convert, isCurrency, parseAmount, parseRate } from "../shared/money.ts";
 import type { ReceiptFile } from "./receipts.ts";
 import { tripCents, type VehicleKind } from "../shared/scale.ts";
 import { allowanceCategory, approverOf, mileageCategory, scaleFor, settings, vehicleOf } from "./settings.ts";
@@ -187,9 +187,12 @@ export async function warnings(sql: Query, list: Expense[], options: { anyone?: 
     if (r?.card) found.push({ code: "card_own_money" });
     if ((e.status === "approved" || e.status === "paid") && e.decidedBy === e.owner && !e.imported) found.push({ code: "self_approved" });
     if (e.kind === "expense" && r?.guests && !e.alone && e.guests.members.length + e.guests.names.length === 0) found.push({ code: "no_guests" });
-    // A hotel's limit is per night.
-    const perUnit = e.nights ? Math.ceil(e.amount / e.nights) : e.amount;
-    if (r?.cap !== null && r?.cap !== undefined && e.currency === currency && perUnit > Number(r.cap)) found.push({ code: e.nights ? "over_cap_night" : "over_cap", cap: Number(r.cap) });
+    // A hotel's limit is per night. The limit is in the company's money: an
+    // expense in another one is compared by its amount in it (none without
+    // a rate: "no rate" says so already).
+    const inCompany = e.currency === currency ? e.amount : e.base !== null && e.baseCurrency === currency ? e.base : null;
+    const perUnit = inCompany === null ? null : e.nights ? Math.ceil(inCompany / e.nights) : inCompany;
+    if (r?.cap !== null && r?.cap !== undefined && perUnit !== null && perUnit > Number(r.cap)) found.push({ code: e.nights ? "over_cap_night" : "over_cap", cap: Number(r.cap) });
     if (found.length > 0) out.set(e.id, found);
   }
   return out;
@@ -263,11 +266,12 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
   const currency = input.currency === undefined || input.currency === "" ? company.currency : input.currency;
   if (!isCurrency(currency)) throw new AppError("currency_invalid");
   const amount = parseAmount(input.amount, currency);
-  if (amount === null || amount <= 0 || amount > limits.amount) throw new AppError("amount_invalid");
+  if (amount === null) throw new AppError(amountRefusal(input.amount, currency));
+  if (amount <= 0) throw new AppError("amount_invalid");
   let vat: number | null = null;
   if (input.vat !== undefined && input.vat !== null && input.vat !== "") {
     vat = parseAmount(input.vat, currency);
-    if (vat === null) throw new AppError("amount_invalid");
+    if (vat === null) throw new AppError(amountRefusal(input.vat, currency));
     if (vat > amount) throw new AppError("vat_too_high");
   }
   const day = spentOn(input.spentOn, today());
@@ -286,6 +290,9 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
   }
   const base = currency === company.currency ? amount : rate ? convert(amount, currency, rate.micro, company.currency) : null;
   const baseCurrency = base === null ? null : company.currency;
+  // The bound is in the company's money (1,000,000.00): ten million dong is
+  // €360. Without a rate yet, the amount alone (13 digits at most).
+  if ((base ?? 0) > limits.amount) throw new AppError("amount_invalid");
   const merchant = clean(input.merchant ?? "", limits.merchant, { optional: true });
   const note = clean(input.note ?? "", limits.note, { optional: true, multiline: true });
   const paidBy = input.paidBy ?? "me";

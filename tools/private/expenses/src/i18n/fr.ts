@@ -800,6 +800,7 @@ export const fr: Catalogue = {
     empty: "Ce champ ne peut pas être vide.",
     too_many: "Trop à la fois : {max} au plus.",
     amount_invalid: "Saisissez un montant, par exemple 12,50.",
+    amount_ambiguous: "Un millier, ou des décimales ? Écrivez 1234 pour un montant entier, ou 1,23 avec ses centimes.",
     rate_invalid: "Saisissez un taux, comme 1,1653.",
     date_invalid: "Saisissez une date valide.",
     date_future: "Cette date n’est pas encore arrivée.",

@@ -10,7 +10,7 @@ import { typeOf, upload } from "../components/upload.ts";
 import { format, numberFormat, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import type { ComposeData, Initial } from "../lib/compose.ts";
-import { convert, currencySign, formatMoney, inputAmount, parseAmount, parseRate, rateText, vatInside, vatRates } from "../shared/money.ts";
+import { ambiguousAmount, convert, currencySign, formatMoney, inputAmount, parseAmount, parseRate, rateText, vatInside, vatRates } from "../shared/money.ts";
 import { limits, receiptTypes } from "../shared/model.ts";
 import { tripCents } from "../shared/scale.ts";
 import { allowanceDetail, km } from "../shared/words.ts";
@@ -241,7 +241,7 @@ function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; initial:
     if (dates.problem) return;
     const form = new FormData(event.currentTarget);
     if (parsed === null || parsed <= 0) {
-      setError(t.errors.amount_invalid);
+      setError(ambiguousAmount(amount, currency) ? t.errors.amount_ambiguous : t.errors.amount_invalid);
       amountRef.current?.focus();
       return;
     }
@@ -268,7 +268,7 @@ function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; initial:
       <div className="field-row">
         <label htmlFor="amount">{t.form.amount}</label>
         <div className={`money-input${filled.amount}`}>
-          <input id="amount" ref={amountRef} name="amount" inputMode="decimal" autoComplete="off" placeholder={inputAmount(0, currency, locale)} value={amount} onChange={e => { setAmount(e.target.value); typed("amount"); }} aria-invalid={error === t.errors.amount_invalid} aria-describedby="amount-hint" />
+          <input id="amount" ref={amountRef} name="amount" inputMode="decimal" autoComplete="off" placeholder={inputAmount(0, currency, locale)} value={amount} onChange={e => { setAmount(e.target.value); typed("amount"); }} aria-invalid={error === t.errors.amount_invalid || error === t.errors.amount_ambiguous} aria-describedby="amount-hint" />
           <span className="unit" aria-hidden="true">{symbolOf(currency, locale)}</span>
         </div>
         <span id="amount-hint" className="hint">{converted ?? t.form.amountHint}</span>

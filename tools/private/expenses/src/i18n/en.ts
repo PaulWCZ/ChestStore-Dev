@@ -807,6 +807,7 @@ export const en = {
     empty: "This can’t be empty.",
     too_many: "Too many at once: {max} at most.",
     amount_invalid: "Enter an amount, like 12.50.",
+    amount_ambiguous: "A thousand, or decimals? Write 1234 for a whole amount, or 1.23 with its cents.",
     rate_invalid: "Enter a rate, like 1.1653.",
     date_invalid: "Enter a valid date.",
     date_future: "This date has not come yet.",

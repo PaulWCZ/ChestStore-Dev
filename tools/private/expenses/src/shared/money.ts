@@ -24,42 +24,70 @@ export function minorDigits(currency: string): number {
 }
 
 // parseAmount reads what a person types — "12,50", "12.5", "1 234,56",
-// "1,234.56", "1.234,56", "€ 42" — as minor units; null when it is not an
-// amount. A lone separator followed by exactly three digits is refused
-// ("1,234", "0,500", "12.345": thousands for one reader, decimals for
-// another), unless the currency itself has three decimals (TND: "1,234" is
-// 1.234) or none (JPY: "1,234" is 1234); grouped thousands with a decimal part ("1,234.56") or several
-// groups ("1,234,567") are unambiguous.
+// "1,234.56", "1.234,56", "1'234.50", "€ 42", "42 EUR" — as minor units of
+// the currency; null when it is not one amount, said exactly, never
+// guessed:
+// - only spaces (any: no-break, narrow), apostrophes (groups), a currency
+//   sign or the ISO code at either end may stand beside the digits; any
+//   other letter ("1O,50", "12x5", "1e3") or sign, a minus of any kind
+//   ("-5", "−12,50": an expense is never negative), is refused;
+// - groups are of three digits ("1,2.34" refused);
+// - a "." or "," followed by exactly three digits and nothing else
+//   ("1,234", "0,500", "12.345") is a thousand for one reader and a decimal
+//   for another: refused — also for a currency of three decimals (KWD
+//   "1,000"); only a currency without decimals (JPY) reads it as thousands.
+// The same rules as the package's field.money for a currency of two
+// decimals (test/money.test.ts holds them equal), plus the currency's own
+// number of decimals.
+const anySpace = /[\s\u00a0\u202f\u2009\u2007]+/gu;
 export function parseAmount(text: unknown, currency = defaultCurrency): number | null {
-  if (typeof text !== "string") return null;
-  let s = text.replace(/[\s  ']/gu, "").replace(/[^\d.,-]/gu, "");
-  if (s === "" || s.includes("-")) return null;
-  const lastComma = s.lastIndexOf(","), lastDot = s.lastIndexOf(".");
-  let decimal: string | null = null;
-  if (lastComma >= 0 && lastDot >= 0) decimal = lastComma > lastDot ? "," : ".";
-  else if (lastComma >= 0 || lastDot >= 0) {
-    const sep = lastComma >= 0 ? "," : ".";
-    const parts = s.split(sep);
-    const tail = parts.at(-1) ?? "";
-    if (parts.length === 2 && tail.length === 3) {
-      // Three decimals (TND): a decimal mark; none (JPY): thousands; two:
-      // which one was meant cannot be told.
-      const digits = minorDigits(currency);
-      if (digits === 2) return null;
-      decimal = digits === 3 ? sep : null;
-    } else decimal = parts.length === 2 ? sep : null;
-    if (parts.length > 2 && tail.length !== 3) return null;
+  if (typeof text !== "string" || text.length > 64) return null;
+  let s = text.replace(anySpace, " ").replace(/[’ʼ]/gu, "'").trim();
+  // A currency's sign or code, at the start or the end only.
+  s = s.replace(/^\p{Sc}\s?|\s?\p{Sc}$/u, "").trim();
+  const code = /^([A-Za-z]{3})\s?(?=\d)|(?<=\d)\s?([A-Za-z]{3})$/u.exec(s);
+  if (code) {
+    if (!isCurrency((code[1] ?? code[2] ?? "").toUpperCase())) return null;
+    s = s.replace(code[0], "").trim();
   }
-  const group = decimal === "," ? "." : decimal === "." ? "," : null;
-  if (group) s = s.split(group).join("");
-  else s = s.replace(/[.,]/gu, "");
-  const [whole = "", fraction = ""] = decimal ? s.split(decimal) : [s, ""];
-  if (!/^\d*$/u.test(whole) || !/^\d*$/u.test(fraction) || (whole === "" && fraction === "")) return null;
   const digits = minorDigits(currency);
-  if (fraction.length > digits) return null;
-  const value = Number(whole || "0") * 10 ** digits + Number((fraction + "0".repeat(digits)).slice(0, digits) || "0");
+  const decimals = digits > 0 ? `(?:([.,])(\\d{1,${digits}}))?` : "";
+  let whole: string, fraction = "";
+  // Grouped by spaces or apostrophes: never ambiguous.
+  let m = new RegExp(`^(\\d{1,3}(?:[ ']\\d{3})+)${decimals}$`, "u").exec(s);
+  if (m) {
+    whole = m[1]!.replace(/[ ']/gu, "");
+    fraction = m[3] ?? "";
+  } else if ((m = new RegExp(`^(\\d+)${decimals}$`, "u").exec(s))) {
+    whole = m[1]!;
+    fraction = m[3] ?? "";
+    // "1,234", "0,500": a thousand, or a decimal? (three decimals' currencies too)
+    if (fraction.length === 3) return null;
+  } else if ((m = /^(\d{1,3}(?:([.,])\d{3})+)(?:([.,])(\d+))?$/u.exec(s))) {
+    // Grouped by "." or ",": with a decimal part of the other mark
+    // ("1.234,56", "1,234.56"); without one, only for a currency without
+    // decimals ("1,234" yen; "1,234,567" yen).
+    const [, grouped = "", group = "", mark, part = ""] = m;
+    if (mark !== undefined ? mark === group || part.length > digits || /^0[.,]/u.test(s) : digits > 0) return null;
+    whole = grouped.replace(/[.,]/gu, "");
+    fraction = part;
+  } else return null;
+  if (whole.length > 13) return null;
+  const value = Number(whole) * 10 ** digits + Number((fraction + "0".repeat(digits)).slice(0, digits) || "0");
   return Number.isSafeInteger(value) ? value : null;
 }
+
+// ambiguousAmount says why parseAmount refused a text when it is the one
+// refusal that needs explaining: a lone "." or "," before three digits
+// ("1,234", "0,500"), a thousand for one reader and a decimal for another.
+export function ambiguousAmount(text: unknown, currency = defaultCurrency): boolean {
+  if (typeof text !== "string" || minorDigits(currency) === 0) return false;
+  const s = text.replace(anySpace, "").replace(/^\p{Sc}|\p{Sc}$/u, "").replace(/^[A-Za-z]{3}|[A-Za-z]{3}$/u, "");
+  return /^\d+[.,]\d{3}$/u.test(s) || /^\d{1,3}(?:([.,])\d{3})(?:\1\d{3})*$/u.test(s);
+}
+
+// The code an amount that is no amount is refused with.
+export const amountRefusal = (text: unknown, currency = defaultCurrency): "amount_ambiguous" | "amount_invalid" => (ambiguousAmount(text, currency) ? "amount_ambiguous" : "amount_invalid");
 
 // formatMoney writes minor units in the reader's language: "42,50 €",
 // "€42.50".
