@@ -1,10 +1,11 @@
-import { Island, type PageContext, type View, type VisitorContext } from "@argentic/chest-app";
+import { Island, notFound, type PageContext, type View, type VisitorContext } from "@argentic/chest-app";
 import { Body } from "../components/body.tsx";
 import { StateBadge } from "../components/badges.tsx";
 import { Clip } from "../components/icons.tsx";
 import { fileSize, format, formatDate, isLocale, localeOf, words } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
 import { people } from "../lib/people.ts";
+import { publicUploadsOn } from "../lib/attachments.ts";
 import { byLink, settings } from "../lib/tickets.ts";
 import { publicLook } from "../theme.ts";
 import { PublicShell } from "./public-shell.tsx";
@@ -17,30 +18,19 @@ import { PublicShell } from "./public-shell.tsx";
 // package logs the route's pattern), never sent as a referrer.
 export async function followUpPage({ locale: visitor, query, f }: PageContext<VisitorContext>, secret: string): Promise<View> {
   const sql = db();
-  const ticket = await byLink(sql, secret);
+  const found = await byLink(sql, secret);
+  // An unknown link is no page: 404, in the public frame, with the way to
+  // write a new request (src/layout.tsx).
+  if (!found) notFound();
+  const ticket = found!;
   const given = query("lang");
-  const locale = isLocale(given) ? given : isLocale(ticket?.language) ? ticket.language : localeOf(visitor);
+  const locale = isLocale(given) ? given : isLocale(ticket.language) ? ticket.language : localeOf(visitor);
   const t = words(locale);
-  const [s, look] = await Promise.all([settings(sql), publicLook()]);
+  const [s, look, filesOn] = await Promise.all([settings(sql), publicLook(), publicUploadsOn()]);
   const company = s.companyName || t.public.teamPlain;
   const embed = query("embed") === "1";
   const logo = look.source === "brand" ? look.logo ?? null : null;
   const back = `/t/${secret}${embed ? "?embed=1" : ""}`;
-  if (!ticket) {
-    return {
-      title: t.public.notFoundTitle,
-      locale,
-      body: (
-        <PublicShell company={company} logo={logo} locale={locale} back="/" t={t} embed={embed}>
-          <div className="stack">
-            <h1>{t.public.notFoundTitle}</h1>
-            <p className="muted">{t.public.notFoundBody}</p>
-            <div><a className="button" href="/">{t.public.newRequest}</a></div>
-          </div>
-        </PublicShell>
-      ),
-    };
-  }
   const who = await people(ticket.messages.filter(m => m.kind === "reply" && m.author).map(m => m.author!));
   const teamWord = s.companyName ? format(t.public.team, { company: s.companyName }) : t.public.teamPlain;
   const teamName = (author: string | null) => {
@@ -89,7 +79,7 @@ export async function followUpPage({ locale: visitor, query, f }: PageContext<Vi
         <section className="public-card" aria-labelledby="again">
           <h2 id="again">{t.public.reply}</h2>
           {ticket.status === "closed" && <p className="hint">{t.public.reopenHint}</p>}
-          <Island name="WriteAgain" props={{ secret, t: { public: t.public, errors: t.errors, files: t.kit.files } }} />
+          <Island name="WriteAgain" props={{ secret, filesOn, t: { public: t.public, errors: t.errors, files: t.kit.files } }} />
         </section>
       </PublicShell>
     ),

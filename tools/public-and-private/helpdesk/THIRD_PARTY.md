@@ -2,7 +2,7 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| `src/lib/zip.ts` (a ZIP of text files, stored) | the studio's Clients tool (`tools/private/crm/lib/zip.ts`), written for it — same author, MIT | MIT | `src/lib/zip.ts` |
+| `src/lib/zip.ts` (a ZIP of text files, deflated as it is written) | the studio's Clients tool (`tools/private/crm/lib/zip.ts`), written for it — same author, MIT; rewritten to stream with data descriptors and Node's zlib | MIT | `src/lib/zip.ts` |
 | Atkinson Hyperlegible (font) | [Braille Institute](https://www.brailleinstitute.org/freefont/), via `@fontsource/atkinson-hyperlegible` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-atkinson-hyperlegible.txt` |
 
 Ideas, no code: the shared-inbox folders and the collision warning

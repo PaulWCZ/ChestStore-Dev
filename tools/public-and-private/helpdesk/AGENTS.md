@@ -27,9 +27,9 @@ own:
 | `src/lib/tickets.ts` | The service: public form, follow-up link, email filing, bounces, inbox, answers, notes, assignment, priority, tags, merge, bulk, customer's address, rating, saved replies, settings, erasure, cleanup, export; "A colleague's own requests" (My requests) |
 | `src/lib/forms-in.ts`, `src/lib/incidents-in.ts`, `src/lib/mail-in.ts` | What Forms, Status and the mailbox send |
 | `src/lib/notices.ts` | Slack, Teams and web-address notices (`webhooks`) |
-| `src/lib/rules.ts`, `src/lib/views.ts`, `src/lib/reports.ts`, `src/lib/export.ts`, `src/lib/zip.ts` | Rules on arrival, saved views, reports, the ZIP export |
+| `src/lib/rules.ts`, `src/lib/views.ts`, `src/lib/reports.ts`, `src/lib/export.ts`, `src/lib/zip.ts` | Rules on arrival, saved views, reports, the ZIP export (streamed: `exportBatches`, deflated as it goes) |
 | `src/lib/attachments.ts` | Files on messages: grants (public: `files.publicUploadUrl`), claims, the nightly sweep |
-| `src/lib/form-token.ts`, `src/lib/public-origin.ts` | The form's signed "shown at" time; the public address (`chest.tool.publicUrl`) and the visitor's key (`visitors.address()`) |
+| `src/lib/public-origin.ts` | The public and team addresses (`chest.tool.publicUrl`, `teamUrl`; none outside a Chest) and the follow-up link |
 | `src/lib/ticket-events.ts`, `src/lib/tell.ts`, `src/lib/lifecycle.ts`, `src/lib/frame.ts` | Events for Goals; bell and tile; members leaving; the websites that may frame the form |
 | `test/` | `app.test.mjs` (the built server), `stack.test.ts` (the package's rules, words), the rules' own tests |
 
@@ -152,7 +152,12 @@ npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_
 - Identity from the package's `member` only; rights in `src/lib/access.ts`;
   words in every catalogue; islands and `src/components/` never import
   the SDK or `src/lib/` (`checkSources`).
-- **The visitor's address** only from `visitors.address()` — never
-  `X-Forwarded-For`.
+- **Public actions are bounded by the package** (`publicAction(…, { bound })`,
+  `<Honeypot />` in each public form): the visitor is the package's to
+  know (never `X-Forwarded-For`); what a follow-up link does is counted
+  per request (`tickets.linkGuard`, after the link is known, given back
+  if the call is refused). Tests send `{ chest_form: formToken() }`.
+- **Public downloads hold a slot** until their last byte has left
+  (`lib/downloads.ts`): two at once; HEAD takes none.
 - **No inline script or style**: no `style={}`, no `<style>`; the look is
   `/chest/look.css` and `/look.css`.

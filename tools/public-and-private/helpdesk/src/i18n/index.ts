@@ -1,4 +1,5 @@
 import { localeIn } from "@argentic/chest-app";
+import { fileSize as kitSize } from "@argentic/chest-ui/components/logic";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -50,4 +51,8 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
   return ranked.map(r => r.language).find(isLocale) ?? fallback;
 }
 
-export { fileSize, format, formatDate, intl, languageIn, languageNames, number, plural, relative } from "../lib/format.ts";
+export { format, formatDate, intl, languageIn, languageNames, number, plural, relative } from "../lib/format.ts";
+
+// A file's size as the file picker says it ("19 B", "340 KB", "1,4 Mo"):
+// one way on the form and in the thread.
+export const fileSize = (bytes: number, locale: string): string => kitSize(bytes, words(localeOf(locale)).kit.files);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
-import { check, issue } from "../src/lib/form-token.ts";
+import * as attachments from "../src/lib/attachments.ts";
 import * as mailer from "../src/lib/mailer.ts";
 import * as tell from "../src/lib/tell.ts";
 import * as tickets from "../src/lib/tickets.ts";
@@ -44,20 +44,27 @@ test("the public form opens a ticket; its link shows the thread without the team
   await assert.rejects(tickets.fromForm(sql, form({ message: "x".repeat(10001) })), refused("too_long"));
 });
 
-test("the form's guard: signed time, not too fast, a few per visitor an hour", async () => {
+test("a request's link is counted per hour and per use: a flood on one link never touches another, and the count frees itself", async () => {
   const { sql } = database;
-  const token = issue(Date.now() - 5000);
-  assert.equal(check(token), 0);
-  assert.throws(() => check(issue()), refused("too_fast"));
-  // A person who corrects a field and sends again at 2 s is not refused:
-  // the action waits the second left, in silence.
-  const wait = check(issue(Date.now() - 2000));
-  assert.ok(wait > 900 && wait <= 1000, String(wait));
-  assert.throws(() => check(token.replace(/.$/u, "x")), refused("invalid"));
-  assert.throws(() => check("123.abc"), refused("invalid"));
-  for (let i = 0; i < 5; i++) await tickets.guard(sql, "203.0.113.9");
-  await assert.rejects(tickets.guard(sql, "203.0.113.9"), refused("too_many"));
-  await tickets.guard(sql, "198.51.100.4");
+  const one = await tickets.fromForm(sql, form());
+  const two = await tickets.fromForm(sql, form({ email: "two@example.com" }));
+  const at = new Date("2026-10-06T10:15:00Z");
+  for (let i = 0; i < tickets.publicLimits.repliesPerLink; i++) await tickets.linkGuard(sql, one.id, "reply", at);
+  await assert.rejects(tickets.linkGuard(sql, one.id, "reply", at), refused("limit"));
+  await assert.rejects(tickets.linkGuard(sql, one.id, "reply", at), refused("limit"));
+  // A refusal is not counted: the next hour the link takes its twenty again.
+  // Another use of the same link, another link: their own counts.
+  await tickets.linkGuard(sql, one.id, "rating", at);
+  await tickets.linkGuard(sql, two.id, "reply", at);
+  const next = new Date("2026-10-06T11:00:00Z");
+  for (let i = 0; i < tickets.publicLimits.repliesPerLink; i++) await tickets.linkGuard(sql, one.id, "reply", next);
+  await assert.rejects(tickets.linkGuard(sql, one.id, "reply", next), refused("limit"));
+});
+
+test("a Chest that takes no visitors' files: the public pages know it before offering any, a grant says so plainly", async () => {
+  const { sql } = database;
+  assert.equal(await attachments.publicUploadsOn(), false);
+  await assert.rejects(attachments.visitorGrant(sql, {}, "image/png", 10), refused("files_off"));
 });
 
 test("replies go by email, threaded, in the customer's language; without mail, on the page only", async () => {

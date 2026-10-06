@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { crc32 as zlibCrc, inflateRawSync } from "node:zlib";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
 import { exportZip } from "../src/lib/export.ts";
+import { zipStream } from "../src/lib/zip.ts";
 import { defaultHours } from "../src/shared/hours.ts";
 import { catalogue } from "../src/i18n/index.ts";
 import { erase, leave } from "../src/lib/lifecycle.ts";
@@ -202,24 +204,69 @@ test("reports: requests and closings per week, the first answer in working hours
   assert.deepEqual(r.tags, [{ name: "Delivery", created: 1, open: 0 }]);
 });
 
+// Reads a ZIP the way an unzip tool does: the central directory, then each
+// entry's deflated data, checked against its CRC and size.
+function unzip(data: Buffer): Map<string, string> {
+  const end = data.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  assert.ok(end >= 0, "a ZIP");
+  const count = data.readUInt16LE(end + 10);
+  let at = data.readUInt32LE(end + 16);
+  const out = new Map<string, string>();
+  for (let i = 0; i < count; i++) {
+    assert.equal(data.readUInt32LE(at), 0x02014b50);
+    const [method, crc, packed, size, nameLength, local] = [data.readUInt16LE(at + 10), data.readUInt32LE(at + 16), data.readUInt32LE(at + 20), data.readUInt32LE(at + 24), data.readUInt16LE(at + 28), data.readUInt32LE(at + 42)];
+    const name = data.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+    assert.equal(data.readUInt32LE(local), 0x04034b50);
+    const start = local + 30 + data.readUInt16LE(local + 26) + data.readUInt16LE(local + 28);
+    assert.equal(method, 8, "deflated");
+    const bytes = inflateRawSync(data.subarray(start, start + packed));
+    assert.equal(bytes.length, size, name);
+    assert.equal(zlibCrc(bytes), crc, name);
+    assert.equal(data.readUInt32LE(start + packed), 0x08074b50, "a data descriptor");
+    out.set(name, bytes.toString("utf8"));
+    at += 46 + nameLength + data.readUInt16LE(at + 30) + data.readUInt16LE(at + 32);
+  }
+  return out;
+}
+
 test("export: every ticket and every message — notes too — in a ZIP of two spreadsheets and a JSON file", async () => {
   const { sql } = database;
   const t = await open({ subject: "Export me", message: "=HYPERLINK(\"x\")" });
   await tickets.note(sql, asMember(hugo), t.number, "Inside only");
   await tickets.reply(sql, asMember(hugo), t.number, "Hello, line one\nline two");
   await assert.rejects(exportZip(sql, asMember(lea), catalogue("en"), "en"), refused("forbidden"));
-  const data = Buffer.from(await exportZip(sql, asMember(hugo), catalogue("fr"), "fr"));
-  const text = data.toString("utf8");
-  assert.equal(data.readUInt32LE(0), 0x04034b50, "a ZIP");
-  for (const name of ["tickets.csv", "messages.csv", "tickets.json"]) assert.ok(text.includes(name), name);
-  assert.ok(text.includes("Numéro,Objet,Date,Type,De,Message,Fichiers"), "French headers");
+  const parts: Uint8Array[] = [];
+  for await (const part of await exportZip(sql, asMember(hugo), catalogue("fr"), "fr")) parts.push(part);
+  const files = unzip(Buffer.concat(parts));
+  assert.deepEqual([...files.keys()], ["tickets.csv", "messages.csv", "tickets.json"]);
+  const text = files.get("messages.csv")!;
+  assert.ok(text.startsWith("\ufeffNuméro,Objet,Date,Type,De,Message,Fichiers\r\n"), "French headers, once");
+  assert.equal(files.get("tickets.csv")!.split("\ufeff").length, 2, "one byte-order mark");
   assert.ok(text.includes("Note interne") && text.includes("Inside only") && text.includes("Hugo Bernard"), "notes and authors");
   assert.ok(text.includes("\"'=HYPERLINK(\"\"x\"\")\""), "formulas neutralised");
   assert.match(text, /\d{4}-\d{2}-\d{2} \d{2}:\d{2}/u, "local dates");
-  const json = JSON.parse(text.slice(text.indexOf("{\n  \"exportedAt\""), text.lastIndexOf("}") + 1).split("PK")[0]!) as { tickets: { subject: string; messages: { kind: string; body: string }[] }[] };
+  const json = JSON.parse(files.get("tickets.json")!) as { tickets: { subject: string; messages: { kind: string; body: string }[] }[] };
   const mine = json.tickets.find(x => x.subject === "Export me")!;
   assert.deepEqual(mine.messages.map(m => m.kind), ["customer", "note", "reply"]);
   await assert.rejects(exportZip(sql, asMember(nora), catalogue("en"), "en"), refused("forbidden"));
+});
+
+test("the ZIP is written as it goes: empty files, many pieces, and an error stops it instead of ending a short archive", async () => {
+  const many = function* () {
+    for (let i = 0; i < 2000; i++) yield `line ${i}, ${"é".repeat(i % 50)}\n`;
+  };
+  const parts: Uint8Array[] = [];
+  for await (const part of zipStream([{ name: "empty.txt", text: [] }, { name: "many.txt", text: many() }], new Date("2026-10-06T10:00:00Z"))) parts.push(part);
+  const files = unzip(Buffer.concat(parts));
+  assert.equal(files.get("empty.txt"), "");
+  assert.equal(files.get("many.txt"), [...many()].join(""));
+  const failing = async function* () {
+    yield "first rows\n";
+    throw new Error("the database went away");
+  };
+  await assert.rejects(async () => {
+    for await (const part of zipStream([{ name: "x.csv", text: failing() }])) parts.push(part);
+  }, /the database went away/u);
 });
 
 test("a website allowed in Settings may frame the form on the very next request: read from the database, never kept", async () => {

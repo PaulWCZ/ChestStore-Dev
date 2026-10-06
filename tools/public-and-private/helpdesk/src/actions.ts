@@ -5,12 +5,12 @@ import { action, after, fail, field, publicAction, redirect, type Field } from "
 import { isLocale } from "./i18n/index.ts";
 import { answering } from "./lib/access.ts";
 import { AppError } from "./lib/app-error.ts";
+import { clean, limits } from "./lib/model.ts";
 import * as attachments from "./lib/attachments.ts";
 import { db } from "./lib/db.ts";
-import { check } from "./lib/form-token.ts";
 import * as mailer from "./lib/mailer.ts";
 import * as notices from "./lib/notices.ts";
-import { publicOrigin, visitorKey } from "./lib/public-origin.ts";
+import { followUpLink } from "./lib/public-origin.ts";
 import * as rules from "./lib/rules.ts";
 import * as tell from "./lib/tell.ts";
 import { tellLinkedTools } from "./lib/ticket-events.ts";
@@ -139,12 +139,10 @@ export const actions = {
     return null;
   }),
   // A ticket for a customer who called or came by; says its follow-up link.
-  createTicket: action({ name: given, email: given, subject: given, message: given, language: given }, async (input, { member, request }) => {
+  createTicket: action({ name: given, email: given, subject: given, message: given, language: given }, async (input, { member }) => {
     const sql = db();
     const t = await tickets.fromTeam(sql, member, input);
-    const origin = publicOrigin(request.headers);
-    await tickets.rememberPublicOrigin(sql, origin);
-    const link = `${origin ?? ""}/t/${t.secret}`;
+    const link = followUpLink(t.secret);
     const s = await tickets.settings(sql);
     const sent = await mailer.confirm({ number: t.number, subject: input.subject.trim(), customerEmail: input.email.trim(), customerName: input.name.trim(), language: isLocale(input.language) ? input.language : "en" }, link, s.companyName);
     if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
@@ -249,38 +247,29 @@ export const actions = {
   }),
 
   // ---- The public part: anyone on the Internet may call these. They hold
-  // no member; they check the form's guard, bound everything, and never
-  // reveal anything but what the visitor's own link shows. ------------------
+  // no member and never reveal anything but what the visitor's own link
+  // shows. The package bounds each (publicAction's bound): the page's
+  // single-use form token, the field only robots fill (<Honeypot />), so
+  // many calls a day per visitor and for everyone, counted only once the
+  // call is valid (a refusal gives its count back). What a follow-up link
+  // does is counted per request too (tickets.linkGuard), once the link is
+  // known. ----------------------------------------------------------------
 
-  // The public actions guard themselves for now (tickets.guard: the
-  // tool's own counters; the signed form time): bound: false says so to
-  // checkSources. They move to the package's bound (a single-use form
-  // token, counted only once valid, per visitor by address or cookie)
-  // in Support's next step.
-  //
-  // The contact form: a field people never see (website: only robots fill
-  // it), the signed time the form was shown (a form sent faster than a
-  // person types is refused, or held a moment), so many requests an hour
-  // per visitor and in all. Sent, the request's follow-up page opens (its
-  // address is the secret, shown once); a request sent twice is the same
-  // ticket, and the team is not told twice.
-  sendRequest: publicAction({ name: given, email: given, subject: given, message: given, started: given, lang: given, embed: given, website: given, files: any }, async (input, { request }) => {
-    if (input.website !== "") fail("invalid");
-    const wait = check(input.started);
-    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+  // The contact form. A form sent sooner than a person fills one waits the
+  // seconds left (formSeconds). Sent, the request's follow-up page opens
+  // (its address is the secret, shown once); a request sent twice is the
+  // same ticket, and the team is not told twice.
+  sendRequest: publicAction({ name: given, email: given, subject: given, message: given, lang: given, embed: given, files: any }, async input => {
     const sql = db();
-    await tickets.guard(sql, visitorKey(request.headers));
     // The language the visitor read the form in.
     const language = isLocale(input.lang) ? input.lang : "en";
     const embed = input.embed === "1" ? "&embed=1" : "";
     const t = await tickets.fromForm(sql, { name: input.name.slice(0, 12000), email: input.email.slice(0, 12000), subject: input.subject.slice(0, 12000), message: input.message.slice(0, 12000), language }, visitorFiles(input.files));
-    const origin = publicOrigin(request.headers);
-    await tickets.rememberPublicOrigin(sql, origin);
     // Sent twice: the team is not told twice, the customer not emailed twice.
     if (t.repeated) redirect(`/t/${t.secret}?new=1&again=1${embed}`);
     const s = await tickets.settings(sql);
     const ticket = { number: t.number, subject: input.subject.trim(), customerEmail: input.email.trim(), customerName: input.name.trim(), language };
-    const sent = await mailer.confirm(ticket, `${origin ?? ""}/t/${t.secret}`, s.companyName);
+    const sent = await mailer.confirm(ticket, followUpLink(t.secret), s.companyName);
     if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
     after("telling", async () => {
       await tell.newTicket({ id: t.id, number: t.number, subject: ticket.subject, customerName: ticket.customerName, customerEmail: ticket.customerEmail }, input.message, t.assignee);
@@ -288,12 +277,20 @@ export const actions = {
       await notices.about(sql, "new", t.id, `new:${t.id}`);
     });
     redirect(`/t/${t.secret}?new=1${sent.delivery === "email" ? "&mailed=1" : ""}${embed}`);
-  }, { bound: false }),
-  // Writing again from the follow-up link (it reopens a closed request).
-  writeAgain: publicAction({ secret: given, message: given, files: any }, async ({ secret, message, files: list }, { request }) => {
+  }, { bound: { perVisitor: tickets.publicLimits.requestsPerVisitor, perDay: tickets.publicLimits.requestsPerDay, formSeconds: tickets.publicLimits.formSeconds } }),
+  // Writing again from the follow-up link (it reopens a closed request):
+  // the link known and the words checked first, then counted for that
+  // request.
+  writeAgain: publicAction({ secret: given, message: given, files: any }, async ({ secret, message, files: list }) => {
     const sql = db();
-    await tickets.guard(sql, visitorKey(request.headers));
-    const t = await tickets.customerReply(sql, secret, message, visitorFiles(list));
+    const known = await tickets.byLink(sql, secret);
+    if (!known) fail("not_found");
+    clean(message, limits.publicBody, { multiline: true });
+    const counted = await tickets.linkGuard(sql, known!.id, "reply");
+    const t = await tickets.customerReply(sql, secret, message, visitorFiles(list)).catch(async (error: unknown) => {
+      await counted.release();
+      throw error;
+    });
     after("telling", async () => {
       await tell.customerWrote(t, message);
       await tell.refreshBadges(sql);
@@ -302,21 +299,25 @@ export const actions = {
       await tellLinkedTools(sql);
     });
     return { sent: true };
-  }, { bound: false }),
+  }, { bound: { perVisitor: tickets.publicLimits.followPerVisitor, perDay: tickets.publicLimits.followPerDay } }),
   // The customer's one click on a closed request ("did we solve it?").
-  // Counted with the files: a few clicks never cost a visitor a request.
-  rate: publicAction({ secret: given, value: given }, async ({ secret, value }, { request }) => {
+  rate: publicAction({ secret: given, value: given }, async ({ secret, value }) => {
     const sql = db();
-    await tickets.guard(sql, visitorKey(request.headers), "file");
-    const t = await tickets.rate(sql, secret, value);
+    const known = await tickets.byLink(sql, secret);
+    if (!known) fail("not_found");
+    const counted = await tickets.linkGuard(sql, known!.id, "rating");
+    const t = await tickets.rate(sql, secret, value).catch(async (error: unknown) => {
+      await counted.release();
+      throw error;
+    });
     after("telling", () => tell.rated(t, value as "good" | "bad"));
     return null;
-  }, { bound: false }),
-  // One file from a visitor, for the form they were shown (its signed
-  // time) or for their own request (its link) — nobody else. What comes
-  // back from the Chest is a claim only they hold.
-  visitorUpload: publicAction({ started: given, secret: given, type: given, size: field.int({ min: 0, max: Number.MAX_SAFE_INTEGER }) }, async ({ started, secret, type, size }, { request }) => {
-    const up = await attachments.visitorGrant(db(), secret ? { secret } : { started }, visitorKey(request.headers), type, size);
+  }, { bound: { perVisitor: tickets.publicLimits.followPerVisitor, perDay: tickets.publicLimits.followPerDay } }),
+  // One file from a visitor, for the form (open) or for their own request
+  // (its link) — nobody else. What comes back from the Chest is a claim
+  // only they hold.
+  visitorUpload: publicAction({ secret: given, type: given, size: field.int({ min: 0, max: Number.MAX_SAFE_INTEGER }) }, async ({ secret, type, size }) => {
+    const up = await attachments.visitorGrant(db(), secret ? { secret } : {}, type, size);
     return { url: up.url };
-  }, { bound: false }),
+  }, { bound: { perVisitor: tickets.publicLimits.filesPerVisitor, perDay: tickets.publicLimits.filesPerDay } }),
 };

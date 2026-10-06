@@ -93,8 +93,8 @@ async function refreshSearch(sql: Query, ticketId: string): Promise<void> {
 // frameOrigins: the company's websites that may show the form in a frame.
 // helpUrl: the company's help centre (the Wiki's public pages, or any),
 // offered above the form.
-export type Settings = { companyName: string; formOpen: boolean; intros: Record<string, string>; retentionMonths: number; lateHours: number; publicOrigin: string | null; hours: Hours; frameOrigins: string[]; helpUrl: string };
-const defaults: Settings = { companyName: "", formOpen: true, intros: {}, retentionMonths: 24, lateHours: defaultLateHours, publicOrigin: null, hours: defaultHours, frameOrigins: [], helpUrl: "" };
+export type Settings = { companyName: string; formOpen: boolean; intros: Record<string, string>; retentionMonths: number; lateHours: number; hours: Hours; frameOrigins: string[]; helpUrl: string };
+const defaults: Settings = { companyName: "", formOpen: true, intros: {}, retentionMonths: 24, lateHours: defaultLateHours, hours: defaultHours, frameOrigins: [], helpUrl: "" };
 
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
@@ -110,7 +110,6 @@ export async function settings(sql: Query): Promise<Settings> {
     intros,
     retentionMonths: typeof found["retention_months"] === "number" ? found["retention_months"] : defaults.retentionMonths,
     lateHours: typeof found["late_hours"] === "number" ? found["late_hours"] : defaults.lateHours,
-    publicOrigin: typeof found["public_origin"] === "string" ? found["public_origin"] : null,
     hours: found["hours"] === undefined ? defaults.hours : readHours(found["hours"]),
     frameOrigins: Array.isArray(found["frame_origins"]) ? found["frame_origins"].filter((o): o is string => typeof o === "string" && isFrameOrigin(o)) : [],
     helpUrl: typeof found["help_url"] === "string" ? found["help_url"] : "",
@@ -174,14 +173,6 @@ export async function saveSettings(sql: Sql, actor: Member | null, input: Settin
   }
 }
 
-// The public host's address, as last seen on a request (the Chest does not
-// give it to the tool yet: see the SDK report). Used in emails.
-export async function rememberPublicOrigin(sql: Query, origin: string | null): Promise<void> {
-  if (!origin || !/^https?:\/\/[A-Za-z0-9.:-]{1,260}$/u.test(origin)) return;
-  const current = await settings(sql);
-  if (current.publicOrigin !== origin) await setSetting(sql, "public_origin", origin);
-}
-
 // ---- Creating tickets ------------------------------------------------------
 
 async function insertTicket(sql: Query, input: { subject: string; email: string; name: string; channel: Ticket["channel"]; language: string; status?: Status; requester?: string | null }): Promise<{ id: string; number: number; secret: string }> {
@@ -240,28 +231,42 @@ async function withFiles<T>(take: Take | undefined, step: (stored: Stored[]) => 
   }
 }
 
-// The public form's guard: 5 requests an hour from one address (a hash of
-// it), 100 an hour from everyone; a honeypot field; a form sent faster than
-// a person can type is refused (under 1.5 s) or held until 3 s have passed
-// (lib/form-token.ts). Files have their own counters: 20 an hour
-// from one address, 300 from everyone (the Chest adds its own, per
-// minute).
-export const formLimits = { perVisitorHour: 5, perHour: 100, minimumSeconds: 3, refuseSeconds: 1.5, filesPerVisitorHour: 20, filesPerHour: 300 } as const;
+// The public part's bounds. Every public action is bounded by the
+// package (publicAction's bound, src/actions.ts): a single-use form token,
+// so many calls a day per visitor (the address the Chest's front gives,
+// else the browser's cookie) and for everyone, counted only once the call
+// is valid. On top of it, what a follow-up link may do — whoever holds the
+// link, from however many browsers: so many an hour per request, counted
+// once the link is known (linkGuard) — so a link that leaks cannot flood
+// one ticket, and a stranger's junk never spends a real customer's budget.
+export const publicLimits = {
+  // The contact form, a day (package).
+  requestsPerVisitor: 10, requestsPerDay: 300, formSeconds: 3,
+  // Writing again, rating, files (package), a day.
+  followPerVisitor: 60, followPerDay: 1000,
+  filesPerVisitor: 40, filesPerDay: 600,
+  // Per request (its link), an hour.
+  repliesPerLink: 20, ratingsPerLink: 20, filesPerLink: 40, downloadsPerLink: 60,
+} as const;
+export type LinkUse = "reply" | "rating" | "file" | "download";
+const perLink: Record<LinkUse, number> = { reply: publicLimits.repliesPerLink, rating: publicLimits.ratingsPerLink, file: publicLimits.filesPerLink, download: publicLimits.downloadsPerLink };
 
-export async function guard(sql: Query, visitor: string, what: "form" | "file" = "form"): Promise<void> {
-  const hour = new Date(Math.floor(Date.now() / 3600000) * 3600000);
-  const prefix = what === "form" ? "v:" : "f:";
-  const everyone = what === "form" ? "all" : "files";
-  const key = prefix + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
-  const counts = await sql<{ key: string; count: number }[]>`
-    insert into form_counts (key, hour, count) values (${key}, ${hour}, 1), (${everyone}, ${hour}, 1)
+// linkGuard counts one use of a request's link this hour; past its bound,
+// "limit" (and the count is not kept).
+export async function linkGuard(sql: Query, ticketId: string, use: LinkUse, now = new Date()): Promise<{ release(): Promise<void> }> {
+  const hour = new Date(Math.floor(now.getTime() / 3600000) * 3600000);
+  const key = `t:${use}:${ticketId}`;
+  const [row] = await sql<{ count: number }[]>`
+    insert into form_counts (key, hour, count) values (${key}, ${hour}, 1)
     on conflict (key, hour) do update set count = form_counts.count + 1
-    returning key, count`;
-  const mine = counts.find(c => c.key === key)?.count ?? 0;
-  const all = counts.find(c => c.key === everyone)?.count ?? 0;
-  const [perVisitor, perHour] = what === "form" ? [formLimits.perVisitorHour, formLimits.perHour] : [formLimits.filesPerVisitorHour, formLimits.filesPerHour];
-  if (mine > perVisitor || all > perHour) throw new AppError("too_many");
-  await sql`delete from form_counts where hour < ${new Date(hour.getTime() - 86400000)}`;
+    returning count`;
+  if ((row?.count ?? 0) > perLink[use]) {
+    await sql`update form_counts set count = count - 1 where key = ${key} and hour = ${hour}`;
+    throw new AppError("limit");
+  }
+  if (Math.random() < 0.05) await sql`delete from form_counts where hour < ${new Date(hour.getTime() - 86400000)}`;
+  // Given back when what it counted is refused after all.
+  return { release: async () => void (await sql`update form_counts set count = greatest(count - 1, 0) where key = ${key} and hour = ${hour}`) };
 }
 
 export type PublicInput = { name: unknown; email: unknown; subject: unknown; message: unknown; language: string };
@@ -560,18 +565,37 @@ async function byNumber(sql: Query, number: unknown): Promise<Ticket> {
 }
 
 async function messagesOf(sql: Query, ticketId: string, team: boolean): Promise<Message[]> {
-  const rows = await sql<{ id: string; kind: Message["kind"]; author: string | null; body: string; created_at: Date; delivery: Message["delivery"]; email_id: string | null; mail_from: string | null; html: string | null; original: string | null; dropped: { name: string; reason: string }[] | null; auto: boolean; bounce: Bounce | null }[]>`
-    select id, kind, author, body, created_at, delivery, email_id, mail_from, html, original, dropped, auto, bounce from messages
-    where ticket_id = ${ticketId} ${team ? sql`` : sql`and kind in ${sql(publicKinds as unknown as string[])} and not auto`}
-    order by created_at, id`;
+  return (await messagesOfMany(sql, [ticketId], team)).get(ticketId) ?? [];
+}
+
+// messagesOfMany reads the messages of several tickets in two queries (the
+// messages, then their files' names), grouped by ticket. The original email
+// is only said to exist (never read here); html is left out when not needed.
+async function messagesOfMany(sql: Query, ticketIds: string[], team: boolean, html = team): Promise<Map<string, Message[]>> {
+  const out = new Map<string, Message[]>(ticketIds.map(id => [id, []]));
+  if (ticketIds.length === 0) return out;
+  const rows = await sql<{ id: string; ticket_id: string; kind: Message["kind"]; author: string | null; body: string; created_at: Date; delivery: Message["delivery"]; email_id: string | null; mail_from: string | null; html: string | null; has_original: boolean; dropped: { name: string; reason: string }[] | null; auto: boolean; bounce: Bounce | null }[]>`
+    select id, ticket_id, kind, author, body, created_at, delivery, email_id, mail_from, ${html ? sql`html` : sql`null::text as html`}, original is not null as has_original, dropped, auto, bounce from messages
+    where ticket_id in ${sql(ticketIds)} ${team ? sql`` : sql`and kind in ${sql(publicKinds as unknown as string[])} and not auto`}
+    order by ticket_id, created_at, id`;
   const ids = rows.map(r => String(r.id));
-  const files = ids.length ? await sql<{ id: string; message_id: string; file_name: string; type: string; size: string }[]>`select id, message_id, file_name, type, size from attachments where message_id in ${sql(ids)} order by id` : [];
-  return rows.map(r => ({
-    id: String(r.id), kind: r.kind, author: r.author, body: r.body, at: r.created_at.toISOString(), delivery: r.delivery, emailId: r.email_id,
-    attachments: files.filter(f => String(f.message_id) === String(r.id)).map(f => ({ id: String(f.id), fileName: f.file_name, type: f.type, size: Number(f.size) })),
-    // The customer's page never learns more than the words and the files.
-    mailFrom: team ? r.mail_from : null, html: team ? r.html : null, original: team && r.original !== null, dropped: team ? r.dropped ?? [] : [], auto: r.auto, bounce: team ? r.bounce : null,
-  }));
+  const files = new Map<string, Message["attachments"]>();
+  if (ids.length) {
+    for (const f of await sql<{ id: string; message_id: string; file_name: string; type: string; size: string }[]>`select id, message_id, file_name, type, size from attachments where message_id in ${sql(ids)} order by id`) {
+      const list = files.get(String(f.message_id)) ?? [];
+      list.push({ id: String(f.id), fileName: f.file_name, type: f.type, size: Number(f.size) });
+      files.set(String(f.message_id), list);
+    }
+  }
+  for (const r of rows) {
+    out.get(String(r.ticket_id))?.push({
+      id: String(r.id), kind: r.kind, author: r.author, body: r.body, at: r.created_at.toISOString(), delivery: r.delivery, emailId: r.email_id,
+      attachments: files.get(String(r.id)) ?? [],
+      // The customer's page never learns more than the words and the files.
+      mailFrom: team ? r.mail_from : null, html: team ? r.html : null, original: team && r.has_original, dropped: team ? r.dropped ?? [] : [], auto: r.auto, bounce: team ? r.bounce : null,
+    });
+  }
+  return out;
 }
 
 export type TicketDetail = Ticket & { messages: Message[]; others: { number: number; subject: string; status: Status; updatedAt: string }[]; viewing: string[]; tags: Tag[] };
@@ -944,7 +968,7 @@ export async function rate(sql: Sql, secret: unknown, value: unknown): Promise<T
 
 // linkFile finds a file a follow-up link may open: on that ticket, in a
 // message the customer sees (never a note's). Null otherwise.
-export async function linkFile(sql: Query, secret: unknown, fileId: unknown): Promise<{ object: string; fileName: string; type: string } | null> {
+export async function linkFile(sql: Query, secret: unknown, fileId: unknown): Promise<{ object: string; fileName: string; type: string; size: number; ticketId: string } | null> {
   const ticket = await linked(sql, secret);
   if (!ticket) return null;
   let key: string;
@@ -953,11 +977,11 @@ export async function linkFile(sql: Query, secret: unknown, fileId: unknown): Pr
   } catch {
     return null;
   }
-  const [row] = await sql<{ object: string; file_name: string; type: string }[]>`
-    select a.object, a.file_name, a.type from attachments a
+  const [row] = await sql<{ object: string; file_name: string; type: string; size: string }[]>`
+    select a.object, a.file_name, a.type, a.size from attachments a
     join messages m on m.id = a.message_id join tickets t on t.id = m.ticket_id
     where a.id = ${key} and t.id = ${ticket.id} and m.kind in ('customer', 'reply') and not m.auto`;
-  return row ? { object: row.object, fileName: row.file_name, type: row.type } : null;
+  return row ? { object: row.object, fileName: row.file_name, type: row.type, size: Number(row.size), ticketId: String(ticket.id) } : null;
 }
 
 // ---- A colleague's own requests ("My requests") -----------------------------
@@ -1128,14 +1152,24 @@ export async function waitingCounts(sql: Query, people: string[]): Promise<Map<s
   return counts;
 }
 
-// exportAll reads everything the tool holds about its tickets, for the
-// export (lib/export.ts): every ticket (spam too), every message — the
-// customer's, the replies, the notes, the events — with its files' names.
-export type ExportTicket = Ticket & { tags: string[]; closedAt: string | null; ratedAt: string | null; messages: Message[] };
-export async function exportAll(sql: Sql, actor: Member | null): Promise<ExportTicket[]> {
+// exportBatches reads everything the tool holds about its tickets, for the
+// export (lib/export.ts): every ticket (spam too), in number order, a batch
+// at a time (keyset paging: memory stays flat however big the desk), with
+// every message — the customer's, the replies, the notes, the events — and
+// its files' names when asked. Three queries a batch, never one per ticket.
+export type ExportTicket = Ticket & { tags: string[]; closedAt: string | null; ratedAt: string | null; said: number; messages: Message[] };
+export async function* exportBatches(sql: Sql, actor: Member | null, withMessages: boolean, size = 200): AsyncGenerator<ExportTicket[]> {
   if (!can(actor, "export")) throw new AppError("forbidden");
-  const rows = await sql<(TicketDb & { tags: Tag[]; closed_at: Date | null; rated_at: Date | null })[]>`select ${columns(sql)}, ${tagsOf(sql)} as tags, t.closed_at, t.rated_at from tickets t order by number`;
-  const out: ExportTicket[] = [];
-  for (const r of rows) out.push({ ...toTicket(r), tags: (r.tags ?? []).map(g => shownTag(g.name, readerWords(actor))), closedAt: r.closed_at?.toISOString() ?? null, ratedAt: r.rated_at?.toISOString() ?? null, messages: await messagesOf(sql, String(r.id), true) });
-  return out;
+  let after = 0;
+  for (;;) {
+    const rows = await sql<(TicketDb & { tags: Tag[]; closed_at: Date | null; rated_at: Date | null; said: number })[]>`
+      select ${columns(sql)}, ${tagsOf(sql)} as tags, t.closed_at, t.rated_at,
+        (select count(*)::int from messages m where m.ticket_id = t.id and m.kind <> 'event') as said
+      from tickets t where t.number > ${after} order by t.number limit ${size}`;
+    if (rows.length === 0) return;
+    const messages = withMessages ? await messagesOfMany(sql, rows.map(r => String(r.id)), true, false) : new Map<string, Message[]>();
+    yield rows.map(r => ({ ...toTicket(r), tags: (r.tags ?? []).map(g => shownTag(g.name, readerWords(actor))), closedAt: r.closed_at?.toISOString() ?? null, ratedAt: r.rated_at?.toISOString() ?? null, said: r.said, messages: messages.get(String(r.id)) ?? [] }));
+    if (rows.length < size) return;
+    after = rows.at(-1)!.number;
+  }
 }

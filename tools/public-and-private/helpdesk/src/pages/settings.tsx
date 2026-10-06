@@ -19,7 +19,7 @@ import { erasures, savedReplies, settings, tags } from "../lib/tickets.ts";
 // websites that may show the form, tags, saved replies, export, erasing a
 // customer's data. Each box saves itself (an island each); those who may
 // not change a box read it.
-export async function settingsPage({ sql, member, lang: locale, t, f, request }: TeamContext): Promise<View> {
+export async function settingsPage({ sql, member, lang: locale, t, f }: TeamContext): Promise<View> {
   const canSettings = can(member, "settings");
   const [s, replies, address, tagList, rules, team, erased] = await Promise.all([
     settings(sql), savedReplies(sql, member), supportAddress(), tags(sql, member), listRules(sql, member), answerers(),
@@ -29,7 +29,7 @@ export async function settingsPage({ sql, member, lang: locale, t, f, request }:
   const notices = canSettings ? await noticeTargets(sql, member) : null;
   const who = await people([...team, ...rules.map(r => r.assignee).filter((a): a is string => !!a), ...erased.map(e => e.by)]);
   const name = (id: string) => (id === "erased" ? t.people.erased : nameOf(who.get(id), locale));
-  const origin = publicOrigin(request.headers) ?? "/";
+  const origin = publicOrigin() ?? "/";
   const today = chest.today();
   const st = t.settings;
   return {

@@ -44,11 +44,16 @@ Intercom): there is no chat bubble.
   English or French with a visible switch — the visitor's choice, else
   their browser's language, else the Chest's own language —, and the
   company's sentence in that language (French falls back on English). Protected without a
-  captcha: a hidden field, 5 requests an hour per visitor and 100 in all,
-  and a signed "shown at" time — a form sent in under 1.5 s is refused;
-  between 1.5 and 3 s the server waits the rest in silence. The time is
-  the page's first, kept across corrections: a person who fixes a field
-  and sends again is never taken for a robot.
+  captcha, by the package's `bound` (publicAction): a field only robots
+  fill (answered "done", nothing kept); a single-use form token the page
+  carries (two hours; a form sent sooner than 3 s after the page showed
+  waits the rest in silence, never refused as "too fast"); then, once the
+  call is valid — a refused one is not counted — 10 requests a day per
+  visitor and 300 a day in all. A visitor is the address the Chest's
+  front saw when it names one, else the browser's own cookie
+  (`chest_v`): a real 0.4 Chest names none, and junk (bad tokens, the
+  robots' field, refused words) spends nothing, so a flood of it never
+  blocks a real customer.
 - **In the company's website**: an administrator lists its addresses
   (https, ten at most); the form and its follow-up pages may then be
   framed there, and nowhere else (`frame-ancestors`; the team's pages
@@ -63,11 +68,22 @@ Intercom): there is no chat bubble.
   straight to the Chest; what comes back is a one-time claim only that
   visitor holds, so nobody can attach (or open) someone else's file.
   Files never sent with a message are deleted by the Chest after a day.
+  A Chest that takes no visitors' files (the proposal below not granted):
+  the page asks it before offering any, and says "This form takes no
+  files: describe it in words." instead of a picker.
 - After sending, a **follow-up page** whose address is a secret link (192
   bits; only its hash is stored): the answers, the state, and a box to write
   again (which reopens the request). The link is also emailed when the Chest
-  can send email. The files of the request (theirs, and those the team
-  sent with its answers — never a note's) download from there. It speaks
+  can send email. The thank-you is said once (the address loses `?new=1`
+  in the browser). A link that does not work is a 404 that says so, with
+  the way to write a new request. Each link writes again 20 times an hour,
+  rates 20 times, adds 40 files and downloads 60 — whoever holds it,
+  counted once the link is known; another request's link is its own
+  count. The files of the request (theirs, and those the team
+  sent with its answers — never a note's) download from there, two at a
+  time in the whole tool (a file is read whole: 10 MB at most; the others
+  are told to come back in 5 seconds, `503` + `Retry-After`); a download
+  that has not ended after two minutes is cut. It speaks
   the request's language (the switch still works). Once closed: "Did we
   solve your problem?" — *Yes, thank you* / *Not really*, one click, the
   agent told.
@@ -145,7 +161,13 @@ Intercom): there is no chat bubble.
   erased how many tickets, and when, is listed — never whose), and
   **export everything** (a ZIP: `tickets.csv`, `messages.csv` — every
   message, notes included, who wrote it, its files' names, dates on the
-  Chest's clock — and `tickets.json`).
+  Chest's clock — and `tickets.json`). The ZIP is written as it is sent:
+  tickets read 200 at a time (three queries a batch), each file deflated
+  as it goes, so memory stays flat whatever the size of the desk (5,000
+  tickets and 20,000 messages: 72 MB of text, peak 160 MiB for the whole
+  process, from 117 at rest). Each file reads the tickets anew: a ticket
+  that arrives during the export may be in one file and not the one
+  before.
 - **The bell**: a new request tells everyone who answers; a customer's new
   message tells the ticket's agent; giving a ticket to someone tells them —
   each in their own language. The tile's number: open tickets nobody took
@@ -408,16 +430,18 @@ follows is not in it yet.
   replacement for email.
 - **Links in emails and notices** use `chest.tool.publicUrl` (0.4.1: the
   company's own domain once it connected one — `support.acme.com` — else
-  the public host) and `chest.tool.teamUrl`; outside a Chest, the last
-  public address seen. The day and the working hours are the Chest's time
+  the public host) and `chest.tool.teamUrl`, and nothing else: outside a
+  Chest (tests, a build) there is no public address, and nothing is
+  remembered from a request's `Host`. The day and the working hours are the Chest's time
   zone; email tickets and the public pages' last fallback take the
   Chest's language.
 - **Public uploads** — **Proposal (studio)** (`chest.proposals.json`:
-  `"files": {"publicUploads": true}`): `files.publicUploadUrl` (the
-  address is on the public host), `files.claim` and
-  `expiresUnclaimedAfter` (a day). Without it the form works as before;
-  *Add a file* answers "Files cannot be added right now. Describe it in
-  words, or try again later." A visitor's file reaches them back through
+  `"files": {"publicUploads": true}`): `files.publicUploadUrl` (a path,
+  `/_chest/upload/<token>`, that the browser sends to the address it is
+  on — the company's own domain too), `files.claim` and
+  `expiresUnclaimedAfter` (a day). Without it the form works as before,
+  without files: the public pages ask the Chest once (kept ten minutes)
+  and say plainly that files are not taken. A visitor's file reaches them back through
   the tool (`/t/<secret>/files/<id>`, streamed with `files.get`): the
   Chest's signed links are for members' browsers; a signed link on the
   public host would spare the tool the bytes.
@@ -433,11 +457,15 @@ follows is not in it yet.
   on a Chest today**, and Settings says so. It needs the Chest to let an
   administrator allow the company's websites (SDK report, "Framing public
   pages").
-- **The visitor's address** for the form's counters: `visitors.address()`
-  (Proposal (studio): `Chest-Visitor-Address`, set by the Chest's front),
+- **The visitor's address** for the public counters: the package reads
+  `Chest-Visitor-Address` (Proposal (studio), set by the Chest's front),
   never `X-Forwarded-For` (the Chest adds none: it would be whatever the
-  visitor wrote). Without it every visitor counts together: 5 requests an
-  hour per visitor, 100 an hour in all.
+  visitor wrote). Without it — a real 0.4 Chest — a visitor is the
+  browser's cookie, and a robot that drops cookies counts only against
+  the day's total (300 requests): enough to close the form to everyone
+  for the day if it also fetches a fresh token each time and writes
+  valid requests. The address would let the Chest's front count it
+  alone.
 
 - **Events between tools** — **Proposal (studio)**: `forms.request` from
   Forms, `status.incident` from Status (above); `emits`

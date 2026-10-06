@@ -106,7 +106,7 @@ routes.get("/chest/export", c => {
 // follow-up page (its address is the secret), the request's files.
 routes.get("/", publicPage(contactPage));
 routes.get("/t/:secret", publicPage(ctx => followUpPage(ctx, ctx.param("secret"))));
-routes.get("/t/:secret/files/:id", c => publicFile(c.req.param("secret"), c.req.param("id")));
+routes.get("/t/:secret/files/:id", c => publicFile(c.req.param("secret"), c.req.param("id"), c.req.method === "HEAD"));
 
 // ---- What the Chest sends by itself, signed (src/lib/deliveries.ts).
 routes.post("/chest-events", c => chestEvents(c.req.raw));

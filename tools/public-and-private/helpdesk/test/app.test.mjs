@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
+import { formToken } from "@argentic/chest-app";
 import { atLeast, checkPage } from "@argentic/chest-app/testing";
 import { testDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -15,7 +16,7 @@ import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 // actions from an island and from a form, the public part, files, the
 // Chest's signed deliveries. Every page is checked for what the policy
 // would block (checkPage).
-atLeast(14);
+atLeast(15);
 let chest, database, app;
 const logs = [];
 const log = console.log;
@@ -54,11 +55,12 @@ const form = (who, path, fields, from, headers = {}) => {
   return send(who ? withMember(request, who) : request);
 };
 const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
-// A form shown long enough ago that a person could have written it.
-const shown = async () => {
-  const html = await (await get(null, "/")).text();
-  return /name="started" value="([^"]+)"/u.exec(html)?.[1] ?? /&quot;started&quot;:&quot;([^&]+)&quot;/u.exec(html)[1];
-};
+// The single-use token a public page carries (<meta name="chest-form">),
+// shown long enough ago that a person could have written the form.
+const token = (age = 10_000) => formToken(Date.now() - age);
+// The browser's own key the package sets at a first public call, when the
+// Chest names no visitor (a real 0.4 Chest names none).
+const browserOf = response => /chest_v=[\w-]+/u.exec(response.headers.get("set-cookie") ?? "")?.[0];
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 test("the inbox: the member's language, the policy, the look as a stylesheet, the folders with their counts", async () => {
@@ -141,20 +143,25 @@ test("the public contact form: the visitor's language, the company's sentence, S
   assert.equal((await get(null, "/look.css")).status, 200);
 });
 
-test("a request from the form: sent in place (the request's page opens), too fast refused, robots ignored", async () => {
-  const started = await shown();
-  const fields = { name: "Lucie Garnier", email: "lucie@example.com", subject: "Missing screws", message: "The bag of screws was missing.", started, lang: "fr", embed: "", website: "", files: [] };
-  const fast = await (await call(null, "sendRequest", fields)).json();
-  assert.equal(fast.error, "too_fast");
-  await wait(1600);
-  const robot = await (await call(null, "sendRequest", { ...fields, website: "spam.example" })).json();
-  assert.equal(robot.ok, false);
-  const sent = await (await call(null, "sendRequest", fields)).json();
+test("a request from the form: sent in place (the request's page opens), robots answered and ignored, a stale form refused", async () => {
+  const fields = { name: "Lucie Garnier", email: "lucie@example.com", subject: "Missing screws", message: "The bag of screws was missing.", lang: "fr", embed: "", website: "", files: [] };
+  const page = await (await get(null, "/")).text();
+  assert.match(page, /<meta name="chest-form" content="[\w.-]+"\/>/u, "the page carries its form token");
+  assert.match(page, /name="website"/u, "and the field only robots fill");
+  const robot = await (await call(null, "sendRequest", { ...fields, chest_form: token(), website: "spam.example" })).json();
+  assert.deepEqual([robot.ok, robot.value], [true, null], "a robot is told it is done");
+  const stale = await (await call(null, "sendRequest", { ...fields, chest_form: token(3 * 3600_000) })).json();
+  assert.equal(stale.error, "expired");
+  assert.equal((await database.sql`select count(*)::int as n from tickets where subject = 'Missing screws'`)[0].n, 0, "nothing kept");
+  const once = token();
+  const sent = await (await call(null, "sendRequest", { ...fields, chest_form: once })).json();
   assert.equal(sent.ok, true);
   assert.match(sent.redirect, /^\/t\/[A-Za-z0-9_-]{32}\?new=1&mailed=1$/u);
+  assert.match(sent.form, /^\d{13}\./u, "the answer brings the next token");
+  assert.equal((await (await call(null, "sendRequest", { ...fields, chest_form: once })).json()).error, "expired", "a token serves once");
   // Its page: the request's language (French) — what the visitor reads.
-  const page = await get(null, sent.redirect, { "accept-language": "en" });
-  const html = await page.text();
+  const shown = await get(null, sent.redirect, { "accept-language": "en" });
+  const html = await shown.text();
   assert.match(html, /<html lang="fr">/u);
   assert.match(html, /Merci — nous avons bien reçu votre demande/u);
   assert.match(html, /The bag of screws was missing\./u);
@@ -164,30 +171,56 @@ test("a request from the form: sent in place (the request's page opens), too fas
 });
 
 test("a form posted without JavaScript: the same request, a refusal said under its field", async () => {
-  const started = await shown();
-  await wait(1600);
-  const refused = await form(null, "/actions/sendRequest", { name: "Marc", email: "marc.lenoir@gmail", subject: "Quick", message: "A question.", started, lang: "en", website: "" }, "/");
+  const refused = await form(null, "/actions/sendRequest", { name: "Marc", email: "marc.lenoir@gmail", subject: "Quick", message: "A question.", chest_form: token(), lang: "en", website: "" }, "/");
   assert.equal(refused.status, 303);
   const back = refused.headers.get("location");
   assert.equal(back, "/?error=invalid_email");
   assert.match(await (await get(null, back)).text(), /Check the email address\./u);
-  const sent = await form(null, "/actions/sendRequest", { name: "Marc", email: "marc.lenoir@gmail.com", subject: "Quick", message: "A question.", started, lang: "en", website: "" }, "/");
+  const sent = await form(null, "/actions/sendRequest", { name: "Marc", email: "marc.lenoir@gmail.com", subject: "Quick", message: "A question.", chest_form: token(), lang: "en", website: "" }, "/");
   assert.match(sent.headers.get("location"), /^\/t\/[A-Za-z0-9_-]{32}\?new=1/u);
   // From another site: refused.
   assert.equal((await form(null, "/actions/sendRequest", { email: "x@example.com" }, "/", { "sec-fetch-site": "cross-site" })).status, 403);
 });
 
-test("the form's counters know a visitor by the address the Chest's front saw — never by X-Forwarded-For", async () => {
-  await database.sql`delete from form_counts`;
-  const started = await shown();
-  await wait(1600);
-  const ask = async (i, headers) => (await call(null, "sendRequest", { name: "", email: `v${i}@example.com`, subject: `Visitor ${i}`, message: "Hello there.", started, lang: "en", website: "" }, headers)).json();
-  // A visitor who writes a new X-Forwarded-For each time is still one visitor.
+test("with no visitor address (a real 0.4 Chest): junk is never counted, a browser's limit is its own, a real customer gets through", async () => {
+  await database.sql`delete from chest_bounds`;
+  const fields = i => ({ name: "", email: `v${i}@example.com`, subject: `Visitor ${i}`, message: "Hello there.", lang: "en", website: "" });
+  // A flood of junk: forged tokens, the robots' field, words refused.
+  for (let i = 0; i < 40; i++) {
+    const junk = i % 3 === 0 ? { ...fields(i), chest_form: "1.2.3" } : i % 3 === 1 ? { ...fields(i), chest_form: token(), website: "x" } : { ...fields(i), email: "nope", chest_form: token() };
+    const answer = await call(null, "sendRequest", junk, { "x-forwarded-for": `198.51.100.${i}` });
+    assert.ok([200, 400].includes(answer.status), String(answer.status));
+  }
+  const [{ n }] = await database.sql`select coalesce(sum(count), 0)::int as n from chest_bounds where scope = 'sendRequest'`;
+  assert.equal(n, 0, "junk spends nothing");
+  // One browser (its cookie), whatever X-Forwarded-For it writes: ten a day.
+  const first = await call(null, "sendRequest", { ...fields(100), chest_form: token() }, { "x-forwarded-for": "203.0.113.1" });
+  const browser = browserOf(first);
+  assert.ok(browser, "a key of its own, in a cookie");
   const answers = [];
-  for (let i = 0; i < 6; i++) answers.push(await ask(i, { "chest-visitor-address": "203.0.113.7", "x-forwarded-for": `198.51.100.${i}` }));
-  assert.deepEqual(answers.map(a => a.ok), [true, true, true, true, true, false]);
-  assert.equal(answers[5].error, "too_many");
-  assert.equal((await ask(9, { "chest-visitor-address": "203.0.113.8" })).ok, true, "another visitor");
+  for (let i = 0; i < 11; i++) answers.push(await call(null, "sendRequest", { ...fields(101 + i), chest_form: token() }, { cookie: browser, "x-forwarded-for": `198.51.100.${i}` }));
+  assert.deepEqual(answers.map(a => a.status), [...Array(10).fill(200), 429]);
+  assert.equal((await answers[10].json()).error, "limit");
+  // A real customer, another browser: through.
+  const customer = await (await call(null, "sendRequest", { ...fields(200), chest_form: token() })).json();
+  assert.equal(customer.ok, true, "another visitor is not blocked");
+});
+
+test("the follow-up link: writing again and rating are counted per request — a flood on one link never blocks another", async () => {
+  await database.sql`delete from chest_bounds`;
+  const own = async email => (await (await call(null, "sendRequest", { name: "", email, subject: "Count me", message: "Hello.", lang: "en", website: "", chest_form: token() })).json()).redirect.slice(3, 35);
+  const flooded = await own("flood@example.com");
+  const other = await own("calm@example.com");
+  const write = (secret, message = "Any news?") => call(null, "writeAgain", { secret, message, files: [], chest_form: token() });
+  // An unknown link, empty words: refused before anything is counted.
+  assert.equal((await write("y".repeat(32))).status, 404);
+  assert.equal((await write(flooded, "  ")).status, 400);
+  const answers = [];
+  for (let i = 0; i < 21; i++) answers.push((await write(flooded, `Again ${i}`)).status);
+  assert.deepEqual(answers, [...Array(20).fill(200), 429]);
+  assert.equal((await write(other)).status, 200, "another request's link is its own count");
+  const [{ n }] = await database.sql`select count(*)::int as n from messages m join tickets t on t.id = m.ticket_id where t.customer_email = 'flood@example.com' and m.kind = 'customer'`;
+  assert.equal(n, 21, "the first message and twenty more");
 });
 
 test("a request's files: downloads in a sandbox, only through the request's own link", async () => {
@@ -201,6 +234,20 @@ test("a request's files: downloads in a sandbox, only through the request's own 
   assert.equal(file.headers.get("content-security-policy"), "sandbox; default-src 'none'");
   assert.match(file.headers.get("content-disposition"), /^attachment; filename="lamp\.png"/u);
   assert.equal(file.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(file.headers.get("referrer-policy"), "no-referrer", "the file's own policy is kept");
+  assert.equal((await file.arrayBuffer()).byteLength, 8);
+  // Two at once at most (a file is read whole): the third waits a moment.
+  const one = await get(null, `/t/${lampLink}/files/${a.id}`);
+  const two = await get(null, `/t/${lampLink}/files/${a.id}`);
+  const three = await get(null, `/t/${lampLink}/files/${a.id}`);
+  assert.deepEqual([one.status, two.status, three.status], [200, 200, 503]);
+  assert.equal(three.headers.get("retry-after"), "5");
+  // Asked for its headers only (HEAD): no slot taken, none left held.
+  const head = await send(new Request(`${visitor}/t/${lampLink}/files/${a.id}`, { method: "HEAD" }));
+  assert.deepEqual([head.status, head.headers.get("content-length"), head.headers.get("referrer-policy")], [200, "8", "no-referrer"]);
+  await one.arrayBuffer();
+  await two.body.cancel();
+  assert.equal((await get(null, `/t/${lampLink}/files/${a.id}`)).status, 200, "a slot is free again once a file has left, or was cancelled");
   assert.equal((await get(null, `/t/demoFollowUpLinkForTheScreens000/files/${a.id}`)).status, 404, "another request's link");
   // The team opens it through a link the Chest signs.
   const team = await get(lea, `/chest/files/${a.id}`);
@@ -241,10 +288,13 @@ test("the follow-up page: the request's language unless the visitor switches; a 
   assert.match(en, /Request 1001/u);
   assert.match(en, /href="\/lang\/fr\?back=%2Ft%2FdemoLampFollowUpLinkForScreens00%3Flang%3Dfr"/u, "the switch comes back in the chosen language");
   const wrong = await get(null, "/t/" + "x".repeat(32));
-  assert.match(await wrong.text(), /This link does not work/u);
-  const again = await (await call(null, "writeAgain", { secret: lampLink, message: "Any news?", files: [] })).json();
+  assert.equal(wrong.status, 404);
+  const said = await wrong.text();
+  assert.match(said, /This link does not work/u);
+  assert.match(said, /<a class="button" href="\/">Write a new request<\/a>/u);
+  const again = await (await call(null, "writeAgain", { secret: lampLink, message: "Any news?", files: [], chest_form: token() })).json();
   assert.equal(again.ok, true);
-  assert.equal((await (await call(null, "writeAgain", { secret: "y".repeat(32), message: "Mine now" })).json()).error, "not_found");
+  assert.equal((await (await call(null, "writeAgain", { secret: "y".repeat(32), message: "Mine now", chest_form: token() })).json()).error, "not_found");
 });
 
 test("the Chest's deliveries: schedules, events, each delivered at least once", async () => {
@@ -270,5 +320,7 @@ test("errors: the reader's page, the right status, in its frame", async () => {
   assert.equal(lost.status, 404);
   assert.match(await lost.text(), /class="public-top"/u, "the public frame");
   assert.equal((await get(null, "/assets/nothing.js")).status, 404);
-  assert.equal((await get(null, "/assets/icon.svg")).status, 200);
+  // The browser's files exist once built (npm run build; npm test builds
+  // the server only).
+  if (existsSync("dist/client/assets/icon.svg")) assert.equal((await get(null, "/assets/icon.svg")).status, 200);
 });

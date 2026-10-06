@@ -5,8 +5,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Sql } from "./db.ts";
-import { check } from "./form-token.ts";
-import { byLink, guard, myRequest, settings } from "./tickets.ts";
+import { byLink, linkGuard, myRequest, settings } from "./tickets.ts";
 import { checkFile, fileName, fileTypes, isFileType, limits, type FileType } from "./model.ts";
 
 // Files added to a message, around the browser's own upload to the Chest
@@ -30,6 +29,31 @@ const folder: Record<Kind, string> = { public: "uploads/public/", team: "uploads
 const teamName = /^uploads\/team\/[0-9a-f]{20}\.[a-z0-9]{1,8}$/u;
 const claimPattern = /^[A-Za-z0-9_-]{16,128}\.claim$/u;
 
+// Whether this Chest takes visitors' files (the proposal granted), as its
+// last answer said — kept ten minutes, nothing that must survive a sleep.
+// A public page asks before it offers "Add files" (publicUploadsOn); a
+// grant refused for that reason says so too.
+let publicUploads: { on: boolean; at: number } | null = null;
+const known = (now: number) => (publicUploads !== null && now - publicUploads.at < 600_000 ? publicUploads.on : null);
+
+// publicUploadsOn asks the Chest once (an upload address for one byte that
+// expires in a minute, never used: the SDK has no other way to ask), then
+// answers from what it said. A Chest that does not answer: offered, as
+// before (the upload itself then says it is not available).
+export async function publicUploadsOn(now = Date.now()): Promise<boolean> {
+  const said = known(now);
+  if (said !== null) return said;
+  try {
+    await files.publicUploadUrl(folder.public, { types: ["image/png"], maxSize: 1, expiresIn: 60, expiresUnclaimedAfter: 60 });
+    publicUploads = { on: true, at: now };
+  } catch (error) {
+    if (error instanceof CapabilityNotGranted) publicUploads = { on: false, at: now };
+    else if (!(error instanceof ChestError)) throw error;
+    else return true;
+  }
+  return publicUploads.on;
+}
+
 export async function grant(kind: Kind, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
   const refused = checkFile(type, size);
   if (refused) throw new AppError(refused, { max: limits.fileSize >> 20 });
@@ -38,25 +62,31 @@ export async function grant(kind: Kind, type: unknown, size: unknown): Promise<{
     // (Proposal (studio): files.publicUploadUrl); a member's, 0.4.1's.
     const options = { types: [type as string], maxSize: limits.fileSize, expiresIn: 900 };
     const up = kind === "public" ? await files.publicUploadUrl(folder.public, { ...options, expiresUnclaimedAfter: 86400 }) : await files.uploadUrl(folder.team, options);
+    if (kind === "public") publicUploads = { on: true, at: Date.now() };
     return { url: up.url, expiresIn: up.expiresIn };
   } catch (error) {
     if (error instanceof TooLarge) throw new AppError("file_too_large", { max: limits.fileSize >> 20 });
+    // A Chest that does not take visitors' files (the proposal not granted):
+    // said plainly, and the public pages stop offering them.
+    if (kind === "public" && error instanceof CapabilityNotGranted) {
+      publicUploads = { on: false, at: Date.now() };
+      throw new AppError("files_off");
+    }
     if (error instanceof ChestError) throw new AppError("files_unavailable");
     throw error;
   }
 }
 
-// visitorGrant: a visitor may send a file for the form they were shown
-// (its signed token, the form open) or for their own request (its link),
-// a few an hour — nothing else.
-export async function visitorGrant(sql: Sql, where: { started?: unknown; secret?: unknown }, visitor: string, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
-  if (where.secret !== undefined) {
-    if (!(await byLink(sql, where.secret))) throw new AppError("not_found");
-  } else {
-    check(where.started, Date.now(), { fast: true });
-    if (!(await settings(sql)).formOpen) throw new AppError("closed_form");
-  }
-  await guard(sql, visitor, "file");
+// visitorGrant: a visitor may send a file for the form (open) — the
+// package's bound proved a page of the tool was shown, and counts the
+// visitor's files — or for their own request (its link, so many an hour
+// per request: linkGuard). Nothing else.
+export async function visitorGrant(sql: Sql, where: { secret?: string }, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
+  if (where.secret) {
+    const ticket = await byLink(sql, where.secret);
+    if (!ticket) throw new AppError("not_found");
+    if (checkFile(type, size) === null) await linkGuard(sql, ticket.id, "file");
+  } else if (!(await settings(sql)).formOpen) throw new AppError("closed_form");
   return grant("public", type, size);
 }
 
