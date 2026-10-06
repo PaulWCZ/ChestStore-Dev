@@ -8,7 +8,7 @@ import { actions } from "./actions.ts";
 import { locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
-import { forget, getNote, listNotes } from "./lib/notes.ts";
+import { forget, getNote, listNotes, notesVersion } from "./lib/notes.ts";
 import { Home } from "./pages/Home.tsx";
 import { NotePage } from "./pages/Note.tsx";
 
@@ -19,13 +19,15 @@ import { NotePage } from "./pages/Note.tsx";
 export const app = createApp({ actions, islands, locales, words, layouts: { members: MembersLayout, public: PublicLayout } });
 
 // ---- The members' part (/chest…): page() gives the member, their words
-// (t) and their way of writing dates and numbers (f).
+// (t) and their way of writing dates and numbers (f). version: what the
+// page shows in a few characters — a refresh with nothing new is a 304,
+// the page not even rendered.
 // EXAMPLE (Notes)
 app.get("/chest", page(async ({ member, t, f }) => {
   const notes = await listNotes();
   const people = await names(notes.map(n => n.author), t.people);
   return { title: t.home.title, body: <Home notes={notes} names={people} member={member} t={t} f={f} /> };
-}));
+}, { version: () => notesVersion() }));
 
 // A page of one note: param() reads the address; fail("not_found")
 // inside getNote() makes it a 404 page.

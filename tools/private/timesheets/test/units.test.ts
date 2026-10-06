@@ -10,7 +10,9 @@ import { everyoneOrNone, isManager, managerIds } from "../src/lib/directory.ts";
 import { email, letterText } from "../src/lib/mail.ts";
 import { cut, notify } from "../src/lib/notify.ts";
 import { friday } from "../src/lib/reminder.ts";
+import { removeStep } from "../src/lib/rates.ts";
 import { saveReminder } from "../src/lib/settings.ts";
+import { seenNow } from "../src/lib/weeks.ts";
 import { transaction } from "../src/lib/tx.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -18,7 +20,7 @@ import { camille, everyone, hugo } from "./support/members.ts";
 
 // The small modules of src/lib/, each on its own (the services that use
 // them have their own tests).
-atLeast(8);
+atLeast(10);
 let database: TestDatabase;
 let chest: FakeChest | undefined;
 before(async () => {
@@ -87,4 +89,18 @@ test("a bell item and an email go to members only, each in their language; none 
 test("the Friday reminder, turned off, sends nothing", async () => {
   await saveReminder(database.sql, asMember(camille), { enabled: false, minutes: 2100 });
   assert.equal(await friday(database.sql, { id: "run_" + "a".repeat(26), name: "friday", scheduledAt: new Date().toISOString(), attempt: 1 }), 0);
+});
+
+test("a rate step taken back names a day: anything else is refused, never a server error", async () => {
+  for (const from of ["x; drop", "2026-02-31", 12, null]) {
+    await assert.rejects(removeStep(database.sql, asMember(camille), { kind: "cost", memberId: hugo.id, from }), (e: unknown) => e instanceof AppError && e.code === "invalid");
+  }
+});
+
+test("the first day someone opened the tool is written once; later visits only read it", async () => {
+  await seenNow(database.sql, hugo.id);
+  await database.sql`update seen set first_seen = '2026-01-05' where member_id = ${hugo.id}`;
+  await seenNow(database.sql, hugo.id);
+  const [row] = await database.sql<{ d: string }[]>`select to_char(first_seen, 'YYYY-MM-DD') as d from seen where member_id = ${hugo.id}`;
+  assert.equal(row!.d, "2026-01-05");
 });

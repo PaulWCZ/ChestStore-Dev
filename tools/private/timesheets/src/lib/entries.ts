@@ -80,7 +80,7 @@ export async function checkDayTotal(tx: Query, memberId: string, day: string): P
 // checkOpen refuses a change to one of the person's days that no longer
 // changes: the locked period, a week sent for approval or approved.
 export async function checkOpen(tx: Query, memberId: string, day: string): Promise<void> {
-  if (isLocked(await settings(tx), day)) throw new AppError("locked");
+  if (isLocked(await settings(tx, { share: true }), day)) throw new AppError("locked");
   await weekLock(tx, memberId, day);
 }
 
@@ -165,7 +165,8 @@ export async function saveCell(sql: Query, actor: Member | null, input: { projec
     const w = await writable(tx, me, input.projectId, input.taskId);
     const found = await tx<{ id: string; note: string; invoiced: boolean }[]>`
       select id::text, note, (invoiced_at is not null or handoff_id is not null) as invoiced from entries
-      where member_id = ${me.id} and project_id = ${w.projectId} and task_id is not distinct from ${w.taskId}::bigint and day = ${when} and deleted_at is null`;
+      where member_id = ${me.id} and project_id = ${w.projectId} and task_id is not distinct from ${w.taskId}::bigint and day = ${when} and deleted_at is null
+      for update`;
     if (found.length > 1) throw new AppError("several");
     if (found[0]?.invoiced) throw new AppError("invoiced");
     await keepRow(tx, me.id, mondayOf(when), w.projectId, w.taskId);
@@ -231,7 +232,8 @@ export async function updateEntry(sql: Query, actor: Member | null, entryId: unk
   const note = clean(input.note ?? "", limits.note, { optional: true, multiline: true });
   const [entry, before] = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
-    const [current] = await tx<Row[]>`select ${columns(tx)} from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
+    // FOR UPDATE: a hand-off or an invoicing marking it meanwhile is seen.
+    const [current] = await tx<Row[]>`select ${columns(tx)} from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null for update`;
     if (!current) throw new AppError("not_found");
     // Invoiced, or waiting for its invoice in Quotes (lib/handoff.ts).
     if (current.invoiced_at || current.handoff_id) throw new AppError("invoiced");
@@ -267,7 +269,7 @@ export async function deleteEntry(sql: Query, actor: Member | null, entryId: unk
   const projectId = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const [current] = await tx<{ day: string; project_id: string; invoiced: boolean }[]>`
-      select to_char(day, 'YYYY-MM-DD') as day, project_id::text, (invoiced_at is not null or handoff_id is not null) as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
+      select to_char(day, 'YYYY-MM-DD') as day, project_id::text, (invoiced_at is not null or handoff_id is not null) as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null for update`;
     if (!current) throw new AppError("not_found");
     if (current.invoiced) throw new AppError("invoiced");
     await checkOpen(tx, me.id, current.day);
@@ -285,7 +287,7 @@ export async function setNote(sql: Query, actor: Member | null, entryId: unknown
   await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const [current] = await tx<{ day: string; invoiced: boolean }[]>`
-      select to_char(day, 'YYYY-MM-DD') as day, (invoiced_at is not null or handoff_id is not null) as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
+      select to_char(day, 'YYYY-MM-DD') as day, (invoiced_at is not null or handoff_id is not null) as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null for update`;
     if (!current) throw new AppError("not_found");
     if (current.invoiced) throw new AppError("invoiced");
     await checkOpen(tx, me.id, current.day);
@@ -338,9 +340,10 @@ export async function removeRow(sql: Query, actor: Member | null, input: { week:
     await lockPerson(tx, me.id);
     const found = await tx<{ id: string; day: string; invoiced: boolean }[]>`
       select id::text, to_char(day, 'YYYY-MM-DD') as day, (invoiced_at is not null or handoff_id is not null) as invoiced from entries
-      where member_id = ${me.id} and project_id = ${pid} and task_id is not distinct from ${tid}::bigint and day between ${monday} and ${addDays(monday, 6)} and deleted_at is null`;
+      where member_id = ${me.id} and project_id = ${pid} and task_id is not distinct from ${tid}::bigint and day between ${monday} and ${addDays(monday, 6)} and deleted_at is null
+      for update`;
     await weekLock(tx, me.id, monday);
-    const s = await settings(tx);
+    const s = await settings(tx, { share: true });
     if (found.some(e => isLocked(s, e.day))) throw new AppError("locked");
     if (found.some(e => e.invoiced)) throw new AppError("invoiced");
     if (found.length) await tx`update entries set deleted_at = now(), updated_at = now() where id = any(${found.map(e => e.id)}::bigint[])`;
