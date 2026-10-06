@@ -315,10 +315,6 @@ export const actions = {
   // The pages right inside a page, when its branch opens in the tree.
   treeBranch: action(page, async ({ pageId }, { member }) => pages.branchOf(db(), member, pageId)),
 
-  // The page's mark (src/lib/pages.ts, pageStamp): it re-reads itself
-  // only when what its reader sees changed.
-  pageStamp: action(page, async ({ pageId }, { member }) => pages.pageStamp(db(), member, pageId)),
-
   // Where a page may move (its "Move" dialog, when it opens): the spaces
   // the editor writes in and their pages — a shared page never into "My
   // pages" (src/lib/pages.ts, movePage).
