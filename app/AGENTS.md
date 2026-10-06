@@ -15,6 +15,7 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
 | `src/actions.ts` | **Every mutation**, by name |
 | `src/pages/` | Pages: React components rendered on the server |
 | `src/islands/` | Components that also run in the browser; `index.ts` lists them |
+| `src/components/` | Components shared by pages and islands (the island rules apply: no server code) |
 | `src/layout.tsx` | Around every page: the kit's shell, the sections (`nav`), the toasts |
 | `src/lib/` | Rules and SQL, one file per subject |
 | `src/i18n/` | Every word: `en.ts` (source, fallback), `fr.ts`, `index.ts` (languages) |
@@ -36,8 +37,12 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   from `@argentic/chest-app`). Props are plain data — the types refuse a
   function, a Date, a Map — and carry their words (`t.home.remove`…),
   dates already written by `f`, the path if needed. An island imports only
-  React, the kit, and `call`, `refresh`, `navigate`, `onLinkClick`,
-  `toast` from `@argentic/chest-app/client`. Islands do not nest.
+  React, the kit, `src/components/`, and `call`, `refresh`, `navigate`,
+  `onLinkClick`, `toast`, `fill`, `plural` from
+  `@argentic/chest-app/client`. Islands do not nest. Each island is a
+  React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
+  use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
+  `id="toasts"`, so it survives `navigate()`).
 - **Actions** are the only way to change data: `action(fields, run,
   { maxBody? })` at `POST /chest/actions/<name>`; `publicAction` at
   `/actions/<name>`. Two callers:
@@ -130,6 +135,24 @@ handler in `events.handle`: on `member.erased`, delete or anonymise, then
 { maxSize, types })`; the island `PUT`s there, then a second action checks
 `files.stat(name)` before recording it.
 **Work after the answer** — `after("notify", () => notifications.notify(…))`.
+**A page with heavy data** — assemble it in a `src/lib/` function
+(`Promise.all` of the queries, `names()` once for every id), return plain
+data, keep the page component a pure function of it: the same function
+serves a download or an island's props.
+**Fields named at run time** (a poll's options d12, d13…) —
+`field.keyed(/^d([1-9][0-9]*)$/u, field.int({ min: 0, max: 2 }), 200)`.
+**A public action that keeps a cookie** (a guest's secret for one page) —
+`cookies.set("guest", secret, { path: "/p/abc", maxAge })` in the action;
+serve it under that path too: `app.post("/p/:link/actions/:name",
+publicActionsAt())`, and call it there: `call("answer", input, { at:
+location.pathname })` or a form `action="/p/abc/actions/answer"`.
+**More about the member** (every group they are in) —
+`createApp({ complete: async who => ({ ...who, groups }) })`, once per request.
+**A look chosen at run time** (a theme the company picks) —
+`createApp({ look: viewer => ({ css, colors }) })`: pages link
+`/chest/look.css?v=<hash>` or `/look.css?v=<hash>`, served by the package;
+`chestConfig()` without `theme`. **The head** (an icon, robots) —
+`createApp({ head: viewer => <><link rel="icon" href="/assets/icon.svg" /></> })`.
 **Static files** — `public/assets/…`, served at `/assets/…`; the
 catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
 **A package the server needs** — `npm install it`; add it to `bundle` in

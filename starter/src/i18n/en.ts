@@ -16,6 +16,7 @@ export const en = {
     signIn: "Open this tool from your Chest.",
     busy: "Still sending…",
     language: "Language",
+    back: "Back to the start",
   },
   errors: {
     invalid: "Check what you wrote.",

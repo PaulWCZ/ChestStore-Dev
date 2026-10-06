@@ -3,6 +3,7 @@ import type { ToastWords } from "@argentic/chest-ui/components/logic";
 import { createElement, useEffect, type ComponentType } from "react";
 import type { hydrateRoot, Root } from "react-dom/client";
 import type { RegisteredActions } from "./register.ts";
+export { fill, plural, type Plural } from "./i18n.ts";
 import type { Action, Outcome, SentOf } from "./tool.ts";
 
 // The browser's side, for islands: call() an action, refresh() the page in
@@ -162,14 +163,16 @@ function update(node: ChildNode, incoming: ChildNode): void {
 // ---- call(): run an action of the tool's src/actions.ts from an island,
 // typed by its fields. On success the page refreshes (unless refresh:
 // false) or follows the action's redirect(); a refusal is a toast in the
-// reader's words (unless quiet: true) and is returned.
+// reader's words (unless quiet: true) and is returned. at: a path of the
+// tool where the server answers the public actions too (publicActionsAt).
 type In<A> = A extends Action<infer F, unknown> ? SentOf<F> : never;
 type Out<A> = A extends { run(...args: never[]): Promise<infer R> } ? R : never;
 type Name = Extract<keyof RegisteredActions, string>;
 
-export function call<N extends Name>(name: N, input: In<RegisteredActions[N]>, options: { refresh?: boolean; quiet?: boolean } = {}): Promise<Outcome<Out<RegisteredActions[N]>>> {
+export function call<N extends Name>(name: N, input: In<RegisteredActions[N]>, options: { refresh?: boolean; quiet?: boolean; at?: string } = {}): Promise<Outcome<Out<RegisteredActions[N]>>> {
   const members = location.pathname.split("/")[1]?.toLowerCase() === "chest";
-  return send(`${members ? "/chest" : ""}/actions/${name}`, { "content-type": "application/json" }, JSON.stringify(input), options);
+  const base = options.at !== undefined ? options.at.replace(/\/$/u, "") : members ? "/chest" : "";
+  return send(`${base}/actions/${name}`, { "content-type": "application/json" }, JSON.stringify(input), options);
 }
 
 // What call() and the enhanced forms share: the request, its outcome, the

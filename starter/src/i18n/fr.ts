@@ -13,6 +13,7 @@ export const fr: Catalogue = {
     signIn: "Ouvrez cet outil depuis votre Chest.",
     busy: "Envoi en cours…",
     language: "Langue",
+    back: "Retour au début",
   },
   errors: {
     invalid: "Vérifiez ce que vous avez écrit.",

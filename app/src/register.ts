@@ -23,6 +23,7 @@ export type CoreWords = {
     readonly signIn: string;
     readonly busy: string;
     readonly language: string;
+    readonly back: string;
   };
   readonly errors: {
     readonly invalid: string;

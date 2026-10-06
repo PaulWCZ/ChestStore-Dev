@@ -8,7 +8,7 @@ import { busyText, refresh, send, startIslands, toast } from "./client.tsx";
 // is sent in place — no page load, the page refreshed, then the form
 // emptied; a refusal as a toast. Without JavaScript the same form posts
 // and the server redirects back.
-const actionPath = /^\/(chest\/)?actions\/[A-Za-z0-9_]+$/u;
+const actionPath = /\/actions\/[A-Za-z0-9_]+$/u; // /chest/actions/x, /actions/x, /p/abc/actions/x
 
 export function start(islands: Record<string, ComponentType<never>>): void {
   startIslands(islands, hydrateRoot);

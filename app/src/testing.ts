@@ -132,7 +132,8 @@ export function checkSources({ root = "." }: { root?: string } = {}): void {
   const problems: string[] = [];
   for (const { file, text } of code) {
     if (/\bstyle\s*=\s*\{|\{\s*\.\.\.\s*\{[^}]*\bstyle\b/u.test(text)) problems.push(`${file}: style={} — the policy blocks style attributes: use a class, an SVG attribute, <progress> or <meter>`);
-    if (file.includes(`${join("src", "islands")}`) || /src[/\\](entry|client)\.tsx?$/u.test(file)) {
+    // Islands, and the components they share with pages (src/components/).
+    if (file.includes(join("src", "islands")) || file.includes(join("src", "components")) || /src[/\\](entry|client)\.tsx?$/u.test(file)) {
       if (/^import (?!type)[^;]*from "@argentic\/chest-sdk/mu.test(text)) problems.push(`${file}: the SDK is for the server only`);
       if (/^import (?!type)[^;]*from "@argentic\/chest-app(\/(db|members|testing|vite))?"/mu.test(text)) problems.push(`${file}: server code in the browser — import from "@argentic/chest-app/client"`);
       if (/^import (?!type)[^;]*from "\.\.?\/(lib|actions|app)\b/mu.test(text)) problems.push(`${file}: server code in the browser`);

@@ -31,11 +31,12 @@ export function startRender(): void {
 // src/islands/index.ts, rendered here and made interactive in the browser
 // with the same props. Props are checked against the component's and must
 // be plain data. After a refresh, an island keeps its state and receives
-// its new props.
-export function Island<N extends Extract<keyof RegisteredIslands, string>>({ name, props }: { name: N; props: Plain<ComponentProps<RegisteredIslands[N]>> }) {
+// its new props. id: a stable id for an island that must survive a move
+// to another page (the layout's ToastHost: id="toasts").
+export function Island<N extends Extract<keyof RegisteredIslands, string>>({ name, props, id }: { name: N; props: Plain<ComponentProps<RegisteredIslands[N]>>; id?: string }) {
   const component = registry[name];
   if (!component) throw new Error(`the island ${name} is not listed in src/islands/index.ts`);
   const prefix = `${name.toLowerCase()}${count++}${mark}-`;
   const html = renderToString(createElement(component, props as object), { identifierPrefix: prefix });
-  return <div className="island" data-island={name} data-prefix={prefix} data-props={JSON.stringify(props)} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className="island" id={id} data-island={name} data-prefix={prefix} data-props={JSON.stringify(props)} dangerouslySetInnerHTML={{ __html: html }} />;
 }

@@ -155,3 +155,8 @@ test("a second send while the first is on its way says so", async () => {
   assert.equal(await page.locator("li.note >> text=Sent once").count(), 1);
   await close();
 });
+
+test("the browser's files are cached: for ever with ?v=, an hour without", async () => {
+  assert.equal((await fetch(`${tool.origin}/assets/client.js?v=x`)).headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal((await fetch(`${tool.origin}/assets/client.js`)).headers.get("cache-control"), "public, max-age=3600");
+});

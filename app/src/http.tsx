@@ -50,9 +50,10 @@ export type AppOptions = {
   // A look that depends on the request (the Chest's theme choice, when an
   // SDK gives it); without it, the look is built into client.css.
   look?: (viewer: Viewer) => Look | Promise<Look>;
-  // What the tool adds to the member the Chest asserts (never a member
-  // of its own: only more about the same person).
-  member?: (who: Member) => Promise<Member>;
+  // What the tool adds to the member the Chest asserts, once per request
+  // before any page or action reads it (more about the same person —
+  // every group they are in —, never another identity).
+  complete?: (who: Member) => Promise<Member>;
 };
 
 type Env = { Variables: { viewer: MemberContext } };
@@ -103,6 +104,7 @@ function noticeOf(c: Context, t: Words): string | null {
 async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 403 | 404 | 500 = 200) {
   const v = assetVersion();
   const look = options.look ? await options.look(viewer) : null;
+  const lookTag = look ? createHash("sha256").update(look.css).digest("base64url").slice(0, 16) : "";
   const name = viewer.t.tool.name;
   const notice = noticeOf(c, viewer.t);
   const { members: Members, public: Public } = options.layouts;
@@ -116,7 +118,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
         {look?.colors?.map(m => <meta key={m.media} name="theme-color" media={m.media} content={m.color} />)}
         {options.head?.(viewer)}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
-        {look && <link rel="stylesheet" href={viewer.member !== null ? "/chest/look.css" : "/look.css"} />}
+        {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
         <script type="module" src={`/assets/client.js?v=${v}`} />
       </head>
       <body>
@@ -129,9 +131,21 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
   return c.html("<!doctype html>" + page, status);
 }
 
-function errorView(t: Words, status: 403 | 404 | 500): View {
+// An error page in the reader's words; a member is offered the way back
+// to the tool's first page (a visitor has no way into the Chest).
+function errorView(viewer: Viewer, status: 403 | 404 | 500): View {
+  const t = viewer.t;
   const words = status === 403 ? t.pages.forbidden : status === 404 ? t.pages.notFound : t.pages.failed;
-  return { title: words.title, body: <div className="ck-empty"><h1 className="ck-empty-title">{words.title}</h1><p className="ck-empty-body">{words.body}</p></div> };
+  return {
+    title: words.title,
+    body: (
+      <div className="ck-empty">
+        <h1 className="ck-empty-title">{words.title}</h1>
+        <p className="ck-empty-body">{words.body}</p>
+        {viewer.member !== null && <div className="ck-empty-actions"><a className="ck-button ck-button-quiet" href="/chest">{t.pages.back}</a></div>}
+      </div>
+    ),
+  };
 }
 
 function contextOf<V extends Viewer>(c: Context, viewer: V): PageContext<V> {
@@ -231,15 +245,23 @@ function formFields(data: FormData): Record<string, unknown> {
   return fields;
 }
 
-// A stylesheet with its ETag: 304 while it stays the same.
+// The look's stylesheet: linked with ?v=<its hash> it never changes (a
+// new look is a new address); without, revalidated by its ETag.
 function stylesheet(c: Context, css: string) {
-  const tag = `"${createHash("sha256").update(css).digest("base64url").slice(0, 27)}"`;
+  const hash = createHash("sha256").update(css).digest("base64url");
+  const tag = `"${hash.slice(0, 27)}"`;
   c.header("ETag", tag);
-  c.header("Cache-Control", "private, no-cache");
+  c.header("Cache-Control", c.req.query("v") === hash.slice(0, 16) ? "private, max-age=31536000, immutable" : "private, no-cache");
   if (c.req.header("if-none-match") === tag) return c.body(null, 304);
   c.header("Content-Type", "text/css; charset=utf-8");
   return c.body(css);
 }
+
+// publicActionsAt(): the public actions also answered under a path of the
+// tool's — app.post("/p/:link/actions/:name", publicActionsAt()) — so a
+// cookie kept for that path only (a guest's secret for one poll) reaches
+// them. call(name, input, { at: "/p/abc" }) sends there.
+export const publicActionsAt = () => (c: Context<Env>) => runAction(c, false);
 
 export function createApp(appOptions: AppOptions) {
   options = appOptions;
@@ -260,7 +282,12 @@ export function createApp(appOptions: AppOptions) {
 
   // The browser's files (dist/client/assets, from src/ and public/assets/):
   // linked with ?v=… they never change; any other, an hour.
-  app.use("/assets/*", serveStatic({ root: "./dist/client", onFound: (_path, c) => { c.header("Cache-Control", c.req.query("v") ? "public, max-age=31536000, immutable" : "public, max-age=3600"); } }));
+  // (Set once the file is served: a header set in serveStatic's onFound
+  // never reached the browser — the files went out "no-store".)
+  app.use("/assets/*", async (c, next) => {
+    await next();
+    if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+  }, serveStatic({ root: "./dist/client" }));
 
   // The members' part: the Chest asserts who asks on every request
   // (member(): the only source of identity); without it, 401.
@@ -268,7 +295,7 @@ export function createApp(appOptions: AppOptions) {
     if (!isMembers(c.req.path)) return next();
     const asserted = member(c.req.raw);
     if (!asserted) return c.text(visitor(c).t.pages.signIn, 401);
-    const who = options.member ? await options.member(asserted) : asserted;
+    const who = options.complete ? await options.complete(asserted) : asserted;
     const locale = localeIn(options.locales, who.language);
     c.set("viewer", { member: who, locale, t: options.words(locale), f: formatter(locale, who.timeZone, chest.currency), request: c.req.raw, cookies: cookiesOf(c) });
     return next();
@@ -291,13 +318,13 @@ export function createApp(appOptions: AppOptions) {
     app.get("/look.css", async c => stylesheet(c, (await look(visitor(c))).css));
   }
 
-  app.notFound(c => html(c, errorView(viewerOf(c).t, 404), viewerOf(c), 404));
+  app.notFound(c => html(c, errorView(viewerOf(c), 404), viewerOf(c), 404));
   app.onError((error, c) => {
     if (error instanceof HttpStatus && error.to) return c.redirect(error.to, c.req.method === "GET" ? 302 : 303);
-    if (error instanceof HttpStatus) return html(c, errorView(viewerOf(c).t, error.status === 403 ? 403 : 404), viewerOf(c), error.status === 403 ? 403 : 404);
+    if (error instanceof HttpStatus) return html(c, errorView(viewerOf(c), error.status === 403 ? 403 : 404), viewerOf(c), error.status === 403 ? 403 : 404);
     if (chestDown(error)) log.warn("the Chest did not answer", { path: c.req.path, error: error.name });
     else log.error("page failed", error, { path: c.req.path });
-    return html(c, errorView(viewerOf(c).t, 500), viewerOf(c), 500);
+    return html(c, errorView(viewerOf(c), 500), viewerOf(c), 500);
   });
   return app;
 }

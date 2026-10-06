@@ -8,6 +8,13 @@ export const fill = (text: string, values: Record<string, string | number> = {})
 
 export type Plural = { readonly zero?: string; readonly one: string; readonly other: string };
 
+// plural(locale, forms, n): the form of n in that language, {count}
+// filled (French says "0 note", English "0 notes"). In an island too.
+export function plural(locale: string, forms: Plural, n: number, values: Record<string, string | number> = {}): string {
+  const tag = locale === "en" ? "en-GB" : locale;
+  return fill(n === 0 && forms.zero !== undefined ? forms.zero : once(`p|${tag}`, () => new Intl.PluralRules(tag)).select(n) === "one" ? forms.one : forms.other, { count: numberFormat(tag).format(n), ...values });
+}
+
 // The language a tool speaks for a language tag: itself when the tool
 // speaks it, else the first of the tool's languages (its source).
 export const localeIn = <L extends string>(locales: readonly L[], language: string | null | undefined): L =>
@@ -67,7 +74,6 @@ export function formatter(locale: string, timeZone: string, currency = "EUR") {
     // An amount in cents (field.money stores cents) or units: money(1250, { cents: true }).
     money: (amount: number, options: { cents?: boolean } = {}) => numberFormat(tag, { style: "currency", currency }).format(options.cents ? amount / 100 : amount),
     // The form of n in this language (French says "0 note", English "0 notes").
-    plural: (forms: Plural, n: number, values: Record<string, string | number> = {}) =>
-      fill(n === 0 && forms.zero !== undefined ? forms.zero : once(`p|${tag}`, () => new Intl.PluralRules(tag)).select(n) === "one" ? forms.one : forms.other, { count: numberFormat(tag).format(n), ...values }),
+    plural: (forms: Plural, n: number, values: Record<string, string | number> = {}) => plural(locale, forms, n, values),
   };
 }

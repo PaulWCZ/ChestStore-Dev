@@ -6,7 +6,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "tsc && vite build && vite build --ssr",
     "start": "node --optimize-for-size dist/server/main.js",
-    "test": "tsc && vite build --ssr --outDir dist/test && node --test --test-force-exit test/*.test.*"
+    "test": "tsc && vite build --ssr --outDir dist/test && node --test --test-force-exit --test-concurrency=1 test/*.test.*"
   },
   "dependencies": {
     "@argentic/chest-sdk": "file:vendor/chest-sdk-0.4.1.tgz",
