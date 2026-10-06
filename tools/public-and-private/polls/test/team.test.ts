@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import * as comments from "../src/lib/comments.ts";
 import { erase, leave } from "../src/lib/lifecycle.ts";
 import { enps, readAnswer } from "../src/lib/model.ts";

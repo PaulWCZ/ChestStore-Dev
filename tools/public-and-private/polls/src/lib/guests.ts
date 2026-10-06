@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { isAddress } from "@argentic/chest-sdk/mail";
 import { manages, sees } from "./access.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { wantedPlaces, writeNamed } from "./answers.ts";
 import type { Query, Sql } from "./db.ts";
 import { isLocale, type Locale } from "../i18n/index.ts";
@@ -26,8 +26,8 @@ import { closeDue, load, placesTaken, rights, type Poll } from "./polls.ts";
 //   answers or names (the team's names stay in the Chest). Once a date is
 //   chosen, the page shows it, with a calendar file.
 // - The public host is guarded like Forms' and Booking's forms: a signed
-//   "shown at" token and a field only robots fill (app/p), the Chest's
-//   visitor counters (lib/guard.ts), and at most limits.guests guests per
+//   "shown at" token and a field only robots fill (src/actions.ts, answerGuest), the
+//   Chest's visitor counters (src/lib/guard.ts), and at most limits.guests guests per
 //   poll.
 // - Results mark guests ("Guest") in the grid, the participation count
 //   gives them apart, the CSV says so; a manager may remove a guest's

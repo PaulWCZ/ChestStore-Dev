@@ -2,7 +2,8 @@
 
 `README.md` says what Polls does; this page says where things are and what
 must not break. Polls is built like the studio's starter: TypeScript,
-Hono, React rendered on the server, a few islands, Vite (no Next.js).
+Hono, React rendered on the server, a few islands, Vite (no Next.js),
+on the studio's package `@argentic/chest-app`.
 
 ## Commands
 
@@ -27,7 +28,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test 
 | `src/tokens.css`, `src/styles.css` | Polls' own tokens (from the contract's), its components, the `pct-N` length classes. Contract tokens only, never a colour |
 | `src/i18n/` | `en.ts` (source), `fr.ts`, `index.ts` (`fill`, `plural`, `formatter`: Intl objects made once) |
 | `src/lib/` | The rules and the SQL — see below; framework-free, tested alone |
-| `src/core/` | The starter's machinery (server, actions, islands, refresh, navigate, log). Polls' copy adds: `field.keyed`/`field.json`, cookies in a context, `createApp({ complete })`, `publicActionsAt()`, the look in the head, `navigate()`. Edit rarely |
+| `src/register.ts`, `src/main.ts`, `src/entry.tsx`, `vite.config.ts` | Wiring to `@argentic/chest-app` (the studio's package, `vendor/`: server, actions, islands, refresh, navigate, log — its `AGENTS.md`). Never edit the vendored copy |
 | `migrations/` | `0001`…`0005`: never edit a shipped one; add `0006_…` |
 | `seed/sample.sql` | Sample polls for local runs (never run by the Chest) |
 | `test/` | `app.test.mjs` (the built server, a fake Chest, PostgreSQL); `*.test.ts` (`src/lib/`, the words, the look, the stack's rules) |
@@ -45,12 +46,12 @@ rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
 
 - **A page**: a route in `src/app.tsx` with `page()` (members) or
   `publicPage()`; it returns `{ title, body }`. Refuse with `notFound()`,
-  `forbidden()`, `redirect()` (`src/core/tool.ts`).
+  `forbidden()`, `redirect()` (`@argentic/chest-app`).
 - **An action**: `action(fields, run)` in `src/actions.ts`; an island calls
   it with `call("name", input)` (typed; the page refreshes after it unless
   `{ refresh: false }`); a refusal is a code (`AppError`/`fail`) said in
   `t.errors`. A structured input is `field.json()`, read by `src/lib/`.
-- **An island** imports only React, the kit, `../core/client.tsx`
+- **An island** imports only React, the kit, `@argentic/chest-app/client`
   (`call`, `refresh`, `navigate`, `toast`, `send`), `../components/`,
   its helpers, and types. Its props are plain data with their words.
   `toast()` (never the kit's `useToast`: each island is its own root).
@@ -60,14 +61,14 @@ rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
   confetti).
 - **Nothing in memory that must survive**: the tool sleeps. Caches only
   (groups a minute, the look per choice, Intl objects).
-- **Logs**: `log.info/warn/error` (`src/core/log.ts`): ids and counts, never
+- **Logs**: `log.info/warn/error` (`@argentic/chest-app`): ids and counts, never
   a name, an email, a text or a secret.
 
 ## Rules
 
 - **The look is the Chest's choice.** `src/theme.ts` makes it a
   stylesheet the tool serves (`/chest/look.css`, `/look.css`), linked in
-  every page's head (`src/core/http.tsx`) — never a `<style>`; CSS names only contract tokens
+  every page's head by the package (`createApp({ look })`, `src/app.tsx`) — never a `<style>`; CSS names only contract tokens
   (`ui/tokens/CONTRACT.md` in the studio) and `src/tokens.css`'s. Text only
   on measured pairs (`--accent-ink` on `--accent`, `--cat-N-ink` on
   `--cat-N-soft`, a state's `-ink` on its `-soft`, `--ink` on

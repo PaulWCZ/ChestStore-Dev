@@ -1,6 +1,6 @@
 import { Avatar } from "@argentic/chest-ui/components";
 import { Check, Cross, Maybe, Star } from "../components/icons.tsx";
-import { Island } from "../core/island.tsx";
+import { Island } from "@argentic/chest-app";
 import { fill as format, type Catalogue, type Format } from "../i18n/index.ts";
 import type { QuestionResult } from "../lib/results.ts";
 import { percentClass } from "./bits.tsx";
@@ -37,6 +37,8 @@ function Voters({ ids, names, t, f }: { ids: string[]; names: Named; t: Props["t
   return <p className="voters">{shown.join(", ")}{more > 0 ? " " + f.plural(t.people.more, more) : ""}</p>;
 }
 
+// A cell of the date grid: no (v0), if need be (v1), yes (v2).
+const cellClass: Record<number, string> = { 0: "cell v0", 1: "cell v1", 2: "cell v2" };
 const cellIcon = (value: number | undefined) => (value === 2 ? <Check /> : value === 1 ? <Maybe /> : <Cross />);
 
 export function DayBadge({ label }: { label: DateLabel }) {
@@ -135,7 +137,7 @@ export function Results({ results, single, names, dateLabels, finalOption, slots
                             {q.options.map(o => {
                               const value = row.values[o.id];
                               const word = value === 2 ? t.poll.yes : value === 1 ? t.poll.maybe : t.poll.no;
-                              return <td key={o.id} className={lit(o.id).trim()}><span className={"cell v" + (value ?? 0)} title={word}>{cellIcon(value)}<span className="visually-hidden">{word}</span></span></td>;
+                              return <td key={o.id} className={lit(o.id).trim()}><span className={cellClass[value ?? 0]} title={word}>{cellIcon(value)}<span className="visually-hidden">{word}</span></span></td>;
                             })}
                           </tr>
                         );
@@ -220,7 +222,7 @@ export function Results({ results, single, names, dateLabels, finalOption, slots
               {answered}
               <div className="enps-result">
                 <div className="average enps-score">
-                  <strong>{q.score === null ? "–" : (q.score > 0 ? "+" : "") + f.number(q.score, 0)}</strong>
+                  <strong>{q.score === null ? "–" : (q.score > 0 ? "+" : "") + f.number(q.score)}</strong>
                   <span>{t.results.enps}</span>
                 </div>
                 <div className="bars">

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
@@ -67,12 +67,13 @@ test("the look: a stylesheet with its hash, kept a year when linked by it, 304 w
   assert.equal(sheet.status, 200);
   assert.equal(sheet.headers.get("content-type"), "text/css; charset=utf-8");
   assert.equal(sheet.headers.get("cache-control"), "private, max-age=31536000, immutable");
-  assert.equal(sheet.headers.get("etag"), `"${v}"`);
+  const etag = sheet.headers.get("etag");
+  assert.ok(etag.startsWith(`"${v}`), "the ETag begins with the link's hash");
   const css = await sheet.text();
   assert.match(css, /--accent:\s*#ff7a63/u, "Polls' own identity: Confetti");
   assert.match(css, /url\(\/assets\/fonts\/fredoka-latin-wght-normal\.woff2\)/u);
-  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": `"${v}"` })).status, 304);
-  assert.equal((await get(hugo, "/chest/look.css")).headers.get("cache-control"), "no-cache");
+  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": etag })).status, 304);
+  assert.equal((await get(hugo, "/chest/look.css")).headers.get("cache-control"), "private, no-cache");
   assert.equal((await get(null, "/chest/look.css")).status, 401, "the team's look is the team's");
   // The company chooses another look for all its tools: a new sheet, a new link.
   chest.theme.all = { mode: "catalogue", theme: "newsprint" };
@@ -193,7 +194,21 @@ test("the guest page: a visitor's words, no member, an answer by a form without 
   const names = await (await get(sofia, "/chest/polls/11")).text();
   assert.match(names, /Jean Martin/u);
   assert.equal((await get(null, "/p/nolinkatallnolinkatallxyza")).status, 404);
-  assert.match(await (await get(null, "/p/nolinkatallnolinkatallxyza")).text(), /This link does not open a poll/u);
+  const gone = await (await get(null, "/p/nolinkatallnolinkatallxyza")).text();
+  assert.match(gone, /This link does not open a poll/u);
+  assert.match(gone, /class="guest-top"[\s\S]*Français/u, "the public frame: the brand and the language switch");
+  // The guest link is a secret: the request log names the route, never the link.
+  const lines = [];
+  const write = console.log;
+  console.log = (...args) => lines.push(args.join(" "));
+  try {
+    await get(null, `/p/${link}`);
+    await get(null, "/p/nolinkatallnolinkatallxyza");
+  } finally {
+    console.log = write;
+  }
+  assert.ok(lines.some(l => /^info request method=GET route=\/p\/:link status=200/u.test(l)), lines.join("\n"));
+  assert.ok(lines.every(l => !l.includes(link) && !l.includes("nolinkatall")), lines.join("\n"));
 });
 
 test("downloads: the answers as CSV for those who manage the poll, the chosen date as .ics", async () => {
@@ -230,9 +245,12 @@ test("the public root, the language switch, the error pages", async () => {
   assert.equal((await get(null, "/lang/fr?back=//evil.test")).headers.get("location"), "/");
   assert.equal((await get(null, "/nothing")).status, 404);
   assert.equal((await get(null, "/assets/nothing.js")).status, 404);
+  // The browser's files exist once npm run build made dist/client.
   const icon = await get(null, "/assets/icon.svg?v=1");
-  assert.equal(icon.status, 200, "the browser's files (npm run build: dist/client)");
-  assert.equal(icon.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  if (existsSync("dist/client/assets/icon.svg")) {
+    assert.equal(icon.status, 200);
+    assert.equal(icon.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  } else assert.equal(icon.status, 404);
 });
 
 test("the Chest's events and schedule runs, signed, each handled once", async () => {

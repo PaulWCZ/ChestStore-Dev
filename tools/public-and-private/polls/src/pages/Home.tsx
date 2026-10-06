@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { Check, Clock, KindIcon, Mask, People, Plus, Pulse, Repeat } from "../components/icons.tsx";
-import { Island } from "../core/island.tsx";
+import { Island } from "@argentic/chest-app";
 import { fill, type Catalogue, type Format } from "../i18n/index.ts";
 import { asked, type Policy } from "../lib/access.ts";
 import { dates, optionText } from "../lib/dates.ts";
@@ -164,7 +164,7 @@ export function Home({ data, member, organisers, totals, rules, creates, surveys
       {settles && (
         <section className="section" aria-labelledby="settings">
           <div className="section-head"><h2 id="settings">{t.settings.title}</h2></div>
-          <div className="card narrow-card settings-card">
+          <div className="card narrow-card">
             <Island name="PolicySwitch" props={{ on: rules.membersCreate, which: "create", label: t.settings.membersCreate, hint: t.settings.membersCreateHint, saved: t.settings.saved }} />
             <Island name="PolicySwitch" props={{ on: rules.membersSurveys, which: "surveys", label: t.settings.membersSurveys, hint: t.settings.membersSurveysHint, saved: t.settings.saved }} />
           </div>

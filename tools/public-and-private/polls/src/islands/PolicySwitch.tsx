@@ -1,6 +1,6 @@
 import { Switch } from "@argentic/chest-ui/components";
 import { useState } from "react";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 
 // An admin's settings: may every member start a poll (the default), or
 // organisers only? May members start company surveys — a pulse that comes
@@ -17,5 +17,5 @@ export function PolicySwitch({ on, which, label, hint, saved }: { on: boolean; w
     if (!result.ok) return setValue(!next);
     toast({ id: "policy-" + which, text: saved });
   }
-  return <Switch className="policy-switch" label={<strong>{label}</strong>} hint={hint} checked={value} disabled={busy} onChange={next => void change(next)} />;
+  return <Switch label={<strong>{label}</strong>} hint={hint} checked={value} disabled={busy} onChange={next => void change(next)} />;
 }

@@ -1,8 +1,9 @@
-import { action, fail, field, publicAction, redirect } from "./core/tool.ts";
+import { action, fail, field, publicAction, redirect } from "@argentic/chest-app";
 import { emailGuests, syncFinal } from "./lib/agenda.ts";
 import { answer } from "./lib/answers.ts";
 import { findPeople, groups, havePolls } from "./lib/audience.ts";
 import * as comments from "./lib/comments.ts";
+import { localeOf } from "./i18n/index.ts";
 import { db } from "./lib/db.ts";
 import { admit, checkForm } from "./lib/guard.ts";
 import { guestCookie, guestCookieDays, guestCookiePath } from "./lib/guest-cookie.ts";
@@ -166,7 +167,7 @@ export const actions = {
   myReplies: action({ ...poll, keys: field.list(field.text({ max: 64 }), 20) }, async ({ pollId, keys }, { member, locale }) => {
     const found = await replies.mine(db(), member, pollId, keys);
     const who = await people(found.flatMap(c => c.replies.map(r => r.author)));
-    return found.map(c => ({ ...c, replies: c.replies.map(r => ({ id: r.id, name: r.author === "anonymous" ? null : nameOf(who.get(r.author), locale), body: r.body })) }));
+    return found.map(c => ({ ...c, replies: c.replies.map(r => ({ id: r.id, name: r.author === "anonymous" ? null : nameOf(who.get(r.author), localeOf(locale)), body: r.body })) }));
   }),
   answerBack: action({ ...poll, key: field.text({ max: 64 }), body: loose(limits.reply) }, async ({ pollId, key, body }, { member }) => {
     const done = await replies.answerBack(db(), member, pollId, key, body);
@@ -198,7 +199,7 @@ export const actions = {
     // poll (its id picks the cookie; the secret is checked against the
     // poll the link opens).
     const secret = input.poll ? cookies.get(guestCookie(input.poll)) : undefined;
-    const done = await guests.answerAsGuest(sql, input.link, { name: input.name, email: input.email, dates: input.dates, locale, secret }, new Date());
+    const done = await guests.answerAsGuest(sql, input.link, { name: input.name, email: input.email, dates: input.dates, locale: localeOf(locale), secret }, new Date());
     cookies.set(guestCookie(done.poll.id), done.secret, { path: guestCookiePath(input.link), maxAge: guestCookieDays * 86_400 });
     redirect(`/p/${input.link}?sent=${done.first ? "1" : "2"}`);
   }),

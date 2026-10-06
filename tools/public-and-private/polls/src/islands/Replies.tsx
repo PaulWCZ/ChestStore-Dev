@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Chat, Mask } from "../components/icons.tsx";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import { keysFor } from "./reply-keys.ts";
 
@@ -19,7 +19,7 @@ function Messages({ replies, t }: { replies: ShownReply[]; t: Words }) {
   return (
     <ul className="replies">
       {replies.map(r => (
-        <li key={r.id} className={r.name === null ? "from-author" : "from-organiser"}>
+        <li key={r.id} className={r.name === null ? "from-author" : undefined}>
           <span className="who">{r.name === null ? <><Mask />{t.replies.author}</> : r.name}</span>
           <span className="body">{r.body}</span>
         </li>

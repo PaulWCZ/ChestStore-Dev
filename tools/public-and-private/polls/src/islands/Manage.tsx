@@ -1,7 +1,7 @@
 import { Confirm } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { Bell, CalendarPlus, Download, Pencil, Repeat, Send, Star, Trash } from "../components/icons.tsx";
-import { call, navigate, refresh, toast } from "../core/client.tsx";
+import { call, navigate, refresh, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import { fill as format } from "./words.ts";
 

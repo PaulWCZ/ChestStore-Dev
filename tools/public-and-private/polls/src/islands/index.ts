@@ -1,4 +1,4 @@
-import { ToastHost } from "../core/client.tsx";
+import { ToastHost } from "@argentic/chest-app/client";
 import { AnswerArea } from "./AnswerArea.tsx";
 import { AutoRefresh } from "./AutoRefresh.tsx";
 import { Comments } from "./Comments.tsx";

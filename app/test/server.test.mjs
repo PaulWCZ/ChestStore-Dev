@@ -3,9 +3,8 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { action, after as afterAnswer, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { applies, AppError as BrowserError } from "../dist/client.js";
-import { AppError } from "../dist/index.js";
 import { db } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
@@ -13,7 +12,7 @@ import { checkPage, testDatabase } from "../dist/testing.js";
 const words = {
   kit,
   tool: { name: "Probe" },
-  pages: { notFound: { title: "Nothing here", body: "." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language", back: "Back" },
+  pages: { notFound: { title: "Nothing here", body: ".", publicBody: "Ask whoever sent the link." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language", back: "Back" },
   errors: { invalid: "Invalid.", empty: "Empty.", too_long: "Too long: {max} at most.", too_large: "Too large.", forbidden: "Forbidden.", not_found: "Not found.", unavailable: "Unavailable.", unknown: "Unknown." },
 };
 function Labelled({ label }) {
@@ -28,10 +27,10 @@ const actions = {
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null),
 };
 let completed = 0;
-const layout = ({ notice, look, children }) => h("main", { id: "main" }, look?.logo && h("img", { src: look.logo.url, alt: look.logo.alt }), notice && h("p", { role: "alert" }, notice), children);
+const layout = ({ notice, look, status, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "" }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
-  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: viewer.member ? { url: "/_chest/theme/brand/logo.svg", alt: "Atelier" } : null }),
+  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: { url: "/_chest/theme/brand/logo.svg", alt: "Brand" } }),
   complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
 app.post("/p/:link/actions/:name", publicActionsAt());
@@ -134,9 +133,15 @@ test("the log names the route, never the path or the query", async () => {
   assert.match(text, /route=\(none\) status=404/u);
 });
 
-test("the layout receives the look (a company's logo)", async () => {
-  assert.match(await (await get("/chest")).text(), /<img src="\/_chest\/theme\/brand\/logo.svg" alt="Atelier"\/>/u);
-  assert.doesNotMatch(await (await get("/", null)).text(), /<img/u);
+test("layouts receive the look (its logo) and the page's status; a visitor's 404 says its own words", async () => {
+  const home = await (await get("/chest")).text();
+  assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg"/u);
+  const missing = await get("/nothing", null);
+  assert.equal(missing.status, 404);
+  const text = await missing.text();
+  assert.match(text, /data-status="404"/u);
+  assert.match(text, /Ask whoever sent the link\./u);
+  assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
 });
 
 test("after(): a task that throws before its first await is logged, never thrown", async () => {

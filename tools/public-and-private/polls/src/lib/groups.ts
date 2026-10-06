@@ -33,9 +33,34 @@ export async function chestGroups(options: { fresh?: boolean } = {}): Promise<Gr
   return groups;
 }
 
-// forgetGroups: a group changed or was removed (events): read them again.
+// forgetGroups: a group changed or was removed, or someone moved between
+// groups (events): read them again — the groups and each member's.
 export function forgetGroups(): void {
   cached = null;
+  memberGroups.clear();
+}
+
+// Each member's groups, kept a minute (per Chest API): asked once per
+// member, not at every request of theirs (a page refreshes itself every
+// 20 s), within the members' 600 calls a minute. A stale answer serves
+// while the Chest says "too many" or cannot be reached.
+const memberGroups = new Map<string, { at: number; api: string | undefined; groups: string[] | null }>();
+const keptFor = 60_000;
+
+async function groupsOf(id: string): Promise<string[] | null> {
+  const api = process.env["CHEST_API"];
+  const kept = memberGroups.get(id);
+  const usable = kept && kept.api === api ? kept : undefined;
+  if (usable && Date.now() - usable.at < keptFor) return usable.groups;
+  try {
+    const groups = await members.groups.of(id);
+    if (memberGroups.size >= 5000) memberGroups.clear();
+    memberGroups.set(id, { at: Date.now(), api, groups });
+    return groups;
+  } catch (error) {
+    if (error instanceof ChestError && usable) return usable.groups;
+    throw error;
+  }
 }
 
 // groupMembers: who is in each of these groups now (among those who have
@@ -81,7 +106,7 @@ export async function groupMembers(ids: readonly string[]): Promise<Map<string, 
 // say, the groups the Chest gave with the member.
 export async function withAllGroups<M extends { id: string; groups: string[] }>(who: M): Promise<M> {
   try {
-    const all = await members.groups.of(who.id);
+    const all = await groupsOf(who.id);
     return all ? { ...who, groups: [...new Set([...who.groups, ...all])] } : who;
   } catch (error) {
     if (error instanceof ChestError) return who;

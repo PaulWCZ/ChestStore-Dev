@@ -32,12 +32,12 @@ export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; para
 export type View = { title: string; body: ReactNode };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
-// look: the page's look when the tool gives one (createApp's look), else null.
-export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; look: Look | null; children: ReactNode };
+// look: the request's look when createApp has one (its logo, in brand
+// mode); status: the page's (an error page's layout may draw more frame).
+export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; look: Look | null; status: number; children: ReactNode };
 // A look served as a stylesheet of its own (/chest/look.css, /look.css),
 // for a look that depends on the request; the browser bar's colours.
-// logo: the company's (brand mode), for the layout to show beside the
-// tool's name.
+// logo: the company's (brand mode), for the layout to show.
 export type Look = { css: string; colors?: readonly { media: string; color: string }[]; logo?: { url: string; alt: string; dark?: string | null } | null };
 
 export type AppOptions = {
@@ -130,8 +130,8 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
       </head>
       <body>
         {viewer.member !== null
-          ? <Members viewer={viewer} path={c.req.path} notice={notice} look={look}>{view.body}</Members>
-          : <Public viewer={viewer} path={c.req.path} notice={notice} look={look}>{view.body}</Public>}
+          ? <Members viewer={viewer} path={c.req.path} notice={notice} look={look} status={status}>{view.body}</Members>
+          : <Public viewer={viewer} path={c.req.path} notice={notice} look={look} status={status}>{view.body}</Public>}
       </body>
     </html>,
   );
@@ -143,12 +143,14 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
 function errorView(viewer: Viewer, status: 403 | 404 | 500): View {
   const t = viewer.t;
   const words = status === 403 ? t.pages.forbidden : status === 404 ? t.pages.notFound : t.pages.failed;
+  // A visitor's 404 may say more (a link turned off): pages.notFound.publicBody.
+  const body = status === 404 && viewer.member === null ? t.pages.notFound.publicBody ?? words.body : words.body;
   return {
     title: words.title,
     body: (
       <div className="ck-empty">
         <h1 className="ck-empty-title">{words.title}</h1>
-        <p className="ck-empty-body">{words.body}</p>
+        <p className="ck-empty-body">{body}</p>
         {viewer.member !== null && <div className="ck-empty-actions"><a className="ck-button ck-button-quiet" href="/chest">{t.pages.back}</a></div>}
       </div>
     ),

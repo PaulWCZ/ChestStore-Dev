@@ -1,6 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { Island } from "../core/island.tsx";
-import { AppError, notFound } from "../core/tool.ts";
+import { Island } from "@argentic/chest-app";
+import { AppError, notFound } from "@argentic/chest-app";
 import { plural, type Catalogue, type Locale } from "../i18n/index.ts";
 import { edits, surveys } from "../lib/access.ts";
 import { groups } from "../lib/audience.ts";
