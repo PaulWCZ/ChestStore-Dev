@@ -1,11 +1,11 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, sightOf } from "./access.ts";
 import { AppError } from "./app-error.ts";
-import { addDays, addMonths, completedMonths, periodStart, round2, type Day } from "../shared/calendar.ts";
+import { addDays, addMonths, clip, completedMonths, cost, periodStart, round2, type Day, type Half, type Span } from "../shared/calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, decimalDays, day, limits, memberId, numeric } from "../shared/model.ts";
 import { today } from "./today.ts";
-import { leaveType, settings, types, type LeaveType, type Settings } from "./rules.ts";
+import { leaveType, rulesFor, settings, types, type LeaveType, type Settings } from "./rules.ts";
 import { staffOf, staffRow, type Staff } from "./staff.ts";
 export { afterRequest, daysLeft, leftIfApproved } from "../shared/left.ts";
 
@@ -78,7 +78,11 @@ const later = (a: Day, b: Day): Day => (a > b ? a : b);
 // taken yet: it is counted apart ("booked"), not in the years.
 // endOfDay: the balance at the end of `on` (payroll's files): a month
 // whose last day it is counts as earned, as it does on a last day.
-export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "startDate"> & Partial<Pick<Staff, "endDate">>, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0, options: { takenBy?: Day; endOfDay?: boolean } = {}): Balance {
+// parts: a request that runs across a year's start (or past takenBy), cut
+// there, each part with what it costs (splitAt): its days are taken in
+// the year of each part, not all in the year it starts in.
+export type Part = { on: Day; days: number };
+export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "startDate"> & Partial<Pick<Staff, "endDate">>, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0, options: { takenBy?: Day; endOfDay?: boolean; parts?: ReadonlyMap<string, readonly Part[]> } = {}): Balance {
   const mode: Period = type.period ?? "running";
   const month = type.periodMonth ?? s.periodStartMonth;
   const lose = mode !== "running" && type.unused === "lose";
@@ -132,8 +136,19 @@ export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "st
     } else if (l.days < 0) debits.push({ on: l.onDate, days: -l.days, order });
     else add(credit, creditYear(l.onDate, l.bucket), l.days);
   });
-  for (const n of nets.values()) {
-    if (n.days < 0) debits.push({ on: n.on, days: -n.days, order: n.order });
+  for (const [id, n] of nets) {
+    const split = options.parts?.get(id);
+    if (n.days < 0 && split && split.length > 1) {
+      // What is still taken goes to the parts in their order (a leave cut
+      // by a last day keeps its first days); more than they cost now (the
+      // rules changed since it was asked) goes to the last.
+      let rest = -n.days;
+      split.forEach((part, i) => {
+        const days = i === split.length - 1 ? rest : Math.min(rest, part.days);
+        if (days > 0) debits.push({ on: part.on, days: round2(days), order: n.order });
+        rest = round2(rest - days);
+      });
+    } else if (n.days < 0) debits.push({ on: n.on, days: -n.days, order: n.order });
     else if (n.days > 0) add(credit, creditYear(n.on, null), n.days);
   }
   // The oldest days first; a year whose days were lost is no longer there
@@ -232,9 +247,64 @@ export async function balancesOf(sql: Query, ids: string[], on = today(), option
     from ledger where member_id in ${sql(ids)} ${past ? sql`and created_at < ${addDays(on, 1)}::date` : sql``} order by id`;
   const pending = past ? [] : await sql<{ member_id: string; type_id: string; days: string }[]>`
     select member_id, type_id, sum(days) as days from requests where member_id in ${sql(ids)} and status = 'pending' group by member_id, type_id`;
+  // Each person's lines and waiting days, gathered once (thousands of
+  // people: never a scan of every line per person).
+  const linesOf = new Map<string, Line[]>();
+  for (const l of lines) {
+    const list = linesOf.get(l.member_id);
+    if (list) list.push(toLine(l));
+    else linesOf.set(l.member_id, [toLine(l)]);
+  }
+  const waitingOf = new Map(pending.map(p => [`${p.member_id}|${p.type_id}`, numeric(p.days)]));
+  const parts = await partsOf(sql, ids, counted, s, staff, past || options.takenBy ? on : null);
+  const takenBy = past || options.takenBy ? { takenBy: on } : {};
   for (const who of ids) {
-    const mine = lines.filter(l => l.member_id === who).map(toLine);
-    found.set(who, counted.map(t => compute(t, mine.filter(l => l.typeId === t.id), staff.get(who)!, s, on, numeric(pending.find(p => p.member_id === who && String(p.type_id) === t.id)?.days), { ...(past || options.takenBy ? { takenBy: on } : {}), ...(options.endOfDay ? { endOfDay: true } : {}) })));
+    const mine = linesOf.get(who) ?? [];
+    const byType = new Map<string, Line[]>();
+    for (const l of mine) {
+      const list = byType.get(l.typeId);
+      if (list) list.push(l);
+      else byType.set(l.typeId, [l]);
+    }
+    found.set(who, counted.map(t => compute(t, byType.get(t.id) ?? [], staff.get(who)!, s, on, waitingOf.get(`${who}|${t.id}`) ?? 0, { ...takenBy, ...(options.endOfDay ? { endOfDay: true } : {}), parts })));
+  }
+  return found;
+}
+
+// splitAt: the days where a leave of this kind is cut for the balances —
+// each year's start (a kind with years) and the day after takenBy — and
+// what each part costs, with the person's week and today's rules, as
+// payroll's files count a leave across two months.
+export function splitAt(span: Span, type: Pick<LeaveType, "counting" | "period" | "periodMonth">, s: Settings, workDays: readonly number[] | null, takenBy: Day | null): Part[] | null {
+  const cuts = new Set<Day>();
+  if (type.period !== "running") {
+    for (let b = periodStart(span.end, type.periodMonth ?? s.periodStartMonth); b > span.start; b = addMonths(b, -12)) cuts.add(b);
+  }
+  if (takenBy !== null) {
+    const next = addDays(takenBy, 1);
+    if (next > span.start && next <= span.end) cuts.add(next);
+  }
+  if (cuts.size === 0) return null;
+  const starts = [span.start, ...[...cuts].sort()];
+  return starts.map((from, i) => {
+    const to = i + 1 < starts.length ? addDays(starts[i + 1]!, -1) : span.end;
+    const part = clip(span, from, to)!;
+    return { on: part.start, days: cost(part, rulesFor(type, s, part.start, part.end, workDays), { head: part.start === span.start, tail: part.end === span.end }) };
+  });
+}
+
+// The parts of these people's requests that cross a cut (most cross none).
+async function partsOf(sql: Query, ids: string[], counted: LeaveType[], s: Settings, staff: Map<string, Staff>, takenBy: Day | null): Promise<Map<string, Part[]>> {
+  const kinds = new Map(counted.map(t => [t.id, t]));
+  const rows = await sql<{ id: string; member_id: string; type_id: string; start_date: string; start_half: Half; end_date: string; end_half: Half }[]>`
+    select id, member_id, type_id, to_char(start_date, 'YYYY-MM-DD') as start_date, start_half, to_char(end_date, 'YYYY-MM-DD') as end_date, end_half
+    from requests where member_id in ${sql(ids)} and end_date > start_date and id in (select request_id from ledger where member_id in ${sql(ids)} and request_id is not null)`;
+  const found = new Map<string, Part[]>();
+  for (const r of rows) {
+    const type = kinds.get(String(r.type_id));
+    if (!type) continue;
+    const split = splitAt({ start: r.start_date, startHalf: r.start_half, end: r.end_date, endHalf: r.end_half }, type, s, staff.get(r.member_id)?.workDays ?? null, takenBy);
+    if (split) found.set(String(r.id), split);
   }
   return found;
 }

@@ -1,8 +1,5 @@
 import { addDays, type Day, type Span } from "../shared/calendar.ts";
 
-// zoned: a day and a time of day in a time zone, as an instant
-// ("2026-03-02", 12 in Paris → 11:00 UTC). Across a change of the clocks,
-// a time that does not exist moves on, one that exists twice is the first.
 // One clock per zone, made once (an Intl object lives outside V8's heap:
 // one per call piles up).
 const clocks = new Map<string, Intl.DateTimeFormat>();
@@ -15,14 +12,26 @@ const clockOf = (timeZone: string): Intl.DateTimeFormat => {
   return found;
 };
 
+// zoned: a day and a time of day in a time zone, as an instant
+// ("2026-03-02", 12 in Paris → 11:00 UTC). Across a change of the clocks,
+// a time that does not exist moves on to the first that does (Santiago's
+// midnight of 6 September 2026 is 01:00), one that exists twice is the
+// first.
 export function zoned(day: Day, hour: number, timeZone: string): Date {
   const guess = Date.parse(`${day}T${String(hour).padStart(2, "0")}:00:00Z`);
   const offset = (at: number) => {
     const parts = Object.fromEntries(clockOf(timeZone).formatToParts(new Date(at)).map(p => [p.type, p.value]));
     return Date.UTC(Number(parts["year"]), Number(parts["month"]) - 1, Number(parts["day"]), Number(parts["hour"]), Number(parts["minute"]), Number(parts["second"])) - at;
   };
-  const first = guess - offset(guess);
-  return new Date(guess - offset(first));
+  const wall = (at: number) => new Date(at + offset(at)).toISOString().slice(0, 13);
+  const wanted = new Date(guess).toISOString().slice(0, 13);
+  // The zone's offsets the day before and after: the instant is the guess
+  // less one of them.
+  const candidates = [...new Set([guess - 864e5, guess, guess + 864e5].map(at => guess - offset(at)))].sort((a, b) => a - b);
+  const exact = candidates.find(at => wall(at) === wanted);
+  // In the gap the clocks skip: the instant they change (the guess read on
+  // the clock before, the latest candidate).
+  return new Date(exact ?? candidates.at(-1)!);
 }
 
 // An approved leave as instants, in a time zone: from the start of its
