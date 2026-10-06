@@ -11,18 +11,19 @@ Chest's own architecture page) — cited by section or file; a claim the
 snapshot does not settle is marked **assumed**. Every claim about a tool
 comes from its code (`tools/private/*/`, `tools/public-and-private/*/`:
 `src/`, `chest.json`, `chest.proposals.json`) at commit `70227ed`
-(6 October 2026). The studio's proposals live in the SDK working copy
+(6 October 2026; versions and §4.17 rechecked at `7cc1a31`). The studio's proposals live in the SDK working copy
 `sdk/`, now **`0.4.1-studio.4`**: the official 0.4.1 byte for byte, with
 the proposals in files of their own (`sdk/client/studio/`; §5)._
 
-_Where the tools stand (6 October 2026, `70227ed`): all 18 say `"chest":
+_Where the tools stand (6 October 2026, `7cc1a31`): all 18 say `"chest":
 "0.4"`, keep only official keys in `chest.json`, and pass `chest check`
-(`scripts/chest-check.mjs`, the Chest's own validator); 17 vendor SDK
-`0.4.1-studio.4` (Expenses `0.4.1-studio.3`). None is on Next.js any more:
+(`scripts/chest-check.mjs`, the Chest's own validator); all 18 vendor SDK
+`0.4.1-studio.4`, the studio's package `@argentic/chest-app`
+`0.1.0-studio.8` and the UI kit `0.2.6-studio.1` (`node
+scripts/check-vendor.mjs`: nothing stale). None is on Next.js any more:
 each runs on the studio's stack — Hono, React rendered on the server with
-islands, Vite — through the studio's package `@argentic/chest-app`
-(`app/`, 16 tools on `0.1.0-studio.6`, Timesheets on studio.5, Expenses
-on studio.4; `reports/06-perseus-starter.md`). File paths below are the
+islands, Vite — through `@argentic/chest-app` (`app/`;
+`reports/06-perseus-starter.md`). File paths below are the
 new layout's: what earlier drafts cited as `src/lib/x.ts` is `src/src/lib/x.ts`;
 the Next.js routes (`app/…/route.ts`) are routes declared in each tool's
 `src/app.tsx`._
@@ -876,8 +877,12 @@ indicative.
 - **What the studio does meanwhile**: the package's `bound` (a single-use
   form token, a honeypot, budgets counted only once a request is valid,
   refusals in a budget of their own, a reserve for a visitor who already
-  wrote today) and, under way for package studio.7, a proof-of-work option
-  (not in studio.6 at `70227ed`: not verified here).
+  wrote today) and, since package studio.8, a proof of work per form token
+  (`bound: { work: true }`: 14 bits found in a Worker, one bit more as the
+  day's budget runs down; `app/AGENTS.md`, "Public writes"), turned on by
+  the six public tools that write (Booking, Forms, Support, Hiring, Polls,
+  Status). It makes a flood cost CPU; it does not tell one robot from many
+  visitors — only the address can.
 - **Asks**: (1) the front sets **`Chest-Visitor-Address`** on the public
   host's requests (§4.8; S); (2) **bot protection is the platform's job**:
   a challenge or proof-of-work primitive at the front, on by default for
@@ -989,8 +994,10 @@ indicative.
   no lock**: a counter row serialises every writer (Clients: a
   5,000-row import over ten minutes; it dropped its counter, `c969373`),
   and a sequence is visible before its transaction commits, which answered
-  stale 304s (Goals; `6365ad8` names the gap). A correct stamp is under
-  way in the package (studio.7, not verified here).
+  stale 304s (Goals; `6365ad8` names the gap). The package's
+  `changeStamp()` (studio.7) keeps a change log written in the writer's own
+  transaction and read without a lock; Clients, Expenses, Goals, Rooms,
+  Timesheets and Quotes use it (`app/test/changes.test.mjs`).
 - **Ask**: a cheap "changed since" signal from the Chest, so every tool
   need not build one — the Realtime spec is "specified, not decided"
   (`reference/product/specs/realtime.md`, `reference/README.md`). M–L.
@@ -1051,8 +1058,28 @@ indicative.
   in SQL (`ba2e41e`, a column lock); the package's `charge()` inside the
   tool's own transaction deadlocks on PGlite's single session (fine on
   PostgreSQL; Status) — documented as "charge before the transaction";
-  island bundles are per page, so a public form's respondent downloaded
-  the builder's code (405 KB of JavaScript) — to split.
+  island bundles were one per tool, so a public form's respondent
+  downloaded the builder's code (405 KB of JavaScript, Forms) — since
+  studio.8 each page loads only its own islands' code.
+- **`fakeChest` checks fewer upload signatures than the Chest.** Its
+  upload checks the first bytes of JPEG, PNG, GIF, WebP and PDF only
+  (`reference/sdk/client/src/testing.ts`); the Chest checks those of
+  AVIF, HEIC, BMP, TIFF, ZIP, gzip, 7z, RAR, tar, bzip2, xz and CAB too
+  (application contract, "`files`", upload: 400 `type_mismatch`) — a
+  mislabelled ZIP passes the fake's test and fails on a Chest (Forms).
+  Ask: the fake checks the contract's list. S.
+- **Public pictures have no platform path.** `files.url` is for members;
+  a public page that shows an uploaded picture must proxy `files.get` —
+  one Chest call per visitor (the starter's fifth review, a lost-and-found
+  example). Same ask as "Files" above: signed, cacheable public links. 
+- **The studio's public upload link must follow the custom domain.** A
+  page on `support.acme.com` has `connect-src 'self'`; an upload link on
+  the default public host is blocked. The proposal (§4.7) returns a path,
+  resolved against the page's own host, since SDK studio.4.
+- **Notifications from public actions** (a new request, an application)
+  spend the host's notification quota; nothing says who pays when a
+  robot writes. Ask: a stated policy (a separate public budget, or
+  public-originated notices folded into one digest). S.
 
 #### A decision for the owner
 
