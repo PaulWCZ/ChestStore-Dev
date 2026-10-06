@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
 import * as b from "../src/lib/booking.ts";
 import { email } from "../src/lib/guests.ts";
@@ -134,8 +134,9 @@ test("the answers reach the host's bell (in their language) and the guest's conf
   const { booking } = await b.book(sql, host, type, { ...guest, start: "2026-10-06T07:00:00.000Z", answers: { room0001: "Living room", pro00001: "no" } }, monday);
   await tell.booked(booking, host.zone);
   const bell = chest.notifications.filter(n => n.member === ines.id).at(-1)!;
-  // Inès reads French: yes/no in French, the host's own words as written.
-  assert.equal(bell.body, "Project call — Bring samples — Which room?: Living room — Is it for a business?: Non");
+  // Inès reads French (the notice's French translation): yes/no in
+  // French, the host's own words as written.
+  assert.equal(shownTo(bell, "fr").body, "Project call — Bring samples — Which room?: Living room — Is it for a business?: Non");
   assert.equal(await email(sql, "confirmed", booking, "https://book.example.com"), "email");
   const mail = chest.outbox.filter(m => m.to.includes("Alex@Example.com")).at(-1)!;
   assert.ok(mail.text.includes("Your answers:\nWhich room?: Living room\nIs it for a business?: No\n"), mail.text);

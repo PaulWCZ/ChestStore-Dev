@@ -1,4 +1,4 @@
-import { Confirm, FilePicker, Switch, type PickedFile } from "@argentic/chest-ui/components";
+import { Confirm, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import type { FileWords } from "@argentic/chest-ui/components/logic";
 import { useState, type ReactNode } from "react";
 import { CopyButton } from "../components/copy-button.tsx";
@@ -42,11 +42,10 @@ function Box({ title, icon, children }: { title: string; icon: ReactNode; childr
 // tool's own feed is then the way).
 // language: the language the host writes their texts in; second: another
 // version of them (optional) — the welcome here, the types in their form.
-export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug: string; welcome: string; listed: boolean; hasFeed: boolean; emailMe: boolean; dailyMax: number; language: string; second: string; welcomeAlt: string }; chestCalendar: string | null; origin: string; t: Words }) {
+export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug: string; welcome: string; listed: boolean; hasFeed: boolean; dailyMax: number; language: string; second: string; welcomeAlt: string }; chestCalendar: string | null; origin: string; t: Words }) {
   const s = t.settings;
   const { pending, error, run } = useRun();
   const [feed, setFeed] = useState<string | null>(null);
-  const [emailMe, setEmailMe] = useState(host.emailMe);
   const [language, setLanguage] = useState(host.language);
   const [second, setSecond] = useState(host.second);
   const codes = Object.keys(languageNames);
@@ -111,8 +110,6 @@ export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug:
             <div><a className="button soft" href={chestCalendar}><Arrow />{s.chestCalendarOpen}</a></div>
           </>
         ) : <p className="hint">{s.feedHint}</p>}
-        {/* Takes effect at once: the kit's Switch. */}
-        <Switch label={s.emailMe} checked={emailMe} disabled={pending} onChange={on => { setEmailMe(on); void run(() => call("savePrefs", { dailyMax: host.dailyMax, emailMe: on }, { quiet: true }), () => s.saved); }} />
         <p className="hint">{s.calendarDelay}</p>
         {chestCalendar ? (
           <details className="more">

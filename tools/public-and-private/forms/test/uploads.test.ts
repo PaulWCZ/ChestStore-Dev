@@ -102,7 +102,7 @@ test("an answer with a file, end to end: kept under the form, copy emailed in th
   await assert.rejects(take(sql, f, { version: 1, answers: { [email.id]: "nope" } }, null, "en"), (e: unknown) => e instanceof AppError && e.code === "answers" && e.values[email.id] === "email" && e.values[cv.id] === "required");
 });
 
-test("a team form's copy goes to the member, whose address the tool never sees", async () => {
+test("a team form's copy is a notification to the member, opening what they sent — never a mail", async () => {
   const { sql } = database;
   const note = q("short", "Note", { required: true });
   const f0 = await forms.create(sql, asMember(ines), { definition: form([note], "Team note"), settings: { audience: "team" } });
@@ -111,7 +111,11 @@ test("a team form's copy goes to the member, whose address the tool never sees",
   const f = (await forms.bySlug(sql, f0.slug))!.form;
   const taken = await take(sql, f, { version: 1, answers: { [note.id]: "Hello" } }, asMember(hugo), "en");
   assert.deepEqual(taken, { copy: true });
-  assert.equal(chest.outbox.at(-1)!.subject, "Your answers — Team note");
+  const n = chest.notifications.at(-1)!;
+  assert.equal(n.member, hugo.id);
+  assert.equal(n.title, "Your answers to Team note were sent");
+  assert.match(n.path, /^\/chest\/sent\/[a-z0-9]+$/u);
+  assert.ok(!chest.outbox.some(m => m.subject.includes("Team note")), "no mail to a member");
 });
 
 test("without public uploads on the Chest, the grant says so", async () => {

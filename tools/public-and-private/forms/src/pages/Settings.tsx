@@ -62,7 +62,7 @@ export async function settingsPage({ sql, member, t, lang, zone, param }: Ctx) {
             closesDay: closes?.day ?? "", closesHour: closes?.hour ?? 18, maxAnswers: form.maxAnswers === null ? "" : String(Math.min(form.maxAnswers, limits.maxAnswers)),
             thanksTitle: form.thanksTitle, thanksBody: form.thanksBody, redirectUrl: form.redirectUrl ?? "", sendCopy: form.sendCopy,
             retentionMonths: form.retentionMonths === null ? "" : String(form.retentionMonths), watchers,
-            notifyEmail: form.notifyEmail, shareEvents: form.shareEvents, routes: form.routes,
+            shareEvents: form.shareEvents, routes: form.routes,
             kiosk: form.kiosk, hiddenFields: form.hiddenFields.join(", "),
           },
           routeChoices,

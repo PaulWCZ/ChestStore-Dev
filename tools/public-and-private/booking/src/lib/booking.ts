@@ -17,13 +17,12 @@ import { chestPublicUrl } from "./public-origin.ts";
 // database (or a transaction) and, on the team side, who acts; it checks
 // the right itself and throws an AppError code when it refuses.
 
-// dailyMax: at most this many meetings a day, all types (0: no limit);
-// emailMe: an email with each booking's calendar file.
+// dailyMax: at most this many meetings a day, all types (0: no limit).
 // ready: the host connected a calendar or confirmed their hours — until
 // then their page is not public (not listed, not bookable). language: the
 // language of their texts (null: not said); second: another version of
 // them, optional (welcomeAlt, each type's alt).
-export type Host = { memberId: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; hasFeed: boolean; dailyMax: number; emailMe: boolean; ready: boolean; language: Locale | null; second: Locale | null; welcomeAlt: string };
+export type Host = { memberId: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; hasFeed: boolean; dailyMax: number; ready: boolean; language: Locale | null; second: Locale | null; welcomeAlt: string };
 export type BookingType = {
   id: string;
   memberId: string;
@@ -186,11 +185,11 @@ export async function rememberDelivery(sql: Query, delivery: "email" | "page"): 
 
 // ——— Hosts ———
 
-type HostRow = { member_id: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; feed_hash: string | null; daily_max: number; email_me: boolean; ready: boolean; language: string | null; second_language: string | null; welcome_alt: string };
+type HostRow = { member_id: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; feed_hash: string | null; daily_max: number; ready: boolean; language: string | null; second_language: string | null; welcome_alt: string };
 const toHost = (r: HostRow): Host => {
   const language = isLocale(r.language) ? r.language : null;
   const second = language && isLocale(r.second_language) && r.second_language !== language ? r.second_language : null;
-  return { memberId: r.member_id, slug: r.slug, zone: r.zone, weekly: r.weekly, listed: r.listed, away: r.away, welcome: r.welcome, hasFeed: r.feed_hash !== null, dailyMax: r.daily_max ?? 0, emailMe: r.email_me ?? true, ready: r.ready ?? true, language, second, welcomeAlt: r.welcome_alt ?? "" };
+  return { memberId: r.member_id, slug: r.slug, zone: r.zone, weekly: r.weekly, listed: r.listed, away: r.away, welcome: r.welcome, hasFeed: r.feed_hash !== null, dailyMax: r.daily_max ?? 0, ready: r.ready ?? true, language, second, welcomeAlt: r.welcome_alt ?? "" };
 };
 
 export async function hostOf(sql: Query, memberId: string): Promise<Host | null> {
@@ -255,12 +254,11 @@ export async function saveHost(sql: Query, actor: Member, input: { slug: unknown
   }
 }
 
-// The host's own limits and wishes: at most N meetings a day, all types;
-// an email with each booking.
-export async function saveHostPrefs(sql: Query, actor: Member, input: { dailyMax: unknown; emailMe: unknown }): Promise<void> {
+// The host's own limit: at most N meetings a day, all types.
+export async function saveHostPrefs(sql: Query, actor: Member, input: { dailyMax: unknown }): Promise<void> {
   if (!can(actor, "host")) throw new AppError("forbidden");
   const max = minutes(input.dailyMax, 0, 50);
-  const done = await sql`update hosts set daily_max = ${max}, email_me = ${input.emailMe !== false} where member_id = ${actor.id}`;
+  const done = await sql`update hosts set daily_max = ${max} where member_id = ${actor.id}`;
   if (done.count === 0) throw new AppError("not_host");
 }
 

@@ -1,9 +1,8 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import type { Sql } from "./db.ts";
-import { catalogue, format, locales, plural, type Locale } from "../i18n/index.ts";
-import * as alerts from "./alerts.ts";
-import { badges, cut, notify, withdraw } from "./notify.ts";
+import { format, plural } from "../i18n/index.ts";
+import { badges, notice, notify, withdraw } from "./notify.ts";
 import { people } from "./people.ts";
 
 // The bell and the tile. The people chosen for a form (watchers) hear of
@@ -34,10 +33,10 @@ export async function pending(sql: Sql, now = new Date()): Promise<number> {
 }
 
 // ring tells each watcher how many answers they have not seen, in their
-// language — and, when the form says so, emails them the new answers
-// (lib/alerts.ts), in the same batch.
+// language (the Chest mails it to them by their own choice: Forms sends
+// members no email).
 async function ring(sql: Sql, formId: string): Promise<void> {
-  const [form] = await sql<{ title: string; notify_email: boolean }[]>`select draft->>'title' as title, notify_email from forms where id = ${formId} and deleted_at is null`;
+  const [form] = await sql<{ title: string }[]>`select draft->>'title' as title from forms where id = ${formId} and deleted_at is null`;
   if (!form) return;
   const watchers = await sql<{ member: string; unseen: number }[]>`select member, unseen from watchers where form_id = ${formId} and unseen > 0`;
   const byCount = new Map<number, string[]>();
@@ -46,7 +45,6 @@ async function ring(sql: Sql, formId: string): Promise<void> {
     await notify(ids, (t, locale) => ({ title: plural(t.bell.answers, count, locale, { form: form.title || t.builder.untitled }), body: t.bell.body }), { path: `/chest/forms/${formId}/answers`, key: key(formId) });
   }
   await refreshBadges(sql, watchers.map(w => w.member));
-  if (form.notify_email) await alerts.send(sql, formId, watchers.map(w => ({ member: w.member, count: w.unseen })));
 }
 
 // seen: the member opened the answers; their item goes, their count too.
@@ -70,17 +68,13 @@ export async function refreshBadges(sql: Sql, members?: string[]): Promise<void>
 }
 
 // opened: a team form was published; everyone who has the tool may be
-// told once, in their language (Proposal (studio): notifications.broadcast).
-// Without it, the form's page link is shared by hand — nothing breaks.
+// told once, each in their language (Proposal (studio), announced for
+// 0.5: notifications.broadcast, no "to": everyone with the tool), except
+// its author. Without it, the form's page link is shared by hand —
+// nothing breaks.
 export async function opened(formId: string, slug: string, title: string, except: string): Promise<boolean> {
-  const messages = Object.fromEntries(locales.map(l => [l, { title: cut(format(catalogue(l).bell.open, { form: title }), 80), body: catalogue(l).bell.openBody }])) as Record<Locale, { title: string; body: string }>;
   try {
-    await notifications.broadcast({
-      messages,
-      path: `/chest/f/${slug}`,
-      key: `ask:${formId}`,
-      except: [except],
-    });
+    await notifications.broadcast(notice(t => ({ title: format(t.bell.open, { form: title }), body: t.bell.openBody }), { path: `/chest/f/${slug}`, key: `ask:${formId}` }), { except: [except] });
     return true;
   } catch (error) {
     if (error instanceof ChestError) return false;

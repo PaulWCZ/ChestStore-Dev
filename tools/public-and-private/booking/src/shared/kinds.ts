@@ -15,7 +15,9 @@ export const isLocationKind = (v: unknown): v is LocationKind => typeof v === "s
 export const durations = [15, 20, 30, 45, 60, 90, 120] as const;
 
 // The tool's own routes: never the address of a host's page or a type's.
-export const reserved = new Set(["chest", "chest-events", "chest-schedules", "chest-mail", "chest-checks", "chest-webhooks", "chest-jobs", "b", "feed", "lang", "api", "actions", "assets", "look.css", "_next", "_chest", "icon.svg", "favicon.ico", "robots.txt"]);
+// Every "chest-…" address is the Chest's (chest-events, chest-schedules…).
+const routes = new Set(["chest", "b", "feed", "lang", "api", "actions", "assets", "look.css", "_next", "_chest", "icon.svg", "favicon.ico", "robots.txt"]);
+export const reserved = { has: (slug: string): boolean => routes.has(slug) || slug.startsWith("chest-") };
 
 // A slug from a name: "Léa Dubois" → "lea-dubois".
 export function slugify(text: string): string {

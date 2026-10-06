@@ -482,25 +482,56 @@ tax registration (FC) of a franchise company without a VAT number (EN
 (fnfe-mpe.org could not be reached; its rules were read from the official
 schemas and schematrons).
 
+## Mail to people outside the company
+
+Quotes & invoices emails only clients — people outside the company. A
+member is never emailed by the tool: billing, sales and the author are
+told in the Chest's bell (a quote accepted or refused online, a late
+invoice, a recurring draft ready, a deal won in Clients, hours to bill
+from Timesheets), one notice in English with its French translation; the
+Chest mails members their notifications by their own choice (each one,
+once or twice a day, or off; off per tool), set in the Chest, not here.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| The client (the document's buyer's email, changeable in the dialog) | A quote | A member presses *Send* | The words of the send dialog in the client's language; first line: the link to read and accept the quote online | The quote's PDF; the terms and conditions of sale (PDF) when Settings has them | The company's email of Settings ("Clients reply to this address"), else the connector's reply address |
+| The client | An invoice or a credit note | A member presses *Send* | The dialog's words; the bank details and the online payment link when set | The invoice's PDF (Factur-X) | The same |
+| The client | A payment reminder | A member presses *Send a reminder* | The dialog's words: number, amount left, due date | The invoice's PDF (none for an invoice imported from the previous tool) | The same |
+| The client | An automatic payment reminder | Each morning (schedule `followup`), an invoice late by one of the company's steps, when an administrator turned them on | The standard reminder in the client's language, signed with the company's name | The invoice's PDF | The same |
+
+Sent through the Chest's mail connector (studio proposal, not built yet):
+`mail.send` with the client's address, signed "{member} — {company}"
+(the automatic reminder: the company). Replies reach the company's usual
+inbox, never the tool; a quote's mail never asks the client to reply to
+accept — the answer link does it. When the connector is absent or paused
+(`mail.available()` not ok, or `send` throws `Unavailable`), nothing is
+lost: the send dialog opens on *Send it yourself* (download the PDF, send
+it from your own email, mark it as sent) and says why; an automatic
+reminder is not emailed — the person in charge is told in the bell, as
+always — and a reminder the Chest could not take (paused, no answer) is
+tried again the next morning.
+
+**Changed on 6 October 2026** (the owner's mail decisions): a document
+sent by hand needs no special flag any more (no member gets the tool's
+mail); the bell's notices carry their French translation in one notice.
+
 ## Needs from the SDK
 
-Built on SDK 0.4.1-studio.4 (contract 0.4 + studio proposals) and the package `@argentic/chest-app` 0.1.0-studio.6, in `vendor/`.
+Built on SDK 0.4.1-studio.6 (contract 0.4 + studio proposals) and the package `@argentic/chest-app` 0.1.0-studio.6, in `vendor/`.
 
 - **mail** (studio proposal, `chest.proposals.json` `mail.send`): send the
-  quote, invoice, credit note or reminder with its PDF attached. Call site:
-  `src/lib/sending.ts` only. On a Chest without mail (`CapabilityNotGranted`)
-  nothing is sent, the tool remembers it (`company.mail_works`) and offers
+  quote, invoice, credit note or reminder with its PDF attached — to
+  clients only (people outside the company; see *Mail to people outside
+  the company*). Call site: `src/lib/sending.ts` only. On a Chest without
+  mail (`CapabilityNotGranted`) or whose mail connector is not connected
+  (`Unavailable`) nothing is sent, the tool remembers it (`company.mail_works`) and offers
   "Download the PDF" + "Mark as sent". Before offering, it asks the Chest
   (`mail.available()`, studio.16; `src/lib/mailing.ts`): the send dialog opens
   on "Send it yourself" and says why (not connected, paused, the day's
   emails used) when the Chest would not send; Settings says the same under
   "Email the client"; the morning's reminders go to the bell alone when the
   Chest has no mail or it is not connected. When the Chest does not
-  answer, what the last send taught. A quote or an invoice a member
-  sends by hand is `transactional` (studio.15): it arrives even when the
-  addressee is a member who chose no email from the tools; the automatic
-  reminders honour that choice (`mailPreference` in the members API, applied by
-  `mail.send`). An automatic reminder's key carries its recipient
+  answer, what the last send taught. An automatic reminder's key carries its recipient
   (`reminder-<invoice>-<step>-<address>`): after a restore, an invoice id
   may name another invoice.
 - **schedules** (contract 0.4, `chest.json`): `badges`, `followup`,

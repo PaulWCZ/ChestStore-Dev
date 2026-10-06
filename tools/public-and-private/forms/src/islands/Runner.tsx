@@ -137,7 +137,10 @@ export function Runner(props: RunnerProps) {
   // it never moves up between the press and the release of a click that
   // also ends a correction (a date read on blur).
   const [bannerAt, setBannerAt] = useState<number | null>(null);
+  // copy: the copy went (a visitor: by email; a member: in their
+  // notifications); copyMissed: a visitor asked for one and none could go.
   const [copy, setCopy] = useState(false);
+  const [copyMissed, setCopyMissed] = useState(false);
   const [wantCopy, setWantCopy] = useState(false);
   const copyAt = props.offerCopy && mode === "public" ? def.pages.flatMap(p => p.questions).find(q => q.kind === "email")?.id : undefined;
   const [restored, setRestored] = useState(false);
@@ -267,6 +270,7 @@ export function Runner(props: RunnerProps) {
     if (result.ok) {
       forget(storageKey);
       setCopy(result.copy);
+      setCopyMissed(!result.copy && mode === "public" && copyAt !== undefined && wantCopy);
       setStage("thanks");
       window.scrollTo({ top: 0 });
       if (props.redirectUrl) setTimeout(() => window.location.assign(props.redirectUrl!), 1600);
@@ -479,7 +483,8 @@ export function Runner(props: RunnerProps) {
         <div className="thanks-seal" aria-hidden="true"><Check /></div>
         <h1 className="runner-title">{say(props.thanks.title) || w.thanks.title}</h1>
         <p className="runner-lede">{say(props.thanks.body) || w.thanks.body}</p>
-        {copy && <p className="runner-note">{w.thanks.copy}</p>}
+        {copy && <p className="runner-note">{mode === "team" ? w.thanks.copyTeam : w.thanks.copy}</p>}
+        {copyMissed && <p className="runner-note">{w.thanks.noCopy}</p>}
         {props.redirectUrl && mode !== "preview" && (
           <p className="runner-note">{w.thanks.redirecting} <a href={props.redirectUrl}>{w.thanks.continue}</a></p>
         )}

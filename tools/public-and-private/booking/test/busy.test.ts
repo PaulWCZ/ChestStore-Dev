@@ -173,7 +173,7 @@ test("the calendar hosts the tool checks are the ones chest.json declares to the
 test("a host's daily maximum holds across all their types", async () => {
   const { sql, host, type } = await ready();
   const other = await b.createType(sql, asMember(ines), { ...base, title: "Visit", slug: "visit" });
-  await b.saveHostPrefs(sql, asMember(ines), { dailyMax: 2, emailMe: false });
+  await b.saveHostPrefs(sql, asMember(ines), { dailyMax: 2 });
   const me = (await b.hostOf(sql, ines.id))!;
   await b.book(sql, me, type, { ...guest, start: "2026-10-06T07:00:00.000Z" }, monday);
   await b.book(sql, me, other, { ...guest, start: "2026-10-06T09:00:00.000Z" }, monday);

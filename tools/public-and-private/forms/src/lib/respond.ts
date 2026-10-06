@@ -4,10 +4,11 @@ import { submit } from "./answers.ts";
 import type { Sql } from "./db.ts";
 import type { Form } from "./forms.ts";
 import { answered, routed } from "./answered.ts";
-import { copyAllowed, sendCopy } from "./mailer.ts";
+import { copyAllowed, copyNotice, sendCopy } from "./mailer.ts";
 import { isLanguage, localize } from "../shared/model.ts";
 import { sendHooks } from "./hooks.ts";
 import { linkOf } from "./linked.ts";
+import { putSetting } from "./settings.ts";
 import { afterAnswer } from "./tell.ts";
 import * as uploads from "./uploads.ts";
 
@@ -41,7 +42,8 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
   // (README, "With the other tools"). Support confirms only when it is
   // linked to receive the request (events.receivers): installed alone,
   // nobody would.
-  // - a team form: to the member, without the tool knowing their address;
+  // - a team form: a notification to the member (never a mail), opening
+  //   what they sent;
   // - a public form: to the address typed, only when the visitor ticked
   //   "Email me a copy", holding only the form's own words (never what was
   //   typed: an address anyone can type must not carry anyone's text in
@@ -51,12 +53,17 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
   let copy = false;
   if (form.sendCopy && !form.anonymous && !supportConfirms) {
     const visitor = form.audience === "public";
-    const to = !visitor && respondent ? { member: respondent.id } : visitor && options.copyAsked === true ? answer.email : null;
-    // In the language the person read the form in: its second version
-    // when it has one in their language.
-    const read = isLanguage(language) ? localize(definition, language) : definition;
-    if (to && (typeof to !== "string" || (await copyAllowed(sql, form.id, to, answer.id)))) {
-      copy = (await sendCopy(to, read, answer.data, language, chest.organization.name, answer.id, { ownWordsOnly: visitor })) === "email";
+    if (!visitor && respondent) {
+      // The form's title in each language it is written in.
+      copy = await copyNotice(respondent.id, l => (isLanguage(l) ? localize(definition, l) : definition).title, answer.id);
+    } else if (visitor && options.copyAsked === true && answer.email && (await copyAllowed(sql, form.id, answer.email, answer.id))) {
+      // In the language the person read the form in: its second version
+      // when it has one in their language.
+      const read = isLanguage(language) ? localize(definition, language) : definition;
+      copy = (await sendCopy(answer.email, read, answer.data, language, chest.organization.name, answer.id, { ownWordsOnly: true })) === "email";
+      // What the last email taught, for the pages when the Chest does not
+      // answer (lib/linked.ts, mailState).
+      await putSetting(sql, "mail_works", copy);
     }
   }
   // Where it went, for the answer's page.

@@ -19,7 +19,7 @@ import { uploadImage } from "../shared/upload-client.ts";
 type Values = {
   audience: Audience; anonymous: boolean; once: boolean; tellTeam: boolean; layout: Layout; accent: Accent;
   closesDay: string; closesHour: number; maxAnswers: string; thanksTitle: string; thanksBody: string; redirectUrl: string;
-  sendCopy: boolean; retentionMonths: string; watchers: string[]; notifyEmail: boolean; shareEvents: boolean;
+  sendCopy: boolean; retentionMonths: string; watchers: string[]; shareEvents: boolean;
   routes: Routes; kiosk: boolean; hiddenFields: string;
 };
 // The questions that may give each piece of a contact or a ticket
@@ -37,7 +37,9 @@ type Props = {
   people: { id: string; name: string }[];
   zoneNote: string;
   locale: string;
-  // Whether the Chest would send email now (lib/linked.ts, mailState).
+  // Whether the Chest would send email now (lib/linked.ts, mailState):
+  // only a public form's copy goes by email (a member's comes in their
+  // notifications).
   mail: "ready" | "off" | "not_connected" | "paused" | "quota" | "unknown";
   cover: string | null;
   // Today on the Chest's clock (the earliest closing day).
@@ -287,7 +289,7 @@ export function Settings(p: Props) {
         </label>
         {v.anonymous ? <p className="hint">{s.sendCopyAnonymous}</p> : (
           <><Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.routes.request && p.links.request === "linked" ? s.supportConfirms : v.audience === "public" ? format(s.sendCopyHint, { perHour: p.budget.copies }) : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
-            {v.sendCopy && mailNotice && !(v.routes.request && p.links.request === "linked") && <p className="notice">{s.copyOff}</p>}</>
+            {v.audience === "public" && v.sendCopy && mailNotice && !(v.routes.request && p.links.request === "linked") && <p className="notice">{mailNotice}</p>}</>
         )}
       </fieldset>
 
@@ -302,8 +304,6 @@ export function Settings(p: Props) {
             </label>
           ))}
         </div>
-        <Switch label={s.notifyEmail} hint={v.anonymous ? s.notifyEmailAnonymous : s.notifyEmailHint} checked={v.notifyEmail} onChange={on => set("notifyEmail", on)} />
-        {v.notifyEmail && mailNotice && <p className="notice">{mailNotice}</p>}
       </fieldset>
 
       <fieldset className="panel" disabled={ro}>

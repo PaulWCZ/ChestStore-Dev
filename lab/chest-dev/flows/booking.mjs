@@ -65,6 +65,8 @@ await step("they pick a day and a time, fill three fields and the host's questio
   expect(text.includes(time), "the time chosen");
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Booked: Project call with Inès Moreau"), "confirmation email in the outbox");
+  expect(dev.includes("lucie@example.com") && dev.includes("replies to <code>contact@atelier-martin.test</code>"), "to the guest, replies to the company's address");
+  expect(!dev.includes("New booking: Project call"), "no email copy to the host: the bell tells her");
   expect(dev.includes("What is it for?: A shop or an office"), "the answers in the email and the bell");
   // A video room of its own, and the booking in Inès's Chest calendar.
   expect(/https:\/\/meet\.jit\.si\/atelier-martin-[a-z0-9x]{12}/u.test(text), "a room of its own");
@@ -731,7 +733,7 @@ await step("on a phone Inès's agenda shows her meetings; « Afficher les créne
   expect(!(await page.locator(".free-toggle").isVisible()) && await page.locator(".meeting.free").first().isVisible(), "a computer shows them all");
 });
 
-await step("email is promised only because this Chest sends it (SDK studio.16, mail.available): the public form, New booking and Settings say so, and no page says it cannot", async () => {
+await step("email is promised only because this Chest sends it (mail.available): the public form, New booking and Settings say so, and no page says it cannot", async () => {
   await context.clearCookies();
   await page.goto(origin + "/ines-moreau/project-call");
   await page.waitForSelector(".calendar button.open");
@@ -747,6 +749,8 @@ await step("email is promised only because this Chest sends it (SDK studio.16, m
   await page.goto(origin + "/chest/settings");
   const text = await page.locator("main").innerText();
   expect(!/cannot send email|not connected email|paused email|all of today/u.test(text), "Settings warns of nothing: " + text.slice(0, 200));
+  expect(text.includes("when they reply, it goes to contact@atelier-martin.test"), "Settings says where guests' replies go");
+  expect(!/Email me/u.test(text), "no email-me setting: the member chooses in the Chest");
 });
 
 await step("the company's page speaks the visitor's language, else the Chest's (English here)", async () => {
