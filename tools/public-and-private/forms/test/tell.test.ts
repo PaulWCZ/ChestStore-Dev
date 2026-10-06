@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as answers from "../lib/answers.ts";
-import * as forms from "../lib/forms.ts";
-import * as tell from "../lib/tell.ts";
-import { POST as jobs } from "../app/chest-jobs/[name]/route.ts";
+import * as answers from "../src/lib/answers.ts";
+import * as forms from "../src/lib/forms.ts";
+import * as tell from "../src/lib/tell.ts";
+import * as schedules from "@argentic/chest-sdk/schedules";
+import { seen } from "@argentic/chest-app/db";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -13,14 +14,17 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ members: everyone, network: {} });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "bell", cron: "*/15 * * * *" }, { name: "cleanup", cron: "20 3 * * *" }] });
 });
 after(async () => {
   await chest.close();
   await database.close();
 });
 
+// The bell's schedule run, as src/app.tsx answers it (test/app.test.mjs
+// runs the server's own).
+const jobs = async (request: Request) => new Response(null, { status: await schedules.handle(request, { bell: async run => { await tell.pending(database.sql, new Date(run.scheduledAt)); } }, { seen }) });
 const noFiles = { files: async () => { throw new Error("no files"); }, drop: async () => {} };
 
 test("the bell: batched per form, replaced not doubled, in each watcher's language; the tile counts what is unseen", async () => {

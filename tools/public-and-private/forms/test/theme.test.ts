@@ -7,8 +7,8 @@ import { fakeChest } from "@argentic/chest-sdk/testing";
 import { catalogue, checkPalette, checkTheme, contrast, deriveTheme, validateTheme, type Theme } from "@argentic/chest-ui";
 import { themeStyle } from "@argentic/chest-ui/runtime";
 import { identityOf } from "@argentic/chest-ui/themes";
-import { accents, formSlots } from "../lib/model.ts";
-import { identity, ownLook, publicLook, teamLook } from "../lib/theme.ts";
+import { accents, formSlots } from "../src/shared/model.ts";
+import { identity, ownLook, publicLook, sheetOf, teamLook } from "../src/lib/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -41,12 +41,13 @@ test("its signature colours are the ones Forms always had", () => {
   assert.equal(d["cat-7"], "#f6c945");
 });
 
-test("its fonts are the tool's own files, served at /fonts, and the look's style names them", () => {
-  const present = new Set(readdirSync(join(root, "public", "fonts")));
-  const css = themeStyle(identity);
-  const urls = [...css.matchAll(/url\((\/fonts\/[^)]+)\)/gu)].map(m => m[1]!);
+test("its fonts are the tool's own files, served at /assets/fonts, and the look's stylesheet names them", async () => {
+  forgetTheme();
+  const present = new Set(readdirSync(join(root, "public", "assets", "fonts")));
+  const css = (await sheetOf("team")).css;
+  const urls = [...css.matchAll(/url\((\/assets\/fonts\/[^)]+)\)/gu)].map(m => m[1]!);
   assert.ok(urls.length >= 3, "the display and body faces");
-  for (const url of urls) assert.ok(present.has(url.slice("/fonts/".length)), url);
+  for (const url of urls) assert.ok(present.has(url.slice("/assets/fonts/".length)), url);
   assert.match(css, /font-family:'DM Serif Display'/u);
   assert.match(css, /font-family:'DM Sans Variable'/u); // the registry's name of the variable face
 });
@@ -81,7 +82,7 @@ test("the look follows the Chest: the company's choice for all tools, this tool'
   assert.equal((await teamLook()).theme, identity, "outside a Chest: the identity");
 });
 
-// A form's page (app/tokens.css): the colour chosen is a slot of the
+// A form's page (src/tokens.css): the colour chosen is a slot of the
 // palette (berry the look's own action colour outside Forms' look); its
 // ground is the slot's soft ground in Forms' own look, the surface in any
 // other. Every text on it must read (4.5:1): the questions (ink), the
@@ -135,7 +136,7 @@ test("a form's page reads in every colour whatever a company's brand", () => {
 function sources(dir: string, pattern: RegExp): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "public", "test", "docs", "chest"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "public", "test", "docs", "chest"].includes(name)) return [];
     return statSync(path).isDirectory() ? sources(path, pattern) : pattern.test(path) ? [path] : [];
   });
 }
@@ -150,10 +151,8 @@ test("no colour is written in the tool's stylesheets or components: only contrac
 });
 
 test("every var() of the stylesheets is a contract token or one of the tool's own", () => {
-  const css = ["app/tokens.css", "app/globals.css"].map(f => readFileSync(join(root, f), "utf8")).join("\n");
+  const css = ["src/tokens.css", "src/styles.css"].map(f => readFileSync(join(root, f), "utf8")).join("\n");
   const own = new Set([...css.matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!));
-  // Set by the pages on an element's style: a bar's share, a grid's size.
-  for (const name of ["--share", "--cols", "--cells"]) own.add(name);
   const contract = new Set([...themeStyle(identity).matchAll(/(--[\w-]+):/gu)].map(m => m[1]!));
   const unknown = new Set<string>();
   for (const m of css.matchAll(/var\((--[\w-]+)/gu)) if (!own.has(m[1]!) && !contract.has(m[1]!)) unknown.add(m[1]!);
@@ -161,5 +160,6 @@ test("every var() of the stylesheets is a contract token or one of the tool's ow
 });
 
 test("the tool's own font stylesheets are gone: the look writes the faces", () => {
-  assert.equal(existsSync(join(root, "app", "fonts")), false);
+  assert.equal(existsSync(join(root, "app")), false);
+  assert.equal(existsSync(join(root, "src", "fonts")), false);
 });

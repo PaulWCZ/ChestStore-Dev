@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import type { Member } from "@argentic/chest-sdk/member";
-import * as answers from "../lib/answers.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as forms from "../lib/forms.ts";
-import type { Definition } from "../lib/model.ts";
+import * as answers from "../src/lib/answers.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as forms from "../src/lib/forms.ts";
+import type { Definition } from "../src/shared/model.ts";
+import { everyAnswer } from "./support/answers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -14,8 +15,8 @@ import { camille, everyone, hugo, ines, lea, nora, sofia, tom } from "./support/
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -72,7 +73,7 @@ test("editing a published form: answers keep the version they answered", async (
   const late = await send(after2.form, { [colour.id]: { ids: [red] } }, null, 1);
   assert.equal(late.answer.version, 1);
   await refused(send(after2.form, { [colour.id]: { ids: [red] } }, null, 2), "answers");
-  const list = await answers.allAnswers(sql, asMember(ines), f.id);
+  const list = await everyAnswer(sql, f.id);
   assert.deepEqual(list.answers.map(a => a.version).sort(), [1, 1]);
   assert.equal(list.versions.get(1)!.pages[0]!.questions[0]!.title, "Colour");
   // A version from the future is read as the current one.
@@ -93,7 +94,7 @@ test("the answer limit holds under concurrent answers: exactly the limit is kept
   const [{ count }] = (await sql<{ count: number }[]>`select count(*)::int as count from answers where form_id = ${f.id}`) as unknown as [{ count: number }];
   assert.equal(count, 3);
   // Deleting one gives its place back.
-  const one = (await answers.allAnswers(sql, asMember(ines), f.id)).answers[0]!;
+  const one = (await everyAnswer(sql, f.id)).answers[0]!;
   await answers.removeAnswer(sql, asMember(ines), f.id, one.id);
   const reopened = (await forms.bySlug(sql, f.slug))!.form;
   assert.equal(forms.openState(reopened).open, true);
@@ -123,7 +124,7 @@ test("team forms: members only, one answer per member when asked, identity from 
   const many = await published(form([pick]), { audience: "team", once: false });
   await send(many.form, { [pick.id]: { ids: [pizza] } }, asMember(hugo));
   await send(many.form, { [pick.id]: { ids: [pizza] } }, asMember(hugo));
-  assert.equal((await answers.allAnswers(sql, asMember(ines), many.form.id)).answers.length, 2);
+  assert.equal((await everyAnswer(sql, many.form.id)).answers.length, 2);
   assert.ok((await forms.teamForms(sql, asMember(hugo))).find(x => x.slug === f.slug)!.answered);
 });
 
@@ -136,7 +137,7 @@ test("anonymous forms: no member id, no time, participants apart, rows in a rand
   await send(f, { [mood.id]: 4, [note.id]: "Good week" }, asMember(people[0]!));
   await refused(send(f, { [mood.id]: 4 }, asMember(people[0]!)), "already");
   await refused(answers.listAnswers(sql, asMember(camille), f.id), "anonymous_rows");
-  await refused(answers.allAnswers(sql, asMember(camille), f.id), "too_few");
+  await refused(answers.summaryOf(sql, asMember(camille), f.id), "too_few");
   await refused(answers.anonymousTexts(sql, asMember(camille), f.id), "too_few");
   for (const p of people.slice(1)) await send(f, { [mood.id]: 3 }, asMember(p));
   const rows = await sql<{ respondent: string | null; email: string | null; created_at: Date | null; xmin: string; ctid: string }[]>`select respondent, email, created_at, xmin::text, ctid::text from answers where form_id = ${f.id}`;
@@ -153,7 +154,8 @@ test("anonymous forms: no member id, no time, participants apart, rows in a rand
   // own — never a row that joins one person's answers; no one can find them
   // to erase.
   await refused(answers.listAnswers(sql, asMember(camille), f.id), "anonymous_rows");
-  const all = await answers.allAnswers(sql, asMember(camille), f.id);
+  await answers.summaryOf(sql, asMember(camille), f.id);
+  const all = await everyAnswer(sql, f.id);
   assert.equal(all.answers.length, 6);
   assert.ok(all.answers.every(a => a.respondent === null && a.createdAt === null));
   const texts = await answers.anonymousTexts(sql, asMember(camille), f.id);

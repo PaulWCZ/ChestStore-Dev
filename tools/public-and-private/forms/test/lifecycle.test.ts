@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as answers from "../lib/answers.ts";
-import * as forms from "../lib/forms.ts";
+import * as events from "@argentic/chest-sdk/events";
+import { seen } from "@argentic/chest-app/db";
+import { handlers } from "../src/lib/lifecycle.ts";
+import * as answers from "../src/lib/answers.ts";
+import * as forms from "../src/lib/forms.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -12,14 +14,16 @@ import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
   await database.close();
 });
 
+// The tool's /chest-events, as src/app.tsx answers it.
+const POST = async (request: Request) => new Response(null, { status: await events.handle(request, handlers(database.sql), { seen }) });
 const noFiles = { files: async () => { throw new Error("no files"); }, drop: async () => {} };
 const erasure = (id: string, n: string) => ({ type: "member.erased" as const, id: "evt_" + n.repeat(26), data: { id, erasure: "era_" + n.repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } });
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { answerText, asked, check, matches, prefill, read, walk } from "../lib/logic.ts";
-import { END, type Definition } from "../lib/model.ts";
+import { answerText, asked, check, matches, prefill, read, walk } from "../src/shared/logic.ts";
+import { END, type Definition } from "../src/shared/model.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 
 // The logic engine: which questions are asked, which page comes next, and

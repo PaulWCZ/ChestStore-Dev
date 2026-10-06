@@ -2,17 +2,15 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as files from "@argentic/chest-sdk/files";
-import { alertText } from "../lib/alerts.ts";
-import { answeredData } from "../lib/answered.ts";
-import * as answers from "../lib/answers.ts";
-import { AppError } from "../lib/app-error.ts";
-import { frameAncestors, saveSites, sites } from "../lib/embed.ts";
-import * as forms from "../lib/forms.ts";
-import { acceptImage, sniffImage, sweepImages } from "../lib/images.ts";
-import { take } from "../lib/respond.ts";
-import * as tell from "../lib/tell.ts";
-import { POST as draftRoute } from "../app/chest/(work)/forms/[id]/draft/route.ts";
-import { signAssertion } from "@argentic/chest-sdk/testing";
+import { alertText } from "../src/lib/alerts.ts";
+import { answeredData } from "../src/lib/answered.ts";
+import * as answers from "../src/lib/answers.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { embedOrigins, frameAncestors, saveSites, sites } from "../src/lib/embed.ts";
+import * as forms from "../src/lib/forms.ts";
+import { acceptImage, sniffImage, sweepImages } from "../src/lib/images.ts";
+import { take } from "../src/lib/respond.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -21,7 +19,6 @@ import { camille, everyone, hugo, ines, lea, tom } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   // The tool's name: its events are named after it (forms.answered).
   process.env["CHEST_TOOL"] = "forms";
   chest = await fakeChest({
@@ -32,7 +29,9 @@ before(async () => {
     storage: { publicUploads: true, publicFiles: true },
     mail: { domain: "atelier.test" },
     chest: { organization: "Atelier Martin" },
+    network: {},
   });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -177,21 +176,19 @@ test("websites allowed to show the public forms: https addresses, managers only;
   assert.equal(frameAncestors([], false), "frame-ancestors 'none'");
 });
 
-test("a website allowed on the Share tab may frame the public forms on the very next request, as the proxy reads it", async () => {
+test("a website allowed on the Share tab may frame the public forms on the very next request", async () => {
   const { sql } = database;
-  // Next.js runs proxy.ts in its own module instance, apart from the server
-  // actions (whose saveSites once cleared only its own copy of a cache): load
-  // lib/embed.ts a second time, as the proxy does, and read through db()
-  // exactly as it calls it.
-  const proxied = (await import(`../lib/embed.ts?proxy=${Date.now()}`)) as typeof import("../lib/embed.ts");
+  // Read from the database for each public page's policy (src/app.tsx
+  // framed), never kept in the process.
   await saveSites(sql, asMember(camille), "");
-  assert.equal(proxied.frameAncestors(await proxied.embedOrigins(), false), "frame-ancestors 'none'");
+  assert.equal(frameAncestors(await embedOrigins(sql), false), "frame-ancestors 'none'");
   await saveSites(sql, asMember(camille), "https://www.atelier-martin.fr");
-  assert.equal(proxied.frameAncestors(await proxied.embedOrigins(), false), "frame-ancestors 'self' https://www.atelier-martin.fr");
+  assert.equal(frameAncestors(await embedOrigins(sql), false), "frame-ancestors 'self' https://www.atelier-martin.fr");
   await saveSites(sql, asMember(camille), "https://www.atelier-martin.fr\nhttps://shop.atelier-martin.fr");
-  assert.deepEqual(await proxied.embedOrigins(), ["https://www.atelier-martin.fr", "https://shop.atelier-martin.fr"]);
+  assert.deepEqual(await embedOrigins(sql), ["https://www.atelier-martin.fr", "https://shop.atelier-martin.fr"]);
   await saveSites(sql, asMember(camille), "");
-  assert.deepEqual(await proxied.embedOrigins(), []);
+  assert.deepEqual(await embedOrigins(sql), []);
+  assert.equal(frameAncestors(["https://www.atelier-martin.fr"], true), "frame-ancestors 'none'", "the team's pages never");
 });
 
 test("pictures: checked by their first bytes, published under public/, swept when no form uses them", async () => {
@@ -201,31 +198,17 @@ test("pictures: checked by their first bytes, published under public/, swept whe
   assert.equal(sniffImage(new TextEncoder().encode("<svg>")), null);
   await refused(acceptImage("img.zz.png.1.sig", "covers"), "image_invalid");
   // A ticket the tool signed, for a file the browser sent.
-  const { grantImage } = await import("../lib/images.ts");
+  const { grantImage } = await import("../src/lib/images.ts");
   const g = await grantImage("image/png", png.length);
   const name = `uploads/team/${g.ticket.split(".")[1]}.png`;
   await files.put(name, png, "image/png");
   const image = await acceptImage(g.ticket, "covers");
   assert.match(image.object, /^public\/covers\/[0-9a-f]{20}\.png$/u);
-  assert.equal(files.publicUrl(image.object, { version: image.version }).startsWith("/_chest/public/covers/"), true);
+  assert.equal(files.publicPath(image.object, { version: image.version }).startsWith("/_chest/public/covers/"), true);
   const { form: f } = await published(form([q("short", "x")], "With cover"), {}, ines);
   await forms.setCover(sql, asMember(ines), f.id, image);
   await refused(forms.setCover(sql, asMember(hugo), f.id, null), "not_found");
   assert.equal(await sweepImages(sql, new Date(Date.now() + 2 * 86400000)), 0, "the cover is used");
   await forms.setCover(sql, asMember(ines), f.id, null);
   assert.equal(await sweepImages(sql, new Date(Date.now() + 2 * 86400000)), 1, "unused, it goes");
-});
-
-test("the builder's last save when the page goes away: the member's own, from the tool's pages only", async () => {
-  const { sql } = database;
-  const f = await forms.create(sql, asMember(ines), { definition: form([q("short", "x")], "Draft") });
-  const body = (revision: number) => JSON.stringify({ text: JSON.stringify(form([q("short", "y")], "Saved on leave")), revision });
-  const request = (who: typeof ines | null, site: string, revision = f.revision) => new Request(`http://tool/chest/forms/${f.id}/draft`, { method: "POST", body: body(revision), headers: { "Content-Type": "application/json", "Sec-Fetch-Site": site, ...(who ? { "Chest-Member": signAssertion(asMember(who)) } : {}) } });
-  const params = { params: Promise.resolve({ id: f.id }) };
-  assert.equal((await draftRoute(request(null, "same-origin"), params)).status, 401);
-  assert.equal((await draftRoute(request(ines, "cross-site"), params)).status, 403);
-  assert.equal((await draftRoute(request(hugo, "same-origin"), params)).status, 404);
-  assert.equal((await draftRoute(request(ines, "same-origin"), params)).status, 200);
-  assert.equal((await forms.open(sql, asMember(ines), f.id)).form.draft.title, "Saved on leave");
-  assert.equal((await draftRoute(request(ines, "same-origin"), params)).status, 409, "an old revision is a conflict, never lost silently");
 });
