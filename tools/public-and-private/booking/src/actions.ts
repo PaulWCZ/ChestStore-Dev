@@ -2,7 +2,6 @@ import { action, fail, field, publicAction, redirect, type Field } from "@argent
 import * as b from "./lib/booking.ts";
 import * as calendars from "./lib/calendars.ts";
 import { db } from "./lib/db.ts";
-import { formLimits, perLink } from "./lib/guard.ts";
 import { email } from "./lib/guests.ts";
 import { importCalendly as importFile } from "./lib/import.ts";
 import { publicOrigin } from "./lib/public-origin.ts";
@@ -222,15 +221,15 @@ export const actions = {
     await tell.hostCopy(sql, "booked", made.booking);
     await share.changed(sql, "booked", made.booking);
     redirect(`/b/${made.secret}?new=1${mailed ? "&mailed=1" : ""}`);
-  }, { bound: { formSeconds: formLimits.formSeconds, budgets: { new: formLimits.perKind.new } } }),
+  }, { bound: { formSeconds: b.formLimits.formSeconds, budgets: { new: b.formLimits.perKind.new } } }),
 
   // The guest cancels their booking, with an optional word for the host.
   cancelMine: publicAction({ secret: text(100), reason: text(500) }, async ({ secret, reason }, { request, charge }) => {
     const sql = db();
     // Counted only once the link opens a booking still to come.
     await b.changeAllowed(sql, secret, null);
-    await perLink(sql, secret);
-    await charge("change");
+    // The guest's link is the subject: a few changes a day each.
+    await charge("change", { subject: secret });
     const done = await b.cancelByGuest(sql, secret, reason);
     const host = await b.hostOf(sql, done.memberId);
     await email(sql, "cancelled", done, publicOrigin(request.headers));
@@ -238,14 +237,13 @@ export const actions = {
     await publish.unpublish(sql, done);
     await tell.hostCopy(sql, "cancelled", done);
     await share.changed(sql, "cancelled", done);
-  }, { bound: { budgets: { change: formLimits.perKind.change } } }),
+  }, { bound: { budgets: { change: b.formLimits.perKind.change } } }),
 
   // The guest moves their booking to another free time of its type.
   moveMine: publicAction({ secret: text(100), start: text(40) }, async ({ secret, start }, { request, charge }) => {
     const sql = db();
     await b.changeAllowed(sql, secret, { start });
-    await perLink(sql, secret);
-    await charge("change");
+    await charge("change", { subject: secret });
     const { booking, from } = await b.moveByGuest(sql, secret, start);
     const host = await b.hostOf(sql, booking.memberId);
     await email(sql, "moved", booking, publicOrigin(request.headers));
@@ -254,5 +252,5 @@ export const actions = {
     await tell.hostCopy(sql, "moved", booking);
     await share.changed(sql, "moved", booking, { previousHost: from });
     redirect(`/b/${secret}?moved=1`);
-  }, { bound: { budgets: { change: formLimits.perKind.change } } }),
+  }, { bound: { budgets: { change: b.formLimits.perKind.change } } }),
 };

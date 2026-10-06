@@ -193,13 +193,3 @@ test("bookings over for longer than kept are deleted; a guest's data can be eras
   assert.equal(await b.cleanup(sql, Date.parse("2028-11-01T00:00:00Z")), 1);
 });
 
-test("one guest's link cannot fill the changes' budget: held after a few changes an hour, another link is not", async () => {
-  const { sql } = await ready();
-  const { perLink } = await import("../src/lib/guard.ts");
-  for (let i = 0; i < b.formLimits.perSubjectHour; i++) await perLink(sql, "link-one");
-  await refuses(perLink(sql, "link-one"), "limit");
-  await perLink(sql, "link-two");
-  // An hour later, the first link may change its booking again.
-  await b.guard(sql, "change", "another", Date.now() + 3600000);
-});
-

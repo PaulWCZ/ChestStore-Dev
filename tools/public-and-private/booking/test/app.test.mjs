@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { formToken } from "@argentic/chest-app";
+import { formLimits } from "../src/lib/booking.ts";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { testDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
@@ -198,11 +199,15 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   assert.equal(typeof outcome.form, "string", "the answer brings the next token");
   // The same token again: each serves once.
   assert.equal((await (await form("/actions/bookTime", fields)).json()).error, "expired");
-  // The same time with the next token: taken, in the visitor's words — and
-  // the token is given back (a person picks another time with it).
+  // The same time with the next token: taken, in the visitor's words. The
+  // token is spent by the refusal too, and the refusal brings the next (a
+  // person picks another time with it: the island keeps it).
   const second = outcome.form;
-  assert.equal((await (await form("/actions/bookTime", { ...fields, chest_form: second })).json()).error, "taken");
-  assert.equal((await (await form("/actions/bookTime", { ...fields, chest_form: second })).json()).error, "taken", "not expired: given back");
+  const taken = await (await form("/actions/bookTime", { ...fields, chest_form: second })).json();
+  assert.equal(taken.error, "taken");
+  assert.equal(typeof taken.form, "string", "the refusal brings the next token");
+  assert.equal((await (await form("/actions/bookTime", { ...fields, chest_form: second })).json()).error, "expired", "spent by the refusal");
+  assert.equal((await (await form("/actions/bookTime", { ...fields, chest_form: taken.form })).json()).error, "taken", "the next one serves");
   // The guest's page, its calendar file, then cancelled by its guest.
   const guestPage = await get(null, outcome.redirect);
   assert.equal(guestPage.status, 200);
@@ -221,7 +226,7 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   assert.equal((await get(null, "/b/nolinkatall")).status, 200, "an unknown link says so, kindly");
 });
 
-test("junk cannot close the booking form: invalid cancels, moves and bookings are refused uncounted", async () => {
+test("junk cannot close the booking form: invalid cancels, moves and bookings spend no budget (counted only as refusals)", async () => {
   await database.sql`delete from chest_bounds`;
   await database.sql`delete from form_counts`;
   const junk = (n) => Array.from({ length: n }, (_, i) => i);
@@ -236,8 +241,12 @@ test("junk cannot close the booking form: invalid cancels, moves and bookings ar
   // A booking of a type that does not exist, or a time that is no time.
   assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "nothing", start: "2030-01-01T09:00:00.000Z", chest_form: shown(), name: "X", email: "x@example.com" })).status, 404);
   assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: "soon", chest_form: shown(), name: "X", email: "x@example.com" })).status, 400);
-  const [{ n }] = await database.sql`select count(*)::int as n from chest_bounds where count > 0`;
-  assert.equal(n, 0, "nothing was counted");
+  const [{ n }] = await database.sql`select count(*)::int as n from chest_bounds where count > 0 and scope not like '%:refused'`;
+  assert.equal(n, 0, "no budget was spent");
+  // Refusals have a ceiling of their own (ten times a day's budget), so a
+  // flood refused one by one stops before it costs the Chest's limits.
+  const refused = Object.fromEntries((await database.sql`select scope, count from chest_bounds where scope like '%:refused' and visitor = '*'`).map(r => [r.scope, r.count]));
+  assert.deepEqual(refused, { "cancelMine:refused": 300, "moveMine:refused": 20, "bookTime:refused": 2 });
   assert.equal((await database.sql`select 1 from form_counts`).length, 0);
   // A real visitor books at once, known by a cookie of their browser's
   // (the harness's front names no visitor).
@@ -246,6 +255,31 @@ test("junk cannot close the booking form: invalid cancels, moves and bookings ar
   const booked = await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: slots.at(-1), zone: "Europe/Paris", chest_form: shown(), name: "Real Person", email: "real@example.com", phone: "", note: "", q_project1: "A home" }, { "accept-language": "en" });
   assert.equal((await booked.json()).ok, true);
   assert.match(booked.headers.get("set-cookie") ?? "", /chest_v=[\w-]{16,64};/u);
+});
+
+test("one guest's link cannot spend the changes' budget: held after perSubject moves a day, another link is not", async () => {
+  await database.sql`delete from chest_bounds`;
+  const from = new Date().toISOString().slice(0, 10), to = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
+  const { slots } = await (await get(null, `/api/slots?host=ines-moreau&type=project-call&from=${from}&to=${to}`)).json();
+  const book = async (start, email) => /^\/b\/([\w-]+)\?/u.exec((await (await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start, zone: "Europe/Paris", chest_form: shown(), name: "Guest", email, phone: "", note: "", q_project1: "A home" }, { "accept-language": "en" })).json()).redirect)[1];
+  const one = await book(slots.at(-5), "one@example.com");
+  const two = await book(slots.at(-6), "two@example.com");
+  const per = formLimits.perKind.change.perSubject;
+  // Moved and moved back: each a valid change of the same link.
+  const move = (secret, i) => form("/actions/moveMine", { secret, start: i % 2 === 0 ? slots.at(-7) : slots.at(-5), chest_form: shown() });
+  await database.sql`update bookings set moves = 0`;
+  let moved = 0;
+  for (let i = 0; i < per; i++) {
+    const r = await move(one, i);
+    if (r.status !== 200) break;
+    moved++;
+    await database.sql`update bookings set moves = 0`;
+  }
+  assert.equal(moved, per, "a person may move their booking a few times");
+  const held = await move(one, per);
+  assert.equal(held.status, 429);
+  assert.equal((await held.json()).error, "limit");
+  assert.equal((await form("/actions/moveMine", { secret: two, start: slots.at(-8), chest_form: shown() })).status, 200, "another link is not held");
 });
 
 test("downloads: the bookings as CSV for the team, a host's private feed", async () => {

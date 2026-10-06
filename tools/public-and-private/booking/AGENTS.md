@@ -40,7 +40,7 @@ islands, refresh, fields, words, tests).
 | `src/lib/embed.ts` | The websites allowed to frame the public pages |
 | `src/lib/mailer.ts`, `src/lib/guests.ts`, `src/lib/tell.ts`, `src/lib/notify.ts` | Emails to guests through the Chest's mail (falling back to the page); the host's bell |
 | `src/lib/lifecycle.ts` | Members leaving or erased; `seen` (events and schedule runs handled once, `chest_events`) |
-| `src/lib/guard.ts`, `src/lib/public-origin.ts` | The public form's guard (signed "shown at" time, counters); the Chest's addresses (`chest.tool.*`), the visitor's key (`visitors.address()`) |
+| `src/lib/public-origin.ts` | The Chest's addresses (`chest.tool.*`); the public form's guard is the package's (`bound`, budgets in `formLimits` of `src/lib/booking.ts`) |
 | `src/lib/db.ts` | The tool's database pool (`provide()` lets the unit tests hand it their connection) |
 | `test/` | `app.test.mjs` (the built server: routes, policy, look, actions, public pages, framing, files, events, schedules), `stack.test.ts` (the package's `checkSources`, `checkWords`), the services' tests; `support/db.ts` (PGlite with `btree_gist`, or `TEST_DATABASE_URL`) |
 
@@ -146,7 +146,8 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
   of `formLimits.perKind`), its form carries `<Honeypot />` (the token;
   `call()` sends it from the page), and its run refuses what could never
   write anything (the type found, a well-formed time, `changeAllowed` for
-  a guest's link, `perLink`) **before** `await charge(kind)`. A new public
+  a guest's link) **before** `await charge(kind)` — a change with `{
+  subject: secret }`, so one link has its own budget (`perSubject`). A new public
   action does the same.
 - **Calendar UIDs** are `Booking.uid` (`calendarUid`): never build one by
   hand; bookings made before migration 0007 keep `booking-<id>@chest`.

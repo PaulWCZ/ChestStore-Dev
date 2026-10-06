@@ -994,7 +994,7 @@ export async function bySecret(sql: Query, secret: string): Promise<{ booking: B
 }
 
 // What a guest's change (a cancellation, a move) must be before it is
-// even counted (src/lib/guard.ts): their link opens a booking still to
+// even counted (src/actions.ts: before charge()): their link opens a booking still to
 // come — and, for a move, one moved less than five times, to a time
 // well-formed. Nothing is changed here.
 export async function changeAllowed(sql: Query, secret: string, move: { start: unknown } | null, now = Date.now()): Promise<void> {
@@ -1184,24 +1184,17 @@ export async function todayCounts(sql: Query, memberIds: string[], now = Date.no
 // ——— The public form's guard ———
 
 // The package bounds every public write (src/actions.ts: a form token,
-// the honeypot, budgets per visitor and for everyone a day). Booking's own
-// counter, per hour and per subject (one guest's link): see
-// src/lib/guard.ts. perKind: the budgets src/actions.ts gives the package.
-export type FormKind = "new" | "change";
+// the honeypot, budgets a day per visitor, for everyone, and — for the
+// changes — per guest's link: a link replayed, its booking moved and moved
+// back, is held after perSubject changes a day, whoever sends it, so one
+// link cannot spend everyone's budget). perKind: the budgets src/actions.ts
+// gives the package. (form_counts, the hourly per-link counter before the
+// package had perSubject, is no longer written; the nightly cleanup empties
+// it, and a later migration drops it.)
 export const formLimits = {
-  perSubjectHour: 10,
   formSeconds: 3,
-  perKind: { new: { perVisitor: 10, perDay: 1000 }, change: { perVisitor: 20, perDay: 1000 } },
+  perKind: { new: { perVisitor: 10, perDay: 1000 }, change: { perVisitor: 20, perDay: 1000, perSubject: 20 } },
 } as const;
-
-export async function guard(sql: Query, kind: FormKind, subject: string, now = Date.now()): Promise<void> {
-  const hour = new Date(Math.floor(now / 3600000) * 3600000);
-  const [row] = await sql<{ count: number }[]>`
-    insert into form_counts (key, hour, count) values (${`s:${kind}:${subject}`}, ${hour}, 1)
-    on conflict (key, hour) do update set count = form_counts.count + 1
-    returning count`;
-  if ((row?.count ?? 0) > formLimits.perSubjectHour) throw new AppError("limit");
-}
 
 // ——— Keeping data ———
 

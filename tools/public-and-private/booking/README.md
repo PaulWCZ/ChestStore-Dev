@@ -374,8 +374,12 @@ released 0.4.1; what follows is not in it yet.
   `chest_v` cookie of the browser's) and for everyone — bookings (10 / 1,000)
   and changes (20 / 1,000) apart — spent only once a request is valid
   (the type exists, the time is well-formed, the guest's link opens a
-  booking still to come: junk is refused uncounted). Booking adds a cap
-  per guest's link (10 changes an hour, `form_counts`).
+  booking still to come: junk spends no budget; refusals are counted
+  apart, up to ten times a day's budget). Changes also have a budget per
+  guest's link (20 a day, the package's `perSubject`), so one link cannot
+  spend everyone's. Without the front's address, a robot that drops its
+  cookie can still spend the day's budget for everyone (the package's
+  AGENTS.md says so): the address is the fix.
 - **`calendar`** — **Proposal (studio)** (`chest.proposals.json`:
   `"calendar": true`): each booking in its host's Chest calendar feed.
   Without it, the tool's own private feed (Settings) remains.
