@@ -769,6 +769,7 @@ export const en = {
       quota: "Your Chest has sent all its emails for today",
     },
     byHandTitle: "Send it yourself",
+    notSent: "The email did not go: your Chest could not send it just now",
     noMailBody: "Download the PDF, attach it to an email of your own, then come back and mark it as sent.",
     noMailReminder: "Download the PDF, send it again with a word in an email of your own, then mark the reminder as done.",
     step1: "Download the PDF.",

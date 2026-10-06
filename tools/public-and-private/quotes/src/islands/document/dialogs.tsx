@@ -26,6 +26,9 @@ export function SendDialog({ t, doc, kind, mailWorks, mailReason, pdfHref, onClo
   const [line, setLine] = useState<string | null>(null);
   const [terms, setTerms] = useState(false);
   const [byHand, setByHand] = useState(mailWorks === false);
+  // The email was just tried and did not go (the Chest paused sending, or
+  // did not answer): said first, so nobody believes it went.
+  const [notSent, setNotSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -50,6 +53,7 @@ export function SendDialog({ t, doc, kind, mailWorks, mailReason, pdfHref, onClo
     setBusy(false);
     if (!result.ok) return setError(result.message);
     if (result.value.delivery === "no_mail") {
+      setNotSent(true);
       setByHand(true);
       return;
     }
@@ -70,7 +74,7 @@ export function SendDialog({ t, doc, kind, mailWorks, mailReason, pdfHref, onClo
           <div className="callout quiet" role="note">
             <Info />
             <div>
-              <p><strong>{mailWorks === false ? (mailReason ? s.noMailWhy[mailReason] : s.noMailTitle) : s.byHandTitle}</strong></p>
+              <p><strong>{mailWorks === false ? (mailReason ? s.noMailWhy[mailReason] : s.noMailTitle) : notSent ? s.notSent : s.byHandTitle}</strong></p>
               <p>{kind === "reminder" ? s.noMailReminder : s.noMailBody}</p>
             </div>
           </div>

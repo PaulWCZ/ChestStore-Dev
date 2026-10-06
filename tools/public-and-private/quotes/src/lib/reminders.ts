@@ -1,4 +1,5 @@
 import { log } from "@argentic/chest-app";
+import { QuotaExceeded, Unavailable } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import { issuers } from "./access.ts";
 import { company } from "./company.ts";
@@ -61,10 +62,17 @@ export async function remindLatePayers(sql: Sql, today: string): Promise<Reminde
         const full = await getDocument(sql, system, row.id, today);
         if ((await sendAutomaticReminder(sql, full, step, today)) === "email") channel = "email";
       } catch (error) {
-        // The step is tried again next time.
-        await sql`delete from reminder_steps where document_id = ${row.id} and step = ${step}`;
-        log.error("automatic reminder failed", error, { invoice: row.id });
-        continue;
+        // The Chest paused sending, did not answer, or sent the day's
+        // emails: the step is tried again the next morning (Settings says
+        // the reminders wait).
+        if (error instanceof Unavailable || error instanceof QuotaExceeded) {
+          await sql`delete from reminder_steps where document_id = ${row.id} and step = ${step}`;
+          log.warn("automatic reminder waits for the Chest's mail", { invoice: row.id, reason: error.name });
+          continue;
+        }
+        // Anything else would fail again every morning: the person in
+        // charge is told in the bell instead, and reminds by hand.
+        log.error("automatic reminder failed: told in the bell", error, { invoice: row.id });
       }
     }
     await sql`update reminder_steps set channel = ${channel} where document_id = ${row.id} and step = ${step}`;
