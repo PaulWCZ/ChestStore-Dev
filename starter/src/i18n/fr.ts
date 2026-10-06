@@ -24,7 +24,6 @@ export const fr: Catalogue = {
     not_found: "Cela n’existe plus.",
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     unknown: "Un problème est survenu. Réessayez.",
-    busy: "Trop de messages aujourd’hui. Réessayez demain.",
   },
   // EXAMPLE (Notes)
   people: { former: "{name} (ancien membre)", noAccess: "{name} (sans accès)", erased: "Ancien membre", unknown: "Membre inconnu" },
@@ -41,14 +40,6 @@ export const fr: Catalogue = {
     removed: "Note supprimée.",
     export: "Télécharger en CSV",
     by: "{name}, {date}",
-    fromVisitor: "Depuis la page publique, {date}",
     empty: { title: "Aucune note pour l’instant", body: "Publiez la première : tous ceux qui ont l’outil la voient." },
-  },
-  contact: {
-    title: "Écrire à l’équipe",
-    intro: "Votre message rejoint les notes de l’équipe. N’y mettez pas de données personnelles.",
-    label: "Votre message",
-    send: "Envoyer",
-    sent: "Merci : l’équipe a bien reçu votre message.",
   },
 };

@@ -50,15 +50,16 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
   const child = spawn(command[0], command.slice(1), { cwd: dir, env: { ...env, PORT: String(port) }, stdio: ["ignore", quiet ? "ignore" : "inherit", quiet ? "ignore" : "inherit"] });
   const assertion = () => testing.signAssertion(member);
   // The front: /chest… with the member, everything else as it is.
-  // fail(status): the next GET of a page answers that status, as the
-  // Chest's front would (403 "Access removed", 502…) — for browser tests.
+  // fail(status, { method, type }): the next request of that method (GET
+  // by default; not a file) answers that status, as the Chest's front
+  // would (403 "Access removed", 502, 503 "Waking up…") — for browser tests.
   let failNext = null;
   const proxy = createServer((req, res) => {
-    if (failNext && req.method === "GET" && !req.url.startsWith("/assets/")) {
-      const status = failNext;
+    if (failNext && failNext.method === req.method && !req.url.startsWith("/assets/")) {
+      const { status, type } = failNext;
       failNext = null;
-      res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
-      return res.end(`<!doctype html><title>${status}</title><body><h1>The Chest's page ${status}</h1></body>`);
+      res.writeHead(status, { "content-type": type });
+      return res.end(type.startsWith("text/html") ? `<!doctype html><title>${status}</title><body><h1>The Chest's page ${status}</h1></body>` : `${status}`);
     }
     const headers = Object.fromEntries(Object.entries(req.headers).filter(([k]) => !k.startsWith("chest-")));
     if (req.url.split("/")[1]?.split("?")[0].toLowerCase() === "chest") headers["chest-member"] = assertion();
@@ -96,7 +97,7 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
     pid: child.pid,
     ready,
     assertion,
-    fail(status) { failNext = status; },
+    fail(status, { method = "GET", type = "text/html; charset=utf-8" } = {}) { failNext = { status, method, type }; },
     async stop() {
       // npm does not pass SIGTERM on to its script: stop the whole tree.
       const all = tree(child.pid);

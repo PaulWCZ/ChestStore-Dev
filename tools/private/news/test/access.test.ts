@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { can, roleOf, type Ability } from "../lib/access.ts";
+import { can, roleOf, type Ability } from "../src/lib/access.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, stranger } from "./support/members.ts";
 
@@ -17,7 +17,7 @@ test("a publisher does everything; a reader reads and takes part; no role, nothi
 
 // Audience: a post for everyone, or for some groups.
 test("a post kept to groups: its members, its author and the admins see it; only its members are its audience", async () => {
-  const { inAudience, seesPost } = await import("../lib/access.ts");
+  const { inAudience, seesPost } = await import("../src/lib/access.ts");
   const { groups, sofia, lea } = await import("./support/members.ts");
   const sales = { groups: [groups.sales], people: [], author: sofia.id };
   const open = { groups: [], people: [], author: sofia.id };

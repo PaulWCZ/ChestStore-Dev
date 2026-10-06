@@ -233,7 +233,7 @@ await step("approved: the week is in Hugo's own calendar feed as 'Off', private 
   const event = ics.split("BEGIN:VEVENT").find(e => e.includes(`DTSTART;VALUE=DATE:${compact(monday)}`));
   expect(event, "the week is in the feed");
   expect(/SUMMARY:Off\r\n/u.test(event) && /CLASS:PRIVATE/u.test(event) && event.includes(`DTEND;VALUE=DATE:${compact(plus(monday, 5))}`), "Off, private, Monday to Friday: " + event);
-  expect(/URL:http:\/\/[^\r\n]*\/chest\/requests\/\d+/u.test(event), "it opens the request");
+  expect(/URL:https?:\/\/[^\r\n]*\/chest\/requests\/\d+/u.test(event), "it opens the request");
   expect(!/Lisbon|Paid leave|Congés payés/u.test(ics), "never the note nor the kind");
 });
 

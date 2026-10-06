@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
-import { POST as job } from "../app/chest-jobs/[name]/route.ts";
-import * as posts from "../lib/posts.ts";
-import * as tell from "../lib/tell.ts";
+import { chestSchedules as job } from "../src/calls.ts";
+import * as posts from "../src/lib/posts.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia, stranger } from "./support/members.ts";
@@ -20,7 +20,7 @@ beforeEach(async () => {
   await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, capabilities: ["members", "files", "notifications"], schedules: [{ name: "publish", cron: "*/15 * * * *" }] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, capabilities: ["members", "files", "notifications"], network: {} });
   return chest;
 };
 const zone = "Europe/Paris";
@@ -70,7 +70,7 @@ test("a scheduled Important post is told at its time, by the publish schedule", 
     assert.equal(await chest.run("publish", job), 204);
     assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5);
     // Not a delivery of the Chest: refused.
-    assert.equal((await job(new Request("http://tool.test/chest-jobs/publish", { method: "POST", body: "{}" }))).status, 401);
+    assert.equal((await job(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}" }))).status, 401);
   } finally {
     await chest.close();
   }

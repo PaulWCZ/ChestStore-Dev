@@ -3,8 +3,9 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { action, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
-import { db } from "../dist/db.js";
+import { action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { applies, AppError as BrowserError } from "../dist/client.js";
+import { db, seenIn } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
 // A tool of a few lines on the built package, asked as the Chest asks.
@@ -39,6 +40,9 @@ app.get("/chest/day", page(async () => {
   const [{ day }] = await db()`select date '2026-10-05' as day`;
   return { title: "Day", body: h("p", null, typeof day + " " + day) };
 }));
+app.get("/chest/refused", page(() => fail("forbidden")));
+app.get("/chest/missing", page(() => fail("not_found")));
+app.get("/chest/invalid", page(() => fail("invalid")));
 app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
 app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
 app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
@@ -52,7 +56,7 @@ after(async () => { await database.close(); await chest.close(); });
 
 const url = path => `https://tool.test${path}`;
 const get = (path, who = member) => app.fetch(who ? withMember(new Request(url(path)), who) : new Request(url(path)));
-const post = (path, body, headers = {}, who = member) => app.fetch(withMember(new Request(url(path), { method: "POST", body, headers: { "sec-fetch-site": "same-origin", host: "tool.test", ...headers } }), who));
+const post = (path, body, headers = {}, who = member) => { const request = new Request(url(path), { method: "POST", body, headers: { "sec-fetch-site": "same-origin", host: "tool.test", ...headers } }); return app.fetch(who ? withMember(request, who) : request); };
 const json = (path, input, who) => post(path, JSON.stringify(input), { "content-type": "application/json", "x-tool-action": "1" }, who);
 
 test("a page: islands rendered each as its own root (ids that match the browser's), the policy", async () => {
@@ -136,6 +140,30 @@ test("the log names the route, never the path or the query", async () => {
   assert.match(text, /route=\(none\) status=404/u);
 });
 
+test("the script is linked by its hashed name, never with a query: a chunk an island imports later finds the same module", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = mkdtempSync(join(tmpdir(), "chest-app-assets-"));
+  mkdirSync(join(root, "dist", "client", "assets"), { recursive: true });
+  writeFileSync(join(root, "dist", "client", "assets", "client-Ab3_x9Zq.js"), "export {};");
+  writeFileSync(join(root, "dist", "client", "assets", "client.css"), "");
+  const [cwd, mode] = [process.cwd(), process.env.NODE_ENV];
+  process.chdir(root);
+  process.env.NODE_ENV = "development"; // read again on every page
+  try {
+    const html = await (await get("/chest")).text();
+    assert.match(html, /<script type="module" src="\/assets\/client-Ab3_x9Zq\.js"><\/script>/u);
+    assert.match(html, /<link rel="stylesheet" href="\/assets\/client\.css\?v=\w+"\/>/u);
+    const script = await app.fetch(new Request(url("/assets/client-Ab3_x9Zq.js")));
+    assert.equal(script.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  } finally {
+    process.chdir(cwd);
+    if (mode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = mode;
+  }
+});
+
 test("layouts receive the look (its logo) and the page's status; a visitor's 404 says its own words", async () => {
   const home = await (await get("/chest")).text();
   assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg"/u);
@@ -158,4 +186,71 @@ test("a page's own head and exact title; a route's own policy and referrer polic
   assert.equal(secret.headers.get("referrer-policy"), "no-referrer");
   assert.match(secret.headers.get("content-security-policy"), /frame-ancestors 'none'/u);
   assert.equal((await get("/", null)).headers.get("referrer-policy"), "same-origin");
+});
+
+test("after(): a task that throws before its first await is logged, never thrown", async () => {
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    afterAnswer("probe", () => { throw new Error("at once"); });
+    await new Promise(resolve => setTimeout(resolve, 20));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /^error "probe failed"/mu);
+});
+
+test("which page read is put in place: a navigation is never lost to a refresh or an action", () => {
+  const read = { ticket: 3, latest: 3, move: 1, moves: 1, settled: true, sending: 0 };
+  assert.equal(applies({ ...read, navigation: false }), true);
+  assert.equal(applies({ ...read, navigation: false, latest: 4 }), false, "a newer read is on its way");
+  assert.equal(applies({ ...read, navigation: false, moves: 2 }), false, "a navigation came since: this refresh read the old address");
+  assert.equal(applies({ ...read, navigation: false, sending: 1 }), false, "an action is on its way");
+  assert.equal(applies({ ...read, navigation: false, settled: false }), false, "an action was on its way when it started");
+  assert.equal(applies({ ...read, navigation: true, latest: 5, sending: 1, settled: false }), true, "the person's own click");
+  assert.equal(applies({ ...read, navigation: true, moves: 2 }), false, "but not a click followed by another");
+});
+
+test("a rule shared with the browser refuses with the server's own AppError", () => {
+  assert.equal(BrowserError, AppError);
+});
+
+test("fail() in a page is a 403 or 404 page; a body neither form nor JSON is a 415; notices take numbers only", async () => {
+  assert.equal((await get("/chest/refused")).status, 403);
+  assert.equal((await get("/chest/missing")).status, 404);
+  assert.equal((await get("/chest/invalid")).status, 404);
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    const plain = await post("/actions/shout", "text=x", { "content-type": "text/plain", "x-tool-action": "1" }, null);
+    assert.equal(plain.status, 415);
+  } finally {
+    console.error = write;
+  }
+  assert.deepEqual(lines, [], "no error logged for a visitor's odd body");
+  const injected = await (await get(`/chest?error=too_long&values=${encodeURIComponent('{"max":"Call +33 6… now"}')}`)).text();
+  assert.doesNotMatch(injected, /Call/u);
+  assert.match(injected, /role="alert">Invalid\./u);
+});
+
+test("two apps keep their own options", async () => {
+  const other = createApp({ actions: {}, islands: {}, locales: ["en"], words: () => ({ ...words, tool: { name: "Other" } }), layouts: { members: layout, public: layout } });
+  other.get("/chest", page(({ t }) => ({ title: t.tool.name, body: "x" })));
+  assert.match(await (await other.fetch(withMember(new Request(url("/chest")), member))).text(), /<title>Other<\/title>/u);
+  assert.match(await (await get("/chest")).text(), /Probe/u);
+});
+
+test("seen: any table of the tool's, forgotten after so many days", async () => {
+  assert.throws(() => seenIn("x; drop table y"), TypeError);
+  await db()`create table if not exists my_seen (id text primary key, at timestamptz not null default now())`;
+  const mine = seenIn("my_seen");
+  assert.equal(await mine.has("evt_1"), false);
+  await mine.add("evt_1");
+  await mine.add("evt_1");
+  assert.equal(await mine.has("evt_1"), true);
+  await db()`update my_seen set at = now() - interval '40 days'`;
+  await mine.forget();
+  assert.equal(await mine.has("evt_1"), false);
 });

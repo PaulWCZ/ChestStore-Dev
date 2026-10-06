@@ -8,12 +8,12 @@ company's own newspaper, not a social feed.
 ## Tokens
 
 The identity is a **theme of the UI kit**: "Newsprint" (French *Papier
-journal*), defined with `defineTheme` in `lib/theme.ts` — the very source of
+journal*), defined with `defineTheme` in `src/theme.ts` — the very source of
 the kit catalogue's `newsprint` theme (`test/theme.test.ts` holds the two
 equal and checks every contrast pair of `ui/tokens/CONTRACT.md`, light and
 dark). The company may give News another look (a catalogue theme, its
 brand); the CSS names **only contract tokens**, so every screen follows.
-`app/tokens.css` holds the tool's own tokens, defined from contract tokens:
+`src/tokens.css` holds the tool's own tokens, defined from contract tokens:
 the display sizes of the nameplate and the lead headline, `--rule` (the
 black rules, `--line-strong`), and the heavier weights as steps above the
 theme's (`--weight-plate` 900, `--weight-heavy` 800, `--weight-label` 800,
@@ -36,7 +36,7 @@ is a headline — the nameplate at 900, lead headlines at 800 with tight
 tracking, the welcome line in italic, drop caps; *Libre Franklin* (OFL-1.1)
 for reading and for the small uppercase labels (kickers, bylines, section
 names, letter-spaced 0.1–0.14em). Body 16 px, article text 18 px / 1.7, in `--font-read` (the body face in Newsprint; a catalogue theme with a reading face of its own, such as Library, sets it).
-Both self-hosted in `public/fonts/` (the kit writes their `@font-face` from `lib/theme.ts`).
+Both self-hosted in `public/assets/fonts/` (the kit writes their `@font-face` from `src/theme.ts`).
 **Shape**: square — 2 px radii, 2 px ink borders on boxes (event, readers),
 1 px black rules between stories, a 4 px + 1 px double rule under the
 nameplate. No shadows but the toast's. **Space**: 4, 8, 12, 16, 24, 32, 48,
@@ -50,7 +50,7 @@ underline for the current one), the "asks you" strip (highlight, red edge),
 stories (lead: picture 21:9 then a 56 px headline; others: 2 columns, small
 picture beside on a phone), kickers and flags (kind in red, *Pinned*,
 *Important* red block, *Read* green, *New* ink block), the agenda (date
-blocks), article head (kicker, headline, byline row with tools), drop cap (only on a whole first word of 4 letters or more — never "L et’s": lib/markdown.ts, dropCap),
+blocks), article head (kicker, headline, byline row with tools), drop cap (only on a whole first word of 4 letters or more — never "L et’s": src/shared/markdown.ts, dropCap),
 event box, confirm box, welcome card, reaction pills, readers panel with a
 meter, comments, the composer (kind choice cards, headline field in serif,
 a text editor that shows formatting as typed under a sticky icon toolbar —
@@ -98,8 +98,8 @@ warm paper, one red.
     { "name": "Byline", "value": "#5c554b" }
   ],
   "fonts": {
-    "display": { "family": "Fraunces", "file": "public/fonts/fraunces-latin-wght-normal.woff2", "weight": 800 },
-    "body": { "family": "Libre Franklin", "file": "public/fonts/libre-franklin-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Fraunces", "file": "public/assets/fonts/fraunces-latin-wght-normal.woff2", "weight": 800 },
+    "body": { "family": "Libre Franklin", "file": "public/assets/fonts/libre-franklin-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "We are moving on 2 November"
 }

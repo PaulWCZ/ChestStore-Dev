@@ -5,7 +5,7 @@
 //
 // Options: --key <name> (the result's name; the folder's, "ref-" before a
 // reference), --starts 10 (cold starts), --rests 5 (memory runs), --idle 30
-// (seconds of rest), --port 4700, --build-memory 512 --build-cpus 1 (the
+// (seconds of rest), --port (random 39000–39999), --build-memory 512 --build-cpus 1 (the
 // Chest-like build's limits), --no-limited-build, --skip-image (reuse the
 // work copy of a previous --keep run), --keep (keep the work copy),
 // --work <dir> (default $TMPDIR/chest-measure).
@@ -32,7 +32,7 @@ const option = (name, fallback) => (args.includes("--" + name) ? args[args.index
 const flag = (name) => args.includes("--" + name);
 const label = option("label", null);
 if (!folder || !label || !existsSync(join(folder, "chest.json")) || !/^[a-z0-9][a-z0-9._-]*$/u.test(label)) {
-  console.error("usage: node lab/measure/measure.mjs <tool folder> --label <label> [--key k] [--starts 10] [--rests 5] [--idle 30] [--port 4700] [--build-memory 512] [--build-cpus 1] [--no-limited-build] [--skip-image] [--keep] [--work dir]");
+  console.error("usage: node lab/measure/measure.mjs <tool folder> --label <label> [--key k] [--starts 10] [--rests 5] [--idle 30] [--port p] [--build-memory 512] [--build-cpus 1] [--no-limited-build] [--skip-image] [--keep] [--work dir]");
   process.exit(2);
 }
 const source = resolve(folder);
@@ -40,7 +40,9 @@ const key = option("key", keyOf(source));
 const starts = Number(option("starts", "10"));
 const rests = Number(option("rests", "5"));
 const idle = Number(option("idle", "30"));
-const port = Number(option("port", "4700"));
+// A port of its own: other work on this machine runs harnesses on 4000s
+// and 4700s; a random free port of 39000–39999 unless --port names one.
+const port = Number(option("port", String(39000 + Math.floor(Math.random() * 1000))));
 const buildMemory = Number(option("build-memory", "512"));
 const buildCpus = Number(option("build-cpus", "1"));
 const work = join(option("work", join(tmpdir(), "chest-measure")), key);
