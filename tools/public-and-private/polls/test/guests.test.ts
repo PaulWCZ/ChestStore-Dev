@@ -20,7 +20,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], mail: { replyTo: "hello@atelier.test" }, calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin" } });
 });
 after(async () => {
   await chest.close();
@@ -187,8 +187,21 @@ test("the chosen date goes to the calendars of those asked (not those who said n
   assert.equal(mail.subject, "La date de «\u202fDinner with the client\u202f»");
   assert.match(mail.text, /mercredi 21 octobre/u);
   assert.ok(mail.text.includes(`https://polls.atelier.test/p/${link}`));
+  // Replies go to the company's own address (the connector's Reply-To), and the email says so.
+  assert.equal(mail.replyTo, "hello@atelier.test");
+  assert.ok(mail.text.endsWith("Les réponses à cet e-mail arrivent chez Atelier Martin."));
   assert.equal(await emailGuests(sql, id, "https://polls.atelier.test"), 1);
   assert.equal(chest.outbox.length, 1, "the same choice is not sent twice (its key)");
+  // The company's mail not connected: nothing sent, nothing lost silently — the page stays the truth.
+  chest.delivery.mail = "not_connected";
+  try {
+    await polls.chooseFinal(sql, asMember(sofia), id, null, now);
+    await polls.chooseFinal(sql, asMember(sofia), id, (await polls.load(sql, id)).questions[0]!.options[1]!.id, new Date(now.getTime() + 60_000));
+    assert.equal(await emailGuests(sql, id, "https://polls.atelier.test"), 0);
+    assert.equal(chest.outbox.length, 1);
+  } finally {
+    chest.delivery.mail = "ready";
+  }
   // Taken back, or the poll deleted: gone from every calendar.
   await polls.chooseFinal(sql, asMember(sofia), id, null, now);
   await syncFinal(sql, id);

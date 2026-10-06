@@ -2,12 +2,15 @@ import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import * as members from "@argentic/chest-sdk/members";
 
 // The Chest's groups, by name (adapted from the store's News tool). With
-// the "groups" permission (Proposal (studio): "groups": "read") Polls sees
-// every group of the Chest — Sales, Tech, the workshop — even when Polls is
-// open to everyone: a poll may ask one of them, and an anonymous survey's
-// results may be read per group (lib/teams.ts). Without it, only the groups
-// that give Polls (the Chest shows a tool no other group). Null when the
-// Chest could not be asked.
+// the capability "members.groups" (Proposal (studio), the name announced
+// for the official 0.5) Polls sees every group of the Chest — Sales, Tech,
+// the workshop — even when Polls is open to everyone: a poll may ask one of
+// them, and an anonymous survey's results may be read per group
+// (lib/teams.ts). With it, the Chest names every group a member is in
+// (member(request).groups, members.list's groups), so a member's groups are
+// read from the Chest's own answers, never asked again. Without it, only
+// the groups that give Polls (the Chest shows a tool no other group). Null
+// when the Chest could not be asked.
 export type Group = { id: string; name: string; size: number };
 
 // Kept a minute (the SDK's advice), per Chest API (tests start many).
@@ -33,39 +36,15 @@ export async function chestGroups(options: { fresh?: boolean } = {}): Promise<Gr
   return groups;
 }
 
-// forgetGroups: a group changed or was removed, or someone moved between
-// groups (events): read them again — the groups and each member's.
+// forgetGroups: a group changed or was removed (events): its name and size
+// are read again.
 export function forgetGroups(): void {
   cached = null;
-  memberGroups.clear();
-}
-
-// Each member's groups, kept a minute (per Chest API): asked once per
-// member, not at every request of theirs (a page refreshes itself every
-// 20 s), within the members' 600 calls a minute. A stale answer serves
-// while the Chest says "too many" or cannot be reached.
-const memberGroups = new Map<string, { at: number; api: string | undefined; groups: string[] | null }>();
-const keptFor = 60_000;
-
-async function groupsOf(id: string): Promise<string[] | null> {
-  const api = process.env["CHEST_API"];
-  const kept = memberGroups.get(id);
-  const usable = kept && kept.api === api ? kept : undefined;
-  if (usable && Date.now() - usable.at < keptFor) return usable.groups;
-  try {
-    const groups = await members.groups.of(id);
-    if (memberGroups.size >= 5000) memberGroups.clear();
-    memberGroups.set(id, { at: Date.now(), api, groups });
-    return groups;
-  } catch (error) {
-    if (error instanceof ChestError && usable) return usable.groups;
-    throw error;
-  }
 }
 
 // groupMembers: who is in each of these groups now (among those who have
-// Polls), to tell a group inside another one apart (lib/teams.ts). Null
-// when the Chest cannot say for one of them.
+// Polls: members.list({group})), to tell a group inside another one apart
+// (lib/teams.ts). Null when the Chest cannot say for one of them.
 export async function groupMembers(ids: readonly string[]): Promise<Map<string, Set<string>> | null> {
   const out = new Map<string, Set<string>>();
   try {
@@ -73,9 +52,8 @@ export async function groupMembers(ids: readonly string[]): Promise<Map<string, 
       const found = new Set<string>();
       let after: string | undefined;
       for (let i = 0; i < 20; i++) {
-        const page = await members.groups.members(id, { limit: 1000, ...(after ? { after } : {}) });
-        if (!page) break;
-        for (const m of page.members) found.add(m);
+        const page = await members.list({ group: id, limit: 500, ...(after ? { after } : {}) });
+        for (const m of page.members) found.add(m.id);
         if (!page.next) break;
         after = page.next;
       }
@@ -83,47 +61,7 @@ export async function groupMembers(ids: readonly string[]): Promise<Map<string, 
     }
     return out;
   } catch (error) {
-    if (error instanceof CapabilityNotGranted) {
-      try {
-        const list = await members.groups.list();
-        for (const g of list) if (ids.includes(g.id)) out.set(g.id, new Set(g.members));
-        return ids.every(id => out.has(id)) ? out : null;
-      } catch (inner) {
-        if (inner instanceof ChestError) return null;
-        throw inner;
-      }
-    }
     if (error instanceof ChestError) return null;
     throw error;
   }
-}
-
-// withAllGroups: the member with every group they are in. The Chest's
-// assertion (member(request)) and members.* name only the groups that give
-// Polls — none when Polls is open to everyone, the usual case — so a poll
-// put to Sales asks the Chest who is in Sales (members.groups.of, with the
-// "groups" permission). Without that permission, or when the Chest cannot
-// say, the groups the Chest gave with the member.
-export async function withAllGroups<M extends { id: string; groups: string[] }>(who: M): Promise<M> {
-  try {
-    const all = await groupsOf(who.id);
-    return all ? { ...who, groups: [...new Set([...who.groups, ...all])] } : who;
-  } catch (error) {
-    if (error instanceof ChestError) return who;
-    throw error;
-  }
-}
-
-// withGroupsOf: these people with those of these groups they are in added
-// (one question per group, not per person: a poll's audience may be
-// thousands). The people unchanged when the Chest cannot say.
-export async function withGroupsOf<P extends { id: string; groups: string[] }>(people: P[], ids: readonly string[], known?: Map<string, Set<string>> | null): Promise<P[]> {
-  const wanted = [...new Set(ids)];
-  if (wanted.length === 0 || people.length === 0) return people;
-  const inGroups = known === undefined ? await groupMembers(wanted) : known;
-  if (!inGroups) return people;
-  return people.map(p => {
-    const extra = wanted.filter(g => inGroups.get(g)?.has(p.id) && !p.groups.includes(g));
-    return extra.length === 0 ? p : { ...p, groups: [...p.groups, ...extra] };
-  });
 }

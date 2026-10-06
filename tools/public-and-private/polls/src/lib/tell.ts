@@ -1,33 +1,35 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
-import * as mail from "@argentic/chest-sdk/mail";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
+import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { roles } from "./access.ts";
-import { all, audienceGroups, maxPages, page, type Person } from "./audience.ts";
+import { asked, roles } from "./access.ts";
+import { all, maxPages, page, type Person } from "./audience.ts";
 import { dates, optionText } from "./dates.ts";
 import type { Sql } from "./db.ts";
-import { catalogue, fill, locales, type Catalogue } from "../i18n/index.ts";
-import { badges, cut, notify, withdraw } from "./notify.ts";
+import { fill, type Catalogue } from "../i18n/index.ts";
+import { badges, cut, notice, notify, withdraw } from "./notify.ts";
 import { people as lookup, nameOf } from "./people.ts";
 import { answeredBy, closeDue, load, pendingCounts, purge, type Poll } from "./polls.ts";
 import { openRounds } from "./series.ts";
 import { chestZone } from "./zone.ts";
 
-// What Polls tells people through the Chest's bell, each in their own
-// language, and the number on its tile (the polls waiting for their answer).
+// What Polls tells people through the Chest's notifications, each in their
+// own language (a notice's translations), and the number on its tile (the
+// polls waiting for their answer). Polls never mails a member: the Chest
+// mails members their notifications, by each member's choice (every one,
+// once or twice a day, or off).
 //
 // - 'ask': a poll is sent — everyone asked hears of it (not its organiser).
 // - 'remind': the day before it closes; 'nudge': when its organiser asks
-//   ("Remind those who haven't answered") — those who have not answered — in the bell and, where the Chest sends email
-//   (Proposal (studio): mail), by email too.
+//   ("Remind those who haven't answered") — those who have not answered.
 // - 'final': a date poll's date is chosen — everyone asked.
 // - the organiser hears that their poll closed by its date.
 //
-// 'ask' and 'final' go in one broadcast (Proposal (studio): the Chest
-// writes each member's item in their language). Where the Chest cannot
-// broadcast, and for reminders (only those who have not answered), Polls
-// tells a page of 500 members at a time. The Chest takes 1,000 recipients an
+// 'ask' and 'final' go in one broadcast (Proposal (studio):
+// notifications.broadcast(notice, {to, except})). Where the Chest cannot
+// broadcast, for polls put to people by name, and for reminders (only
+// those who have not answered), Polls tells a page of 500 members at a
+// time. The Chest takes 1,000 recipients an
 // hour per tool: beyond, it refuses (QuotaExceeded) and Polls keeps where it
 // stopped (tellings.after) and goes on at the next pass — on the "pass"
 // schedule (every 15 minutes, Proposal (studio)) or when someone opens a
@@ -58,12 +60,6 @@ function words(kind: Kind, poll: Poll, t: Catalogue, locale: Locale, organiser: 
   return { title: cut(fill(t.bell.final, { title: poll.title }), 80), body: cut(when, 280) };
 }
 
-function byLocale(people: Person[]): Map<Locale, Person[]> {
-  const groups = new Map<Locale, Person[]>();
-  for (const p of people) groups.set(p.locale, [...(groups.get(p.locale) ?? []), p]);
-  return groups;
-}
-
 async function organiserName(poll: Poll): Promise<(locale: Locale) => string> {
   const who = await lookup([poll.organiser]);
   return locale => nameOf(who.get(poll.organiser), locale);
@@ -72,15 +68,16 @@ async function organiserName(poll: Poll): Promise<(locale: Locale) => string> {
 // broadcastTo tells everyone the poll asks in one call. "fallback": the
 // Chest cannot broadcast (not granted, not a Chest that knows it); "wait":
 // over its quota or unreachable, again at the next pass.
-async function broadcastTo(poll: Poll, kind: "ask" | "final", key: string): Promise<"done" | "fallback" | "wait"> {
+async function broadcastTo(sql: Sql, poll: Poll, kind: "ask" | "final", key: string): Promise<"done" | "fallback" | "wait"> {
   const zone = chestZone();
   const name = await organiserName(poll);
   // The Chest broadcasts to roles or groups: people picked by name are
   // told a page at a time.
-  if (poll.people.length > 0) return "fallback";
-  const messages = Object.fromEntries(locales.map(l => [l, words(kind, poll, catalogue(l), l, name(l), zone)])) as Record<Locale, { title: string; body: string }>;
+  if (poll.people.length > 0 || (!poll.everyone && poll.groups.length === 0)) return "fallback";
+  // Not the organiser, nor, for 'ask', those who answered already.
+  const except = [...new Set([poll.organiser, ...(kind === "ask" ? await answeredBy(sql, poll.id) : [])])].filter(id => id.startsWith("mbr_"));
   try {
-    await notifications.broadcast({ messages: { ...messages, en: messages.en }, path: pollPath(poll.id), key, to: poll.everyone ? { roles: [...roles] } : { groups: poll.groups } });
+    await notifications.broadcast(notice((t, l) => words(kind, poll, t, l, name(l), zone), { path: pollPath(poll.id), key }), { to: poll.everyone ? { roles: [...roles] } : { groups: [...poll.groups] }, except });
     return "done";
   } catch (error) {
     if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof Unavailable) return "wait";
@@ -95,30 +92,25 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
   const zone = chestZone();
   const name = await organiserName(poll);
   let cursor = after;
-  // Who is in the poll's groups, once for every page; the Chest could not
-  // say: told at the next pass rather than to the wrong people.
-  const known = await audienceGroups(poll);
-  if (known === null) return { done: false, after: cursor };
+  const message = notice((t, l) => words(kind, poll, t, l, name(l), zone), { path: pollPath(poll.id), key });
   for (let i = 0; i < maxPages; i++) {
     let found;
     try {
-      found = await page(poll, cursor, known);
+      found = await page(poll, cursor);
     } catch (error) {
       if (error instanceof CapabilityNotGranted) return { done: true };
       if (error instanceof ChestError) return { done: false, after: cursor };
       throw error;
     }
     const people = found.people.filter(keep);
-    for (const [locale, group] of byLocale(people)) {
-      const message = words(kind, poll, catalogue(locale), locale, name(locale), zone);
+    if (people.length > 0) {
       try {
-        await notifications.notify(group.map(p => p.id), { ...message, path: pollPath(poll.id), key });
+        await notifications.notify(people.map(p => p.id), message);
       } catch (error) {
         if (error instanceof CapabilityNotGranted) return { done: true };
         if (error instanceof ChestError) return { done: false, after: cursor };
         throw error;
       }
-      if (kind === "remind" || kind === "nudge") await emailReminders(poll, group, catalogue(locale), locale, name(locale), zone);
     }
     if (kind === "ask") await badges(await pendingCounts(sql, people, now));
     if (!found.next) return { done: true };
@@ -126,50 +118,6 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
     await sql`update tellings set after = ${cursor} where poll_id = ${poll.id} and kind = ${kind}`;
   }
   return { done: true };
-}
-
-// A reminder by email as well, one message per person (nobody sees who
-// else is reminded), in their language, with the link to answer. Email is
-// a courtesy on top of the bell: a Chest that cannot send email yet (no
-// "mail"), or the day's quota reached, sends nothing more and the bell
-// item stands. The key (taken whole: the SDK hashes one longer than the
-// Chest keeps, studio.15) makes a repeated delivery of the same reminder
-// send nothing twice. A reminder is not transactional: the Chest applies
-// each member's email preference (`mailPreference`, studio.15) — "none"
-// sends nothing, "digest" waits for the Chest's one email a day — and the
-// bell item stands either way. Someone without an address is skipped, not
-// the others.
-async function emailReminders(poll: Poll, people: Person[], t: Catalogue, locale: Locale, organiser: string, zone: string): Promise<void> {
-  const d = dates(locale, zone);
-  const link = teamLink(pollPath(poll.id));
-  const stamp = (poll.nudgedAt ?? poll.closesAt ?? "").replace(/\D/gu, "").slice(0, 12);
-  for (const p of people) {
-    try {
-      await mail.send({
-        to: { member: p.id },
-        subject: fill(t.mail.subject, { title: poll.title }),
-        text: fill(poll.closesAt ? t.mail.bodyUntil : t.mail.body, { name: p.name, organiser, title: poll.title, date: poll.closesAt ? d.at(poll.closesAt) : "", link }),
-        key: `remind.${poll.id}.${stamp}.${p.id}`,
-      });
-    } catch (error) {
-      // Someone the Chest has no address for (or who bounced): the next.
-      if (error instanceof ChestError && (error.code === "invalid_address" || error.code === "suppressed")) continue;
-      // A key reused for another message is a bug in Polls: heard, not hidden.
-      if (error instanceof ChestError && error.code === "key_conflict") throw error;
-      if (error instanceof ChestError) return;
-      throw error;
-    }
-  }
-}
-
-// teamLink: a page of the team's host as a full address, for an email
-// (chest.tool.teamUrl; outside a Chest, the path alone).
-function teamLink(path: string): string {
-  try {
-    return chest.tool.teamUrl.replace(/\/$/u, "") + path;
-  } catch {
-    return path;
-  }
 }
 
 // commented: the organiser hears of a new comment on their poll (one item
@@ -180,11 +128,6 @@ export async function commented(poll: Poll, author: Member): Promise<void> {
   await notify([poll.organiser], (t, locale) => ({ title: cut(fill(t.bell.comment, { name: nameOf(who.get(author.id), locale), title: poll.title }), 80) }), { path: pollPath(poll.id) + "#comments", key: commentKey(poll.id) });
 }
 
-async function withdrawFrom(key: string, ids: Iterable<string>): Promise<void> {
-  const list = [...new Set(ids)].filter(i => i.startsWith("mbr_"));
-  for (let i = 0; i < list.length; i += 500) await withdraw(key, list.slice(i, i + 500));
-}
-
 async function tell(sql: Sql, poll: Poll, kind: Kind, after: string | null, now: Date): Promise<Told> {
   if (kind === "remind" || kind === "nudge") {
     const done = await answeredBy(sql, poll.id);
@@ -192,12 +135,9 @@ async function tell(sql: Sql, poll: Poll, kind: Kind, after: string | null, now:
   }
   const key = kind === "ask" ? askKey(poll.id) : finalKey(poll.id);
   if (after === null) {
-    const way = await broadcastTo(poll, kind, key);
+    const way = await broadcastTo(sql, poll, kind, key);
     if (way === "wait") return { done: false, after: null };
     if (way === "done") {
-      // The broadcast reached everyone asked: not the organiser's business,
-      // nor, for 'ask', of those who answered already.
-      await withdrawFrom(key, [poll.organiser, ...(kind === "ask" ? await answeredBy(sql, poll.id) : [])]);
       if (kind === "ask") await refreshAsked(sql, poll, now);
       return { done: true };
     }
@@ -242,12 +182,10 @@ export async function runTellings(sql: Sql, now = new Date()): Promise<{ told: s
 // member's next visit.
 export async function refreshAsked(sql: Sql, poll: Pick<Poll, "everyone" | "groups" | "people">, now = new Date()): Promise<void> {
   let after: string | null = null;
-  const known = await audienceGroups(poll);
-  if (known === null) return;
   for (let i = 0; i < maxPages; i++) {
     let found;
     try {
-      found = await page(poll, after, known);
+      found = await page(poll, after);
     } catch (error) {
       if (error instanceof ChestError) return;
       throw error;
@@ -346,11 +284,10 @@ export async function unchosen(pollId: string): Promise<void> {
 // replaced at each reply.
 export async function replied(poll: Poll, actor: Member): Promise<void> {
   const who = await lookup([actor.id]);
-  const words = (t: Catalogue, locale: Locale) => ({ title: cut(fill(t.bell.replied, { name: nameOf(who.get(actor.id), locale), title: poll.title }), 80), body: t.bell.repliedBody });
-  if (poll.people.length === 0) {
-    const messages = Object.fromEntries(locales.map(l => [l, words(catalogue(l), l)])) as Record<Locale, { title: string; body: string }>;
+  const words = (t: Catalogue, locale: Locale) => ({ title: fill(t.bell.replied, { name: nameOf(who.get(actor.id), locale), title: poll.title }), body: t.bell.repliedBody });
+  if (poll.people.length === 0 && (poll.everyone || poll.groups.length > 0)) {
     try {
-      await notifications.broadcast({ messages: { ...messages, en: messages.en }, path: pollPath(poll.id), key: repliedKey(poll.id), to: poll.everyone ? { roles: [...roles] } : { groups: poll.groups } });
+      await notifications.broadcast(notice(words, { path: pollPath(poll.id), key: repliedKey(poll.id) }), { to: poll.everyone ? { roles: [...roles] } : { groups: [...poll.groups] }, except: [actor.id] });
       return;
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
@@ -365,4 +302,23 @@ export async function replied(poll: Poll, actor: Member): Promise<void> {
 export async function answeredBack(poll: Poll): Promise<void> {
   if (poll.organiser === "erased") return;
   await notify([poll.organiser], t => ({ title: cut(fill(t.bell.answeredBack, { title: poll.title }), 80), body: t.bell.answeredBackBody }), { path: pollPath(poll.id), key: answeredBackKey(poll.id) });
+}
+
+// Someone moved between groups (member.updated, changed: "groups"): the
+// "asks you" items of the polls put to a group they left leave their bell,
+// and their tile is counted again. Joining a group does not send the item
+// of a poll already sent: the poll waits on their tile and their home page.
+export async function regrouped(sql: Sql, memberId: string): Promise<void> {
+  let who;
+  try {
+    who = await members.get(memberId);
+  } catch (error) {
+    if (error instanceof ChestError) return;
+    throw error;
+  }
+  if (!who) return;
+  const open = await sql<{ id: string; everyone: boolean; groups: string[]; people: string[] }[]>`
+    select id, everyone, groups, people from polls where status = 'open' and deleted_at is null and not everyone and cardinality(groups) > 0`;
+  for (const o of open) if (!asked({ ...who, isAdmin: false }, o)) await withdraw(askKey(o.id), [memberId]);
+  await refreshOne(sql, who);
 }

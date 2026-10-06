@@ -15,7 +15,7 @@ import { camille, chestGroups, everyone, hugo, ines, lea, nora, sofia, tom } fro
 // forms without script, files, the Chest's signed calls.
 let chest, database, app;
 before(async () => {
-  chest = await fakeChest({ tool: "polls", network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar", "groups"], mail: { domain: "atelier.test" }, calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin" } });
+  chest = await fakeChest({ tool: "polls", network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar", "members.groups"], mail: { domain: "atelier.test" }, calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin" } });
   database = await testDatabase();
   await database.sql.unsafe(readFileSync("seed/sample.sql", "utf8")).simple();
   ({ app } = await import("../dist/test/app.js"));
@@ -135,7 +135,7 @@ test("actions from an island: a poll written, sent, answered; refusals are codes
   const option = new RegExp(`&quot;options&quot;:\\[\\{&quot;id&quot;:&quot;(\\d+)&quot;,&quot;label&quot;:&quot;Coffee`, "u").exec(page)[1];
   const answered = await (await call(hugo, "answerPoll", { pollId: value.id, answer: { [question]: { options: [option] } } })).json();
   assert.deepEqual(answered, { ok: true, value: { first: true } });
-  assert.ok(chest.notifications.some(n => n.key === `poll:${value.id}:ask` && n.member === ines.id && /demande/u.test(n.title)), "Inès told in French");
+  assert.ok(chest.notifications.some(n => n.key === `poll:${value.id}:ask` && n.member === ines.id && /demande/u.test(n.translations?.fr?.title ?? "")), "Inès told in French");
   // Refusals: a code, the reader's words, the right status.
   const empty = await call(ines, "savePoll", { input: { kind: "choice", title: "  ", options: ["A", "B"] } });
   assert.equal(empty.status, 400);

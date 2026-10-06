@@ -12,7 +12,6 @@ import { can, settles, surveys } from "./lib/access.ts";
 import { everyone, inAudience } from "./lib/audience.ts";
 import { db } from "./lib/db.ts";
 import { exportCsv } from "./lib/export.ts";
-import { withAllGroups } from "./lib/groups.ts";
 import { byLink } from "./lib/guests.ts";
 import { calendar } from "./lib/ics.ts";
 import { handlers, seen } from "./lib/lifecycle.ts";
@@ -31,9 +30,8 @@ import { lookOf, sheetOf } from "./theme.ts";
 
 // Polls' routes. createApp() already serves /assets/, the actions
 // (src/actions.ts), the look (/chest/look.css, /look.css), the member of
-// every /chest request — with every group they are in (src/lib/groups.ts,
-// kept a minute: the assertion names only the groups that give Polls) —,
-// /lang/<code>, the
+// every /chest request — with every group they are in, as the Chest names
+// them with "members.groups" (src/lib/groups.ts) —, /lang/<code>, the
 // error pages, and answers 404 to anything else.
 // The look is the company's choice, a stylesheet of its own (src/theme.ts);
 // the head carries Polls' icon and keeps search engines away.
@@ -43,7 +41,6 @@ export const app = createApp({
   locales,
   words,
   layouts: { members: MembersLayout, public: PublicLayout },
-  complete: withAllGroups,
   look: viewer => lookOf(viewer.member !== null ? "team" : "public"),
   head: () => <><meta name="robots" content="noindex, nofollow" /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
 });
@@ -62,7 +59,7 @@ app.get("/chest", page(async ({ member, t, f }) => {
   const who = await people(cards.map(c => c.organiser));
   // How many each poll I asked asks: the Chest's members, read once.
   const sent = data.mine.filter(c => c.status !== "draft");
-  const team = sent.length > 0 ? (await everyone(sent.flatMap(c => c.groups))).people : [];
+  const team = sent.length > 0 ? (await everyone()).people : [];
   const rules = await policy(sql);
   return {
     title: t.home.title,

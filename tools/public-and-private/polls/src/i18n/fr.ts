@@ -399,15 +399,12 @@ export const fr: Catalogue = {
     answeredBack: "Un auteur anonyme a répondu : {title}",
     answeredBackBody: "Ouvrez le sondage pour la lire.",
   },
-  mail: {
-    subject: "Rappel : {title}",
-    body: "Bonjour {name},\n\n{organiser} attend votre réponse : {title}\n\nRépondre ici : {link}\n\nSondages, dans le Chest de votre entreprise",
-    bodyUntil: "Bonjour {name},\n\n{organiser} attend votre réponse : {title}\nIl se termine {date}.\n\nRépondre ici : {link}\n\nSondages, dans le Chest de votre entreprise",
-  },
   guestMail: {
     subject: "La date de « {title} »",
-    body: "Bonjour {name},\n\nLa date de « {title} » est retenue : {date}.\n\nMerci pour votre réponse.",
-    bodyLink: "Bonjour {name},\n\nLa date de « {title} » est retenue : {date}.\n\nLe sondage, et la date pour votre agenda : {link}\n\nMerci pour votre réponse.",
+    body: "Bonjour {name},\n\nLa date de « {title} » est retenue : {date}.\n\nMerci pour votre réponse.\n\n{replies}",
+    bodyLink: "Bonjour {name},\n\nLa date de « {title} » est retenue : {date}.\n\nLe sondage, et la date pour votre agenda : {link}\n\nMerci pour votre réponse.\n\n{replies}",
+    replies: "Les réponses à cet e-mail arrivent chez {company}.",
+    repliesPlain: "Les réponses à cet e-mail arrivent à l’entreprise qui l’a envoyé.",
   },
   dates: {
     range: "{start} – {end}",

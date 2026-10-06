@@ -1,6 +1,7 @@
 import * as events from "@argentic/chest-sdk/events";
 import { forgetGroups } from "./groups.ts";
 import type { Sql } from "./db.ts";
+import { regrouped } from "./tell.ts";
 
 // What Polls does when a member loses access, leaves or is erased (the
 // Chest posts these to /chest-events, at least once; every handler may run
@@ -40,12 +41,13 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
 export function handlers(sql: Sql): events.Handlers {
   return {
     "member.removed": event => leave(sql, event.data.id),
-    // Someone moved between groups: their groups are read again.
-    "member.updated": async () => {
-      forgetGroups();
+    // Someone moved between groups: what a group they left asked of them
+    // leaves their bell and their tile.
+    "member.updated": async event => {
+      if (event.data.changed.includes("groups")) await regrouped(sql, event.data.id);
     },
-    // Groups (Proposal (studio), "groups": "read"): their names and who is
-    // in them are read again (the composer's choices, results per team).
+    // Groups (Proposal (studio), "members.groups"): their names and sizes
+    // are read again (the composer's choices, results per team).
     "group.changed": async () => {
       forgetGroups();
     },

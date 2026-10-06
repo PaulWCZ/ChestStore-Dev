@@ -1,4 +1,5 @@
 import * as calendar from "@argentic/chest-sdk/calendar";
+import { chest } from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import { all, maxPages, pageSize } from "./audience.ts";
@@ -27,8 +28,9 @@ import { chestZone } from "./zone.ts";
 // keeps its "Add to my calendar" file.
 //
 // Guests (lib/guests.ts) have no Chest calendar: those who gave an email
-// get the date by email (Proposal (studio): mail), with the link back to
-// the poll's page, where the calendar file is.
+// get the date by email (Proposal (studio): mail, to people outside the
+// company only), with the link back to the poll's page, where the calendar
+// file is.
 export const eventKey = (pollId: string, part = 1) => (part === 1 ? `poll:${pollId}` : `poll:${pollId}:${part}`);
 const perEvent = calendar.limits.members;
 const maxParts = Math.ceil((maxPages * pageSize) / perEvent);
@@ -139,25 +141,29 @@ export async function guestMailOffered(): Promise<boolean> {
 // emailGuests: the guests who gave an email hear the chosen date, each in
 // the language they answered in. One email per guest and choice (the key
 // holds the time of the choice: a changed date is sent again; and the
-// guest's address; taken whole, the SDK hashes a long one). Guests are not members: no Chest email
-// preference applies to them (the Chest applies `mailPreference` to members
-// only), so `transactional` would change nothing and is not set — they gave
-// their address on the poll's page for this one message.
+// guest's address; taken whole, the SDK hashes a long one). Guests are
+// people outside the company who gave their address on the poll's page
+// for this one message. It goes through the Chest's mail connector — the
+// company's own mail provider (studio proposal, not built yet) — and
+// replies go to the company's reply address (the connector's Reply-To):
+// the email says so; the Chest never receives mail.
 export async function emailGuests(sql: Sql, pollId: string, origin: string | null): Promise<number> {
   const poll = await load(sql, pollId);
   const option = poll.questions[0]?.options.find(o => o.id === poll.finalOption);
   if (poll.deleted || !option?.day || !poll.finalAt) return 0;
   const [row] = await sql<{ guest_link: string | null }[]>`select guest_link from polls where id = ${poll.id}`;
   const link = origin && row?.guest_link ? `${origin}/p/${row.guest_link}` : null;
+  const company = organization();
   let sent = 0;
   for (const guest of await toTell(sql, poll.id)) {
     const t = catalogue(guest.locale);
     const date = optionText({ day: option.day, start: option.start, end: option.end }, guest.locale, chestZone(), { range: t.dates.range, dayAndTime: t.dates.dayAndTime });
+    const replies = company ? fill(t.guestMail.replies, { company }) : t.guestMail.repliesPlain;
     try {
       await mail.send({
         to: guest.email,
         subject: fill(t.guestMail.subject, { title: poll.title }),
-        text: fill(link ? t.guestMail.bodyLink : t.guestMail.body, { name: guest.name, title: poll.title, date, link: link ?? "" }),
+        text: fill(link ? t.guestMail.bodyLink : t.guestMail.body, { name: guest.name, title: poll.title, date, link: link ?? "", replies }),
         // The address in the key (SDK studio.16): after a restore, guest ids
         // may name other people than those the Chest remembers.
         key: `final:${poll.id}:${guest.id}:${new Date(poll.finalAt).getTime()}:${guest.email}`,
@@ -174,6 +180,15 @@ export async function emailGuests(sql: Sql, pollId: string, origin: string | nul
     }
   }
   return sent;
+}
+
+// The company's name, for the email's last line (none outside a Chest).
+function organization(): string {
+  try {
+    return chest.organization.name;
+  } catch {
+    return "";
+  }
 }
 
 // The member's calendar page, which the Chest's front serves on the team
