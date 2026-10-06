@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4000);
-const { browser, context, page, origin, problems } = await open(port, "hugo", { allow404: /\/chest\/tickets\/9999$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { allow404: /\/chest\/tickets\/9999$/u });
 // The form counts five requests an hour per visitor, known by the address
 // the Chest's front saw (Chest-Visitor-Address). The harness's front sees
 // one machine: every visitor of a flow is the same one. A step that plays a
@@ -655,7 +655,7 @@ await step("a ticket from the store's Contact form: a real subject, the message 
 });
 
 await step("on a touch phone the file picker says no “drop them here” (kit 0.2.5, pointer: coarse)", async () => {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "fr-FR" });
+  const phone = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "fr-FR" });
   const p = await phone.newPage();
   await p.goto(origin + "/?lang=fr");
   expect(await p.locator(".ck-drop-hint").count() === 1, "the hint is in the page for desks");
@@ -768,7 +768,7 @@ await step("phone: reports fit — the period as one choice, tables as cards", a
 await step("the public form speaks the visitor's language, else the Chest's (English here)", async () => {
   const lang = async (headers) => {
     // A visitor without the harness's cookies.
-    const html = await (await fetch(origin + "/", { headers })).text();
+    const html = await (await fetch(publicOrigin + "/", { headers })).text();
     return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
   };
   expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");
@@ -778,7 +778,7 @@ await step("the public form speaks the visitor's language, else the Chest's (Eng
 
 await step("phone width: public form, inbox and ticket fit", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/", followUp.replace(origin, ""), "/chest", "/chest/tickets/1003", "/chest/tickets/1002", "/chest/settings", "/chest/reports", "/chest/reports?weeks=26"]) {
+  for (const path of ["/", new URL(followUp).pathname, "/chest", "/chest/tickets/1003", "/chest/tickets/1002", "/chest/settings", "/chest/reports", "/chest/reports?weeks=26"]) {
     await page.goto(origin + path);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, `${path} overflows: ${width}`);
