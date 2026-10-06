@@ -31,14 +31,24 @@ export function minorDigits(currency: string): number {
 //   letter ("12a50", "1e3", "0x10", "1O0") is refused, and a minus unless
 //   negative amounts are allowed;
 // - groups are of three digits ("1,2.34", "12 34" refused);
-// - a lone "." or "," followed by exactly three digits groups thousands
-//   ("1,234" is 1234), except in a currency of three decimals (KWD
-//   "1,234" is 1.234); otherwise it is the decimal separator.
+// - a lone "." or "," followed by exactly three digits ("1,234") is a
+//   thousand for one reader and one euro twenty-three for another: typed
+//   in a form (`reading: "typed"`, the default) it is refused —
+//   ambiguousAmount() says so, the forms answer `amount_ambiguous` — except
+//   in a currency without decimals (JPY "1,234" is 1234). A file says which
+//   mark it uses: an import reads it with the file's dominant decimal mark
+//   (`reading: ","` or `"."`, dominantMark()), or as thousands when the
+//   file gives no clue (`reading: "thousands"`). Otherwise a lone mark is
+//   the decimal separator. The same rule as Expenses, Timesheets and the
+//   package's field.money for typed amounts.
 const anySpace = /[\s    ]+/gu;
 const knownCurrencies = new Set<string>(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("currency") : ["EUR", "USD", "GBP", "CHF", "JPY", "KWD"]);
 const grouped = { ",": /^\d{1,3}(?:,\d{3})*$/u, ".": /^\d{1,3}(?:\.\d{3})*$/u } as const;
 const groupsOf = (whole: string, mark: "," | ".") => grouped[mark].test(whole);
-export function parseAmount(text: unknown, currency = "EUR", options: { negative?: boolean } = {}): number | null {
+export type DecimalMark = "," | ".";
+export type AmountReading = "typed" | "thousands" | DecimalMark;
+export function parseAmount(text: unknown, currency = "EUR", options: { negative?: boolean; reading?: AmountReading } = {}): number | null {
+  const reading = options.reading ?? "typed";
   if (typeof text === "number") return Number.isSafeInteger(text) && (options.negative || text >= 0) ? text : null;
   if (typeof text !== "string" || text.length > 64) return null;
   let s = text.replace(anySpace, " ").replace(/[’ʼ]/gu, "'").replace(/[−–]/gu, "-").trim();
@@ -80,7 +90,13 @@ export function parseAmount(text: unknown, currency = "EUR", options: { negative
     const mark: "," | "." = lastComma >= 0 ? "," : ".";
     const parts = s.split(mark);
     const tail = parts.at(-1) ?? "";
-    const isDecimal = parts.length === 2 && (tail.length !== 3 || digits === 3);
+    let isDecimal = parts.length === 2 && tail.length !== 3;
+    if (parts.length === 2 && tail.length === 3) {
+      // "1,234": which reading?
+      if (digits === 0) isDecimal = false;
+      else if (reading === "typed") return null;
+      else isDecimal = reading === mark;
+    }
     if (isDecimal) [whole = "", fraction = ""] = parts;
     else {
       if (!groupsOf(s, mark)) return null;
@@ -191,3 +207,26 @@ export function formatEurRate(eurRate: number, locale: string): string {
 // decimals in amounts (BR-DEC-*); a currency of three (KWD, BHD…) is issued
 // as a PDF without the e-invoice data.
 export const facturxCurrency = (currency: string): boolean => minorDigits(currency) <= 2;
+
+// Whether a typed amount is refused only for being ambiguous ("1,234",
+// "0.500" in a currency with decimals): the form then says "write 1234 or
+// 1,23" rather than "not an amount".
+export function ambiguousAmount(text: unknown, currency = "EUR", options: { negative?: boolean } = {}): boolean {
+  return typeof text === "string" && parseAmount(text, currency, options) === null && parseAmount(text, currency, { ...options, reading: "thousands" }) !== null;
+}
+
+// The decimal mark a file's amounts use: the one its amounts show beyond
+// doubt (a mark followed by one or two digits at the end, "12,5", "3.40";
+// or the last of two marks, "1.234,56"), when most of them agree; null
+// when the file gives no clue.
+export function dominantMark(values: readonly string[]): DecimalMark | null {
+  let comma = 0, point = 0;
+  for (const raw of values) {
+    const v = raw.replace(/[^\d.,]/gu, "");
+    const both = v.includes(",") && v.includes(".");
+    const last = both ? (v.lastIndexOf(",") > v.lastIndexOf(".") ? "," : ".") : /,\d{1,2}$/u.test(v) ? "," : /\.\d{1,2}$/u.test(v) ? "." : null;
+    if (last === ",") comma++;
+    else if (last === ".") point++;
+  }
+  return comma > point ? "," : point > comma ? "." : null;
+}

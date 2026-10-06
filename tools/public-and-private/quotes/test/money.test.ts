@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatEurRate, formatMoney, formatQuantity, formatRate, inEuros, parseAmount, parsePercent, parseQuantity, plainAmount } from "../src/shared/money.ts";
+import { ambiguousAmount, dominantMark, formatEurRate, formatMoney, formatQuantity, formatRate, inEuros, parseAmount, parsePercent, parseQuantity, plainAmount } from "../src/shared/money.ts";
 import { depositBases, lineNet, roundDiv, share, totals, vatOf, type LineAmounts } from "../src/shared/totals.ts";
 
 const l = (quantity: number, unitPrice: number, vatRate = 2000, discount = 0): LineAmounts => ({ kind: "line", quantity, unitPrice, vatRate, discount });
@@ -63,11 +63,26 @@ test("amounts, quantities and percentages as people type them", () => {
   assert.equal(parseAmount("1,234.56"), 123456);
   assert.equal(parseAmount("12,5"), 1250);
   assert.equal(parseAmount("€ 42"), 4200);
-  assert.equal(parseAmount("1.234"), 123400);
+  // "1.234", "1,234": a thousand, or one twenty-three? Typed: refused, said.
+  assert.equal(parseAmount("1.234"), null);
+  assert.equal(ambiguousAmount("1.234"), true);
+  assert.equal(ambiguousAmount("1,234"), true);
+  assert.equal(ambiguousAmount("0,500"), true);
+  assert.equal(ambiguousAmount("12,50"), false);
+  assert.equal(ambiguousAmount("12a50"), false, "not an amount at all");
+  // From a file: its own decimal mark, or thousands without a clue.
+  assert.equal(parseAmount("1.234", "EUR", { reading: "," }), 123400);
+  assert.equal(parseAmount("1,234", "EUR", { reading: "," }), null, "three decimals of euros");
+  assert.equal(parseAmount("1,234", "EUR", { reading: "." }), 123400);
+  assert.equal(parseAmount("1,234", "EUR", { reading: "thousands" }), 123400);
+  assert.equal(parseAmount("12,5", "EUR", { reading: "." }), 1250, "a mark before one or two digits is a decimal mark whatever the file");
+  assert.equal(dominantMark(["1 234,56", "12,5", "1.234", "40"]), ",");
+  assert.equal(dominantMark(["1,234.56", "3.40", "1,234"]), ".");
+  assert.equal(dominantMark(["1,234", "40"]), null);
   assert.equal(parseAmount("-100"), null);
   assert.equal(parseAmount("-100", "EUR", { negative: true }), -10000);
   assert.equal(parseAmount("−12,50", "EUR", { negative: true }), -1250);
-  assert.equal(parseAmount("12,345"), 1234500);
+  assert.equal(parseAmount("12,345"), null);
   assert.equal(parseAmount("abc"), null);
   assert.equal(parseAmount("1,2,3"), null);
   // Letters are refused, never dropped (review S5).
@@ -90,7 +105,9 @@ test("amounts, quantities and percentages as people type them", () => {
   // 0, 2 and 3 decimals.
   assert.equal(parseAmount("1 234", "JPY"), 1234);
   assert.equal(parseAmount("1,5", "JPY"), null);
-  assert.equal(parseAmount("1,234", "KWD"), 1234);
+  assert.equal(parseAmount("1,234", "KWD"), null, "ambiguous in three decimals too");
+  assert.equal(parseAmount("1,234", "KWD", { reading: "," }), 1234);
+  assert.equal(parseAmount("1,234", "JPY"), 1234, "no decimals: no doubt");
   assert.equal(parseAmount("12,5", "KWD"), 12500);
   assert.equal(parseAmount("1.234,567", "KWD"), 1234567);
   assert.equal(parseAmount("1,2345", "KWD"), null);

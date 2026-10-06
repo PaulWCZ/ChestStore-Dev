@@ -6,7 +6,7 @@ import { format, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { ImportReport } from "../lib/importers.ts";
-import { fieldsOf, guessMapping, importKinds, importLimits, mapRow, mappingReady, readTable, type Field, type ImportKind, type Mapped, type Mapping, type Table } from "../shared/parse-import.ts";
+import { amountMarkOf, fieldsOf, guessMapping, importKinds, importLimits, mapRow, mappingReady, readTable, type Field, type ImportKind, type Mapped, type Mapping, type Table } from "../shared/parse-import.ts";
 
 export type ImporterWords = Pick<Catalogue, "importer" | "errors" | "kit">;
 
@@ -110,6 +110,9 @@ export function Importer({ t, locale, initialKind, allowed }: { t: ImporterWords
   const ready = picked ? mappingReady(kind, picked.mapping) : false;
   const shown = picked ? (fieldsOf[kind] as readonly Field[]).filter(f => picked.mapping.includes(f)) : [];
   const preview = picked ? picked.table.rows.slice(0, 5).map(row => mapRow(row, picked.mapping)) : [];
+  // How the amounts will be read (the file's decimal mark), said before import.
+  const mark = picked ? amountMarkOf(picked.table, picked.mapping) : null;
+  const amounts = picked ? picked.mapping.some(f => f === "unitPrice" || f === "priceInclVat" || f === "gross" || f === "net" || f === "paid" || f === "left") : false;
   return (
     <div className="importer">
       <section className="panel" aria-labelledby="source">
@@ -162,6 +165,7 @@ export function Importer({ t, locale, initialKind, allowed }: { t: ImporterWords
             <>
               <h3 className="preview-title">{w.preview}</h3>
               <p className="hint">{w.previewHint}</p>
+              {amounts && <p className="hint">{mark === "," ? w.markComma : mark === "." ? w.markPoint : w.markNone}</p>}
               <div className="preview compact-table">
                 <DataTable
                   caption={w.preview}

@@ -291,6 +291,8 @@ test("payments: partial, full, overdue by the Chest's date, undone", async () =>
   await assert.rejects(addPayment(sql, asMember(hugo), inv.id, { paidOn: today, amount: "100", method: "transfer" }, today), refused("forbidden"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: "2026-10-01", amount: "100", method: "transfer" }, today), refused("date_invalid"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "0", method: "transfer" }, today), refused("payment_invalid"));
+  // "1,234": a thousand, or one twenty-three? Said, never guessed.
+  await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "1,234", method: "transfer" }, today), refused("amount_ambiguous"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "100", method: "bitcoin" }, today), refused("invalid"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "1 200,01", method: "transfer" }, today), refused("payment_too_large"));
   await addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "500", method: "transfer" }, today);

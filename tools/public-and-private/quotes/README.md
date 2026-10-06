@@ -97,7 +97,13 @@ collected here.
   any kind and apostrophes group thousands, a currency sign or code may
   stand at either end; any other letter (`12a50`, `1e3`, `1O0`) is refused,
   never dropped; groups are of three digits; currencies of 0, 2 and 3
-  decimals.
+  decimals. A lone mark before three digits (`1,234`, `0.500`) could be a
+  thousand or a decimal: typed in a form it is refused ("Write 1234 or
+  1,23"), as in Expenses, Timesheets and the package's `field.money` (a
+  currency without decimals reads it as thousands). A file (an import, a
+  bank statement) is read with its own dominant decimal mark — `1.234` is a
+  thousand in a file that writes `12,50` —, or as thousands when it gives
+  no clue; the preview says which reading is used.
 - **Totals**, in integer cents: each line rounded once (half away from
   zero), summed per VAT rate, VAT computed once per rate, totals added —
   the rule is written and tested in `src/shared/totals.ts` (it is also what the

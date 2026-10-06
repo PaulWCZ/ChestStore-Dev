@@ -6,7 +6,7 @@ import { Down, Plus, Section, Trash, Up, Box, Copy } from "../../components/icon
 import { format, formatDay, languageNames } from "../../i18n/format.ts";
 import type { Catalogue, Locale } from "../../i18n/index.ts";
 import type { Line } from "../../lib/documents.ts";
-import { formatEurRate, formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parseDecimal, parsePercent, parseQuantity, vatRates } from "../../shared/money.ts";
+import { ambiguousAmount, formatEurRate, formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parseDecimal, parsePercent, parseQuantity, vatRates } from "../../shared/money.ts";
 import { addressLines, spacedSiren } from "../../shared/parties.ts";
 import { lineNet, totals } from "../../shared/totals.ts";
 import { unitText } from "../../shared/units.ts";
@@ -246,8 +246,11 @@ export function Paper(props: PaperProps) {
           <span className="times" aria-hidden="true">×</span>
           <label className="mini price">
             <span>{w.unitPrice}</span>
-            <input className="ink num" inputMode="decimal" value={l.unitPrice} placeholder="0" aria-invalid={p.unitPrice === null ? true : undefined} aria-label={format(e.unitPrice, { n: i + 1 })} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
+            <input className="ink num" inputMode="decimal" value={l.unitPrice} placeholder="0" aria-invalid={p.unitPrice === null ? true : undefined} aria-label={format(e.unitPrice, { n: i + 1 })}
+              aria-describedby={ambiguousAmount(l.unitPrice, doc.currency, { negative: true }) ? `ambiguous-${l.key}` : undefined} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
           </label>
+          {/* "1,234": a thousand, or one twenty-three? Said, not guessed. */}
+          {ambiguousAmount(l.unitPrice, doc.currency, { negative: true }) && <p className="amount-problem" id={`ambiguous-${l.key}`} role="alert">{t.errors.amount_ambiguous}</p>}
           <label className="mini disc">
             <span>{w.discount}</span>
             <input className="ink num" inputMode="decimal" value={l.discount} placeholder="%" aria-invalid={p.discount === null ? true : undefined} aria-label={format(e.discount, { n: i + 1 })} onChange={ev => setLine(l.key, { discount: ev.target.value })} />

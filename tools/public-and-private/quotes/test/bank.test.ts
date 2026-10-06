@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { lineKey, proposeFor, readBank, recordBankLine } from "../src/lib/bank.ts";
-import { bankDay, decodeStatement, guessBankMapping, linesOf, readStatement } from "../src/shared/bank-parse.ts";
+import { bankDay, bankMarkOf, decodeStatement, guessBankMapping, linesOf, readStatement } from "../src/shared/bank-parse.ts";
 import { finalise, getDocument } from "../src/lib/documents.ts";
 import { AppError } from "../src/shared/app-error.ts";
 import { removePayment, restorePayment } from "../src/lib/payments.ts";
@@ -134,4 +134,11 @@ test("identical lines stay two payments", () => {
   assert.notEqual(lineKey({ ...a, occurrence: 1 }), lineKey({ ...a, occurrence: 2 }));
   const statement = readStatement("Date;Libellé;Montant\n27/09/2026;VIR X;50,00\n27/09/2026;VIR X;50,00\n");
   assert.deepEqual(linesOf(statement, guessBankMapping(statement.head)).lines.map(l => l.occurrence), [1, 2]);
+});
+
+test("a statement's amounts are read with its own decimal mark", () => {
+  const statement = readStatement("Date;Libellé;Montant\n01/10/2026;VIR DUPAIN;1.234\n02/10/2026;VIR ROSSI;120,50\n03/10/2026;VIR LEFORT;45,00\n");
+  const mapping = guessBankMapping(statement.head);
+  assert.equal(bankMarkOf(statement, mapping), ",");
+  assert.deepEqual(linesOf(statement, mapping).lines.map(l => l.amount), [123400, 12050, 4500]);
 });

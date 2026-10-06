@@ -4,7 +4,7 @@ import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { bic, clean, country, email, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "../shared/model.ts";
-import { parseAmount, parsePercent } from "../shared/money.ts";
+import { ambiguousAmount, parseAmount, parsePercent } from "../shared/money.ts";
 import type { Seller } from "../shared/parties.ts";
 
 // The seller: the company's legal details, which every document prints
@@ -169,6 +169,7 @@ export async function updateCompany(sql: Sql, actor: Member | null, input: Compa
     if (input.capital !== undefined) {
       if (input.capital === null || input.capital === "") capital = null;
       else {
+        if (ambiguousAmount(input.capital)) throw new AppError("amount_ambiguous");
         const parsed = parseAmount(input.capital);
         if (parsed === null || parsed < 0 || parsed > limits.total) throw new AppError("capital_invalid");
         capital = parsed;

@@ -8,7 +8,7 @@ import { AppError } from "../src/shared/app-error.ts";
 import { clientsCsv, itemsCsv } from "../src/lib/export.ts";
 import { importTable } from "../src/lib/importers.ts";
 import { listItems } from "../src/lib/items.ts";
-import { countryOf, goodsOf, guessMapping, readTable, vatRateOf } from "../src/shared/parse-import.ts";
+import { amountMarkOf, countryOf, goodsOf, guessMapping, readTable, vatRateOf } from "../src/shared/parse-import.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -164,4 +164,17 @@ test("what leaves comes back: the clients and catalogue exports import as they a
     await other.close();
   }
   await assert.rejects(clientsCsv(sql, asMember(hugo), "fr"), refused("forbidden"));
+});
+
+test("a file's amounts are read with its own decimal mark: 1.234 is a thousand where decimals are written 12,50", async () => {
+  const text = "Nom;Prix HT;TVA\nAudit complet;1.234;20\nAtelier;12,50;20\nJournée;650,00;20\n";
+  const table = readTable(text);
+  const mapping = guessMapping("items", table.head);
+  assert.equal(amountMarkOf(table, mapping), ",");
+  await importTable(database.sql, asMember(sofia), "items", text, mapping, options);
+  const items = new Map((await listItems(database.sql, asMember(lea))).map(i => [i.name, i.unitPrice]));
+  assert.equal(items.get("Audit complet"), 123400);
+  assert.equal(items.get("Atelier"), 1250);
+  // No clue in the file: thousands, as said in the preview.
+  assert.equal(amountMarkOf(readTable("Nom;Prix\nA;1,234\nB;40\n"), ["name", "unitPrice"]), null);
 });

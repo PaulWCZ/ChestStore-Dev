@@ -18,7 +18,7 @@ export function bankPage(ctx: PageContext<MemberContext>): View {
         <a className="back" href="/chest/invoices"><Back />{t.shell.invoices}</a>
         <PageHeader size="m" title={t.bank.title} intro={t.bank.intro} />
         {can(member, "payments")
-          ? <Island name="BankView" props={{ t: { bank: t.bank, errors: t.errors, kit: t.kit, importer: { column: i.column, example: i.example, field: i.field, fieldOf: i.fieldOf, ignore: i.ignore } }, locale: localeOf(ctx.locale), currency: chest.currency }} />
+          ? <Island name="BankView" props={{ t: { bank: t.bank, errors: t.errors, kit: t.kit, importer: { column: i.column, example: i.example, field: i.field, fieldOf: i.fieldOf, ignore: i.ignore, markComma: i.markComma, markPoint: i.markPoint, markNone: i.markNone } }, locale: localeOf(ctx.locale), currency: chest.currency }} />
           : <p className="notice">{t.errors.forbidden}</p>}
       </div>
     ),

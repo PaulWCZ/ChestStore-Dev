@@ -97,6 +97,7 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
   await assert.rejects(addItem(sql, asMember(lea), { name: "x" }, "EUR"), refused("forbidden"));
   await assert.rejects(addItem(sql, asMember(hugo), { name: "x", vatRate: 1900 }, "EUR"), refused("rate_invalid"));
   await assert.rejects(addItem(sql, asMember(hugo), { name: "x", unitPrice: "abc" }, "EUR"), refused("amount_invalid"));
+  await assert.rejects(addItem(sql, asMember(hugo), { name: "x", unitPrice: "1.234" }, "EUR"), refused("amount_ambiguous"));
   await assert.rejects(addItem(sql, asMember(hugo), { name: "x", unitPrice: "100000000" }, "EUR"), refused("amount_invalid"));
   const item = await addItem(sql, asMember(hugo), { name: "Journée de développement", unit: "jour", unitPrice: "650,00", vatRate: 2000 }, "EUR");
   assert.equal(item.unitPrice, 65000);

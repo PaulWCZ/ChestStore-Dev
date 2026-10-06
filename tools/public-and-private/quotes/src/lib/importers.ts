@@ -6,7 +6,8 @@ import type { Query, Sql } from "./db.ts";
 import { fold } from "../shared/fold.ts";
 import { accountCode, addDays, clean, country as checkCountry, email as checkEmail, limits, siren as checkSiren, siret as checkSiret, vatNumber as checkVat } from "../shared/model.ts";
 import { buyerOf } from "../shared/parties.ts";
-import { checkMapping, clientKindOf, countryOf, dateOf, goodsOf, isImportKind, languageOf, mapRow, mappingReady, priceOf, readTable, vatRateOf, type ImportKind, type Mapped } from "../shared/parse-import.ts";
+import type { DecimalMark } from "../shared/money.ts";
+import { amountMarkOf, checkMapping, clientKindOf, countryOf, dateOf, goodsOf, isImportKind, languageOf, mapRow, mappingReady, priceOf, readTable, vatRateOf, type ImportKind, type Mapped } from "../shared/parse-import.ts";
 import { toClient } from "./clients.ts";
 import { roundDiv } from "../shared/totals.ts";
 
@@ -24,7 +25,7 @@ import { roundDiv } from "../shared/totals.ts";
 // undo it).
 export type ImportReport = { created: number; duplicates: number; skipped: { line: number; error: string; values?: Record<string, number | string> }[]; clients?: number; paid?: number; batch?: string };
 
-type Context = { tx: Query; actor: Member; currency: string; defaultLanguage: "en" | "fr"; today: string; names: Set<string>; sirens: Set<string>; count: number;
+type Context = { tx: Query; actor: Member; currency: string; mark: DecimalMark | null; defaultLanguage: "en" | "fr"; today: string; names: Set<string>; sirens: Set<string>; count: number;
   // Invoices: the numbers already imported, the clients by SIREN and name,
   // the payment terms, this import's reference.
   numbers: Set<string>; clientBySiren: Map<string, number>; clientByName: Map<string, number>; paymentDays: number; batch: string; clientsAdded: number };
@@ -78,10 +79,10 @@ async function importItem(ctx: Context, m: Mapped): Promise<"created" | "duplica
   if (ctx.count >= limits.items) throw new AppError("too_many", { max: limits.items });
   const rate = m.vatRate === undefined ? 2000 : vatRateOf(m.vatRate);
   if (rate === null) throw new AppError("rate_invalid");
-  let price = m.unitPrice === undefined ? null : priceOf(m.unitPrice, ctx.currency);
+  let price = m.unitPrice === undefined ? null : priceOf(m.unitPrice, ctx.currency, ctx.mark);
   if (m.unitPrice !== undefined && price === null) throw new AppError("amount_invalid");
   if (price === null && m.priceInclVat !== undefined) {
-    const gross = priceOf(m.priceInclVat, ctx.currency);
+    const gross = priceOf(m.priceInclVat, ctx.currency, ctx.mark);
     if (gross === null) throw new AppError("amount_invalid");
     // Excluding VAT from a price including it: rounded once, to the cent.
     price = Number(roundDiv(BigInt(gross) * 10_000n, BigInt(10_000 + rate)));
@@ -117,17 +118,17 @@ async function importInvoice(ctx: Context, m: Mapped): Promise<"created" | "dupl
   if (!issueDate || issueDate > ctx.today) throw new AppError("date_invalid");
   const dueDate = m.dueDate === undefined ? addDays(issueDate, ctx.paymentDays) : dateOf(m.dueDate);
   if (!dueDate || dueDate < issueDate) throw new AppError("date_invalid");
-  const gross = priceOf(m.gross, ctx.currency);
+  const gross = priceOf(m.gross, ctx.currency, ctx.mark);
   if (gross === null || gross <= 0 || gross > limits.total) throw new AppError("amount_invalid");
-  const net = m.net === undefined ? gross : priceOf(m.net, ctx.currency);
+  const net = m.net === undefined ? gross : priceOf(m.net, ctx.currency, ctx.mark);
   if (net === null || net < 0 || net > gross) throw new AppError("amount_invalid");
   let paid = 0;
   if (m.paid !== undefined) {
-    const value = priceOf(m.paid, ctx.currency);
+    const value = priceOf(m.paid, ctx.currency, ctx.mark);
     if (value === null || value < 0) throw new AppError("amount_invalid");
     paid = value;
   } else if (m.left !== undefined) {
-    const value = priceOf(m.left, ctx.currency);
+    const value = priceOf(m.left, ctx.currency, ctx.mark);
     if (value === null || value < 0 || value > gross) throw new AppError("amount_invalid");
     paid = gross - value;
   }
@@ -175,6 +176,7 @@ export async function importTable(sql: Sql, actor: Member | null, kind: unknown,
   if (!mappingReady(kind, map)) throw new AppError("import_invalid");
   return sql.begin(async tx => {
     const ctx = await context(tx, actor!, kind, options);
+    ctx.mark = amountMarkOf(table, map);
     const report: ImportReport = { created: 0, duplicates: 0, skipped: [], ...(kind === "invoices" ? { clients: 0, paid: 0, batch: ctx.batch } : {}) };
     for (const [i, raw] of table.rows.entries()) {
       const m = mapRow(raw, map);
@@ -238,7 +240,7 @@ export async function importedIds(sql: Query, actor: Member | null, batch: unkno
 }
 
 async function context(tx: Query, actor: Member, kind: ImportKind, options: { currency: string; defaultLanguage: "en" | "fr"; today: string }): Promise<Context> {
-  const base = { tx, actor, ...options, numbers: new Set<string>(), clientBySiren: new Map<string, number>(), clientByName: new Map<string, number>(), paymentDays: 30, batch: "", clientsAdded: 0 };
+  const base = { mark: null as DecimalMark | null, tx, actor, ...options, numbers: new Set<string>(), clientBySiren: new Map<string, number>(), clientByName: new Map<string, number>(), paymentDays: 30, batch: "", clientsAdded: 0 };
   if (kind === "clients") {
     const rows = await tx<{ name: string; siren: string }[]>`select name, siren from clients`;
     return { ...base, names: new Set(rows.map(r => fold(r.name))), sirens: new Set(rows.map(r => r.siren).filter(Boolean)), count: rows.length };

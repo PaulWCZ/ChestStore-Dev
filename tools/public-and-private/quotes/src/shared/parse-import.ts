@@ -9,7 +9,7 @@ import { AppError } from "./app-error.ts";
 import { parseCsv } from "./csv.ts";
 import { fold, key } from "./fold.ts";
 import { countryName } from "../i18n/format.ts";
-import { parseAmount, vatRates } from "./money.ts";
+import { dominantMark, parseAmount, vatRates, type DecimalMark } from "./money.ts";
 
 export const importLimits = { rows: 5000, bytes: 2 * 1024 * 1024 } as const;
 
@@ -191,11 +191,21 @@ export function vatRateOf(value: string | undefined): number | null {
   return (vatRates as readonly number[]).includes(bp) ? bp : null;
 }
 
-// A price typed in a sheet ("1 234,50 €", "1234.5"), in cents; null when
-// it is not one.
-export function priceOf(value: string | undefined, currency: string): number | null {
+// A price written in a sheet ("1 234,50 €", "1234.5"), in cents; null when
+// it is not one. A lone mark before three digits ("1,234") is read with the
+// file's decimal mark (amountMarkOf: "1,234" is 1234 in a file whose
+// decimals are "1.234,56" or "12.50"), as thousands when the file gives no
+// clue — the importer's preview says which reading it used.
+export function priceOf(value: string | undefined, currency: string, mark: DecimalMark | null = null): number | null {
   if (!value) return null;
-  return parseAmount(value.replace(/[€$£]|EUR|HT|TTC/giu, "").trim(), currency, { negative: true });
+  return parseAmount(value.replace(/[€$£]|EUR|HT|TTC/giu, "").trim(), currency, { negative: true, reading: mark ?? "thousands" });
+}
+
+// The columns of amounts, and the decimal mark the file's amounts use.
+const amountFields = new Set<string>(["unitPrice", "priceInclVat", "gross", "net", "paid", "left"]);
+export function amountMarkOf(table: Table, mapping: Mapping): DecimalMark | null {
+  const columns = mapping.flatMap((f, i) => (f && amountFields.has(f) ? [i] : []));
+  return columns.length === 0 ? null : dominantMark(table.rows.flatMap(row => columns.map(i => row[i] ?? "")));
 }
 
 // A day as the sheets write it — "29/09/2026", "29-09-2026", "29.09.2026"

@@ -16,7 +16,7 @@
 import { AppError } from "./app-error.ts";
 import { parseCsv } from "./csv.ts";
 import { key } from "./fold.ts";
-import { parseAmount } from "./money.ts";
+import { dominantMark, parseAmount, type DecimalMark } from "./money.ts";
 
 export const bankLimits = { rows: 5000, bytes: 2 * 1024 * 1024, headerSearch: 30 } as const;
 
@@ -126,7 +126,10 @@ export function linesOf(statement: Statement, mapping: BankMapping, currency = "
   const col = (f: BankField) => mapping.indexOf(f);
   const [cDate, cValue, cLabel, cRef, cAmount, cCredit, cDebit] = (["date", "valueDate", "label", "reference", "amount", "credit", "debit"] as const).map(col) as [number, number, number, number, number, number, number];
   const cell = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
-  const money = (text: string) => (text === "" ? 0 : parseAmount(text.replace(/^\+/u, ""), currency, { negative: true }));
+  // A lone mark before three digits ("1,234") read with the statement's own
+  // decimal mark (bankMarkOf), as thousands when it gives no clue.
+  const reading = bankMarkOf(statement, mapping) ?? "thousands";
+  const money = (text: string) => (text === "" ? 0 : parseAmount(text.replace(/^\+/u, ""), currency, { negative: true, reading }));
   const lines: BankLine[] = [];
   const problems: BankProblem[] = [];
   const seen = new Map<string, number>();
@@ -163,4 +166,11 @@ export function decodeStatement(bytes: Uint8Array): string {
   } catch {
     return new TextDecoder("windows-1252").decode(bytes);
   }
+}
+
+// The decimal mark a statement's amounts use (amount, credit, debit
+// columns); null when it gives no clue. Said under its columns.
+export function bankMarkOf(statement: Statement, mapping: BankMapping): DecimalMark | null {
+  const columns = mapping.flatMap((f, i) => (f === "amount" || f === "credit" || f === "debit" ? [i] : []));
+  return columns.length === 0 ? null : dominantMark(statement.rows.flatMap(row => columns.map(i => row[i] ?? "")));
 }
