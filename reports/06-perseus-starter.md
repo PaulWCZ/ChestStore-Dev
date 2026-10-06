@@ -678,26 +678,27 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
   refresh) became `page(…, { version: pageStamp })` and the package's
   hook. The starter's home page shows the pattern (an `AutoRefresh`
   island, the notes' version).
-- The tools on the package against chest-app 0.1.0-studio.4 (6 October),
-  each's build and tests on the local PostgreSQL (and PGlite for those
-  re-vendored here) and `chest check`:
-
-  | Tool | Tests | Vendored here | What it asked or changed |
-  |---|---|---|---|
-  | Tasks | 125 | yes | `.island` rule removed (the package's). Its tests need `npm run build` first (they read `dist/client` for `/assets/`) |
-  | News | 112 | yes | its search island gets `display: block` (a flex item); the export's memory bound at its last file loosened (it failed one run in two on the integration branch too) |
-  | Polls | 102 | yes | the guest form on the package's `bound` (its own guard removed; migration 0006 adds `chest_bounds` and `chest_seen`). Checked in Chromium on the built tool: the island sends the page's token, the answer renews it |
-  | Leave | 135 | yes | payroll's two CSVs through `download()`; islands take `Outcome` from `/client` |
-  | Wiki | 118 | no (its agent is at work): passes as it is | `View.layout` in place of its per-request `WeakMap` (done here on studio.3) |
-  | Support | 103 | no: passes as it is | — |
-  | Status | 105 | no: passes as it is | — |
-  | Expenses | 105 | no: passes as it is | — |
-  | People | 113 | no: passes as it is | — |
-  | Booking | 116 | yes (studio.5) | its tests follow studio.4's rules (a refusal spends the token and brings the next; refusals counted apart); its per-link cap is the package's `perSubject` (20 changes a day per guest's link) in place of its own hourly counter; the class `past` that `checkSources` found unstyled now has a style (a day gone by: normal weight, quieter than a closed day ahead). Its browser flow passes without `--visitor-address` |
-
-  "Passes as it is": a copy of the tool with the studio.4 pack in place
-  of its own, nothing else changed; re-vendoring is `node
-  scripts/add-app.mjs <tool>`.
+- **All eighteen tools on chest-app 0.1.0-studio.7** (6 October), each
+  re-vendored and adapted here, one commit each; each's build and tests
+  on the local PostgreSQL (and PGlite where its code changed), `chest
+  check`, and its browser flow where noted:
+  - **page versions on the change log**: Clients (its counter row, taken
+    back by its 0008, replaced by 0009), Goals (0005's sequence, 0006),
+    Rooms (0009's sequence, 0011), Quotes (`max(updated_at)`, 0016),
+    Expenses and Timesheets (0006), the starter; each with a test that an
+    empty statement does not move the version and a write does;
+  - **bound's token bound to its action, and proof of work on the public
+    forms**: Booking (`bookTime`), Forms (`answerPublic`), Hiring
+    (`apply`), Support (`sendRequest`), Status (`subscribe`,
+    `subscribeChat`), Polls (`answerGuest`) — those forms now need
+    JavaScript; `<FormToken>` for an action an island calls (uploads,
+    "change my answer"); flows pass on the harness without a visitor
+    address for Polls, Booking, Forms (with Clients and Support linked),
+    Hiring;
+  - **per-page island code**: the starter and Tasks (My tasks 444 →
+    223 KB of JavaScript); the others keep one entry until they adopt it
+    (`virtual:chest-islands`, one line);
+  - Equipment, News, Leave, Wiki, People: re-vendored, nothing to adapt.
 - `node scripts/check-vendor.mjs`: every vendored studio pack compared
   with `app/`, `ui/`, `sdk/`. It found a real drift: `sdk/` changed after
   it was packed as 0.4.1-studio.2 (`fakeChest.publicApi`, 9f25e80;

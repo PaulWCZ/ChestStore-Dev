@@ -47,9 +47,9 @@ const clean = html => {
 // The form token a public page carries for an action (<FormToken />), and a
 // fresh one shown long enough ago that the package does not wait for it.
 const tokenOf = (html, action = "bookTime") => new RegExp(`data-action="${action}" value="([^"]+)"`, "u").exec(html)[1];
-// bookTime asks a proof of work (bound.work: 16 bits, more as the day's
+// bookTime asks a proof of work (bound.work: 14 bits, more as the day's
 // budget runs low): the test finds it as the browser does.
-const shown = action => formToken(action, Date.now() - 10_000, action === "bookTime" ? 16 : 0);
+const shown = action => formToken(action, Date.now() - 10_000, action === "bookTime" ? 14 : 0);
 const proven = fields => (fields.chest_form && fields.chest_form.includes(".bookTime.") ? { ...fields, chest_work: solveWork(fields.chest_form) } : fields);
 const props = (html, island) => JSON.parse(new RegExp(`data-island="${island}"[^>]*? data-props="([^"]*)"`, "u").exec(html)[1].replaceAll("&quot;", "\"").replaceAll("&amp;", "&").replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">"));
 
@@ -168,7 +168,7 @@ test("the public pages: the company, a host, a type to book, in the visitor's wo
   const island = props(page, "BookTime");
   assert.equal(island.typeSlug, "project-call");
   assert.ok(island.zones.length > 1, "the time zones, written by the server");
-  assert.match(tokenOf(page), /^\d{13}\.[\w-]+\.bookTime\.1[68]\.[\w-]+$/u, "the page carries a form token for bookTime, asking a proof of work");
+  assert.match(tokenOf(page), /^\d{13}\.[\w-]+\.bookTime\.1[456]\.[\w-]+$/u, "the page carries a form token for bookTime, asking a proof of work");
   assert.equal((await get(null, "/nobody-here")).status, 404);
   assert.match(await (await get(null, "/nobody-here")).text(), /This page does not exist/u);
   assert.equal((await get(null, "/chest-events")).status, 404, "a reserved name is no host");
