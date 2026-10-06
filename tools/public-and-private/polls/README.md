@@ -162,7 +162,7 @@ The organiser ticks *Anonymous* when writing the poll. Then:
   name people).
 - **A repeating pulse** compares rounds, never answers: each round is its
   own anonymous poll, shown once closed and from 5 answers.
-- **Per team** (`lib/teams.ts`): an anonymous survey also keeps its counts
+- **Per team** (`src/lib/teams.ts`): an anonymous survey also keeps its counts
   per group of the Chest the answerer belongs to — only groups of **5
   members or more**, never a free text, with no name and no time, rewritten
   with the poll's other anonymous rows in one shuffled transaction. Once
@@ -177,7 +177,7 @@ The organiser ticks *Anonymous* when writing the poll. Then:
 - **An anonymous answer cannot be changed**: nothing says which one is yours.
   The form says so before you send it.
 - **Replies to anonymous free texts** (Officevibe's two-way feedback,
-  `lib/replies.ts`): when someone writes a free text in an anonymous poll,
+  `src/lib/replies.ts`): when someone writes a free text in an anonymous poll,
   their browser makes a random key and sends only its hash with the text
   (`texts.reply_key`); the key stays in that browser (localStorage). Nothing
   else changes: no member id, no time with the text or its hash. Once the
@@ -225,7 +225,7 @@ What anonymity here does **not** protect against, honestly:
 
 Polls wears the look the company chooses in its Chest, with the same
 features: its own identity, **Confetti** (coral, deep navy and mint on warm
-paper, chunky rounded shapes — `lib/theme.ts`), any theme of the store's
+paper, chunky rounded shapes — `src/theme.ts`), any theme of the store's
 catalogue (the 17 tools' identities, "Chest", "High contrast"), or the
 company's own brand (its colours, fonts, corners and logo — the logo then
 stands where the Polls mark is). The choice may be for all tools or for
@@ -294,15 +294,25 @@ closed poll is seen by those asked, its organiser and admins.
 | `/chest/polls/[id]/export` | CSV of the answers (those who manage the poll) |
 | `/chest/polls/[id]/calendar` | The chosen date as an .ics file (the Chest calendar has it too) |
 | `POST /chest-events` | The Chest's lifecycle events (signed) |
-| `POST /chest-jobs/pass` | The scheduled pass (signed; Proposal (studio)) |
+| `POST /chest-schedules` | The `pass` schedule's runs (signed, `Chest-Schedule`; SDK 0.4) |
+| `/chest/look.css`, `/look.css` | The look as a stylesheet: the team's (the company's choice), the public pages' (its brand, else Polls' own) |
+| `POST /chest/actions/<name>`, `POST /p/<link>/actions/answerGuest` | The members' actions (`src/actions.ts`); the guest form's, under its page's path (its cookie is that path's) |
 
 ## On a Chest
 
-- `public: true` with `"csp": "tool"` (the guest pages, Next.js's own
-  policy as Forms and Booking); the owner opens the public part in the
-  Chest — until then, the guest link cannot be reached (and the organiser's
-  card cannot show a public address). Public pages wear the company's brand
-  or Polls' own look, never a catalogue theme chosen for the team.
+- `public: true` and no `"csp"` permission: the pages run no inline
+  script and carry no inline style (`style=""` included), so the Chest's
+  own policy for a public part admits them; the tool sends the same
+  policy on both hosts. The owner opens the public part in the Chest —
+  until then, the guest link cannot be reached (and the organiser's card
+  cannot show a public address). Public pages wear the company's brand or
+  Polls' own look, never a catalogue theme chosen for the team.
+- **The look is a stylesheet the tool serves** (`/chest/look.css` for the
+  team, `/look.css` for the public pages, `src/theme.ts`): the company's
+  choice read with `chest.theme()` (kept a minute by the SDK), written
+  once per choice, linked with its hash (`?v=…`, kept a year by the
+  browser; an ETag and a 304 otherwise). `build.static` is `["/assets/"]`
+  (the browser's script and styles, the fonts, the icon).
 - `capabilities`: `database`; `members` (names, photos, groups, who is
   asked, people found by name); `notifications` (the bell, the tile's
   number); `receives: ["member.*"]`. Proposal (studio), in
@@ -351,15 +361,16 @@ closed poll is seen by those asked, its organiser and admins.
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`, contract 0.4 (`"chest": "0.4"`).
 
 - `member.language` — SDK 0.3.0: the interface and the bell in each
   member's language (`localeOf`: English for a language Polls does not
   speak yet).
 - `notifications.broadcast` — **Proposal (studio)**: telling a poll's
   audience in one call; Polls falls back to paged `notify` without it.
-- `schedules` — **Proposal (studio)**: `chest.proposals.json` declares `pass`
-  every 15 minutes. Without it, Polls still works (see above).
+- `schedules` — SDK 0.4: `chest.json` declares `pass` every 15 minutes,
+  run on `POST /chest-schedules` (`schedules.handle`, with the durable
+  `seen` of the events). Without runs, Polls still works (see above).
 - `chest.timeZone` / `chest.today()` — SDK 0.3.0: dates and closing
   times on the Chest's clock; the Chest puts the database's sessions in
   that zone too (`current_date` is the Chest's day).
@@ -374,11 +385,11 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   asks for an email.
 - `groups: "read"` — **Proposal (studio)**, in `vendor/` (`members.groups.all`,
   `members.groups.members`, `members.groups.of`, `group.*` events): any
-  group of the Chest as an audience; results per team (`lib/groups.ts`,
+  group of the Chest as an audience; results per team (`src/lib/groups.ts`,
   adapted from News). The assertion (`member(request).groups`) and
   `members.*` name only the groups that **give** Polls — none when Polls is
   open to everyone — so who a poll asks is read from the Chest: the member
-  of a request with `groups.of` (once per request, `lib/session.ts`), an
+  of a request with `groups.of` (once per request: `createApp({ complete })`, `src/app.tsx`), an
   audience or a badge count with `groups.members` of the poll's groups.
   Without the permission, the groups the Chest gave with the member.
 - `calendar` — **Proposal (studio)**: the chosen date in each person's
@@ -394,8 +405,9 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   form's token and the Chest's counters of visitors; without them, Polls
   counts in its own
   table (`guest_counts`).
-- `chest.publicUrl` — **Proposal (studio)**: the guest link's address
-  (else derived from the request, as Booking does).
+- `chest.tool.publicUrl` — SDK 0.4: the guest link's address (the
+  company's own domain once connected; outside a Chest, derived from the
+  request, as Booking does).
 - Wanted, not built:
   - **A broadcast to members by id** (`to: { members: [ids] }`) and one
     that **excludes members** (`except: [ids]`), so a poll put to people by
@@ -406,17 +418,29 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
 
 ## Develop
 
+Made like the studio's starter (`starter/` in the studio): TypeScript,
+Hono, React rendered on the server with a few islands, Vite. No Next.js.
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run dev       # rebuilds on every change and restarts the server
+npm run build     # the type check, then the browser's files and the server (dist/)
+npm test          # the type check, the server built into dist/test, then test/*.test.*
+npm start         # the built server, as the Chest runs it
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/polls --prod --reset
---port 5500` (the sample polls of `seed/sample.sql`),
-`node lab/chest-dev/flows/polls.mjs 5500` (browser flows),
-`node lab/chest-dev/screens.mjs tools/public-and-private/polls --port 5500`,
-`node lab/chest-dev/audit.mjs tools/public-and-private/polls --port 5500`.
+`npm test` runs PostgreSQL inside the test (PGlite); with
+`TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`
+it runs on a real PostgreSQL (a role and a database `t_test_…`, dropped
+after). `test/app.test.mjs` asks the built server as the Chest does
+(a fake Chest, signed members, visitors); the other files test
+`src/lib/` alone.
+
+In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/polls --prod --build --reset
+--port 5530` (the sample polls of `seed/sample.sql`; two hosts, https),
+`node lab/chest-dev/flows/polls.mjs 5530` (browser flows),
+`node lab/chest-dev/screens.mjs tools/public-and-private/polls --port 5530`,
+`node lab/chest-dev/audit.mjs tools/public-and-private/polls --port 5530`.
 
 ## What it does not do (yet)
 
