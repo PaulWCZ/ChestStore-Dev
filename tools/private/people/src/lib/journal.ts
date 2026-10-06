@@ -7,7 +7,7 @@ import type { Query } from "./db.ts";
 // of the record. HR reads it on the record and on the profile; it is kept
 // two years. Every sensitive read or write goes through here.
 export type Action = "viewed" | "created" | "changed" | "linked" | "document_added" | "document_opened" | "document_removed" | "register_viewed" | "register_exported" | "profile_changed"
-  | "imported" | "change_asked" | "change_accepted" | "change_declined" | "letter_printed";
+  | "imported" | "change_asked" | "change_accepted" | "change_declined" | "letter_printed" | "directory_exported";
 export type Entry = { id: string; at: string; actor: string; action: Action; fields: string[] };
 
 export const keepJournalDays = 730;
@@ -31,6 +31,9 @@ export async function note(sql: Query, actor: Member | { id: string }, action: A
 type Row = { id: string; at: Date; actor: string; action: Action; fields: string[] };
 const toEntry = (r: Row): Entry => ({ id: String(r.id), at: r.at.toISOString(), actor: r.actor, action: r.action, fields: r.fields });
 
+// HR's downloads of the data the directory and the register hold (the
+// register's page lists them under "Last read").
+
 // The last entries about one record, or about one person's job details.
 // Callers check that the reader is HR.
 export async function ofRecord(sql: Query, recordId: string, limit = 50): Promise<Entry[]> {
@@ -42,7 +45,7 @@ export async function ofMember(sql: Query, memberId: string, limit = 20): Promis
 }
 
 export async function ofRegister(sql: Query, limit = 20): Promise<Entry[]> {
-  return (await sql<Row[]>`select id, at, actor, action, fields from journal where action in ('register_viewed', 'register_exported') order by at desc, id desc limit ${limit}`).map(toEntry);
+  return (await sql<Row[]>`select id, at, actor, action, fields from journal where action in ('register_viewed', 'register_exported', 'directory_exported') order by at desc, id desc limit ${limit}`).map(toEntry);
 }
 
 export async function purgeJournal(sql: Query): Promise<number> {

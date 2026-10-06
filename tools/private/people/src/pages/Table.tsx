@@ -14,7 +14,7 @@ import { BackLink } from "./parts.tsx";
 // HR's table: everyone on one screen, job title, team, office, manager,
 // start date, phone and HR's extra fields as cells saved one by one — the
 // way to set up fifty people without opening fifty profiles.
-export async function tablePage({ member, t }: PageContext): Promise<View> {
+export async function tablePage({ member, locale, t }: PageContext): Promise<View> {
   if (!can(member, "profile.job")) return notFound();
   const sql = db();
   const { entries } = await directory(sql, member);
@@ -41,7 +41,8 @@ export async function tablePage({ member, t }: PageContext): Promise<View> {
               fields,
               known,
               today: today(),
-              t: { table: t.table, edit: t.edit, date: t.date },
+              lang: locale,
+              t: { table: t.table, edit: t.edit, date: t.date, peoplePicker: t.peoplePicker },
             }}
           />
         )}

@@ -665,6 +665,7 @@ const words: Omit<Catalogue, "kit"> = {
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     number_taken: "Un autre dossier a déjà ce matricule.",
     already_asked: "Vous avez déjà demandé une modification : les RH n’ont pas encore répondu.",
+    erased: "Cette personne a demandé à être oubliée : son adresse et son contact d’urgence ne sont plus conservés.",
     unknown: "Un problème est survenu. Réessayez.",
   },
   records: {
@@ -842,6 +843,7 @@ const words: Omit<Catalogue, "kit"> = {
       change_accepted: "A fait la modification demandée : {fields}",
       change_declined: "A refusé la modification demandée : {fields}",
       letter_printed: "A imprimé un courrier ({fields})",
+      directory_exported: "A téléchargé l’annuaire",
     },
     noHistory: "Rien pour l’instant.",
   },
