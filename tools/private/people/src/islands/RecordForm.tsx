@@ -116,7 +116,8 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
             {text("nationality", limits.nationality, !intern)}
             {text("workPermit", limits.workPermit, false, t.record.hints.workPermit)}
             {(values.workPermit !== "" || values.permitEnd !== "") && date("permitEnd", false, t.record.hints.permitEnd)}
-            {field("address", <textarea id={uid + "address"} className="field" rows={3} value={values.address} onChange={set("address")} maxLength={limits.address} />)}
+            {/* A record detached by an erasure keeps no address nor emergency contact. */}
+            {!erased && field("address", <textarea id={uid + "address"} className="field" rows={3} value={values.address} onChange={set("address")} maxLength={limits.address} />)}
           </div>
         </fieldset>
 
@@ -166,14 +167,14 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
           </div>
         </fieldset>
 
-        <fieldset className="card-block">
+        {!erased && <fieldset className="card-block">
           <legend>{t.record.emergency}</legend>
           <div className="grid-2">
             {text("emergencyName", limits.name)}
             {text("emergencyRelation", limits.relation)}
             {text("emergencyPhone", limits.phone, false, undefined, "tel")}
           </div>
-        </fieldset>
+        </fieldset>}
 
         {error && <p className="error" role="alert">{error}</p>}
         <div className="row form-actions sticky-actions">

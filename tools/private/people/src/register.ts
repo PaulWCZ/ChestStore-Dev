@@ -10,5 +10,8 @@ declare module "@argentic/chest-app" {
     words: Catalogue;
     actions: typeof actions;
     islands: typeof islands;
+    // What a page tells the layout: the number of the member's open
+    // to-dos (the "My to-dos" tab), read by src/app.tsx's people().
+    layout: { todo: number };
   }
 }

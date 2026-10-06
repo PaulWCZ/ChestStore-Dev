@@ -92,6 +92,9 @@ async function itemFields(input: ItemInput): Promise<{ text: string; role: ItemR
   if (!input || typeof input !== "object") throw new AppError("invalid");
   const text = clean(input.text, limits.itemText);
   if (!isItemRole(input.role)) throw new AppError("invalid");
+  // A step for a named member names one: none given is a wrong input
+  // (invalid), a name the directory does not have is checked below.
+  if (input.role === "member" && (input.memberId === undefined || input.memberId === null || input.memberId === "")) throw new AppError("invalid");
   const who = input.role === "member" ? memberId(input.memberId) : null;
   if (who && !(await present([who])).has(who)) throw new AppError("not_member");
   return { text, role: input.role, memberId: who, offset: offset(input.offset ?? 0) };
