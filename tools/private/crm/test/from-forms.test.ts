@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as activities from "../lib/activities.ts";
-import * as companies from "../lib/companies.ts";
-import * as contacts from "../lib/contacts.ts";
-import { formKey, readFormContact, sameName } from "../lib/from-forms.ts";
-import { dismissLead, formLinesToCheck, keepApart, leads, markChecked, maybeSame, moveLine, restoreLead, takeLead } from "../lib/leads.ts";
-import { catalogue, format } from "../lib/i18n/index.ts";
-import { answerLink, withWhen } from "../lib/page-data.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as companies from "../src/lib/companies.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import { formKey, readFormContact, sameName } from "../src/lib/from-forms.ts";
+import { dismissLead, formLinesToCheck, keepApart, leads, markChecked, maybeSame, moveLine, restoreLead, takeLead } from "../src/lib/leads.ts";
+import { catalogue, format } from "../src/i18n/index.ts";
+import { answerLink, withWhen } from "../src/lib/page-data.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -19,8 +19,8 @@ import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -272,7 +272,7 @@ test("the line links to the answer in Forms, made when the page is shown from th
   try {
     assert.equal(withWhen([line!], "en")[0]!.link, `https://forms-chest.chest.test/chest/forms/5/answers/${data.answer.id}`);
     // Forms at a custom domain: the same stored line follows it.
-    chest.installTool("forms", { team: "https://forms.atelier-martin.fr" });
+    chest.installTool("forms", { teamUrl: "https://forms.atelier-martin.fr" });
     assert.equal(answerLink(line!), `https://forms.atelier-martin.fr/chest/forms/5/answers/${data.answer.id}`);
     // Only a "form" line, only a path Forms' team host would open.
     const [created] = (await activities.timeline(database.sql, { contactId: id! })).filter(a => a.kind === "created");

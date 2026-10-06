@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as companies from "../lib/companies.ts";
-import { companiesCsv } from "../lib/export.ts";
-import * as fields from "../lib/fields.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { tags } from "../lib/model.ts";
-import { keptKeys, shownName } from "../lib/seed-words.ts";
+import * as companies from "../src/lib/companies.ts";
+import { companiesCsv } from "../src/lib/export.ts";
+import * as fields from "../src/lib/fields.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { tags } from "../src/shared/model.ts";
+import { keptKeys, shownName } from "../src/lib/seed-words.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { collect } from "./support/collect.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, ines } from "./support/members.ts";
 
@@ -17,8 +18,8 @@ import { camille, everyone, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -56,7 +57,7 @@ test("a company keeps its seeded industry and tags through a form saved in Frenc
   await companies.updateCompany(sql, asMember(ines), c.id, { industry: "Boulangerie industrielle" });
   assert.equal((await companies.company(sql, asMember(ines), c.id)).industry, "Boulangerie industrielle");
   // The list filters by the key; the export reads the reader's words.
-  const csv = await companiesCsv(sql, asMember(ines), { tag: "@keyAccount" }, fr, "fr");
+  const csv = await collect(await companiesCsv(sql, asMember(ines), { tag: "@keyAccount" }, fr, "fr"));
   assert.ok(csv.includes("commerce, grand compte"));
 });
 
