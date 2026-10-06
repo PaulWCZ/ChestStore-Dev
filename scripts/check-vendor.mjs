@@ -102,5 +102,5 @@ if (stale.size > 0) {
   console.log(`\nStale packs (re-vendor: node scripts/add-app.mjs | add-ui.mjs | add-sdk.mjs <tool>):`);
   for (const [target, packs] of stale) console.log(`  ${target}: ${packs.join("; ")}`);
 }
-if (failed) console.log("\nA pack DIFFERS from its working copy at the same version: bump that working copy's version, then re-vendor.");
+if (failed) console.log("\nA pack DIFFERS from its working copy at the same version: re-vendor that tool while the version is still in the making; once a version was merged, bump the working copy's version instead.");
 process.exit(failed || (staleFails && stale.size > 0) ? 1 : 0);

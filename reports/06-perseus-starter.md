@@ -387,7 +387,7 @@ Checked in Chromium only.
 - 15 tests in the starter: 11 against the built server, with the SDK's
   fakeChest and a real PostgreSQL, and 4 on the sources — passing with and
   without `NODE_ENV=development`;
-- 29 tests in the package: its fields, redirects, formats and checks, and
+- 30 tests in the package: its fields, redirects, formats and checks, and
   a small tool built on the packaged code (the pilots' own included; and
   bounds — junk spends nothing, a token serves once, budgets by kind,
   a visitor by the front's address —, `rawRoute`, `zipStream` read by `unzip`, the database in a far
@@ -559,27 +559,31 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
 - `node scripts/chest-check.mjs starter`: OK for contract 0.4; the tool
   asks for database, members and receives.
 - `npm run dev` (run by the workbench bench) and `npm start` serve the tool.
-- In `app/`: `npm test` (29 tests, also under `NODE_ENV=development`; its peak 277 MiB RSS on the local
+- In `app/`: `npm test` (30 tests, also under `NODE_ENV=development`; its peak 277 MiB RSS on the local
   server, against 1.2 GiB on PGlite).
-- Polls, Tasks, News and Booking, copied with `@argentic/chest-app`
-  0.1.0-studio.3 in place of theirs: `tsc` passes for all four; Tasks
-  (123) and News (109) pass all their tests; Polls (102/103) and Booking
-  (112/113) fail only the new `checkSources` rule (a `publicAction`
-  without `bound`) — they must add `bound` (or `bound: false`) when they
-  re-vendor. Run under `NODE_ENV=development` with `TEST_DATABASE_URL`,
-  before the merge of Support's and Status's View fields (`locale`,
-  `head`, `exactTitle`, which replaced this round's `lang`) and of the
-  island's default CSS — those two were tested in `app/`, the starter and
-  Chromium only. One visible change for News: its search island is a
-  flex item (`.ck-bar-end > .island { flex: … }`); with the package's
-  `.island { display: contents }` it must add `display: block` there.
-- `node scripts/check-vendor.mjs`: every vendored studio pack of the
-  starter and the tools compared with `app/`, `ui/`, `sdk/`. The starter's
-  chest-app is the working copy's. It found a real drift: the six
-  migrated tools vendor `@argentic/chest-sdk` 0.4.1-studio.2, but `sdk/`
-  changed at that same version afterwards (`fakeChest.publicApi`, commit
-  9f25e80): the SDK needs a studio.3 and the tools a re-vendor (the
-  script exits 1 until then).
+- The six tools on the package, re-vendored to chest-app 0.1.0-studio.3
+  and SDK 0.4.1-studio.3 and adapted (one commit each); each passes
+  `tsc`, its build, its tests on the local PostgreSQL and on PGlite, and
+  `chest check`:
+
+  | Tool | Tests | What changed |
+  |---|---|---|
+  | Tasks | 125 | `.island` rule removed (the package's). Its tests need `npm run build` first (they read `dist/client` for `/assets/`) |
+  | News | 112 | its search island gets `display: block` (a flex item) |
+  | Polls | 102 | the guest form on the package's `bound` (its own guard, `guard.ts`, removed; migration 0006 adds `chest_bounds` and `chest_seen`; `guest_counts` no longer written). Checked in Chromium on the built tool: the island sends the page's token, the answer renews it, a second send goes |
+  | Wiki | 118 | the Trash tab told to the layout by `View.layout` (its per-request `WeakMap` gone) |
+  | Support | 103 | its four public actions say `bound: false` (they still guard themselves) until its agent adopts `bound` |
+  | Status | 105 | the same for its eight; `Vary` now ends with `Accept-Encoding` (the page is gzipped) |
+
+  Booking was left to its own agent (vendored studio.2: `check-vendor`
+  lists it as stale).
+- `node scripts/check-vendor.mjs`: every vendored studio pack compared
+  with `app/`, `ui/`, `sdk/`. It found a real drift: `sdk/` changed after
+  it was packed as 0.4.1-studio.2 (`fakeChest.publicApi`, 9f25e80;
+  `visitors.count`, bef4f20) — now 0.4.1-studio.3. It lists stale packs
+  per tool, exits 1 on a pack that differs at the same version
+  (`--stale-fails`: on a stale one too), and 2, with the failing
+  command's last lines, when a working copy cannot be packed.
 - The 14 Chromium tests (one now checks every island wrapper is
   `display: contents` from the package's CSS) and the axe audits.
 - Every number in §4, by the method stated there.
