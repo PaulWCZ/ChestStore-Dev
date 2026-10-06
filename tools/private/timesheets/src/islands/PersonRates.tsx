@@ -3,7 +3,7 @@ import { useStep } from "../components/step.ts";
 import { DateField } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { Close, Plus } from "../components/icons.tsx";
-import { parseAmount } from "../shared/amounts.ts";
+import { amountProblem, parseAmount } from "../shared/amounts.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { format } from "../i18n/format.ts";
 import { rateDayProblem, type RateLock } from "../shared/rate-day.ts";
@@ -28,7 +28,8 @@ export function PersonRates({ projectId, rates, people, hasTime, today, origin, 
 
   function add() {
     const cents = rate.trim() === "" ? null : parseAmount(rate);
-    if (!who || (rate.trim() !== "" && cents === null)) return fail("invalid");
+    const refused = !who ? "invalid" : rate.trim() === "" ? null : amountProblem(rate);
+    if (refused) return fail(refused);
     if (hasTime && fromProblem) return void document.getElementById("pr-from")?.focus();
     const problem = hasTime ? rateDayProblem(from, lock, { missing: t.errors.rate_day_missing }) : null;
     if (problem) return void toast({ text: problem, tone: "error" });

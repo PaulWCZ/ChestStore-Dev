@@ -5,7 +5,7 @@ import { BankForm, type BankCurrent } from "../components/bank-form.tsx";
 import { Stamp } from "../components/bits.tsx";
 import { Car, Wallet } from "../components/icons.tsx";
 import { ImportSection } from "../components/import-section.tsx";
-import { addCardRule, addCategory, checkVehicle, removeCardRule, saveAllowanceRate, saveScale, setApprover, setMemberAccount, setPriorDistance, setRate, setVehicle, setVehicleProof, updateCategory, updateCompany } from "../components/settings-calls.ts";
+import { addCardRule, addCategory, checkVehicle, confirmBank, removeCardRule, saveAllowanceRate, saveScale, setApprover, setMemberAccount, setPriorDistance, setRate, setVehicle, setVehicleProof, updateCategory, updateCompany } from "../components/settings-calls.ts";
 import { upload } from "../components/upload.ts";
 import { format, numberFormat, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
@@ -73,7 +73,7 @@ export type VehicleData = {
 };
 
 // Settings → Me: what each person sets for themselves.
-export function MyView({ vehicle, bank, countries, t, errors, cancel }: { vehicle: VehicleData; bank: BankCurrent; countries: Option[]; t: Words; errors: Errors; cancel: string }) {
+export function MyView({ vehicle, bank, held, countries, t, errors, cancel }: { vehicle: VehicleData; bank: BankCurrent; held: string | null; countries: Option[]; t: Words; errors: Errors; cancel: string }) {
   return (
     <div className="settings">
       <VehicleForm vehicle={vehicle} t={t} errors={errors} />
@@ -81,6 +81,7 @@ export function MyView({ vehicle, bank, countries, t, errors, cancel }: { vehicl
         <h2 id="bank-title" className="section-title"><Wallet />{t.bank.title}</h2>
         <p className="hint">{t.bank.intro}</p>
         <hr className="rule" />
+        {held && <HeldBank title={held} t={t} errors={errors} />}
         <BankForm owner="me" current={bank} countries={countries} t={t.bank} errors={errors} save={t.bank.save} cancel={cancel} />
       </section>
     </div>
@@ -88,6 +89,21 @@ export function MyView({ vehicle, bank, countries, t, errors, cancel }: { vehicl
 }
 
 // Settings → Company: the accountant's.
+// Bank details someone else entered for this person: theirs to confirm
+// before a transfer file pays into them (or to change).
+function HeldBank({ title, t, errors }: { title: string; t: Words; errors: Errors }) {
+  const { run, pending } = useRun(errors);
+  return (
+    <div className="notice held-bank" role="status">
+      <div className="held-text">
+        <strong>{title}</strong>
+        <span>{t.bank.heldBody}</span>
+      </div>
+      <button type="button" className="button small" disabled={pending} onClick={() => run(() => confirmBank(), () => t.bank.heldDone)}>{t.bank.heldConfirm}</button>
+    </div>
+  );
+}
+
 export function CompanyView({ locale, company, t, errors, cancel }: { locale: string; company: Company; t: Words; errors: Errors; cancel: string }) {
   return (
     <div className="settings">

@@ -6,6 +6,7 @@ import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
 import * as entries from "../src/lib/entries.ts";
 import * as handoff from "../src/lib/handoff.ts";
 import * as projects from "../src/lib/projects.ts";
+import * as rates from "../src/lib/rates.ts";
 import { foundEntries, report } from "../src/lib/reports.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -21,7 +22,7 @@ const from = addDays(monday, -14), to = addDays(monday, -8);
 before(async () => {
   database = await testDatabase();
   process.env["CHEST_TOOL"] = "timesheets";
-  chest = await fakeChest({ members: everyone, emits: ["timesheets.billable", "timesheets.billable_cancelled"], receivers: 1 });
+  chest = await fakeChest({ members: everyone, emits: ["timesheets.billable", "timesheets.billable_cancelled"], linked: { "timesheets.billable": ["quotes"], "timesheets.billable_cancelled": ["quotes"] } });
 });
 after(async () => {
   await chest.close();
@@ -120,6 +121,68 @@ test("after a restore, a hand-off id given again to other time still reaches Quo
   assert.equal(again.handoff, first.handoff, "the same id, other time");
   assert.equal(again.minutes, 90);
   assert.equal(chest.published.filter(e => e.type === "timesheets.billable" && (e.data as { handoff: string }).handoff === first.handoff).length, 2, "published, not refused as the first one's key");
+});
+
+test("Quotes installed but not linked: nothing is offered, a hand-off is refused and nothing is locked", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const p = await projects.createProject(sql, m, { name: "Non relié", rateCents: 5000 });
+  const e = await entries.addEntry(sql, asMember(hugo), { projectId: p.id, day: from, minutes: 30 });
+  const kept = chest.linked["timesheets.billable"];
+  delete chest.linked["timesheets.billable"];
+  try {
+    assert.equal(await handoff.linked(), false);
+    const published = chest.published.length;
+    await assert.rejects(handoff.sendBillable(sql, m, { projectId: p.id, from, to }), refused("quotes_unavailable"));
+    assert.equal(chest.published.length, published, "nothing published to nobody");
+    const [row] = await sql<{ h: string | null; fixed: boolean }[]>`select handoff_id::text as h, rates_fixed as fixed from entries where id = ${e.id}`;
+    assert.deepEqual([row!.h, row!.fixed], [null, false], "the time stays free, its rates unwritten");
+    assert.equal((await sql`select 1 from handoffs where project_id = ${p.id}`).length, 0);
+  } finally {
+    chest.linked["timesheets.billable"] = kept!;
+  }
+  assert.equal(await handoff.linked(), true);
+});
+
+test("a hand-off writes its rates on its entries: a rate raised after it changes neither its amounts nor Quotes' invoice; taken back, they follow the rates again", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const p = await projects.createProject(sql, m, { name: "Taux figés", rateCents: 6000 });
+  await entries.addEntry(sql, asMember(ines), { projectId: p.id, day: from, minutes: 60 });
+  const sent = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  // The rate goes up from the first day of the period: the waiting time keeps 60.
+  await rates.setRate(sql, m, { kind: "bill", projectId: p.id, cents: 9000, from });
+  const amount = async () => (await report(sql, m, { from, to, projectId: p.id })).cents;
+  assert.equal(await amount(), 6000);
+  const [w] = await sql<{ fixed: boolean; by: boolean; rate: number }[]>`select rates_fixed as fixed, handoff_fixed as by, bill_rate_cents::int as rate from entries where handoff_id = ${sent.handoff}`;
+  assert.deepEqual([w!.fixed, w!.by, w!.rate], [true, true, 6000]);
+  // Taken back: the rates the hand-off wrote are forgotten (the new one applies).
+  await handoff.cancelHandoff(sql, m, sent.handoff);
+  assert.equal(await amount(), 9000);
+  const [freed] = await sql<{ fixed: boolean; by: boolean }[]>`select rates_fixed as fixed, handoff_fixed as by from entries where project_id = ${p.id}`;
+  assert.deepEqual([freed!.fixed, freed!.by], [false, false]);
+  // Sent again at 90, the rate drops to 70 meanwhile: Quotes' answer
+  // invoices it at the 90 the invoice was made with.
+  const again = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  assert.equal((chest.published.at(-1)!.data as unknown as handoff.Billable).lines[0]!.rate, 9000);
+  await rates.setRate(sql, m, { kind: "bill", projectId: p.id, cents: 7000, from });
+  assert.equal(await handoff.invoiced(sql, { handoff: again.handoff, invoice: "F-1" }), true);
+  const [done] = await sql<{ rate: number; by: boolean }[]>`select bill_rate_cents::int as rate, handoff_fixed as by from entries where project_id = ${p.id}`;
+  assert.deepEqual([done!.rate, done!.by], [9000, false]);
+  assert.equal(await amount(), 9000);
+});
+
+test("one rounding rule: each entry's amount to the cent, then added — the report, the CSV rows and the hand-off's lines agree", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  // 7 minutes at 1.00 an hour: 11.67 cents each, 12 once rounded.
+  const p = await projects.createProject(sql, m, { name: "Arrondis", rateCents: 100 });
+  for (let i = 0; i < 3; i++) await entries.addEntry(sql, asMember(hugo), { projectId: p.id, day: addDays(from, i), minutes: 7 });
+  assert.equal((await report(sql, m, { from, to, projectId: p.id })).cents, 36);
+  const sent = await handoff.sendBillable(sql, m, { projectId: p.id, from, to });
+  const data = chest.published.at(-1)!.data as unknown as handoff.Billable;
+  assert.deepEqual([data.amount, data.lines[0]!.amount], [36, 36]);
+  await handoff.cancelHandoff(sql, m, sent.handoff);
 });
 
 test("occurredAt is given when the Chest would take it: not ahead of this clock, not older than 24 hours less five minutes", () => {

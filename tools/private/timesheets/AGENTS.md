@@ -120,6 +120,21 @@ own form), the project picker (above).
   actor.id`; reports force the member's own id unless `reports.all`.
 - **Writes that touch a person's day** take the person's advisory lock and
   end with `checkDayTotal` inside the same transaction.
+- **Reads before a write are locked reads**: an entry read to be changed
+  is read `for update` (a hand-off or an invoicing marking it meanwhile is
+  then seen: `invoiced`); the settings a write checks are read
+  `settings(tx, { share: true })` (a period locked meanwhile waits for the
+  write, or the write sees the lock). `test/races.test.ts` (PostgreSQL)
+  holds both.
+- **Amounts round per entry** (`entryAmount`, `revenueOf`, `costOf` in
+  `src/lib/rates.ts`): each entry to the cent, then added — reports, the
+  CSV and the hand-off's lines agree to the cent.
+- **A hand-off writes its rates** on its entries (`handoff_fixed`); taken
+  back (`release`), they are forgotten again. It is offered and sent only
+  when `events.receivers("timesheets.billable")` names a tool (`linked()`);
+  0 receivers undoes it (`quotes_unavailable`).
+- **Members never see money**, not even derived: a money budget is a
+  share for them (`kind: "share"` in `report()`).
 - **Locked days**: every write to a person's day goes through
   `checkOpen(tx, memberId, day)` (locked period, week sent or approved) for
   the old *and* the new day, and refuses an invoiced entry (`invoiced`).

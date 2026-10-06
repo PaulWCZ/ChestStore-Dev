@@ -23,6 +23,15 @@ after(async () => {
   await database.close();
 });
 
+// Before anything: a tool with no project nor entry expects nothing of
+// anyone (the Team page shows no week as short either).
+test("an empty tool reminds nobody on Friday", async () => {
+  const friday = addDays(mondayOf(todayIn("Europe/Paris")), 4);
+  assert.equal(await chest.run("friday", POST, { scheduledAt: new Date(`${friday}T13:30:00Z`).toISOString() }), 204);
+  assert.equal(chest.notifications.length, 0);
+  assert.equal(chest.outbox.length, 0);
+});
+
 test("on Friday, whoever has a short week gets one item, in their language; delivered twice, still one", async () => {
   const { sql } = database;
   const friday = addDays(mondayOf(todayIn("Europe/Paris")), 4);
@@ -34,6 +43,8 @@ test("on Friday, whoever has a short week gets one item, in their language; deli
   const scheduledAt = new Date(`${friday}T13:30:00Z`).toISOString();
   assert.equal(await chest.run("friday", POST, { scheduledAt }), 204);
   const items = chest.notifications.map(n => [n.member, n.title, n.key]).sort();
+  // Tom has no entry yet: his start is the tool's (last week, Hugo's first
+  // entry), so this week is expected of him — as the Team page says.
   assert.deepEqual(items, [
     [hugo.id, "Your week is empty — fill it in?", "week"],
     [ines.id, "Votre semaine compte 21,5 h — compléter le reste ?", "week"],
@@ -50,6 +61,15 @@ test("on Friday, whoever has a short week gets one item, in their language; deli
   assert.equal(await chest.run("friday", POST, { scheduledAt }), 204);
   assert.equal(chest.notifications.length, 3);
   assert.equal(chest.outbox.length, 2);
+});
+
+test("a week before the tool's start (anyone's start) is never reminded", async () => {
+  const before = chest.notifications.length;
+  // Two weeks back: before Hugo's first entry, the tool's first day.
+  const friday = addDays(mondayOf(todayIn("Europe/Paris")), 4 - 14);
+  const run = { scheduledAt: new Date(`${friday}T13:30:00Z`).toISOString() };
+  assert.equal(await chest.run("friday", POST, run), 204);
+  assert.equal(chest.notifications.length, before);
 });
 
 test("turned off, or a higher bar, as the manager sets it", async () => {

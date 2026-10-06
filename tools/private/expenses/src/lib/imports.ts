@@ -55,7 +55,7 @@ export async function importExpenses(sql: Sql, actor: Member | null, input: { li
       if (!day || day < "2000-01-01" || day > last) throw new AppError("date_invalid");
       const currency = typeof raw.currency === "string" && isCurrency(raw.currency.trim().toUpperCase()) ? raw.currency.trim().toUpperCase() : company.currency;
       const text = typeof raw.amount === "string" ? raw.amount.trim() : "";
-      if (text.startsWith("-") || text.startsWith("(")) {
+      if (/^[-−–(]/u.test(text)) {
         skipped.push({ line, reason: "negative" });
         continue;
       }

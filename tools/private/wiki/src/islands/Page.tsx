@@ -1,4 +1,4 @@
-import { call, refresh, toast } from "@argentic/chest-app/client";
+import { toast, useAutoRefresh } from "@argentic/chest-app/client";
 import { SearchBox } from "@argentic/chest-ui/components";
 import type { SearchWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useRef } from "react";
@@ -22,34 +22,13 @@ export function Ready() {
   return null;
 }
 
-// The Chest has no WebSocket: a page others change asks every minute,
-// while it is visible and its reader was active in the last ten minutes,
-// whether what it shows changed (its stamp: src/lib/pages.ts) — a few bytes
-// — and re-reads itself only then (refresh() keeps what is typed, the
-// focus and each island's state). A tab left open does not keep the tool
-// awake: idle, it stops asking; seen again, it asks once at once.
-const idleAfter = 10 * 60_000;
-export function AutoRefresh({ seconds, pageId, stamp }: { seconds: number; pageId: string; stamp: string }) {
-  const latest = useRef(stamp);
-  latest.current = stamp;
-  useEffect(() => {
-    let active = Date.now();
-    const touched = () => { active = Date.now(); };
-    const check = async () => {
-      if (document.visibilityState !== "visible") return;
-      const r = await call("pageStamp", { pageId }, { refresh: false, quiet: true, parallel: true });
-      if (r.ok && r.value !== latest.current) await refresh();
-    };
-    const timer = setInterval(() => { if (Date.now() - active < idleAfter) void check(); }, seconds * 1000);
-    const seen = () => { if (document.visibilityState === "visible") { touched(); void check(); } };
-    for (const e of ["pointerdown", "keydown", "scroll"]) window.addEventListener(e, touched, { passive: true });
-    document.addEventListener("visibilitychange", seen);
-    return () => {
-      clearInterval(timer);
-      for (const e of ["pointerdown", "keydown", "scroll"]) window.removeEventListener(e, touched);
-      document.removeEventListener("visibilitychange", seen);
-    };
-  }, [pageId, seconds]);
+// The Chest has no WebSocket: a page others change is read again while
+// its reader is there — when the tab comes back, and every `seconds` while
+// they were active in the last ten minutes (the package's useAutoRefresh:
+// idle, it stops, so a tab left open lets the tool sleep). The page's
+// version (src/app.tsx: pageStamp) makes a read with nothing new a 304.
+export function AutoRefresh({ seconds }: { seconds: number }) {
+  useAutoRefresh(seconds);
   return null;
 }
 

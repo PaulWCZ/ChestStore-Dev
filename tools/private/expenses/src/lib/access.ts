@@ -15,7 +15,9 @@ import type { Member } from "@argentic/chest-sdk/member";
 // owner's alone until it is sent. Nobody approves their own expense, ever:
 // an accountant's own go to the approver named for them, or else to the
 // other accountants; with neither, they wait (and the pages say so) until
-// someone is named. The one who pays is never the one who approved.
+// someone is named. The one who pays may be the one who approved (a small
+// company's accountant often does both): "To pay back" says so on each
+// line they approved themselves, for a second look before paying.
 export const roles = ["accountant", "approver", "employee"] as const;
 export type Role = (typeof roles)[number];
 

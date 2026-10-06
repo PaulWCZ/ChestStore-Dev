@@ -81,9 +81,9 @@ app.use(async (c, next) => {
   await next();
   const first = c.req.path.split("/")[1] ?? "";
   if (c.req.method === "GET" && c.res.status === 200 && (first === "" || first === "history" || first === "incidents") && c.req.query("fresh") === undefined) {
-    // The page's form token (a fresh one in each answer) and its islands'
-    // id prefixes (a mark of each render) are not the page.
-    let body = (await c.res.clone().text()).replace(/<meta name="chest-form" content="[^"]*"\/?>/u, "");
+    // The page's form token (a fresh one in each answer), its render's mark
+    // and its islands' id prefixes (made of that mark) are not the page.
+    let body = (await c.res.clone().text()).replace(/<meta name="chest-(form|render)" content="[^"]*"\/?>/gu, "");
     for (const prefix of new Set([...body.matchAll(/data-prefix="([^"]+)"/gu)].map(m => m[1]!))) body = body.replaceAll(prefix, "");
     const tag = `W/"${createHash("sha256").update(body).digest("base64url").slice(0, 22)}"`;
     const headers = { "Cache-Control": "public, max-age=30, stale-while-revalidate=30", Vary: "Accept-Language, Cookie", ETag: tag };

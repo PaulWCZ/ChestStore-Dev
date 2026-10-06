@@ -9,8 +9,8 @@ import { can, roleOf } from "./lib/access.ts";
 // instrument panel on top (the tool's stopwatch, or the company's logo in
 // brand mode; the sections as labelled tabs, a row of their own on a
 // phone; the member) —, the timer under it on every page (an island the
-// page feeds: src/timer-view.ts), the page re-read every minute while it
-// is visible. A member whose role gives nothing sees why, not an error.
+// page feeds: src/timer-view.ts), the page re-read when the person comes
+// back to it (never on a timer). A member whose role gives nothing sees why, not an error.
 // Both parts: the toasts, outside the page's main region, under an id (a
 // page met by navigate() keeps them, and a toast's Undo with them); the
 // refusal of a form sent without JavaScript (notice).
@@ -42,7 +42,7 @@ export function MembersLayout({ viewer: { member, t }, look, notice, path, data,
     <>
       <AppShell brand={brand} nav={nav} path={path} member={{ name: member.name, role: t.roles[role], photo: member.photo }} labels={labels} width="full">
         {data.timer && <Island id="timer" name="TimerBar" props={data.timer} />}
-        <Island id="auto-refresh" name="AutoRefresh" props={{ seconds: 60 }} />
+        <Island id="auto-refresh" name="AutoRefresh" props={{ seconds: 15 }} />
         {notice && <div className="page"><p className="notice" role="alert">{notice}</p></div>}
         {children}
       </AppShell>
