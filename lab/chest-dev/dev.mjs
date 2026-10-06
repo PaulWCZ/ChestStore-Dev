@@ -148,7 +148,10 @@ const capabilities = manifest.capabilities ?? [];
 let databaseUrl = null;
 if (capabilities.includes("database")) {
   const admin = postgres(process.env["DEV_DATABASE_URL"] ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres", { max: 1, onnotice: () => {} });
-  const role = "t_" + manifest.name.replace(/-/gu, "_");
+  // t_<tool> on the default port; t_<tool>_<port> on another, so that two
+  // harnesses of the same tool on this machine (agents in parallel) never
+  // drop each other's database.
+  const role = "t_" + manifest.name.replace(/-/gu, "_") + (port === 4000 ? "" : `_${port}`);
   const password = "dev";
   const [exists] = await admin`select 1 as x from pg_database where datname = ${role}`;
   if (flag("reset") && exists) await admin.unsafe(`drop database ${role} with (force)`);
@@ -647,7 +650,10 @@ function front(request, response, host) {
   const decision = route(host, { method: request.method ?? "GET", url: request.url ?? "/", headers: request.headers }, manifest, { teamOrigin: origin, publicOrigin });
   if (decision.to === "chest") return relay(request, response, { port: Number(new URL(apiOrigin).port) }, request.headers);
   if (!decision.to) {
-    const quiet = decision.status === 302 && (host === "public" || manifest.public);
+    // A browser going to a page of the other host is how it works; a file
+    // a page loads (an image, a script, a stylesheet) sent to the other host
+    // is what breaks: logged.
+    const quiet = decision.status === 302 && (host === "public" || (manifest.public && isNavigation(request.method, request.headers)));
     if (!quiet) toolProcess.log(`front (${host} host): ${request.method} ${request.url} → ${decision.status}${decision.location ? " " + decision.location : ""}: ${decision.reason}${request.headers.referer ? ` (asked by ${request.headers.referer})` : ""}`);
     if (decision.status === 302) return void response.writeHead(302, { Location: decision.location }).end();
     const text = { 400: "Bad request", 403: "Forbidden", 404: "Page not found", 501: "Not implemented" }[decision.status] ?? "Refused";

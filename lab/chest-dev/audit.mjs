@@ -75,7 +75,11 @@ for (const shot of screens) {
         ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: publicOrigin }] : []),
       ]);
       const page = await context.newPage();
-      await page.goto((/^\/chest(\/|\?|$)/iu.test(shot.path) ? origin : publicOrigin) + shot.path, { waitUntil: "networkidle" });
+      await page.goto((/^\/chest(\/|\?|$)/iu.test(shot.path) ? origin : publicOrigin) + shot.path, { waitUntil: "load" });
+    // Network idle, or 5 s: a file the Chest's front refuses (sent to the
+    // other host, then blocked by the CSP) never lets Chromium call the
+    // network idle — the front's log says which.
+    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => console.warn(`! ${shot.path}: the network never went idle (see /_dev/logs for files the front refused)`));
       try {
         await run(page, shot.actions);
       } catch (error) {

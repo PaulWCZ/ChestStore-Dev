@@ -73,6 +73,8 @@ export async function startFakeChest(dir, port) {
   const capabilities = manifest.capabilities ?? [];
   const members = castFor(manifest, dir, { zone });
   const origin = `http://127.0.0.1:${port}`;
+  const teamUrl = `https://${manifest.name}-chest.atelier-martin.chest.test`;
+  const publicUrl = `https://${manifest.name}.atelier-martin.chest.test`;
   process.env["CHEST_TOOL"] = manifest.name;
   const chest = await testing.fakeChest({
     members,
@@ -91,7 +93,9 @@ export async function startFakeChest(dir, port) {
     schedules: manifest.schedules ?? proposals.schedules ?? [],
     ...(proposals.checks ? { checks: proposals.checks } : {}),
     ...(proposals.webhooks ? { webhooks: { max: proposals.webhooks.max, to: origin } } : {}),
-    chest: { organization: "Atelier Martin", timeZone: zone, language: "en", currency: "EUR", teamUrl: origin, ...(manifest.public ? { publicUrl: origin } : {}) },
+    // https placeholders, as the Chest gives https origins (0.4.x's
+    // chest.tool refuses anything else): the bench follows no link.
+    chest: { organization: "Atelier Martin", timeZone: zone, language: "en", currency: "EUR", teamUrl: teamUrl, publicUrl: manifest.public ? publicUrl : null },
     theme: {},
   });
   // The Chest's variables the fake wrote in this process's environment.
@@ -103,8 +107,8 @@ export async function startFakeChest(dir, port) {
   chestEnv.CHEST_TIME_ZONE ??= zone;
   chestEnv.CHEST_LANGUAGE ??= "en";
   chestEnv.CHEST_CURRENCY ??= "EUR";
-  chestEnv.CHEST_TEAM_URL ??= origin;
-  if (manifest.public) chestEnv.CHEST_PUBLIC_URL ??= origin;
+  chestEnv.CHEST_TEAM_URL ??= teamUrl;
+  if (manifest.public) chestEnv.CHEST_PUBLIC_URL ??= publicUrl;
   const idOf = (key) => "mbr_" + key + "a".repeat(26 - key.length);
   const byKey = new Map(cast.people.map((p) => [p.key, members.find((m) => m.id === idOf(p.key))]));
   return {

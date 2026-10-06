@@ -62,7 +62,7 @@ and `results/<label>/TABLE.md` (written by `all.mjs`). A tool takes about
 4. **The server, started as the Chest starts it**: `build.start` (`npm start`)
    as an argument vector, in the work copy, with the Chest's environment and
    nothing else — `NODE_ENV=production`, `NPM_CONFIG_UPDATE_NOTIFIER=false`,
-   `NPM_CONFIG_CACHE`, `PORT` (4700, `--port`), `CHEST_API`, `CHEST_TOKEN`,
+   `NPM_CONFIG_CACHE`, `PORT` (a random free port of 39000–39999, `--port`), `CHEST_API`, `CHEST_TOKEN`,
    `CHEST_TOOL`, `CHEST_ORGANIZATION`, `CHEST_TIME_ZONE`, `CHEST_LANGUAGE`,
    `CHEST_CURRENCY`, `CHEST_TEAM_URL`, `CHEST_PUBLIC_URL` (with a public
    part), `DATABASE_URL` (with a database) — plus `NEXT_TELEMETRY_DISABLED=1`
