@@ -3,14 +3,14 @@ import { after, before, beforeEach, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { formToken } from "@argentic/chest-sdk/visitors";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { answer } from "../lib/answers.ts";
-import { AppError } from "../lib/app-error.ts";
-import { emailGuests, eventKey, guestMailOffered, learned, notInCalendar, syncFinal } from "../lib/agenda.ts";
-import { checkForm, count } from "../lib/guard.ts";
-import * as guests from "../lib/guests.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { limits } from "../lib/model.ts";
-import * as polls from "../lib/polls.ts";
+import { answer } from "../src/lib/answers.ts";
+import { AppError } from "../src/core/tool.ts";
+import { emailGuests, eventKey, guestMailOffered, learned, notInCalendar, syncFinal } from "../src/lib/agenda.ts";
+import { checkForm, count } from "../src/lib/guard.ts";
+import * as guests from "../src/lib/guests.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { limits } from "../src/lib/model.ts";
+import * as polls from "../src/lib/polls.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, chestGroups, everyone, hugo, ines, lea, sofia, tom } from "./support/members.ts";
@@ -22,7 +22,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();
@@ -220,7 +220,7 @@ test("the guests' form offers email only when the Chest would send it (mail.avai
   chest.delivery.mail = "suspended";
   assert.equal(await guestMailOffered(), false, "sending suspended");
   chest.delivery.mail = "ready";
-  const bare = await fakeChest({ members: everyone, capabilities: ["members"] });
+  const bare = await fakeChest({ network: {}, members: everyone, capabilities: ["members"] });
   try {
     assert.equal(await guestMailOffered(), false, "no mail on this Chest");
   } finally {
@@ -244,7 +244,7 @@ test("a guest's email key carries their address (SDK studio.16: keys built from 
 
 test("a Chest without the calendar: Polls learns it and keeps its file", async () => {
   const { sql } = database;
-  const bare = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], calendar: false });
+  const bare = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], calendar: false });
   try {
     const { id, first } = await openDinner();
     await polls.closePoll(sql, asMember(sofia), id, now);
@@ -261,7 +261,7 @@ test("a date chosen for more than 1,000 people goes to their calendars in parts 
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  const big = await fakeChest({ network: {}, members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     const { id, first, second } = await openDinner();
     const q = (await polls.load(sql, id)).questions[0]!;
@@ -292,7 +292,7 @@ test("the Chest answers each part (calendar.putMany, SDK studio.16): a refused p
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  const big = await fakeChest({ network: {}, members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     // The tool's 5,000 events nearly all used (other polls' dates): room
     // for two new parts, not three.
@@ -334,7 +334,7 @@ test("a part refused in the middle leaves a hole: taking the date back still rem
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  const big = await fakeChest({ network: {}, members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     const { id, first } = await openDinner();
     await polls.closePoll(sql, asMember(sofia), id, now);

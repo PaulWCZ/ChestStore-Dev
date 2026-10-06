@@ -1,0 +1,67 @@
+[
+ {
+  "path": "/chest",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/documents/7",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/documents/11",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/invoices",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/quotes",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/clients",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/catalogue",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/export",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/import?kind=clients",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/q/SampleAnswerLinkQuoteD0006Roux01",
+  "public": true,
+  "language": "fr"
+ },
+ {
+  "path": "/chest/documents/6",
+  "member": "ines",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/import?kind=invoices",
+  "member": "sofia",
+  "language": "en"
+ }
+]

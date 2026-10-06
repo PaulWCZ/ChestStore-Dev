@@ -272,7 +272,7 @@ await step("a poll put to Sales, a group that does not give Polls (open to every
 });
 
 await step("on a phone, the date grid scrolls inside its frame: the page stays 390 px", async () => {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-GB" });
+  const phone = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-GB" });
   await phone.addCookies([{ name: "dev_member", value: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", url: origin }, { name: "dev_locale", value: "en", url: origin }]);
   const p = await phone.newPage();
   for (const path of ["/chest/polls/2", dinnerUrl.replace(origin, ""), "/chest/polls/10", "/chest/polls/3", "/chest/polls/9", "/chest", "/chest/new?kind=date"]) {
@@ -440,7 +440,7 @@ await step("a closed anonymous round per team: groups too small or deducible sta
 // A browser of its own for someone (no cookie shared with the flow's page:
 // a guest, or an author whose keys live in their browser only).
 async function fresh(member = null, locale = "en", viewport = { width: 1280, height: 860 }) {
-  const c = await browser.newContext({ viewport, locale: "en-GB" });
+  const c = await browser.newContext({ ignoreHTTPSErrors: true, viewport, locale: "en-GB" });
   if (member) await c.addCookies([{ name: "dev_member", value: "mbr_" + member + "a".repeat(26 - member.length), url: origin }, { name: "dev_locale", value: locale, url: origin }]);
   const p = await c.newPage();
   p.on("pageerror", e => problems.push("page: " + e.message));

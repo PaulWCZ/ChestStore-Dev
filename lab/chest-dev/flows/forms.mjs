@@ -61,7 +61,7 @@ await step("an unfinished question blocks publishing and says where; fixed, the 
   await page.getByRole("button", { name: "Publish" }).click();
   await page.waitForSelector("dialog[open]");
   link = (await page.locator("dialog[open] code").innerText()).trim();
-  expect(/^http:\/\/localhost:\d+\/[a-z0-9]{8}$/u.test(link), "link: " + link);
+  expect(/^https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/[a-z0-9]{8}$/u.test(link), "link: " + link);
 });
 
 await step("options: Enter goes to the next option and the cursor follows (no words glued into one option)", async () => {

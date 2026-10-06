@@ -123,7 +123,7 @@ await step("a visitor subscribes by email: a confirmation link, then their own p
   expect((await page.locator("h1").innerText()).includes("Check your inbox"), "sent");
   const dev = await devText();
   expect(dev.includes("Confirm your subscription to Atelier Martin status updates"), "confirmation email");
-  subscriberLink = /http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{32}/u.exec(dev)?.[0] ?? "";
+  subscriberLink = /https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/s\/[A-Za-z0-9_-]{32}/u.exec(dev)?.[0] ?? "";
   expect(subscriberLink, "link in the email");
   await page.goto(subscriberLink);
   await page.getByRole("button", { name: "Confirm" }).click();

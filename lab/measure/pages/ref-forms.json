@@ -1,0 +1,5 @@
+[
+ { "path": "/chest", "member": "camille" },
+ { "path": "/chest/new", "member": "ines" },
+ { "path": "/", "public": true }
+]

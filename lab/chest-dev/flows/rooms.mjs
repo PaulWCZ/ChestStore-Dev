@@ -442,7 +442,7 @@ await step("a booking goes into the organiser's and the guest's calendars, and d
   expect(ics.startsWith("BEGIN:VCALENDAR") && ics.includes("SUMMARY:Calendar check"), "ics: " + ics.slice(0, 80));
   await page.keyboard.press("Escape");
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  const feed = /href="(http:\/\/localhost:\d+\/_chest\/calendar\/[^"]+\.ics)"/u.exec(dev)?.[1];
+  const feed = /href="(https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/_chest\/calendar\/[^"]+\.ics)"/u.exec(dev)?.[1];
   expect(feed, "Hugo's feed address");
   const hugoFeed = await (await page.request.get(feed)).text();
   expect(hugoFeed.includes("SUMMARY:Calendar check"), "in Hugo's feed");

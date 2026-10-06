@@ -1,0 +1,62 @@
+[
+ {
+  "path": "/chest/company",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/objectives/4",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/teams/1",
+  "member": "sofia",
+  "language": "en"
+ },
+ {
+  "path": "/chest/cycles/1",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/objectives/new",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/objectives/5",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/company?status=at_risk",
+  "member": "sofia",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/objectives/11",
+  "member": "tom",
+  "language": "en"
+ },
+ {
+  "path": "/chest/import",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/objectives/8",
+  "member": "hugo",
+  "language": "en"
+ }
+]
