@@ -235,7 +235,7 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
       <nav className="stage-tabs" aria-label={t.board.stagesNav}>
         {stages.map(stage => (
           <button key={stage.id} type="button" aria-pressed={stage.id === shownStage} onClick={() => setPhoneStage(stage.id)}>
-            {stage.label} <span className="lane-count">{countOf(stage)}</span>
+            {stage.label} <span className="lane-count">{numberText(countOf(stage), locale)}</span>
           </button>
         ))}
       </nav>
@@ -244,10 +244,13 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
           {stages.map(stage => {
             const here = active.filter(c => places[c.id] === stage.id);
             const hidden = countOf(stage) - here.length;
+            const widened = stage.open && perStage < stage.count;
+            let more: ReactNode = null;
+            if (hidden > 0) more = <a className="button link small" href={`/chest/jobs/${jobId}?more=${stage.id}`}>{plural(t.board.more, hidden, locale)}</a>;
+            else if (widened) more = <a className="button link small" href={`/chest/jobs/${jobId}`}>{t.board.fewer}</a>;
             return (
               <LaneView key={stage.id} stage={stage} count={countOf(stage)} current={stage.id === shownStage} manage={manage && !selecting} locale={locale} t={t}
-                more={hidden > 0 ? <a className="button link small" href={`/chest/jobs/${jobId}?more=${stage.id}`}>{plural(t.board.more, hidden, locale)}</a>
-                  : stage.open && perStage < stage.count ? <a className="button link small" href={`/chest/jobs/${jobId}`}>{t.board.fewer}</a> : null}>
+                more={more}>
                 {here.map(c => (selecting
                   ? (<li key={c.id} id={`cand-${c.id}`}><label className={`cand pick${chosen.has(c.id) ? " chosen" : ""}`}><input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} /><CardBody card={c} locale={locale} t={t} /></label></li>)
                   : manage
@@ -332,7 +335,7 @@ function LaneView({ stage, count, current, manage, locale, t, more, children }: 
     <section className={`lane${stage.hired ? " hired" : ""}${isOver ? " over" : ""}${current ? " current" : ""}`} aria-labelledby={`lane-${stage.id}`}>
       <div className="lane-head">
         <h2 id={`lane-${stage.id}`}>{stage.label}</h2>
-        <span className="lane-count" aria-label={plural(t.board.count, count, locale)}>{count}</span>
+        <span className="lane-count" aria-label={plural(t.board.count, count, locale)}>{numberText(count, locale)}</span>
       </div>
       <ul ref={setNodeRef} className="lane-cards" data-empty={t.board.emptyStage}>{children}</ul>
       {more}

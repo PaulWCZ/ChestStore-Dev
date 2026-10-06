@@ -40,7 +40,7 @@ export async function boardVersion(ctx: PageContext<MemberContext>): Promise<str
       (select string_agg(c.id || ':' || c.stage_id || ':' || c.status || ':' || c.last_activity_at::text, ',' order by c.id) from candidates c where c.job_id = ${id}),
       (select count(*)::text from candidate_seen s join candidates c on c.id = s.candidate_id where c.job_id = ${id} and s.member_id = ${ctx.member.id}),
       (select count(*)::text from feedback_requests r join candidates c on c.id = r.candidate_id where c.job_id = ${id} and r.member_id = ${ctx.member.id}),
-      ${ctx.url.search})) as v`;
+      ${ctx.url.search}::text)) as v`;
   return row?.v ?? null;
 }
 
