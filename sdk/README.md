@@ -909,7 +909,7 @@ MIT (`LICENSE`), © 2026 Argentic.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the README of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.3**: that release,
+0.4.1, word for word. This package is **0.4.1-studio.4**: that release,
 unchanged, plus the studio's proposals — what the store's tools needed that
 0.4.1 does not give. Each is designed as it would ship: a module or an
 export, its route on the Chest's API, a fake in `testing`, its tests. On a
@@ -918,11 +918,11 @@ real Chest these routes do not exist yet: a call throws
 the tool's own look), and the tool stays useful without them. Nothing here
 is published.
 
-Studio versions: **studio.3** — `visitors.count()` counts a visitor
+Studio versions: **studio.4** — `files.publicUploadUrl` answers a **path**
+(`/_chest/upload/<token>`), sent to the host the page is on — the company's
+own domain once connected. **studio.3** — `visitors.count()` counts a visitor
 without an address in the ceiling for everyone only; `fakeChest`'s
-`publicApi` (the origin a public upload's path is sent to); since then,
-unbumped: `files.publicUploadUrl` answers a **path** (`/_chest/upload/<token>`),
-sent to the host the page is on — the company's own domain once connected.
+`publicApi` (the origin a public upload's path is sent to).
 **studio.2** — the review fixes (the visitor's address from the front
 only, the fake's fidelity, a narrower surface). **studio.1** — the
 proposals on 0.4.1.
