@@ -1,5 +1,5 @@
 import { chest } from "@argentic/chest-sdk/chest";
-import { Island, notFound, type PageContext, type View, type VisitorContext } from "@argentic/chest-app";
+import { Honeypot, Island, notFound, type PageContext, type View, type VisitorContext } from "@argentic/chest-app";
 import { Check } from "../components/icons.tsx";
 import { catalogue, isLocale, type Locale } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
@@ -29,19 +29,64 @@ export async function interviewPage(ctx: PageContext<VisitorContext>): Promise<V
   const { request } = found!;
   // Once booked, the confirmation is promised only when mail will go.
   const mailing = request.status === "booked" ? await mailStateKept() : "unknown";
+  // Until it starts, the candidate may give the time back: to choose
+  // another (while the link's days last) or to call it off (asked once
+  // more: ?off=1). Plain forms: no JavaScript needed.
+  const booked = request.status === "booked" ? found!.interview : null;
+  const when = booked ? meetingTime(booked.start, zone, locale) : "";
+  const changeable = booked !== null && !booked.cancelled && new Date(booked.start).getTime() > Date.now();
+  const reopenable = changeable && chest.today() <= request.lastDay;
+  const asking = changeable && ctx.query("off") === "1";
   return {
     title: w.legend,
     locale,
     head: <meta name="robots" content="noindex, nofollow" />,
     body: (
       <Frame c={c} back={`/interview/${token}`}>
-        {request.status === "booked" && found!.interview ? (
+        {request.status === "booked" && found!.interview && !found!.interview.cancelled ? (
+          asking ? (
+            <section className="thanks stack">
+              <h1 className="display">{format(w.callOffAsk, { when })}</h1>
+              <p className="lede">{w.callOffBody}</p>
+              <div className="form-actions">
+                <form method="post" action="/actions/releaseTime">
+                  <Honeypot />
+                  <input type="hidden" name="token" value={token} />
+                  <input type="hidden" name="what" value="off" />
+                  <button type="submit" className="button danger">{w.callOffYes}</button>
+                </form>
+                <a className="button quiet" href={`/interview/${token}`}>{w.keep}</a>
+              </div>
+            </section>
+          ) : (
+            <section className="thanks" role="status">
+              <span className="thanks-mark" aria-hidden="true"><Check /></span>
+              <h1 className="display">{w.bookedTitle}</h1>
+              <p className="lede">{format(w.bookedBody, { when, job: found!.job })}</p>
+              {found!.interview.place && <p>{format(w.where, { place: found!.interview.place })}</p>}
+              <p>{mailing === "off" ? w.bookedNoMail : mailing === "later" ? w.bookedLater : w.bookedNext}</p>
+              {changeable && (
+                <div className="change-time stack">
+                  <h2>{w.changeTitle}</h2>
+                  <div className="form-actions">
+                    {reopenable && (
+                      <form method="post" action="/actions/releaseTime">
+                        <Honeypot />
+                        <input type="hidden" name="token" value={token} />
+                        <input type="hidden" name="what" value="another" />
+                        <button type="submit" className="button quiet">{w.another}</button>
+                      </form>
+                    )}
+                    <a className="button quiet" href={`/interview/${token}?off=1`}>{w.callOff}</a>
+                  </div>
+                </div>
+              )}
+            </section>
+          )
+        ) : request.status === "cancelled" && request.interviewId && found!.interview?.cancelled ? (
           <section className="thanks" role="status">
-            <span className="thanks-mark" aria-hidden="true"><Check /></span>
-            <h1 className="display">{w.bookedTitle}</h1>
-            <p className="lede">{format(w.bookedBody, { when: meetingTime(found!.interview.start, zone, locale), job: found!.job })}</p>
-            {found!.interview.place && <p>{format(w.where, { place: found!.interview.place })}</p>}
-            <p>{mailing === "off" ? w.bookedNoMail : mailing === "later" ? w.bookedLater : w.bookedNext}</p>
+            <h1 className="display">{w.declinedTitle}</h1>
+            <p className="lede">{w.declinedBody}</p>
           </section>
         ) : request.status !== "open" ? (
           <section className="thanks">
@@ -60,7 +105,7 @@ export async function interviewPage(ctx: PageContext<VisitorContext>): Promise<V
             ) : (
               <Island id={`pick-${request.id}`} name="TimePicker" props={{
                 token, days: found!.days.map(d => ({ day: d.day, label: dayLabel(d.day, locale), times: d.times })), zoneNote: format(w.zone, { zone: zoneName(zone) }),
-                t: { legend: w.legend, confirm: w.confirm, confirming: w.confirming, choose: w.choose, more: w.moreDays },
+                t: { legend: w.legend, confirm: w.confirm, confirming: w.confirming, choose: w.choose, more: w.moreDays, gone: t.errors.gone },
               }} />
             )}
           </section>

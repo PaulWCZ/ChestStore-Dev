@@ -20,6 +20,7 @@
 //   item per job (https://www.rssboard.org/rss-specification).
 // - A sitemap (/sitemap.xml, https://www.sitemaps.org/protocol.html) and
 //   robots.txt pointing to it; the team's part is never listed.
+import { offset } from "../shared/format.ts";
 import { parse, plain, type Inline } from "../shared/rich-text.ts";
 
 export type ReachJob = {
@@ -41,7 +42,8 @@ export type ReachJob = {
   street: string;
   salary: { min: number | null; max: number | null; currency: string; period: "year" | "month" | "hour" } | null;
 };
-export type Company = { name: string; website: string; logo: string | null };
+// zone: the Chest's (a job's last day ends at its midnight).
+export type Company = { name: string; website: string; logo: string | null; zone: string };
 
 const escapeHtml = (text: string) => text.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
 const words = (parts: Inline[]) => parts.map(p => (p.bold ? `<strong>${escapeHtml(p.text)}</strong>` : escapeHtml(p.text))).join("");
@@ -70,8 +72,15 @@ export function employmentTypes(j: Pick<ReachJob, "contract" | "hours">): string
 
 const unit = { year: "YEAR", month: "MONTH", hour: "HOUR" } as const;
 
-// The last moment of the last day to apply (validThrough).
-const endOf = (day: string) => `${day}T23:59:59`;
+// The last moment of the last day to apply (validThrough), in the
+// Chest's zone, with its offset that day: a reader anywhere knows when.
+export function endOf(day: string, zone: string): string {
+  const local = Date.parse(`${day}T23:59:59Z`);
+  const minutes = Math.round(offset(local - offset(local, zone), zone) / 60000);
+  const sign = minutes < 0 ? "-" : "+";
+  const abs = Math.abs(minutes);
+  return `${day}T23:59:59${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+}
 
 // jobPosting: the JSON-LD of a job's page (schema.org JobPosting).
 export function jobPosting(j: ReachJob, company: Company, url: string): Record<string, unknown> {
@@ -97,7 +106,7 @@ export function jobPosting(j: ReachJob, company: Company, url: string): Record<s
     title: j.title,
     description: descriptionHtml(j.description),
     datePosted: (j.openedAt ?? j.updatedAt).slice(0, 10),
-    ...(j.closesOn ? { validThrough: endOf(j.closesOn) } : {}),
+    ...(j.closesOn ? { validThrough: endOf(j.closesOn, company.zone) } : {}),
     employmentType: employmentTypes(j),
     hiringOrganization: {
       "@type": "Organization",
@@ -159,7 +168,7 @@ export function indeedFeed(jobs: ReachJob[], company: Company, origin: string, s
     `    <salary>${cdata(salaryWords(j))}</salary>`,
     `    <jobtype>${cdata(indeedType(j))}</jobtype>`,
     ...(j.remote === "remote" ? ["    <remotetype><![CDATA[Fully remote]]></remotetype>"] : j.remote === "hybrid" ? ["    <remotetype><![CDATA[Hybrid remote]]></remotetype>"] : []),
-    ...(j.closesOn ? [`    <expirationdate>${cdata(rfc822(endOf(j.closesOn) + "Z"))}</expirationdate>`] : []),
+    ...(j.closesOn ? [`    <expirationdate>${cdata(rfc822(endOf(j.closesOn, company.zone)))}</expirationdate>`] : []),
     "  </job>",
   ].join("\n");
   return [

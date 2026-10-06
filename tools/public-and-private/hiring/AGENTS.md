@@ -16,7 +16,7 @@ islands, refresh, fields, words, bounds, tests).
 | `chest.json`, `chest.proposals.json` | Manifest, contract 0.4 (roles `recruiter`, `interviewer`; public part; `schedules`: `cleanup`, `outbox`, `morning`; `build.static: ["/assets/"]`) and the proposals it uses (`mail` with the `jobs` mailbox, `calendar`, `files.publicUploads`/`publicFiles`, `emits`, `receives`, tile translations) |
 | `vendor/` | SDK 0.4.1 + studio proposals (0.4.1-studio.4), the UI kit (0.2.6-studio.1), `@argentic/chest-app` (0.1.0-studio.6): packed copies, never edited (`scripts/add-*.mjs` of the studio replace them) |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the team's pages through `team()` (a member without a role sees why; due emails flushed `after()`), page versions (`/chest`, a board, a candidate: a refresh without change is a 304), downloads (job CSV, a candidate's data, the export, `.ics`), the public pages, feeds, `/chest-events`, `/chest-schedules`, `/chest-mail`; the exported `fetch` adds `X-Robots-Tag` to `/chest` and `/interview`, and `no-store` + no referrer to `/interview` |
-| `src/actions.ts` | **Every mutation**, by name, with its fields (`field.*`): the team's (`action`) and the public part's (`publicAction` with `bound` budgets: `publicCvUpload`, `apply`, `chooseTime` — `charge("choose", {subject: link})`); rights are checked before anything is written; notifications and badges `after()` |
+| `src/actions.ts` | **Every mutation**, by name, with its fields (`field.*`): the team's (`action`) and the public part's (`publicAction` with `bound` budgets, `publicBounds`: `publicCvUpload` and `apply` charged per job, `chooseTime` and `releaseTime` per link — a secret that names no link charges `unknown` and answers `{gone: true}`, never a refusal; bulk moves and rejections say how many `failed` instead of failing after some were done); rights are checked before anything is written; notifications and badges `after()` |
 | `src/pages/` | Pages rendered on the server: `jobs.tsx`, `job.tsx` (board, write a job, its settings, add, import), `candidate.tsx` (with the conversation and feedback, rendered on the server), `lists.tsx` (search, pool, reports, mail to file), `settings.tsx`; public: `careers.tsx` (careers page, job with its JSON-LD — the one `dangerouslySetInnerHTML`, a test holds it so —, apply, thanks), `interview.tsx`, their frame `public-shell.tsx` |
 | `src/islands/` | What runs in the browser (`index.ts` lists them): `BoardView` (dnd-kit; optimistic place over the served one; stages are the only drop targets; ids from the job, never dnd-kit's counter), `JobActions`, `JobForm`, `JobSettingsView`, `AddForm`, `ImportView`, `CandidateActions`, `FeedbackForm`, `Interviews`, `Notes`, `SettingsView`, `SearchBox`, `AutoRefresh` (the package's `useAutoRefresh`, 30 s, never polling of its own); public: `ApplyForm`, `TimePicker` (both work without JavaScript: a plain form, `Honeypot`). An island's wrapper is `#island-<id>`; its props are bounded (counts and pages, never a whole list) |
 | `src/components/` | Shared by pages and islands, browser-safe: icons, mark, rich text, the description editor, the hire dialog, reasons, copy button, `use-work.ts`, `upload.ts` (team uploads with a signed ticket; a visitor's CV to the Chest, which returns a claim) |
@@ -27,7 +27,7 @@ islands, refresh, fields, words, bounds, tests).
 | `src/lib/access.ts` | Who may do what; `jobAccess` (recruiter: all jobs; interviewer: jobs they are on — others are `not_found`) |
 | `src/lib/jobs.ts` | Settings, jobs, stages, interviewers, the careers page's reads |
 | `src/lib/candidates.ts` | Applications, the board (`boardLimits`: 40 per stage, 400 more of one, 100 rejected; counts whole), moves (row locks), rejections, notes, feedback (and its visibility rule), erasure, retention, export, the tile's counts |
-| `src/lib/cv.ts`, `src/lib/signature.ts` | CVs: a team upload (tool-named file + signed ticket → `accept`); a visitor's (`publicGrant` → `files.publicUploadUrl`, then `take(claim)` → `files.claim`); both `keep()`: stat, type, size, first bytes, moved to the candidate's folder |
+| `src/lib/cv.ts`, `src/lib/signature.ts` | CVs: a team upload (tool-named file + signed ticket → `accept`); a visitor's (`publicGrant` → `files.publicUploadUrl`, then `take(claim)` → `files.claim`); both `keep()`: type and size as the Chest says them (it checked the first bytes at upload: the tool never reads a CV to accept it), moved to the candidate's folder; `remove()` keeps what the Chest could not delete in `files_gone`, `removeLeft()` (nightly) deletes it |
 | `src/lib/downloads.ts` | A CV (inline in a sandbox, or attachment), a file an email brought (recruiters, always attachment), a brand image for Settings — streamed, two in flight per server (503 + `Retry-After` beyond), never read twice |
 | `src/lib/mailer.ts`, `src/lib/messages.ts`, `src/lib/outbox.ts`, `src/lib/mail-state.ts` | Sending through the `jobs` mailbox with the candidate's thread (`c<id>`); the conversation, the queue (a rejection waits `undoSeconds`), templates and their files, emails to file; `outbox` sends what is due (keyed `message:<id>:<address>`) then the calendars; the mail state (`mailStateKept`: a minute, for public pages) |
 | `src/lib/mail-in.ts` | Received emails: matched by thread, references, then an authenticated address; bounces |
@@ -37,7 +37,7 @@ islands, refresh, fields, words, bounds, tests).
 | `src/lib/import.ts`, `src/lib/export-all.ts`, `src/lib/zip.ts` | Importing rows; export everything (streamed ZIP), a candidate's own data |
 | `src/lib/reports.ts` | Counts for the reports |
 | `src/lib/brand.ts`, `src/lib/careers.ts` | The careers page's logo and photos (public files, `files.publicPath`), accent, intro per language |
-| `src/lib/tell.ts`, `src/lib/notify.ts` | Bell and tile |
+| `src/lib/tell.ts`, `src/lib/notify.ts` | Bell and tile; `forgotten(keys)` withdraws every item that named a deleted candidate (the keys `candidates.forget` read before the rows go: erasure and the nightly retention) |
 | `src/lib/share.ts`, `src/lib/busy-snapshot.ts` | `hiring.hired` / `hiring.hire_cancelled` for People; `hiring.busy` (a member's interviews, times only) for Booking; `booking.busy` and `leave.busy` heard (`takeBusy` → `told_busy`, `told_spans`) — README "With the other tools"; never add application data to them |
 | `src/lib/lifecycle.ts` | Members leaving or erased (each event handled once: the package's `seen`, table `chest_seen`) |
 | `src/lib/people.ts`, `src/lib/team.ts`, `src/lib/countries.ts` | Members' names at render (former, without access); the members who have the tool, for pickers; countries in the reader's language |
@@ -97,6 +97,10 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
   state are kept a minute), never lists members, and every public action
   is bounded (`bound`: per visitor by a cookie key, per day, per interview
   link; no visitor address is ever needed).
+- A deleted candidate leaves no name behind: a new bell key that names a
+  candidate or one of their interviews goes into `candidates.forget`.
+- The confirmation email greets with `mailer.greeted()` only: never the
+  typed name whole, never a link or an address.
 - Personal data never in a log, a URL, the feeds or the JSON-LD. CVs are
   served only to who sees the candidate, two at a time per server.
 - Nothing personal in public URLs (the thank-you page shows no name), in

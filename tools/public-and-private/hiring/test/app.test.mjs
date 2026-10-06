@@ -12,7 +12,7 @@ import { atLeast, checkPage, settled, testDatabase } from "@argentic/chest-app/t
 // of seed/sample.sql. The rules are tested on their own in the other
 // files; here, what the server adds: routes, policy, looks, roles, the
 // public part's bounds, files, page versions, the Chest's deliveries.
-atLeast(16);
+atLeast(20);
 const id = name => "mbr_" + name + "a".repeat(26 - name.length);
 const person = (key, firstName, lastName, role, extra = {}) => ({ id: id(key), firstName, lastName, name: `${firstName} ${lastName}`, photo: null, role, isAdmin: false, isBuilder: false, groups: [], language: "en", ...extra });
 const camille = person("camille", "Camille", "Martin", "recruiter", { language: "fr" });
@@ -175,6 +175,42 @@ test("applications are bounded per browser when the Chest names no visitor: a co
   assert.equal((await (await call(null, "apply", applying({ email: "other@example.com", link: "b.example", chest_form: token() }))).json()).ok, true);
 });
 
+test("a flood of applications without cookies closes that job's form for the day, never the others'; the page says so plainly", async () => {
+  const today = async slug => (await database.sql`select count(*)::int as n from candidates c join jobs j on j.id = c.job_id where j.slug = ${slug} and c.source = 'careers' and c.created_at::date = current_date`)[0].n;
+  let refused = null, sent = 0;
+  for (let i = 0; i < 80 && !refused; i++) {
+    // A robot that never keeps a cookie: a new visitor each time.
+    const r = await call(null, "apply", applying({ email: `flood${i}@example.com`, link: "flood.example", chest_form: token() }));
+    if (r.status === 429) refused = r; else sent++;
+  }
+  assert.ok(refused, "the job's day is bounded");
+  assert.equal((await refused.json()).error, "limit");
+  assert.ok(sent > 0 && (await today("senior-furniture-designer")) <= 60 + 5, "at most sixty a day for one job (and the seed's)");
+  // Another job of the company still takes applications.
+  const other = await (await call(null, "apply", applying({ slug: "office-manager", email: "real@example.com", link: "real.example", chest_form: token() }))).json();
+  assert.equal(other.ok, true, JSON.stringify(other));
+  // And a CV can still be sent for it.
+  assert.equal((await (await call(null, "publicCvUpload", { slug: "office-manager", type: "application/pdf", size: 15, chest_form: token() })).json()).ok, true);
+  // The form says it in plain words, with the company's website.
+  const page = await (await get(null, "/senior-furniture-designer/apply")).text();
+  assert.match(page, /This job has received all the applications it can take today\. Try again tomorrow, or contact the company: https:\/\/atelier-martin\.example\//u);
+});
+
+test("guessed interview links never close a real one: a secret that names nothing spends its own budget, no refusal", async () => {
+  for (let i = 0; i < 40; i++) {
+    const r = await (await call(null, "chooseTime", { token: String(i).padStart(43, "x"), slot: "2026-01-01 10:00", chest_form: token() })).json();
+    if (i < 30) assert.deepEqual([r.ok, r.value], [true, { gone: true }]);
+  }
+  const refused = async () => (await database.sql`select coalesce(sum(count), 0)::int as n from chest_bounds where scope = 'chooseTime:refused' and day = current_date`)[0].n;
+  const before = await refused();
+  for (let i = 0; i < 5; i++) await call(null, "chooseTime", { token: "y".repeat(43), slot: "2026-01-01 10:00", chest_form: token() });
+  assert.equal(await refused(), before, "a guessed secret is no refusal: the package's ceiling is never spent on it");
+  const sent = await (await call(sofia, "sendInterviewLink", { id: "8", link: { people: [hugo.id], minutes: 30, firstDay: day(2), lastDay: day(12), dayStart: 540, dayEnd: 1080, place: "", note: "", skipLunch: false } })).json();
+  const path = new URL(sent.value.link).pathname;
+  const slot = /name="slot" value="([^"]+)"/u.exec(await (await get(null, path)).text())?.[1];
+  assert.equal((await (await call(null, "chooseTime", { token: path.split("/").pop(), slot, chest_form: token() })).json()).ok, true, "the real link still books");
+});
+
 test("the team's pages: the member's language, the policy, the look; no role, no tool; an interviewer sees only their jobs", async () => {
   const response = await get(camille, "/chest");
   assert.equal(response.status, 200);
@@ -200,11 +236,11 @@ test("a board shows each stage's first cards and how many there are: two thousan
   const response = await get(sofia, "/chest/jobs/1");
   const html = await response.text();
   assert.ok(html.length < 400_000, `the page stays small (${html.length} bytes)`);
-  assert.match(html, /Show 1,9\d\d more/u);
+  assert.match(html, /Show [12],\d{3} more/u);
   const props = /data-island="BoardView"[^>]*data-props="([^"]*)"/u.exec(html);
   assert.ok(props && props[1].length < 256 * 1024, "the board's props are bounded");
   const more = await (await get(sofia, "/chest/jobs/1?more=1")).text();
-  assert.match(more, /Show 1,[56]\d\d more/u);
+  assert.match(more, /Show 1,[5-7]\d\d more/u);
   assert.equal((await get(sofia, "/chest/jobs/1?rejected=1")).status, 200);
   await database.sql`delete from candidates where email like 'many%@example.com'`;
 });
@@ -264,12 +300,12 @@ test("exports: a job's CSV with formulas defused, a candidate's own data, everyt
   assert.ok((await all.arrayBuffer()).byteLength > 1000);
 });
 
-test("a candidate chooses their interview time from their link: no index, no cache, no referrer; one booking", async () => {
+test("a candidate chooses their interview time from their link: no index, no cache, no referrer elsewhere; one booking", async () => {
   const sent = await (await call(sofia, "sendInterviewLink", { id: "7", link: { people: [hugo.id], minutes: 60, firstDay: day(2), lastDay: day(12), dayStart: 540, dayEnd: 1080, place: "Workshop", note: "", skipLunch: true } })).json();
   assert.equal(sent.ok, true);
   const path = new URL(sent.value.link).pathname;
   const page = await get(null, path + "?lang=fr");
-  assert.equal(page.headers.get("referrer-policy"), "no-referrer");
+  assert.equal(page.headers.get("referrer-policy"), "same-origin", "the secret never leaves for another site");
   assert.equal(page.headers.get("cache-control"), "no-store");
   assert.equal(page.headers.get("x-robots-tag"), "noindex, nofollow");
   const html = await page.text();
@@ -281,7 +317,47 @@ test("a candidate chooses their interview time from their link: no index, no cac
   assert.equal(done.ok, true);
   const again = await (await call(null, "chooseTime", { token: tokenOf, slot, chest_form: token() })).json();
   assert.equal(again.error, "gone");
-  assert.equal((await (await call(null, "chooseTime", { token: "x".repeat(43), slot, chest_form: token() })).json()).error, "not_found");
+  assert.deepEqual((await (await call(null, "chooseTime", { token: "x".repeat(43), slot, chest_form: token() })).json()).value, { gone: true });
+});
+
+test("a booked candidate may choose another time, or call the interview off, until it starts; the team hears it", async () => {
+  const sent = await (await call(sofia, "sendInterviewLink", { id: "3", link: { people: [hugo.id], minutes: 60, firstDay: day(2), lastDay: day(12), dayStart: 540, dayEnd: 1080, place: "", note: "", skipLunch: true } })).json();
+  const path = new URL(sent.value.link).pathname;
+  const secret = path.split("/").pop();
+  const slotOf = async () => /name="slot" value="([^"]+)"/u.exec(await (await get(null, path)).text())?.[1];
+  const first = await slotOf();
+  assert.equal((await (await call(null, "chooseTime", { token: secret, slot: first, chest_form: token() })).json()).ok, true);
+  const booked = await (await get(null, path)).text();
+  assert.match(booked, /Your interview is booked/u);
+  assert.match(booked, /action="\/actions\/releaseTime"/u, "a plain form: no JavaScript needed");
+  assert.match(booked, new RegExp(`href="${path}\\?off=1"`, "u"));
+  // Another time: the interview is called off, the link opens again.
+  const another = await form(null, "/actions/releaseTime", { token: secret, what: "another", chest_form: token() }, path);
+  assert.equal(another.status, 303);
+  assert.equal(another.headers.get("location"), path, "back to the link's page");
+  const [first_] = await database.sql`select cancelled_at is not null as gone from interviews where candidate_id = 3 order by id desc limit 1`;
+  assert.equal(first_.gone, true);
+  assert.ok(chest.notifications.some(n => n.member === hugo.id && /gave back their interview time/u.test(n.title)), "Hugo hears it");
+  const second = await slotOf();
+  assert.ok(second, "times offered again");
+  assert.equal((await (await call(null, "chooseTime", { token: secret, slot: second, chest_form: token() })).json()).ok, true);
+  // Called off: asked once more, then done.
+  assert.match(await (await get(null, path + "?off=1")).text(), /Call off your interview of/u);
+  assert.equal((await form(null, "/actions/releaseTime", { token: secret, what: "off", chest_form: token() }, path + "?off=1")).status, 303);
+  assert.match(await (await get(null, path)).text(), /Your interview is called off/u);
+  assert.ok(chest.notifications.some(n => n.member === hugo.id && /called off their interview/u.test(n.title)));
+  const kinds = (await database.sql`select kind from activity where candidate_id = 3 and kind like 'interview_%' order by id`).map(r => r.kind);
+  assert.deepEqual(kinds.slice(-4), ["interview_chosen", "interview_rechosen", "interview_chosen", "interview_declined"]);
+  // Nothing more to give back.
+  assert.equal((await (await call(null, "releaseTime", { token: secret, what: "off", chest_form: token() })).json()).error, "gone");
+});
+
+test("a public form sent without JavaScript and refused: the refusal is said on the careers page", async () => {
+  const refused = await form(null, "/actions/apply", { ...applying({ email: "nojs@example.com", slug: "office-manager" }), chest_form: token() }, "/office-manager/apply");
+  assert.equal(refused.status, 303);
+  const back = refused.headers.get("location");
+  assert.match(back, /^\/office-manager\/apply\?error=cv_missing/u);
+  assert.match(await (await get(null, back)).text(), /class="notice notice-top" role="alert">Add your CV, or a link to it\./u);
 });
 
 test("the language switch, and back to a page of the careers site only", async () => {

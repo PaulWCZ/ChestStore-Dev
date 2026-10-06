@@ -13,6 +13,8 @@ import { db } from "../src/lib/db.ts";
 import { brandImage, cvFile, downloadLimits, downloadsInFlight, messageFile } from "../src/lib/downloads.ts";
 import * as jobs from "../src/lib/jobs.ts";
 import { received } from "../src/lib/mail-in.ts";
+import { confirmation, greeted } from "../src/lib/mailer.ts";
+import * as cvs from "../src/lib/cv.ts";
 import { cut } from "../src/lib/notify.ts";
 import { nameOf, people } from "../src/lib/people.ts";
 import { companyOf } from "../src/lib/public-feed.ts";
@@ -148,4 +150,36 @@ test("a received email lands with its candidate by its thread, once", async () =
   assert.deepEqual(await received(sql, message as never), { candidate: c.id, created: true });
   assert.deepEqual(await received(sql, message as never), { candidate: c.id, created: false });
   assert.deepEqual(await received(sql, { ...message, id: "rcv_" + "y".repeat(26), mailbox: "other" } as never), { candidate: null, created: false });
+});
+
+test("the confirmation greets with a first name only, never a link or an address someone typed as their name", () => {
+  assert.equal(greeted("Zoé Martin"), "Zoé");
+  assert.equal(greeted("  Jean-Éric d’Albret "), "Jean-Éric");
+  assert.equal(greeted("O’Brien"), "O’Brien");
+  assert.equal(greeted("J. R. Tolkien"), null, "an initial is no name to greet: plain Hello");
+  for (const name of ["Visit spam.example", "Win at win@spam.example", "http://spam.example win", "www.spam.example", "buy@spam.example now", "Click: here", "A".repeat(31), "1234", ""]) assert.equal(greeted(name), null, name);
+  const spam = confirmation({ name: "Visit https://spam.example/now for money", language: "en" }, { title: "Designer" }, "Atelier Martin", "https://careers.atelier-martin.fr");
+  assert.ok(spam.text.startsWith("Hello,\n\n") && !spam.text.includes("spam"), spam.text);
+  const zoe = confirmation({ name: "Zoé Martin", language: "fr" }, { title: "Designer" }, "Atelier Martin", null);
+  assert.ok(zoe.text.startsWith("Bonjour Zoé,\n\n") && !zoe.text.includes("Martin,"), zoe.text);
+});
+
+test("a file the Chest could not delete is kept and deleted by the next cleanup: an erased CV never survives silently", async () => {
+  const sql = db();
+  const name = "cv/00112233445566778899.pdf";
+  chest.files.set(name, { data: pdf, type: "application/pdf", updated: new Date().toISOString() });
+  const api = process.env["CHEST_API"];
+  process.env["CHEST_API"] = "http://127.0.0.1:9";
+  try {
+    await cvs.remove([name, "not/ours.txt"]);
+  } finally {
+    process.env["CHEST_API"] = api;
+  }
+  assert.deepEqual((await sql<{ object: string }[]>`select object from files_gone`).map(r => r.object), [name], "kept, only the tool's own");
+  assert.ok(chest.files.has(name), "still at the Chest");
+  assert.deepEqual(await cvs.removeLeft(sql), { removed: 1, left: 0 });
+  assert.equal(chest.files.has(name), false);
+  // Already gone counts as done.
+  await sql`insert into files_gone (object) values (${name})`;
+  assert.deepEqual(await cvs.removeLeft(sql), { removed: 1, left: 0 });
 });

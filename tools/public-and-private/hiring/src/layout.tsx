@@ -57,7 +57,14 @@ export function MembersLayout({ viewer: { member, t }, path, notice, look, child
 export function PublicLayout({ viewer: { t, locale }, look, path, notice, status, children }: LayoutProps<VisitorContext>) {
   return (
     <div className="look" data-look={sourceOf(look)}>
-      {status === 200 ? children : (
+      {status === 200 ? (
+        <>
+          {/* A refusal of a form sent without JavaScript (?error=): the
+              careers pages draw their own frame, so it is said above it. */}
+          {notice && <p className="notice notice-top" role="alert">{notice}</p>}
+          {children}
+        </>
+      ) : (
         <PublicShell company={t.careers.titlePlain} logo={look?.logo ?? null} brand={null} locale={localeOf(locale)} back={path} t={t} foot={null}>
           {notice && <p className="notice" role="alert">{notice}</p>}
           {status === 404 ? <EmptyState headingLevel={1} title={t.pages.notFound.title} body={t.pages.notFound.publicBody} action={<a className="button quiet" href="/">{t.careers.allJobs}</a>} /> : children}

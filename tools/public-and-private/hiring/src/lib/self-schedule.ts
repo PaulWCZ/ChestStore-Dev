@@ -278,6 +278,38 @@ export async function choose(sql: Sql, token: unknown, input: { day: unknown; ti
   });
 }
 
+// release: the candidate, from their link, gives back the time they
+// chose — "another": the interview is called off and the link opens again
+// on its days, the times free now; "off": the interview is called off and
+// the link closes. Until the interview starts; the interviewers' calendars
+// lose it at the next flush, and the caller tells the people. No email:
+// the page the candidate is on says what happened.
+export type Release = "another" | "off";
+export async function release(sql: Sql, token: unknown, what: Release, now = new Date()): Promise<{ interview: Interview; request: Request; candidate: { id: string; name: string } }> {
+  if (typeof token !== "string" || !tokenPattern.test(token)) throw new AppError("not_found");
+  return sql.begin(async tx => {
+    await tx`lock table interview_requests in share row exclusive mode`;
+    const [row] = await tx<RequestDb[]>`${select(tx)} where r.token_hash = ${hashOf(token)}`;
+    if (!row) throw new AppError("not_found");
+    const request = toRequest(row, now);
+    if (request.status !== "booked" || !request.interviewId) throw new AppError("gone");
+    const [c] = await tx<CandidateLite[]>`select * from candidates where id = ${request.candidateId} for update`;
+    if (!c || c.status !== "active") throw new AppError("gone");
+    const current = await readInterview(tx, request.interviewId);
+    if (!current || current.cancelled || new Date(current.start).getTime() <= now.getTime()) throw new AppError("gone");
+    // Another time only while the link's days last.
+    if (what === "another" && dayOf(now, zone()) > request.lastDay) throw new AppError("gone");
+    await tx`update interviews set cancelled_at = now(), updated_at = now(), sequence = sequence + 1, calendar = case when calendar = 'off' then 'off' else 'pending' end where id = ${request.interviewId}`;
+    if (what === "another") await tx`update interview_requests set booked_at = null, interview_id = null where id = ${request.id}`;
+    else await tx`update interview_requests set cancelled_at = now() where id = ${request.id}`;
+    await activity(tx, request.candidateId, null, what === "another" ? "interview_rechosen" : "interview_declined", { at: current.start });
+    await touch(tx, request.candidateId);
+    const interview = (await readInterview(tx, request.interviewId))!;
+    const candidate = await candidateOf(tx, request.candidateId);
+    return { interview, request: (await readRequest(tx, request.id, now))!, candidate: { id: candidate.id, name: candidate.name } };
+  });
+}
+
 type CandidateLite = { id: string; status: string };
 // The candidate as the invitation reads it (name, language, job).
 async function candidateOf(tx: Query, candidateId: string): Promise<Candidate> {

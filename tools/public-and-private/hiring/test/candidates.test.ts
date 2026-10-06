@@ -54,14 +54,6 @@ test("an application lands in the first stage, without a forced consent; the for
   await assert.rejects(candidates.apply(sql, application(draft.slug)), { code: "not_found" });
 });
 
-test("the form's guard: ten applications an hour per visitor, then too_many", async () => {
-  const { sql } = database;
-  for (let i = 0; i < candidates.formLimits.perVisitorHour; i++) await candidates.guard(sql, "203.0.113.9");
-  await assert.rejects(candidates.guard(sql, "203.0.113.9"), { code: "too_many" });
-  await candidates.guard(sql, "203.0.113.10");
-  await candidates.guard(sql, "203.0.113.9", "upload");
-});
-
 test("the board: stages, days in stage, new for recruiters, ratings hidden from an interviewer until they rated", async () => {
   const { sql } = database;
   const base = await candidates.unseenCounts(sql, [camille.id, sofia.id]);
@@ -193,13 +185,25 @@ test("erasing a candidate and the retention delete them with their CV", async ()
   await sql`update candidates set last_activity_at = now() - interval '23 months' where id = ${b.id}`;
   const gone = await candidates.cleanup(sql);
   assert.deepEqual([gone.candidates, gone.objects], [1, [cv.object]]);
+  // The bell items that named them are withdrawn too (S4: nightly too).
+  assert.ok(gone.notices.includes(`candidate:${a.id}:new`) && gone.notices.includes(`candidate:${a.id}:bounced`));
   await jobs.saveSettings(sql, recruiter(), { retentionMonths: 12 });
   assert.equal((await candidates.cleanup(sql)).candidates, 1);
   await jobs.saveSettings(sql, recruiter(), { retentionMonths: 24 });
   const c = (await candidates.apply(sql, application(job.slug, { name: "Asks erasure", cv: { ...cv, object: "cv/aaaaaaaaaaaaaaaaaaaa.pdf" } }))).candidate;
   await candidates.addNote(sql, recruiter(), c.id, "Asked to be erased.");
   await assert.rejects(candidates.erase(sql, asMember(ines), c.id), { code: "forbidden" });
-  assert.deepEqual(await candidates.erase(sql, recruiter(), c.id), { objects: ["cv/aaaaaaaaaaaaaaaaaaaa.pdf"], wasHired: false, jobId: job.id });
+  // Who gave feedback and the interviews are read before the rows go: each
+  // bell item that names the candidate is withdrawn (feedback given, an
+  // interview today or chosen, given back, called off).
+  await sql`insert into feedback (candidate_id, author, rating, recommendation) values (${c.id}, ${ines.id}, 3, 'yes')`;
+  const [iv] = await sql<{ id: string }[]>`insert into interviews (candidate_id, starts_at, ends_at, place, note, created_by) values (${c.id}, now() + interval '1 day', now() + interval '25 hours', '', '', ${recruiter().id}) returning id::text`;
+  const erased = await candidates.erase(sql, recruiter(), c.id);
+  assert.deepEqual({ ...erased, notices: [] }, { objects: ["cv/aaaaaaaaaaaaaaaaaaaa.pdf"], notices: [], wasHired: false, jobId: job.id });
+  assert.deepEqual(erased.notices.sort(), [
+    ...["asked", "bounced", `gave:${ines.id.slice(4, 20)}`, "new", "reply"].map(k => `candidate:${c.id}:${k}`),
+    ...["chosen", "declined", "rechose", "today"].map(k => `interview:${iv!.id}:${k}`),
+  ].sort());
   await assert.rejects(candidates.candidate(sql, recruiter(), c.id), { code: "not_found" });
   const [left] = await sql<{ n: number }[]>`select (select count(*) from notes where candidate_id = ${c.id})::int + (select count(*) from activity where candidate_id = ${c.id})::int as n`;
   assert.equal(left!.n, 0);

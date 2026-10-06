@@ -1,3 +1,4 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import type { Sql } from "./db.ts";
 import { salaryText, type Salary } from "../shared/facts.ts";
 import { catalogue, isLocale } from "../i18n/index.ts";
@@ -19,7 +20,7 @@ export async function feedData(sql: Sql): Promise<{ jobs: ReachJob[]; company: C
 export const reachJob = (j: PublicJob): ReachJob => ({ ...j, salary: j.salary });
 
 export function companyOf(s: Settings, origin: string): Company {
-  return { name: s.companyName || catalogue("en").careers.titlePlain, website: s.website, logo: s.logo ? origin + imagePath(s.logo) : null };
+  return { name: s.companyName || catalogue("en").careers.titlePlain, website: s.website, logo: s.logo ? origin + imagePath(s.logo) : null, zone: chest.timeZone };
 }
 
 // A job's salary in its own language, as its page writes it.
