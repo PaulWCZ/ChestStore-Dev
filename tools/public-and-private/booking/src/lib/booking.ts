@@ -89,6 +89,8 @@ export type Booking = {
   bookedBy: string | null;
   paymentLink: string;
   paid: boolean;
+  // Its calendar files' UID (calendarUid).
+  uid: string;
 };
 // Where to meet: the booking's own room, or the type's link or address.
 export const meetingPlace = (b: Pick<Booking, "videoLink" | "location">) => b.videoLink || b.location;
@@ -706,12 +708,18 @@ export async function blockTime(sql: Query, actor: Member, input: { day: unknown
   const start = instantOf(input.day, from, host.zone);
   const end = to === 1440 ? instantOf(addDays(input.day, 1), 0, host.zone) : instantOf(input.day, to, host.zone);
   if (end.getTime() <= now) throw new AppError("too_late");
-  const [count] = await sql<{ n: number }[]>`select count(*)::int as n from blocks where member_id = ${actor.id} and upper(span) > ${new Date(now)}`;
-  if ((count?.n ?? 0) >= 500) throw new AppError("too_many");
-  const [row] = await sql<{ id: string; lo: Date; hi: Date; note: string }[]>`
-    insert into blocks (member_id, span, note) values (${actor.id}, tstzrange(${start}, ${end}), ${note})
-    returning id::text as id, lower(span) as lo, upper(span) as hi, note`;
-  return { id: row!.id, start: row!.lo, end: row!.hi, note: row!.note };
+  // The host's row taken, as a booking takes it (lockHost): a visitor
+  // booking that very time at that moment either sees the block when it
+  // checks the time again, or was made before it — never both unseen.
+  return transaction(sql, async tx => {
+    await lockHost(tx, actor.id);
+    const [count] = await tx<{ n: number }[]>`select count(*)::int as n from blocks where member_id = ${actor.id} and upper(span) > ${new Date(now)}`;
+    if ((count?.n ?? 0) >= 500) throw new AppError("too_many");
+    const [row] = await tx<{ id: string; lo: Date; hi: Date; note: string }[]>`
+      insert into blocks (member_id, span, note) values (${actor.id}, tstzrange(${start}, ${end}), ${note})
+      returning id::text as id, lower(span) as lo, upper(span) as hi, note`;
+    return { id: row!.id, start: row!.lo, end: row!.hi, note: row!.note };
+  });
 }
 
 export async function unblock(sql: Query, actor: Member, blockId: unknown): Promise<void> {
@@ -816,7 +824,19 @@ type BookingRow = {
   booked_by: string | null;
   payment_link: string;
   paid: boolean;
+  legacy_uid?: boolean;
 };
+// A booking's UID in every calendar file (the guest's, the host's copy,
+// the private feed): unique everywhere — its id with 12 hex of its link's
+// hash, a random secret no other company or restored backup shares —, so a
+// cancellation never removes another company's meeting from a calendar.
+// The domain part names no company: the UID must not change when the
+// company connects its own domain. Bookings made before this version keep
+// the UID their invitations already carry (booking-<id>@chest), so their
+// moves and cancellations still update them (migration 0007).
+export function calendarUid(id: string, secret: string, legacy: boolean): string {
+  return legacy ? `booking-${id}@chest` : `booking-${id}-${hashSecret(secret).slice(0, 12)}@booking.chest`;
+}
 const toBooking = (r: BookingRow): Booking => ({
   id: String(r.id),
   typeId: r.type_id === null ? null : String(r.type_id),
@@ -847,6 +867,7 @@ const toBooking = (r: BookingRow): Booking => ({
   bookedBy: r.booked_by ?? null,
   paymentLink: r.payment_link ?? "",
   paid: r.paid ?? false,
+  uid: calendarUid(String(r.id), r.secret, r.legacy_uid ?? false),
 });
 
 const isUnique = (error: unknown) => (error as { code?: string } | null)?.code === "23505";
@@ -970,6 +991,28 @@ export async function bySecret(sql: Query, secret: string): Promise<{ booking: B
     left join hosts h on h.member_id = t.member_id and h.ready and not h.away
     where b.secret_hash = ${hashSecret(secret)}`;
   return row ? { booking: toBooking(row), hostSlug: row.type_slug ? row.host_slug : null, typeSlug: row.host_slug ? row.type_slug : null } : null;
+}
+
+// What a guest's change (a cancellation, a move) must be before it is
+// even counted (src/lib/guard.ts): their link opens a booking still to
+// come — and, for a move, one moved less than five times, to a time
+// well-formed. Nothing is changed here.
+export async function changeAllowed(sql: Query, secret: string, move: { start: unknown } | null, now = Date.now()): Promise<void> {
+  const found = await bySecret(sql, secret);
+  if (!found) throw new AppError("not_found");
+  const { booking } = found;
+  if (booking.status !== "confirmed" || booking.startsAt.getTime() <= now) throw new AppError("too_late");
+  if (!move) return;
+  if (booking.moves >= 5) throw new AppError("too_many_moves");
+  if (!found.hostSlug || !found.typeSlug) throw new AppError("not_found");
+  if (!wellFormedStart(move.start, now)) throw new AppError("invalid");
+}
+
+// A start a visitor may ask for: an instant in the future, within a year
+// and a bit (the longest booking window).
+export function wellFormedStart(start: unknown, now = Date.now()): boolean {
+  const at = typeof start === "string" && start.length <= 40 ? Date.parse(start) : Number.NaN;
+  return Number.isFinite(at) && at > now && at < now + 400 * 86400000;
 }
 
 export async function cancelByGuest(sql: Query, secret: string, reason: unknown, now = Date.now()): Promise<Booking> {
@@ -1141,31 +1184,30 @@ export async function todayCounts(sql: Query, memberIds: string[], now = Date.no
 // ——— The public form's guard ———
 
 // The tool's own counters, when the Chest does not count visitors itself
-// (lib/guard.ts): per visitor and per hour (a hash of the address the
-// Chest's front saw, never the address), for everyone per hour, and for
-// everyone over the last 24 hours — the daily cap, in the database, so it
-// holds across restarts, sleeps and two instances. A visitor the front did
-// not name ("unknown") has no counter of their own: every such visitor
-// would share one, and eight bookings an hour would close the form to
-// all; the counters for everyone bound them instead.
-export const formLimits = { perVisitorHour: 8, perHour: 200, perDay: 1000, minimumSeconds: 3 } as const;
+// (src/lib/guard.ts), each per hour and per kind — bookings and changes
+// (a cancellation, a move) apart, so changes never close the booking
+// form: per visitor (a hash of their address or of their browser's
+// cookie, never the address), per subject (one form's token, one guest's
+// link: replaying one fills nothing), for everyone, and for everyone over
+// the last 24 hours — the daily cap, in the database, so it holds across
+// restarts, sleeps and two instances. Only valid attempts are counted
+// (src/actions.ts): junk cannot fill them.
+export type FormKind = "new" | "change";
+export const formLimits = { perVisitorHour: 8, perSubjectHour: 10, perHour: 200, perDay: 1000, minimumSeconds: 3, tokenHours: 2 } as const;
 
-export async function guard(sql: Query, visitor: string, now = Date.now()): Promise<void> {
+export async function guard(sql: Query, visitor: string, kind: FormKind = "new", subject = "", now = Date.now()): Promise<void> {
   const hour = new Date(Math.floor(now / 3600000) * 3600000);
-  const key = visitor === "unknown" ? null : "v:" + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
-  const counts = key
-    ? await sql<{ key: string; count: number }[]>`
-        insert into form_counts (key, hour, count) values (${key}, ${hour}, 1), ('all', ${hour}, 1)
-        on conflict (key, hour) do update set count = form_counts.count + 1
-        returning key, count`
-    : await sql<{ key: string; count: number }[]>`
-        insert into form_counts (key, hour, count) values ('all', ${hour}, 1)
-        on conflict (key, hour) do update set count = form_counts.count + 1
-        returning key, count`;
-  const mine = counts.find(c => c.key === key)?.count ?? 0;
-  const all = counts.find(c => c.key === "all")?.count ?? 0;
-  if (mine > formLimits.perVisitorHour || all > formLimits.perHour) throw new AppError("too_many");
-  const [day] = await sql<{ total: number }[]>`select coalesce(sum(count), 0)::int as total from form_counts where key = 'all' and hour > ${new Date(hour.getTime() - 23 * 3600000 - 1)}`;
+  const mine = `v:${kind}:` + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
+  const about = subject ? `s:${kind}:${subject}` : null;
+  const all = `all:${kind}`;
+  const keys = [mine, all, ...(about ? [about] : [])];
+  const counts = await sql<{ key: string; count: number }[]>`
+    insert into form_counts (key, hour, count) select k, ${hour}, 1 from unnest(${sql.array(keys)}::text[]) as k
+    on conflict (key, hour) do update set count = form_counts.count + 1
+    returning key, count`;
+  const of = (key: string | null) => counts.find(c => c.key === key)?.count ?? 0;
+  if (of(mine) > formLimits.perVisitorHour || of(about) > formLimits.perSubjectHour || of(all) > formLimits.perHour) throw new AppError("too_many");
+  const [day] = await sql<{ total: number }[]>`select coalesce(sum(count), 0)::int as total from form_counts where key = ${all} and hour > ${new Date(hour.getTime() - 23 * 3600000 - 1)}`;
   if ((day?.total ?? 0) > formLimits.perDay) throw new AppError("too_many");
 }
 
@@ -1176,6 +1218,7 @@ export async function guard(sql: Query, visitor: string, now = Date.now()): Prom
 export async function cleanup(sql: Query, now = Date.now()): Promise<number> {
   const s = await settings(sql);
   await sql`delete from form_counts where hour < ${new Date(now - 86400000)}`;
+  await sql`delete from form_tokens where at < ${new Date(now - formLimits.tokenHours * 3600000 - 3600000)}`;
   if (s.retentionMonths === 0) return 0;
   const done = await sql`delete from bookings where ends_at < ${new Date(now)} - make_interval(months => ${s.retentionMonths})`;
   return done.count;

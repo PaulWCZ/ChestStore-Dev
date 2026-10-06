@@ -116,7 +116,7 @@ test("the public host: its pages with the Chest's policy, /chest sent back", asy
 
 test("the visitor's address comes from the front, never from the client", async () => {
   const headers = await (await get(`${publicHost}/headers`, { headers: { "x-forwarded-for": "203.0.113.9", "chest-visitor-address": "198.51.100.7", "chest-member": "forged", forwarded: "for=203.0.113.9", "x-real-ip": "203.0.113.9" } })).json();
-  assert.equal(headers["chest-visitor-address"], "127.0.0.1");
+  assert.equal(headers["chest-visitor-address"], undefined, "a forged visitor address is dropped, and none is named without --visitor-address");
   assert.equal(headers["chest-member"], undefined);
   assert.equal(headers["x-forwarded-for"], undefined);
   assert.equal(headers.forwarded, undefined);

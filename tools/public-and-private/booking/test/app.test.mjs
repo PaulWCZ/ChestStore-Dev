@@ -170,6 +170,7 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   const { started } = props(page, "BookTime");
   const from = new Date().toISOString().slice(0, 10), to = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
   const slots = await (await get(null, `/api/slots?host=ines-moreau&type=project-call&from=${from}&to=${to}`)).json();
+  assert.equal((await get(null, `/api/slots?host=ines-moreau&type=project-call&from=${from}&to=${to}`)).headers.get("cache-control"), "private, max-age=15");
   assert.ok(slots.slots.length > 0, "free times");
   assert.equal((await get(null, "/api/slots?host=ines-moreau&type=project-call&from=x&to=y")).status, 400);
   const fields = { host: "ines-moreau", type: "project-call", start: slots.slots[0], zone: "America/Montreal", started, website: "", name: "Alex Martin", email: "alex@example.com", phone: "", note: "Hello", q_project1: "A home", q_budget01: "", q_plans001: "yes" };
@@ -187,9 +188,13 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   const [row] = await database.sql`select guest_name, guest_language, answers from bookings where guest_email = 'alex@example.com'`;
   assert.equal(row.guest_name, "Alex Martin");
   assert.ok(chest.notifications.some(n => n.member === ines.id), "Inès is told in her bell");
-  // The same time again: taken, in the visitor's words.
-  const again = await form("/actions/bookTime", fields);
-  assert.equal((await again.json()).error, "taken");
+  // The same form again: one booking per form shown.
+  assert.equal((await (await form("/actions/bookTime", fields)).json()).error, "invalid");
+  // The same time from a new form: taken, in the visitor's words — and
+  // that form's token is given back (a person picks another time with it).
+  const { started: second } = props(await (await get(null, "/ines-moreau/project-call")).text(), "BookTime");
+  assert.equal((await (await form("/actions/bookTime", { ...fields, started: second })).json()).error, "taken");
+  assert.equal((await database.sql`select 1 from form_tokens where hash = encode(sha256(convert_to(${second}, 'UTF8')), 'hex')`).length, 0);
   // The guest's page, its calendar file, then cancelled by its guest.
   const guestPage = await get(null, outcome.redirect);
   assert.equal(guestPage.status, 200);
@@ -206,6 +211,29 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   assert.equal(status, "cancelled");
   assert.match(await (await get(null, `/b/${secret}`)).text(), /cancel/iu);
   assert.equal((await get(null, "/b/nolinkatall")).status, 200, "an unknown link says so, kindly");
+});
+
+test("junk cannot close the booking form: invalid cancels, moves and bookings are refused uncounted", async () => {
+  await database.sql`delete from form_counts`;
+  const junk = (n) => Array.from({ length: n }, (_, i) => i);
+  for (const i of junk(300)) {
+    const r = await form("/actions/cancelMine", { secret: ("junk" + i).padEnd(32, "x"), reason: "" });
+    assert.equal(r.status, 404);
+  }
+  for (const i of junk(20)) assert.equal((await form("/actions/moveMine", { secret: ("junk" + i).padEnd(32, "y"), start: "2030-01-01T09:00:00.000Z" })).status, 404);
+  // A booking of a type that does not exist, or a time that is no time.
+  const { started } = props(await (await get(null, "/ines-moreau/project-call")).text(), "BookTime");
+  assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "nothing", start: "2030-01-01T09:00:00.000Z", started, website: "", name: "X", email: "x@example.com" })).status, 404);
+  assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: "soon", started, website: "", name: "X", email: "x@example.com" })).status, 400);
+  const [{ n }] = await database.sql`select count(*)::int as n from form_counts`;
+  assert.equal(n, 0, "nothing was counted");
+  // A real visitor books at once.
+  const from = new Date().toISOString().slice(0, 10), to = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
+  const { slots } = await (await get(null, `/api/slots?host=ines-moreau&type=project-call&from=${from}&to=${to}`)).json();
+  const booked = await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: slots.at(-1), zone: "Europe/Paris", started, website: "", name: "Real Person", email: "real@example.com", phone: "", note: "", q_project1: "A home" }, { "accept-language": "en" });
+  assert.equal((await booked.json()).ok, true);
+  // A browser without the front's address is known by a cookie of its own.
+  assert.match(booked.headers.get("set-cookie") ?? "", /chest_v=[\w-]{22};/u);
 });
 
 test("downloads: the bookings as CSV for the team, a host's private feed", async () => {
