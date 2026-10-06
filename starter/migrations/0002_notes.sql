@@ -12,3 +12,7 @@ create table notes (
 );
 create index notes_shown on notes (pinned desc, created_at desc) where deleted_at is null;
 create index notes_author on notes (author);
+
+-- The pages that list notes change when notes do (a page's version:
+-- changeStamp() of @argentic/chest-app/db, migrations/0001_chest.sql).
+select chest_watch('notes');

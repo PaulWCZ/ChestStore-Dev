@@ -2,13 +2,13 @@ import { chest } from "@argentic/chest-sdk/chest";
 import * as events from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
 import { createApp, csvLine, download, page, textStream } from "@argentic/chest-app";
-import { db, seen } from "@argentic/chest-app/db";
+import { changeStamp, db, seen } from "@argentic/chest-app/db";
 import { names } from "@argentic/chest-app/members";
 import { actions } from "./actions.ts";
 import { locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
-import { forget, getNote, listNotes, notesVersion } from "./lib/notes.ts";
+import { forget, getNote, listNotes } from "./lib/notes.ts";
 import { Home } from "./pages/Home.tsx";
 import { NotePage } from "./pages/Note.tsx";
 
@@ -27,7 +27,7 @@ app.get("/chest", page(async ({ member, t, f }) => {
   const notes = await listNotes();
   const people = await names(notes.map(n => n.author), t.people);
   return { title: t.home.title, body: <Home notes={notes} names={people} member={member} t={t} f={f} /> };
-}, { version: () => notesVersion() }));
+}, { version: () => changeStamp() }));
 
 // A page of one note: param() reads the address; fail("not_found")
 // inside getNote() makes it a 404 page.

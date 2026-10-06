@@ -67,7 +67,7 @@ test("an action from an island: typed answer, then the page shows it", async () 
 test("refusals: a code and the reader's words, nothing written", async () => {
   const empty = await call(camille, "addNote", { body: "   " });
   assert.equal(empty.status, 400);
-  assert.deepEqual(await empty.json(), { ok: false, error: "empty", message: "Écrivez d’abord quelque chose." });
+  assert.deepEqual(await empty.json(), { ok: false, error: "empty", message: "Écrivez d’abord quelque chose.", field: "body" });
   const long = await (await call(sam, "addNote", { body: "x".repeat(2001) })).json();
   assert.equal(long.message, "Too long: 2000 characters at most.");
   assert.equal((await call(sam, "noSuchAction", {})).status, 404);
