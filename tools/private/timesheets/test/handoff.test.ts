@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { addDays, mondayOf, todayIn } from "../lib/days.ts";
-import * as entries from "../lib/entries.ts";
-import * as handoff from "../lib/handoff.ts";
-import * as projects from "../lib/projects.ts";
-import { foundEntries, report } from "../lib/reports.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
+import * as entries from "../src/lib/entries.ts";
+import * as handoff from "../src/lib/handoff.ts";
+import * as projects from "../src/lib/projects.ts";
+import { foundEntries, report } from "../src/lib/reports.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
