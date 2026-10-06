@@ -1,6 +1,7 @@
 import "@argentic/chest-ui/components.css";
 import "../styles.css";
-import { hydrateRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { islands } from "../islands/index.ts";
 import { refresh, send, start } from "./client.tsx";
 
@@ -9,7 +10,7 @@ import { refresh, send, start } from "./client.tsx";
 // without a page load, the page refreshed after it, the form emptied, a
 // refusal shown as a toast. Without JavaScript the same form posts and
 // the server redirects back.
-start(islands, hydrateRoot);
+start(islands, { hydrateRoot, createRoot, flushSync });
 
 const actionPath = /^\/(chest\/)?actions\/[A-Za-z0-9_]+$/u;
 document.addEventListener("submit", event => {

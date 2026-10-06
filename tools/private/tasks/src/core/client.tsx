@@ -1,7 +1,8 @@
 import { Toasts, useToast, type ShowToast } from "@argentic/chest-ui/components";
 import type { ToastWords } from "@argentic/chest-ui/components/logic";
 import { createElement, useEffect, type ComponentType } from "react";
-import type { hydrateRoot, Root } from "react-dom/client";
+import type { flushSync } from "react-dom";
+import type { createRoot, hydrateRoot, Root } from "react-dom/client";
 import type { actions } from "../actions.ts";
 import type { Action, Outcome, SentOf } from "./tool.ts";
 
@@ -11,7 +12,7 @@ import type { Action, Outcome, SentOf } from "./tool.ts";
 
 // ---- Islands: hydrated on load, kept (state, focus) across refreshes.
 let registry: Record<string, ComponentType<object>> = {};
-let hydrate: typeof hydrateRoot;
+let dom: { hydrateRoot: typeof hydrateRoot; createRoot: typeof createRoot; flushSync: typeof flushSync };
 const roots = new Map<Element, Root>();
 const propsOf = (el: Element): object => JSON.parse(el.getAttribute("data-props") ?? "{}") as object;
 // What the server put directly in <body>: a refresh changes only that. What
@@ -19,19 +20,28 @@ const propsOf = (el: Element): object => JSON.parse(el.getAttribute("data-props"
 const served = new WeakSet<Node>();
 
 // react-dom/client comes from entry.tsx: the server never loads it.
-export function start(islands: Record<string, ComponentType<never>>, hydrateRoot: typeof hydrate): void {
+export function start(islands: Record<string, ComponentType<never>>, reactDom: typeof dom): void {
   registry = islands as typeof registry;
-  hydrate = hydrateRoot;
+  dom = reactDom;
   for (const node of document.body.childNodes) served.add(node);
   for (const el of document.querySelectorAll("[data-island]")) mount(el);
   // Back and forward between addresses navigate() made: the page follows.
   addEventListener("popstate", () => void refresh());
 }
 // Each island is a root of its own, with the prefix of its ids the server
-// used (src/core/island.tsx).
-function mount(el: Element): void {
+// used (src/core/island.tsx). On load, the server's HTML is hydrated. An
+// island a refresh brings (a card's panel opened) is rendered at once,
+// effects included, before the browser shows it: a key pressed the moment
+// it appears (Escape) finds its listeners there.
+function mount(el: Element, now = false): void {
   const component = registry[el.getAttribute("data-island") ?? ""];
-  if (component && !roots.has(el)) roots.set(el, hydrate(el, createElement(component, propsOf(el)), { identifierPrefix: el.getAttribute("data-prefix") ?? "" }));
+  if (!component || roots.has(el)) return;
+  const options = { identifierPrefix: el.getAttribute("data-prefix") ?? "" };
+  const element = createElement(component, propsOf(el));
+  if (!now) return void roots.set(el, dom.hydrateRoot(el, element, options));
+  const root = dom.createRoot(el, options);
+  roots.set(el, root);
+  dom.flushSync(() => root.render(element));
 }
 const islandsIn = (node: Node): Element[] => (node instanceof Element ? [...(node.matches("[data-island]") ? [node] : []), ...node.querySelectorAll("[data-island]")] : []);
 
@@ -45,22 +55,36 @@ let latest = 0;
 // them (a timer's refresh), so it is not shown — the action's own refresh
 // follows.
 let sending = 0;
-export async function refresh(): Promise<void> {
+export function refresh(): Promise<void> {
+  return render(location.href);
+}
+
+// Reads a page of this tool and puts it in place. arrive() runs just
+// before, once the page is there (navigate(): the address changes then, as
+// a link's would — not while the page is still on its way).
+let moves = 0;
+async function render(href: string, arrive?: () => void): Promise<void> {
+  // A newer read of the page wins over an older one; a navigation is never
+  // undone by a refresh that was on its way (it read the address before).
   const ticket = ++latest;
+  const move = arrive ? ++moves : moves;
   const settled = sending === 0;
   let response: Response;
   try {
-    response = await fetch(location.href, { headers: { accept: "text/html" } });
+    response = await fetch(href, { headers: { accept: "text/html" } });
   } catch {
+    if (arrive) location.assign(href);
     return; // offline for a moment: the next refresh will do
   }
   const html = response.headers.get("content-type")?.startsWith("text/html") ? await response.text() : null;
-  if (ticket !== latest) return; // a newer refresh is on its way
-  if (!settled || sending > 0) return;
+  if (move !== moves) return; // the page went elsewhere meanwhile
+  if (!arrive && ticket !== latest) return; // a newer read is on its way
+  if (!arrive && (!settled || sending > 0)) return;
   // An error page (gone, not allowed, failed) or not a page: the browser
   // shows it whole rather than merging it into this one.
-  if (html === null || !response.ok) return location.reload();
+  if (html === null || !response.ok) return arrive ? location.assign(href) : location.reload();
   const next = new DOMParser().parseFromString(html, "text/html");
+  arrive?.();
   if (response.redirected) history.replaceState(null, "", response.url);
   document.title = next.title;
   const focused = document.activeElement;
@@ -97,7 +121,7 @@ function children(parent: Element, next: Element): void {
       const node = document.importNode(incoming, true);
       parent.insertBefore(node, current);
       if (parent === document.body) served.add(node);
-      islandsIn(node).forEach(mount);
+      for (const el of islandsIn(node)) mount(el, true);
     }
   }
   while (current) {
@@ -116,9 +140,10 @@ function children(parent: Element, next: Element): void {
 export async function navigate(to: string, options: { replace?: boolean; top?: boolean } = {}): Promise<void> {
   const url = new URL(to, location.href);
   if (url.origin !== location.origin) return location.assign(url);
-  if (options.replace) history.replaceState(null, "", url);
-  else history.pushState(null, "", url);
-  await refresh();
+  await render(url.href, () => {
+    if (options.replace) history.replaceState(null, "", url);
+    else history.pushState(null, "", url);
+  });
   if (options.top) scrollTo({ top: 0 });
 }
 
