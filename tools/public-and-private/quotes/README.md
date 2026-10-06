@@ -76,7 +76,11 @@ collected here.
   finalisations at once).
 - **Credit notes** (*avoirs*): the only correction of a finalised invoice,
   full or partial (its lines, reduced), with their own sequence
-  (`A-2026-0001`), never more than what remains of the invoice.
+  (`A-2026-0001`), never more than what remains of the invoice — in all,
+  and rate by rate: a credit note takes back VAT only at the rates the
+  invoice charged, and at each no more base than is left to credit there.
+  Its lines that take back a deposit keep their mark when edited, so the
+  entries debit 4191 again and not the sales.
 - **Numbering**: with the year (`F-2026-0001`, from 0001 each year) or
   without (`F-0001`, never restarting). An administrator may set the next
   number of a sequence **forward only, and only before this tool numbered
@@ -84,7 +88,16 @@ collected here.
   (`F-2026-0347` there → `F-2026-0348` here). Every change is kept and
   shown (Settings, and the history of the first document numbered after
   it). The format may change; each format has its own counters, so no
-  number can ever come twice.
+  number can ever come twice. A kind's prefix (`D`, `F`, `A`) may change,
+  but never to one another kind's documents already begin with (an invoice
+  `A-2027-0002` beside the credit note `A-2027-0002`): refused, and numbering
+  itself refuses a number another kind carries; each prefix change is kept
+  in the history too.
+- **Amounts typed** (prices, payments, capital, imported files): spaces of
+  any kind and apostrophes group thousands, a currency sign or code may
+  stand at either end; any other letter (`12a50`, `1e3`, `1O0`) is refused,
+  never dropped; groups are of three digits; currencies of 0, 2 and 3
+  decimals.
 - **Totals**, in integer cents: each line rounded once (half away from
   zero), summed per VAT rate, VAT computed once per rate, totals added —
   the rule is written and tested in `src/shared/totals.ts` (it is also what the
@@ -265,7 +278,7 @@ and that person is rarely the one who manages the company's legal settings.
 |---|---|
 | `/` | Public host: "open the link from your email" (nothing is listed or linked there) |
 | `/q/:secret` | Public: the client's page of a quote — read it, accept ("Bon pour accord") or decline |
-| `/q/:secret/pdf` | Public: that quote's PDF (the one answered on, once answered; `?version=n` an earlier version). Kept in memory by its SHA-256 (24 MiB at most), two downloads at a time for the whole public part, 60 an hour per link (429 past it) |
+| `/q/:secret/pdf` | Public: that quote's PDF (the one answered on, once answered; `?version=n` an earlier version). Kept in memory by its SHA-256 (24 MiB at most), two downloads at a time for the whole public part, 60 an hour per link (429 past it). Two limits to know: the client page's **first** visit draws the PDF it shows (to fingerprint it) outside the two-at-a-time bound — once per link and version, under the link's row lock —, and a PDF over 8 MiB is not kept in memory (drawn or read again at each download) |
 | `/lang/:code` | Public: the visitor's language switch (a cookie; the package's route) |
 | `/chest` | The desk |
 | `/chest/quotes`, `/chest/invoices` | Lists with state filters and search (`?state=`, `?q=`), 200 rows a page (`?page=`); they read again by themselves while their reader is there (a 304 when nothing changed) |
@@ -429,6 +442,32 @@ and, for an individual buyer (B2C, outside the e-invoicing flow), the
 French warnings "PMT missing" and "BT-49 missing" — the €40 indemnity does
 not apply to consumers and they have no directory address. The XSD check
 runs in the tests when `FACTURX_XSD` points to the schema.
+**Currencies.** The Chest's currency is the documents' (`chest.currency`).
+In euros, everything above. **Another currency of two or no decimals**
+(USD, CHF, GBP, JPY…): the member gives the exchange rate on the paper
+("Exchange rate, 1 € = 1.0823 USD", as the ECB publishes it) before
+finalising; the PDF states the VAT in euros at that rate and the Factur-X
+carries it (BT-6 `TaxCurrencyCode` EUR, BT-111 the VAT total in euros:
+BR-FR-CO-12); a credit note keeps its invoice's rate. This follows art. 230
+of the VAT Directive (2006/112/EC: the VAT amount in the national currency)
+— the studio's reading, not checked with an accountant, and which rate the
+law wants (the ECB's of the day the VAT became chargeable, or the bank's)
+is the company's to choose; checked here: the XSD (USD and JPY samples),
+not Mustang-CLI's schematrons. **A currency of three decimals** (KWD, BHD,
+TND…): EN 16931 writes at most two decimals (BR-DEC-*), so such an invoice
+is issued as a PDF/A **without** the Factur-X data (`pdf_format = 'pdf'`,
+the page does not call it a Factur-X): the e-invoicing reform cannot be
+met in that currency here. Invoices issued outside the euro before this
+version (no rate) keep a plain PDF.
+
+**The XSD check, with the schema fetched at test time**:
+`npm run test:facturx` downloads the `factur-x` 7.3 wheel from PyPI
+(BSD licence; pinned by SHA-256, `scripts/facturx-xsd.mjs`), unpacks its
+Factur-X EN 16931 XSD into `node_modules/.cache/facturx-xsd/` (never
+committed), and runs the tests with `FACTURX_XSD` set (needs network once,
+`unzip` and `xmllint`). A CI job runs that command; the studio has no CI
+of its own yet, so it is run by hand before a release.
+
 **Not verified**: acceptance by a real PA (none reachable from the
 studio); the choice of E for a 0 % line in the standard regime (the tool
 does not ask which exemption applies: ask the accountant); SIREN as the
@@ -559,7 +598,7 @@ Timesheets' README, "With the other tools" (version 1).
   currency, lines[], source}` — **one draft invoice per `handoff`**, for
   ever (the `handoffs` table keeps each id: a second delivery, even after
   the draft was dropped, changes nothing). The client is the one whose name
-  is Timesheets' (accents, case and spaces aside), when exactly one
+  is Timesheets' (accents, case, spaces and punctuation aside: an indexed key, migration `0015_client_name_key.sql`), when exactly one
   matches; otherwise none, and the invoice's margin says which name
   Timesheets gave ("choose it on the invoice"). One line per `lines[]`
   item: its label, `minutes / 60` **hours** (unit "heure"/"hour"), the
@@ -581,9 +620,9 @@ Timesheets' README, "With the other tools" (version 1).
   90.00 an hour are 75.00 for Timesheets, 0.833 h × 90.00 = 74.97 on the
   invoice. Quotes does not force the invoice to Timesheets' figure; it
   keeps Timesheets' `amount` (when in the Chest's currency) and, when the
-  invoice's total excluding VAT differs, the draft's margin says both
-  ("Timesheets counted 75.00 € … this invoice counts 74.97 €. Check it
-  before finalising."). Billing may then adjust a quantity or a price.
+  invoice's total excluding VAT differs, the draft's margin says both, as a
+  caution ("Timesheets says €75.00; this invoice says €74.97 (€0.03 of
+  rounding). Adjust a line if you want them equal.").
   They agree whenever each entry's amount is a whole number of cents and
   each line's minutes make hours to the thousandth (e.g. rates in whole
   units of currency and entries in quarters of an hour).

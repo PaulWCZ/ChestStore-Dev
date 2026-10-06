@@ -7,6 +7,7 @@ import { company } from "./company.ts";
 import type { Query } from "./db.ts";
 import { getDocument, type Full } from "./documents.ts";
 import { versioned } from "../shared/model.ts";
+import { facturxCurrency } from "../shared/money.ts";
 import { buyerOf, sellerOf, type Seller } from "../shared/parties.ts";
 import { einvoiceXml } from "./einvoice.ts";
 import { renderPdf, pdfFileName } from "../pdf/document.ts";
@@ -42,8 +43,10 @@ export async function draw(sql: Query, full: Full, today: string): Promise<Uint8
   // does the invoice that cites it.
   const reference = ref && ref.number ? { number: versioned(ref.number, ref.version) ?? ref.number, issueDate: ref.issueDate } : null;
   // An issued invoice or credit note is a Factur-X: its EN 16931 data
-  // travels inside its PDF.
-  const facturx = frozen(full) && buyer ? einvoiceXml({ doc: full, lines: full.lines, seller, buyer, reference }) : undefined;
+  // travels inside its PDF — unless its currency has three decimals, which
+  // EN 16931 cannot write (a PDF/A then, without the data), or it was
+  // issued outside the euro before the rate was asked.
+  const facturx = frozen(full) && buyer && carriesFacturx(full) ? einvoiceXml({ doc: full, lines: full.lines, seller, buyer, reference }) : undefined;
   return renderPdf({
     doc: full.type === "quote" ? { ...full, number: versioned(full.number, full.version) } : full,
     lines: full.lines,
@@ -58,6 +61,7 @@ export async function draw(sql: Query, full: Full, today: string): Promise<Uint8
 }
 
 const frozen = (d: Pick<Full, "type" | "status">) => d.type !== "quote" && d.status === "final";
+export const carriesFacturx = (d: Pick<Full, "type" | "currency" | "eurRate">): boolean => d.type !== "quote" && facturxCurrency(d.currency) && (d.currency === "EUR" || d.eurRate !== null);
 
 export async function pdfOf(sql: Query, actor: Member | null, documentId: unknown, today: string): Promise<Pdf> {
   const full = await getDocument(sql, actor, documentId, today);
@@ -83,12 +87,12 @@ export async function pdfOfFull(sql: Query, full: Full, today: string): Promise<
 // keep stores an issued document's PDF once; when the Chest cannot take it
 // now, the next download tries again (the document's data is frozen, so
 // the PDF drawn then is the same).
-export async function keep(sql: Query, full: Pick<Full, "id" | "number" | "issueDate" | "type">, bytes: Uint8Array): Promise<void> {
+export async function keep(sql: Query, full: Pick<Full, "id" | "number" | "issueDate" | "type" | "currency" | "eurRate">, bytes: Uint8Array): Promise<void> {
   const object = `documents/${(full.issueDate ?? "0000").slice(0, 4)}/${(full.number ?? full.id).replace(/[^A-Za-z0-9_-]/gu, "_")}.pdf`;
   try {
     await files.put(object, bytes, "application/pdf");
     const sha = createHash("sha256").update(bytes).digest("hex");
-    await sql`update documents set pdf_object = ${object}, pdf_sha256 = ${sha}, pdf_format = ${full.type === "quote" ? "pdf" : "factur-x"} where id = ${full.id} and pdf_object is null`;
+    await sql`update documents set pdf_object = ${object}, pdf_sha256 = ${sha}, pdf_format = ${carriesFacturx(full) ? "factur-x" : "pdf"} where id = ${full.id} and pdf_object is null`;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }

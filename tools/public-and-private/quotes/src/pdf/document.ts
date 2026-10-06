@@ -1,7 +1,7 @@
 import type { Doc, Line } from "../lib/documents.ts";
 import { noVat, operationOf } from "../lib/documents.ts";
 import { catalogue, countryName as nameOfCountry, format, formatDay, type Locale } from "../i18n/index.ts";
-import { formatMoney, formatNumber, formatQuantity, formatRate } from "../shared/money.ts";
+import { formatEurRate, formatMoney, formatNumber, formatQuantity, formatRate, inEuros } from "../shared/money.ts";
 import { addressLines, spacedSiren, type Buyer, type Seller } from "../shared/parties.ts";
 import { facturx } from "../lib/einvoice.ts";
 import { totals } from "../shared/totals.ts";
@@ -23,7 +23,7 @@ import { A4, Page, PdfWriter, textWidth, wrap, type Rgb } from "./writer.ts";
 // (Helvetica) right-aligned.
 
 export type PdfInput = {
-  doc: Pick<Doc, "type" | "status" | "number" | "title" | "language" | "currency" | "issueDate" | "deliveryDate" | "validUntil" | "dueDate" | "vatTreatment" | "franchise" | "notes" | "depositPercent" | "paymentDays">;
+  doc: Pick<Doc, "type" | "status" | "number" | "title" | "language" | "currency" | "issueDate" | "deliveryDate" | "validUntil" | "dueDate" | "vatTreatment" | "franchise" | "notes" | "depositPercent" | "paymentDays"> & { eurRate?: number | null };
   lines: readonly Line[];
   seller: Seller;
   buyer: Buyer | null;
@@ -288,6 +288,11 @@ export function renderPdf(input: PdfInput): Uint8Array {
   if (doc.franchise) mentions.push(t.franchise);
   else if (doc.vatTreatment === "reverse_charge") mentions.push(t.reverseCharge);
   if (seller.vatOnDebits && !doc.franchise && doc.type !== "quote") mentions.push(t.vatOnDebits);
+  // Outside the euro, the VAT in euros at the rate given (art. 230 of the
+  // VAT Directive).
+  if (doc.type !== "quote" && doc.currency !== "EUR" && doc.eurRate) {
+    mentions.push(format(t.vatInEuros, { amount: formatMoney(inEuros(sums.vat, doc.currency, doc.eurRate), "EUR", locale), rate: formatEurRate(doc.eurRate, locale), currency: doc.currency }));
+  }
   if (doc.type === "credit" && input.reference) mentions.push(format(t.creditOf, { number: input.reference.number, date: date(input.reference.issueDate) }));
   if (doc.type === "invoice" && input.reference) mentions.push(format(doc.depositPercent !== null ? t.depositOf : t.fromQuote, { number: input.reference.number, percent: doc.depositPercent !== null ? formatRate(doc.depositPercent, locale) : "" }));
   let my = y;

@@ -14,6 +14,7 @@ import { versioned } from "../shared/model.ts";
 import { answersOf, liveLink } from "../lib/online.ts";
 import { versionsOf } from "../lib/versions.ts";
 import { handoffOf } from "../lib/timesheets.ts";
+import { carriesFacturx } from "../lib/archive.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { answerUrl } from "../lib/public-origin.ts";
 import { firstRepeatDate, repeatOf } from "../lib/repeats.ts";
@@ -49,14 +50,14 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
   const ref = full.related.find(r => (full.type === "credit" ? r.id === full.invoiceId : r.id === full.quoteId));
   const doc: DocView = {
     id: full.id, type: full.type, status: full.status, state: full.state, number: full.type === "quote" ? versioned(full.number, full.version) : full.number, version: full.version, kindText: kindOf(full, t), clientId: full.clientId, title: full.title,
-    language: full.language, currency: full.currency, issueDate: full.issueDate, deliveryDate: full.deliveryDate, validUntil: full.validUntil, dueDate: full.dueDate,
+    language: full.language, currency: full.currency, eurRate: full.eurRate, issueDate: full.issueDate, deliveryDate: full.deliveryDate, validUntil: full.validUntil, dueDate: full.dueDate,
     paymentDays: full.paymentDays, vatTreatment: full.vatTreatment, franchise: full.franchise, notes: full.notes, depositPercent: full.depositPercent, lines: full.lines,
     net: full.net, vat: full.vat, gross: full.gross, rates: full.rates, paid: full.paid, credited: full.credited, due: full.due, seller,
     buyer: buyer ? { kind: buyer.kind, name: buyer.name, contact: buyer.contact, email: buyer.email, address: buyer.address, postcode: buyer.postcode, city: buyer.city, country: buyer.country, deliveryAddress: buyer.deliveryAddress, siren: buyer.siren, vatNumber: buyer.vatNumber, countryName: countryName(buyer.country, full.language) } : null,
     readyAt: full.readyAt, sentAt: full.sentAt, emailedTo: full.emailedTo, reminders: full.reminders,
     crmTitle: full.crmTitle,
     reference: ref && ref.number ? { id: ref.id, number: versioned(ref.number, ref.version) ?? ref.number, date: ref.issueDate ?? "" } : null,
-    facturx: full.type !== "quote" && full.status === "final" && full.pdfFormat !== "pdf",
+    facturx: full.type !== "quote" && full.status === "final" && full.pdfFormat !== "pdf" && carriesFacturx(full),
     repeat: repeating && repeating.repeat.sourceId === full.id && repeating.repeat.active
       ? { id: repeating.repeat.id, every: repeating.repeat.every, next: formatDay(repeating.repeat.nextOn, locale, { day: "numeric", month: "long", year: "numeric" }) } : null,
     madeFrom: repeating && repeating.repeat.sourceId !== full.id ? { id: repeating.repeat.sourceId, number: repeating.sourceNumber ?? "" } : null,
@@ -198,6 +199,6 @@ type Counted = Pick<Full, "id" | "net" | "currency">;
 async function handoffView(sql: ReturnType<typeof db>, full: Counted, t: Catalogue, locale: Locale): Promise<DocView["timesheets"]> {
   const h = await handoffOf(sql, full.id);
   if (!h) return null;
-  const counted = h.counted !== null && h.counted !== full.net ? format(t.doc.timesheetsCounted, { counted: formatMoney(h.counted, full.currency, locale), invoice: formatMoney(full.net, full.currency, locale) }) : null;
+  const counted = h.counted !== null && h.counted !== full.net ? format(t.doc.timesheetsCounted, { counted: formatMoney(h.counted, full.currency, locale), invoice: formatMoney(full.net, full.currency, locale), gap: formatMoney(Math.abs(h.counted - full.net), full.currency, locale) }) : null;
   return { project: h.project, client: h.client, link: h.link, counted };
 }

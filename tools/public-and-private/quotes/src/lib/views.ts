@@ -23,6 +23,8 @@ export type DocView = {
   title: string;
   language: Locale;
   currency: string;
+  // Outside the euro: the exchange rate (units for one euro, millionths).
+  eurRate: number | null;
   issueDate: string | null;
   deliveryDate: string | null;
   validUntil: string | null;

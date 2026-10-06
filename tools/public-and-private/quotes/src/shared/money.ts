@@ -22,39 +22,74 @@ export function minorDigits(currency: string): number {
 }
 
 // parseAmount reads what a person types — "12,50", "12.5", "1 234,56",
-// "1,234.56", "€ 42", "-100" (when negative amounts are allowed) — as minor
-// units; null when it is not an amount. A lone separator followed by
-// exactly three digits groups thousands ("1,234" is 1234), otherwise it is
-// the decimal separator.
+// "1,234.56", "1.234,56", "1'234.50", "€ 42", "42 EUR", "-100" (when
+// negative amounts are allowed) — as minor units; null when it is not one
+// amount, said exactly, never guessed (the same rules as Expenses'
+// parseAmount, tools/private/expenses/src/shared/money.ts):
+// - only spaces (any: no-break, narrow), apostrophes (groups), a currency
+//   sign or ISO code at either end may stand beside the digits; any other
+//   letter ("12a50", "1e3", "0x10", "1O0") is refused, and a minus unless
+//   negative amounts are allowed;
+// - groups are of three digits ("1,2.34", "12 34" refused);
+// - a lone "." or "," followed by exactly three digits groups thousands
+//   ("1,234" is 1234), except in a currency of three decimals (KWD
+//   "1,234" is 1.234); otherwise it is the decimal separator.
+const anySpace = /[\s    ]+/gu;
+const knownCurrencies = new Set<string>(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("currency") : ["EUR", "USD", "GBP", "CHF", "JPY", "KWD"]);
+const grouped = { ",": /^\d{1,3}(?:,\d{3})*$/u, ".": /^\d{1,3}(?:\.\d{3})*$/u } as const;
+const groupsOf = (whole: string, mark: "," | ".") => grouped[mark].test(whole);
 export function parseAmount(text: unknown, currency = "EUR", options: { negative?: boolean } = {}): number | null {
-  if (typeof text === "number") return Number.isSafeInteger(text) ? text : null;
-  if (typeof text !== "string") return null;
-  let s = text.replace(/[\s  ']/gu, "").replace(/[−–]/gu, "-").replace(/[^\d.,-]/gu, "");
+  if (typeof text === "number") return Number.isSafeInteger(text) && (options.negative || text >= 0) ? text : null;
+  if (typeof text !== "string" || text.length > 64) return null;
+  let s = text.replace(anySpace, " ").replace(/[’ʼ]/gu, "'").replace(/[−–]/gu, "-").trim();
   let sign = 1;
-  if (s.startsWith("-")) {
-    if (!options.negative) return null;
+  const minus = () => {
+    if (!s.startsWith("-")) return true;
+    if (!options.negative || sign === -1) return false;
     sign = -1;
-    s = s.slice(1);
+    s = s.slice(1).trim();
+    return true;
+  };
+  // A sign before or after the currency's mark ("-€42", "€ -42").
+  if (!minus()) return null;
+  s = s.replace(/^\p{Sc}\s?|\s?\p{Sc}$/u, "").trim();
+  const code = /^([A-Za-z]{3})\s?(?=[\d-])|(?<=\d)\s?([A-Za-z]{3})$/u.exec(s);
+  if (code) {
+    if (!knownCurrencies.has((code[1] ?? code[2] ?? "").toUpperCase())) return null;
+    s = s.replace(code[0], "").trim();
   }
-  if (s === "" || s.includes("-")) return null;
-  const lastComma = s.lastIndexOf(","), lastDot = s.lastIndexOf(".");
-  let decimal: string | null = null;
-  if (lastComma >= 0 && lastDot >= 0) decimal = lastComma > lastDot ? "," : ".";
-  else if (lastComma >= 0 || lastDot >= 0) {
-    const sep = lastComma >= 0 ? "," : ".";
-    const parts = s.split(sep);
-    const tail = parts.at(-1) ?? "";
-    decimal = parts.length === 2 && tail.length !== 3 ? sep : parts.length === 2 && tail.length === 3 && minorDigits(currency) === 3 ? sep : null;
-    if (parts.length > 2 && tail.length !== 3) return null;
+  if (!minus()) return null;
+  if (!/^\d(?:[\d .,']*\d)?$/u.test(s)) return null;
+  // Spaces and apostrophes only ever group thousands.
+  if (/[ ']/u.test(s)) {
+    const m = /^(\d{1,3}(?:[ ']\d{3})+)([.,]\d+)?$/u.exec(s);
+    if (!m) return null;
+    s = m[1]!.replace(/[ ']/gu, "") + (m[2] ?? "");
   }
-  const group = decimal === "," ? "." : decimal === "." ? "," : null;
-  if (group) s = s.split(group).join("");
-  else s = s.replace(/[.,]/gu, "");
-  const [whole = "", fraction = ""] = decimal ? s.split(decimal) : [s, ""];
-  if (!/^\d*$/u.test(whole) || !/^\d*$/u.test(fraction) || (whole === "" && fraction === "")) return null;
   const digits = minorDigits(currency);
+  const lastComma = s.lastIndexOf(","), lastDot = s.lastIndexOf(".");
+  let whole = s, fraction = "";
+  if (lastComma >= 0 && lastDot >= 0) {
+    const mark: "," | "." = lastComma > lastDot ? "," : ".";
+    const at = s.lastIndexOf(mark);
+    whole = s.slice(0, at);
+    fraction = s.slice(at + 1);
+    if (!groupsOf(whole, mark === "," ? "." : ",")) return null;
+    whole = whole.replace(/[.,]/gu, "");
+  } else if (lastComma >= 0 || lastDot >= 0) {
+    const mark: "," | "." = lastComma >= 0 ? "," : ".";
+    const parts = s.split(mark);
+    const tail = parts.at(-1) ?? "";
+    const isDecimal = parts.length === 2 && (tail.length !== 3 || digits === 3);
+    if (isDecimal) [whole = "", fraction = ""] = parts;
+    else {
+      if (!groupsOf(s, mark)) return null;
+      whole = parts.join("");
+    }
+  }
+  if (!/^\d+$/u.test(whole) || !/^\d*$/u.test(fraction) || whole.length > 13) return null;
   if (fraction.length > digits) return null;
-  const value = Number(whole || "0") * 10 ** digits + Number((fraction + "0".repeat(digits)).slice(0, digits) || "0");
+  const value = Number(whole) * 10 ** digits + Number((fraction + "0".repeat(digits)).slice(0, digits) || "0");
   return Number.isSafeInteger(value) ? sign * value || 0 : null;
 }
 
@@ -131,3 +166,28 @@ export type VatRate = (typeof vatRates)[number];
 export function isVatRate(value: unknown): value is VatRate {
   return typeof value === "number" && (vatRates as readonly number[]).includes(value);
 }
+
+// The VAT of a document in another currency, in euro cents, at its rate
+// (units of the currency for one euro, in millionths): rounded once, half
+// away from zero, exact (BigInt: no float on the way).
+export function inEuros(minor: number, currency: string, eurRate: number): number {
+  const digits = minorDigits(currency);
+  // minor × 10^(2 − digits) / (rate / 10^6), in cents.
+  let num = BigInt(minor) * 1_000_000n * 100n;
+  let den = BigInt(eurRate) * 10n ** BigInt(digits);
+  if (den < 0n) [num, den] = [-num, -den];
+  const negative = num < 0n;
+  const abs = negative ? -num : num;
+  const q = (abs * 2n + den) / (2n * den);
+  return Number(negative ? -q : q);
+}
+
+// A rate written for people: "1,0823" (up to six decimals, no trailing zeros).
+export function formatEurRate(eurRate: number, locale: string): string {
+  return numberFormat(intl(locale), { maximumFractionDigits: 6 }).format(eurRate / 1_000_000);
+}
+
+// Whether a currency can travel in a Factur-X: EN 16931 allows at most two
+// decimals in amounts (BR-DEC-*); a currency of three (KWD, BHD…) is issued
+// as a PDF without the e-invoice data.
+export const facturxCurrency = (currency: string): boolean => minorDigits(currency) <= 2;

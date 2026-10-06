@@ -40,10 +40,14 @@ export const toClient = (r: Row): Client => ({
 // A search compares words without case or accents ("etienne" finds
 // "Étienne"), in the database: the Latin letters with accents folded by
 // translate() (no extension needed), the needle folded the same way.
-const accented = "àáâãäåāăąçćčďèéêëēėęěìíîïīįñńňòóôõöōőŕřśšşťùúûüūůűųýÿžźż";
-const plain = [...accented].map(c => c.normalize("NFD")[0]).join("");
+// Upper case too: lower() leaves "É" alone in a database whose collation
+// is "C" (the same letters as migration 0015's client key).
+export const accentedLetters = "àáâãäåāăąçćčďèéêëēėęěìíîïīįñńňòóôõöōőŕřśšşťùúûüūůűųýÿžźż" + "àáâãäåāăąçćčďèéêëēėęěìíîïīįñńňòóôõöōőŕřśšşťùúûüūůűųýÿžźż".toUpperCase();
+export const plainLetters = [...accentedLetters].map(c => c.normalize("NFD")[0]!.toLowerCase()).join("");
+const accented = accentedLetters;
+const plain = plainLetters;
 const unaccent = (q: string) => q.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
-export const foldedLike = (sql: Query, column: string, like: string) => sql`translate(lower(${sql(column)}), ${accented}, ${plain}) like ${like}`;
+export const foldedLike = (sql: Query, column: string, like: string) => sql`lower(translate(${sql(column)}, ${accented}, ${plain})) like ${like}`;
 export const likeOf = (q: string) => "%" + unaccent(q).replace(/[\\%_]/gu, m => "\\" + m) + "%";
 
 // The clients, a page at a time (the list's island takes a page: studio.6

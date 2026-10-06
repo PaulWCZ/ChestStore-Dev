@@ -27,7 +27,8 @@ export async function settingsPage(ctx: PageContext<MemberContext>): Promise<Vie
   const who = await people(changes.map(ch => ch.changedBy));
   const history = changes.map(ch => {
     const name = ch.changedBy === member.id ? t.people.you : nameOf(who.get(ch.changedBy), locale);
-    const text = ch.number ? format(t.settings.numbering.historyNext, { name, number: ch.number })
+    const text = ch.prefix && ch.type ? format(t.settings.numbering.historyPrefix, { name, prefix: ch.prefix, kind: t.settings.numbering.kinds[ch.type] })
+      : ch.number ? format(t.settings.numbering.historyNext, { name, number: ch.number })
       : format(ch.numberFormat === "continuous" ? t.settings.numbering.historyContinuous : t.settings.numbering.historyYearly, { name });
     return { id: ch.id, text, when: formatDate(ch.changedAt, locale, { timeZone: member.timeZone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
   });

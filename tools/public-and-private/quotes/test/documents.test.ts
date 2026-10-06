@@ -256,6 +256,32 @@ test("a credit note corrects a finalised invoice, never more than it", async () 
   await assert.rejects(sql`update documents set gross = 1 where id = ${cf.id}`, (e: unknown) => (e as { code?: string }).code === "QF001");
 });
 
+test("a credit note takes back VAT only at the invoice's rates, no more than is left at each", async () => {
+  const { sql } = database;
+  const c = await client(sql, { name: "Avoir Taux" });
+  const inv = await draft(sql, "invoice", c.id, [line("Conseil", 1000, 100000)]);
+  await finalise(sql, asMember(sofia), inv.id, today);
+  // 1,100.00 at 5.5 % is less than the 1,200.00 left, but the invoice
+  // charged no VAT at 5.5 %.
+  const odd = await startCreditNote(sql, asMember(sofia), inv.id);
+  await saveDraft(sql, asMember(sofia), odd.id, { lines: [{ ...line("Conseil", 1000, 110000), vatRate: 550 }] });
+  await assert.rejects(finalise(sql, asMember(sofia), odd.id, today), refused("credit_rate"));
+  // Two invoices' worth of a rate: refused at that rate, with what is left said.
+  const mixed = await draft(sql, "invoice", c.id, [line("Conseil", 1000, 100000), { ...line("Livre", 1000, 10000), vatRate: 550 }]);
+  await finalise(sql, asMember(sofia), mixed.id, today);
+  const over = await startCreditNote(sql, asMember(sofia), mixed.id);
+  await saveDraft(sql, asMember(sofia), over.id, { lines: [{ ...line("Livre", 1000, 20000), vatRate: 550 }] });
+  await assert.rejects(finalise(sql, asMember(sofia), over.id, today), (e: unknown) => e instanceof AppError && e.code === "credit_rate_too_large" && /100,00/u.test(String(e.values["left"])));
+  await saveDraft(sql, asMember(sofia), over.id, { lines: [{ ...line("Livre", 1000, 10000), vatRate: 550 }] });
+  await finalise(sql, asMember(sofia), over.id, today);
+  // Nothing left at 5.5 %: another 5.5 % credit is refused, 20 % still goes.
+  const again = await startCreditNote(sql, asMember(sofia), mixed.id);
+  await saveDraft(sql, asMember(sofia), again.id, { lines: [{ ...line("Livre", 1000, 100), vatRate: 550 }] });
+  await assert.rejects(finalise(sql, asMember(sofia), again.id, today), refused("credit_rate_too_large"));
+  await saveDraft(sql, asMember(sofia), again.id, { lines: [line("Conseil", 1000, 100000)] });
+  assert.equal((await finalise(sql, asMember(sofia), again.id, today)).gross, 120000);
+});
+
 test("payments: partial, full, overdue by the Chest's date, undone", async () => {
   const { sql } = database;
   const c = await client(sql, { name: "Paiements" });
