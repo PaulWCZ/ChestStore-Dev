@@ -8,7 +8,7 @@ must not break.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest (contract 0.4): roles `hr`, `member`; `database`, `files`, `members`, `members.email`, `notifications`; `receives: ["member.*"]`; the `morning` schedule; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposal keys (`mail`, `emits`, `receives` of other tools' events, `translations`) — kept apart, a Chest refuses unknown keys |
+| `chest.proposals.json` | Proposal keys (`mail` — the welcome email to an arrival not in the Chest yet only, `emits`, `receives` of other tools' events, `translations`) — kept apart, a Chest refuses unknown keys |
 | `src/app.tsx` | **Every route**: `createApp({…})`, the pages (`people()`: a role, and the "My to-dos" number for the layout), downloads, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every mutation**, by name (`call("tickItem", …)` from an island): thin; the services check rights and input; the bell after the answer (`after()`) |
 | `src/pages/` | Pages rendered on the server: read, resolve names, write every word and date, hand plain data to islands (`parts.tsx`: back link, meter, the directory's foot) |
@@ -38,7 +38,8 @@ must not break.
 | `src/lib/fields.ts` | HR's extra profile fields and their values (`valueFor`); `dueDates` for the morning bell |
 | `src/lib/numbers.ts` | One population (`workersOf`): headcount, by team/office/contract, arrivals and departures by month, turnover — pure |
 | `src/lib/people.ts` | Names and photos from ids (`people`, `nameOf` — former, no access, erased), everyone (`everyone`) |
-| `src/lib/tell.ts`, `notify.ts` | The bell (each recipient's language, keyed per checklist) and badges |
+| `src/lib/tell.ts`, `notify.ts` | The bell (`notice()`: English with its French as `translations`, keyed per checklist) and badges. Never mail a member: notify |
+| `src/lib/welcome.ts`, `mailing.ts` | The welcome when a welcome checklist starts: a notification to a member, an email (`mail.send`, the only one People sends) to an arrival not in the Chest yet at their work address; whether the Chest would send it (`mail.available()`) |
 | `src/lib/lifecycle.ts`, `morning.ts`, `deliveries.ts` | Leaving and erasure; the scheduled morning; what the Chest posts (`onEvent`, `onSchedule`, the delivered ids in `chest_events`) |
 | `src/lib/db.ts` | The pool (`db()`, opened on first use; `provide()` for tests) |
 | `migrations/` | Schema (`0004_records.sql`: manual arrivals, manager left, phrases, extra fields, records, documents, journal; `0005_field_kinds_and_names.sql`: field kinds, choices and reminders; example template names as phrases; `0006_privacy_permits_requests_letters.sql`: who sees a field (dates made private), employee number, permit end, days worked, `told`, asked changes, letters, journal actions). Never edit a shipped file; add the next number |

@@ -15,7 +15,7 @@ import { mentions, register, registerCsv, registerGaps } from "../src/lib/regist
 import { plainName } from "../src/lib/people.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom, seen } from "./support/members.ts";
 import { updateJob } from "../src/lib/profiles.ts";
 
 let database: TestDatabase;
@@ -186,7 +186,7 @@ test("what is coming up; the bell tells HR in their language; records go five ye
   const soon = await upcoming(sql, "2026-10-10");
   assert.deepEqual(soon.filter(s => s.id === noraId).map(s => [s.what, s.day]), [["trial", "2026-10-21"]]);
   await endings(sql, "2026-10-10");
-  const told = chest.notifications.filter(n => n.key === `record:${noraId}:trial:2026-10-21`);
+  const told = chest.notifications.filter(n => n.key === `record:${noraId}:trial:2026-10-21`).map(seen);
   assert.deepEqual(told.map(n => n.member).sort(), [camille.id, sofia.id].sort());
   assert.equal(told.find(n => n.member === camille.id)!.title, "La période d’essai de Nora Petit se termine le 21 octobre");
   assert.equal(told.find(n => n.member === sofia.id)!.title, "Nora Petit’s trial period ends on 21 October");

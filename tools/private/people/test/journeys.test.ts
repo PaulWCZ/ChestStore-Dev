@@ -11,7 +11,7 @@ import * as tell from "../src/lib/tell.ts";
 import { examples } from "../src/lib/examples.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -82,7 +82,7 @@ test("starting a checklist gives each step to someone, tells them in their langu
     ["Give the office tour", tom.id, start],
     ["Fill in your profile", nora.id, addDays(start, 1)],
   ]);
-  const inbox = (who: string) => chest.notifications.filter(n => n.member === who).map(n => n.title);
+  const inbox = (who: string) => chest.notifications.filter(n => n.member === who).map(n => seen(n).title);
   assert.deepEqual(inbox(ines.id), ["Arrivée de Nora Petit : 1 tâche pour vous"]);
   assert.deepEqual(inbox(tom.id), ["Welcome Nora Petit: 1 to-do for you"]);
   assert.deepEqual(inbox(nora.id), ["Vos premières semaines : 1 tâche"]);

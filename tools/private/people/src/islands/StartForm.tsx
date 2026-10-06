@@ -14,7 +14,7 @@ type MailState = "ready" | "later" | "off" | "unknown";
 // Someone a checklist can be for: a member, or an expected arrival.
 type Pickable = { id: string; name: string; startDate: string | null; managerId?: string | null; detail?: string };
 type Words = {
-  start: { person: string; template: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; welcome: string; welcomed: string; noMail: string; mailPaused: string; noAddress: string; manager: string; weekend: string };
+  start: { person: string; template: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; welcome: string; welcomed: string; welcomeNotice: string; welcomedNotice: string; noMail: string; mailPaused: string; noAddress: string; manager: string; weekend: string };
   // "Arriving (not in the Chest yet)": said beside an expected arrival.
   group: string;
   date: DateWords;
@@ -36,8 +36,8 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
   // The names of the days, Sunday first, in the reader's language.
   weekdays: string[];
   lang: string;
-  // Whether the welcome email would leave (lib/mailing.ts): the form never
-  // promises one the Chest cannot send.
+  // Whether the welcome email to an arrival would leave (lib/mailing.ts):
+  // the form never promises one the Chest cannot send.
   mailing: MailState;
   t: Words;
 }) {
@@ -59,14 +59,19 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
   // A day refused by the field (before 2000, after 2100, unreadable) leaves
   // the previous one in `anchor`: the checklist waits (kit 0.2.4).
   const dates = useDateProblems();
-  // What the form says of the welcome email, before starting: only for an
-  // arrival checklist whose first day is not long past (lib/welcome.ts).
+  // What the form says of the welcome, before starting: only for a welcome
+  // checklist whose first day is not long past (lib/welcome.ts). A member
+  // finds it in their notifications; an arrival not in the Chest yet gets
+  // an email, when the Chest can send one.
   const named = picked[0]?.name ?? "";
-  const welcomeLine = chosen.kind !== "onboarding" || !person || !anchor || daysBetween(anchor, today) > welcomeLateDays || mailing === "unknown" ? null
-    : arrival && !arrival.mailable ? format(t.start.noAddress, { name: named })
+  const welcomeLine = chosen.kind !== "onboarding" || !person || !anchor || daysBetween(anchor, today) > welcomeLateDays ? null
+    : !arrival ? format(t.start.welcomeNotice, { name: named })
+    : !arrival.mailable ? format(t.start.noAddress, { name: named })
+    : mailing === "unknown" ? null
     : mailing === "off" ? format(t.start.noMail, { name: named })
     : mailing === "later" ? format(t.start.mailPaused, { name: named })
     : format(t.start.welcome, { name: named });
+  const welcomes = !arrival || (arrival.mailable && mailing === "ready");
   const weekend = anchor && isWeekend(anchor) ? weekdays[new Date(anchor + "T00:00:00Z").getUTCDay()]! : null;
   const suggest = (p: string, tid: string) => {
     if (touched) return;
@@ -84,7 +89,8 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
         setError(result.message);
         return;
       }
-      toast({ id: "started", text: result.value.welcomed ? format(t.start.welcomed, { name: picked[0]?.name ?? "" }) : t.start.told });
+      const name = picked[0]?.name ?? "";
+      toast({ id: "started", text: result.value.welcomed === "notice" ? format(t.start.welcomedNotice, { name }) : result.value.welcomed === "email" ? format(t.start.welcomed, { name }) : t.start.told });
       await navigate(`/chest/checklists/${result.value.id}`);
     });
   };
@@ -122,7 +128,7 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
         <p className="hint warn-hint" role="status">{weekend ? format(t.start.weekend, { day: weekend }) : ""}</p>
       </div>
       <p className="hint">{t.start.told}</p>
-      {welcomeLine && <p className="hint" data-welcome={mailing === "ready" && !(arrival && !arrival.mailable) ? "yes" : "no"}>{welcomeLine}</p>}
+      {welcomeLine && <p className="hint" data-welcome={welcomes ? "yes" : "no"}>{welcomeLine}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row form-actions">
         <button type="submit" className="button" disabled={pending || !person || !anchor || dates.problem !== null}>{pending ? t.start.starting : t.start.submit}</button>

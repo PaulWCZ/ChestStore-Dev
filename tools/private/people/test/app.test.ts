@@ -136,19 +136,19 @@ test("the fields at the door: a row's id, a member's id, a choice, a day — any
   assert.equal((await call(camille, "linkArrival", { id: "1", memberId: "someone" })).error, "invalid");
   assert.equal((await call(camille, "createTemplate", { kind: "holiday", name: "x" })).error, "invalid");
   assert.equal((await call(camille, "addChecklistItem", { id: "1", text: "x", due: "2026-02-31" })).error, "invalid");
-  assert.equal((await call(camille, "saveCell", { member: hugo.id, key: "salary", value: "1" })).error, "invalid");
+  assert.equal((await call(camille, "saveCell", { "member": hugo.id, key: "salary", value: "1" })).error, "invalid");
   const long = await call(camille, "createTemplate", { kind: "onboarding", name: "x".repeat(81) });
   assert.deepEqual([long.error, long.message], ["too_long", "Trop long\u202f: 80 caractères au plus."]);
 });
 
 test("HR's job fields: a loop of managers is refused in plain words; the chart draws the tree", async () => {
   assert.equal((await call(camille, "saveProfile", { id: hugo.id, job: { title: "Sales lead", team: "Sales", office: "Lyon", managerId: lea.id, startDate: "2021-09-15" } })).ok, true);
-  assert.equal((await call(camille, "saveCell", { member: lea.id, key: "team", value: "Sales" })).ok, true);
-  const loop = await call(camille, "saveCell", { member: lea.id, key: "managerId", value: hugo.id });
+  assert.equal((await call(camille, "saveCell", { "member": lea.id, key: "team", value: "Sales" })).ok, true);
+  const loop = await call(camille, "saveCell", { "member": lea.id, key: "managerId", value: hugo.id });
   assert.equal(loop.error, "cycle");
   assert.match(loop.message ?? "", /boucle/u);
   // A member may not write job fields.
-  assert.equal((await call(hugo, "saveCell", { member: hugo.id, key: "title", value: "Boss" })).error, "forbidden");
+  assert.equal((await call(hugo, "saveCell", { "member": hugo.id, key: "title", value: "Boss" })).error, "forbidden");
   const chart = await page(hugo, "/chest/chart");
   assert.equal(chart.status, 200);
   assert.match(chart.html, /data-island="OrgChart"/u);

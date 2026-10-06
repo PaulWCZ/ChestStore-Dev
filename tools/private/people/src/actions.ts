@@ -15,7 +15,7 @@ import * as recordImport from "./lib/record-import.ts";
 import * as records from "./lib/records.ts";
 import * as share from "./lib/share.ts";
 import * as tell from "./lib/tell.ts";
-import { welcome } from "./lib/welcome.ts";
+import { welcome, type Welcomed } from "./lib/welcome.ts";
 import { today } from "./lib/zone.ts";
 import { formatDay } from "./shared/format.ts";
 import { documentKinds, itemRoles, kinds, limits, memberPattern } from "./shared/model.ts";
@@ -100,7 +100,7 @@ export const actions = {
   // One cell of HR's table: a job field ("title", "team", "office",
   // "managerId", "startDate", "phone") or an extra field ("x:<id>").
   // An empty manager or start date is none (null); an empty text, "".
-  saveCell: act({ member: person(), key: cellKey(), value: field.nullable(words(limits.fieldValue)) }, async ({ member: who, key, value }, { member }): Promise<null> => {
+  saveCell: act({ "member": person(), key: cellKey(), value: field.nullable(words(limits.fieldValue)) }, async ({ "member": who, key, value }, { member }): Promise<null> => {
     const sql = db();
     if (key.startsWith("x:")) await fields.setValue(sql, member, who, key.slice(2), value ?? "");
     else await profiles.updateJob(sql, member, who, { [key]: key === "managerId" || key === "startDate" ? value ?? null : value ?? "" });
@@ -134,15 +134,15 @@ export const actions = {
 
   // Starting a checklist. A leaving checklist sets the person's last day:
   // other tools are told (share.around). A welcome checklist: the newcomer
-  // gets a short welcome email (lib/welcome.ts), and the page says so once
-  // it left.
+  // gets a short welcome (lib/welcome.ts: a notification to a member, an
+  // email to an arrival not in the Chest yet), and the page says which.
   startChecklist: act({ personId: field.optional(person()), arrivalId: field.optional(ref()), managerId: someone(), templateId: ref(), anchor: field.day() },
-    async (input, { member }): Promise<{ id: string; welcomed: boolean }> => {
+    async (input, { member }): Promise<{ id: string; welcomed: Welcomed }> => {
       const sql = db();
       const leaving = input.personId !== undefined && input.arrivalId === undefined ? input.personId : null;
       const started = await share.around(sql, leaving, () => j.startJourney(sql, member, input));
       after("checklist told", () => tell.todo(db(), member, started, started.assignees.keys()));
-      const welcomed = started.kind === "onboarding" ? await welcome(sql, member, started.id) : false;
+      const welcomed = started.kind === "onboarding" ? await welcome(sql, member, started.id) : null;
       return { id: started.id, welcomed };
     }),
   addChecklistItem: act({ id: ref(), text: named(limits.itemText), assignee: someone(), due: field.day() }, async ({ id, ...input }, { member }): Promise<null> => {

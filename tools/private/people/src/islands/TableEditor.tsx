@@ -59,7 +59,7 @@ export function TableEditor({ rows, managers, fields, known, today, lang, t }: {
   });
   const [saved, setSaved] = useState(values);
 
-  const send = (person: string, key: string, value: string) => call("saveCell", { member: person, key, value: value === "" ? (key === "managerId" || key === "startDate" ? null : "") : value }, { refresh: false, quiet: true });
+  const send = (person: string, key: string, value: string) => call("saveCell", { "member": person, key, value: value === "" ? (key === "managerId" || key === "startDate" ? null : "") : value }, { refresh: false, quiet: true });
   const commit = (person: string, key: string, value: string, before: string) => {
     if (value === before) return;
     const cell = `${person}|${key}`;

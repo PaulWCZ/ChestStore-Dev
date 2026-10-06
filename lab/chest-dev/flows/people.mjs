@@ -608,7 +608,7 @@ await step("Leave tells of an approved leave: the card and the profile say “Aw
   // Days in the Chest's time zone (the harness's).
   const today = chestToday();
   const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
-  await deliver("leave.approved", { member: id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
+  await deliver("leave.approved", { "member": id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
   await page.context().addCookies([{ name: "dev_locale", value: "en", url: origin }]);
   await page.goto(origin + "/chest");
   const card = page.locator(".wall li", { hasText: "Léa Dubois" });
@@ -619,12 +619,12 @@ await step("Leave tells of an approved leave: the card and the profile say “Aw
   await page.waitForURL(/\/chest\/people\/mbr_/u);
   const note = (await page.locator(".profile-id .away").innerText()).trim();
   expect(note.startsWith("Away · back on") && !/holiday|sick|note/iu.test(await page.locator("main").innerText()), "profile: " + note);
-  await deliver("leave.cancelled", { member: id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
+  await deliver("leave.cancelled", { "member": id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
   await page.goto(origin + "/chest");
   expect(await page.locator(".wall li", { hasText: "Léa Dubois" }).locator(".away").count() === 0, "gone once cancelled");
   // Away again for the screenshots and the audit.
-  await deliver("leave.approved", { member: id("lea"), from: day(0), to: day(4), fromHalf: "am", toHalf: "pm", request: "902" });
-  await deliver("leave.approved", { member: id("tom"), from: day(0), to: day(0), fromHalf: "pm", toHalf: "pm", request: "903" });
+  await deliver("leave.approved", { "member": id("lea"), from: day(0), to: day(4), fromHalf: "am", toHalf: "pm", request: "902" });
+  await deliver("leave.approved", { "member": id("tom"), from: day(0), to: day(0), fromHalf: "pm", toHalf: "pm", request: "903" });
   await page.goto(origin + "/chest");
   expect((await page.locator(".wall li", { hasText: "Tom Walker" }).locator(".away").innerText()).trim().startsWith("Away this afternoon"), "half day");
 });
@@ -632,7 +632,7 @@ await step("Leave tells of an approved leave: the card and the profile say “Aw
 await step("Leave shortens Hugo's leave (cancelled, then approved for fewer days): the card keeps him away, back sooner", async () => {
   const today = chestToday();
   const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
-  const whole = { member: id("hugo"), from: day(0), to: day(6), fromHalf: "am", toHalf: "pm", request: "904" };
+  const whole = { "member": id("hugo"), from: day(0), to: day(6), fromHalf: "am", toHalf: "pm", request: "904" };
   const badge = async () => {
     await page.goto(origin + "/chest");
     const away = page.locator(".wall li", { hasText: "Hugo Bernard" }).locator(".away");
@@ -723,11 +723,31 @@ await step("pass 4: Equipment tells that everything is back: the leaving checkli
   const journey = page.url();
   const step = () => page.locator(".step", { hasText: "Return the laptop, badge and keys" });
   expect(!(await step().innerText()).includes("Ticked by Equipment"), "open before");
-  await deliver("equipment.returned", { member: id("sofia") });
+  await deliver("equipment.returned", { "member": id("sofia") });
   await page.goto(journey);
   const text = await step().innerText();
   expect(text.includes("Ticked by Equipment: everything is back"), "ticked by Equipment: " + text);
   expect((await page.locator("main").innerText()).includes("1 of 5 done"), "one step done");
+});
+
+await step("a member's welcome checklist: the form promises a welcome in her notifications; she finds it, in French; no email", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/checklists/new");
+  await page.getByRole("combobox", { name: "Who is it for?" }).fill("Léa");
+  await page.getByRole("option", { name: "Léa Dubois" }).click();
+  await page.locator(".choice", { hasText: "Office newcomer" }).click();
+  // Léa came long ago: a first day ahead (a welcome is for the days around it).
+  await page.getByLabel("First day").fill("11/01/2027");
+  await page.getByLabel("First day").press("Tab");
+  const promised = await page.locator("[data-welcome=yes]").innerText();
+  expect(promised === "Léa Dubois finds a short welcome in their Chest notifications.", "promised: " + promised);
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.waitForURL(/\/chest\/checklists\/\d+$/u);
+  await page.locator(".ck-toast", { hasText: "Started. Léa Dubois finds a short welcome in their notifications." }).waitFor();
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const item = (dev.match(/<li><b>Léa Dubois<\/b> · Welcome to Atelier Martin, Léa[\s\S]*?<\/li>/u) ?? [""])[0];
+  expect(item.includes("fr: Bienvenue chez Atelier Martin, Léa") && item.includes("/chest/todo"), "her welcome notice: " + item);
+  expect(!/<pre>[^<]*Hello Léa/u.test(dev), "no welcome email to a member");
 });
 
 await step("in French: the directory and a checklist speak French", async () => {

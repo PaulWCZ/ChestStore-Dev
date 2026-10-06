@@ -16,7 +16,7 @@ import { filled, profile, updateJob, updateOwn } from "../src/lib/profiles.ts";
 import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, nora, sofia, tom, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -78,7 +78,7 @@ test("date and choice fields: values checked, a date reminds HR in the bell, the
   // Within 30 days of 29 September: Hugo's visit, not Nora's.
   chest.notifications.length = 0;
   await fieldDates(sql, "2026-09-29");
-  const told = chest.notifications.filter(n => n.member === camille.id);
+  const told = chest.notifications.filter(n => n.member === camille.id).map(seen);
   assert.deepEqual(told.map(n => [n.path, n.key]), [[`/chest/people/${hugo.id}`, `field:${visit.id}:${hugo.id}:2026-10-20`]]);
   assert.match(told[0]!.title, /^Hugo Bernard[\u202f ]: Medical visit le 20 octobre$/u);
   await updateField(sql, hr, visit.id, { label: "Medical visit", editor: "hr", alertDays: "" });

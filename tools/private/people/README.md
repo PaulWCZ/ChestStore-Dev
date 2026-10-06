@@ -81,18 +81,23 @@ see "What it does not do yet".
   its day, adds or deletes steps, stops a checklist (with *Undo*) or
   deletes a stopped one (asked first: it is for good). The person who started it is told when it is
   complete.
-- **A welcome email** (Proposal (studio) `mail`): starting a welcome
-  checklist sends the newcomer a short email in their language — welcome
-  to the company, their first day, their manager, where their first steps
-  are (a link to *My to-dos* once they have the Chest) — signed by the HR
-  person who started it, whose address is the reply address. A member
-  gets it at their Chest address (People never types it); an arrival not
-  in the Chest yet at the **work address** HR gave (Hiring's personal
-  address is never kept, so an arrival from Hiring without one gets
-  nothing); an arrival reads the Chest's language. Once per checklist; not
-  for a first day more than two weeks past; the person's own email choice
-  in the Chest is followed (not transactional). The page says "Started.
-  Nora gets a short welcome email." only when it left.
+- **A welcome** when a welcome checklist starts — welcome to the company,
+  their first day, their manager, where their first steps are — signed by
+  the HR person who started it. Two ways, by who the newcomer is (the
+  owner's decision of 6 October 2026: mail to members is never a tool's
+  job):
+  - **a member of the Chest** finds it in their **notifications** (English
+    with its French; the Chest shows them theirs, and mails it to them if
+    that is their choice in the Chest); it opens *My to-dos*;
+  - **an arrival not in the Chest yet** gets it **by email** at the **work
+    address** HR gave (not a member: an email to someone outside, see "Mail
+    to people outside the company"), in the Chest's language. Hiring's
+    personal address is never kept, so an arrival from Hiring without a
+    work address gets nothing.
+  Once per checklist; not for a first day more than two weeks past. The
+  start form says beforehand which it will be ("Nora finds a short welcome
+  in their Chest notifications.", "Lucie gets a short welcome email.", or
+  why no email will leave), and the page after says what happened.
 - **Import** a CSV (a shared spreadsheet, BambooHR's reports, a Google
   Workspace users export, Lucca's export): columns recognised from their
   names in English and French — BambooHR's "Employee #" (left out), "First
@@ -289,7 +294,7 @@ v1, which Equipment publishes (`tools/private/equipment/lib/returned.ts`,
 its `emits`): Equipment receives `people.leaving` and lists what the person
 holds; once everything they held is back, it publishes
 
-- `equipment.returned` `{member: "mbr_…"}` (key
+- `equipment.returned` `{"member": "mbr_…"}` (key
   `equipment:<member>:returned:<time>`), and People ticks the running
   leaving checklist's **"Return the laptop, badge and keys"** step for
   that person, marked "Ticked by Equipment: everything is back"; its
@@ -407,15 +412,24 @@ records: see "On a Chest").
 | `/chest/look.css`, `/assets/…` | the page | the look; the browser's script, styles, fonts, icon |
 | `/` | anyone | "People lives in your Chest" |
 
-## On a Chest
+## Mail to people outside the company
+
+Sent through the Chest's mail connector (studio proposal, not built yet).
+Members are never mailed by People: they get notifications, which the
+Chest mails them by their own choice.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| A newcomer not in the Chest yet (an expected arrival), at the work address HR typed on their arrival | Welcome them before they have access | When HR starts their welcome checklist, once; not for a first day more than two weeks past; never to Hiring's personal address | "Welcome to {company}, {name}": their first day, their manager, that their first steps will wait for them in People; signed by the HR person; plain text, in the Chest's language | None | The HR person who started the checklist (their Chest address), else the company's reply address |
+
 
 - `capabilities`: `database`, `members` (names, photos, roles: the directory
   itself), `members.email` (the work address on profiles, the import's
   matching), `files` (the records' documents, 20 MB each), `notifications`
   (the bell and the tile's number: open to-dos); `receives: ["member.*"]`.
   No network. Proposal (studio), in `chest.proposals.json`: `mail:
-  {send: true}` (the welcome email), `emits`, `receives` (Hiring, Leave,
-  Equipment).
+  {send: true}` (the welcome email to an arrival not in the Chest yet —
+  never to a member), `emits`, `receives` (Hiring, Leave, Equipment).
 - `"schedules"` (contract 0.4): `morning`, weekdays at 07:40 on the
   Chest's clock, posted to `POST /chest-schedules`.
 - `build.static: ["/assets/"]`: the browser's files, the fonts and the icon
@@ -455,11 +469,11 @@ records: see "On a Chest").
 
 ## Needs from the SDK
 
-People runs on SDK 0.4.1 + studio proposals (0.4.1-studio.3), contract
+People runs on SDK 0.4.1 + studio proposals (0.4.1-studio.6), contract
 0.4, and the studio's `@argentic/chest-app` (0.1.0-studio.3), in `vendor/`.
 From 0.3.0: `member(request)` with the member's `language` (the
 interface and the bell in each member's language) and `timeZone`;
-`chest.organization.name` (the company's name in the welcome email and
+`chest.organization.name` (the company's name in the welcome and
 the letters); `chest.timeZone` and `chest.today()`: "today", due days and
 anniversaries — the database's `current_date` is the same day, since the
 Chest makes its zone the TimeZone of the tool's database sessions. The
@@ -477,18 +491,22 @@ records, the morning run).
   the journal after two, the delivered ids after 30 days). The tile's
   number is also set whenever a step changes and when its owner opens *My
   to-dos*. Reading a page never deletes anything.
-- `mail` — **Proposal (studio)**: `mail.send` of the welcome email (to a
-  member by id, or to an arrival's work address; `replyTo` the HR person's
-  Chest address, `members.email`). The person's own email choice
-  (`mailPreference`, in the members API) is applied by `mail.send`. The
-  start form asks `mail.available()` (`src/lib/mailing.ts`) before
-  it promises the email: "{name} gets a short welcome email" only when the
-  Chest would send it; otherwise it says why none will leave (mail not
-  connected, mail paused or the day's emails used, no work email for an
-  arrival). The key names the checklist and the recipient (`people:welcome:<checklist>:<member or address>`),
-  so a restored database never reuses one person's key for another. On a
-  Chest without mail, nothing is sent, nothing fails, and the page does
-  not say it was sent.
+- `notifications` (0.4.1) with `translations` (Proposal (studio),
+  announced for 0.5): every bell item in English and French in one call,
+  the member's welcome among them.
+- `mail` — **Proposal (studio)**: `mail.send` of the welcome email to an
+  arrival not in the Chest yet, at the work address HR gave (`replyTo` the
+  HR person's Chest address, `members.email`; else the company's reply
+  address the owner set with the connector). The start form asks
+  `mail.available()` (`src/lib/mailing.ts`) before it promises the email:
+  "{name} gets a short welcome email" only when the Chest would send it;
+  otherwise it says why none will leave (the company's mail not connected,
+  mail paused or the day's emails used, no work email). The key names the
+  checklist and the address (`people:welcome:<checklist>:<address>`), so a
+  restored database never reuses one person's key for another. Without the
+  connector nothing is sent, nothing fails, and the page does not say it
+  was sent. `mail.status(id)` would tell a bounce; People does not follow
+  it yet (HR sees the newcomer on day one anyway).
 - **Events between tools** — **Proposal (studio)**: receives
   `hiring.hired`, `hiring.hire_cancelled`, `leave.approved`,
   `leave.cancelled`, `equipment.returned`; emits `people.leaving`, `people.leaving_cancelled`,
@@ -563,7 +581,7 @@ record comes from documents; the work phone is the person's own to edit);
 field visibility has two levels (everyone, or HR and the person) — no
 "team only"; vCard export; "away" from other sources than Leave (a
 calendar); public holidays in the "back on" day; teams as Chest groups;
-drag-and-drop in the org chart; reminders by email; the welcome email's
+drag-and-drop in the org chart; the welcome's
 words are the tool's (HR cannot reword it yet) and it goes when the
 checklist starts, not on a day HR picks; an
 export of checklists and their history; changing a

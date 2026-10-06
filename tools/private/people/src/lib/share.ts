@@ -50,8 +50,8 @@ export async function around<T>(sql: Query, memberId: string | null, change: () 
   const after = await lastDay(sql, person);
   if (after === before) return done;
   const at = Date.now();
-  if (after) await publish("people.leaving", { member: person, lastDay: after }, `people:${person}:leaving:${at}`);
-  else await publish("people.leaving_cancelled", { member: person }, `people:${person}:stays:${at}`);
+  if (after) await publish("people.leaving", { "member": person, lastDay: after }, `people:${person}:leaving:${at}`);
+  else await publish("people.leaving_cancelled", { "member": person }, `people:${person}:stays:${at}`);
   return done;
 }
 
@@ -70,7 +70,7 @@ export async function around<T>(sql: Query, memberId: string | null, change: () 
 //     weeklyHours     number | null
 //
 // Never the name, the contract, the address or anything else of the record.
-export type Told = { member: string; employeeNumber: string | null; startDate: string | null; lastDay: string | null; workDays: number[] | null; weeklyHours: number | null };
+export type Told = { "member": string; employeeNumber: string | null; startDate: string | null; lastDay: string | null; workDays: number[] | null; weeklyHours: number | null };
 
 export async function tellRecords(sql: Query, recordIds: string[]): Promise<number> {
   if (recordIds.length === 0) return 0;

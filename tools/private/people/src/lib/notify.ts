@@ -1,28 +1,39 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { catalogue, type Catalogue } from "../i18n/index.ts";
-import { people } from "./people.ts";
+import { catalogue, defaultLocale, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 
-// Items in the Chest's bell, each written in its recipient's language. A
-// notification is a courtesy: when the Chest cannot take it (not granted,
-// quota, unreachable), the action that sent it still succeeds.
-export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
-  const ids = [...new Set(recipients)];
-  if (ids.length === 0) return;
-  const byLocale = new Map<Locale, string[]>();
-  for (const person of (await people(ids)).values()) {
-    if (person.status !== "member") continue;
-    byLocale.set(person.locale, [...(byLocale.get(person.locale) ?? []), person.id]);
-  }
-  for (const [locale, group] of byLocale) {
+// Items in the Chest's bell. Each notice is written once in English (the
+// fallback) with the same words in every other language of the tool as
+// translations (Proposal (studio), announced for 0.5): the Chest shows
+// each member theirs, and mails members their notifications by their own
+// choice in the Chest — People mails no member. A notification is a
+// courtesy: when the Chest cannot take it (not granted, quota,
+// unreachable), the action that sent it still succeeds.
+type Words = { title: string; body?: string };
+
+export function notice(message: (t: Catalogue, locale: Locale) => Words, options: { path: string; key?: string }): notifications.Notice {
+  const words = (locale: Locale): Words => {
     const { title, body } = message(catalogue(locale), locale);
-    try {
-      await notifications.notify(group, { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}), path: options.path, ...(options.key ? { key: options.key } : {}) });
-    } catch (error) {
-      if (!(error instanceof ChestError)) throw error;
-    }
+    return { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}) };
+  };
+  const translations: Record<string, Words> = {};
+  for (const locale of locales) if (locale !== defaultLocale) translations[locale] = words(locale);
+  return { ...words(defaultLocale), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
+}
+
+// notify tells these members, 500 to a call (notify's bound); the members
+// the Chest took (none when it cannot take it).
+export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => Words, options: { path: string; key?: string }): Promise<string[]> {
+  const ids = [...new Set(recipients)].filter(id => id.startsWith("mbr_"));
+  if (ids.length === 0) return [];
+  const written = notice(message, options);
+  const delivered: string[] = [];
+  try {
+    for (let i = 0; i < ids.length; i += 500) delivered.push(...(await notifications.notify(ids.slice(i, i + 500), written)).delivered);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
   }
+  return delivered;
 }
 
 export async function withdraw(key: string, members?: string[]): Promise<void> {

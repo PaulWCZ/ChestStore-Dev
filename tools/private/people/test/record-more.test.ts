@@ -10,7 +10,7 @@ import { employeeNumber, workDays } from "../src/shared/model.ts";
 import { createRecord, linkRecord, listRecords, record, updateRecord, upcoming } from "../src/lib/records.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, nora, sofia, tom, seen } from "./support/members.ts";
 
 // Round 3: the employee number, the work permit's end, the days worked,
 // what People tells Leave of a record (events between tools), and changes
@@ -54,7 +54,7 @@ test("a record's employee number is unique; the work permit's end reminds HR 60 
   assert.deepEqual((await upcoming(sql, "2026-12-01")).filter(u => u.id === a.id).map(u => u.what), ["permit"]);
   chest.notifications.length = 0;
   await endings(sql, "2026-12-01");
-  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `record:${a.id}:permit:2026-11-20`);
+  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `record:${a.id}:permit:2026-11-20`).map(seen);
   assert.equal(told.length, 1);
   assert.match(told[0]!.title, /DIALLO Aminata a expiré le 20 novembre/u);
   // A day refused: an 8th day of the week.
@@ -66,9 +66,9 @@ test("People tells Leave what it needs of a linked record — number, first and 
   chest.published.length = 0;
   const { id } = await createRecord(sql, hr, { memberId: tom.id });
   // Created with nothing Leave needs but the member: told once.
-  assert.deepEqual(chest.published.map(e => [e.type, e.data]), [["people.record", { member: tom.id, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null }]]);
+  assert.deepEqual(chest.published.map(e => [e.type, e.data]), [["people.record", { "member": tom.id, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null }]]);
   await updateRecord(sql, hr, id, { employeeNumber: "0019", startDate: "2024-03-04", workingTime: "part", hours: "28", workDays: "1,2,3,4" });
-  assert.deepEqual(chest.published.at(-1)?.data, { member: tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
+  assert.deepEqual(chest.published.at(-1)?.data, { "member": tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
   // A change Leave does not need tells nothing.
   const before = chest.published.length;
   await updateRecord(sql, hr, id, { address: "1 rue de la Paix", nationality: "Britannique" });
@@ -83,7 +83,7 @@ test("People tells Leave what it needs of a linked record — number, first and 
   assert.equal(chest.published.length, n);
   // Linked to Hugo later: told for Hugo then.
   await linkRecord(sql, hr, other.id, hugo.id);
-  assert.deepEqual(chest.published.at(-1)?.data, { member: hugo.id, employeeNumber: "0026", startDate: "2026-08-20", lastDay: null, workDays: null, weeklyHours: null });
+  assert.deepEqual(chest.published.at(-1)?.data, { "member": hugo.id, employeeNumber: "0026", startDate: "2026-08-20", lastDay: null, workDays: null, weeklyHours: null });
 });
 
 test("a change asked by the person: address and emergency contact only; HR accepts (the record changes) or declines; one waits at a time", async () => {

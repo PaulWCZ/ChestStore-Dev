@@ -314,7 +314,7 @@ const words = {
     weekend: "That is a {day}: is it right?",
   },
   start: {
-    noMail: "Your Chest cannot send emails yet: {name} gets no welcome email.",
+    noMail: "Your company’s mail is not connected to the Chest yet: {name} gets no welcome email.",
     mailPaused: "Your Chest is not sending emails right now: {name} gets no welcome email.",
     noAddress: "{name} gets no welcome email: add their work email to their arrival first.",
     title: "Start a checklist",
@@ -327,6 +327,9 @@ const words = {
     told: "Everyone with a step is told in their bell.",
     welcome: "{name} gets a short welcome email.",
     welcomed: "Started. {name} gets a short welcome email.",
+    // A member: the welcome is a notification (the Chest mails it if they chose so).
+    welcomeNotice: "{name} finds a short welcome in their Chest notifications.",
+    welcomedNotice: "Started. {name} finds a short welcome in their notifications.",
     noTemplates: "Create a template first.",
     newTemplate: "Create a template",
     manager: "Their manager",
@@ -1003,8 +1006,9 @@ const words = {
     },
     digest: { one: "1 checklist to-do for today", other: "{count} checklist to-dos for today" },
   },
-  // The short welcome a newcomer gets by email when HR starts their
-  // welcome checklist (lib/welcome.ts), in the newcomer's language.
+  // The short welcome a newcomer gets when HR starts their welcome
+  // checklist (lib/welcome.ts): a notification to a member, an email to an
+  // arrival not in the Chest yet.
   welcome: {
     subject: "Welcome to {company}, {name}",
     subjectNoCompany: "Welcome, {name}",
@@ -1012,7 +1016,8 @@ const words = {
     firstDay: "Welcome to {company}! Your first day is {day}.",
     firstDayNoCompany: "Welcome to the team! Your first day is {day}.",
     manager: "{manager} will be your manager.",
-    steps: "Your first steps are ready in People, in the company’s Chest:",
+    stepsHere: "Your first steps are ready in People.",
+    signed: "— {name}",
     stepsLater: "You will get access to the company’s Chest; your first steps will be waiting for you in People.",
     bye: "See you soon,",
   },

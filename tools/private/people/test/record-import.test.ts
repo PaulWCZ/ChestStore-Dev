@@ -86,7 +86,7 @@ test("the import writes the records in one go, notes each in the journal (field 
   assert.deepEqual(log.map(e => e.action), ["viewed", "imported", "created"]);
   assert.ok(log[1]!.fields.includes("employeeNumber") && !JSON.stringify(log).includes("Neuve"));
   // Leave hears Tom's number and first day (members only).
-  assert.deepEqual(chest.published.filter(e => (e.data as { member: string }).member === tom.id).map(e => [(e.data as { employeeNumber: string }).employeeNumber, (e.data as { startDate: string }).startDate]), [["0019", "2024-03-04"]]);
+  assert.deepEqual(chest.published.filter(e => (e.data as { "member": string }).member === tom.id).map(e => [(e.data as { employeeNumber: string }).employeeNumber, (e.data as { startDate: string }).startDate]), [["0019", "2024-03-04"]]);
   // Imported again: the same records, nothing new.
   assert.deepEqual(await applyRecords(sql, hr, lucca), { created: 0, updated: 0, skipped: 0 });
 });
