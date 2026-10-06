@@ -20,8 +20,10 @@ import { limits } from "./shared/model.ts";
 // from the Chest's assertion; the services (src/lib/) check what the
 // member may do and refuse with a code, never a sentence. After each one
 // that succeeded, what is back from a leaving person is told to People
-// (lib/returned.ts; never fails the action).
-function act<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number } = {}) {
+// (lib/returned.ts; never fails the action). The slow ones (an import,
+// Microsoft's answer, an upload's grant) run beside the page's others
+// (parallel): the queue of a page's actions does not wait for them.
+function act<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number; parallel?: boolean } = {}) {
   return action(input, async (values, context) => {
     const value = await run(values, context);
     await tellPeople(db());
@@ -227,21 +229,21 @@ export const actions = {
   // come, runImport writes it. checkIntune reads Microsoft Intune now and
   // shows what it knows that is not here yet, as a file would be shown.
   checkImport: act({ source: raw<string>(), text: raw<string>(), keep: maybe<string[]>() }, async ({ source, text, keep }, { member }): Promise<Plan> =>
-    previewImport(db(), member, source, text, keep === undefined ? undefined : { keep }), { maxBody: limits.importBytes * 2 + 65_536 }),
+    previewImport(db(), member, source, text, keep === undefined ? undefined : { keep }), { maxBody: limits.importBytes * 2 + 65_536, parallel: true }),
   runImport: act({ source: raw<string>(), text: raw<string>(), keep: maybe<string[]>() }, async ({ source, text, keep }, { member }): Promise<{ imported: number; skipped: number; fields: number }> =>
-    applyImport(db(), member, source, text, keep === undefined ? undefined : { keep }), { maxBody: limits.importBytes * 2 + 65_536 }),
+    applyImport(db(), member, source, text, keep === undefined ? undefined : { keep }), { maxBody: limits.importBytes * 2 + 65_536, parallel: true }),
   checkIntune: act({}, async (_input, { member }): Promise<{ devices: number; text: string | null; plan: Plan | null }> => {
     const read = await refresh(db(), member);
     const { text, count } = await missingAsCsv(db(), member, read.list);
     return { devices: read.devices, text: count > 0 ? text : null, plan: count > 0 ? await previewImport(db(), member, "intune", text) : null };
-  }),
+  }, { parallel: true }),
 
   // ---- An item's photo and its purchase invoice, in the Chest's files
   // (photos/<item>/…, invoices/<item>/…), in three steps around the
   // browser's own upload: one upload granted, the file PUT there by the
   // browser, then recorded once the Chest holds it (the old one deleted).
   uploadPhoto: act({ id: id(), size: field.int({ min: 0, max: Number.MAX_SAFE_INTEGER }) }, async ({ id, size }, { member }): Promise<{ url: string }> =>
-    grant("photos", (await managedItem(member, id)).id, size, limits.photoSize, photoTypes)),
+    grant("photos", (await managedItem(member, id)).id, size, limits.photoSize, photoTypes), { parallel: true }),
   savePhoto: act({ id: id(), name: field.text({ max: 200 }) }, async ({ id, name }, { member }): Promise<null> => {
     const item = await managedItem(member, id);
     if (!objectOf("photos", item.id, name)) fail("invalid");
@@ -258,7 +260,7 @@ export const actions = {
     return null;
   }),
   uploadInvoice: act({ id: id(), size: field.int({ min: 0, max: Number.MAX_SAFE_INTEGER }) }, async ({ id, size }, { member }): Promise<{ url: string }> =>
-    grant("invoices", (await managedItem(member, id)).id, size, limits.invoiceSize, invoiceTypes)),
+    grant("invoices", (await managedItem(member, id)).id, size, limits.invoiceSize, invoiceTypes), { parallel: true }),
   saveInvoice: act({ id: id(), name: field.text({ max: 200 }) }, async ({ id, name }, { member }): Promise<null> => {
     const item = await managedItem(member, id);
     if (!objectOf("invoices", item.id, name)) fail("invalid");
