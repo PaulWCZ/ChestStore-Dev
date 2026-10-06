@@ -77,18 +77,18 @@ export async function setNumberFormat(sql: Sql, actor: Member | null, value: unk
   });
 }
 
-export type NumberingChange = { id: string; type: DocumentType | null; period: number | null; next: number | null; numberFormat: NumberFormat | null; number: string | null; changedBy: string; changedAt: string };
+export type NumberingChange = { id: string; type: DocumentType | null; period: number | null; next: number | null; numberFormat: NumberFormat | null; number: string | null; prefix: string | null; changedBy: string; changedAt: string };
 
 // The changes of the numbering, the latest first; `number` is the number a
 // continued sequence was set to start from.
 export async function numberingChanges(sql: Query, limit = 50): Promise<NumberingChange[]> {
   const c = await company(sql);
-  const rows = await sql<{ id: number; type: DocumentType | null; period: number | null; next: number | null; number_format: NumberFormat | null; changed_by: string; changed_at: Date }[]>`
+  const rows = await sql<{ id: number; type: DocumentType | null; period: number | null; next: number | null; number_format: NumberFormat | null; prefix: string | null; changed_by: string; changed_at: Date }[]>`
     select * from numbering_changes order by changed_at desc, id desc limit ${limit}`;
   return rows.map(r => ({
     id: String(r.id), type: r.type, period: r.period, next: r.next, numberFormat: r.number_format,
     number: r.type !== null && r.period !== null && r.next !== null ? documentNumber(prefixOf(c, r.type), r.period, r.next) : null,
-    changedBy: r.changed_by, changedAt: r.changed_at.toISOString(),
+    prefix: r.prefix, changedBy: r.changed_by, changedAt: r.changed_at.toISOString(),
   }));
 }
 
@@ -97,6 +97,6 @@ export async function numberingChanges(sql: Query, limit = 50): Promise<Numberin
 export async function continuedAt(sql: Query, doc: { type: DocumentType; year: number | null; seq: number | null }): Promise<NumberingChange | null> {
   if (doc.year === null || doc.seq === null) return null;
   const [row] = await sql<{ id: number; changed_by: string; changed_at: Date }[]>`
-    select id, changed_by, changed_at from numbering_changes where type = ${doc.type} and period = ${doc.year} and next = ${doc.seq} order by id desc limit 1`;
-  return row ? { id: String(row.id), type: doc.type, period: doc.year, next: doc.seq, numberFormat: null, number: null, changedBy: row.changed_by, changedAt: row.changed_at.toISOString() } : null;
+    select id, changed_by, changed_at from numbering_changes where type = ${doc.type} and period = ${doc.year} and next = ${doc.seq} and prefix is null order by id desc limit 1`;
+  return row ? { id: String(row.id), type: doc.type, period: doc.year, next: doc.seq, numberFormat: null, number: null, prefix: null, changedBy: row.changed_by, changedAt: row.changed_at.toISOString() } : null;
 }

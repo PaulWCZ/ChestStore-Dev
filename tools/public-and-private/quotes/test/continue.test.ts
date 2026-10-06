@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { finalise, sendQuote, upcomingNumber } from "../src/lib/documents.ts";
+import { finalise, sendQuote, startCreditNote, upcomingNumber } from "../src/lib/documents.ts";
+import { company as companyOf, updateCompany } from "../src/lib/company.ts";
 import { AppError } from "../src/shared/app-error.ts";
 import { continueSequence, continuedAt, numberingChanges, sequences, setNumberFormat } from "../src/lib/numbering.ts";
 import { documentNumber, nextSeq, periodOf } from "../src/shared/model.ts";
@@ -98,4 +99,29 @@ test("numbers without the year: F-0001 onwards, never restarting, and a sequence
   assert.equal(back.number, "F-2027-0001");
   const numbers = (await sql<{ number: string }[]>`select number from documents where type = 'invoice' and number is not null`).map(r => r.number);
   assert.equal(new Set(numbers).size, numbers.length);
+});
+
+test("a prefix another kind already carries is refused: an invoice never takes a credit note's number; changes are kept", async () => {
+  const { sql } = database;
+  const c = await client(sql, { name: "Préfixes SARL" });
+  // The day after the last one issued in this file (numbers follow the dates).
+  const [last0] = await sql<{ day: string | null }[]>`select max(issue_date)::text as day from documents`;
+  const day = last0?.day && last0.day > today ? last0.day : today;
+  const inv = await finalise(sql, asMember(sofia), (await draft(sql, "invoice", c.id, [line("Conseil", 1000, 10000)])).id, day);
+  const credit = await finalise(sql, asMember(sofia), (await startCreditNote(sql, asMember(sofia), inv.id)).id, day);
+  assert.match(credit.number ?? "", /^A-/u);
+  // Invoices to "A": their next numbers would repeat the credit notes'.
+  await assert.rejects(updateCompany(sql, asMember(camille), { invoicePrefix: "A", creditPrefix: "AV" }), (e: unknown) => e instanceof AppError && e.code === "prefix_taken" && e.values["number"] === credit.number);
+  assert.equal((await companyOf(sql)).invoicePrefix, "F", "nothing changed");
+  // A prefix nobody carries: allowed, and kept in the history.
+  await updateCompany(sql, asMember(camille), { invoicePrefix: "FA" });
+  const [last] = await numberingChanges(sql, 1);
+  assert.deepEqual([last!.type, last!.prefix, last!.changedBy], ["invoice", "FA", camille.id]);
+  // Even past the check (a prefix written by hand), numbering refuses a number another kind has.
+  await sql`update company set invoice_prefix = 'A' where id = 1`;
+  const [at] = await sql<{ seq: number; year: number }[]>`select seq, year from documents where id = ${credit.id}`;
+  await sql`update counters set last = ${at!.seq - 1} where type = 'invoice' and year = ${at!.year}`;
+  const next = await draft(sql, "invoice", c.id, [line("Conseil", 1000, 10000)]);
+  await assert.rejects(finalise(sql, asMember(sofia), next.id, day), refused("prefix_taken"));
+  await sql`update company set invoice_prefix = 'F' where id = 1`;
 });

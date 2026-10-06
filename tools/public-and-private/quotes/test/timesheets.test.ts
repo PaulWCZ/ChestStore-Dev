@@ -84,6 +84,16 @@ test("no client of that name: the draft asks to choose one", async () => {
   assert.equal((await handoffOf(sql, full.id))?.client, "Studio Inconnu");
 });
 
+test("the client found by its name's key (indexed): accents, case and punctuation aside; two of that name, none", async () => {
+  const { sql } = database;
+  await client(sql, { name: "Café Lumière S.A.S." });
+  await told("timesheets.billable", billable("70", { client: { id: "4", name: "CAFE  LUMIERE s.a.s" } }));
+  assert.equal((await getDocument(sql, asMember(lea), (await draftOf("70"))!, today)).client?.name, "Café Lumière S.A.S.");
+  await client(sql, { name: "cafe lumiere — s a s" });
+  await told("timesheets.billable", billable("71", { client: { id: "4", name: "Café Lumière S.A.S." } }));
+  assert.equal((await getDocument(sql, asMember(lea), (await draftOf("71"))!, today)).clientId, null, "two match: the draft asks");
+});
+
 test("rounding: Timesheets counts each entry to the cent, the invoice its hours to the thousandth; both are kept, the gap said", async () => {
   const { sql } = database;
   // 50 minutes at 90.00 an hour: Timesheets counts 75.00; the line is

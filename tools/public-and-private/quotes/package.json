@@ -12,6 +12,7 @@
     "build": "tsc && vite build && vite build --ssr",
     "start": "node --optimize-for-size dist/server/main.js",
     "typecheck": "tsc",
+    "test:facturx": "node scripts/facturx-xsd.mjs",
     "test": "tsc && vite build --ssr --outDir dist/test && node --test --test-force-exit --test-concurrency=1 test/*.test.*"
   },
   "dependencies": {
