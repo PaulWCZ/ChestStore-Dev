@@ -257,6 +257,8 @@ export async function startWeeks(sql: Query, memberIds: readonly string[]): Prom
 // when they have no entry yet). Once per member: later calls change nothing.
 export async function seenNow(sql: Query, memberId: string): Promise<void> {
   if (!memberPattern.test(memberId)) return;
+  // A read first: every page asks it, and a write per page is a waste.
+  if ((await sql`select 1 from seen where member_id = ${memberId}`).length > 0) return;
   await sql`insert into seen (member_id, first_seen) values (${memberId}, ${today()}) on conflict (member_id) do nothing`;
 }
 

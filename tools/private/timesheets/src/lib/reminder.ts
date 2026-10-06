@@ -9,14 +9,15 @@ import { email } from "./mail.ts";
 import { numeric } from "../shared/model.ts";
 import { notify } from "./notify.ts";
 import { settings } from "./settings.ts";
-import { capacities } from "./weeks.ts";
+import { capacities, startWeeks } from "./weeks.ts";
 
 // Friday afternoon (schedule "friday" of chest.json, read on the Chest's
 // clock — the day is the Chest's, src/lib/clock.ts):
 // everyone whose week holds fewer hours than their usual week (the
 // company's, or theirs on the People page) and who has not sent it yet
 // finds one item in their bell, in their own language — "Your week has 22 h —
-// fill in the rest?" — replacing last week's. Off in the settings, it sends
+// fill in the rest?" — replacing last week's. Nobody is reminded of a week
+// before their start in the tool (an empty tool expects nothing). Off in the settings, it sends
 // nothing. Idempotent: a run delivered twice sends the same item again
 // under the same key; the email goes once (its key). Nothing else in the tool
 // depends on it.
@@ -31,13 +32,18 @@ export async function friday(sql: Sql, run: Run): Promise<number> {
     select member_id, sum(minutes)::text as total from entries
     where deleted_at is null and day between ${monday} and ${addDays(monday, 6)} and member_id = any(${people.map(p => p.id)}::text[])
     group by member_id`;
-  const [caps, sent] = await Promise.all([
+  const [caps, starts, sent] = await Promise.all([
     capacities(sql, people.map(p => p.id)),
+    // Nothing is expected before a person's start (or of anyone on a tool
+    // with no project nor entry yet), as on the Team page and its Remind.
+    startWeeks(sql, people.map(p => p.id)),
     sql<{ member_id: string }[]>`select member_id from weeks where week = ${monday} and status in ('submitted', 'approved')`,
   ]);
   const byTotal = new Map<number, string[]>();
   for (const p of people) {
     const total = numeric(sums.find(r => r.member_id === p.id)?.total);
+    const start = starts.get(p.id) ?? null;
+    if (start === null || start > monday) continue;
     if (total >= (caps.get(p.id) ?? s.reminder.minutes) || sent.some(r => r.member_id === p.id)) continue;
     byTotal.set(total, [...(byTotal.get(total) ?? []), p.id]);
   }

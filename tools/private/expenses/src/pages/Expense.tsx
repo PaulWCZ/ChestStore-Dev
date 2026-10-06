@@ -70,6 +70,7 @@ export async function expensePage({ member, t, locale: language, param }: PageCo
             id: e.id,
             own: access.own,
             draft: e.status === "draft",
+            retract: access.own && e.status === "submitted",
             decide: access.decide,
             receipt,
             trip: e.trip ? format(t.trip.detail, { from: e.trip.from, to: e.trip.to }) : null,

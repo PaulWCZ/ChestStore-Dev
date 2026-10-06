@@ -2,7 +2,7 @@
 // to another page in place, toast() a message, fill() and plural() words.
 // The tool's src/entry.tsx starts the browser with start() from
 // "@argentic/chest-app/browser".
-export { call, navigate, onLinkClick, refresh, toast, ToastHost } from "./runtime.tsx";
+export { call, navigate, onLinkClick, refresh, toast, ToastHost, useAutoRefresh } from "./runtime.tsx";
 // send(url, headers, body, options): what call() and the enhanced forms do
 // — for a form an island sends itself (a FormData to an action's URL).
 export { send } from "./runtime.tsx";

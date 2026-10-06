@@ -358,7 +358,7 @@ export const en = {
   reports: {
     found: { zero: "No note holds “{q}” in these days", one: "1 entry whose note holds “{q}”", other: "{count} entries whose note holds “{q}”" },
     foundMany: "The {count} most recent entries whose note holds “{q}”: the CSV has them all",
-    quotes: { title: "Draft invoices in Quotes", intro: "Each project’s billable time of these days becomes a draft invoice in Quotes: one line per task and rate. The time is marked invoiced when Quotes issues the invoice.", nothing: "Nothing left to send for these days.", entries: { one: "1 entry", other: "{count} entries" }, send: "Draft invoice in Quotes", sendLabel: "Draft invoice in Quotes: {project}", sent: { one: "1 entry of {project} sent to Quotes as a draft invoice.", other: "{count} entries of {project} sent to Quotes as a draft invoice." }, recent: "Sent to Quotes", span: "{from} – {to}", waiting: "Waiting for its invoice", invoiced: "Invoiced", invoicedAs: "Invoiced: {invoice}", cancelled: "Taken back", open: "Open in Quotes", takeBack: "Take back", takeBackLabel: "Take back: {what}", takenBack: "Taken back: the time can be changed and sent again. Quotes was told." },
+    quotes: { title: "Draft invoices in Quotes", intro: "Each project’s billable time of these days becomes a draft invoice in Quotes: one line per task and rate. The time is marked invoiced when Quotes issues the invoice.", nothing: "Nothing left to send for these days.", entries: { one: "1 entry", other: "{count} entries" }, send: "Draft invoice in Quotes", sendLabel: "Draft invoice in Quotes: {project}", sent: { one: "1 entry of {project} sent to Quotes as a draft invoice.", other: "{count} entries of {project} sent to Quotes as a draft invoice." }, recent: "Sent to Quotes", span: "{from} – {to}", waiting: "Waiting for its invoice", invoiced: "Invoiced", invoicedAs: "Invoiced: {invoice}", cancelled: "Taken back", open: "Open in Quotes", takeBack: "Take back", takeBackLabel: "Take back: {what}", takenBack: "Taken back: the time can be changed and sent again. Quotes was told.", notLinked: "Quotes is installed but not linked to Timesheets yet: an administrator of your Chest links them. Until then, mark the time invoiced by hand." },
     title: "Reports",
     period: "Period",
     presets: {
@@ -410,6 +410,7 @@ export const en = {
     noTask: "No task",
     budget: "Budget",
     budgetOf: "{used} of {total} used",
+    budgetShare: "{percent} of the budget used",
     range: "{from} – {to}",
   },
   export: {
@@ -548,6 +549,7 @@ export const en = {
     budgetOver: "{project} is over budget: {percent}",
   },
   errors: {
+    amount_ambiguous: "This amount could be read two ways: write 1200, or 1,200.00.",
     too_large: "This is too big to send at once.",
     self_approval: "Nobody approves their own week: another manager does.",
     lead_invalid: "A project’s lead must be a manager of Timesheets.",

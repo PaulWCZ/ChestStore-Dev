@@ -23,6 +23,8 @@
   { "name": "my-expenses-brand-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true, "look": { "tool": "brand:sample" }, "only": ["phone"] },
   { "name": "add-brand", "path": "/chest/new", "member": "hugo", "locale": "en", "look": { "tool": "brand:sample" }, "only": ["phone"] },
   { "name": "pay-file-undo-fr", "path": "/chest/pay", "member": "camille", "locale": "fr", "actions": [{ "click": "section.paper .pay-form button[type=submit] >> nth=0" }, { "wait": 800 }], "only": ["desktop"] },
+  { "name": "pay-cancel-file-fr", "path": "/chest/pay", "member": "camille", "locale": "fr", "actions": [{ "click": "text=Annuler ce fichier >> nth=0" }, { "wait": 600 }] },
+  { "name": "my-bank-held-fr", "path": "/chest/settings#bank", "member": "ines", "locale": "fr" },
   { "name": "search-fr", "path": "/chest/search?q=mercure", "member": "camille", "locale": "fr" },
   { "name": "home-accountant-fr", "path": "/chest", "member": "camille", "locale": "fr" },
   { "name": "card-words-fr", "path": "/chest/settings/company#card-words", "member": "camille", "locale": "fr", "only": ["phone"] }

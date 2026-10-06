@@ -30,7 +30,7 @@ type FileBody = { payer: { iban: string; bic: string | null; name: string; addre
 // the company (paid on their final pay slip, then "Mark paid": a transfer
 // to a former employee's account is exactly what a diversion would ask
 // for). Paid by hand, or once the details are there.
-export type SkipReason = "no_bank" | "address" | "company_address" | "left";
+export type SkipReason = "no_bank" | "address" | "company_address" | "left" | "unconfirmed";
 // leftAt: for "left", when they left the Chest (null when it does not say).
 export type Skipped = { member: string; reason: SkipReason; leftAt?: string | null };
 
@@ -102,6 +102,11 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
         skipped.push({ member, reason: "no_bank" });
         continue;
       }
+      // Entered by someone else than its owner, not confirmed by them.
+      if (account.held) {
+        skipped.push({ member, reason: "unconfirmed" });
+        continue;
+      }
       const far = needsAddress(account.country);
       if (far && !account.address) {
         skipped.push({ member, reason: "address" });
@@ -115,7 +120,8 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
     }
     if (transfers.length === 0) {
       if (byMember.size === 0 || skipped.every(s => s.reason === "left")) throw new AppError("nothing_to_pay");
-      throw new AppError(skipped.every(s => s.reason === "no_bank" || s.reason === "left") ? "no_bank_details" : "address_needed");
+      const only = (...reasons: SkipReason[]) => skipped.every(s => reasons.includes(s.reason));
+      throw new AppError(only("no_bank", "left") ? "no_bank_details" : only("no_bank", "left", "unconfirmed") ? "bank_unconfirmed" : "address_needed");
     }
     const total = transfers.reduce((sum, t) => sum + t.amount, 0);
     // The payer's address goes in the file when a transfer leaves the EEA.
@@ -138,13 +144,20 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
 
 // cancelRun: the file was not sent to the bank after all (Undo). Its
 // expenses go back to "to pay back"; the batch stays, marked cancelled.
-export async function cancelRun(sql: Sql, actor: Member | null, runValue: unknown): Promise<string[]> {
+// A file the bank may have executed — its day has come, and it is no
+// longer the Undo of its making (15 minutes) — is cancelled only when the
+// accountant says their bank did not pay it (`notPaid`): otherwise its
+// expenses would go back to "to pay back" and be paid twice.
+export async function cancelRun(sql: Sql, actor: Member | null, runValue: unknown, options: { notPaid?: unknown } = {}): Promise<string[]> {
   if (!can(actor, "pay")) throw new AppError("forbidden");
   const runId = typeof runValue === "string" && /^[1-9][0-9]{0,17}$/u.test(runValue) ? runValue : null;
   if (!runId) throw new AppError("not_found");
   return sql.begin(async tx => {
-    const [run] = await tx<{ id: string; cancelled_at: Date | null }[]>`select id, cancelled_at from payment_runs where id = ${runId} for update`;
+    const [run] = await tx<{ id: string; cancelled_at: Date | null; due: boolean }[]>`
+      select id, cancelled_at, (execution_date <= ${today()}::date and created_at < now() - interval '15 minutes') as due
+      from payment_runs where id = ${runId} for update`;
     if (!run || run.cancelled_at !== null) throw new AppError("not_found");
+    if (run.due && options.notPaid !== true) throw new AppError("file_due");
     await tx`update payment_runs set cancelled_at = now(), cancelled_by = ${actor!.id} where id = ${runId}`;
     const back = await tx<{ id: string; member_id: string }[]>`
       update expenses set status = 'approved', paid_on = null, paid_marked_by = null, payment_run_id = null

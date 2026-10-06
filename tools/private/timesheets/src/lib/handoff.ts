@@ -8,7 +8,7 @@ import { currency } from "./clock.ts";
 import type { Query, Sql } from "./db.ts";
 import { daysBetween, isDay } from "../shared/days.ts";
 import { clean, id, limits, memberPattern, numeric } from "../shared/model.ts";
-import { billRateOf, revenueOf } from "./rates.ts";
+import { billRateOf, costRateOf, entryAmount, revenueOf } from "./rates.ts";
 import { transaction } from "./tx.ts";
 
 // Billable time handed to the Quotes tool as the lines of a draft invoice,
@@ -80,9 +80,11 @@ export function linesOf(rows: EntryRow[], projectName: string): BillableLine[] {
     const line = byKey.get(key) ?? { label: r.task_name ?? projectName, task: r.task_id && r.task_name ? { id: r.task_id, name: r.task_name } : null, minutes: 0, rate, amount: null, entries: 0 };
     line.minutes += r.minutes;
     line.entries += 1;
+    // Each entry rounded to the cent, then added (src/lib/rates.ts).
+    if (rate !== null) line.amount = (line.amount ?? 0) + entryAmount(r.minutes, rate);
     byKey.set(key, line);
   }
-  const lines = [...byKey.values()].map(l => ({ ...l, amount: l.rate === null ? null : Math.round((l.minutes * l.rate) / 60) }));
+  const lines = [...byKey.values()];
   return lines.sort((a, b) => b.minutes - a.minutes || a.label.localeCompare(b.label));
 }
 
@@ -111,13 +113,49 @@ export function occurred(at: Date, now = Date.now()): { occurredAt?: Date } {
   return age >= 0 && age < events.occurredLimits.behindMs - 5 * 60_000 ? { occurredAt: at } : {};
 }
 
+// release frees the entries of a hand-off that did not go (not taken, or
+// taken back): no longer waiting, and the rates the hand-off wrote on them
+// forgotten (the rates in force apply again, as before it).
+async function release(tx: Query, handoff: string): Promise<void> {
+  await tx`
+    update entries set handoff_id = null,
+      rates_fixed = case when handoff_fixed then false else rates_fixed end,
+      bill_rate_cents = case when handoff_fixed then null else bill_rate_cents end,
+      cost_rate_cents = case when handoff_fixed then null else cost_rate_cents end,
+      handoff_fixed = false
+    where handoff_id = ${handoff} and invoiced_at is null`;
+}
+
+// undo: a hand-off nobody received never happened.
+async function undo(sql: Sql, handoff: string): Promise<void> {
+  await transaction(sql, async tx => {
+    await release(tx, handoff);
+    await tx`delete from handoffs where id = ${handoff}`;
+  });
+}
+
+// linked: whether some tool receives the hand-off now — Quotes installed
+// AND linked to Timesheets by an admin (chest.tools.get only says it is
+// installed). False on a Chest without events between tools.
+export async function linked(): Promise<boolean> {
+  try {
+    return (await events.receivers("timesheets.billable")).length > 0;
+  } catch (error) {
+    if (error instanceof ChestError) return false;
+    throw error;
+  }
+}
+
 // sendBillable makes the hand-off and publishes it. Nothing is kept when
-// the Chest does not take the event (no events between tools yet, or not
-// linked): the time stays "billable, not invoiced", and the answer says so.
+// no tool would receive it, when the Chest does not take the event, or
+// when it reached no one: the time stays "billable, not invoiced", and the
+// answer says so (quotes_unavailable).
 export async function sendBillable(sql: Sql, actor: Member | null, input: { projectId?: unknown; from?: unknown; to?: unknown }): Promise<{ handoff: string; entries: number; minutes: number; receivers: number }> {
   if (!actor || !can(actor, "invoice")) throw new AppError("forbidden");
   const p = period(input.from, input.to);
   const pid = id(input.projectId);
+  // Nobody would receive it: nothing is locked, the page says why.
+  if (!(await linked())) throw new AppError("quotes_unavailable");
   const made = await transaction(sql, async tx => {
     const [project] = await tx<{ name: string; client_id: string | null; client_name: string | null }[]>`
       select p.name, p.client_id::text, c.name as client_name from projects p left join clients c on c.id = p.client_id where p.id = ${pid} for update of p`;
@@ -132,7 +170,14 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
     const [h] = await tx<{ id: string; sent_at: Date }[]>`
       insert into handoffs (project_id, from_day, to_day, minutes, cents, currency, entries, sent_by)
       values (${pid}, ${p.from}, ${p.to}, ${minutes}, ${amount}, ${code}, ${rows.length}, ${actor.id}) returning id::text, sent_at`;
-    await tx`update entries set handoff_id = ${h!.id} where id = any(${rows.map(r => r.id)}::bigint[])`;
+    // Their rates written on them now (handoff_fixed: by this hand-off), so
+    // the invoice Quotes makes and the amounts Timesheets shows never drift
+    // apart, whatever rate changes later; taken back, they are freed again.
+    await tx`
+      update entries e set handoff_id = ${h!.id},
+        handoff_fixed = not e.rates_fixed, rates_fixed = true,
+        bill_rate_cents = ${billRateOf(tx)}, cost_rate_cents = ${costRateOf(tx)}
+      where e.id = any(${rows.map(r => r.id)}::bigint[])`;
     const data: Billable = {
       version: eventVersion, handoff: h!.id,
       project: { id: pid, name: project.name },
@@ -153,12 +198,14 @@ export async function sendBillable(sql: Sql, actor: Member | null, input: { proj
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     // Not taken: the hand-off never happened.
-    await transaction(sql, async tx => {
-      await tx`update entries set handoff_id = null where handoff_id = ${made.handoff}`;
-      await tx`delete from handoffs where id = ${made.handoff}`;
-    });
+    await undo(sql, made.handoff);
     // Not granted (no events between tools yet), not declared or not
     // linked: in every case Quotes cannot be told now.
+    throw new AppError("quotes_unavailable");
+  }
+  if (receivers === 0) {
+    // Unlinked meanwhile: taken by the Chest, delivered to no one.
+    await undo(sql, made.handoff);
     throw new AppError("quotes_unavailable");
   }
   await sql`update handoffs set published_at = now() where id = ${made.handoff}`;
@@ -176,7 +223,7 @@ export async function cancelHandoff(sql: Sql, actor: Member | null, handoffValue
       select cancelled_at is not null as cancelled, invoiced_at is not null as invoiced, sent_at from handoffs where id = ${hid} for update`;
     if (!h) throw new AppError("not_found");
     if (h.cancelled || h.invoiced) throw new AppError("handoff_state");
-    await tx`update entries set handoff_id = null where handoff_id = ${hid} and invoiced_at is null`;
+    await release(tx, hid);
     const [c] = await tx<{ cancelled_at: Date }[]>`update handoffs set cancelled_at = now(), cancelled_by = ${actor.id} where id = ${hid} returning cancelled_at`;
     return { sent: new Date(h.sent_at), cancelled: new Date(c!.cancelled_at) };
   });
@@ -202,7 +249,7 @@ export async function invoiced(sql: Sql, data: unknown): Promise<boolean> {
     if (!h || h.cancelled || h.invoiced) return false;
     const by = typeof d.by === "string" && memberPattern.test(d.by) ? d.by : h.sent_by;
     await tx`
-      update entries e set invoiced_at = now(), invoiced_by = ${by}, rates_fixed = true,
+      update entries e set invoiced_at = now(), invoiced_by = ${by}, rates_fixed = true, handoff_fixed = false,
         bill_rate_cents = case when e.rates_fixed then e.bill_rate_cents else bill_rate(e.member_id, e.project_id, e.day) end,
         cost_rate_cents = case when e.rates_fixed then e.cost_rate_cents else cost_rate(e.member_id, e.day) end
       where e.handoff_id = ${d.handoff as string} and e.invoiced_at is null and e.deleted_at is null`;

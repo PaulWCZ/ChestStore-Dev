@@ -1,7 +1,7 @@
 import { call, navigate, toast } from "@argentic/chest-app/client";
 import { useState, useTransition } from "react";
 import { Stamp, Warnings } from "../components/bits.tsx";
-import { Calendar, Car, Check, Close, Download, FileIcon, Pencil, Receipt, Trash } from "../components/icons.tsx";
+import { Back, Calendar, Car, Check, Close, Download, FileIcon, Pencil, Receipt, Trash } from "../components/icons.tsx";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import type { StampKind } from "../lib/rows.ts";
@@ -12,6 +12,8 @@ export function DetailView(props: {
   id: string;
   own: boolean;
   draft: boolean;
+  // Sent and not decided yet: its owner may take it back.
+  retract: boolean;
   decide: boolean;
   receipt: { image: string | null; open: string; download: string; name: string } | null;
   trip: string | null;
@@ -52,6 +54,14 @@ export function DetailView(props: {
         },
       });
       await navigate("/chest");
+    });
+  }
+
+  function retract() {
+    start(async () => {
+      const result = await call("retractExpense", { id: props.id }, { quiet: true });
+      if (!result.ok) return setError(result.message);
+      toast({ id: `retract-${props.id}`, text: t.detail.retracted });
     });
   }
 
@@ -103,7 +113,13 @@ export function DetailView(props: {
               </div>
             </>
           )}
-          {(props.decide || (props.own && props.draft)) && <hr className="rule" />}
+          {(props.decide || (props.own && props.draft) || props.retract) && <hr className="rule" />}
+          {props.retract && (
+            <div className="actions-bar">
+              <button type="button" className="button quiet" onClick={retract} disabled={pending} aria-describedby="retract-hint"><Back />{t.detail.retract}</button>
+              <span id="retract-hint" className="hint">{t.detail.retractHint}</span>
+            </div>
+          )}
           {props.decide && !refusing && (
             <div className="actions-bar">
               <button type="button" className="button" onClick={() => decide("approve")} disabled={pending}><Check />{t.detail.approve}</button>

@@ -1,5 +1,5 @@
 import { call, toast } from "@argentic/chest-app/client";
-import { Avatar, Dialog, EmptyState } from "@argentic/chest-ui/components";
+import { Avatar, Confirm, Dialog, EmptyState } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
 import { BankForm, type BankAddress } from "../components/bank-form.tsx";
 import { DateBox, RowStamp, Stamp, Thumb, Warning, Warnings } from "../components/bits.tsx";
@@ -12,7 +12,9 @@ import type { RowView } from "../lib/rows.ts";
 
 type Bank = { masked: string; country: string; bic: string | null; holder: string; since: string; sepa: boolean; changed: string | null; problem: string | null; address: BankAddress | null; needsAddress: boolean };
 export type PayGroup = { owner: string; left: string | null; name: string; photo: string | null; total: string; summary: string; rows: RowView[]; bank: Bank | null };
-type FileLine = { id: string; title: string; sub: string; cancelled: boolean };
+// due: its day has come (the bank may have paid it): cancelling asks the
+// accountant to say their bank did not.
+type FileLine = { id: string; title: string; sub: string; cancelled: boolean; due: boolean; confirm: { title: string; body: string } };
 type Words = { pay: Catalogue["pay"]; errors: Catalogue["errors"]; bank: Catalogue["settings"]["bank"]; cancel: string; dialog: Catalogue["dialog"]; date: Catalogue["date"] };
 
 // Saves the batch's file, as a download of the page itself.
@@ -25,9 +27,11 @@ function download(id: string) {
   a.remove();
 }
 
-export function PayView({ groups, ready, preview, files, recent, today, locale, countries, t }: {
+export function PayView({ groups, ready, nobody, preview, files, recent, today, locale, countries, t }: {
   groups: PayGroup[];
   ready: "ready" | "sepa_currency" | "no_company_bank";
+  // Why nobody can be in a transfer file, when nobody can.
+  nobody: string;
   preview: { count: number; label: string; statement: string } | null;
   countries: { value: string; label: string }[];
   files: FileLine[];
@@ -95,10 +99,24 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
     });
   }
 
-  function cancelFile(id: string) {
+  // Cancelling a file always asks, naming its day and amount; once its day
+  // has come, only with "My bank did not pay these transfers" ticked.
+  const [cancelling, setCancelling] = useState<FileLine | null>(null);
+  const [notPaid, setNotPaid] = useState(false);
+  const [tickFirst, setTickFirst] = useState(false);
+  function ask(file: FileLine) {
+    setCancelling(file);
+    setNotPaid(false);
+    setTickFirst(false);
+  }
+  function cancelFile() {
+    const file = cancelling;
+    if (!file) return;
+    if (file.due && !notPaid) return setTickFirst(true);
     start(async () => {
-      const result = await call("cancelTransferFile", { id });
-      if (result.ok) toast({ id: `file-${id}`, text: t.pay.cancelled });
+      const result = await call("cancelTransferFile", { id: file.id, ...(file.due ? { notPaid: true } : {}) });
+      setCancelling(null);
+      if (result.ok) toast({ id: `file-${file.id}`, text: t.pay.cancelled });
     });
   }
 
@@ -118,7 +136,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
               </form>
             </>
           )}
-          {ready === "ready" && !preview && <p className="hint">{t.errors.no_bank_details}</p>}
+          {ready === "ready" && !preview && <p className="hint">{nobody}</p>}
           {ready === "no_company_bank" && <p className="hint">{t.pay.notReadyBank} <a href="/chest/settings/company#bank">{t.pay.notReadyBankLink}</a></p>}
           {ready === "sepa_currency" && <p className="hint">{t.pay.notReadyCurrency}</p>}
         </section>
@@ -183,7 +201,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
                     : (
                       <span className="decide">
                         <a className="button small quiet" href={`/chest/pay/files/${f.id}`} download><Download />{t.pay.download}</a>
-                        <button type="button" className="button small danger" disabled={pending} onClick={() => cancelFile(f.id)} title={t.pay.cancelHint}>{t.pay.cancelFile}</button>
+                        <button type="button" className="button small danger" disabled={pending} onClick={() => ask(f)}>{t.pay.cancelFile}</button>
                       </span>
                     )}
                 </span>
@@ -191,6 +209,15 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
             ))}
           </ul>
           <p className="hint files-hint">{t.pay.cancelHint}</p>
+          <Confirm open={cancelling !== null} title={cancelling?.confirm.title ?? ""} body={cancelling?.confirm.body ?? ""} confirmLabel={t.pay.cancelConfirm} cancelLabel={t.pay.cancelKeep} tone="danger" busy={pending} onConfirm={cancelFile} onCancel={() => setCancelling(null)}>
+            {cancelling?.due && (
+              <div className="cancel-due">
+                <p className="notice bad">{t.pay.cancelDue}</p>
+                <label className="check"><input type="checkbox" checked={notPaid} onChange={e => { setNotPaid(e.target.checked); setTickFirst(false); }} aria-describedby={tickFirst ? "cancel-tick" : undefined} />{t.pay.cancelNotPaid}</label>
+                {tickFirst && <p id="cancel-tick" className="error" role="alert">{t.pay.cancelTick}</p>}
+              </div>
+            )}
+          </Confirm>
         </section>
       )}
       {recent.length > 0 && (

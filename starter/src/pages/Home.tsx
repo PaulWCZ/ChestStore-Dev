@@ -10,6 +10,7 @@ import { maxLength, mayChange, type Note } from "../lib/notes.ts";
 export function Home({ notes, names, member, t, f }: { notes: Note[]; names: Map<string, string>; member: Member; t: Catalogue; f: Format }) {
   return (
     <>
+      <Island name="AutoRefresh" props={{ seconds: 60 }} />
       <PageHeader title={t.home.title} intro={f.plural(t.home.count, notes.length)} secondary={notes.length > 0 && <a className="ck-button ck-button-quiet" href="/chest/notes.csv" download>{t.home.export}</a>} />
       <form method="post" action="/chest/actions/addNote" className="composer">
         <label className="ck-label" htmlFor="body">{t.home.label}</label>

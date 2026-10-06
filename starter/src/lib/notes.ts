@@ -17,6 +17,13 @@ export async function listNotes(): Promise<Note[]> {
 }
 
 // One note, or fail("not_found"): a page that asks for one answers 404.
+// What the notes list shows, in a few characters: the page's version
+// (page(…, { version })), so a refresh with nothing new is a 304.
+export async function notesVersion(): Promise<string> {
+  const [row] = await db()<{ v: string | null }[]>`select md5(string_agg(id || ':' || pinned::int || ':' || author, ',' order by id)) as v from notes where deleted_at is null`;
+  return row?.v ?? "none";
+}
+
 export async function getNote(id: string): Promise<Note> {
   const [row] = /^[1-9][0-9]{0,17}$/u.test(id) ? await db()<Row[]>`select id, body, author, pinned, created_at from notes where id = ${id} and deleted_at is null` : [];
   return row ? shown(row) : fail("not_found");
