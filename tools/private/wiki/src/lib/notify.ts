@@ -17,7 +17,7 @@ export type Words = (t: Catalogue, locale: Locale) => { title: string; body?: st
 export function notice(message: Words, options: { path: string; key?: string }): notifications.Notice {
   const shaped = (locale: Locale) => {
     const { title, body } = message(catalogue(locale), locale);
-    return { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}) };
+    return { title: cut(title, 80), ...(body ? { body: cutLines(body, 280) } : {}) };
   };
   const translations = Object.fromEntries(locales.filter(l => l !== "en").map(l => [l, shaped(l)]));
   return { ...shaped("en"), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
@@ -55,8 +55,21 @@ export async function badges(counts: Map<string, number>): Promise<void> {
   }
 }
 
-// cut shortens a text to max characters (not UTF-16 units), with an ellipsis.
+// cutLines is cut for a notice's body: the Chest keeps its line breaks, so
+// only the spaces within a line and the empty lines are folded.
+export function cutLines(text: string, max: number): string {
+  const lines = text.split(/\r?\n/u).map(line => line.replace(breakable, " ").trim()).filter(Boolean);
+  const chars = [...lines.join("\n")];
+  return chars.length <= max ? chars.join("") : chars.slice(0, max - 1).join("").trimEnd() + "…";
+}
+
+// White space folded to one space — but never a no-break space, which the
+// French words and amounts carry on purpose ("20,50 €", « Fait », "85 %").
+const breakable = /[^\S\u00a0\u2007\u202f]+/gu;
+
+// cut shortens a text to one line of max characters (not UTF-16 units),
+// with an ellipsis.
 export function cut(text: string, max: number): string {
-  const chars = [...text.replace(/\s+/gu, " ").trim()];
-  return chars.length <= max ? chars.join("") : chars.slice(0, max - 1).join("") + "…";
+  const chars = [...text.replace(breakable, " ").trim()];
+  return chars.length <= max ? chars.join("") : chars.slice(0, max - 1).join("").trimEnd() + "…";
 }

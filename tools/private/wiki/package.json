@@ -15,7 +15,7 @@
     "test": "tsc && vite build && vite build --ssr --outDir dist/test && node --test --test-concurrency=1 --test-force-exit test/*.test.*"
   },
   "dependencies": {
-    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.4.1-studio.6.tgz",
+    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.4.1-studio.7.tgz",
     "@argentic/chest-ui": "file:vendor/argentic-chest-ui-0.2.6-studio.1.tgz",
     "@hono/node-server": "2.1.3",
     "diff": "9.0.0",

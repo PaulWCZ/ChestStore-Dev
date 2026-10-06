@@ -150,7 +150,7 @@ test("when due, the owner is told once by the morning run; 'Still correct' settl
   assert.deepEqual(await reviews.myReviews(sql, asMember(tom)), []);
   assert.equal(await chest.run("reviews", jobs), 204);
   assert.deepEqual(chest.notifications.map(n => ({ member: n.member, title: shownTo(n, "fr").title, key: n.key, path: n.path })), [
-    { member: ines.id, title: "À relire : « Fire drill »", key: `review:${p.id}`, path: `/chest/pages/${p.id}` },
+    { member: ines.id, title: "À relire\u202f: «\u202fFire drill\u202f»", key: `review:${p.id}`, path: `/chest/pages/${p.id}` },
   ]);
   // Told once: the next mornings add nothing.
   chest.notifications.splice(0);

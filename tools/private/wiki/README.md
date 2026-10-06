@@ -367,9 +367,10 @@ Chest who lost the wiki is named "Léa Dubois (no access)"). Bell items need `no
   names every group a member is in (`member(request).groups`,
   `members.*`): a member's groups come with them. Someone who leaves a
   group (`member.updated`) or a group changed or removed (`group.*`) takes
-  the pages to confirm that no longer concern them from their bell. Known
-  limit of the official 0.4.1: `member()` refuses an assertion with more
-  than 16 groups (lifted by 0.5).
+  the pages to confirm that no longer concern them from their bell. The
+  official 0.4.1's `member()` refuses an assertion with more than 16
+  groups; the vendored SDK 0.4.1-studio.7 lifts it (an assertion up to
+  16 KiB, about 300 groups; 0.5 announces no fixed cap).
 - **Notifications with `translations`** — Proposal (studio), announced
   for 0.5: every notice is written once, in English with its French
   translation, and the Chest shows each member theirs. The wiki **never
