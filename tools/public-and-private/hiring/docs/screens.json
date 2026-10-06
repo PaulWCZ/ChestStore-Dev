@@ -38,6 +38,8 @@
   {"name": "careers-port", "path": "/", "locale": "fr", "look": {"all": "brand:port"}},
   {"name": "careers-theme-all", "path": "/", "locale": "en", "look": {"all": "catalogue:confetti"}},
   {"name": "settings-brand", "path": "/chest/settings", "member": "camille", "locale": "fr", "look": {"all": "brand:sample"}},
+  {"name": "interview-booked", "path": "/interview/sample-booked-link-of-the-screens-000000000", "locale": "en"},
+  {"name": "interview-call-off", "path": "/interview/sample-booked-link-of-the-screens-000000000?off=1", "locale": "fr", "only": ["phone"]},
   {"name": "interview-link", "path": "/chest/candidates/1", "member": "camille", "locale": "en", "actions": [{"click": "button:has-text('Interview')"}, {"wait": 400}]},
   {"name": "new-job", "path": "/chest/jobs/new", "member": "camille", "locale": "fr"},
   {"name": "board-port", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "look": {"tool": "brand:port"}},

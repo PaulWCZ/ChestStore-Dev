@@ -7,6 +7,7 @@ const { browser, context, page, origin, publicOrigin, problems } = await open(po
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 page.on("pageerror", e => console.log("  [pageerror at " + page.url() + "] " + e.message.slice(0, 40)));
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+let chosenLink = null;
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 
 async function fillApplication(name, email, file) {
@@ -358,6 +359,7 @@ await step("the candidate chooses her own interview time from a link: free times
   expect((await page.locator(".meetings").first().innerText()).includes("Waiting for them to choose"), "the link waits on her page");
   const link = /https?:\/\/[^\s"<]*\/interview\/[A-Za-z0-9_-]{43}/u.exec(await dev())?.[0];
   expect(link, "the link is in the email");
+  chosenLink = link;
   // The candidate, not signed in, in her browser.
   await context.clearCookies();
   await english();
@@ -381,6 +383,30 @@ await step("the candidate chooses her own interview time from a link: free times
   const history = await page.locator("main").innerText();
   expect(history.includes("Chose the interview time"), "in her history");
   expect(!history.includes("Waiting for them to choose"), "no longer waiting");
+});
+
+await step("the candidate gives her time back: another time from the same link, then she calls the interview off; the team hears both", async () => {
+  expect(chosenLink, "a booked link from the step before");
+  await context.clearCookies();
+  await english();
+  const at = chosenLink.replace(/^https?:\/\/[^/]+/u, origin);
+  await page.goto(at);
+  await page.getByRole("button", { name: "Choose another time" }).click();
+  await page.waitForSelector("h1 >> text=/choose a time/");
+  await page.locator(".pick-time").nth(2).click();
+  await page.getByRole("button", { name: /^Confirm /u }).click();
+  await page.waitForSelector("h1 >> text=Your interview is booked");
+  await page.getByRole("link", { name: "Call off the interview" }).click();
+  await page.waitForSelector("h1 >> text=/Call off your interview of/");
+  await page.getByRole("button", { name: "Yes, call it off" }).click();
+  await page.waitForSelector("h1 >> text=Your interview is called off");
+  const log = await dev();
+  expect(log.includes("gave back their interview time") && log.includes("called off their interview"), "the team's bell");
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/candidates/1");
+  const history = await page.locator("main").innerText();
+  expect(history.includes("to choose another") && history.includes("Called off the interview of"), "in her history");
 });
 
 await step("one place for the careers brand: with the Chest's brand, Hiring's colour and logo step aside and Settings says where it comes from; a team theme never dresses the careers page", async () => {
@@ -474,6 +500,7 @@ await step("export everything as a ZIP; a candidate's own data", async () => {
 
 await step("write a job, publish it: it is on the careers page", async () => {
   await page.goto(origin + "/chest/jobs/new");
+  expect((await page.locator(".questions-editor").innerText()).includes("Never ask about age, family, origin, health or religion: the law forbids it."), "what not to ask, said where questions are written");
   await page.getByLabel("Job title").fill("Wood finisher");
   await page.getByLabel("Team").fill("Workshop");
   await page.getByLabel("Place", { exact: true }).fill("Lyon");
