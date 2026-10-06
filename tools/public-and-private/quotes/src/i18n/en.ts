@@ -607,6 +607,7 @@ export const en = {
     fromTimesheets: "From Timesheets: {project}",
     timesheetsClient: "Timesheets named the client “{name}”: choose it on the invoice.",
     openTimesheets: "Open in Timesheets",
+    timesheetsCounted: "Timesheets counted {counted} excl. VAT for this time (each entry rounded to the cent); this invoice counts {invoice} (its hours to the thousandth × the rate). Check it before finalising.",
     payments: "Payments",
     removePayment: "Delete the payment of {amount} of {date}",
     related: "Linked documents",

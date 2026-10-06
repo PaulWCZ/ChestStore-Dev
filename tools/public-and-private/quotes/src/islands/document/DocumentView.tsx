@@ -193,6 +193,7 @@ export function DocumentView(props: DocumentViewProps) {
                 {format(d.fromTimesheets, { project: doc.timesheets.project })}
                 {doc.timesheets.link && <> · <a href={doc.timesheets.link}>{d.openTimesheets}</a></>}
                 {!doc.clientId && doc.timesheets.client && <><br /><strong>{format(d.timesheetsClient, { name: doc.timesheets.client })}</strong></>}
+                {doc.timesheets.counted && <><br />{doc.timesheets.counted}</>}
               </p>
             )}
             {doc.madeFrom && <p className="hint from-crm"><a href={`/chest/documents/${doc.madeFrom.id}`}>{format(d.madeFrom, { number: doc.madeFrom.number })}</a></p>}

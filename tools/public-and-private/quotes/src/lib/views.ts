@@ -58,7 +58,9 @@ export type DocView = {
   imported: boolean;
   // Made from time handed over by Timesheets: its project, the client's
   // name Timesheets gave, the link back (null when not reachable).
-  timesheets: { project: string; client: string; link: string | null } | null;
+  // `counted`: what Timesheets counted, said when this invoice counts
+  // otherwise (null when they agree).
+  timesheets: { project: string; client: string; link: string | null; counted: string | null } | null;
 };
 
 export type Fact = { label: string; value: string; strong?: boolean };

@@ -557,6 +557,22 @@ Timesheets' README, "With the other tools" (version 1).
   Timesheets"), and linked back to the project with
   `chest.toolLink("timesheets", source.path)` ("Open in Timesheets"; no
   link when Timesheets is not installed or the path is not under `/chest`).
+- **Rounding, the two sides.** Timesheets freezes the rates at hand-off
+  and counts `amount` as each entry's minutes × rate ÷ 60 **rounded to the
+  cent, then added**. Quotes writes each line as its hours **to the
+  thousandth** (`round(minutes × 1000 / 60)`) × the hourly rate, the line's
+  net rounded once to the cent (half away from zero, `src/shared/totals.ts`),
+  because an invoice line's net must be its quantity × its price (EN 16931,
+  checked by Factur-X). The two can differ by a few cents: 50 minutes at
+  90.00 an hour are 75.00 for Timesheets, 0.833 h × 90.00 = 74.97 on the
+  invoice. Quotes does not force the invoice to Timesheets' figure; it
+  keeps Timesheets' `amount` (when in the Chest's currency) and, when the
+  invoice's total excluding VAT differs, the draft's margin says both
+  ("Timesheets counted 75.00 € … this invoice counts 74.97 €. Check it
+  before finalising."). Billing may then adjust a quantity or a price.
+  They agree whenever each entry's amount is a whole number of cents and
+  each line's minutes make hours to the thousandth (e.g. rates in whole
+  units of currency and entries in quarters of an hour).
 - `timesheets.billable_cancelled {version: 1, handoff}` — the draft is
   deleted if it was not issued; an issued invoice is **kept** (a legal
   record) and billing hear it in the bell ("make a credit note if it
@@ -570,8 +586,9 @@ Timesheets' README, "With the other tools" (version 1).
   cleaned and bounded; 1 to 300 lines; minutes and rates whole, bounded,
   never negative; a day `YYYY-MM-DD`; the path a `/chest…` path of 300
   characters at most. Anything else is accepted and ignored.
-  Code: `lib/timesheets.ts`, `app/chest-events/route.ts`, migration
-  `0009_timesheets.sql`; tests: `test/timesheets.test.ts`.
+  Code: `src/lib/timesheets.ts`, `src/lib/deliveries.ts` (`/chest-events`),
+  migrations `0009_timesheets.sql`, `0012_handoff_amount.sql`; tests:
+  `test/timesheets.test.ts`.
 
 ## Develop
 

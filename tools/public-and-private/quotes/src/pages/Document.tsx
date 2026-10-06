@@ -5,7 +5,7 @@ import { can } from "../lib/access.ts";
 import { clientMissing, listClients } from "../lib/clients.ts";
 import { company, missing } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
-import { editAbility, editable, getDocument, upcomingNumber } from "../lib/documents.ts";
+import { editAbility, editable, getDocument, upcomingNumber, type Full } from "../lib/documents.ts";
 import { listItems } from "../lib/items.ts";
 import { mailState } from "../lib/mailing.ts";
 import { formatMoney } from "../shared/money.ts";
@@ -64,7 +64,7 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
       ? { id: repeating.repeat.id, every: repeating.repeat.every, next: formatDay(repeating.repeat.nextOn, locale, { day: "numeric", month: "long", year: "numeric" }) } : null,
     madeFrom: repeating && repeating.repeat.sourceId !== full.id ? { id: repeating.repeat.sourceId, number: repeating.sourceNumber ?? "" } : null,
     imported: full.status === "imported",
-    timesheets: full.type === "invoice" ? await handoffOf(sql, full.id) : null,
+    timesheets: full.type === "invoice" ? await handoffView(sql, full, t, locale) : null,
   };
 
   // Names and dates, written here.
@@ -194,4 +194,13 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
       }} />
     ),
   };
+}
+
+// Where an invoice came from in Timesheets, as its margin says it; what
+// Timesheets counted, when this invoice counts otherwise (src/lib/timesheets.ts).
+async function handoffView(sql: ReturnType<typeof db>, full: Pick<Full, "id" | "net" | "currency">, t: Catalogue, locale: Locale): Promise<DocView["timesheets"]> {
+  const h = await handoffOf(sql, full.id);
+  if (!h) return null;
+  const counted = h.counted !== null && h.counted !== full.net ? format(t.doc.timesheetsCounted, { counted: formatMoney(h.counted, full.currency, locale), invoice: formatMoney(full.net, full.currency, locale) }) : null;
+  return { project: h.project, client: h.client, link: h.link, counted };
 }

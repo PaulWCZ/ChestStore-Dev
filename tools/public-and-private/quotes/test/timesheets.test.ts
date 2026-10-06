@@ -69,7 +69,7 @@ test("a hand-off becomes one draft invoice for the client of that name, handed t
   const bell = chest.notifications.slice(before);
   assert.deepEqual(new Set(bell.map(n => n.member)), new Set([camille.id, sofia.id]), "billing and admins told");
   assert.equal(bell[0]!.path, `/chest/documents/${id}`);
-  assert.deepEqual(await handoffOf(sql, String(id)), { project: "Site vitrine", client: "boulangerie DUPAIN sas", link: "https://timesheets-chest.chest.test/chest/projects/3" });
+  assert.deepEqual(await handoffOf(sql, String(id)), { project: "Site vitrine", client: "boulangerie DUPAIN sas", link: "https://timesheets-chest.chest.test/chest/projects/3", counted: 81000 });
   // Delivered again: nothing more.
   assert.equal(await told("timesheets.billable", billable("12")), 204);
   const [count] = await sql<{ n: number }[]>`select count(*)::int as n from documents where created_by = 'tool:timesheets'`;
@@ -82,6 +82,25 @@ test("no client of that name: the draft asks to choose one", async () => {
   const full = await getDocument(sql, asMember(lea), (await draftOf("13"))!, today);
   assert.equal(full.clientId, null);
   assert.equal((await handoffOf(sql, full.id))?.client, "Studio Inconnu");
+});
+
+test("rounding: Timesheets counts each entry to the cent, the invoice its hours to the thousandth; both are kept, the gap said", async () => {
+  const { sql } = database;
+  // 50 minutes at 90.00 an hour: Timesheets counts 75.00; the line is
+  // 0.833 hour × 90.00 = 74.97 (EN 16931: a line's net is its quantity × its price).
+  await told("timesheets.billable", billable("40", {
+    minutes: 50, amount: 7500, entries: 1,
+    lines: [{ label: "Design", task: null, minutes: 50, rate: 9000, amount: 7500, entries: 1 }],
+  }));
+  const full = await getDocument(sql, asMember(lea), (await draftOf("40"))!, today);
+  assert.deepEqual(full.lines.map(l => [l.quantity, l.unitPrice, l.net]), [[833, 9000, 7497]]);
+  assert.equal(full.net, 7497);
+  assert.equal((await handoffOf(sql, full.id))?.counted, 7500, "what Timesheets counted is kept, for the draft's margin");
+  // Another currency, or no amount: nothing to compare.
+  await told("timesheets.billable", billable("41", { currency: "USD" }));
+  assert.equal((await handoffOf(sql, String((await draftOf("41"))!)))?.counted ?? null, null);
+  await told("timesheets.billable", billable("42", { amount: null }));
+  assert.equal((await handoffOf(sql, String((await draftOf("42"))!)))?.counted, null);
 });
 
 test("untrusted data: anything of another shape is accepted and ignored", async () => {

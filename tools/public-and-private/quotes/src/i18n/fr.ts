@@ -601,6 +601,7 @@ export const fr: Catalogue = {
     fromTimesheets: "Depuis Temps : {project}",
     timesheetsClient: "Temps a nommé le client « {name} » : choisissez-le sur la facture.",
     openTimesheets: "Ouvrir dans Temps",
+    timesheetsCounted: "Temps a compté {counted} HT pour ce temps (chaque saisie arrondie au centime) ; cette facture compte {invoice} (ses heures au millième × le taux). Vérifiez avant de finaliser.",
     payments: "Paiements",
     removePayment: "Supprimer le paiement de {amount} du {date}",
     related: "Documents liés",

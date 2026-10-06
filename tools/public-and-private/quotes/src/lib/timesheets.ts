@@ -50,6 +50,9 @@ export type Billable = {
   currency: string;
   lines: { label: string; minutes: number; rate: number }[];
   path: string;
+  // What Timesheets counted, in cents (each entry rounded, then added);
+  // null when a line has no rate.
+  amount: number | null;
 };
 
 const handoffPattern = /^[1-9][0-9]{0,17}$/u;
@@ -74,6 +77,8 @@ export function readBillable(data: Record<string, unknown>): Billable | null {
   const day = (v: unknown) => (typeof v === "string" && dayPattern.test(v) && !Number.isNaN(Date.parse(v + "T00:00:00Z")) ? v : null);
   const currency = typeof data["currency"] === "string" && /^[A-Z]{3}$/u.test(data["currency"]) ? data["currency"] : null;
   if (!currency) return null;
+  const total = data["amount"];
+  const amount = typeof total === "number" && Number.isSafeInteger(total) && total >= 0 && total <= limits.total ? total : null;
   const raw = data["lines"];
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > limits.lines) return null;
   const lines: Billable["lines"] = [];
@@ -86,7 +91,7 @@ export function readBillable(data: Record<string, unknown>): Billable | null {
     if (rate !== null && rate !== undefined && (typeof rate !== "number" || !Number.isSafeInteger(rate) || rate < 0 || rate > limits.unitPrice)) return null;
     lines.push({ label: text(l["label"], limits.description) || text(record(l["task"])?.["name"], limits.description) || project, minutes, rate: typeof rate === "number" ? rate : 0 });
   }
-  return { handoff, project, client, from: day(period?.["from"]), to: day(period?.["to"]), currency, lines, path: pathOf(record(data["source"])?.["path"]) };
+  return { handoff, project, client, from: day(period?.["from"]), to: day(period?.["to"]), currency, lines, path: pathOf(record(data["source"])?.["path"]), amount };
 }
 
 async function issuerIds(): Promise<string[]> {
@@ -99,8 +104,8 @@ export async function billableReceived(sql: Sql, event: ToolEvent, context: { lo
   const b = readBillable(event.data);
   if (!b) return null;
   const made = await sql.begin(async tx => {
-    const [seen] = await tx`insert into handoffs (handoff, project, period_from, period_to, source_path, client_name)
-      values (${b.handoff}, ${b.project}, ${b.from}, ${b.to}, ${b.path}, ${b.client}) on conflict (handoff) do nothing returning handoff`;
+    const [seen] = await tx`insert into handoffs (handoff, project, period_from, period_to, source_path, client_name, amount)
+      values (${b.handoff}, ${b.project}, ${b.from}, ${b.to}, ${b.path}, ${b.client}, ${b.currency === context.currency ? b.amount : null}) on conflict (handoff) do nothing returning handoff`;
     if (!seen) {
       const [row] = await tx<{ document_id: number | null }[]>`select document_id from handoffs where handoff = ${b.handoff}`;
       return { documentId: row?.document_id ? String(row.document_id) : null, created: false, gross: 0, clientName: "" };
@@ -220,9 +225,19 @@ export async function publishPending(sql: Query, now = Date.now()): Promise<numb
 
 // Where a draft came from, for its page: the project and period, the
 // client's name Timesheets gave, the link back (null when Timesheets is not
-// installed, or the path is not one it serves).
-export async function handoffOf(sql: Query, documentId: string): Promise<{ project: string; client: string; link: string | null } | null> {
-  const [h] = await sql<{ project: string; client_name: string; source_path: string }[]>`select project, client_name, source_path from handoffs where document_id = ${documentId}`;
+// installed, or the path is not one it serves), and what Timesheets
+// counted (cents, or null).
+//
+// The rounding, said once: Timesheets rounds each entry (its minutes at
+// its rate) to the cent, then adds them; an invoice line here is its hours
+// to the thousandth × the hourly rate, rounded once (src/shared/totals.ts) —
+// what EN 16931 asks of a line (its net is its quantity × its price). The
+// two may differ by a few cents (50 minutes are 0.833 h: 7,497 cents at
+// 90.00 an hour where Timesheets counts 7,500). The invoice is not forced
+// to Timesheets' figure (a line whose net is not its quantity × its price
+// is refused by the e-invoicing checks); the margin shows both instead.
+export async function handoffOf(sql: Query, documentId: string): Promise<{ project: string; client: string; link: string | null; counted: number | null } | null> {
+  const [h] = await sql<{ project: string; client_name: string; source_path: string; amount: number | null }[]>`select project, client_name, source_path, amount from handoffs where document_id = ${documentId}`;
   if (!h) return null;
-  return { project: h.project, client: h.client_name, link: h.source_path ? chest.tools.link("timesheets", h.source_path) : null };
+  return { project: h.project, client: h.client_name, link: h.source_path ? chest.tools.link("timesheets", h.source_path) : null, counted: h.amount };
 }
