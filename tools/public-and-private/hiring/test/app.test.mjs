@@ -144,6 +144,16 @@ test("applying: refused without a token, a CV or a link; then a thank-you page w
   assert.equal((await database.sql`select 1 from candidates where email = 'robot@example.com'`).length, 0);
 });
 
+test("a stranger's applications never flood an inbox: three confirmations an hour to one address; the applications are still filed", async () => {
+  const before = chest.outbox.filter(m => m.to.includes("target@example.com")).length;
+  const answers = [];
+  for (let i = 0; i < 5; i++) answers.push(await (await call(null, "apply", applying({ email: "target@example.com", link: `t${i}.example`, chest_form: token("apply") }))).json());
+  assert.ok(answers.every(a => a.ok));
+  assert.equal((await database.sql`select count(*)::int as n from candidates where email = 'target@example.com'`)[0].n, 5, "every application filed");
+  assert.equal(chest.outbox.filter(m => m.to.includes("target@example.com")).length - before, 3, "three emails at most this hour");
+  assert.deepEqual(answers.map(a => a.redirect.endsWith("?mailed=1")), [true, true, true, false, false], "past them, no email is promised");
+});
+
 test("a visitor's CV: a path on the page's own host, a claim, checked and kept with the application", async () => {
   const grant = await call(null, "publicCvUpload", { slug: "senior-furniture-designer", type: "application/pdf", size: 15, chest_form: token("publicCvUpload") });
   const { value } = await grant.json();
