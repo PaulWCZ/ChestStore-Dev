@@ -27,12 +27,19 @@ export function ApplyForm({ slug, locale, kept, pool, questions, t }: { slug: st
   const uploading = files.some(f => f.status === "sending");
   const busy = pending || uploading;
   const cv = files.find(f => f.status === "ready" && f.ref);
+  // A CV the Chest refused (not what it says, too large) stops the
+  // application until it is removed or replaced: never sent without it.
+  const refused = files.find(f => f.status === "failed");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setError(null);
     const data = new FormData(event.currentTarget);
+    if (refused && !linkOnly) {
+      setError(refused.error ?? t.errors.cv_invalid);
+      return;
+    }
     if (cv && !linkOnly) {
       data.set("cv", cv.ref!);
       data.set("cvName", cv.name);

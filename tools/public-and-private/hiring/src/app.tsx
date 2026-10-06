@@ -57,7 +57,9 @@ const routes = createApp({
   // chest.theme() keeps its answer a minute).
   look: async viewer => {
     const sheet = viewer.member !== null ? await sheetOf("team") : await sheetOf("public", (await settings(db())).accent);
-    return { css: sheet.css, colors: sheet.colors, logo: sheet.look.source === "brand" ? sheet.look.logo ?? null : null };
+    // source ("own", "catalogue", "brand"): the layouts mark the page with
+    // it (data-look), as the page said before the move.
+    return { css: sheet.css, colors: sheet.colors, logo: sheet.look.source === "brand" ? sheet.look.logo ?? null : null, source: sheet.look.source };
   },
   // Hiring's icon; the team's part is never indexed (a careers page says
   // its own robots).

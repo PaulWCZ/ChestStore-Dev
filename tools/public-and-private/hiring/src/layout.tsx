@@ -35,7 +35,7 @@ export function MembersLayout({ viewer: { member, t }, path, notice, look, child
     ] : []),
   ] : [];
   return (
-    <>
+    <div className="look" data-look={sourceOf(look)}>
       <AppShell
         brand={<a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark><span className="brand-name">{t.tool.name}</span></a>}
         nav={nav}
@@ -50,13 +50,13 @@ export function MembersLayout({ viewer: { member, t }, path, notice, look, child
         {role ? children : <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />}
       </AppShell>
       {toasts(t)}
-    </>
+    </div>
   );
 }
 
 export function PublicLayout({ viewer: { t, locale }, look, path, notice, status, children }: LayoutProps<VisitorContext>) {
   return (
-    <>
+    <div className="look" data-look={sourceOf(look)}>
       {status === 200 ? children : (
         <PublicShell company={t.careers.titlePlain} logo={look?.logo ?? null} brand={null} locale={localeOf(locale)} back={path} t={t} foot={null}>
           {notice && <p className="notice" role="alert">{notice}</p>}
@@ -64,6 +64,12 @@ export function PublicLayout({ viewer: { t, locale }, look, path, notice, status
         </PublicShell>
       )}
       {toasts(t)}
-    </>
+    </div>
   );
+}
+
+// Where the page's look comes from, as the look of src/app.tsx says it
+// ("own" when it says nothing).
+function sourceOf(look: unknown): string {
+  return look && typeof look === "object" && "source" in look && typeof look.source === "string" ? look.source : "own";
 }

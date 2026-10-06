@@ -88,7 +88,9 @@ export async function poolPage({ member, t, locale: tag, f, query }: PageContext
 }
 
 // How hiring goes: for every job, or one — counts only (no person is
-// scored here). A bar is an SVG of its share, never a style.
+// scored here). A bar's width is a class of its share in steps of 5 %
+// (.bar.w-0 … .bar.w-100 in src/styles.css), never a style; its number
+// follows it.
 export async function reportsPage({ member, t, locale: tag, query }: PageContext<MemberContext>): Promise<View> {
   if (!can(member, "export")) notFound();
   const locale = localeOf(tag);
@@ -140,7 +142,7 @@ function Bars({ title, hint, rows, max, empty }: { title: string; hint?: string;
             <div key={i}>
               <dt>{row.label}</dt>
               <dd>
-                <svg className="bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect width={Math.round((row.value / max) * 100)} height="10" /></svg>
+                <span className={`bar w-${Math.round((row.value / max) * 20) * 5}`} />
                 <span className="bar-n">{row.value}</span>
               </dd>
             </div>
