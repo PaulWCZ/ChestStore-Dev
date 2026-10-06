@@ -4,15 +4,15 @@ import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { pictureOf } from "../app/chest/pages/[id]/edit/paste.ts";
-import { normalize } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import { askWhom, whoWrites } from "../lib/groups.ts";
-import { POST as chestEvents } from "../app/chest-events/route.ts";
-import * as pages from "../lib/pages.ts";
-import * as reads from "../lib/reads.ts";
-import { kept, search, segments } from "../lib/search.ts";
-import * as spaces from "../lib/spaces.ts";
+import { pictureOf, unstyled } from "../src/islands/editor/paste.ts";
+import { normalize } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import { askWhom, whoWrites } from "../src/lib/groups.ts";
+import { chestEvents } from "../src/calls.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as reads from "../src/lib/reads.ts";
+import { kept, search, segments } from "../src/lib/search.ts";
+import * as spaces from "../src/lib/spaces.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, lea, tom } from "./support/members.ts";
@@ -26,7 +26,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications"] });
   await database.sql.unsafe(readFileSync(join(import.meta.dirname, "..", "seed", "sample.sql"), "utf8")).simple();
 });
 after(async () => {
@@ -188,4 +188,8 @@ test("“My pages”: everyone's own, readers included; nobody else sees it — 
   assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, chestEvents), 204);
   assert.equal((await sql`select count(*)::int as n from spaces where id = ${mine.id}`)[0]!.n, 0);
   assert.equal((await sql`select count(*)::int as n from pages where id = ${note.id}`)[0]!.n, 0);
+});
+
+test("pasted HTML: style attributes renamed before any parsing in the page (its policy refuses them)", () => {
+  assert.equal(unstyled(`<b style="font-weight:normal"><span style='font-weight:700'>Budget</span> style="kept as text"</b>`), `<b data-pasted-style="font-weight:normal"><span data-pasted-style='font-weight:700'>Budget</span> style="kept as text"</b>`);
 });

@@ -4,19 +4,19 @@ import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as comments from "../lib/comments.ts";
-import { forgetGroups, companyGroups } from "../lib/groups.ts";
-import { confluenceDate } from "../lib/html.ts";
-import { en } from "../lib/i18n/en.ts";
-import { importFiles } from "../lib/importer.ts";
-import * as pages from "../lib/pages.ts";
-import * as reads from "../lib/reads.ts";
-import * as reviews from "../lib/reviews.ts";
-import { search, stopWords, units, words } from "../lib/search.ts";
-import * as spaces from "../lib/spaces.ts";
-import { deleteSynonyms, listSynonyms, parseTerms, saveSynonyms, synonymTerms } from "../lib/synonyms.ts";
-import * as tell from "../lib/tell.ts";
-import { writeZip } from "../lib/zip.ts";
+import * as comments from "../src/lib/comments.ts";
+import { forgetGroups, companyGroups } from "../src/lib/groups.ts";
+import { confluenceDate } from "../src/lib/html.ts";
+import { en } from "../src/i18n/en.ts";
+import { importFiles } from "../src/lib/importer.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as reads from "../src/lib/reads.ts";
+import * as reviews from "../src/lib/reviews.ts";
+import { search, stopWords, units, words } from "../src/lib/search.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import { deleteSynonyms, listSynonyms, parseTerms, saveSynonyms, synonymTerms } from "../src/lib/synonyms.ts";
+import * as tell from "../src/lib/tell.ts";
+import { writeZip } from "../src/lib/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, tom } from "./support/members.ts";
@@ -32,9 +32,13 @@ const warehouse = "grp_warehouse" + "a".repeat(17);
 before(async () => {
   database = await testDatabase();
   chest = await fakeChest({
+    network: {},
     members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@lumen.test", ...(p.id === hugo.id ? { groups: [...p.groups, warehouse] } : {}) })),
     capabilities: ["members", "files", "notifications", "mail", "groups"],
     mail: { domain: "lumen.test" },
+    // The runs below are read on the Chest's clock (SDK 0.4: a run has no
+    // zone of its own).
+    chest: { timeZone: "Europe/Paris", publicUrl: null },
     groups: [
       { id: groups.office, name: "Office", members: [camille.id] },
       { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] },
@@ -141,10 +145,10 @@ test("asked to confirm: by email too, in each one's language; reminders go to th
   // The morning schedule reminds a week after the ask, twice at most.
   chest.outbox.length = 0;
   await sql`update pages set read_asked_at = now() - interval '8 days', read_reminded_at = null, read_reminders = 0 where id = ${p.id}`;
-  const run = await tell.reviews(sql, { id: "run_" + "a".repeat(26), name: "reviews", scheduledAt: "2026-10-09T05:40:00Z", attempt: 1, timeZone: "Europe/Paris" });
+  const run = await tell.reviews(sql, { id: "run_" + "a".repeat(26), name: "reviews", scheduledAt: "2026-10-09T05:40:00Z", attempt: 1 });
   assert.ok(run.reminded >= 3);
   assert.equal(chest.outbox.filter(m => m.subject.includes("Règlement intérieur 2026")).length, 3);
-  const again = await tell.reviews(sql, { id: "run_" + "b".repeat(26), name: "reviews", scheduledAt: "2026-10-10T05:40:00Z", attempt: 1, timeZone: "Europe/Paris" });
+  const again = await tell.reviews(sql, { id: "run_" + "b".repeat(26), name: "reviews", scheduledAt: "2026-10-10T05:40:00Z", attempt: 1 });
   assert.equal(again.reminded, 0, "not again the next day");
 });
 

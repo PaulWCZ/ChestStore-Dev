@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { fromMarkdown } from "../lib/markdown.ts";
-import { lines, normalize } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import * as history from "../lib/history.ts";
-import * as pages from "../lib/pages.ts";
-import * as pins from "../lib/pins.ts";
-import { search } from "../lib/search.ts";
-import * as spaces from "../lib/spaces.ts";
+import { fromMarkdown } from "../src/lib/markdown.ts";
+import { lines, normalize } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import * as history from "../src/lib/history.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as pins from "../src/lib/pins.ts";
+import { search } from "../src/lib/search.ts";
+import * as spaces from "../src/lib/spaces.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -17,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -310,8 +310,8 @@ test("recently updated: newest first, only what the reader sees", async () => {
 
 test("the example handbook: a space and linked pages in the editor's language", async () => {
   const { sql } = database;
-  const { addExample } = await import("../lib/starter.ts");
-  const { catalogue } = await import("../lib/i18n/index.ts");
+  const { addExample } = await import("../src/lib/starter.ts");
+  const { catalogue } = await import("../src/i18n/index.ts");
   await assert.rejects(addExample(sql, asMember(hugo), catalogue("en")), /forbidden/u);
   const made = await addExample(sql, asMember(camille), catalogue("fr"));
   const first = await pages.page(sql, asMember(hugo), made.pageId);

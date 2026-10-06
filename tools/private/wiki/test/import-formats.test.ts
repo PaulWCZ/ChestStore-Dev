@@ -3,12 +3,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { lines, references } from "../lib/doc.ts";
-import { fileOf } from "../lib/files.ts";
-import { importFiles } from "../lib/importer.ts";
-import * as pages from "../lib/pages.ts";
-import { search } from "../lib/search.ts";
-import { writeZip } from "../lib/zip.ts";
+import { lines, references } from "../src/lib/doc.ts";
+import { fileOf } from "../src/lib/files.ts";
+import { importFiles } from "../src/lib/importer.ts";
+import * as pages from "../src/lib/pages.ts";
+import { search } from "../src/lib/search.ts";
+import { writeZip } from "../src/lib/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines } from "./support/members.ts";
@@ -30,7 +30,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
