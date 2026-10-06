@@ -476,6 +476,8 @@ export const fr: Catalogue = {
     booked: "{guest} a réservé {when}",
     moved: "{guest} a déplacé son rendez-vous à {when}",
     cancelled: "{guest} a annulé {when}",
+    movedFor: "{member} a déplacé votre rendez-vous avec {guest} à {when}",
+    cancelledFor: "{member} a annulé votre rendez-vous avec {guest}, {when}",
   },
   calendar: {
     title: "{title} avec {guest}",

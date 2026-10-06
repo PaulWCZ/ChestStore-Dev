@@ -159,3 +159,23 @@ test("a reminder says today, tomorrow or reminder, as the day is in the guest's 
   await mailer.reminder({ ...made, moves: 13 }, context, Date.parse("2026-10-05T08:00:00Z"));
   assert.deepEqual(chest.outbox.map(m => m.subject.split(":")[0]), ["Today", "Tomorrow", "Reminder"]);
 });
+
+test("a colleague moves or cancels a host's booking: the host hears who did it, in English and French", async () => {
+  const made = { ...(await anyBooking()), guestName: "Kenji Sato", cancelReason: "" };
+  chest.outbox.length = 0;
+  chest.notifications.length = 0;
+  await tell.changedFor("moved", made, "Camille Martin", "Europe/Paris", { en: "Meeting", fr: "Rendez-vous" });
+  assert.equal(chest.outbox.length, 0, "no mail to a member");
+  const n = chest.notifications[0]!;
+  assert.equal(n.member, made.memberId);
+  assert.equal(n.key, `booking:${made.id}`);
+  assert.equal(n.path, `/chest/bookings/${made.id}`);
+  assert.match(shownTo(n, "en").title, /^Camille Martin moved your booking with Kenji Sato to /u);
+  assert.match(shownTo(n, "fr").title, /^Camille Martin a déplacé votre rendez-vous avec Kenji Sato à /u);
+  assert.equal(shownTo(n, "fr").body, "Rendez-vous");
+  // The cancellation replaces it, with the colleague's reason.
+  await tell.changedFor("cancelled", { ...made, cancelReason: "Closed that day" }, "Camille Martin", "Europe/Paris");
+  assert.equal(chest.notifications.length, 1);
+  assert.match(shownTo(chest.notifications[0]!, "en").title, /^Camille Martin cancelled your booking with Kenji Sato, /u);
+  assert.equal(shownTo(chest.notifications[0]!, "en").body, "Closed that day");
+});

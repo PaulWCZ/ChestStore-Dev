@@ -506,10 +506,14 @@ inbox, never the tool; a quote's mail never asks the client to reply to
 accept — the answer link does it. When the connector is absent or paused
 (`mail.available()` not ok, or `send` throws `Unavailable`), nothing is
 lost: the send dialog opens on *Send it yourself* (download the PDF, send
-it from your own email, mark it as sent) and says why; an automatic
-reminder is not emailed — the person in charge is told in the bell, as
-always — and a reminder the Chest could not take (paused, no answer) is
-tried again the next morning.
+it from your own email, mark it as sent) and says why — or, when the
+Chest could not take a send just now, "The email did not go"; an
+automatic reminder is not emailed — the person in charge is told in the
+bell, as always. A reminder the Chest could not take (sending paused,
+no answer, the day's emails used) is not counted and is tried again the
+next morning (Settings says the reminders wait; the log says so each
+morning); one refused for any other reason is not retried forever: the
+person in charge is told in the bell and reminds by hand.
 
 **Changed on 6 October 2026** (the owner's mail decisions): a document
 sent by hand needs no special flag any more (no member gets the tool's

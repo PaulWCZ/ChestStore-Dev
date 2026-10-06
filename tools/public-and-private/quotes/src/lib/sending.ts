@@ -95,13 +95,18 @@ async function deliver(sql: Sql, full: Full, message: Message, fromName: string,
       key,
     });
   } catch (error) {
-    // No mail on this Chest, or its owner has not connected the company's
-    // mail provider (Unavailable — also a Chest that did not answer):
-    // nothing went, and the dialog offers to send it yourself.
-    if (error instanceof CapabilityNotGranted || error instanceof Unavailable) {
+    // No mail on this Chest: nothing went, the tool remembers it, and the
+    // dialog offers to send it yourself.
+    if (error instanceof CapabilityNotGranted) {
       await rememberMail(sql, false);
       return "no_mail";
     }
+    // Its owner has not connected the company's mail provider, sending is
+    // paused, or the Chest did not answer (Unavailable): nothing went, and
+    // the dialog offers to send it yourself — but nothing is remembered,
+    // since it may pass (mail.available() says which, and remembers a
+    // connector not connected itself: mailing.ts).
+    if (error instanceof Unavailable) return "no_mail";
     if (error instanceof QuotaExceeded) throw new AppError("mail_quota");
     if (error instanceof ChestError && error.code === "suppressed") throw new AppError("suppressed");
     if (error instanceof ChestError && error.code === "invalid_address") throw new AppError("email_invalid");

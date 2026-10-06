@@ -60,10 +60,12 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
       // In the language the person read the form in: its second version
       // when it has one in their language.
       const read = isLanguage(language) ? localize(definition, language) : definition;
-      copy = (await sendCopy(answer.email, read, answer.data, language, chest.organization.name, answer.id, { ownWordsOnly: true })) === "email";
+      const delivery = await sendCopy(answer.email, read, answer.data, language, chest.organization.name, answer.id);
+      copy = delivery === "email";
       // What the last email taught, for the pages when the Chest does not
-      // answer (lib/linked.ts, mailState).
-      await putSetting(sql, "mail_works", copy);
+      // answer (lib/linked.ts, mailState): it works, or this Chest has no
+      // mail — never one address refused.
+      if (delivery !== "none") await putSetting(sql, "mail_works", copy);
     }
   }
   // Where it went, for the answer's page.

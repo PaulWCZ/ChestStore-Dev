@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { pdfOf } from "../src/lib/archive.ts";
-import { company as readCompany } from "../src/lib/company.ts";
+import { company as readCompany, rememberMail } from "../src/lib/company.ts";
 import { finalise, getDocument, upcomingNumber } from "../src/lib/documents.ts";
 import { AppError } from "../src/shared/app-error.ts";
 import { mailState } from "../src/lib/mailing.ts";
@@ -88,6 +88,18 @@ test("the company's mail not connected: nothing goes, the quote stays as it was,
   }
   assert.equal(chest.outbox.length, before);
   assert.equal((await getDocument(sql, asMember(ines), q.id, today)).status, "draft");
+  // Sending paused for a while: send it yourself too, but the tool does
+  // not take it for a Chest without mail (the morning's reminders still
+  // try email, and come back the next morning).
+  await rememberMail(sql, true);
+  chest.delivery.mail = "suspended";
+  try {
+    assert.equal((await sendDocument(sql, asMember(ines), q.id, message, today)).delivery, "no_mail");
+  } finally {
+    chest.delivery.mail = "ready";
+  }
+  assert.equal((await readCompany(sql)).mailWorks, true);
+  assert.equal(chest.outbox.length, before);
 });
 
 test("an English client gets an English email; a message is checked", async () => {

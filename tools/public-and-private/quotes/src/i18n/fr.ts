@@ -762,6 +762,7 @@ export const fr: Catalogue = {
       quota: "Votre Chest a envoyé tous ses e-mails du jour",
     },
     byHandTitle: "Envoyez-le vous-même",
+    notSent: "L’e-mail n’est pas parti : votre Chest n’a pas pu l’envoyer pour l’instant",
     noMailBody: "Téléchargez le PDF, joignez-le à un e-mail depuis votre messagerie, puis revenez le marquer comme envoyé.",
     noMailReminder: "Téléchargez le PDF, renvoyez-le avec un mot depuis votre messagerie, puis marquez la relance comme faite.",
     step1: "Téléchargez le PDF.",

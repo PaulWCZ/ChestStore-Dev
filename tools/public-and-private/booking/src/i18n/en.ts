@@ -481,6 +481,8 @@ export const en = {
     booked: "{guest} booked {when}",
     moved: "{guest} moved their booking to {when}",
     cancelled: "{guest} cancelled {when}",
+    movedFor: "{member} moved your booking with {guest} to {when}",
+    cancelledFor: "{member} cancelled your booking with {guest}, {when}",
   },
   calendar: {
     title: "{title} with {guest}",

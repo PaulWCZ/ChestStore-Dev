@@ -29,6 +29,16 @@ export async function cancelled(b: Booking, hostZone: string, titles: Titles = {
   await notify([b.memberId], (t, locale) => ({ title: format(t.bell.cancelled, { guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }), body: cut(b.cancelReason || (titles[locale] ?? b.title), 280) }), { path: path(b), key: `booking:${b.id}` });
 }
 
+// A colleague (who may manage every booking) moved or cancelled a host's
+// booking: the host hears of it, with who did it. The guest is emailed by
+// the caller, as for the host's own changes.
+export async function changedFor(kind: "moved" | "cancelled", b: Booking, by: string, hostZone: string, titles: Titles = {}): Promise<void> {
+  await notify([b.memberId], (t, locale) => ({
+    title: format(kind === "moved" ? t.bell.movedFor : t.bell.cancelledFor, { member: cut(by, 40), guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }),
+    body: cut(kind === "cancelled" && b.cancelReason ? b.cancelReason : (titles[locale] ?? b.title), 280),
+  }), { path: path(b), key: `booking:${b.id}` });
+}
+
 // A host who cancels needs no bell of their own.
 export async function quiet(b: Pick<Booking, "id">): Promise<void> {
   await withdraw(`booking:${b.id}`);

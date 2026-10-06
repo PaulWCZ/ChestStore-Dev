@@ -98,13 +98,13 @@ insert into answers (id, form_id, version, respondent, email, data, created_at, 
 
 -- Second step (migration 0002): the forms say their language, the open day
 -- has a French version, the IT requests are followed up, a team survey
--- uses a matrix and a ranking, the feedback form emails Inès each batch
--- and tells the other tools of each answer.
+-- uses a matrix and a ranking, the feedback form tells the other tools
+-- of each answer.
 update forms set draft = jsonb_set(draft, '{language}', '"en"') where id in (1, 3, 4, 5, 6);
 update versions set definition = jsonb_set(definition, '{language}', '"en"') where form_id in (1, 3, 4, 6);
 update forms set draft = jsonb_set(jsonb_set(draft, '{language}', '"en"'), '{alt}', '{"language": "fr", "texts": {"title": "Portes ouvertes — samedi 14 novembre", "intro": "Venez voir l’atelier au travail. Dites-nous que vous venez et nous vous garderons une place.", "qbxxxxxx": "Votre nom complet", "qcxxxxxx": "Votre adresse e-mail", "qdxxxxxx": "Votre entreprise", "qexxxxxx": "Combien serez-vous ?", "qkxxxxxx": "Quelle visite de l’atelier ?", "qkxxxxxx.ohxxxxxx": "10:00 — Bois et finitions", "qkxxxxxx.oixxxxxx": "14:00 — Tapisserie", "qkxxxxxx.ojxxxxxx": "16:00 — Restauration", "qfxxxxxx": "Resterez-vous déjeuner ?", "qgxxxxxx": "Un régime alimentaire à connaître ?"}}'::jsonb) where id = 2;
 update versions set definition = jsonb_set(jsonb_set(definition, '{language}', '"en"'), '{alt}', '{"language": "fr", "texts": {"title": "Portes ouvertes — samedi 14 novembre", "intro": "Venez voir l’atelier au travail. Dites-nous que vous venez et nous vous garderons une place.", "qbxxxxxx": "Votre nom complet", "qcxxxxxx": "Votre adresse e-mail", "qdxxxxxx": "Votre entreprise", "qexxxxxx": "Combien serez-vous ?", "qkxxxxxx": "Quelle visite de l’atelier ?", "qkxxxxxx.ohxxxxxx": "10:00 — Bois et finitions", "qkxxxxxx.oixxxxxx": "14:00 — Tapisserie", "qkxxxxxx.ojxxxxxx": "16:00 — Restauration", "qfxxxxxx": "Resterez-vous déjeuner ?", "qgxxxxxx": "Un régime alimentaire à connaître ?"}}'::jsonb) where form_id = 2;
-update forms set notify_email = true, share_events = true where id = 1;
+update forms set share_events = true where id = 1;
 update answers set status = 'done', note = 'A new charger is on your desk.', handled_at = now() - interval '1 day' where id = 'seed000000000013';
 update answers set status = 'doing', note = 'Ordered, it arrives on Thursday.' where id = 'seed000000000014';
 update answers set status = 'done', handled_at = now() - interval '2 days' where id = 'seed000000000016';

@@ -13,14 +13,14 @@ test("a visitor's copy: to their address, replies to the company's address, the 
   try {
     const def = form([q("short", "Your name")], "Contact");
     const answers = { [def.pages[0]!.questions[0]!.id]: "Nina" };
-    assert.equal(await sendCopy("nina@example.com", def, answers, "en", "Atelier", "a1", { ownWordsOnly: true }), "email");
+    assert.equal(await sendCopy("nina@example.com", def, answers, "en", "Atelier", "a1"), "email");
     assert.equal(chest.outbox.length, 1);
     assert.deepEqual(chest.outbox[0]!.to, ["nina@example.com"]);
     assert.equal(chest.outbox[0]!.replyTo, "hello@atelier.test");
     assert.match(chest.outbox[0]!.text, /To write to Atelier, reply to this email\./u);
     // The connector not connected: nothing goes, and the tool says no copy.
     chest.delivery.mail = "not_connected";
-    assert.equal(await sendCopy("lea@example.com", def, answers, "en", "Atelier", "a2", { ownWordsOnly: true }), "none");
+    assert.equal(await sendCopy("lea@example.com", def, answers, "en", "Atelier", "a2"), "none");
     assert.equal(chest.outbox.length, 1);
     // A member is never a mail recipient.
     chest.delivery.mail = "ready";
@@ -41,6 +41,17 @@ test("a member's copy of a team form: one notification opening what they sent, i
     assert.equal(n.key, "copy:00000000000000a1");
     assert.equal(shownTo(n, "en").title, "Your answers to Weekly feedback were sent");
     assert.equal(shownTo(n, "fr").title, "Vos réponses à Retour de la semaine sont envoyées");
+  } finally {
+    await chest.close();
+  }
+});
+
+test("a Chest without mail: the copy is \"off\" (what the pages remember), unlike a copy not sent this time", async () => {
+  const chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"] });
+  try {
+    const def = form([q("choice", "Topic")], "Contact");
+    assert.equal(await sendCopy("nina@example.com", def, {}, "en", "Atelier", "a4"), "off");
+    assert.equal(chest.outbox.length, 0);
   } finally {
     await chest.close();
   }

@@ -170,3 +170,25 @@ test("mail not connected in the Chest: the morning's reminders go to the bell on
   }
   assert.deepEqual(await mailState(sql), { works: true, reason: null, replyTo: "contact@atelier-martin.test" });
 });
+
+test("mail paused: the morning's reminder waits, nothing recorded, and goes the next morning", async () => {
+  const { sql } = database;
+  await updateCompany(sql, asMember(camille), { remindersOn: true, remindersEmail: true, reminderDays: "7" });
+  const c = await client(sql, { name: "En pause SARL", email: "compta@en-pause.test", siren: "", vatNumber: "" });
+  const inv = await finalise(sql, asMember(camille), (await draft(sql, "invoice", c.id, [line("Site", 1000, 40000)])).id, "2030-06-01");
+  const sent = chest.outbox.length;
+  chest.delivery.mail = "suspended";
+  try {
+    const run = await followUp(sql, "2030-07-12");
+    assert.deepEqual([run.emailed, run.told], [0, 0]);
+    assert.equal(chest.outbox.length, sent);
+    assert.equal((await sql`select 1 from reminder_steps where document_id = ${inv.id}`).length, 0, "the step is not taken");
+  } finally {
+    chest.delivery.mail = "ready";
+  }
+  const next = await followUp(sql, "2030-07-13");
+  assert.equal(next.emailed, 1);
+  assert.deepEqual(chest.outbox.at(-1)!.to, ["compta@en-pause.test"]);
+  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}`));
+  await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
+});
