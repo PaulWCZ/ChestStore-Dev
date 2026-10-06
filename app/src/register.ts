@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 //
 //   declare module "@argentic/chest-app" {
 //     interface Register { words: Catalogue; actions: typeof actions; islands: typeof islands }
+//   (and, when a page tells its layout something: layout: { trash: boolean })
 //   }
 //
 // Every page, action, call() and <Island> is then typed with the tool's own
@@ -51,3 +52,6 @@ export type Words = Registered<"words", CoreWords> & CoreWords;
 export type ErrorCode = Extract<keyof Registered<"words", CoreWords>["errors"], string>;
 export type RegisteredActions = Registered<"actions", Record<string, unknown>>;
 export type RegisteredIslands = Registered<"islands", Record<string, ComponentType<any>>>;
+// What a page may tell its layout (View.layout → LayoutProps.data): the
+// tool's own shape, registered as layout (a plain object type).
+export type LayoutData = Registered<"layout", Record<string, never>>;

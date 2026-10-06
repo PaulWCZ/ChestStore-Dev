@@ -15,7 +15,7 @@ import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
 import { setRenderingForm } from "./form.tsx";
 import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
-import type { ErrorCode, Words } from "./register.ts";
+import type { ErrorCode, LayoutData, Words } from "./register.ts";
 import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
 
 // The server of a tool: security headers and a log line on every answer,
@@ -37,12 +37,16 @@ export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; para
 // head: more in the <head> of this page (robots, a feed's link); exactTitle:
 // the title as given, without " · <tool>" (a public page in the company's
 // name).
-export type View = { title: string; body: ReactNode; locale?: string; head?: ReactNode; exactTitle?: boolean };
+// layout: what this page tells the layout around it (the nav's state it
+// found while reading — a tab shown, a count), as LayoutProps.data; its
+// shape is the tool's Register's layout.
+export type View = { title: string; body: ReactNode; locale?: string; head?: ReactNode; exactTitle?: boolean; layout?: Partial<LayoutData> };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
 // look: the request's look when createApp has one (its logo, in brand
 // mode); status: the page's (an error page's layout may draw more frame).
-export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; look: Look | null; status: number; children: ReactNode };
+// data: what the page told it (View.layout; {} on an error page).
+export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; look: Look | null; status: number; data: Partial<LayoutData>; children: ReactNode };
 // A look served as a stylesheet of its own (/chest/look.css, /look.css),
 // for a look that depends on the request; the browser bar's colours.
 // logo: the company's (brand mode), for the layout to show.
@@ -160,8 +164,8 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
       </head>
       <body>
         {viewer.member !== null
-          ? <Members viewer={viewer} path={c.req.path} notice={notice} look={look} status={status}>{view.body}</Members>
-          : <Public viewer={viewer} path={c.req.path} notice={notice} look={look} status={status}>{view.body}</Public>}
+          ? <Members viewer={viewer} path={c.req.path} notice={notice} look={look} status={status} data={view.layout ?? {}}>{view.body}</Members>
+          : <Public viewer={viewer} path={c.req.path} notice={notice} look={look} status={status} data={view.layout ?? {}}>{view.body}</Public>}
       </body>
     </html>,
   );

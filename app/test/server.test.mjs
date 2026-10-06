@@ -38,7 +38,7 @@ const actions = {
 };
 let completed = 0;
 let written = 0;
-const layout = ({ notice, look, status, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "" }, notice && h("p", { role: "alert" }, notice), children);
+const layout = ({ notice, look, status, data, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "", "data-trash": String(data.trash ?? "none") }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en", "fr"], words: locale => (locale === "fr" ? { ...words, tool: { name: "Sonde" } } : words), layouts: { members: layout, public: layout },
   look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: { url: "/_chest/theme/brand/logo.svg", alt: "Brand" } }),
@@ -47,7 +47,7 @@ const app = createApp({
 app.post("/p/:link/actions/:name", publicActionsAt());
 app.post("/chest/import", rawRoute({ maxBytes: 100 }, (body, { viewer, c }) => c.json({ bytes: body.length, who: viewer.member?.id ?? null })));
 app.get("/chest/groups", page(({ member }) => ({ title: "Groups", body: h("p", null, member.groups.join(",")) })));
-app.get("/chest", page(({ t }) => ({ title: "Home", body: h("div", null, h(Island, { name: "Labelled", props: { label: "A" } }), h(Island, { name: "Labelled", props: { label: "B" } }), t.tool.name) })));
+app.get("/chest", page(({ t }) => ({ title: "Home", layout: { trash: true }, body: h("div", null, h(Island, { name: "Labelled", props: { label: "A" } }), h(Island, { name: "Labelled", props: { label: "B" } }), t.tool.name) })));
 app.get("/chest/day", page(async () => {
   const [{ day }] = await db()`select date '2026-10-05' as day`;
   return { title: "Day", body: h("p", null, typeof day + " " + day) };
@@ -181,11 +181,11 @@ test("the script is linked by its hashed name, never with a query: a chunk an is
 
 test("layouts receive the look (its logo) and the page's status; a visitor's 404 says its own words", async () => {
   const home = await (await get("/chest")).text();
-  assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg"/u);
+  assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg" data-trash="true"/u, "and what the page told it (View.layout)");
   const missing = await get("/nothing", null);
   assert.equal(missing.status, 404);
   const text = await missing.text();
-  assert.match(text, /data-status="404"/u);
+  assert.match(text, /data-status="404"[^>]*data-trash="none"/u);
   assert.match(text, /Ask whoever sent the link\./u);
   assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
 });

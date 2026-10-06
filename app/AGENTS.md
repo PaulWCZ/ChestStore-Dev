@@ -204,6 +204,12 @@ same render, with no flash of the old order.
 
 **A page** — a component in `src/pages/`, a route in `src/app.tsx`, its
 words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
+**A page that tells the layout something** (a tab shown only when the
+page found it has content, a count in the nav) — return `{ title, body,
+layout: { trash: true } }`; the layout reads `data.trash` (`{}` on an
+error page: give each a default). Its shape: `layout: { trash: boolean }`
+in `src/register.ts`'s `Register`. Never a module-level or per-member
+cache: two requests run at once.
 **A table** — `migrations/0003_tags.sql`, its rules and SQL in `src/lib/`.
 **Roles** — `"roles": ["manager", "member"]` in `chest.json` (the first
 is the default a new member gets; `"role_labels": { "manager": "Manager" }`
@@ -350,6 +356,7 @@ The SDK's `fakeChest`, `withMember` sign the member.
 |---|---|
 | An island shows a new thing with the old one's state (a draft, an open menu) after a refresh or a navigation | Same island, same place, other subject: give it an id, `<Island id={"card-" + card.id} …/>` (in development the browser warns when a prop `id` changes under an island without one) |
 | Two quick actions reorder rows | Calls with `parallel: true`, or two people at once: serialise in SQL (a transaction with a lock) |
+| Pasted HTML loses its bold and italics, the console reports a refused style | A `DOMParser` document inherits the page's policy: its `style=""` attributes are refused. Rename them in the text before parsing and read them by hand (Wiki's `src/islands/editor/paste.ts`, `unstyled()` and `inlineStyles()`) |
 | TS7022/TS7024: `actions` "implicitly has type any" | A cycle through `Register`: an action's inferred type depends on `t` or on `fail()` in an expression. Annotate its run's return type (`async (…): Promise<{ id: string }> => …`) |
 | A migration's `create extension` fails in the tests on PGlite | Give `testDatabase({ extensions: ["unaccent", "pg_trgm"] })`, or use a server |
 | 401 on `/chest` locally | No Chest: run in the Chest's preview, or test with `fakeChest` |
