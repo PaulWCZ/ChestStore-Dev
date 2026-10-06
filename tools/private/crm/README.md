@@ -119,8 +119,12 @@ that needs the 80 % they use every day. Research:
   deals, activities, next steps, fields) with stable English column names
   and ids.
 - **The bell**: when someone gives you a deal or a next step; every weekday
-  morning (proposal *schedules*) one item with your due next steps; the
-  tile's number is your late + today's next steps.
+  morning (*schedules*) one item with your due next steps; the tile's number
+  is your late + today's next steps. Each item is one notice in English with
+  its French translation (SDK 0.4.1-studio.5 `translations`); the Chest shows
+  each member theirs, and **mails it to them if they chose so** in the Chest
+  (every one, once or twice a day, or never) — Clients has no "email me"
+  setting and sends no email of its own.
 - **Stages** (managers): rename (the default ones speak each reader's
   language until renamed), set each stage's chance to win, reorder, add,
   remove an empty one.
@@ -386,7 +390,7 @@ package `@argentic/chest-app` (`0.1.0-studio.6`) and UI kit
   data's days are `current_date`); a time shown to a member in their own
   zone (`member.timeZone`).
 - `schedules` — **SDK 0.4** (official), `"schedules"` of `chest.json`, run on `POST /chest-schedules`
-  (`morning`, weekdays 07:30): the morning digest, the tiles kept true
+  (`morning`, weekdays 07:30): the morning reminder of the day's next steps, the tiles kept true
   overnight, the purge of removed history. On a Chest without it, the tile's
   number is set right whenever its owner opens *My day*, and removed history
   simply stays hidden.
@@ -410,14 +414,21 @@ package `@argentic/chest-app` (`0.1.0-studio.6`) and UI kit
   next run and never holds the others back). On a Chest without it,
   the steps stand and the form stops promising the calendar
   (`tool_state`).
-- **Needed, not built: received mail for the tool** — to log emails by
-  themselves (a BCC address, `clients@<company domain>`, files each email on
-  the contact whose address it carries; "send from the contact page"). The
-  studio's *mail* proposal gives most of the shape (`mailboxes`,
-  `mail.handle`, `members.email`); Clients will use it once it ships, and
-  also needs to tell the team's own addresses from clients' (the sender of
-  a BCC is the salesperson) — see the SDK report. Until then **emails are
-  not captured**: *Log an email* records that one happened.
+- **Emails are logged, not captured.** The owner decided (6 October 2026)
+  that the Chest never receives mail: no BCC address, no inbound address, no reply
+  threads. Clients therefore files no email by itself; *Log an email*
+  records that one happened. Capturing emails would need reading the
+  company's own mail through its provider (Gmail, Microsoft 365) — a
+  connector the Chest does not have and the studio has not proposed.
+
+## Mail
+
+Clients sends **no email**, to anyone, and asks for no mail permission.
+What it tells the team — a deal or a next step given to you, the morning's
+due next steps, a new lead from a form or a booking, someone who left with
+deals — are notifications; the Chest mails members their notifications as
+each one chooses. Writing to a client is done from the person's own mail
+app (an address is a `mailto:` link), then logged with *Log an email*.
 
 ## Names in each reader's language
 
@@ -488,7 +499,8 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/crm --reset --port 4800
 ## What it does not do (yet)
 
 - **Emails are not captured** (no BCC, no Gmail/Outlook sync, no sending
-  from the contact page): it needs received mail from the Chest (above).
+  from the contact page): the Chest receives no mail (above); a contact's
+  address opens the person's own mail app.
 - Only timed steps reach the calendar, one way: moving the event in
   Google or Outlook does not move the step (a feed is read-only).
 - The "Log this call?" prompt knows a tap on *Call*, not the call itself

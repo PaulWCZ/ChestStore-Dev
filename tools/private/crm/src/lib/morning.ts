@@ -19,7 +19,7 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
   const byOwner = new Map<string, string[]>();
   for (const r of rows) byOwner.set(r.owner, [...(byOwner.get(r.owner) ?? []), r.text]);
   for (const [owner, texts] of byOwner) {
-    await notify([owner], (t, locale) => ({ title: plural(t.bell.digest, texts.length, locale), body: cut(texts.join(" · "), 280) }), { path: "/chest", key: "digest" });
+    await notify([owner], (t, locale) => ({ title: plural(t.bell.dueToday, texts.length, locale), body: cut(texts.join(" · "), 280) }), { path: "/chest", key: "digest" });
   }
   // Everyone who holds an open step: their number today (0 clears it).
   const holders = (await sql<{ owner: string }[]>`select distinct owner from steps where done_at is null and owner like 'mbr_%' limit 5000`).map(r => r.owner);

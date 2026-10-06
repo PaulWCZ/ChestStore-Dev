@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { onEvent as POST } from "../src/lib/deliveries.ts";
 import * as activities from "../src/lib/activities.ts";
 import * as contacts from "../src/lib/contacts.ts";
@@ -200,7 +200,7 @@ test("a host who does not work on clients here: the guest is a lead of nobody's,
   assert.ok(lead?.booking);
   assert.equal(lead.booking.start, d.start);
   const bell = chest.notifications.filter(n => n.key === bookingKey(d.booking));
-  assert.deepEqual(bell.map(n => [n.member, n.title]), [[camille.id, "Nouveau contact : Léon Blanc a pris rendez-vous"]]);
+  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title]), [[camille.id, "Nouveau contact : Léon Blanc a pris rendez-vous"]]);
   // A viewer hosting is no owner either.
   await tell(data({ host: lea.id, contact: { email: "viewer-host@example.com" } }));
   const [v] = await byEmail("viewer-host@example.com");

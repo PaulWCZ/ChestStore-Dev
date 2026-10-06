@@ -894,7 +894,7 @@ export const en = {
     stepGiven: "{name} gave you a next step",
     stepBody: "{text} — {day} · {on}",
     stepBodySelf: "{text} — {day}",
-    digest: { one: "{count} next step for today", other: "{count} next steps for today" },
+    dueToday: { one: "{count} next step for today", other: "{count} next steps for today" },
     left: "{name} left: their clients need an owner",
     leftDeals: { zero: "no deal", one: "{count} deal", other: "{count} deals" },
     leftSteps: { zero: "no next step", one: "{count} next step", other: "{count} next steps" },
