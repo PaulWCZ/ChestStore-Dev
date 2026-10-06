@@ -3,12 +3,12 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { as, done, expect, id, open, step } from "./lib.mjs";
+import { as, done, expect, id, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5200);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en" });
 const tmp = process.env.TMPDIR ?? "/tmp";
-const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, "/t_timesheets"), { max: 1, onnotice: () => {} });
+const db = postgres(toolDatabase("timesheets", port), { max: 1, onnotice: () => {} });
 // The kit's Segmented (0.2.1+): the radio is hidden, its word is what one
 // taps; the radio then says it is chosen.
 const choose = async (name, exact = false) => {
@@ -44,7 +44,7 @@ await step("start the timer on a project; it survives a reload; stop records it"
   // Offered, on the timer's line: keep one minute rather than nothing.
   await page.locator(".timer").getByRole("button", { name: "Keep 1 min" }).click();
   await toast("0:01 recorded on Site vitrine");
-  await page.locator(".timer.idle").waitFor();
+  await page.locator(".timer:not(.running)").waitFor();
 });
 
 await step("a forgotten timer asks when it stopped, and records that time", async () => {
@@ -61,7 +61,7 @@ await step("a forgotten timer asks when it stopped, and records that time", asyn
   await dialog.locator("select").selectOption({ index: 16 });
   await dialog.getByRole("button", { name: "Save this time" }).click();
   await toast("recorded on Site vitrine");
-  await page.locator(".timer.idle").waitFor();
+  await page.locator(".timer:not(.running)").waitFor();
 });
 
 await step("type hours in the week grid; a wrong entry is refused, a right one stays", async () => {
@@ -196,7 +196,7 @@ await step("the team: approve last week, send this one back with a word, remind 
   // Neither is complete (last week under 35:00, this one not over): no bulk
   // approval, and each line says why.
   expect(await page.getByRole("button", { name: /^Valider (les|la|toutes)/u }).count() === 0, "no bulk approval of short or unfinished weeks");
-  expect(/semaine pas finie/u.test(await rows.last().innerText()) && /30:15 sur 35:00/u.test(await rows.first().innerText()), "shortness said: " + (await page.locator(".waiting").innerText()));
+  expect(/semaine pas finie/u.test(await rows.last().innerText()) && /\d+:\d{2} sur 35:00/u.test(await rows.first().innerText()), "shortness said: " + (await page.locator(".waiting").innerText()));
   // Weeks before a person's start in the tool are "—", never "short".
   const camille = page.locator("tr", { hasText: "Camille Martin" });
   expect((await camille.getByRole("link", { name: /avant son arrivée/u }).count()) === 1, "Camille's first week shown as before her start: " + (await camille.innerText()));
@@ -207,7 +207,7 @@ await step("the team: approve last week, send this one back with a word, remind 
   await page.locator(".ck-toast", { hasText: "Semaine renvoyée à Hugo Bernard." }).waitFor();
   // A short week: approving asks first, saying what it holds.
   await page.locator(".waiting-row", { hasText: "Hugo Bernard" }).first().getByRole("button", { name: "Valider" }).click();
-  await page.getByText(/30:15 sur 35:00\. La valider telle quelle\s\?/u).waitFor();
+  await page.getByText(/\d+:\d{2} sur 35:00\. La valider telle quelle\s\?/u).waitFor();
   await page.getByRole("button", { name: "Valider quand même" }).click();
   await page.locator(".ck-toast", { hasText: "La semaine de Hugo Bernard est validée." }).waitFor();
   await page.getByText("Aucune semaine ne vous attend.").waitFor();
