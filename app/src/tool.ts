@@ -261,33 +261,45 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 // bounded, the same way in every tool:
 // - a form token: <Honeypot /> in the form carries one (the page made it,
 //   signed with a key from CHEST_TOKEN); it lasts formMinutes (120 by
-//   default) and serves once; with formSeconds, a form sent sooner than a
-//   person fills it waits the seconds left (a person sees a slower
-//   "Sending…", a robot gains nothing) — a call without a fresh one is refused with
-//   "expired" (the answer brings a new one: sent again, it goes);
+//   default) and serves once, whatever the answer (each answer, and the
+//   page a form goes back to, brings the next) — without a fresh one,
+//   "expired"; with formSeconds, a form sent sooner than a person fills it
+//   waits the seconds left;
 // - a robot that fills <Honeypot />'s field ("website") is answered "done"
 //   and nothing is done;
 // - budgets, a day (the Chest's): perVisitor for one visitor, perDay for
-//   everyone together (one robot slows the form, never fills the table).
-//   The visitor is the address the Chest's front gives
-//   (Chest-Visitor-Address, a studio proposal), else the browser's cookie
-//   (chest_v); a visitor with neither is counted in perDay only — never
-//   all of them together as one. Past a budget: "limit".
-// Only a valid call is counted: the token and the fields checked first,
-// and a call whose run throws (a wrong secret, a slot already taken) gives
-// its count and its token back. Kinds of write with budgets of their own
-// (a new booking, a change to one): { budgets: { new: …, change: … } },
-// and run says which once it has checked the request: await charge("new").
-// Counted in chest_bounds, tokens in chest_seen (the tool's
-// migrations/0001_chest.sql). checkSources() fails on a publicAction
-// without bound; bound: false says the action writes nothing anyone could
-// fill (or guards itself).
-export type Budget = { perVisitor: number; perDay: number };
+//   everyone together, perSubject (with charge(kind, { subject })) for one
+//   thing written to (a guest link, a booking). The visitor is the address
+//   the Chest's front gives (Chest-Visitor-Address, a studio proposal: no
+//   Chest gives it yet), else the browser's cookie (chest_v); one with
+//   neither counts in perDay only. A visitor who already wrote today keeps
+//   a reserve past perDay (a tenth). Past a budget: "limit".
+// What it holds, and what it does not: a written call is counted only once
+// valid (the token, the fields, and what the run checks before charge();
+// a run that throws gives its counts back), so junk never writes and a
+// person's mistakes cost nothing. But each fresh token is one free page
+// load: a robot without an address the Chest can name, clearing its
+// cookie, can still spend perDay with calls that pass the checks, and the
+// people coming after it then meet "limit" until tomorrow (the people who
+// wrote earlier keep the reserve). Fair public writes need the visitor's
+// address from the Chest's front — a blocker the SDK report names.
+// Refusals have a budget too (ten times perDay a day, then "limit" before
+// the run): a check that asks the Chest (members.get) must not let a flood
+// spend the tool's limits at the Chest — but a public request should never
+// call the Chest at all (cache a minute, or the tool's own table).
+// Kinds of write with budgets of their own (a new booking, a change to
+// one): { budgets: { new: …, change: … } }, and run says which once it has
+// checked the request: await charge("new"). Counted in chest_bounds,
+// tokens in chest_seen (the tool's migrations/0001_chest.sql).
+// checkSources() fails on a publicAction without bound; bound: false says
+// the action writes nothing anyone could fill (or guards itself).
+export type Budget = { perVisitor: number; perDay: number; perSubject?: number };
 export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number; formSeconds?: number };
-// What a public action's run gets: the visitor, and charge(kind), the
-// budget it spends (with budgets of several kinds; once per call).
-export type PublicContext = VisitorContext & { charge(kind: string): Promise<void> };
+// What a public action's run gets: the visitor, and charge(kind, { subject }),
+// the budget it spends (with budgets of several kinds; once per call).
+export type PublicContext = VisitorContext & { charge(kind: string, options?: { subject?: string }): Promise<void> };
 export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: PublicContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false } = {}): Action<F, R> {
+  if (options.bound && !("budgets" in options.bound) && options.bound.perSubject !== undefined) throw new TypeError("publicAction: perSubject needs budgets by kind and charge(kind, { subject }) in the run");
   return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), run: run as Action<F, R>["run"] };
 }
 

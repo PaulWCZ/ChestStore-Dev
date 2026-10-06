@@ -18,6 +18,9 @@ import postgres from "postgres";
 //      @electric-sql/pglite and @electric-sql/pglite-socket): 1.2–1.3 GiB
 //      more memory — the last resort.
 // close() drops what it made.
+// The returned sql (to seed, to read back) runs in the Chest's zone as
+// db() does (CHEST_TIME_ZONE: current_date is the company's day on both):
+// start fakeChest() first — without a zone it warns and uses UTC.
 export type TestDatabase = { sql: postgres.Sql; kind: "server" | "preview" | "pglite"; close(): Promise<void> };
 const chestShape = /^postgres:\/\/(t_[a-z][a-z0-9_]{0,47}|pb_[a-z2-7]{26}):[^@]+@127\.0\.0\.1:\d+\/\1\?sslmode=disable$/u;
 const quiet = { onnotice: () => {} };
@@ -31,16 +34,22 @@ const quiet = { onnotice: () => {} };
 export async function testDatabase({ migrations = "migrations", extensions = [] }: { migrations?: string; extensions?: string[] } = {}): Promise<TestDatabase> {
   const files = existsSync(migrations) ? readdirSync(migrations).filter(f => /^\d{4}_[a-z0-9_-]+\.sql$/u.test(f)).sort().map(f => readFileSync(join(migrations, f), "utf8")) : [];
   const name = `t_test_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const given = process.env["CHEST_TIME_ZONE"] ?? "";
+  if (!given) console.warn("testDatabase: CHEST_TIME_ZONE is not set — start fakeChest() before testDatabase(), or the seeds' current_date is UTC's day.");
+  const zone = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/u.test(given) ? given : "UTC";
+  const inZone = { TimeZone: zone };
   const server = process.env["TEST_DATABASE_URL"];
   if (server) {
     const admin = postgres(server, { max: 1, ...quiet });
     const password = Math.random().toString(36).slice(2);
     await admin.unsafe(`create role ${name} login password '${password}'`);
     await admin.unsafe(`create database ${name} owner ${name}`);
+    // Every session of it in the Chest's zone (a tool's own pool too).
+    await admin.unsafe(`alter database ${name} set timezone = '${zone}'`);
     const base = new URL(server);
     process.env["DATABASE_URL"] = `postgres://${name}:${password}@127.0.0.1:${base.port || 5432}/${name}?sslmode=disable`;
     delete process.env["TEST_DATABASE_SCHEMA"];
-    const sql = postgres(process.env["DATABASE_URL"], { max: 2, ...quiet });
+    const sql = postgres(process.env["DATABASE_URL"], { max: 2, connection: inZone, ...quiet });
     for (const text of files) await sql.begin(tx => tx.unsafe(text).simple());
     return {
       sql,
@@ -56,7 +65,7 @@ export async function testDatabase({ migrations = "migrations", extensions = [] 
   const preview = process.env["DATABASE_URL"];
   if (preview && chestShape.test(preview)) {
     const schema = name.replace(/^t_/u, "");
-    const sql = postgres(preview, { max: 2, connection: { search_path: schema }, ...quiet });
+    const sql = postgres(preview, { max: 2, connection: { search_path: schema, ...inZone }, ...quiet });
     await sql.unsafe(`create schema ${schema}`);
     process.env["TEST_DATABASE_SCHEMA"] = schema;
     for (const text of files) await sql.begin(tx => tx.unsafe(text).simple());
@@ -86,8 +95,10 @@ export async function testDatabase({ migrations = "migrations", extensions = [] 
   process.env["DATABASE_URL"] = `postgres://t_test:test@127.0.0.1:${port}/t_test?sslmode=disable`;
   process.env["DATABASE_POOL_MAX"] = "1";
   delete process.env["TEST_DATABASE_SCHEMA"];
+  // One session for every connection: its zone is the Chest's.
+  await pg.exec(`set time zone '${zone}'`);
   for (const text of files) await pg.exec(text);
-  const sql = postgres(process.env["DATABASE_URL"], { max: 1, ...quiet });
+  const sql = postgres(process.env["DATABASE_URL"], { max: 1, connection: inZone, ...quiet });
   return { sql, kind: "pglite", async close() { await sql.end(); await socket.stop(); await pg.close(); } };
 }
 
@@ -164,8 +175,8 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   } catch { /* the kit not installed: only the tool's CSS counts */ }
   const known = new Set([...`${noComments}\n${kitCss}`.matchAll(/\.(-?[_a-zA-Z][\w-]*)/gu)].map(m => m[1]));
   for (const { file, text } of code.filter(c => c.file.endsWith(".tsx"))) {
-    for (const m of text.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/gu)) {
-      const literals = m[1] !== undefined ? [m[1]] : [...(m[2] ?? "").matchAll(/"([^"]*)"|'([^']*)'|`([^`$]*)/gu)].map(x => x[1] ?? x[2] ?? x[3] ?? "");
+    for (const m of text.matchAll(/className=(?:"([^"]*)"|\{)/gu)) {
+      const literals = m[1] !== undefined ? [m[1]] : classLiterals(balanced(text, m.index + m[0].length - 1));
       // A name ending with "-" is a family the code completes
       // (`c-${color}`): some class of the stylesheets must start with it.
       const defined = (name: string) => (name.endsWith("-") ? [...known].some(k => k !== undefined && k.startsWith(name) && k.length > name.length) : known.has(name));
@@ -193,13 +204,26 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   // page). The public part declared with nothing served asks for nothing.
   const publicWrites = /\bpublicAction(sAt)?\(/u.test(code_);
   // Each public action is bounded (bound: { perVisitor, perDay }) or says
-  // it needs none (bound: false).
+  // it needs none (bound: false); with budgets by kind, its run calls
+  // charge() (with { subject } for a perSubject one). Read in each
+  // publicAction(…) call itself, not in the rest of the file.
+  let bounded = false;
   for (const { file, text } of code) {
     const plain = text.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
-    const actions = (plain.match(/\bpublicAction\(/gu) ?? []).length;
-    const bounds = (plain.match(/\bbound\s*:/gu) ?? []).length;
-    if (actions > bounds) problems.push(`${file}: a publicAction without bound — anyone on the Internet may call it: bound: { perVisitor, perDay } (or bound: false)`);
-    if (/\bbudgets\s*:/u.test(plain) && !/\bcharge\(/u.test(plain)) problems.push(`${file}: a publicAction with budgets never calls charge(kind): say which budget a call spends, once its request is checked`);
+    for (const m of plain.matchAll(/\bpublicAction\(/gu)) {
+      const call = balanced(plain, m.index + m[0].length - 1);
+      if (!/\bbound\s*:/u.test(call)) problems.push(`${file}: a publicAction without bound — anyone on the Internet may call it: bound: { perVisitor, perDay } (or bound: false)`);
+      else if (!/\bbound\s*:\s*false\b/u.test(call)) bounded = true;
+      if (/\bbudgets\s*:/u.test(call) && !/\bcharge\(/u.test(call)) problems.push(`${file}: a publicAction with budgets never calls charge(kind): say which budget a call spends, once its request is checked`);
+      if (/\bperSubject\s*:/u.test(call) && !/\bcharge\([^)]*\bsubject\b/u.test(call)) problems.push(`${file}: a publicAction with perSubject never says its subject: charge(kind, { subject })`);
+    }
+  }
+  // A bounded action refuses with "limit" and "expired": the catalogues say them.
+  if (bounded) {
+    for (const file of walk(join(root, "src", "i18n")).filter(f => /\.ts$/u.test(f) && !f.endsWith("index.ts"))) {
+      const text = readFileSync(file, "utf8");
+      for (const code of ["limit", "expired"]) if (!new RegExp(`\\b${code}\\s*:`, "u").test(text)) problems.push(`${file}: errors.${code} — a bounded public action refuses with it (in this language's words)`);
+    }
   }
   const publicPages = /\bpublicPage\(/u.test(code_);
   if (publicWrites && !manifestPublic) problems.push(`src/ has public actions (publicAction) without "public": true in chest.json: the Chest would never route to them`);
@@ -217,6 +241,83 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   if ((manifest.receives?.length ?? 0) === 0 && handlesEvents && /"member\.[a-z]+"\s*:/u.test(all)) problems.push(`events handled without "receives": ["member.*"] in chest.json`);
   for (const { name } of manifest.schedules ?? []) if (!new RegExp(`["']?\\b${name}\\b["']?\\s*:`, "u").test(all)) problems.push(`the schedule "${name}" of chest.json has no handler in schedules.handle`);
   if (problems.length > 0) throw new Error(problems.join("\n"));
+}
+
+// The text from an opening bracket at `from` to its closing one (strings
+// and templates skipped as they come, a template's ${…} read as code).
+function balanced(text: string, from: number): string {
+  const close: Record<string, string> = { "(": ")", "{": "}", "[": "]" };
+  const stack: string[] = [];
+  for (let i = from; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '"' || ch === "'" || ch === "`") {
+      i = stringEnd(text, i);
+      continue;
+    }
+    if (close[ch]) stack.push(close[ch]!);
+    else if (ch === stack[stack.length - 1]) {
+      stack.pop();
+      if (stack.length === 0) return text.slice(from, i + 1);
+    }
+  }
+  return text.slice(from);
+}
+// Where the string opened at `at` ends (its closing quote).
+function stringEnd(text: string, at: number): number {
+  const quote = text[at]!;
+  for (let i = at + 1; i < text.length; i++) {
+    if (text[i] === "\\") i++;
+    else if (quote === "`" && text[i] === "$" && text[i + 1] === "{") i += balanced(text, i + 1).length;
+    else if (text[i] === quote) return i;
+  }
+  return text.length;
+}
+
+// The literals of a className={…} expression that become class names: the
+// strings of ternaries and &&, a template's text, the arguments of cx()/
+// clsx()/classNames() and of [...].join(" ") — never the arguments of any
+// other call (suggested.has("merchant")) nor a compared value (x === "a").
+const classHelpers = new Set(["cx", "clsx", "classNames", "classnames", "join"]);
+function classLiterals(expression: string): string[] {
+  let text = expression;
+  // Calls of anything else: their arguments are not classes.
+  for (let at = 0; ;) {
+    const m = /([A-Za-z_$][\w$]*)\s*\(/gu;
+    m.lastIndex = at;
+    const found = m.exec(text);
+    if (!found) break;
+    const open = found.index + found[0].length - 1;
+    const args = balanced(text, open);
+    if (classHelpers.has(found[1]!)) at = open + 1;
+    else {
+      text = text.slice(0, open) + "()" + text.slice(open + args.length);
+      at = open + 2;
+    }
+  }
+  // A value compared is not a class.
+  text = text.replace(/(===?|!==?)\s*("[^"]*"|'[^']*')|("[^"]*"|'[^']*')\s*(===?|!==?)/gu, "");
+  const names: string[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch !== '"' && ch !== "'" && ch !== "`") continue;
+    const end = stringEnd(text, i);
+    const body = text.slice(i + 1, end);
+    if (ch !== "`") names.push(...body.split(/\s+/u));
+    else {
+      // A template: its text (a part before ${…} may be a family: "c-"),
+      // and the classes of what its ${…} hold.
+      let rest = body;
+      for (let k = rest.indexOf("${"); k >= 0; k = rest.indexOf("${")) {
+        const inner = balanced(rest, k + 1);
+        names.push(...rest.slice(0, k).split(/\s+/u));
+        names.push(...classLiterals(inner.slice(1, -1)));
+        rest = " " + rest.slice(k + 1 + inner.length);
+      }
+      names.push(...rest.split(/\s+/u));
+    }
+    i = end;
+  }
+  return names.filter(Boolean);
 }
 
 // ---- atLeast(n): the test file fails when fewer than n of its tests ran

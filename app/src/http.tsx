@@ -16,7 +16,7 @@ import { setRenderingForm } from "./form.tsx";
 import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
 import type { ErrorCode, LayoutData, Words } from "./register.ts";
-import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
+import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Bound, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
 
 // The server of a tool: security headers and a log line on every answer,
 // the browser's files under /assets/, the member of every /chest request,
@@ -323,11 +323,13 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
       const raw = json ? await c.req.json<Record<string, unknown>>() : formFields(await c.req.formData());
       let spent: Spent | null = null;
       let charged = false;
-      const charge = async (kind: string) => {
+      const charge = async (kind: string, options: { subject?: string } = {}) => {
         if (!bound || !("budgets" in bound) || !Object.hasOwn(bound.budgets, kind)) throw new Error(`charge("${kind}"): ${name} has no such budget`);
         if (charged) throw new Error(`charge(): ${name} spends one budget a call`);
+        const budget = bound.budgets[kind]!;
+        if (budget.perSubject !== undefined && !options.subject) throw new Error(`charge("${kind}"): its budget has perSubject — say the subject: charge("${kind}", { subject })`);
         charged = true;
-        spent = await spend(c, `${name}:${kind}`, bound.budgets[kind]!, spent);
+        spent = await spend(c, `${name}:${kind}`, budget, options.subject ?? null, spent);
       };
       try {
         if (bound) {
@@ -336,10 +338,16 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
             answer = ok(null);
             return;
           }
-          spent = await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120, Math.min(bound.formSeconds ?? 0, 30));
+          // The token is spent whatever follows (a refusal's answer, or the
+          // page it goes back to, brings the next one).
+          await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120, Math.min(bound.formSeconds ?? 0, 30));
+          // Refusals have a budget of their own (ten times the day's): a
+          // run's checks may ask the Chest, and a flood of calls refused
+          // one by one must not spend the Chest's limits for the tool.
+          await refusalsLeft(name, bound);
         }
         const input = readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {});
-        if (bound && !("budgets" in bound)) spent = await spend(c, name, bound, spent);
+        if (bound && !("budgets" in bound)) spent = await spend(c, name, bound, null, spent);
         const value = await definition.run(input as never, { ...viewer, cookies: cookiesOf(c), request: c.req.raw, ...(definition.access === "public" ? { charge } : {}) } as never);
         if (bound && "budgets" in bound && !charged) {
           // Written without a budget: a bug of the tool's, said loudly.
@@ -348,9 +356,12 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
         }
         answer = ok(value);
       } catch (error) {
-        // Refused or failed (a redirect is done): its count and its token
-        // given back.
-        if (!(error instanceof HttpStatus && error.to)) await (spent as Spent | null)?.release();
+        // Refused or failed (a redirect is done): its counts given back, and
+        // a refusal counted with the refusals.
+        if (!(error instanceof HttpStatus && error.to)) {
+          await (spent as Spent | null)?.release();
+          if (bound && (error instanceof AppError || error instanceof HttpStatus) && !(error instanceof AppError && (error.code === "limit" || error.code === "expired"))) await countRefusal(name);
+        }
         throw error;
       }
     } catch (error) {
@@ -393,7 +404,7 @@ export function formToken(now = Date.now()): string {
 }
 // A token ours, younger than its minutes and never served: taken (in
 // chest_seen) until the call fails. Otherwise "expired".
-async function takeForm(token: unknown, minutes: number, seconds: number): Promise<Spent> {
+async function takeForm(token: unknown, minutes: number, seconds: number): Promise<void> {
   const parts = typeof token === "string" && token.length <= 128 ? token.split(".") : [];
   const [time = "", nonce = "", signature = ""] = parts;
   const expected = parts.length === 3 && /^\d{13}$/u.test(time) ? formSignature(`${time}.${nonce}`) : "";
@@ -406,7 +417,20 @@ async function takeForm(token: unknown, minutes: number, seconds: number): Promi
   const id = `form:${nonce}`;
   if ((await sql`insert into chest_seen (id) values (${id}) on conflict do nothing returning id`).length === 0) fail("expired" as ErrorCode);
   if (Math.random() < 0.02) await sql`delete from chest_seen where id like 'form:%' and at < now() - interval '2 days'`;
-  return { release: async () => { await sql`delete from chest_seen where id = ${id}`; } };
+}
+
+// The refusals of a public action today, for everyone: at most ten times
+// its day's budget (the sum of its kinds'), then "limit" before its run.
+const refusalCeiling = (bound: Bound) => 10 * ("budgets" in bound ? Object.values(bound.budgets).reduce((n, b) => n + b.perDay, 0) : bound.perDay);
+async function refusalsLeft(name: string, bound: Bound): Promise<void> {
+  const { db } = await import("./db.ts");
+  const [row] = await db()<{ count: number }[]>`select count from chest_bounds where scope = ${name + ":refused"} and visitor = '*' and day = current_date`;
+  if ((row?.count ?? 0) >= refusalCeiling(bound)) fail("limit" as ErrorCode);
+}
+async function countRefusal(name: string): Promise<void> {
+  const { db } = await import("./db.ts");
+  await db()`insert into chest_bounds (scope, visitor, day, count) values (${name + ":refused"}, '*', current_date, 1)
+    on conflict (scope, visitor, day) do update set count = chest_bounds.count + 1`;
 }
 
 // The visitor a budget counts: the address the Chest's front gives
@@ -422,25 +446,34 @@ function visitorKey(c: Context): string | null {
   return null;
 }
 
-// One more in a budget, today (the Chest's day), for this visitor and for
-// everyone, in chest_bounds; past either, refused ("limit") and not kept.
-async function spend(c: Context, scope: string, budget: Budget, before: Spent | null): Promise<Spent> {
+// One more in a budget, today (the Chest's day), for this visitor, for
+// the subject (perSubject: a guest link, a booking) and for everyone, in
+// chest_bounds; past any, refused ("limit") and not kept. A visitor who
+// already wrote today (known by address or cookie) keeps a reserve past
+// everyone's ceiling — a tenth of it, at least one —, so a flood of new
+// visitors does not lock out the people already in a conversation.
+const reserveOf = (budget: Budget) => Math.max(1, Math.ceil(budget.perDay / 10));
+async function spend(c: Context, scope: string, budget: Budget, subject: string | null, before: Spent | null): Promise<Spent> {
   const { db } = await import("./db.ts");
   const sql = db();
   const who = visitorKey(c);
   const add = async (key: string, by: number) => (await sql<{ count: number }[]>`
     insert into chest_bounds (scope, visitor, day, count) values (${scope}, ${key}, current_date, ${by})
     on conflict (scope, visitor, day) do update set count = chest_bounds.count + ${by} returning count`)[0]!.count;
-  const keys = who === null ? ["*"] : [who, "*"];
   const taken: string[] = [];
   const release = async () => { for (const key of taken) await add(key, -1); };
-  for (const key of keys) {
+  const over = async (key: string, limit: number) => {
     taken.push(key);
-    if ((await add(key, 1)) > (key === "*" ? budget.perDay : budget.perVisitor)) {
+    const count = await add(key, 1);
+    if (count > limit) {
       await release();
       fail("limit" as ErrorCode);
     }
-  }
+    return count;
+  };
+  const known = who === null ? 0 : await over(who, budget.perVisitor);
+  if (subject !== null && budget.perSubject !== undefined) await over("s:" + createHash("sha256").update(subject).digest("base64url").slice(0, 22), budget.perSubject);
+  await over("*", budget.perDay + (known > 1 ? reserveOf(budget) : 0));
   if (Math.random() < 0.02) await sql`delete from chest_bounds where day < current_date - 1`;
   return chain(before, release);
 }

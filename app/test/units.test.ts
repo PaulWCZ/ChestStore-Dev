@@ -137,8 +137,24 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   fails("src/app.tsx", "export const A = () => null;", /asks "database"/u);
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nimport * as m from "@argentic/chest-sdk/members";', /declare it/u);
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null) };', /without "public": true/u);
+  // Class names: only the literals that become classes.
+  write("src/styles.css", ".note { color: var(--ink); } .on { color: var(--ink); } .off { color: var(--ink); } .c-sky { color: var(--ink); }");
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = ({ s, on, c, k }: { s: Set<string>; on: boolean; c: string; k: string }) => <><div className={s.has("merchant") ? "on" : "off"} /><div className={cx("note", on && "on")} /><div className={`note ${on ? "on" : "off"} c-${c}`} /><div className={k === "weird" ? "on" : ""} /></>;');
+  checkSources({ root: dir });
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = ({ on }: { on: boolean }) => <div className={`note ${on ? "nowhere" : ""}`} />;', /"nowhere"/u);
+  write("src/styles.css", ".note { color: var(--ink); }");
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = () => <div className="note" />;');
   write("chest.json", JSON.stringify({ capabilities: ["database"], public: true }));
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null) };', /without bound/u);
+  // budgets: read in the publicAction call, not anywhere in the file.
+  mkdirSync(join(dir, "src", "i18n"), { recursive: true });
+  write("src/i18n/en.ts", "export const en = { errors: { limit: \"Too many.\", expired: \"Expired.\" } };");
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nconst limits = { budgets: 3 };\nexport const a = { send: publicAction({}, async () => null, { bound: { perVisitor: 1, perDay: 9 } }) };');
+  checkSources({ root: dir });
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { budgets: { new: { perVisitor: 1, perDay: 9, perSubject: 2 } } } }) };', /never says its subject/u);
+  write("src/i18n/en.ts", "export const en = { errors: { limit: \"Too many.\" } };");
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null, { bound: { perVisitor: 1, perDay: 9 } }) };', /errors\.expired/u);
+  write("src/i18n/en.ts", "export const en = { errors: { limit: \"Too many.\", expired: \"Expired.\" } };");
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 9 } } } }) };', /never calls charge/u);
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { budgets: { new: { perVisitor: 1, perDay: 9 } } } }) };');
   checkSources({ root: dir });

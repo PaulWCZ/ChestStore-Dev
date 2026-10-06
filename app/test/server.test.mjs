@@ -33,6 +33,9 @@ const actions = {
     written++;
     return null;
   }, { bound: { budgets: { new: { perVisitor: 1, perDay: 10 }, change: { perVisitor: 3, perDay: 10 } }, formMinutes: 30 } }),
+  guarded: publicAction({}, async () => fail("forbidden"), { bound: { perVisitor: 1, perDay: 1 } }),
+  rsvp: publicAction({ link: field.text({ max: 20 }) }, async ({ link }, { charge }) => { await charge("change", { subject: link }); return null; }, { bound: { budgets: { change: { perVisitor: 50, perDay: 50, perSubject: 2 } } } }),
+  chat: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 2 } }),
   patient: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 5, formSeconds: 1 } }),
   forgot: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 1 } } } }),
 };
@@ -331,6 +334,9 @@ test("a route's own policy is kept; failures named by what failed", async () => 
 test("the database runs in the Chest's zone (a far one)", async () => {
   const { chest: sdkChest } = await import("@argentic/chest-sdk/chest");
   const [{ day }] = await db()`select current_date::text as day`;
+  const [{ seeded }] = await database.sql`select current_date::text as seeded`;
+  assert.equal(seeded, day, "testDatabase()'s sql (the seeds) on the same day as db()");
+  for (const sql of [db(), database.sql]) assert.equal((await sql`select current_setting('TimeZone') as zone`)[0].zone, "Pacific/Kiritimati");
   assert.equal(day, sdkChest.today());
 });
 
@@ -417,4 +423,22 @@ test("download(): a file as an attachment, never cached; a refusal is a page in 
   const invalid = await get("/chest/export.csv?year=1900");
   assert.equal(invalid.status, 400);
   assert.match(await invalid.text(), /Too long: 5 at most\./u);
+});
+
+test("bounds: refusals have a budget (ten times the day's), a subject its own, a visitor who wrote today a reserve", async () => {
+  const send = (name, fields = {}, cookie) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}) } }));
+  for (let i = 0; i < 10; i++) assert.equal((await send("guarded")).status, 403);
+  const stopped = await send("guarded");
+  assert.equal(stopped.status, 429, "the eleventh refusal stops before the run");
+  assert.equal((await stopped.json()).error, "limit");
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 429, "two a day for one link");
+  assert.equal((await send("rsvp", { link: "guest-b" })).status, 200, "another link");
+  const a = "chest_v=visitoraaaaaaaaaaaaaaaa", b = "chest_v=visitorbbbbbbbbbbbbbbbb", c = "chest_v=visitorcccccccccccccccc";
+  assert.equal((await send("chat", {}, a)).status, 200);
+  assert.equal((await send("chat", {}, b)).status, 200);
+  assert.equal((await send("chat", {}, c)).status, 429, "everyone's two");
+  assert.equal((await send("chat", {}, a)).status, 200, "one who wrote today: the reserve");
+  assert.equal((await send("chat", {}, a)).status, 429, "a reserve of one");
 });
