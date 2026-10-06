@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as candidates from "../lib/candidates.ts";
-import * as interviews from "../lib/interviews.ts";
-import * as outbox from "../lib/outbox.ts";
-import * as selfSchedule from "../lib/self-schedule.ts";
-import { addDays, dayOf, instantOf } from "../lib/time.ts";
+import * as candidates from "../src/lib/candidates.ts";
+import * as interviews from "../src/lib/interviews.ts";
+import * as outbox from "../src/lib/outbox.ts";
+import * as selfSchedule from "../src/lib/self-schedule.ts";
+import { addDays, dayOf, instantOf } from "../src/shared/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";

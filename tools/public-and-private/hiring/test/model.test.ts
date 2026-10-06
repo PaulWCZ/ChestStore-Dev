@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { amount, link, phone, slugify, sniff } from "../lib/model.ts";
-import { parse, plain } from "../lib/rich-text.ts";
+import { amount, link, phone, slugify, sniff } from "../src/shared/model.ts";
+import { parse, plain } from "../src/shared/rich-text.ts";
 
 test("slugs: plain ASCII from any title, never a route of the tool", () => {
   assert.equal(slugify("Senior furniture designer"), "senior-furniture-designer");

@@ -1,24 +1,27 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as events } from "../app/chest-events/route.ts";
-import * as candidates from "../lib/candidates.ts";
-import * as cv from "../lib/cv.ts";
-import { catalogue, format, locales } from "../lib/i18n/index.ts";
-import * as interviews from "../lib/interviews.ts";
-import { jobTemplateKeys } from "../lib/jobs.ts";
-import * as lifecycle from "../lib/lifecycle.ts";
-import * as messages from "../lib/messages.ts";
-import { sniff } from "../lib/model.ts";
-import * as outbox from "../lib/outbox.ts";
-import { parse } from "../lib/rich-text.ts";
-import * as selfSchedule from "../lib/self-schedule.ts";
-import * as share from "../lib/share.ts";
-import { addDays, dayOf, instantOf } from "../lib/time.ts";
+import * as candidates from "../src/lib/candidates.ts";
+import * as cv from "../src/lib/cv.ts";
+import { catalogue, format, locales } from "../src/i18n/index.ts";
+import * as interviews from "../src/lib/interviews.ts";
+import { jobTemplateKeys } from "../src/lib/jobs.ts";
+import * as lifecycle from "../src/lib/lifecycle.ts";
+import * as messages from "../src/lib/messages.ts";
+import { sniff } from "../src/shared/model.ts";
+import * as outbox from "../src/lib/outbox.ts";
+import { parse } from "../src/shared/rich-text.ts";
+import * as selfSchedule from "../src/lib/self-schedule.ts";
+import * as share from "../src/lib/share.ts";
+import { addDays, dayOf, instantOf } from "../src/shared/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
+import { built } from "./support/app.ts";
+
+// What the Chest posts, through the built server's routes.
+const events = (request: Request) => built().then(app => app.fetch(request));
 
 // Round 3: the interviewers' real calendars (Booking's busy times heard,
 // Hiring's told back), lunch, one history line per link, files sent to a
@@ -178,14 +181,15 @@ test("a photo of a CV is a CV: JPEG, PNG, HEIC by their first bytes", async () =
   assert.equal(sniff(new TextEncoder().encode("\0\0\0\x18ftypheic\0\0\0\0")), "image/heic");
   assert.equal(sniff(new TextEncoder().encode("GIF89a")), null);
   const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
-  const up = await cv.grant("public", "image/jpeg", jpeg.length);
-  assert.equal((await chest.upload(up.url, jpeg, "image/jpeg")).status, 201);
-  const kept = await cv.accept(up.ticket, "public", "IMG_2041.jpg");
+  const up = await cv.publicGrant("image/jpeg", jpeg.length);
+  const sent = await chest.upload(up.url, jpeg, "image/jpeg");
+  assert.equal(sent.status, 201);
+  const kept = await cv.take(((await sent.json()) as { claim: string }).claim, "IMG_2041.jpg");
   assert.match(kept.object, /^cv\/[0-9a-f]{20}\.jpg$/u);
-  // A picture that says JPEG but is a PNG is refused.
-  const liar = await cv.grant("public", "image/jpeg", 8);
-  await chest.upload(liar.url, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), "image/jpeg");
-  await assert.rejects(cv.accept(liar.ticket, "public", "x.jpg"), { code: "cv_invalid" });
+  // A picture that says JPEG but is a PNG is refused (by the Chest's door,
+  // and by the tool's own check of a recruiter's file).
+  const liar = await cv.publicGrant("image/jpeg", 8);
+  assert.equal((await chest.upload(liar.url, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), "image/jpeg")).status, 400);
 });
 
 const pdf = "%PDF-1.4\n% offer\n%%EOF\n";

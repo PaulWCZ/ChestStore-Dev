@@ -286,8 +286,8 @@ export async function board(sql: Sql, actor: Member | null, jobId: unknown, opti
       (select avg(f.rating)::numeric(3,1)::text from feedback f where f.candidate_id = c.id) as rating,
       (select count(*)::int from feedback f where f.candidate_id = c.id) as ratings
     from shown c
-    where (c.status = 'active' and c.n <= case when c.stage_id::text = ${open ?? ""} then ${boardLimits.more} else ${boardLimits.perStage} end)
-      or (c.status = 'rejected' and c.n <= ${boardLimits.rejected})
+    where (c.status = 'active' and c.n <= case when c.stage_id::text = ${open ?? ""} then ${boardLimits.more}::int else ${boardLimits.perStage}::int end)
+      or (c.status = 'rejected' and c.n <= ${boardLimits.rejected}::int)
     order by c.stage_entered_at, c.id`;
   const counts = await sql<{ stage_id: string; status: Status; n: number }[]>`
     select stage_id, status, count(*)::int as n from candidates where job_id = ${key} group by stage_id, status`;

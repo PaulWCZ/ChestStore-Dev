@@ -247,7 +247,7 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
             return (
               <LaneView key={stage.id} stage={stage} count={countOf(stage)} current={stage.id === shownStage} manage={manage && !selecting} locale={locale} t={t}
                 more={hidden > 0 ? <a className="button link small lane-more" href={`/chest/jobs/${jobId}?more=${stage.id}`}>{plural(t.board.more, hidden, locale)}</a>
-                  : stage.open && stage.count > perStage ? <a className="button link small lane-more" href={`/chest/jobs/${jobId}`}>{t.board.fewer}</a> : null}>
+                  : stage.open && perStage < stage.count ? <a className="button link small lane-more" href={`/chest/jobs/${jobId}`}>{t.board.fewer}</a> : null}>
                 {here.map(c => (selecting
                   ? (<li key={c.id} id={`cand-${c.id}`}><label className={`cand pick${chosen.has(c.id) ? " chosen" : ""}`}><input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} /><CardBody card={c} locale={locale} t={t} /></label></li>)
                   : manage
@@ -290,7 +290,7 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
                   </a>
                 </li>
               ))}
-              {rejected.count > gone.length && <li className="muted small">{plural(t.board.more, rejected.count - gone.length, locale)}</li>}
+              {gone.length < rejected.count && <li className="muted small">{plural(t.board.more, rejected.count - gone.length, locale)}</li>}
             </ul>
           )}
         </section>

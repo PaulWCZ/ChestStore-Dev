@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cdata, descriptionHtml, employmentTypes, indeedFeed, jobPosting, jsonLd, rssFeed, sitemap, type ReachJob } from "../lib/reach.ts";
+import { cdata, descriptionHtml, employmentTypes, indeedFeed, jobPosting, jsonLd, rssFeed, sitemap, type ReachJob } from "../src/lib/reach.ts";
 
 // Reach without network: Google for Jobs' JobPosting, Indeed's XML feed,
 // RSS, the sitemap (sources in lib/reach.ts).
