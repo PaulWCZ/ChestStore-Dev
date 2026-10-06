@@ -351,7 +351,7 @@ export const fr: Catalogue = {
     personalAlone: "Objectifs personnels sans lien",
     export: "Télécharger en tableur",
     spreadsheet: "Tableur",
-    branch: "Ce qui contribue à « {title} »",
+    branch: "Ce qui contribue à « {title} »",
     expandAll: "Tout ouvrir",
     collapseAll: "Tout fermer",
     legend: "Légende",

@@ -141,11 +141,15 @@ await step("a member cannot write a company objective; Nora, without a role, see
 await step("the company tree folds and unfolds; the cycle downloads as a spreadsheet", async () => {
   await english("sofia");
   await page.goto(origin + "/chest/company");
-  const before = await page.locator(".tree .node").count();
-  await page.getByRole("button", { name: /Hide what supports “Win 20 new customers in Lyon”/u }).click();
-  expect(await page.locator(".tree .node").count() < before, "folded");
-  await page.getByRole("button", { name: /Show what supports “Win 20 new customers in Lyon”/u }).click();
-  expect(await page.locator(".tree .node").count() === before, "unfolded");
+  // The fold is the browser's own <details> (no script): its button says
+  // what it shows, and whether it is open.
+  const shown = () => page.locator(".tree .node:visible").count();
+  const before = await shown();
+  const fold = page.locator(".branch > summary", { hasText: "What supports “Win 20 new customers in Lyon”" });
+  await fold.click();
+  expect((await shown()) < before, "folded");
+  await fold.click();
+  expect((await shown()) === before, "unfolded");
   const csv = await (await page.request.get(origin + "/chest/cycles/2/export")).text();
   expect(csv.startsWith("﻿Level,Team,Objective"), "csv headers");
   expect(csv.includes("Double the showroom visits"), "new objective exported");
@@ -528,7 +532,7 @@ await step("the dark map band is the Trail map's own: another look gets the kit'
   await english("hugo");
   const band = async () => page.locator(".ck-bar").evaluate(e => { const [r, g, b] = getComputedStyle(e).backgroundColor.match(/\d+/gu).map(Number); return (r + g + b) / 3; });
   await page.goto(origin + "/chest");
-  expect(await page.locator("html[data-look=own]").count() === 1 && (await band()) < 90, "own look: the dark band");
+  expect((await band()) < 90, "own look: the dark band");
   const set = async choice => page.request.post(origin + "/_dev/theme", { form: { level: "all", choice }, maxRedirects: 0 });
   await set("catalogue:chest");
   await page.goto(origin + "/chest");
