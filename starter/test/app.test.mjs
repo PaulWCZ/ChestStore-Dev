@@ -115,7 +115,7 @@ test("a download streams the rows as CSV, formulas defused", async () => {
   await call(sam, "addNote", { body: "=HYPERLINK(\"x\")" });
   const response = await get(sam, "/chest/notes.csv");
   assert.equal(response.headers.get("content-type"), "text/csv; charset=utf-8");
-  assert.match(response.headers.get("content-disposition"), /^attachment; filename="notes-\d{4}-\d{2}-\d{2}\.csv"$/u);
+  assert.match(response.headers.get("content-disposition"), /^attachment; filename="notes-\d{4}-\d{2}-\d{2}\.csv"; filename\*=UTF-8''notes-\d{4}-\d{2}-\d{2}\.csv$/u);
   const text = await response.text();
   assert.match(text, /^id,created_at,author,pinned,body\r\n/u);
   assert.match(text, /"'=HYPERLINK\(""x""\)"/u);

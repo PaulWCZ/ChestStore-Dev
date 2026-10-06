@@ -1,4 +1,4 @@
-import { createApp, page, publicPage } from "@argentic/chest-app";
+import { createApp, download, page, publicPage } from "@argentic/chest-app";
 import { actions } from "./actions.ts";
 import { chestEvents, chestSchedules } from "./calls.ts";
 import { absencesFile, balancesFile } from "./downloads.ts";
@@ -64,8 +64,8 @@ app.get("/chest/calendar", members(calendarPage));
 app.get("/chest/people", members(peoplePage));
 app.get("/chest/people/import", members(importPage));
 app.get("/chest/people/payroll", members(payrollPage));
-app.get("/chest/people/export", c => absencesFile(c.req.raw, c.get("viewer").member));
-app.get("/chest/people/balances", c => balancesFile(c.req.raw, c.get("viewer").member));
+app.get("/chest/people/export", download(({ url, member }) => absencesFile(url, member)));
+app.get("/chest/people/balances", download(({ url, member }) => balancesFile(url, member)));
 app.get("/chest/people/:id", members(personPage));
 // The company's rules and its kinds of leave (HR).
 app.get("/chest/settings", members(settingsPage));

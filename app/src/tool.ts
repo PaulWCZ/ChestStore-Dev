@@ -68,10 +68,19 @@ export const redirect = (to: string): never => {
 // done once it is sent. A failure is logged, never thrown: an unhandled
 // rejection would stop the server. Nothing here may take minutes (that is
 // a schedule's work): the tool may sleep.
+// The tasks under way, for settled() of ./testing: kept on globalThis, so
+// a test sees those of a server built with its own copy of the package.
+export const pendingAfter = ((globalThis as Record<symbol, unknown>)[Symbol.for("@argentic/chest-app after")] ??= new Set<Promise<unknown>>()) as Set<Promise<unknown>>;
 export function after(name: string, task: () => Promise<unknown>): void {
   // Started in a promise: a task that throws before its first await is
   // logged too (an uncaught throw would stop the server).
-  setImmediate(() => void Promise.resolve().then(task).catch(error => log.error(`${name} failed`, error)));
+  let done: () => void = () => {};
+  const tracked = new Promise<void>(resolve => { done = resolve; });
+  pendingAfter.add(tracked);
+  setImmediate(() => void Promise.resolve().then(task).catch(error => log.error(`${name} failed`, error)).finally(() => {
+    pendingAfter.delete(tracked);
+    done();
+  }));
 }
 
 // cutText(text, max): text cut to at most max characters as the SDK
@@ -104,27 +113,41 @@ const text = (value: unknown) => (typeof value === "string" ? value : typeof val
 const spaces = /[\s\u00a0\u202f]/gu;
 
 // An amount as people write it, to cents: "1234.5", "12,50", "1 234,50"
-// (any space), "1,234.50", "1.234,50". A group mark (thousands) counts only
-// beside a decimal mark of the other kind; a lone "," or "." followed by
-// three digits ("1,250", "0,500", "1.234") is refused: an English reader
-// means 1250, a French one 1.25. At most two decimals, numbers included
-// (12.345 and 1.005 refused, never rounded).
+// (spaces only between groups of three), "1,234.50", "1.234,50",
+// "1,000,000" and "1.000.000" (two group marks or more: whole). A group
+// mark counts beside a decimal mark of the other kind; a lone "," or "."
+// followed by three digits ("1,250", "0,500", "1.234") is refused with
+// "amount_ambiguous": an English reader means 1250, a French one 1.25. At
+// most two decimals, numbers included (12.345 and 1.005 refused, never
+// rounded).
 function cents(value: unknown): number | null {
   if (typeof value === "number") {
     if (!Number.isFinite(value) || Math.abs(value) >= 1e13) return null;
     const n = Math.round(value * 100);
     return Math.abs(n / 100 - value) < 1e-9 ? n : null;
   }
-  const s = text(value).replace(spaces, "");
+  let s = text(value).trim();
+  // Spaces (any kind) only as group separators: "1 234,50", never "12 50".
+  if (/[\s\u00a0\u202f]/u.test(s)) {
+    if (!/^-?\d{1,3}(?:[\s\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?$/u.test(s)) return null;
+    s = s.replace(spaces, "");
+  }
   const plain = /^(-?)(\d{1,13})(?:[.,](\d{1,2}))?$/u.exec(s);
-  const grouped = /^(-?)(\d{1,3}(?:([.,])\d{3})+)([.,])(\d{1,2})$/u.exec(s);
+  // Groups of three with one and the same mark.
+  const grouped = /^(-?)(\d{1,3}([.,])\d{3}(?:\3\d{3})*)([.,])(\d{1,2})$/u.exec(s);
+  const whole3 = /^(-?)(\d{1,3}([.,])\d{3}(?:\3\d{3})+)$/u.exec(s);
   let sign: string, whole: string, decimals: string;
   if (plain) [, sign = "", whole = "", decimals = ""] = plain;
   else if (grouped && grouped[3] !== grouped[4] && !/^-?0[.,]/u.test(s)) {
     sign = grouped[1] ?? "";
     whole = (grouped[2] ?? "").replace(/[.,]/gu, "");
     decimals = grouped[5] ?? "";
-  } else return null;
+  } else if (whole3 && !/^-?0[.,]/u.test(s)) {
+    sign = whole3[1] ?? "";
+    whole = (whole3[2] ?? "").replace(/[.,]/gu, "");
+    decimals = "";
+  } else if (/^-?[1-9]\d{0,2}[.,]\d{3}$/u.test(s)) return fail("amount_ambiguous" as ErrorCode);
+  else return null;
   if (whole.length > 13) return null;
   const n = Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
   return sign ? -n : n;
@@ -133,16 +156,25 @@ function cents(value: unknown): number | null {
 // A visitor's text: no control character but tab and line breaks (a NUL
 // would reach PostgreSQL as an error).
 const controls = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
+// Bidirectional overrides and isolates (a name that reads backwards, a
+// file name that hides its extension): removed. Zero-width characters
+// alone are no text (empty).
+const bidi = /[\u202a-\u202e\u2066-\u2069]/gu;
+const invisible = /[\u200b-\u200d\u2060\ufeff]/gu;
 
 export const field = {
-  // Trimmed text, from min (1: required) to max characters.
+  // Trimmed text, from min (1: required) to max characters (code points,
+  // not UTF-16 units); bidirectional overrides removed; only invisible
+  // characters is empty.
   text: ({ min = 1, max }: { min?: number; max: number }): Field<string> => ({
     read(value) {
-      const s = value === undefined || value === null ? "" : text(value).trim();
+      const s = value === undefined || value === null ? "" : text(value).replace(bidi, "").trim();
       if (controls.test(s)) fail("invalid");
-      if (s.length === 0 && min > 0) fail("empty");
-      if (s.length < min) fail("invalid");
-      return s.length > max ? fail("too_long", { max }) : s;
+      // Code points (an accented letter or a simple emoji counts one).
+      const length = [...s].length;
+      if ((length === 0 || s.replace(invisible, "").trim() === "") && min > 0) fail("empty");
+      if (length < min) fail("invalid");
+      return length > max ? fail("too_long", { max }) : s;
     },
   }),
   // A whole number between min and max, written in digits ("", "0x5",
@@ -246,6 +278,9 @@ export type Action<F extends Fields = Fields, R = unknown> = {
   readonly maxBody: number;
   // A public action's bound (publicAction's options).
   readonly bound?: Bound | false;
+  // Sent at once by call() and forms, beside the queue of actions (a slow
+  // one: AI, an import, an upload).
+  readonly parallel?: boolean;
   run(input: InputOf<F>, context: never): Promise<R>; // its context: by access
 };
 
@@ -254,41 +289,55 @@ export type Action<F extends Fields = Fields, R = unknown> = {
 // Both are called from an island (call()) or by a
 // <form method="post" action="/chest/actions/<name>">. What run returns
 // goes back to the island as JSON: plain data only.
-export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number } = {}): Action<F, R> {
-  return { access: "member", input, maxBody: options.maxBody ?? 1 << 20, run: run as Action<F, R>["run"] };
+// parallel: true — a slow action (AI, an import, an upload) does not hold
+// the others the page sends (they go one at a time otherwise).
+export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number; parallel?: boolean } = {}): Action<F, R> {
+  return { access: "member", input, maxBody: options.maxBody ?? 1 << 20, ...(options.parallel ? { parallel: true } : {}), run: run as Action<F, R>["run"] };
 }
 // bound (public actions): anyone on the Internet may call one, so each is
 // bounded, the same way in every tool:
 // - a form token: <Honeypot /> in the form carries one (the page made it,
 //   signed with a key from CHEST_TOKEN); it lasts formMinutes (120 by
-//   default) and serves once; with formSeconds, a form sent sooner than a
-//   person fills it waits the seconds left (a person sees a slower
-//   "Sending…", a robot gains nothing) — a call without a fresh one is refused with
-//   "expired" (the answer brings a new one: sent again, it goes);
+//   default) and serves once, whatever the answer (each answer, and the
+//   page a form goes back to, brings the next) — without a fresh one,
+//   "expired"; with formSeconds, a form sent sooner than a person fills it
+//   waits the seconds left;
 // - a robot that fills <Honeypot />'s field ("website") is answered "done"
 //   and nothing is done;
 // - budgets, a day (the Chest's): perVisitor for one visitor, perDay for
-//   everyone together (one robot slows the form, never fills the table).
-//   The visitor is the address the Chest's front gives
-//   (Chest-Visitor-Address, a studio proposal), else the browser's cookie
-//   (chest_v); a visitor with neither is counted in perDay only — never
-//   all of them together as one. Past a budget: "limit".
-// Only a valid call is counted: the token and the fields checked first,
-// and a call whose run throws (a wrong secret, a slot already taken) gives
-// its count and its token back. Kinds of write with budgets of their own
-// (a new booking, a change to one): { budgets: { new: …, change: … } },
-// and run says which once it has checked the request: await charge("new").
-// Counted in chest_bounds, tokens in chest_seen (the tool's
-// migrations/0001_chest.sql). checkSources() fails on a publicAction
-// without bound; bound: false says the action writes nothing anyone could
-// fill (or guards itself).
-export type Budget = { perVisitor: number; perDay: number };
+//   everyone together, perSubject (with charge(kind, { subject })) for one
+//   thing written to (a guest link, a booking). The visitor is the address
+//   the Chest's front gives (Chest-Visitor-Address, a studio proposal: no
+//   Chest gives it yet), else the browser's cookie (chest_v); one with
+//   neither counts in perDay only. A visitor who already wrote today keeps
+//   a reserve past perDay (a tenth). Past a budget: "limit".
+// What it holds, and what it does not: a written call is counted only once
+// valid (the token, the fields, and what the run checks before charge();
+// a run that throws gives its counts back), so junk never writes and a
+// person's mistakes cost nothing. But each fresh token is one free page
+// load: a robot without an address the Chest can name, clearing its
+// cookie, can still spend perDay with calls that pass the checks, and the
+// people coming after it then meet "limit" until tomorrow (the people who
+// wrote earlier keep the reserve). Fair public writes need the visitor's
+// address from the Chest's front — a blocker the SDK report names.
+// Refusals have a budget too (ten times perDay a day, then "limit" before
+// the run): a check that asks the Chest (members.get) must not let a flood
+// spend the tool's limits at the Chest — but a public request should never
+// call the Chest at all (cache a minute, or the tool's own table).
+// Kinds of write with budgets of their own (a new booking, a change to
+// one): { budgets: { new: …, change: … } }, and run says which once it has
+// checked the request: await charge("new"). Counted in chest_bounds,
+// tokens in chest_seen (the tool's migrations/0001_chest.sql).
+// checkSources() fails on a publicAction without bound; bound: false says
+// the action writes nothing anyone could fill (or guards itself).
+export type Budget = { perVisitor: number; perDay: number; perSubject?: number };
 export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number; formSeconds?: number };
-// What a public action's run gets: the visitor, and charge(kind), the
-// budget it spends (with budgets of several kinds; once per call).
-export type PublicContext = VisitorContext & { charge(kind: string): Promise<void> };
-export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: PublicContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false } = {}): Action<F, R> {
-  return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), run: run as Action<F, R>["run"] };
+// What a public action's run gets: the visitor, and charge(kind, { subject }),
+// the budget it spends (with budgets of several kinds; once per call).
+export type PublicContext = VisitorContext & { charge(kind: string, options?: { subject?: string }): Promise<void> };
+export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: PublicContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false; parallel?: boolean } = {}): Action<F, R> {
+  if (options.bound && !("budgets" in options.bound) && options.bound.perSubject !== undefined) throw new TypeError("publicAction: perSubject needs budgets by kind and charge(kind, { subject }) in the run");
+  return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), ...(options.parallel ? { parallel: true } : {}), run: run as Action<F, R>["run"] };
 }
 
 // An outcome as an island receives it: the value, or the code and the
