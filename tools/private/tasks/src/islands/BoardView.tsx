@@ -1,4 +1,5 @@
 import {
+  closestCenter,
   closestCorners,
   DndContext,
   pointerWithin,
@@ -20,10 +21,10 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AvatarStack, Dialog, Menu, Segmented, type LinkComponent } from "@argentic/chest-ui/components";
-import { useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { Alert, Archive, Arrow, Back, Blocked, Calendar, Chat, Check, CheckList, Clip, Columns, Gear, ListIcon, Lock, Plus, RepeatIcon, Search, Sliders, Text, Timeline } from "../components/icons.tsx";
 import { call, navigate, onLinkClick, toast } from "@argentic/chest-app/client";
-import { dayText, format, plural } from "../i18n/format.ts";
+import { format, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { BoardAccess } from "../lib/access.ts";
 import type { Column, Field, Label } from "../lib/boards.ts";
@@ -53,8 +54,13 @@ type Props = {
   calendar: CalendarMonth | null;
   timeline: TimelineWindow | null;
   filter: { who: string; label: string };
+  // Every date and number the board shows, written on the server in the
+  // reader's language: "YYYY-MM-DD" → "5 Oct" (short) and "5 Oct 2026"
+  // (long); a number field's value as typed → as the reader writes it.
+  written: Written;
   t: Words;
 };
+export type Written = { short: Record<string, string>; long: Record<string, string>; numbers: Record<string, string> };
 
 // A view of the board (its link in the address): the page changes in place,
 // from its top.
@@ -71,7 +77,7 @@ const raw = (key: UniqueIdentifier) => String(key).replace(/^(card|lane):/u, "")
 type Lanes = Record<string, string[]>;
 const lanesOf = (columns: Column[], cards: CardSummary[]): Lanes => Object.fromEntries(columns.map(c => [c.id, cards.filter(k => k.columnId === c.id).map(k => k.id)]));
 
-export function BoardView({ board, path, columns, labels, fields, cards, people, audience, me, today, locale, view, calendar, timeline, filter, t }: Props) {
+export function BoardView({ board, path, columns, labels, fields, cards, people, audience, me, today, locale, view, calendar, timeline, filter, written, t }: Props) {
   // The id of the cards' keyboard instructions (their aria-describedby):
   // the same on the server and in the browser (each island is a root of
   // its own, with its own prefix: @argentic/chest-app's Island).
@@ -143,18 +149,44 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
   // What a dragged card is over: under a pointer, the card (or else the
   // column) under it; from the keyboard, the nearest card, a column only
   // when it is empty.
+  //
+  // A card moved into another column changes the layout under the
+  // pointer: for one frame, the answer stays where it was (dnd-kit's
+  // multi-column guard), or the card would bounce between the two columns
+  // for ever (React's "maximum update depth", the board blank).
+  const lastOver = useRef<UniqueIdentifier | null>(null);
+  const justMoved = useRef(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => { justMoved.current = false; });
+    return () => cancelAnimationFrame(frame);
+  }, [moving]);
   const collision: CollisionDetection = args => {
+    const activeId = args.active.id;
+    let hits: { id: UniqueIdentifier }[];
     if (args.pointerCoordinates) {
       const within = pointerWithin(args);
-      if (within.length > 0) {
-        const cardsIn = within.filter(h => !isLaneKey(h.id));
-        return cardsIn.length > 0 ? cardsIn : within;
+      const cardsIn = within.filter(h => !isLaneKey(h.id) && h.id !== activeId);
+      hits = cardsIn.length > 0 ? cardsIn : within;
+      // Over a column that holds cards (below its last one): the nearest
+      // of its cards.
+      const lane = hits.length === 1 && isLaneKey(hits[0]!.id) ? raw(hits[0]!.id) : null;
+      const inLane = lane ? (lanesRef.current[lane] ?? []).filter(id => cardKey(id) !== activeId) : [];
+      if (lane && inLane.length > 0) {
+        const near = closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(c => inLane.includes(raw(c.id))) });
+        if (near.length > 0) hits = near;
       }
+    } else {
+      hits = closestCorners(args).filter(h => !isLaneKey(h.id) || (lanesRef.current[raw(h.id)] ?? []).length === 0);
     }
-    return closestCorners(args).filter(h => !isLaneKey(h.id) || (lanes[raw(h.id)] ?? []).length === 0);
+    if (hits.length > 0) {
+      lastOver.current = hits[0]!.id;
+      return hits;
+    }
+    if (justMoved.current) lastOver.current = activeId;
+    return lastOver.current ? [{ id: lastOver.current }] : [];
   };
   // The column a drag key (a card's or a column's) is in.
-  const laneOf = (key: string): string | undefined => (isLaneKey(key) ? raw(key) : Object.keys(lanes).find(k => lanes[k]!.includes(raw(key))));
+  const laneOf = (key: string): string | undefined => { const now = lanesRef.current; return isLaneKey(key) ? raw(key) : Object.keys(now).find(k => now[k]!.includes(raw(key))); };
   const columnName = (id: string | undefined) => columns.find(c => c.id === id)?.name ?? "";
   const titleOf = (key: UniqueIdentifier) => byId.get(raw(key))?.title ?? "";
   const announcements: Announcements = {
@@ -166,23 +198,27 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
 
   function onDragStart(e: DragStartEvent) {
     setDragging(raw(e.active.id));
+    lastOver.current = null;
     setMoving(served);
   }
   // Across columns, the card follows the pointer at once.
   function onDragOver(e: DragOverEvent) {
     const active = raw(e.active.id);
     const over = e.over ? String(e.over.id) : null;
-    if (!over) return;
-    const from = laneOf(cardKey(active)), to = laneOf(over);
+    if (!over || over === String(e.active.id)) return;
+    // Read from the lanes as they are now (not as this render saw them).
+    const current = lanesRef.current;
+    const laneIn = (key: string) => (isLaneKey(key) ? raw(key) : Object.keys(current).find(k => current[k]!.includes(raw(key))));
+    const from = laneIn(cardKey(active)), to = laneIn(over);
     if (!from || !to || from === to) return;
-    setMoving(current => {
-      const base = current ?? served;
-      const source = base[from]!.filter(x => x !== active);
-      const target = [...base[to]!];
-      const at = isLaneKey(over) ? target.length : Math.max(0, target.indexOf(raw(over)));
-      target.splice(at, 0, active);
-      return { ...base, [from]: source, [to]: target };
-    });
+    const source = current[from]!.filter(x => x !== active);
+    const target = current[to]!.filter(x => x !== active);
+    const at = isLaneKey(over) ? target.length : Math.max(0, target.indexOf(raw(over)));
+    target.splice(at, 0, active);
+    const next = { ...current, [from]: source, [to]: target };
+    lanesRef.current = next;
+    justMoved.current = true;
+    setMoving(next);
   }
   function onDragEnd(e: DragEndEvent) {
     const active = raw(e.active.id);
@@ -190,7 +226,8 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
     setDragging(null);
     const to = over ? laneOf(over) : undefined;
     if (!over || !to) return setMoving(null);
-    const list = [...lanes[to]!];
+    const lanesNow = lanesRef.current;
+    const list = [...lanesNow[to]!];
     const from = list.indexOf(active);
     // Over the column itself (its empty space): the card keeps its place.
     const target = isLaneKey(over) ? from : list.indexOf(raw(over));
@@ -201,7 +238,7 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
     const index = list.indexOf(active);
     const original = byId.get(active);
     if (original && original.columnId === to && served[to]!.indexOf(active) === index) return setMoving(null);
-    setMoving({ ...lanes, [to]: list });
+    setMoving({ ...lanesNow, [to]: list });
     const after = list[index - 1], before = list[index + 1];
     const move = (force: boolean) => call("moveCard", { id: active, column: to, ...(after ? { after } : {}), ...(before ? { before } : {}), ...(force ? { force } : {}) }, { quiet: true });
     start(async () => {
@@ -271,7 +308,7 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
       {!board.archived && !writable && <div className="notice"><span>{t.board.readOnly}</span></div>}
 
       {view === "list" ? (
-        <ListView query={query} columns={columns} cards={cards.filter(matches)} labels={labels} fields={fields} people={people} today={today} locale={locale} t={t} />
+        <ListView query={query} written={written} columns={columns} cards={cards.filter(matches)} labels={labels} fields={fields} people={people} today={today} locale={locale} t={t} />
       ) : view === "calendar" && calendar ? (
         <CalendarView calendar={calendar} cards={cards.filter(matches)} labels={labels} writable={writable} locale={locale} query={query} t={t} />
       ) : view === "timeline" && timeline ? (
@@ -295,6 +332,7 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
                 column={column}
                 ids={lanes[column.id] ?? []}
                 byId={byId}
+                written={written}
                 labels={labels}
                 people={people}
                 matches={matches}
@@ -311,15 +349,15 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
             ))}
             {writable && <AddLane boardId={board.id} t={t} />}
           </div>
-          <DragOverlay>{dragging && byId.get(dragging) ? <CardTile card={byId.get(dragging)!} labels={labels} people={people} today={today} locale={locale} overlay t={t} /> : null}</DragOverlay>
+          <DragOverlay>{dragging && byId.get(dragging) ? <CardTile card={byId.get(dragging)!} written={written} labels={labels} people={people} today={today} locale={locale} overlay t={t} /> : null}</DragOverlay>
         </DndContext>
       )}
     </>
   );
 }
 
-function Lane({ boardId, column, ids, byId, labels, people, matches, today, locale, writable, first, last, others, neighbours, onOpen, t }: {
-  boardId: string; column: Column; ids: string[]; byId: Map<string, CardSummary>; labels: Label[]; people: People; matches: (c: CardSummary) => boolean; today: string; locale: Locale; writable: boolean; first: boolean; last: boolean; others: Column[];
+function Lane({ boardId, column, ids, byId, written, labels, people, matches, today, locale, writable, first, last, others, neighbours, onOpen, t }: {
+  boardId: string; column: Column; ids: string[]; byId: Map<string, CardSummary>; written: Written; labels: Label[]; people: People; matches: (c: CardSummary) => boolean; today: string; locale: Locale; writable: boolean; first: boolean; last: boolean; others: Column[];
   neighbours: { before: string | null; beforeBefore: string | null; after: string | null; afterAfter: string | null };
   onOpen: (id: string) => void; t: Words;
 }) {
@@ -369,7 +407,7 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
       {archiving && <ArchiveColumn column={column} count={ids.length} others={others} locale={locale} onArchive={archive} onClose={() => setArchiving(false)} t={t} />}
       <SortableContext items={ids.map(cardKey)} strategy={verticalListSortingStrategy} disabled={!writable}>
         <ul ref={setNodeRef} className={`lane-cards${isOver ? " drop-hint" : ""}`} data-empty={t.board.emptyColumn}>
-          {shown.map(id => <SortableCard key={id} card={byId.get(id)!} labels={labels} people={people} today={today} locale={locale} writable={writable} onOpen={onOpen} t={t} />)}
+          {shown.map(id => <SortableCard key={id} card={byId.get(id)!} written={written} labels={labels} people={people} today={today} locale={locale} writable={writable} onOpen={onOpen} t={t} />)}
         </ul>
       </SortableContext>
       {writable && <QuickAdd boardId={boardId} columnId={column.id} t={t} />}
@@ -377,7 +415,7 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
   );
 }
 
-function SortableCard(props: { card: CardSummary; labels: Label[]; people: People; today: string; locale: Locale; writable: boolean; onOpen: (id: string) => void; t: Words }) {
+function SortableCard(props: { card: CardSummary; written: Written; labels: Label[]; people: People; today: string; locale: Locale; writable: boolean; onOpen: (id: string) => void; t: Words }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardKey(props.card.id), disabled: !props.writable });
   // The card's place while the others make room: set on the element itself
   // (the policy refuses a style attribute; a script's own style is allowed).
@@ -396,6 +434,7 @@ function SortableCard(props: { card: CardSummary; labels: Label[]; people: Peopl
     <li ref={el => { item.current = el; setNodeRef(el); }} className={isDragging ? "dragging" : undefined}>
       <div {...attributes} {...listeners}
         className="card-handle"
+        data-card={props.card.id}
         onClick={open}
         onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
           listeners?.["onKeyDown"]?.(e);
@@ -408,7 +447,7 @@ function SortableCard(props: { card: CardSummary; labels: Label[]; people: Peopl
   );
 }
 
-function CardTile({ card, labels, people, today, locale, overlay = false, t }: { card: CardSummary; labels: Label[]; people: People; today: string; locale: Locale; overlay?: boolean; writable?: boolean; t: Words }) {
+function CardTile({ card, written, labels, people, today, locale, overlay = false, t }: { card: CardSummary; written: Written; labels: Label[]; people: People; today: string; locale: Locale; overlay?: boolean; writable?: boolean; t: Words }) {
   const cardLabels = card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l);
   const due = card.due;
   const state = !due || card.done ? "" : due < today ? "due-late" : due === today ? "due-today" : "";
@@ -421,7 +460,7 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
       {(due || blocked || card.repeats || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
         <span className="meta">
           {/* Late says so in a word and a sign, never by its colour alone. */}
-          {due && <span className={`chip ${card.done ? "done" : state}`}>{state === "due-late" ? <><Alert /><span>{t.card.late}</span> · </> : <Calendar />}{state === "due-today" ? t.card.today : dayText(due, locale)}{card.dueTime && " · " + card.dueTime}</span>}
+          {due && <span className={`chip ${card.done ? "done" : state}`}>{state === "due-late" ? <><Alert /><span>{t.card.late}</span> · </> : <Calendar />}{state === "due-today" ? t.card.today : written.short[due] ?? due}{card.dueTime && " · " + card.dueTime}</span>}
           {blocked && <span className="chip blocked" title={plural(t.card.blockedCount, card.waiting, locale)}><Blocked />{t.card.blockedBadge}<span className="visually-hidden"> · {plural(t.card.blockedCount, card.waiting, locale)}</span></span>}
           {card.repeats && !card.done && <span className="stat" title={t.card.repeatBadge}><RepeatIcon /><span className="visually-hidden">{t.card.repeatBadge}</span></span>}
           {card.hasDescription && <span className="stat" title={t.card.description}><Text /></span>}
@@ -443,16 +482,18 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
 function QuickAdd({ boardId, columnId, t }: { boardId: string; columnId: string; t: Words }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [, start] = useTransition();
   const field = useRef<HTMLTextAreaElement>(null);
+  // Cards typed fast leave one after the other, in the order typed (each
+  // waits for the one before; the server also takes them one at a time).
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
   function submit() {
     const text = title.trim();
     if (!text) return setOpen(false);
     setTitle("");
     field.current?.focus();
-    start(async () => {
+    queue.current = queue.current.then(async () => {
       const r = await call("addCard", { board: boardId, column: columnId, title: text });
-      if (!r.ok) setTitle(text);
+      if (!r.ok) setTitle(current => current || text);
     });
   }
   if (!open) return <div className="lane-add"><button type="button" className="button open" onClick={() => setOpen(true)}><Plus />{t.board.addCard}</button></div>;

@@ -257,7 +257,7 @@ function Bar({ card, dates, first, writable, href, nameOfDay, conflict, blockerT
   return (
     <div ref={el => { element.current = el; bar.setNodeRef(el); }}
       className={`tl-bar tl-from-${place.from} tl-len-${place.to - place.from + 1}${place.to - place.from < 2 ? " short" : ""}${card.done ? " is-done" : ""}${waiting ? " is-blocked" : ""}${conflict ? " conflict" : ""}${place.cutStart ? " cut-start" : ""}${place.cutEnd ? " cut-end" : ""}${drag ? " moving" : ""}`}>
-      <div {...(writable ? bar.listeners : {})} {...bar.attributes} aria-roledescription={undefined} aria-label={label} className="tl-handle"
+      <div {...(writable ? bar.listeners : {})} {...bar.attributes} aria-roledescription={undefined} aria-label={label} className="tl-handle" data-card={card.id}
         onClick={open}
         onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
           bar.listeners?.["onKeyDown"]?.(e);

@@ -36,6 +36,7 @@ export async function makeNext(tx: Query, cardId: string, today: string, actor: 
   if (!lane) return null;
   const [counted] = await tx<{ count: number }[]>`select count(*)::int as count from cards where board_id = ${c.board_id} and archived_at is null`;
   if ((counted?.count ?? 0) >= limits.cardsPerBoard) return null;
+  await tx`select id from columns where id = ${lane.id} for update`; // lockColumn (lib/cards.ts)
   const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${lane.id} order by position desc limit 1`;
   const due = nextDue(rule, c.due_on ?? addDays(today, -1), today);
   const [made] = await tx<{ id: string }[]>`

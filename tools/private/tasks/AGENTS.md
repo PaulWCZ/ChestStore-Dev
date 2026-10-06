@@ -65,11 +65,37 @@ npm ci && npm test && npm run build   # all three must pass
 - **No inline style**: a drag's transform is set on the element through a
   ref (`useLayoutEffect`), a size from data is a class (the timeline's
   `tl-from-N`…) or `<progress>`; `style={}` fails the tests.
+- **A column's order has one writer at a time**: every path that reads a
+  column's edge or a neighbour's key to place a card does it in a
+  transaction that first calls `lockColumn(tx, column)` (`src/lib/cards.ts`;
+  `repeats.ts` and `boards.ts` lock the same row). Two cards never share a
+  key; a move between two that do (an older version's) re-spaces the
+  column. Quick adds and new steps are also sent one after the other by
+  their island, so they keep the order typed.
+- **One panel per card**: the card's island has `id="card-panel-<id>"`, so
+  another card opened in place is a new root (no draft, no open editor of
+  the last one); closing it gives the focus back to the element with
+  `data-card="<id>"` that opened it (board, list, calendar, timeline).
+- **Dates and numbers of the board are written on the server** (`written`
+  props of `BoardView`: short and long days, a number field's values);
+  the islands never format.
+- **Why Tasks keeps its own `db()` and `seen`**: `src/lib/db.ts` lets the
+  services' tests hand it their connection (`provide`), and the ids of the
+  Chest's deliveries are in `chest_events` (migration 0001, older than the
+  package's `chest_seen`). Its formats (`src/i18n/format.ts`) are the same
+  kept Intl objects as the package's `f`, also used by islands. Moving to
+  the package's would cost a migration and the tests' wiring for nothing
+  the tool lacks.
 - **The board's state while a card moves**: `BoardView` shows the server's
   lanes, except while a card is dragged or its move is on its way
   (`moving`); a refresh meanwhile never moves the card in hand. Opening a
   card, a filter, a month: `navigate(…, { top: false })` (the board keeps
   its scroll); a view: from the top.
+- **A drag between columns** follows dnd-kit's multi-column guard: the
+  collision keeps its last answer for one frame after a card changed
+  column, and `onDragOver` reads the lanes from a ref and ignores the card
+  itself (else the card bounces between two columns until React stops it,
+  error #185, and the board vanishes).
 - **The UI kit first** (`@argentic/chest-ui/components`, `ui/README.md`):
   toasts (`useToast`: `{ id, text, undo }`, the Undo returns `true` or why
   it failed; errors `tone: "error"`), `Dialog` (buttons in `footer`, a
