@@ -30,7 +30,7 @@ read it first. Goals' own:
 | `src/lib/views.ts`, `page-data.ts`, `form-data.ts`, `cycle-names.ts`, `time.ts`, `zone.ts`, `stamp.ts` | What pages hand to views, written on the server; the Chest's calendar; a page's version |
 | `src/shared/` | Browser-safe: `format.ts` (**the only place Intl objects are made**, kept), `values.ts` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts` |
-| `migrations/` | The schema, run by the Chest in order (`0005_changes.sql`: the counter of pages' versions) |
+| `migrations/` | The schema, run by the Chest in order (`0006_chest_changes.sql`: the package's change log the pages' versions read — `chest_watch` a new table there) |
 | `test/` | `app.test.ts` and `scale.test.ts` (the built server), services, units, words, sources |
 
 ## Commands

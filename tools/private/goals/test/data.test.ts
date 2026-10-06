@@ -97,4 +97,6 @@ test("a page's version moves with any write, and only then", async () => {
   assert.notEqual(second, first);
   assert.notEqual(await stamp(sql, asMember(hugo), new Date(at.getTime() + 600_000)), second, "ten minutes later: \"3 days ago\" may read otherwise");
   assert.notEqual(await stamp(sql, asMember(sofia), at), second, "another reader's groups");
+  await sql`delete from nudges where false`;
+  assert.equal(await stamp(sql, asMember(hugo), at), second, "a statement that changes nothing does not move it");
 });
