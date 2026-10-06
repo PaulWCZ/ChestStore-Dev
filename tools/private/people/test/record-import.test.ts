@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import { ofRecord } from "../lib/journal.ts";
-import { applyRecords, plan, previewRecords, readContract, readHeader, readSex, readWorkingTime } from "../lib/record-import.ts";
-import { createRecord, listRecords, record, updateRecord } from "../lib/records.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { ofRecord } from "../src/lib/journal.ts";
+import { applyRecords, plan, previewRecords, readContract, readHeader, readSex, readWorkingTime } from "../src/lib/record-import.ts";
+import { createRecord, listRecords, record, updateRecord } from "../src/lib/records.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, nora, tom } from "./support/members.ts";
@@ -16,7 +16,7 @@ const withEmail = everyone.map(m => ({ ...m, email: m.firstName.toLowerCase() + 
 before(async () => {
   process.env["CHEST_TOOL"] = "people";
   database = await testDatabase();
-  chest = await fakeChest({ members: withEmail, capabilities: ["members", "members.email", "notifications"], emits: ["people.record"], receivers: 1 });
+  chest = await fakeChest({ network: {}, members: withEmail, capabilities: ["members", "members.email", "notifications"], emits: ["people.record"], receivers: 1 });
 });
 after(async () => {
   await chest.close();

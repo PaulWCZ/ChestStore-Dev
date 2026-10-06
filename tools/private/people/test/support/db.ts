@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { provide } from "../../lib/db.ts";
+import { provide } from "../../src/lib/db.ts";
 
 // A fresh database for a test file, with the tool's migrations run as the
 // Chest runs them (in name order, each in its own transaction, recorded in
@@ -64,7 +64,7 @@ export async function testDatabase(options: { timeZone?: string } = {}): Promise
   const pg = await PGlite.create({ extensions: { pg_trgm, unaccent } });
   // PGlite is one session, which every connection of the socket shares.
   await pg.exec(`set time zone '${zone}'`);
-  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1" });
+  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1", maxConnections: 8 });
   await socket.start();
   const address = (socket as unknown as { server?: { address(): { port: number } } }).server?.address();
   const port = address?.port ?? 0;
