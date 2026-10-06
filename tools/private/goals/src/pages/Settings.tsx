@@ -27,7 +27,7 @@ export async function settingsPage({ member, t, locale: language }: PageContext)
     body: (
       <div className="page narrow">
         <div className="head"><div className="titles"><h1>{t.settings.title}</h1></div></div>
-        <Island id="island-settings" name="SettingsView" props={{
+        <Island id="settings" name="SettingsView" props={{
           personal: s.personal,
           teams: list.map(x => ({ id: x.id, name: x.name, group: x.groupId !== null, archived: x.archived, members: x.members?.length ?? null })),
           groups: groups.filter(g => !taken.has(g.id)).map(g => ({ id: g.id, name: g.name })),

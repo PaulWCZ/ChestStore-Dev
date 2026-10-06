@@ -42,7 +42,7 @@ export async function newObjectivePage({ member, t, locale: language, query }: P
         <a className="link-button" href="/chest/company"><Back />{t.company.title}</a>
         {head}
         {open.length > 1 && <Filters path="/chest/objectives/new" params={{ cycle: cycle.id, level: query("level"), team: query("team"), parent: query("parent") }} groups={[cycleGroup(open, cycle.id, t)]} labels={t.filters} />}
-        <Island id={`island-new-${cycle.id}`} name="ObjectiveForm" props={{
+        <Island id={`new-${cycle.id}`} name="ObjectiveForm" props={{
           mode: "new",
           objectiveId: null,
           cycleId: cycle.id,

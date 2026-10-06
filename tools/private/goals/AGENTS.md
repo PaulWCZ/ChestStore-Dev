@@ -5,61 +5,67 @@ what must not break.
 
 ## Map
 
+How a tool of the studio is built — pages, islands, actions, words, the
+database, tests, recipes — is `node_modules/@argentic/chest-app/AGENTS.md`:
+read it first. Goals' own:
+
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | The manifest; the proposals (studio): `schedules`, `mail.send`, `groups: "read"` (+ `group.*`), `receives` of Clients', Tasks', Support's and Hiring's events |
-| `lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
-| `lib/groups.ts` | Every group a member is in (`members.groups.of`; `member.groups` holds only those that give Goals), and `readerFor` |
-| `lib/model.ts` | Pure rules: bounds, values ("12,5"), measures, progress, confidence, cycles' time, scores |
-| `lib/read.ts` | Read models: cycles, objectives with key results, progress, stale, "this week", waiting counts and list, check-ins, key results' changes; `visibleTo(reader)`: **the one filter of confidential objectives** — every read of objectives for a person goes through it |
-| `lib/cycles.ts`, `lib/teams.ts`, `lib/objectives.ts`, `lib/key-results.ts`, `lib/comments.ts`, `lib/orphans.ts` | Services `(sql, actor, …input)`: rights first, bounds, parameterised SQL, codes |
-| `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language), badges, the Friday reminder, admins told of orphans |
-| `lib/lifecycle.ts` | Leaving, losing access, erasure |
-| `lib/export.ts`, `lib/csv.ts` | A cycle as CSV, and every check-in, in the reader's language |
-| `lib/cycle-names.ts` | A cycle's name when the tool wrote it (`periodName`: "Q1 2027"/"T1 2027", or its months), in the reader's language; `generated` in `cycles` says so (`migrations/0003_names_and_words.sql`). Read cycles with the reader's locale (`cycles(sql, locale)`, `readCycle` uses the actor's) |
-| `lib/import.ts` | CSV import: headers guessed (Goals' export, Lattice, spreadsheets), mapping, owners by name, plan (dry run), run in one transaction, undo |
-| `lib/remind.ts`, `lib/mail.ts` | Who waits for a check-in (admins: all; an objective's owner: its key results), *Remind* once a day; email beside the bell with a per-person switch |
-| `lib/crm.ts` | Key results fed by Clients' `crm.deal.won` / `crm.deal.reopened` events |
-| `lib/sources.ts` | Every source of a fed key result (`sources`, `sourceKind`), the handlers of Tasks', Support's and Hiring's events (v1 contracts, README "With the other tools"), `knownBoards`, and `refreshFed` — the one place fed values are computed |
-| `components/fold.tsx` | The Company page's choices folded behind one "Filters" button on a phone (`FoldArea`, `FoldButton`, class `foldable`) |
-| `lib/views.ts`, `lib/page-data.ts`, `lib/form-data.ts` | What pages hand to views: words, names, dates and values already written |
-| `lib/time.ts`, `lib/zone.ts` | The Chest's today and this week (its time zone) |
-| `lib/values.ts`, `lib/i18n/format.ts` | Browser-safe formatting |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts` |
-| `app/chest/` | Pages (server) and views (client); `actions.ts` thin server actions |
-| `app/chest-events/`, `app/chest-jobs/[name]/` | The Chest's signed calls |
-| `lib/theme.ts` | The identity, **Trail map** (`defineTheme`, the catalogue's `trail` theme value for value) and `currentLook()` (the company's choice first) |
-| `app/layout.tsx`, `app/tokens.css`, `app/globals.css` | `<ThemeStyle>` with the page's nonce; Goals' own tokens (from contract tokens only); its styles |
-| `components/` | Goals' own pieces: the shell's client part (`shell.tsx`), progress and confidence (the kit's `StatusBadge`), the chart, contours and the map-like empty state, icons, the mark, cards |
-| `migrations/` | The schema, run by the Chest in order |
-| `seed/sample.sql` | Atelier Martin (never run by the Chest) |
-| `test/` | `node:test` with the SDK's `fakeChest`; PGlite or `TEST_DATABASE_URL` |
+| `chest.json`, `chest.proposals.json` | Contract 0.4 (`"chest": "0.4"`, schedules `reminder` and `week`, `build.static: ["/assets/"]`); the proposals (studio): `mail.send`, `groups: "read"` (+ `group.*`), `receives` of Clients', Tasks', Support's and Hiring's events, `translations` |
+| `src/app.tsx` | Every route: the pages (a member without a role sees why), the downloads (a cycle as CSV, every update, the import's example), `/chest-events`, `/chest-schedules`; each page's version (`src/lib/stamp.ts`: a refresh with nothing new is a 304) |
+| `src/actions.ts` | Every change, by name; fields read at the boundary (a key result part by part); what only tells people runs in `after()` |
+| `src/pages/` | Pages rendered on the server; `chase-list.tsx` (who waits for an update), `cycle-group.ts` (the cycle filter) |
+| `src/islands/` | What runs in the browser: the update form's list, the objective form, a key result's card, comments, retrospective, cycles' admin, settings, import, the Company tools (filters folding on a phone), Remind, AutoRefresh (the package's `useAutoRefresh`) |
+| `src/components/` | Shared by pages and islands (no server code): the tree (server only, folds with `<details>`), progress and confidence (SVG bars), the chart, the update form, key-result fields and dialog, icons, the mark, contours |
+| `src/layout.tsx`, `src/theme.ts` | The shell; the look (Trail map, `pageLook()`: the company's choice, the dark header in the Trail map only) |
+| `src/lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
+| `src/lib/groups.ts` | Every group a member is in (`members.groups.of`, kept a minute, forgotten on `group.*`/`member.updated`), and `readerFor` |
+| `src/lib/model.ts` | Pure rules: bounds, values ("12,5"), measures, progress, confidence, cycles' time, scores |
+| `src/lib/read.ts` | Read models; `visibleTo(reader)`: **the one filter of confidential objectives** |
+| `src/lib/cycles.ts`, `teams.ts`, `objectives.ts`, `key-results.ts`, `comments.ts`, `orphans.ts` | Services `(sql, actor, …input)`: rights first, bounds, parameterised SQL, codes |
+| `src/lib/tell.ts`, `notify.ts`, `mail.ts`, `remind.ts` | The bell, badges, the Friday reminder, email (`mail.preference()`), Remind |
+| `src/lib/lifecycle.ts` | Leaving, losing access, erasure; `seen` (deliveries already handled, table `chest_events`) |
+| `src/lib/sources.ts`, `crm.ts` | Key results fed by the other tools' events |
+| `src/lib/import.ts`, `export.ts`, `csv.ts` | CSV import (presets, mapping, plan, Undo) and exports |
+| `src/lib/views.ts`, `page-data.ts`, `form-data.ts`, `cycle-names.ts`, `time.ts`, `zone.ts`, `stamp.ts` | What pages hand to views, written on the server; the Chest's calendar; a page's version |
+| `src/shared/` | Browser-safe: `format.ts` (**the only place Intl objects are made**, kept), `values.ts` |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts` |
+| `migrations/` | The schema, run by the Chest in order (`0005_changes.sql`: the counter of pages' versions) |
+| `test/` | `app.test.ts` and `scale.test.ts` (the built server), services, units, words, sources |
 
 ## Commands
 
 ```sh
 npm ci && npm test && npm run build   # all three must pass
+TEST_DATABASE_URL=postgres://… npm test   # on a real PostgreSQL (concurrent updates overlap there)
 ```
 
 ## Rules
 
-- **Identity comes only from `member()`** (`lib/session.ts`). Store `mbr_…`
+- **Identity comes only from the Chest's assertion** (`member` in `page()`/`action()`). Store `mbr_…`
   ids, never names or emails; `'erased'` stands for an erased person.
 - **Confidential objectives**: any new query that lists objectives for a
-  person adds `visibleTo(sql, readerOf(actor))` (lib/read.ts); a test in
+  person adds `visibleTo(sql, readerOf(actor))` (src/lib/read.ts); a test in
   `test/chase.test.ts` shows each place.
-- **Rights live in `lib/access.ts`**; every service checks before acting; a
+- **Rights live in `src/lib/access.ts`**; every service checks before acting; a
   test in `test/access.test.ts` or `test/goals.test.ts` for each new right.
 - **A closed cycle is frozen** (`openCycle()`): only retrospectives and
   comments change. Keep it so in any new service.
 - **Services return codes, never sentences**; words go in every catalogue.
 - **Never add ratings of people, reviews or links to pay**: see the legal
   note in `README.md`. Personal objectives stay off by default.
-- **Dates**: "today" and "this week" come from `lib/time.ts` (the Chest's
-  zone); format instants on the server; days with `formatDay`.
-- **Client components never import the SDK**, `lib/session.ts`,
-  `lib/people.ts`, `lib/db.ts` or services.
-- **Fed values**: a new source is a value of `sources` (lib/sources.ts),
+- **Dates**: "today" and "this week" come from `src/lib/time.ts` (the
+  Chest's zone); format instants on the server; days with `formatDay`; a
+  date not of this year says its year.
+- **Islands and components never import the SDK or `src/lib/`** (types
+  only); `checkSources` refuses it.
+- **No `style={}`**: a size from data is an SVG attribute (the bars);
+  **no `new Intl.…`** outside `src/shared/format.ts`; lists grouped in one
+  pass (`test/scale.test.ts`: 500 objectives).
+- **Concurrent writes**: an update locks its key result row
+  (`src/lib/key-results.ts`); keep any rule that reads then writes safe
+  in SQL.
+- **Fed values**: a new source is a value of `sources` (src/lib/sources.ts),
   the migration's check, its handler (read every field, keep only what a
   count needs, ignore any other shape), its words (`form.sources`,
   `form.mine`, `tools`), and its contract in README "With the other tools".
@@ -71,12 +77,12 @@ npm ci && npm test && npm run build   # all three must pass
 - **No network, no disk, no background work** outside the Chest's signed
   schedules and events; the tool must stay useful without them (and
   without mail).
-- **Keep the CSP** in `proxy.ts`.
+- **Keep the policy strict**: no inline script or style (the package sets it).
 - **The look**: the CSS names only the kit's contract tokens (and Goals'
-  own of `app/tokens.css`, defined from them) — never a colour
+  own of `src/tokens.css`, defined from them) — never a colour
   (`test/theme.test.ts` checks it). A state always has its word and its
   shape; text sits only on measured pairs (`ui/AGENTS.md` in the studio).
-- **The kit first** (`@argentic/chest-ui/components`): toasts (`useToast`,
+- **The kit first** (`@argentic/chest-ui/components`): toasts (`toast()` of `@argentic/chest-app/client`,
   one `id` per act, `undo` that returns `true` or why not, `sent: true`
   once a bell item or an email left), `Dialog` with `dirty`, `Confirm` for
   what cannot be undone (never `window.confirm`), `PeoplePicker`,
@@ -86,10 +92,10 @@ npm ci && npm test && npm run build   # all three must pass
   `files`, `filters`, `tables` sections; `node scripts/lint-words.mjs`
   (studio) must report 0 errors. Kit 0.2.3 (re-vendored 2026-09-29): the
   header is the map's dark margin (`--inverse`, its tab mark
-  `--inverse-signal`) **in the Trail map only** (`<html data-look="own">`,
-  `app/tokens.css`); every other look (a catalogue theme, the Chest's
+  `--inverse-signal`) **in the Trail map only** (`ownHeader` added to the look's
+  stylesheet, `src/theme.ts`); every other look (a catalogue theme, the Chest's
   sheet, a brand) gets the kit's normal header, like Tasks and Wiki. No
   colour changes in a `prefers-color-scheme: dark` block; the contour lines
-  are decoration, drawn at `opacity: var(--decor)`. Server pages pass Next's `Link` to
-  `Filters` through `components/link.tsx` (a `"use client"` re-export),
-  so the `LinkFilters` wrapper is gone.
+  are decoration, drawn at `opacity: var(--decor)`. Links between pages are plain `<a>`:
+  the package follows them in place. The kit's toasts are the package's
+  `toast()` (`useToast()` sees no host inside an island).

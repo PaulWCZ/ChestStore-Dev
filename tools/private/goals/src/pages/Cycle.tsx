@@ -40,7 +40,7 @@ export async function cyclePage({ member, t, locale: language, param }: PageCont
           <div className="actions">
             <a className="button quiet" href={`/chest/cycles/${cycle.id}/export`} download><Download />{t.cycles.download}</a>
             <a className="button quiet" href={`/chest/cycles/${cycle.id}/export?what=check-ins`} download><Download />{t.export.checkIns}</a>
-            {can(member, "cycles.manage") && !cycle.closed && <Island id={`island-close-${cycle.id}`} name="CloseCycle" props={{ cycleId: cycle.id, name: cycle.name, t: { cycles: t.cycles } }} />}
+            {can(member, "cycles.manage") && !cycle.closed && <Island id={`close-${cycle.id}`} name="CloseCycle" props={{ cycleId: cycle.id, name: cycle.name, t: { cycles: t.cycles } }} />}
           </div>
         </div>
         {views.length === 0 ? (

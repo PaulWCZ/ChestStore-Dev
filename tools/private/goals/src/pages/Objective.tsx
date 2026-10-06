@@ -96,7 +96,7 @@ export async function objectivePage({ member, t, locale: language, param, query 
             </section>
 
             {ended && (
-              <Island id={`island-retro-${o.id}`} name="Retro" props={{
+              <Island id={`retro-${o.id}`} name="Retro" props={{
                 objectiveId: o.id,
                 canWrite: mayEdit(member, o),
                 score: o.score,
@@ -111,10 +111,10 @@ export async function objectivePage({ member, t, locale: language, param, query 
             <section aria-labelledby="krs" className="stack">
               <div className="section-title flush">
                 <h2 id="krs">{t.objective.keyResults}</h2>
-                {editable && <span className="end"><Island id={`island-add-kr-${o.id}`} name="AddKeyResult" props={addProps} /></span>}
+                {editable && <span className="end"><Island id={`add-kr-${o.id}`} name="AddKeyResult" props={addProps} /></span>}
               </div>
               {view.keyResults.length === 0 ? (
-                <EmptyState title={t.objective.noKeyResults} body={t.objective.noKeyResultsBody} action={editable ? <Island id={`island-add-first-kr-${o.id}`} name="AddKeyResult" props={{ ...addProps, primary: true }} /> : null} />
+                <EmptyState title={t.objective.noKeyResults} body={t.objective.noKeyResultsBody} action={editable ? <Island id={`add-first-kr-${o.id}`} name="AddKeyResult" props={{ ...addProps, primary: true }} /> : null} />
               ) : view.keyResults.map((k, index) => {
                 const raw = o.keyResults[index]!;
                 const list = history.get(k.id) ?? [];
@@ -145,7 +145,7 @@ export async function objectivePage({ member, t, locale: language, param, query 
                 return (
                   <Island
                     key={k.id}
-                    id={`island-kr-${k.id}`}
+                    id={`kr-${k.id}`}
                     name="KeyResultCard"
                     props={{
                       boards,
@@ -195,7 +195,7 @@ export async function objectivePage({ member, t, locale: language, param, query 
               </section>
             )}
 
-            <Island id={`island-comments-${o.id}`} name="Comments" props={{
+            <Island id={`comments-${o.id}`} name="Comments" props={{
               objectiveId: o.id,
               isAdmin: can(member, "any.write"),
               comments: notes.map(c => ({ id: c.id, author: personView(who, c.author, locale, member.id), mine: c.author === member.id, body: c.body, when: relative(c.at, locale, ctx.clock.now), date: formatDate(c.at, locale, ctx.zone, { dateStyle: "full", timeStyle: "short" }), edited: c.edited })),
@@ -212,7 +212,7 @@ export async function objectivePage({ member, t, locale: language, param, query 
               <div><dt>{t.objective.visibility}</dt><dd>{o.visibility === "everyone" ? t.objective.everyone : o.visibility === "team" ? format(t.objective.seenByTeam, { team: levelLine }) : viewers.length > 0 ? format(t.objective.seenByPeople, { names: viewers.map(nameOf).join(", ") }) : t.objective.seenByOwners}</dd></div>
             </dl>
             {(editable || carryTarget) && (
-              <Island id={`island-actions-${o.id}`} name="ObjectiveActions" props={{
+              <Island id={`actions-${o.id}`} name="ObjectiveActions" props={{
                 objectiveId: o.id,
                 canEdit: editable,
                 carry: carryTarget ? { id: carryTarget.id, label: format(t.objective.carryOver, { cycle: carryTarget.name }) } : null,

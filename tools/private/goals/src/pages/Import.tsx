@@ -38,7 +38,7 @@ export async function importPage({ member, t, locale: language, query }: PageCon
     body: (
       <div className="narrow">
         {head}
-        <Island id="island-import" name="ImportView" props={{
+        <Island id="import" name="ImportView" props={{
           cycles: open.map(c => ({ id: c.id, name: c.name })),
           cycleId: cycle.id,
           people: await everyone(),

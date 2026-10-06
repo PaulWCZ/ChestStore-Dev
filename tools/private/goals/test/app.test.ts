@@ -11,7 +11,7 @@ import { world, type World } from "./support/world.ts";
 // services have their own tests; these check what the server adds: routes,
 // pages, islands, actions at their boundary, the look, the policy, the
 // downloads, the Chest's own deliveries.
-atLeast(12);
+atLeast(13);
 let w: World, app: Server;
 before(async () => {
   w = await world({ groups: true });
@@ -192,4 +192,14 @@ test("a form sent without JavaScript is read the same way, then back to its page
   assert.equal(response.headers.get("location"), "/chest");
   const [row] = await w.database.sql<{ email_off: boolean }[]>`select email_off from preferences where member_id = ${ines.id}`;
   assert.equal(row!.email_off, true);
+});
+
+test("a page read again with nothing changed is a 304; after a change, the page", async () => {
+  const first = await get(hugo, "/chest/company");
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(first.html)![1]!;
+  const again = await app(withMember(new Request(url("/chest/company"), { headers: { "x-tool-version": version } }), hugo));
+  assert.equal(again.status, 304);
+  await call(ines, "checkIn", { id: krId, value: "7", confidence: "at_risk", note: "" });
+  const changed = await app(withMember(new Request(url("/chest/company"), { headers: { "x-tool-version": version } }), hugo));
+  assert.equal(changed.status, 200);
 });

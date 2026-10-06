@@ -2,7 +2,6 @@ import { ToastHost } from "@argentic/chest-app/client";
 import { AddKeyResult } from "../components/key-result-dialog.tsx";
 import { AddExample } from "./AddExample.tsx";
 import { AutoRefresh } from "./AutoRefresh.tsx";
-import { ChaseList } from "./ChaseList.tsx";
 import { CloseCycle } from "./CloseCycle.tsx";
 import { Comments } from "./Comments.tsx";
 import { CompanyTools } from "./CompanyTools.tsx";
@@ -12,6 +11,7 @@ import { ImportView } from "./ImportView.tsx";
 import { KeyResultCard } from "./KeyResultCard.tsx";
 import { ObjectiveActions } from "./ObjectiveActions.tsx";
 import { ObjectiveForm } from "./ObjectiveForm.tsx";
+import { Remind, RemindAll } from "./Remind.tsx";
 import { Retro } from "./Retro.tsx";
 import { SettingsView } from "./SettingsView.tsx";
 import { StartCycle } from "./StartCycle.tsx";
@@ -24,7 +24,7 @@ import { WaitingList } from "./WaitingList.tsx";
 export const islands = {
   ToastHost, AutoRefresh,
   WaitingList, EmailSwitch, StartCycle, AddExample,
-  CompanyTools, ChaseList,
+  CompanyTools, Remind, RemindAll,
   KeyResultCard, AddKeyResult, ObjectiveActions, Retro, Comments, ObjectiveForm,
   NewCycle, CycleAdmin, CloseCycle,
   SettingsView, ImportView,

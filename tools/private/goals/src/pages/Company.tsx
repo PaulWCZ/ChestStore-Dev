@@ -1,12 +1,12 @@
 import { Island, notFound, type PageContext, type View } from "@argentic/chest-app";
 import type { FilterGroup } from "@argentic/chest-ui/components";
 import { paramValues } from "@argentic/chest-ui/components/logic";
+import { ChaseList, type ChasePerson } from "./chase-list.tsx";
 import { CycleChip } from "../components/cycle-chip.tsx";
 import { Mountain, Plus, Upload } from "../components/icons.tsx";
 import { MapEmpty } from "../components/map-empty.tsx";
 import { Tree, type TreeNode } from "../components/tree.tsx";
 import { format, localeOf, plural, relative } from "../i18n/index.ts";
-import type { ChasePerson } from "../islands/ChaseList.tsx";
 import { can } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
 import { readerFor } from "../lib/groups.ts";
@@ -185,7 +185,7 @@ export async function companyPage({ member, t, locale: language, query }: PageCo
               )}
             </>}
             {/* Who has not updated: after the tree (the page is the tree). */}
-            {chase.length > 0 && <Island name="ChaseList" props={{ people: chase, all: can(member, "any.write"), locale, t: { chase: t.chase, errors: t.errors, objective: t.objective } }} />}
+            {chase.length > 0 && <ChaseList people={chase} all={can(member, "any.write")} locale={locale} t={t.chase} />}
           </>
         )}
       </div>

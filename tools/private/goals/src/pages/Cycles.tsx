@@ -29,7 +29,7 @@ export async function cyclesPage({ member, t, locale: language }: PageContext): 
       <div className="page narrow">
         <div className="head">
           <div className="titles"><h1>{t.cycles.title}</h1><p className="hint">{t.cycles.intro}</p></div>
-          {admin && <div className="actions"><Island id="island-new-cycle" name="NewCycle" props={{ suggestion, first: ctx.cycles.length === 0, today: ctx.clock.today, t: words }} /></div>}
+          {admin && <div className="actions"><Island id="new-cycle" name="NewCycle" props={{ suggestion, first: ctx.cycles.length === 0, today: ctx.clock.today, t: words }} /></div>}
         </div>
         {ctx.cycles.length === 0 ? (
           <MapEmpty title={t.cycles.noCycles} body={admin ? t.home.noCycleBody : await noCycleWords(locale)} />
@@ -47,7 +47,7 @@ export async function cyclesPage({ member, t, locale: language }: PageContext): 
                     <span className="meta"><span>{cw.dates}</span><span>· {plural(t.cycles.objectives, s.objectives, locale)}</span>{c.closed && s.objectives > 0 && <span>· {format(t.cycles.retroDone, { done: s.retros, total: s.objectives })}</span>}</span>
                   </div>
                   <div className="row-progress"><Progress percent={p} text={pctText(t, p)} label={`${c.name}: ${pctText(t, p)}`} /></div>
-                  {admin && <Island id={`island-cycle-${c.id}`} name="CycleAdmin" props={{ cycle: { id: c.id, name: c.name, startsOn: c.startsOn, endsOn: c.endsOn, current: c.current, closed: c.closed, empty: s.objectives === 0 }, today: ctx.clock.today, t: words }} />}
+                  {admin && <Island id={`cycle-${c.id}`} name="CycleAdmin" props={{ cycle: { id: c.id, name: c.name, startsOn: c.startsOn, endsOn: c.endsOn, current: c.current, closed: c.closed, empty: s.objectives === 0 }, today: ctx.clock.today, t: words }} />}
                 </li>
               );
             })}

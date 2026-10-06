@@ -28,7 +28,7 @@ export async function editObjectivePage({ member, t, locale: language, param }: 
       <div className="narrow">
         <a className="link-button" href={`/chest/objectives/${o.id}`}><Back />{o.title}</a>
         <div className="head"><div className="titles"><h1>{t.form.editTitle}</h1></div></div>
-        <Island id={`island-edit-${o.id}`} name="ObjectiveForm" props={{
+        <Island id={`edit-${o.id}`} name="ObjectiveForm" props={{
           mode: "edit",
           objectiveId: o.id,
           cycleId: cycle.id,

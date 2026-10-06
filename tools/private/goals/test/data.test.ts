@@ -7,6 +7,7 @@ import { formChoices } from "../src/lib/form-data.ts";
 import { checkIn } from "../src/lib/key-results.ts";
 import { context } from "../src/lib/page-data.ts";
 import { checkIns, objectiveById } from "../src/lib/read.ts";
+import { stamp } from "../src/lib/stamp.ts";
 import { clockAt } from "../src/lib/tell.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, sofia } from "./support/members.ts";
@@ -14,7 +15,7 @@ import { companyObjective, running, world, type World } from "./support/world.ts
 
 // What pages read before they render, and the rules that must hold in SQL
 // when two people act at once (run on PostgreSQL with TEST_DATABASE_URL).
-atLeast(5);
+atLeast(6);
 let w: World;
 before(async () => { w = await world({ groups: true }); });
 after(async () => { await w.close(); });
@@ -84,4 +85,16 @@ test("Clients' deals: a malformed event is ignored, a reopened deal no longer co
   await dealReopened(sql, { id: "evt_3", type: "crm.deal.reopened", source: "crm", occurredAt: at, data: { deal: "D-9" } });
   const [row] = await sql<{ won_at: Date | null }[]>`select won_at from crm_deals where deal = 'D-9'`;
   assert.equal(row!.won_at, null);
+});
+
+test("a page's version moves with any write, and only then", async () => {
+  const { sql } = w.database;
+  const at = new Date("2026-10-06T10:00:00Z");
+  const first = await stamp(sql, asMember(hugo), at);
+  assert.equal(await stamp(sql, asMember(hugo), at), first, "nothing written: the same version");
+  await sql`update settings set personal = personal`;
+  const second = await stamp(sql, asMember(hugo), at);
+  assert.notEqual(second, first);
+  assert.notEqual(await stamp(sql, asMember(hugo), new Date(at.getTime() + 600_000)), second, "ten minutes later: \"3 days ago\" may read otherwise");
+  assert.notEqual(await stamp(sql, asMember(sofia), at), second, "another reader's groups");
 });

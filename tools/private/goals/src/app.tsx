@@ -12,6 +12,7 @@ import { dealReopened, dealWon } from "./lib/crm.ts";
 import { db } from "./lib/db.ts";
 import { checkInsCsv, cycleCsv, fileName } from "./lib/export.ts";
 import { handlers, seen } from "./lib/lifecycle.ts";
+import { stamp } from "./lib/stamp.ts";
 import { handlers as fed } from "./lib/sources.ts";
 import { refreshBadges, weeklyReminder } from "./lib/tell.ts";
 import { zone } from "./lib/time.ts";
@@ -43,9 +44,12 @@ export const app = createApp({
 });
 
 // A page of Goals: a member whose role gives nothing sees why (the layout
-// says it), and the page reads nothing.
+// says it), and the page reads nothing. Its version (src/lib/stamp.ts):
+// read again with nothing changed, a page answers 304, nothing rendered.
 const goals = (render: (p: PageContext) => Promise<View>) =>
-  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }));
+  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }), {
+    version: ({ member }) => (roleOf(member) ? stamp(db(), member) : null),
+  });
 
 // ---- The members' part (/chest…).
 app.get("/chest", goals(homePage));
