@@ -4,7 +4,7 @@ import { chestEvents, chestSchedules } from "./calls.ts";
 import { absencesFile, balancesFile } from "./downloads.ts";
 import { locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
-import { MembersLayout, PublicLayout, waitingCounts } from "./layout.tsx";
+import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { can, roleOf } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
 import { waiting } from "./lib/requests.ts";
@@ -45,8 +45,8 @@ export const app = createApp({
 // "To answer" section shows the number.
 const members = (render: Parameters<typeof page>[0]) => page(async p => {
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: null };
-  if (can(p.member, "approve")) waitingCounts.set(p.member, (await waiting(db(), p.member).catch(() => [])).length);
-  return render(p);
+  const [view, open] = await Promise.all([render(p), can(p.member, "approve") ? waiting(db(), p.member).then(w => w.length, () => 0) : Promise.resolve(0)]);
+  return view instanceof Response ? view : { ...view, layout: { ...view.layout, waiting: open } };
 });
 
 // Home: my balances, "Ask for time off", who is away this week, my requests.

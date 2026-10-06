@@ -8,18 +8,18 @@ import { can, roleOf } from "./lib/access.ts";
 // link, header, the sections as labelled tabs — a row of their own on a
 // phone —, the member chip); in brand mode the company's logo stands where
 // the Leave mark is. "To answer" carries the number of requests waiting
-// for the member (counted by the page's route: src/app.tsx). A member
+// for the member (the page's route counts them: src/app.tsx, View.layout). A member
 // whose role gives nothing sees why, not an error. Both parts: the toasts,
 // outside the page's main region, under an id (a page met by navigate()
 // keeps them, and a toast's Undo with them); the refusal of a form sent
 // without JavaScript (notice).
-export function MembersLayout({ viewer: { member, t }, look, path, notice, children }: LayoutProps<MemberContext>) {
+export function MembersLayout({ viewer: { member, t }, look, path, notice, data, children }: LayoutProps<MemberContext>) {
   const role = roleOf(member);
   const nav: NavItem[] = role
     ? [
         { href: "/chest", label: t.shell.home, icon: <Sun />, exact: true },
         { href: "/chest/calendar", label: t.shell.calendar, icon: <Calendar /> },
-        ...(can(member, "approve") ? [{ href: "/chest/approvals", label: t.shell.approvals, icon: <Inbox />, count: waitingCounts.get(member) ?? 0 }] : []),
+        ...(can(member, "approve") ? [{ href: "/chest/approvals", label: t.shell.approvals, icon: <Inbox />, count: data.waiting ?? 0 }] : []),
         ...(can(member, "people.team") ? [{ href: "/chest/people", label: t.shell.people, icon: <People /> }] : []),
         ...(can(member, "settings") ? [{ href: "/chest/settings", label: t.shell.settings, icon: <Gear /> }] : []),
       ]
@@ -58,8 +58,3 @@ export function PublicLayout({ viewer: { t }, look, notice, children }: LayoutPr
     </>
   );
 }
-
-// The number of requests waiting for the member's answer, counted by the
-// page's route (src/app.tsx) before the layout renders, kept beside this
-// request's member (the same object reaches the layout; gone with it).
-export const waitingCounts = new WeakMap<object, number>();
