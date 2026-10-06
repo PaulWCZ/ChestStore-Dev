@@ -326,7 +326,7 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`, on
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`, on
 the tool contract 0.4: `member.language` and `member.timeZone` (the
 interface in each member's language, times in their zone), `chest.today()`
 in the Chest's zone for the day of a reminder's key, **schedules**
