@@ -808,10 +808,12 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     let c: Record<string, unknown>;
     try { c = JSON.parse(raw?.toString() ?? "") as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_body" }); }
     const name = c["name"], address = c["address"], perVisitor = c["per_visitor"], perHour = c["per_hour"];
-    if (typeof name !== "string" || !/^[a-z][a-z0-9-]{0,31}$/u.test(name) || (address !== null && typeof address !== "string") || typeof perVisitor !== "number" || typeof perHour !== "number") return send(response, 400, { error: "invalid_body" });
+    if (typeof name !== "string" || !/^[a-z][a-z0-9-]{0,31}$/u.test(name) || (address !== null && typeof address !== "string") || !(typeof perVisitor === "number" || (perVisitor === null && address === null)) || typeof perHour !== "number") return send(response, 400, { error: "invalid_body" });
     const now = Date.now();
-    const who = (address as string | null) ?? "unknown";
-    const windows = [[`v|${name}|${who}`, perVisitor], [`n|${name}`, perHour], [`a|${who}`, perAddressHour]] as const;
+    // A visitor without an address is counted only in the ceiling for
+    // everyone: never per visitor nor per address, which would make all
+    // unknown visitors one.
+    const windows: (readonly [string, number])[] = address === null ? [[`n|${name}`, perHour]] : [[`v|${name}|${address}`, perVisitor as number], [`n|${name}`, perHour], [`a|${address}`, perAddressHour]];
     for (const [k] of windows) if (!visitorCounts.has(k)) visitorCounts.set(k, { start: 0, count: 0 });
     const full = windows.find(([k, max]) => live(visitorCounts.get(k), 3_600_000, now) && visitorCounts.get(k)!.count >= max);
     if (full) {
