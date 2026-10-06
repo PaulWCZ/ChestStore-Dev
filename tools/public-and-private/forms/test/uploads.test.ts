@@ -84,14 +84,18 @@ test("an answer with a file, end to end: kept under the form, copy emailed in th
   await forms.publish(sql, asMember(ines), f0.id);
   const f = (await forms.bySlug(sql, f0.slug))!.form;
   const claim = await visitorSends(cv, pdf);
-  const taken = await take(sql, f, { version: 1, answers: { [email.id]: "nina@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "fr");
+  const taken = await take(sql, f, { version: 1, answers: { [email.id]: "nina@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "fr", { copyAsked: true });
   assert.deepEqual(taken, { copy: true });
   const [a] = (await everyAnswer(sql, f.id)).answers;
   assert.match((a!.data[cv.id] as { file: string }).file, new RegExp(`^answers/${f.id}/`, "u"));
   const mail = chest.outbox.at(-1)!;
   assert.deepEqual(mail.to, ["nina@example.com"]);
   assert.equal(mail.subject, "Vos réponses — Apply");
-  assert.ok(mail.text.includes("cv.pdf") && mail.text.includes("Atelier Martin"));
+  // A public form's copy repeats only the form's own words: not the
+  // address, not the file's name the visitor gave.
+  assert.ok(mail.text.includes("Atelier Martin") && mail.text.includes("Apply"));
+  assert.ok(!mail.text.includes("cv.pdf") && !mail.text.includes("nina@example.com"), mail.text);
+  assert.ok(mail.text.includes("2 réponses écrites ne sont pas reprises"), mail.text);
   // The same claim cannot be used by a second answer.
   await refused(take(sql, f, { version: 1, answers: { [email.id]: "bob@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "en"), "file_missing");
   // Answers with errors come back per question.

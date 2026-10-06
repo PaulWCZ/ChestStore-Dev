@@ -15,6 +15,7 @@ import { acceptImage, grantImage, imageUrl } from "./lib/images.ts";
 import * as importer from "./lib/importer.ts";
 import { startOf } from "./lib/linked.ts";
 import { notify } from "./lib/notify.ts";
+import { publicLimits, reaches, watchFlood } from "./lib/flood.ts";
 import { take } from "./lib/respond.ts";
 import * as tell from "./lib/tell.ts";
 import { template, templateKeys } from "./lib/templates.ts";
@@ -45,16 +46,6 @@ const fileSize = field.int({ min: 1, max: Number.MAX_SAFE_INTEGER });
 // The version a respondent's page answered (the server takes the latest
 // one when it is not a version of the form).
 const version = field.int({ min: 0, max: 1_000_000 });
-
-// A form's public answers, per visitor and day (an office behind one
-// address, a kiosk at an event: one visitor), per form (a flood on one
-// form leaves the company's other forms open) and in all. Files the same
-// way: a form with several file questions sends a few per answer.
-export const publicLimits = {
-  answers: { perVisitor: 100, perSubject: 5000, perDay: 20_000 },
-  files: { perVisitor: 120, perSubject: 3000, perDay: 10_000 },
-  formSeconds: 2,
-} as const;
 
 // The answers a respondent's page sends are checked before anything is
 // counted: a refusal costs the visitor nothing.
@@ -275,7 +266,7 @@ export const actions = {
 
   // A member answers: who they are only from the Chest's assertion. The
   // language they read the form in: theirs, or the form's own.
-  answerTeam: action({ slug, version, answers: field.json() }, async (input, { member }): Promise<{ copy: boolean }> => {
+  answerTeam: action({ slug, version, answers: field.json(), hidden: field.sent(field.json()) }, async (input, { member }): Promise<{ copy: boolean }> => {
     if (!can(member, "forms.answer")) fail("not_found");
     const { form, definition } = await checked(input.slug, "team", input);
     return take(db(), form, input, member, languageFor(definition, localeOf(member.language)));
@@ -297,12 +288,16 @@ export const actions = {
   // per visitor, per form and in all, counted only once the call is valid
   // (the answers checked first: a refusal costs nothing). -----------------
 
-  answerPublic: publicAction({ slug, version, answers: field.json() }, async (input, { locale, charge }): Promise<{ copy: boolean }> => {
+  answerPublic: publicAction({ slug, version, answers: field.json(), copy: field.bool(), hidden: field.sent(field.json()) }, async (input, { locale, charge }): Promise<{ copy: boolean }> => {
+    const sql = db();
     const { form, definition } = await checked(input.slug, "public", input);
-    await charge("answer", { subject: form.id });
-    // The language the visitor read the form in.
-    return take(db(), form, input, null, languageFor(definition, localeOf(locale)));
-  }, { maxBody: 256 * 1024, bound: { formSeconds: publicLimits.formSeconds, budgets: { answer: publicLimits.answers } } }),
+    const kind = (await reaches(sql, form)) ? "reaching" : "answer";
+    await charge(kind, { subject: form.id });
+    await watchFlood(sql, form, publicLimits[kind === "reaching" ? "reaching" : "answers"].perSubject);
+    // The language the visitor read the form in; a copy only when the
+    // visitor asked for one (and the form offers it).
+    return take(sql, form, input, null, languageFor(definition, localeOf(locale)), { copyAsked: input.copy === true });
+  }, { maxBody: 256 * 1024, bound: { formSeconds: publicLimits.formSeconds, budgets: { answer: publicLimits.answers, reaching: publicLimits.reaching } } }),
   // One file for a public form's file question: an upload address on the
   // host the visitor is on (Proposal (studio): files.publicUploadUrl), which
   // answers the visitor's browser a claim only it holds.

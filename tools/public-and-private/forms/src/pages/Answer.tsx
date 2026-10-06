@@ -88,6 +88,17 @@ export async function answerPage({ sql, member, t, lang, zone, param, query }: C
               );
             })}
           </dl>
+          {/* What the form's link gave (its hidden fields: utm_source…). */}
+          {Object.keys(answer.hidden).length > 0 && (
+            <dl className="answer-list from-link" aria-label={t.settings.hidden}>
+              {Object.entries(answer.hidden).map(([name, value]) => (
+                <div key={name} className="answer-item">
+                  <dt><code>{name}</code> <span className="dim">{t.settings.hidden}</span></dt>
+                  <dd><span className="answer-text">{value}</span></dd>
+                </div>
+              ))}
+            </dl>
+          )}
           {inSupport && !deleted && <p className="hint">{t.answers.followedInSupport}</p>}
           {!deleted && !inSupport && (editor || answer.note) && (
             <Island id={`follow-${answer.id}`} name="FollowUp" props={{ formId: form.id, answerId: answer.id, status: answer.status, note: answer.note, canEdit: editor, team: form.audience === "team", t: { f: t.follow } }} />

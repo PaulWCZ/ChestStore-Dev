@@ -22,8 +22,9 @@ import { sign, verify } from "./signature.ts";
 //    answer (FileRef.ref);
 // 3. accept: with the answer, the tool trades the claim (files.claim) or
 //    checks the ticket, then checks the file — of an accepted type, within
-//    the size, its first bytes of that type — and moves it to
-//    answers/<form>/. A visitor can only attach what they sent themselves.
+//    the size, its first bytes of that type (the Chest's own check for the
+//    types it sniffs, chestSniffs) — and moves it to answers/<form>/.
+//    A visitor can only attach what they sent themselves.
 export type Kind = "public" | "team";
 const ticketLife = 2 * 3600 * 1000;
 
@@ -99,8 +100,10 @@ export async function accept(kind: Kind, formId: string, q: Question, ref: FileR
     if (held.size > limits.fileSize) throw await refuse("file_too_large");
     const type = held.type.split(";")[0]!.trim().toLowerCase();
     if (!typesFor(q.accept ?? "any").includes(type)) throw await refuse("file_invalid");
-    const body = await files.get(name);
-    if (!body || !sniff(body.data.subarray(0, 16), type)) throw await refuse("file_invalid");
+    if (!chestSniffs.has(type) && !(await reading(async () => {
+      const body = await files.get(name);
+      return body !== null && sniff(body.data.subarray(0, 16), type);
+    }))) throw await refuse("file_invalid");
     const kept = `answers/${formId}/${randomBytes(10).toString("hex")}.${fileTypes[type]!.ext}`;
     await files.move(name, kept);
     return { file: kept, name: safeName(ref.name, fileTypes[type]!.ext), type, size: held.size };
@@ -108,6 +111,25 @@ export async function accept(kind: Kind, formId: string, q: Question, ref: FileR
     if (error instanceof AppError) throw error;
     if (error instanceof ChestError) throw new AppError("unavailable");
     throw error;
+  }
+}
+
+// The types whose first bytes the Chest checks itself at the upload
+// (contract 0.4: JPEG, PNG, GIF, WebP, PDF — 400 type_mismatch): the type
+// it recorded is the content's, nothing is read here. The others (Office,
+// OpenDocument, text) are read here — the SDK reads a file whole, up to
+// 10 MiB, so two at a time in this process, whatever the answers arriving
+// together (SDK report: a files.get of a range would read 16 bytes).
+const chestSniffs = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"]);
+const readers = { busy: 0, waiting: [] as (() => void)[] };
+export async function reading<T>(run: () => Promise<T>, most = 2): Promise<T> {
+  while (readers.busy >= most) await new Promise<void>(go => readers.waiting.push(go));
+  readers.busy++;
+  try {
+    return await run();
+  } finally {
+    readers.busy--;
+    readers.waiting.shift()?.();
   }
 }
 

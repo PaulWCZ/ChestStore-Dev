@@ -6,7 +6,7 @@ import { StateBadge } from "../components/state-badge.tsx";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import { atLeast, type Level } from "../lib/access.ts";
 import { openState, type Form } from "../lib/forms.ts";
-import { readIn } from "../shared/model.ts";
+import { capOf, readIn } from "../shared/model.ts";
 
 export type Tab = "build" | "share" | "settings" | "answers";
 
@@ -38,7 +38,7 @@ export function FormFrame({ form, level, tab, t, lang, children }: { form: Form;
           <span className="audience">
             {form.audience === "public" ? <><Globe />{t.home.public}</> : form.anonymous ? <><Mask />{t.home.anonymous}</> : <><Users />{t.home.team}</>}
           </span>
-          {editor && form.version > 0 && (form.status === "published" || form.status === "closed") && !(form.status === "closed" && form.maxAnswers !== null && form.answerCount >= form.maxAnswers) && (
+          {editor && form.version > 0 && (form.status === "published" || form.status === "closed") && !(form.status === "closed" && form.answerCount >= capOf(form)) && (
             <Island id={`state-${form.id}`} name="StatusControl" props={{ formId: form.id, open: form.status === "published", t: { close: t.builder.closeForm, reopen: t.builder.reopen, closed: t.builder.closedToast, reopened: t.builder.reopened } }} />
           )}
         </div>

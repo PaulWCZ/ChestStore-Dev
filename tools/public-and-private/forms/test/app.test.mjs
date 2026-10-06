@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -182,6 +183,26 @@ test("answering a public form: the token required, the answers checked first, a 
   // A closed form, a team form: refused.
   assert.equal((await (await call(null, "answerPublic", { slug: "s8f4ku7m", version: 1, answers: {}, chest_form: token() })).json()).error, "closed");
   assert.equal((await (await call(null, "answerPublic", { slug: "t9r3hw6b", version: 1, answers: {}, chest_form: token() })).json()).error, "not_found");
+});
+
+test("a public form whose answers go further (a copy by email, a web address) spends its own, tighter budget a day; past it, refused, and the plain budget is untouched", async () => {
+  const { sql } = database;
+  await sql`update forms set send_copy = true where id = 1`;
+  const hooks = (await sql`select id from form_hooks where form_id = 1 and disabled_at is null`).map(r => r.id);
+  // The package's counter of this form in the "reaching" budget, one short of the day's.
+  const subject = "s:" + createHash("sha256").update("1").digest("base64url").slice(0, 22);
+  await sql`insert into chest_bounds (scope, visitor, day, count) values ('answerPublic:reaching', ${subject}, current_date, 199)
+    on conflict (scope, visitor, day) do update set count = 199`;
+  const input = { slug: "k7m2fq9d", version: 1, answers: { q1xxxxxx: 4, q2xxxxxx: 9 } };
+  const last = await (await call(null, "answerPublic", { ...input, chest_form: token() })).json();
+  assert.equal(last.ok, true, JSON.stringify(last));
+  assert.equal((await (await call(null, "answerPublic", { ...input, chest_form: token() })).json()).error, "limit", "the 201st: refused");
+  // Copies off, its web address stopped: the form spends the plain budget again.
+  await sql`update forms set send_copy = false where id = 1`;
+  await sql`update form_hooks set disabled_at = now() where id = any(${hooks})`;
+  const plain = await (await call(null, "answerPublic", { ...input, chest_form: token() })).json();
+  assert.equal(plain.ok, true, JSON.stringify(plain));
+  await sql`update form_hooks set disabled_at = null where id = any(${hooks})`;
 });
 
 test("a visitor's file: an upload path on the host they are on, for a file question of an open public form", async () => {

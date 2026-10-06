@@ -1,11 +1,11 @@
 import { DateField, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import type { DateWords, FileWords } from "@argentic/chest-ui/components/logic";
 import { call, Honeypot, type ErrorCode } from "@argentic/chest-app/client";
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Arrow, Back, Check, Down, StarIcon, Up } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, plural } from "../shared/format.ts";
-import { asked, has, isGrid, isPick, isRanking, read, walk, type AnswerError, type Answers, type FileRef, type Grid, type Pick } from "../shared/logic.ts";
+import { asked, has, isGrid, isPick, isRanking, read, recall, walk, type AnswerError, type Answers, type FileRef, type Grid, type Pick } from "../shared/logic.ts";
 import { limits, manyPicks, typesFor, withOptions, type Accent, type Definition, type Layout, type Question } from "../shared/model.ts";
 import { uploadFile } from "../shared/upload-client.ts";
 
@@ -53,9 +53,32 @@ export type RunnerProps = {
   // The preview's own label, in the member's language (the respondent's
   // words follow the form's), and that language.
   previewTag?: { text: string; lang: string };
+  // A public form that sends a copy: the visitor asks for it under the
+  // form's first email question (src/lib/respond.ts).
+  offerCopy?: boolean;
+  // What the form's link gave for its hidden fields (utm_source…), sent
+  // with the answer; also what {name} in a text can repeat.
+  hidden?: Record<string, string>;
+  // A shared device: nothing kept on it, the form starts again after each
+  // answer.
+  kiosk?: boolean;
 };
 
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+// A key pressed in the form or on the page around it.
+type KeyLike = { key: string; shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean; target: EventTarget | null; defaultPrevented: boolean; preventDefault(): void };
+// What was typed is kept on the device this long (a reload, a lost
+// connection), never longer.
+const draftLife = 12 * 3600 * 1000;
+// On a shared device, the thanks stay this long before the form starts again.
+const kioskPause = 10_000;
+function forget(key: string) {
+  try {
+    for (const k of [key, key + ":at", key + ":saved"]) localStorage.removeItem(k);
+  } catch {
+    /* nothing kept */
+  }
+}
 const isTyping = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el.tagName === "INPUT" && !["radio", "checkbox", "button", "submit"].includes((el as HTMLInputElement).type)));
 
 // readAll: the answers as the logic engine reads them (numbers as numbers),
@@ -115,6 +138,8 @@ export function Runner(props: RunnerProps) {
   // also ends a correction (a date read on blur).
   const [bannerAt, setBannerAt] = useState<number | null>(null);
   const [copy, setCopy] = useState(false);
+  const [wantCopy, setWantCopy] = useState(false);
+  const copyAt = props.offerCopy && mode === "public" ? def.pages.flatMap(p => p.questions).find(q => q.kind === "email")?.id : undefined;
   const [restored, setRestored] = useState(false);
   // Where the respondent was, one question at a time: a reload goes back there.
   const [resumeAt, setResumeAt] = useState(0);
@@ -126,10 +151,18 @@ export function Runner(props: RunnerProps) {
   const root = useRef<HTMLDivElement>(null);
 
   // Restore what was typed on this device (after the first render: the
-  // server knows nothing of it).
+  // server knows nothing of it) — for half a day: past it, the next person
+  // at that device does not find someone else's answers. A form for a
+  // shared device keeps nothing at all.
+  const keeps = mode !== "preview" && props.kiosk !== true;
   useEffect(() => {
-    if (mode === "preview") return;
+    if (!keeps) return;
     try {
+      const saved = Number(localStorage.getItem(storageKey + ":saved") ?? "0");
+      if (!(Date.now() - saved < draftLife)) {
+        forget(storageKey);
+        return;
+      }
       const kept = JSON.parse(localStorage.getItem(storageKey) ?? "null") as Raw | null;
       if (kept && typeof kept === "object") {
         setRaw(r => ({ ...kept, ...props.initial, ...r }));
@@ -143,18 +176,19 @@ export function Runner(props: RunnerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (mode === "preview" || stage === "thanks") return;
+    if (!keeps || stage === "thanks") return;
     const timer = setTimeout(() => {
       try {
         const kept = Object.fromEntries(Object.entries(raw).filter(([, v]) => !(v && typeof v === "object" && "ref" in (v as object))));
         localStorage.setItem(storageKey, JSON.stringify(kept));
+        localStorage.setItem(storageKey + ":saved", String(Date.now()));
         if (stage === "form" && props.layout === "steps") localStorage.setItem(storageKey + ":at", String(index));
       } catch {
         /* nothing kept */
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [raw, mode, stage, storageKey, index, props.layout]);
+  }, [raw, keeps, stage, storageKey, index, props.layout]);
 
   // Shown inside a company's website (Share, "On your website"): the page
   // tells the frame its height, so the frame fits the form.
@@ -168,6 +202,8 @@ export function Runner(props: RunnerProps) {
   }, [mode, props.slug]);
 
   const answers = useMemo(() => readAll(def, raw), [def, raw]);
+  // A text that repeats an answer or a value of the link ({name}).
+  const say = (text: string) => recall(text, def, answers, w, props.hidden ?? {});
   const path = useMemo(() => walk(def, answers), [def, answers]);
   const sequence = useMemo(() => asked(path), [path]);
   const countable = sequence.filter(q => q.kind !== "statement");
@@ -217,20 +253,19 @@ export function Runner(props: RunnerProps) {
     // The answers of the questions asked (a question the logic skipped is
     // not sent), to the form's action: the visitor's (bounded: the page's
     // token goes with it, and the field only robots fill) or the member's.
-    const input = { slug: props.slug, version: props.version, answers: Object.fromEntries(sequence.filter(q => raw[q.id] !== undefined).map(q => [q.id, raw[q.id]])) };
+    const input = { slug: props.slug, version: props.version, answers: Object.fromEntries(sequence.filter(q => raw[q.id] !== undefined).map(q => [q.id, raw[q.id]])), hidden: props.hidden ?? {} };
     const robot = (root.current?.querySelector<HTMLInputElement>('input[name="website"]')?.value ?? "");
-    const sent = mode === "public"
-      ? await call("answerPublic", { ...input, ...(robot ? { website: robot } : {}) } as typeof input, { quiet: true, refresh: false })
-      : await call("answerTeam", input, { quiet: true, refresh: false });
+    // A page left open for hours holds a form token past its life: the
+    // refusal brings a fresh one, so the answer is sent once more, silently.
+    const send = () => mode === "public"
+      ? call("answerPublic", { ...input, copy: copyAt !== undefined && wantCopy, ...(robot ? { website: robot } : {}) } as typeof input & { copy: boolean }, { quiet: true, refresh: false })
+      : call("answerTeam", input, { quiet: true, refresh: false });
+    let sent = await send();
+    if (!sent.ok && sent.error === "expired") sent = await send();
     const result = sent.ok ? { ok: true as const, copy: sent.value.copy } : { ok: false as const, error: sent.error };
     setSending(false);
     if (result.ok) {
-      try {
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem(storageKey + ":at");
-      } catch {
-        /* nothing kept */
-      }
+      forget(storageKey);
       setCopy(result.copy);
       setStage("thanks");
       window.scrollTo({ top: 0 });
@@ -263,6 +298,55 @@ export function Runner(props: RunnerProps) {
     }
     setTimeout(() => document.getElementById(`q-${first.id}`)?.focus(), 30);
   }
+
+  // A shared device: the next person starts from nothing — after a press,
+  // or by itself a few seconds after the thanks.
+  function nextPerson() {
+    setRaw({ ...props.initial });
+    setPicked({});
+    setErrors({});
+    setWantCopy(false);
+    setCopy(false);
+    setIndex(0);
+    setStage(props.layout === "steps" ? "start" : "form");
+    window.scrollTo({ top: 0 });
+  }
+  const nextPersonRef = useRef(nextPerson);
+  nextPersonRef.current = nextPerson;
+  useEffect(() => {
+    if (!props.kiosk || mode === "preview" || stage !== "thanks") return;
+    const timer = setTimeout(() => nextPersonRef.current(), kioskPause);
+    return () => clearTimeout(timer);
+  }, [props.kiosk, mode, stage]);
+
+  // The keys work from the page itself too, not only from inside the form:
+  // on the start page Enter starts (as its hint says), and on a question
+  // a letter, a number or Enter does what it does in the form — whenever
+  // the focus is on nothing in particular (the page just opened, a click
+  // on its ground).
+  const pageKeys = useRef<((e: KeyLike) => void) | null>(null);
+  const begin = () => {
+    if (restored && resumeAt > 0) setIndex(resumeAt);
+    setStage("form");
+  };
+  const beginRef = useRef(begin);
+  beginRef.current = begin;
+  useEffect(() => {
+    if (mode === "preview" || props.layout !== "steps") return;
+    const listen = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(e.target === document.body || e.target === document.documentElement)) return;
+      if (stage === "start") {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          beginRef.current();
+        }
+        return;
+      }
+      if (stage === "form") pageKeys.current?.(e);
+    };
+    window.addEventListener("keydown", listen);
+    return () => window.removeEventListener("keydown", listen);
+  }, [mode, props.layout, stage]);
 
   // One question at a time: go on when this one can be sent.
   function next() {
@@ -320,9 +404,13 @@ export function Runner(props: RunnerProps) {
     if (mode === "preview") return { ok: false as const, error: props.errors.unavailable };
     // The address asked of the form's action (a visitor's is bounded:
     // one at a time, each with the page's token, which the answer renews).
-    const grant = (type: string) => () => mode === "public"
+    const ask = (type: string) => mode === "public"
       ? call("visitorUpload", { slug: props.slug, question: q.id, type, size: file.size }, { quiet: true, refresh: false })
       : call("teamUpload", { slug: props.slug, question: q.id, type, size: file.size }, { quiet: true, refresh: false });
+    const grant = (type: string) => async () => {
+      const first = await ask(type);
+      return !first.ok && first.error === "expired" ? ask(type) : first;
+    };
     const result = await uploadFile(file, grant, typesFor(q.accept ?? "any"), options);
     return result.ok ? { ok: true as const, ref: result.ref } : { ok: false as const, error: format(props.errors[result.error] ?? props.errors.unknown, { max: 0 }) };
   }, [props.slug, props.errors, mode]);
@@ -339,9 +427,9 @@ export function Runner(props: RunnerProps) {
   }, [picked]);
 
   const field = (q: Question, number: number | null, autofocus: boolean) => (
+    <Fragment key={q.id}>
     <QuestionField
-      key={q.id}
-      q={q}
+      q={q.title.includes("{") || q.help.includes("{") ? { ...q, title: say(q.title), help: say(q.help) } : q}
       number={number}
       value={raw[q.id]}
       error={errors[q.id] ?? null}
@@ -361,6 +449,13 @@ export function Runner(props: RunnerProps) {
       pictures={props.pictures ?? {}}
       today={props.today}
     />
+    {q.id === copyAt && (
+      <label className="check copy-ask">
+        <input type="checkbox" checked={wantCopy} onChange={e => setWantCopy(e.target.checked)} />
+        {w.copyAsk}
+      </label>
+    )}
+    </Fragment>
   );
 
   const shell = (children: ReactNode, progress: number | null) => (
@@ -381,13 +476,14 @@ export function Runner(props: RunnerProps) {
     return shell(
       <section className="runner-thanks" aria-live="polite">
         <div className="thanks-seal" aria-hidden="true"><Check /></div>
-        <h1 className="runner-title">{props.thanks.title || w.thanks.title}</h1>
-        <p className="runner-lede">{props.thanks.body || w.thanks.body}</p>
+        <h1 className="runner-title">{say(props.thanks.title) || w.thanks.title}</h1>
+        <p className="runner-lede">{say(props.thanks.body) || w.thanks.body}</p>
         {copy && <p className="runner-note">{w.thanks.copy}</p>}
         {props.redirectUrl && mode !== "preview" && (
           <p className="runner-note">{w.thanks.redirecting} <a href={props.redirectUrl}>{w.thanks.continue}</a></p>
         )}
         {mode === "preview" && <button type="button" className="button quiet" onClick={() => { setStage("form"); setIndex(0); }}>{w.startOver}</button>}
+        {props.kiosk && mode !== "preview" && <button type="button" className="button form-button" onClick={nextPerson}>{w.nextPerson}</button>}
       </section>,
       1,
     );
@@ -410,14 +506,10 @@ export function Runner(props: RunnerProps) {
         {def.intro && <p className="runner-lede">{def.intro}</p>}
         {notes}
         <div className="runner-actions">
-          {restored && resumeAt > 0 ? (
-            <button type="button" className="button form-button big" onClick={() => { setIndex(resumeAt); setStage("form"); }}>{w.resume} <Arrow /></button>
-          ) : (
-            <button type="button" className="button form-button big" onClick={() => setStage("form")}>{w.start} <Arrow /></button>
-          )}
+          <button type="button" className="button form-button big" onClick={begin}>{restored && resumeAt > 0 ? w.resume : w.start} <Arrow /></button>
           <span className="enter-hint" aria-hidden="true">{w.pressEnter}</span>
         </div>
-        {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); setResumeAt(0); setIndex(0); try { localStorage.removeItem(storageKey); localStorage.removeItem(storageKey + ":at"); } catch { /* nothing kept */ } }}>{w.startOver}</button></p>}
+        {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); setResumeAt(0); setIndex(0); forget(storageKey); }}>{w.startOver}</button></p>}
       </section>,
       null,
     );
@@ -439,7 +531,7 @@ export function Runner(props: RunnerProps) {
     const all = def.pages.flatMap(p => p.questions);
     const more = q ? all.slice(all.findIndex(x => x.id === q.id) + 1).some(x => !shown.has(x.id) && x.kind !== "statement") : false;
     const percent = countable.length === 0 ? 0 : Math.round((Math.max(0, position) / countable.length) * 100);
-    const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const onKey = (e: KeyLike) => {
       if (!q) return;
       // Enter in a date's field: the field reads the date first (and says
       // when it cannot); then, when it could, the form goes on.
@@ -470,12 +562,14 @@ export function Runner(props: RunnerProps) {
             } else set(q.id, { ...current, ids: current.ids.includes(option.id) ? current.ids.filter(x => x !== option.id) : [...current.ids, option.id] });
           }
         } else if ((q.kind === "rating" || q.kind === "scale") && /^[0-9]$/u.test(key)) {
-          const n = Number(key);
+          // 1 to 9 as they are; 0 is 0 on a scale from 0, else 10.
           const low = q.kind === "rating" ? 1 : (q.from ?? 0), high = q.kind === "rating" ? (q.steps ?? 5) : (q.to ?? 10);
+          const n = key === "0" && low > 0 ? 10 : Number(key);
           if (n >= low && n <= high) set(q.id, n);
         }
       }
     };
+    pageKeys.current = onKey;
     return shell(
       <div className="steps" onKeyDown={onKey}>
         {banner}
@@ -512,13 +606,22 @@ export function Runner(props: RunnerProps) {
           <h1 className="runner-title">{def.title}</h1>
           {def.intro && <p className="runner-lede">{def.intro}</p>}
           {notes}
-          {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); try { localStorage.removeItem(storageKey); localStorage.removeItem(storageKey + ":at"); } catch { /* nothing kept */ } }}>{w.startOver}</button></p>}
+          {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); forget(storageKey); }}>{w.startOver}</button></p>}
         </header>
       )}
       {page?.page.title && <h2 className="page-heading">{page.page.title}</h2>}
       <form className="classic-page" noValidate onSubmit={e => { e.preventDefault(); nextPage(); }} ref={el => { headingRef.current = el as unknown as HTMLDivElement; }}>
         {page?.questions.map((q, i) => field(q, numbered.get(q.id) ?? null, i === 0 && clampIndex > 0))}
-        {wrong > 0 ? <p className="runner-banner soft" role="alert">{plural(w.fixBelow, wrong, props.locale)}</p>
+        {wrong > 0 ? (
+          <div className="runner-banner soft" role="alert">
+            <p>{plural(w.fixBelow, wrong, props.locale)}</p>
+            <ul className="fix-list">
+              {page?.questions.filter(q => errors[q.id]).map(q => (
+                <li key={q.id}><a href={`#q-${q.id}`} onClick={e => { e.preventDefault(); document.getElementById(`q-${q.id}`)?.focus(); }}>{q.title}</a></li>
+              ))}
+            </ul>
+          </div>
+        )
           : bannerAt === clampIndex && <p className="runner-banner soft spent" aria-hidden="true">{plural(w.fixBelow, 1, props.locale)}</p>}
         {banner}
         <div className="classic-actions">
@@ -585,17 +688,23 @@ function QuestionField(p: FieldProps) {
   const heading = (
     <>
       {p.number !== null && <span className="q-number" aria-hidden="true">{p.number}<Arrow /></span>}
-      <span className="q-title">{q.title}{q.required && <span className="q-required"><span aria-hidden="true"> *</span><span className="visually-hidden">{w.requiredMark}</span></span>}</span>
+      {/* One question at a time: the question is the page's heading. */}
+      <span className="q-title" {...(p.steps ? { role: "heading", "aria-level": 1 } : {})}>{q.title}{q.required && <span className="q-required"><span aria-hidden="true"> *</span><span className="visually-hidden">{w.requiredMark}</span></span>}</span>
     </>
   );
   const help = q.help ? <p className="q-help" id={helpId}>{q.help}</p> : null;
   const errorText = p.error ? hint(q, p.error, w) : null;
-  const error = errorText ? <p className="q-error" id={errorId} role="alert">{errorText}</p> : null;
+  // One question at a time, its error is said at once; on a page of
+  // questions, one summary says them all (the runner's banner), and each
+  // error is read with its field (aria-describedby).
+  const error = errorText ? <p className="q-error" id={errorId} role={p.steps ? "alert" : undefined}>{errorText}</p> : null;
 
   if (q.kind === "statement") {
     return (
       <section className="question statement" aria-labelledby={inputId}>
-        <h2 className="q-heading" id={inputId} tabIndex={-1} {...auto}><span className="q-title">{q.title}</span></h2>
+        {p.steps
+          ? <h1 className="q-heading" id={inputId} tabIndex={-1} {...auto}><span className="q-title">{q.title}</span></h1>
+          : <h2 className="q-heading" id={inputId} tabIndex={-1} {...auto}><span className="q-title">{q.title}</span></h2>}
         {help}
       </section>
     );

@@ -14,6 +14,11 @@ export const limits = {
   options: 50,
   option: 200,
   jumps: 20,
+  // Comparisons joined in one rule (and / or), the first one included.
+  clauses: 5,
+  // Names a form reads from its link, and the length of each value kept.
+  hiddenFields: 10,
+  hiddenValue: 200,
   definitionBytes: 256 * 1024,
   short: 500,
   long: 5000,
@@ -23,7 +28,10 @@ export const limits = {
   thanksTitle: 120,
   thanksBody: 1000,
   url: 2000,
-  maxAnswers: 100000,
+  // A form takes this many answers at most, whatever its own limit
+  // (the summary, the exports and the anonymous rewrite are measured at
+  // it: test/scale.test.ts). Settings says so.
+  maxAnswers: 10_000,
   fileSize: 10 << 20,
   fileName: 200,
   forms: 2000,
@@ -99,7 +107,12 @@ export const isImage = (value: unknown): value is Image =>
   value !== null && typeof value === "object" && typeof (value as Image).object === "string" && imagePattern.test((value as Image).object) && typeof (value as Image).version === "string" && /^[0-9A-Za-z._-]{1,40}$/u.test((value as Image).version);
 export type Option = { id: string; label: string; image?: Image };
 export type ConditionValue = string | number | boolean;
-export type Condition = { question: string; op: Op; value?: ConditionValue };
+// One comparison; a rule may join a few (all of them, or any one).
+export type Clause = { question: string; op: Op; value?: ConditionValue };
+export type Condition = Clause & { join?: "all" | "any"; more?: Clause[] };
+export const joins = ["all", "any"] as const;
+// clausesOf: every comparison of a rule, the first one first.
+export const clausesOf = (c: Condition): Clause[] => [{ question: c.question, op: c.op, ...(c.value !== undefined ? { value: c.value } : {}) }, ...(c.more ?? [])];
 export type Question = {
   id: string;
   kind: Kind;
@@ -162,7 +175,9 @@ export function clean(value: unknown, max: number, options: { multiline?: boolea
   if (typeof value !== "string") throw new AppError("invalid");
   let text = value.replace(/\r\n?/gu, "\n");
   text = options.multiline ? text.replace(/[^\P{Cc}\n\t]/gu, "").replace(/\n{4,}/gu, "\n\n\n") : text.replace(/\s+/gu, " ").replace(/\p{Cc}/gu, "");
-  text = text.replace(/[‪-‮⁦-⁩]/gu, "").trim();
+  // Invisible format characters (bidi overrides, zero-width spaces) go,
+  // all but the joiner that holds an emoji together (U+200D).
+  text = text.replace(/(?!\u200d)\p{Cf}/gu, "").trim();
   if (text === "" && !options.optional) throw new AppError("empty");
   if ([...text].length > max) throw new AppError("too_long", { max });
   return text;
@@ -194,6 +209,16 @@ const decimal = (value: unknown): number | undefined => {
 function condition(value: unknown): Condition | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isObject(value)) throw new AppError("invalid");
+  const first = clause(value);
+  const more = list(value["more"], limits.clauses - 1).map(c => clause(c));
+  if (more.length === 0) return first;
+  const join = value["join"] ?? "all";
+  if (!(joins as readonly unknown[]).includes(join)) throw new AppError("invalid");
+  return { ...first, join: join as Condition["join"] & string, more };
+}
+
+function clause(value: unknown): Clause {
+  if (!isObject(value)) throw new AppError("invalid");
   const { question, op } = value;
   if (!isItemId(question) || typeof op !== "string" || !(ops as readonly string[]).includes(op)) throw new AppError("invalid");
   const v = value["value"];
@@ -202,7 +227,7 @@ function condition(value: unknown): Condition | undefined {
   else if (typeof v === "boolean") kept = v;
   else if (typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= limits.number) kept = v;
   else if (v !== undefined && v !== null) throw new AppError("invalid");
-  return { question, op: op as Op, ...(kept !== undefined ? { value: kept } : {}) };
+  return { question: question as string, op: op as Op, ...(kept !== undefined ? { value: kept } : {}) };
 }
 
 // The options of a list (choices, a matrix's rows or columns, items to
@@ -442,7 +467,10 @@ export function problems(def: Definition): Problem[] {
   if (!all.some(q => q.kind !== "statement")) found.push({ code: "no_questions" });
   const order = new Map(all.map((q, i) => [q.id, i]));
   const byId = new Map(all.map(q => [q.id, q]));
-  const checkCondition = (c: Condition, before: number, where: Omit<Problem, "code">) => {
+  const checkCondition = (rule: Condition, before: number, where: Omit<Problem, "code">) => {
+    for (const c of clausesOf(rule)) checkClause(c, before, where);
+  };
+  const checkClause = (c: Clause, before: number, where: Omit<Problem, "code">) => {
     const target = byId.get(c.question);
     if (!target || !opsFor(target.kind).includes(c.op)) return found.push({ ...where, code: "condition_unknown" });
     if ((order.get(c.question) ?? Infinity) >= before) return found.push({ ...where, code: "condition_later" });
@@ -492,6 +520,45 @@ export function problems(def: Definition): Problem[] {
   return found;
 }
 
+// unreachable: the pages no respondent can reach — every way to them goes
+// elsewhere first (the page before always jumps, and no rule leads there).
+// Said in the builder; it does not stop publishing (a page may be kept
+// aside on purpose).
+export function unreachable(def: Definition): string[] {
+  const reach = def.pages.map((_, i) => i === 0);
+  def.pages.forEach((page, i) => {
+    if (!reach[i]) return;
+    for (const j of page.jumps) {
+      const to = def.pages.findIndex(p => p.id === j.to);
+      if (to > i) reach[to] = true;
+    }
+    if (!alwaysJumps(page) && i + 1 < def.pages.length) reach[i + 1] = true;
+  });
+  return def.pages.filter((_, i) => !reach[i]).map(p => p.id);
+}
+
+// alwaysJumps: whether one of a page's rules matches whatever is answered —
+// its rules on one required question of the page (always asked) cover every
+// answer it can have.
+function alwaysJumps(page: Page): boolean {
+  const single = page.jumps.filter(j => !j.when.more?.length).map(j => j.when);
+  return page.questions.some(q => {
+    if (q.showIf || q.kind === "statement") return false;
+    const on = single.filter(c => c.question === q.id);
+    if (on.some(c => c.op === "answered") && (q.required || on.some(c => c.op === "empty"))) return true;
+    if (!q.required) return false;
+    if (q.kind === "yesno") {
+      const said = (v: boolean) => on.some(c => (c.op === "is" && c.value === v) || (c.op === "is_not" && c.value === !v));
+      return said(true) && said(false);
+    }
+    if (q.kind === "choice" || q.kind === "dropdown") {
+      const ids = [...(q.options ?? []).map(o => o.id), ...(q.other ? ["other"] : [])];
+      return ids.length > 0 && ids.every(id => on.some(c => c.op === "is" && c.value === id));
+    }
+    return false;
+  });
+}
+
 // ---- Settings (not versioned: how the form is shared and answered) ----------
 
 export const audiences = ["public", "team"] as const;
@@ -528,6 +595,12 @@ export type Settings = {
   // Each answer is told to the tools of the Chest an admin linked
   // (Proposal (studio): events between tools, forms.answered).
   shareEvents: boolean;
+  // A shared device (a tablet at an event): nothing kept on it, and the
+  // form starts again after each answer.
+  kiosk: boolean;
+  // The names read from the form's link and kept with each answer
+  // (?utm_source=…), never on an anonymous form.
+  hiddenFields: string[];
 };
 
 export const memberPattern = /^mbr_[a-z2-7]{26}$/u;
@@ -545,6 +618,12 @@ export function redirectUrl(value: unknown): string | null {
   }
   if (url.protocol !== "https:" || !url.hostname.includes(".") || url.username || url.password) throw new AppError("invalid_url");
   return url.href;
+}
+
+// capOf: the most answers a form takes — its own limit, never more than
+// limits.maxAnswers.
+export function capOf(form: { maxAnswers: number | null }): number {
+  return Math.min(form.maxAnswers ?? limits.maxAnswers, limits.maxAnswers);
 }
 
 export function settings(value: unknown, closesAt: string | null): Settings {
@@ -576,7 +655,33 @@ export function settings(value: unknown, closesAt: string | null): Settings {
     watchers: [...new Set(watchers as string[])],
     notifyEmail: value["notifyEmail"] === true,
     shareEvents: !anonymous && value["shareEvents"] === true,
+    kiosk: value["kiosk"] === true,
+    hiddenFields: anonymous ? [] : hiddenNames(value["hiddenFields"]),
   };
+}
+
+// hiddenNames: the names a form reads from its link — written like a
+// question's name in links (keyPattern), ten at most, each once. A text
+// ("utm_source, ref") or a list.
+export function hiddenNames(value: unknown): string[] {
+  if (value === undefined || value === null || value === "") return [];
+  const names = typeof value === "string" ? value.split(/[\s,;]+/u).filter(Boolean) : Array.isArray(value) ? value : null;
+  if (!names || names.length > limits.hiddenFields || !names.every(n => typeof n === "string" && keyPattern.test(n))) throw new AppError("hidden_fields");
+  return [...new Set(names as string[])];
+}
+
+// hiddenValues: what the link gave for those names, as the answer keeps
+// it — one line each, 200 characters at most; other names dropped.
+export function hiddenValues(names: readonly string[], given: unknown): Record<string, string> {
+  const kept: Record<string, string> = {};
+  if (!isObject(given)) return kept;
+  for (const name of names) {
+    const v = given[name];
+    if (typeof v !== "string") continue;
+    const text = soft(v.slice(0, limits.hiddenValue * 2), limits.hiddenValue * 2).slice(0, limits.hiddenValue);
+    if (text !== "") kept[name] = text;
+  }
+  return kept;
 }
 
 // ---- Small helpers ----------------------------------------------------------
@@ -627,6 +732,24 @@ export function enterOption(options: Option[], at: number): { options: Option[];
   return { options: copy, focus: at + 1 };
 }
 
+// skeleton: a form without its words — its pages, questions, options and
+// rules by id, kind and setting. Two versions with the same skeleton ask
+// the same questions (an anonymous form with answers may change only its
+// words: lib/forms.ts publish).
+// Written with its keys in order: a definition read back from the
+// database (jsonb) has them in another order than the builder's.
+export function skeleton(def: Definition): string {
+  const sorted = (v: unknown): unknown => Array.isArray(v) ? v.map(sorted) : v !== null && typeof v === "object" ? Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, x]) => [k, sorted(x)])) : v;
+  return JSON.stringify(sorted(def.pages.map(p => ({
+    id: p.id,
+    jumps: p.jumps,
+    questions: p.questions.map(q => {
+      const { title: _t, help: _h, left: _l, right: _r, options, rows, ...rest } = q;
+      return { ...rest, options: options?.map(o => o.id), rows: rows?.map(r => r.id) };
+    }),
+  }))));
+}
+
 // copyQuestion gives a question new ids (its options too): a duplicate is a
 // new question, whose answers are its own.
 export function copyQuestion(q: Question): Question {
@@ -654,9 +777,13 @@ export function copyDefinition(def: Definition): Definition {
       for (const o of [...(q.options ?? []), ...(q.rows ?? [])]) o.id = rename(o.id);
     }
   }
-  const fix = (c: Condition) => {
+  const fixOne = (c: Clause) => {
     c.question = rename(c.question);
     if (typeof c.value === "string" && map.has(c.value)) c.value = map.get(c.value)!;
+  };
+  const fix = (c: Condition) => {
+    fixOne(c);
+    for (const m of c.more ?? []) fixOne(m);
   };
   for (const p of copy.pages) {
     for (const q of p.questions) if (q.showIf) fix(q.showIf);

@@ -21,7 +21,8 @@ import type { Definition } from "../shared/model.ts";
 // checks the address (https, public, the provider's shape; a generic
 // receiver must answer a signed ping), keeps it encrypted, signs, delivers,
 // retries, stops what keeps failing and tells the tool (webhook.disabled,
-// app/chest-webhooks). Set up in the form's Settings by its editors.
+// POST /chest-webhooks in src/app.tsx). Set up in the form's Settings by
+// its editors.
 //
 // What leaves the Chest, for each new answer: the form's title, the
 // answer's questions and answers as text (never a file, only its name),

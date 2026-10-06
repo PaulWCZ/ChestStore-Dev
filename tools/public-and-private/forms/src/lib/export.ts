@@ -27,7 +27,7 @@ function cells(form: Pick<Form, "draft">, versions: Map<number, Definition>, t: 
   return { cells: list, header };
 }
 
-type Row = { form: Pick<Form, "draft">; versions: Map<number, Definition>; t: Catalogue; locale: "en" | "fr"; zone: string; names: Map<string, Person> };
+type Row = { form: Pick<Form, "draft"> & Partial<Pick<Form, "hiddenFields">>; versions: Map<number, Definition>; t: Catalogue; locale: "en" | "fr"; zone: string; names: Map<string, Person> };
 
 // The header and the cells of one answer: the export is written a few
 // hundred answers at a time (answersCsv), whatever their number.
@@ -36,7 +36,9 @@ export function exportPlan(input: Pick<Row, "form" | "versions" | "t">): { heade
   const labels = optionLabels(versions);
   const words = { yes: t.respond.yes, no: t.respond.no, other: t.respond.other };
   const { cells: list, header: titles } = cells(form, versions, t);
-  const header: unknown[] = [t.csv.when, t.csv.who, ...titles, t.csv.status, t.csv.note, t.csv.version];
+  // Then what the form's link gave (its hidden fields), one column each.
+  const hidden = form.hiddenFields ?? [];
+  const header: unknown[] = [t.csv.when, t.csv.who, ...titles, ...hidden, t.csv.status, t.csv.note, t.csv.version];
   // Each question with its options' latest labels, made once.
   const asked = list.map(c => ({ ...c, q: { ...c.question, options: (c.question.options ?? []).map(o => ({ ...o, label: labels.get(o.id) ?? o.label })) } }));
   const row = (a: Answer, { locale, zone, names }: Row) => {
@@ -48,7 +50,7 @@ export function exportPlan(input: Pick<Row, "form" | "versions" | "t">): { heade
       if (c.row) return isGrid(v) && v.rows[c.row.id] ? (c.q.options.find(o => o.id === v.rows[c.row!.id])?.label ?? "") : "";
       return answerText(c.q, v, words);
     });
-    return [when, who, ...values, t.follow.states[a.status], a.note, a.version];
+    return [when, who, ...values, ...hidden.map(name => a.hidden[name] ?? ""), t.follow.states[a.status], a.note, a.version];
   };
   return { header, row };
 }
