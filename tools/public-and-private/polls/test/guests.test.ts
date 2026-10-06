@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
-import { formToken } from "@argentic/chest-sdk/visitors";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
 import { AppError } from "@argentic/chest-app";
 import { emailGuests, eventKey, guestMailOffered, learned, notInCalendar, syncFinal } from "../src/lib/agenda.ts";
-import { checkForm, count } from "../src/lib/guard.ts";
 import * as guests from "../src/lib/guests.ts";
 import { erase } from "../src/lib/lifecycle.ts";
 import { limits } from "../src/lib/model.ts";
@@ -15,8 +13,8 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, chestGroups, everyone, hugo, ines, lea, sofia, tom } from "./support/members.ts";
 
-// Guests outside the Chest on a date poll (lib/guests.ts), the guard of
-// their form (lib/guard.ts), and the chosen date in calendars and guests'
+// Guests outside the Chest on a date poll (lib/guests.ts) (their form's
+// guard is the package's: test/app.test.mjs), and the chosen date in calendars and guests'
 // inboxes (lib/agenda.ts).
 let database: TestDatabase;
 let chest: FakeChest;
@@ -155,22 +153,6 @@ test("a manager removes a guest's answer for good; nobody else may", async () =>
   await guests.removeGuest(sql, asMember(sofia), id, g!.id);
   assert.equal(await guests.guestCount(sql, id), 0);
   assert.equal((await sql`select count(*)::int as n from answers`)[0]!["n"], 0, "their answer with them");
-});
-
-test("the guest form's guard: a form not shown is refused, one sent too fast waits, the own counters stop a flood", async () => {
-  await assert.rejects(checkForm("nonsense"), refuses("invalid"));
-  let clock = Date.now();
-  const token = formToken(clock);
-  let slept = 0;
-  await checkForm(token, () => clock, async ms => { slept = ms; clock += ms; });
-  assert.ok(slept > 1000, "waited the seconds left: " + slept);
-  const { sql } = database;
-  for (let i = 0; i < limits.guestsPerVisitorHour; i++) await count(sql, "203.0.113.9", now);
-  await assert.rejects(count(sql, "203.0.113.9", now), refuses("too_many"));
-  await count(sql, "198.51.100.7", now);
-  // The next hour starts again (and the hour before is deleted).
-  await count(sql, "203.0.113.9", new Date(now.getTime() + 3_600_000));
-  assert.equal((await sql`select count(*)::int as n from guest_counts where hour < ${new Date(now.getTime() + 3_600_000)}`)[0]!["n"], 0);
 });
 
 test("the chosen date goes to the calendars of those asked (not those who said no), and by email to guests who gave one", async () => {

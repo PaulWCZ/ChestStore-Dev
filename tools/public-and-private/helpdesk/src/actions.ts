@@ -252,6 +252,12 @@ export const actions = {
   // no member; they check the form's guard, bound everything, and never
   // reveal anything but what the visitor's own link shows. ------------------
 
+  // The public actions guard themselves for now (tickets.guard: the
+  // tool's own counters; the signed form time): bound: false says so to
+  // checkSources. They move to the package's bound (a single-use form
+  // token, counted only once valid, per visitor by address or cookie)
+  // in Support's next step.
+  //
   // The contact form: a field people never see (website: only robots fill
   // it), the signed time the form was shown (a form sent faster than a
   // person types is refused, or held a moment), so many requests an hour
@@ -282,7 +288,7 @@ export const actions = {
       await notices.about(sql, "new", t.id, `new:${t.id}`);
     });
     redirect(`/t/${t.secret}?new=1${sent.delivery === "email" ? "&mailed=1" : ""}${embed}`);
-  }),
+  }, { bound: false }),
   // Writing again from the follow-up link (it reopens a closed request).
   writeAgain: publicAction({ secret: given, message: given, files: any }, async ({ secret, message, files: list }, { request }) => {
     const sql = db();
@@ -296,7 +302,7 @@ export const actions = {
       await tellLinkedTools(sql);
     });
     return { sent: true };
-  }),
+  }, { bound: false }),
   // The customer's one click on a closed request ("did we solve it?").
   // Counted with the files: a few clicks never cost a visitor a request.
   rate: publicAction({ secret: given, value: given }, async ({ secret, value }, { request }) => {
@@ -305,12 +311,12 @@ export const actions = {
     const t = await tickets.rate(sql, secret, value);
     after("telling", () => tell.rated(t, value as "good" | "bad"));
     return null;
-  }),
+  }, { bound: false }),
   // One file from a visitor, for the form they were shown (its signed
   // time) or for their own request (its link) — nobody else. What comes
   // back from the Chest is a claim only they hold.
   visitorUpload: publicAction({ started: given, secret: given, type: given, size: field.int({ min: 0, max: Number.MAX_SAFE_INTEGER }) }, async ({ started, secret, type, size }, { request }) => {
     const up = await attachments.visitorGrant(db(), secret ? { secret } : { started }, visitorKey(request.headers), type, size);
     return { url: up.url };
-  }),
+  }, { bound: false }),
 };

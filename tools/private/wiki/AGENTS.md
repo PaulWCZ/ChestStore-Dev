@@ -42,7 +42,7 @@ the studio's `app/`.
 | `src/lib/tell.ts`, `notify.ts` | **Everything the bell says**, each recipient checked against the space's access at that moment; the `reviews` schedule's work |
 | `src/lib/starter.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | The example handbook; leaving and erasure; names (former, no access, erased); the package's `db()` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `index.ts` (`catalogue`, `format`, `plural`, `formatDate`, `relative`, `moment`, `orList` — Intl objects made once per language and zone) |
-| `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity "Library" (`defineTheme`), the look of a request as a stylesheet (`lookFor`: `/chest/look.css`); the wiki's own tokens; its CSS (`.island` is `display: contents`: select an island's insides by class, never with `>` from outside) |
+| `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity "Library" (`defineTheme`), the look of a request as a stylesheet (`lookFor`: `/chest/look.css`); the wiki's own tokens; its CSS (`.island` is `display: contents`, from the package: select an island's insides by class, never with `>` from outside) |
 | `migrations/` | Schema. Never edit a shipped file; add `0007_…` |
 | `seed/` | `pages/*.md` + `spaces.json` → `build.ts` → `sample.sql` |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (`support/db.ts`: the package's `testDatabase`, TEST_DATABASE_URL else PGlite with `unaccent` and `pg_trgm`); `app.test.mjs` asks the built server (`dist/test`); `stack.test.ts` the package's `checkSources({ requireTests: true })`; `i18n.test.ts` its `checkWords()`; `test/fixtures/` files shaped as Confluence, Google Docs and Word export them |

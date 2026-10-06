@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, hydrateRoot } from "react-dom/client";
-import { busyText, refresh, send, startIslands, toast } from "./runtime.tsx";
+import { busyText, intercepts, navigate, refresh, send, startIslands, toast } from "./runtime.tsx";
 
 // The browser's start, called once by the tool's src/entry.tsx:
 //   start(islands)
@@ -13,6 +13,13 @@ const actionPath = /\/actions\/[A-Za-z0-9_]+$/u; // /chest/actions/x, /actions/x
 
 export function start(islands: Record<string, ComponentType<never>>): void {
   startIslands(islands, { hydrateRoot, createRoot, flushSync });
+  // Links between pages of the same part: in place (runtime.tsx, intercepts).
+  document.addEventListener("click", event => {
+    const link = intercepts(event);
+    if (!link) return;
+    event.preventDefault();
+    void navigate(link.href);
+  });
   document.addEventListener("submit", event => {
     const form = event.target;
     if (event.defaultPrevented || !(form instanceof HTMLFormElement)) return;

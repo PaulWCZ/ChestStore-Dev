@@ -64,7 +64,7 @@ app.post("/chest-events", async c => new Response(null, {
     "member.erased": async e => {
       await forget(e.data.id);
       await events.acknowledgeErasure(e.data.erasure);
-      await seen.purge();
+      await seen.forget();
     },
   }, { seen }),
 }));

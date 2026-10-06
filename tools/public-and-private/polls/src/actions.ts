@@ -5,7 +5,6 @@ import { findPeople, groups, havePolls } from "./lib/audience.ts";
 import * as comments from "./lib/comments.ts";
 import { localeOf } from "./i18n/index.ts";
 import { db } from "./lib/db.ts";
-import { admit, checkForm } from "./lib/guard.ts";
 import { guestCookie, guestCookieDays, guestCookiePath } from "./lib/guest-cookie.ts";
 import * as guests from "./lib/guests.ts";
 import { limits, memberPattern } from "./lib/model.ts";
@@ -176,25 +175,21 @@ export const actions = {
   }),
 
   // The guest page's one action (the public part): anyone on the Internet
-  // may call it. It holds no member; it checks the form's guard first — a
-  // field only robots fill (website), the signed "shown at" token, the
-  // visitor counters —, then the answer against the poll the link opens
+  // may call it. It holds no member; the package guards it first (bound:
+  // the form's single-use token, a form sent faster than a person waits,
+  // the field only robots fill, answers counted per visitor and for
+  // everyone a day), then it checks the answer against the poll the link opens
   // (src/lib/guests.ts). It reveals nothing but "received" or why not; the
   // guest's own answer is found again by the secret their browser keeps
   // (a cookie for that poll's page only; the database keeps its hash).
   answerGuest: publicAction({
     link: field.text({ max: 64 }),
     poll: field.optional(field.id()),
-    started: field.text({ min: 0, max: 200 }),
-    website: field.text({ min: 0, max: 200 }),
     name: field.text({ min: 0, max: limits.guestName * 2 }),
     email: field.text({ min: 0, max: limits.guestEmail * 2 }),
     dates: field.keyed(/^d([1-9][0-9]{0,17})$/u, field.int({ min: 0, max: 2 }), limits.dates.max),
-  }, async (input, { locale, request, cookies }) => {
-    if (input.website !== "") fail("invalid");
-    await checkForm(input.started);
+  }, async (input, { locale, cookies }) => {
     const sql = db();
-    await admit(sql, request.headers);
     // The secret of an earlier answer, if this browser keeps one for this
     // poll (its id picks the cookie; the secret is checked against the
     // poll the link opens).
@@ -202,6 +197,6 @@ export const actions = {
     const done = await guests.answerAsGuest(sql, input.link, { name: input.name, email: input.email, dates: input.dates, locale: localeOf(locale), secret }, new Date());
     cookies.set(guestCookie(done.poll.id), done.secret, { path: guestCookiePath(input.link), maxAge: guestCookieDays * 86_400 });
     redirect(`/p/${input.link}?sent=${done.first ? "1" : "2"}`);
-  }),
+  }, { bound: { perVisitor: limits.guestsPerVisitorDay, perDay: limits.guestsPerDay, formSeconds: limits.guestSeconds } }),
 };
 

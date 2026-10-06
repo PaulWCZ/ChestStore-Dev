@@ -11,7 +11,6 @@
 *, *::before, *::after { box-sizing: border-box; }
 /* An island (@argentic/chest-app's Island) is a box of its own for the browser's
    scripts only: the page is laid out as if it were not there. */
-.island { display: contents; }
 form[aria-busy="true"] { opacity: 0.7; }
 html { -webkit-text-size-adjust: 100%; }
 /* An icon takes the size of its text unless its place says otherwise. */

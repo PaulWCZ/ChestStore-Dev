@@ -10,5 +10,7 @@ declare module "@argentic/chest-app" {
     words: Catalogue;
     actions: typeof actions;
     islands: typeof islands;
+    // What a page tells the layout (src/frame.tsx): whether Trash shows.
+    layout: { trash: boolean };
   }
 }

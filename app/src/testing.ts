@@ -15,7 +15,7 @@ import postgres from "postgres";
 //   2. DATABASE_URL already the Chest's (the Perseus preview's pb_…) — a
 //      throwaway schema in it (TEST_DATABASE_SCHEMA tells db());
 //   3. otherwise PGlite in the test's process (devDependencies
-//      @electric-sql/pglite and @electric-sql/pglite-socket): ~500 MiB
+//      @electric-sql/pglite and @electric-sql/pglite-socket): 1.2–1.3 GiB
 //      more memory — the last resort.
 // close() drops what it made.
 export type TestDatabase = { sql: postgres.Sql; kind: "server" | "preview" | "pglite"; close(): Promise<void> };
@@ -68,6 +68,7 @@ export async function testDatabase({ migrations = "migrations", extensions = [] 
       },
     };
   }
+  console.warn("testDatabase: no TEST_DATABASE_URL nor preview database — PGlite in this process (1.2–1.3 GiB for a test run). Set TEST_DATABASE_URL to a PostgreSQL server whose user may create roles.");
   const { PGlite } = await import("@electric-sql/pglite");
   const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
   const loaded: Record<string, unknown> = {};
@@ -188,6 +189,15 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   // routes to it) — a page alone may stay (an "open it from your Chest"
   // page). The public part declared with nothing served asks for nothing.
   const publicWrites = /\bpublicAction(sAt)?\(/u.test(code_);
+  // Each public action is bounded (bound: { perVisitor, perDay }) or says
+  // it needs none (bound: false).
+  for (const { file, text } of code) {
+    const plain = text.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
+    const actions = (plain.match(/\bpublicAction\(/gu) ?? []).length;
+    const bounds = (plain.match(/\bbound\s*:/gu) ?? []).length;
+    if (actions > bounds) problems.push(`${file}: a publicAction without bound — anyone on the Internet may call it: bound: { perVisitor, perDay } (or bound: false)`);
+    if (/\bbudgets\s*:/u.test(plain) && !/\bcharge\(/u.test(plain)) problems.push(`${file}: a publicAction with budgets never calls charge(kind): say which budget a call spends, once its request is checked`);
+  }
   const publicPages = /\bpublicPage\(/u.test(code_);
   if (publicWrites && !manifestPublic) problems.push(`src/ has public actions (publicAction) without "public": true in chest.json: the Chest would never route to them`);
   if (manifestPublic && !publicWrites && !publicPages) problems.push(`chest.json asks "public": true and src/ serves no publicPage nor publicAction: remove it`);

@@ -30,11 +30,12 @@ async function open(options = {}) {
   return { page, problems, close: () => context.close() };
 }
 
-test("islands hydrate under the policy, without a warning", async () => {
+test("islands hydrate under the policy, without a warning; their wrappers take no room (the package's CSS)", async () => {
   const { page, problems, close } = await open();
   await page.waitForFunction(() => document.querySelector("[data-island='ToastHost'] .ck-toasts") !== null);
   await page.waitForTimeout(300);
   assert.deepEqual(problems, []);
+  assert.deepEqual(await page.evaluate(() => [...new Set([...document.querySelectorAll(".island")].map(e => getComputedStyle(e).display))]), ["contents"]);
   await close();
 });
 
@@ -160,6 +161,77 @@ test("a 502 that is not a page keeps the page and what is typed; call() on the C
   assert.equal(await page.evaluate(() => window.samePage), true);
   tool.fail(403, { method: "POST" });
   await page.locator("li.note").first().getByRole("button", { name: "Delete" }).click();
+  await page.waitForFunction(() => window.samePage !== true);
+  await close();
+});
+
+test("links between pages go in place: the toast survives, Back restores the page and its scroll, focus goes to the heading", async () => {
+  const { page, problems, close } = await open({ viewport: { width: 800, height: 400 } });
+  for (let i = 1; i <= 6; i++) {
+    await page.fill("#body", `Linked ${i}`);
+    await page.click("form.composer button");
+    await page.waitForSelector(`li.note >> text="Linked ${i}"`);
+  }
+  await page.evaluate(() => { window.samePage = true; });
+  await page.locator("li.note", { hasText: "Linked 6" }).getByRole("button", { name: "Delete" }).click();
+  await page.waitForSelector(".ck-toast >> text=Note deleted.");
+  const link = page.locator("li.note a.note-link", { hasText: "Linked 1" });
+  await link.scrollIntoViewIfNeeded();
+  const scrolled = await page.evaluate(() => scrollY);
+  await link.click();
+  await page.waitForURL(/\/chest\/notes\/\d+$/u);
+  await page.waitForSelector("article.note >> text=Linked 1");
+  assert.equal(await page.evaluate(() => window.samePage), true, "no page load");
+  assert.equal(await page.locator(".ck-toast >> text=Note deleted.").count(), 1, "the toast survived");
+  assert.equal(await page.evaluate(() => document.activeElement?.tagName), "H1");
+  await page.goBack();
+  await page.waitForSelector("li.note >> text=\"Linked 2\"");
+  await page.waitForFunction(y => Math.abs(scrollY - y) < 2, scrolled);
+  assert.equal(await page.evaluate(() => window.samePage), true);
+  // The opt-out: data-reload loads the page.
+  await page.evaluate(() => document.querySelector("a.note-link")?.setAttribute("data-reload", ""));
+  await page.locator("a.note-link").first().click();
+  await page.waitForFunction(() => window.samePage !== true);
+  assert.deepEqual(problems, []);
+  await close();
+});
+
+test("actions go one at a time, in the order asked", async () => {
+  const { page, close } = await open();
+  const events = [];
+  await page.route("**/chest/actions/pinNote", async route => {
+    events.push("start");
+    if (events.length === 1) await new Promise(r => setTimeout(r, 400));
+    await route.continue();
+    events.push("end");
+  });
+  const pins = page.locator("li.note").getByRole("button", { name: /^(Pin|Unpin)$/u });
+  await pins.nth(0).click();
+  await pins.nth(1).click();
+  await page.waitForFunction(() => true);
+  for (let i = 0; i < 50 && events.length < 4; i++) await page.waitForTimeout(50);
+  assert.deepEqual(events, ["start", "end", "start", "end"]);
+  await close();
+});
+
+test("compressed: pages gzipped as they go, the browser's files brotli from the build", async () => {
+  const html = await fetch(`${tool.origin}/chest`, { headers: { "accept-encoding": "gzip, br" } });
+  assert.equal(html.headers.get("content-encoding"), "gzip");
+  assert.match(html.headers.get("vary") ?? "", /accept-encoding/iu);
+  const page = await html.text();
+  const script = /src="(\/assets\/client-[\w-]+\.js)"/u.exec(page)?.[1];
+  const js = await fetch(`${tool.origin}${script}`, { headers: { "accept-encoding": "gzip, br" } });
+  assert.equal(js.headers.get("content-encoding"), "br");
+  assert.match(js.headers.get("content-type") ?? "", /javascript/u);
+  const plain = await fetch(`${tool.origin}${script}`, { headers: { "accept-encoding": "identity" } });
+  assert.equal(plain.headers.get("content-encoding"), null);
+});
+
+test("a refresh that meets a 404 loads the page plainly (its 404), not 'did not answer'", async () => {
+  const { page, close } = await open();
+  await page.evaluate(() => { window.samePage = true; });
+  tool.fail(404);
+  await page.locator("li.note").first().getByRole("button", { name: /^(Pin|Unpin)$/u }).click();
   await page.waitForFunction(() => window.samePage !== true);
   await close();
 });
