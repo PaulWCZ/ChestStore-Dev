@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
-import { formToken } from "@argentic/chest-app";
+import { formToken, solveWork } from "@argentic/chest-app";
 import { formLimits } from "../src/lib/booking.ts";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { testDatabase } from "./support/db.ts";
@@ -37,7 +37,7 @@ const call = (who, name, input, headers = {}) => {
   return app.fetch(who ? withMember(request, who) : request);
 };
 // A form as an island sends it (FormData, the island's header).
-const form = (path, fields, headers = {}) => app.fetch(new Request(publicHost + path, { method: "POST", body: new URLSearchParams(fields), headers: { "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } }));
+const form = (path, fields, headers = {}) => app.fetch(new Request(publicHost + path, { method: "POST", body: new URLSearchParams(proven(fields)), headers: { "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } }));
 const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 const clean = html => {
   assert.doesNotMatch(html, /\sstyle="/u, "no style attribute");
@@ -47,7 +47,10 @@ const clean = html => {
 // The form token a public page carries for an action (<FormToken />), and a
 // fresh one shown long enough ago that the package does not wait for it.
 const tokenOf = (html, action = "bookTime") => new RegExp(`data-action="${action}" value="([^"]+)"`, "u").exec(html)[1];
-const shown = action => formToken(action, Date.now() - 10_000);
+// bookTime asks a proof of work (bound.work: 16 bits, more as the day's
+// budget runs low): the test finds it as the browser does.
+const shown = action => formToken(action, Date.now() - 10_000, action === "bookTime" ? 16 : 0);
+const proven = fields => (fields.chest_form && fields.chest_form.includes(".bookTime.") ? { ...fields, chest_work: solveWork(fields.chest_form) } : fields);
 const props = (html, island) => JSON.parse(new RegExp(`data-island="${island}"[^>]*? data-props="([^"]*)"`, "u").exec(html)[1].replaceAll("&quot;", "\"").replaceAll("&amp;", "&").replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">"));
 
 test("the agenda: the member's language, the policy, the look as a stylesheet, nothing inline; 401 without the Chest", async () => {
@@ -165,7 +168,7 @@ test("the public pages: the company, a host, a type to book, in the visitor's wo
   const island = props(page, "BookTime");
   assert.equal(island.typeSlug, "project-call");
   assert.ok(island.zones.length > 1, "the time zones, written by the server");
-  assert.ok(tokenOf(page).split(".").length === 4, "the page carries a form token for bookTime");
+  assert.match(tokenOf(page), /^\d{13}\.[\w-]+\.bookTime\.1[68]\.[\w-]+$/u, "the page carries a form token for bookTime, asking a proof of work");
   assert.equal((await get(null, "/nobody-here")).status, 404);
   assert.match(await (await get(null, "/nobody-here")).text(), /This page does not exist/u);
   assert.equal((await get(null, "/chest-events")).status, 404, "a reserved name is no host");

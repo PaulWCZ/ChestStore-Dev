@@ -221,7 +221,7 @@ export const actions = {
     await tell.hostCopy(sql, "booked", made.booking);
     await share.changed(sql, "booked", made.booking);
     redirect(`/b/${made.secret}?new=1${mailed ? "&mailed=1" : ""}`);
-  }, { bound: { formSeconds: b.formLimits.formSeconds, budgets: { new: b.formLimits.perKind.new } } }),
+  }, { bound: { formSeconds: b.formLimits.formSeconds, work: true, budgets: { new: b.formLimits.perKind.new } } }),
 
   // The guest cancels their booking, with an optional word for the host.
   cancelMine: publicAction({ secret: text(100), reason: text(500) }, async ({ secret, reason }, { request, charge }) => {
