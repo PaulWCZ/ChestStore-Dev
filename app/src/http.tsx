@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
@@ -13,7 +13,7 @@ import type { ComponentType, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
 import { startForms } from "./form.tsx";
-import { startRender } from "./island.tsx";
+import { shown, startRender } from "./island.tsx";
 import { log } from "./log.ts";
 import type { ErrorCode, LayoutData, Words } from "./register.ts";
 import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Bound, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
@@ -106,15 +106,20 @@ const viewerOf = (c: Context<Env>): Viewer => (isMembers(c.req.path) && c.get("v
 // A new build is fetched at once, an unchanged one comes from the cache.
 // Read once at start; on every page in development (npm run dev rebuilds).
 const assets = "dist/client/assets";
-let built: { script: string; version: string } | undefined;
-function browserFiles(): { script: string; version: string } {
+let built: { script: string; version: string; islands: Record<string, string[]> } | undefined;
+function browserFiles(): { script: string; version: string; islands: Record<string, string[]> } {
   if (built && process.env["NODE_ENV"] !== "development") return built;
   try {
     // The newest entry (a watching build leaves the earlier ones).
     const script = readdirSync(assets).filter(f => /^client-[\w-]+\.js$/u.test(f)).map(f => ({ f, at: statSync(`${assets}/${f}`).mtimeMs })).sort((a, b) => b.at - a.at)[0]?.f ?? "client.js";
-    built = { script, version: Math.round(statSync(`${assets}/client.css`).mtimeMs).toString(36) };
+    // The chunks of each island loaded on demand (chestConfig writes them).
+    let islands: Record<string, string[]> = {};
+    try {
+      islands = JSON.parse(readFileSync("dist/client/chest-islands.json", "utf8")) as typeof islands;
+    } catch { /* islands in the entry */ }
+    built = { script, version: Math.round(statSync(`${assets}/client.css`).mtimeMs).toString(36), islands };
   } catch {
-    built = { script: "client.js", version: "none" };
+    built = { script: "client.js", version: "none", islands: {} };
   }
   return built;
 }
@@ -178,7 +183,11 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
       </body>
     </html>,
   );
-  return c.html("<!doctype html>" + page, status);
+  // The code of the islands this page shows, asked at once beside the
+  // entry (each island a chunk of its own: chestConfig).
+  const chunks = [...new Set([...shown].flatMap(name => browserFiles().islands[name] ?? []))];
+  const preload = chunks.map(file => `<link rel="modulepreload" href="/assets/${file}"/>`).join("");
+  return c.html("<!doctype html>" + (preload ? page.replace("</head>", `${preload}</head>`) : page), status);
 }
 
 // An error page in the reader's words; a member is offered the way back

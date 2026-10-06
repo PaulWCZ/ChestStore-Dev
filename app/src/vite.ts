@@ -41,6 +41,28 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     copyPublicDir: false,
     rolldownOptions: { input: { main: "src/main.ts", app: "src/app.tsx" }, output: { entryFileNames: "[name].js" }, onLog },
   };
+  // virtual:chest-islands: every component src/islands/*.tsx exports (a
+  // capitalised name), as a loader of its file — each file a chunk the
+  // browser loads when a page shows one of its islands.
+  const islands: Plugin = {
+    name: "chest-islands",
+    resolveId: id => (id === "virtual:chest-islands" ? "\0chest-islands" : null),
+    load(id) {
+      if (id !== "\0chest-islands") return null;
+      const dir = join(process.cwd(), "src", "islands");
+      const lines: string[] = [];
+      let files: string[] = [];
+      try {
+        files = readdirSync(dir).filter(f => /\.tsx$/u.test(f)).sort();
+      } catch { /* no islands */ }
+      for (const file of files) {
+        this.addWatchFile(join(dir, file));
+        const text = readFileSync(join(dir, file), "utf8");
+        for (const m of text.matchAll(/^export (?:function|const) ([A-Z]\w*)/gmu)) lines.push(`  ${m[1]}: () => import(${JSON.stringify(join(dir, file))}).then(m => m.${m[1]}),`);
+      }
+      return `export default {\n${lines.join("\n")}\n};\n`;
+    },
+  };
   const look: Plugin = {
     name: "chest-look",
     resolveId: id => (id === "virtual:look.css" ? "\0look.css" : null),
@@ -57,6 +79,24 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
       // The proof of work's worker (bound.work), a file of its own: the
       // strict policy runs a worker only from the tool's own address.
       this.emitFile({ type: "asset", fileName: "assets/chest-work.js", source: readFileSync(new URL("../worker/chest-work.js", import.meta.url)) });
+      // Each island's chunks (its file's, and what it imports but the
+      // entry): the server preloads those of the islands a page shows.
+      const chunks = Object.values(bundle).filter(file => file.type === "chunk");
+      const entry = new Set(chunks.filter(c => c.isEntry).flatMap(c => [c.fileName, ...c.imports]));
+      const closure = (fileName: string, seen = new Set<string>()): string[] => {
+        if (seen.has(fileName) || entry.has(fileName)) return [];
+        seen.add(fileName);
+        const chunk = chunks.find(c => c.fileName === fileName);
+        return [fileName, ...(chunk?.imports ?? []).flatMap(i => closure(i, seen))];
+      };
+      const islands: Record<string, string[]> = {};
+      for (const chunk of chunks) {
+        const source = chunk.facadeModuleId;
+        if (!source || !/[/\\]src[/\\]islands[/\\][^/\\]+\.tsx$/u.test(source)) continue;
+        const files = closure(chunk.fileName).map(f => f.replace(/^assets\//u, ""));
+        for (const m of readFileSync(source, "utf8").matchAll(/^export (?:function|const) ([A-Z]\w*)/gmu)) islands[m[1]!] = files;
+      }
+      this.emitFile({ type: "asset", fileName: "chest-islands.json", source: JSON.stringify(islands) });
       const css = Object.values(bundle).find(file => file.type === "asset" && file.fileName === "assets/client.css");
       if (css?.type === "asset") css.source = `${baseCss}\n${typeof css.source === "string" ? css.source : new TextDecoder().decode(css.source)}`;
       else this.emitFile({ type: "asset", fileName: "assets/client.css", source: baseCss });
@@ -89,7 +129,7 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     },
   });
   return defineConfig(({ isSsrBuild, mode }) => ({
-    plugins: isSsrBuild ? [look] : [look, base, precompress(mode === "development")],
+    plugins: isSsrBuild ? [look, islands] : [look, islands, base, precompress(mode === "development")],
     // The JSX runtime and React's build follow the Vite mode, never the
     // shell's NODE_ENV (the Perseus workbench sets development: a build's
     // JSX must still be the production runtime its React provides).

@@ -21,11 +21,31 @@ const propsOf = (el: Element): object => JSON.parse(el.getAttribute("data-props"
 // what a script added there (a portal, a live region) stays.
 const served = new WeakSet<Node>();
 
-export function startIslands(islands: Record<string, ComponentType<never>>, reactDom: ReactDom): void {
-  registry = islands as typeof registry;
+// Islands loaded when a page shows them (start(islands, lazy): each of
+// the tool's src/islands/*.tsx a chunk of its own, by name —
+// virtual:chest-islands of chestConfig): a page downloads the code of its
+// own islands only.
+type Lazy = Record<string, () => Promise<unknown>>;
+let lazyIslands: Lazy = {};
+const loading = new Map<string, Promise<ComponentType<object> | undefined>>();
+function loadIsland(name: string): Promise<ComponentType<object> | undefined> {
+  if (registry[name]) return Promise.resolve(registry[name]);
+  const loader = lazyIslands[name];
+  if (!loader) return Promise.resolve(undefined);
+  if (!loading.has(name)) loading.set(name, loader().then(component => (registry[name] = component as ComponentType<object>)));
+  return loading.get(name)!;
+}
+
+export async function startIslands(islands: Record<string, ComponentType<never>>, reactDom: ReactDom, lazy: Lazy = {}): Promise<void> {
+  registry = { ...islands } as typeof registry;
+  lazyIslands = lazy;
   dom = reactDom;
   for (const node of document.body.childNodes) served.add(node);
+  // The page's own islands' code first (preloaded beside the entry), then
+  // every island comes to life together.
+  await Promise.all([...new Set([...document.querySelectorAll("[data-island]")].map(el => el.getAttribute("data-island") ?? ""))].map(name => loadIsland(name)));
   for (const el of document.querySelectorAll("[data-island]")) mount(el);
+  document.documentElement.dataset["ready"] = "";
   // Back and Forward between addresses navigate() made: the page follows,
   // at the scroll it was left at.
   history.scrollRestoration = "manual";
@@ -40,8 +60,14 @@ export function startIslands(islands: Record<string, ComponentType<never>>, reac
 // included, before the browser shows it: a key pressed the moment it
 // appears (Escape) finds its listeners there, and its focus is set.
 function mount(el: Element, now = false): void {
-  const component = registry[el.getAttribute("data-island") ?? ""];
-  if (!component || roots.has(el)) return;
+  const name = el.getAttribute("data-island") ?? "";
+  const component = registry[name];
+  if (roots.has(el)) return;
+  if (!component) {
+    // Its code is loaded first (a chunk of its own), then it comes to life.
+    if (lazyIslands[name]) void loadIsland(name).then(loaded => { if (loaded && el.isConnected) mount(el, now); });
+    return;
+  }
   const options = { identifierPrefix: el.getAttribute("data-prefix") ?? "" };
   const element = createElement(component, propsOf(el));
   if (!now) return void roots.set(el, dom.hydrateRoot(el, element, options));
@@ -140,6 +166,10 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     return false;
   }
   const next = new DOMParser().parseFromString(html, "text/html");
+  // The code of the islands the new page shows, loaded before it is put in
+  // place: each comes to life at once, its keys and focus ready.
+  await Promise.all([...new Set([...next.querySelectorAll("[data-island]")].map(el => el.getAttribute("data-island") ?? ""))].map(name => loadIsland(name)));
+  if (!applies({ navigation: push !== false, ticket, latest, move, moves, settled, sending })) return false;
   const read = comparable(html, next);
   unchanged = push === false && read === lastRead;
   lastRead = read;

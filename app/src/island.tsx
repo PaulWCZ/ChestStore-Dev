@@ -21,9 +21,12 @@ let registry: Record<string, ComponentType<object>> = {};
 // refresh adds never takes the prefix of one already there.
 let count = 0;
 let mark = "";
+// The islands the page being rendered shows (their code preloaded).
+export const shown = new Set<string>();
 export function startRender(islands: Record<string, ComponentType<never>>): string {
   registry = islands as typeof registry;
   count = 0;
+  shown.clear();
   mark = Math.random().toString(36).slice(2, 6).padEnd(4, "0");
   return mark;
 }
@@ -38,6 +41,7 @@ export function startRender(islands: Record<string, ComponentType<never>>): stri
 export function Island<N extends Extract<keyof RegisteredIslands, string>>({ name, props, id }: { name: N; props: Plain<ComponentProps<RegisteredIslands[N]>>; id?: string }) {
   const component = registry[name];
   if (!component) throw new Error(`the island ${name} is not listed in src/islands/index.ts`);
+  shown.add(name);
   const prefix = `${name.toLowerCase()}${count++}${mark}-`;
   const html = renderToString(createElement(component, props as object), { identifierPrefix: prefix });
   const sent = JSON.stringify(props);

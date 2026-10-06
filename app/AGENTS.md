@@ -93,6 +93,17 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   Rules that compute from existing rows must still be safe in SQL: two
   people act at once too (`db().begin(…)` with a lock, or a unique
   constraint).
+- **Each page downloads its own islands' code**: `src/entry.tsx` runs
+  `await start({ ToastHost }, lazy)` with `lazy` from
+  `virtual:chest-islands` (`chestConfig` lists every capitalised export
+  of `src/islands/*.tsx`; `src/env.d.ts` declares the module): each file
+  of `src/islands/` is a chunk, preloaded by the pages that show one of
+  its islands, and a page's islands come to life together, before its
+  load event (`<html data-ready>`); a page met by `navigate()` gets its
+  islands' code before it is put in place. Keep an island's file to
+  itself and what it needs: a public form then downloads its form, not
+  the builder (Forms' answer page: 411 → 293 KB of JavaScript). The
+  styles stay one file (`client.css`).
 - **Compressed**: pages, JSON and downloads of 1 KiB and more are gzipped
   as they go; the browser's files are compressed at build (`.br`, `.gz`
   beside each, served by `Accept-Encoding`). The Chest's front compresses

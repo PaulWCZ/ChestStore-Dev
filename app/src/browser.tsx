@@ -11,8 +11,14 @@ import { busyText, intercepts, navigate, refresh, send, startIslands, toast } fr
 // and the server redirects back.
 const actionPath = /\/actions\/[A-Za-z0-9_]+$/u; // /chest/actions/x, /actions/x, /p/abc/actions/x
 
-export function start(islands: Record<string, ComponentType<never>>): void {
-  startIslands(islands, { hydrateRoot, createRoot, flushSync });
+// lazy (optional): the tool's islands loaded on demand, by name —
+//   import lazy from "virtual:chest-islands";
+//   start({ ToastHost }, lazy);
+// — each page downloads only the code of the islands it shows.
+// It resolves once the page's islands are alive (<html data-ready>); the
+// entry awaits it (await start(…)): the page's load event then waits too.
+export async function start(islands: Record<string, ComponentType<never>>, lazy: Record<string, () => Promise<unknown>> = {}): Promise<void> {
+  const ready = startIslands(islands, { hydrateRoot, createRoot, flushSync }, lazy);
   // Links between pages of the same part: in place (runtime.tsx, intercepts).
   document.addEventListener("click", event => {
     const link = intercepts(event);
@@ -44,6 +50,7 @@ export function start(islands: Record<string, ComponentType<never>>): void {
       form.reset();
     }).finally(() => form.removeAttribute("aria-busy"));
   });
+  await ready;
 }
 
 // A refusal under its field: aria-invalid, the sentence in a .ck-error
