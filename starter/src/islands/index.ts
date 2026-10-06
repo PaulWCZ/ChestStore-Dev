@@ -1,4 +1,4 @@
-import { ToastHost } from "../core/client.tsx";
+import { ToastHost } from "@argentic/chest-app/client";
 import { DeleteNote } from "./DeleteNote.tsx";
 
 // The components that also run in the browser (islands), by name. A page

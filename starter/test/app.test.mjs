@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
-import { testDatabase } from "./db.mjs";
+import { atLeast, checkPage, testDatabase } from "@argentic/chest-app/testing";
 
 // The server as built for the tests (npm test: dist/test), asked as the
-// Chest asks it: members signed by a fake Chest, a real PostgreSQL.
+// Chest asks it: members signed by a fake Chest, a real PostgreSQL
+// (TEST_DATABASE_URL, the preview's, or PGlite: testDatabase()). Every
+// page fetched is checked for what the policy would block (checkPage).
+atLeast(8);
 const member = (id, firstName, language, extra = {}) => ({ id: `mbr_${id.padEnd(26, "a")}`, firstName, lastName: "Test", name: `${firstName} Test`, photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language, timeZone: "Europe/Paris", ...extra });
 const camille = member("camille", "Camille", "fr");
 const sam = member("sam", "Sam", "en", { timeZone: "America/New_York" });
@@ -21,7 +24,11 @@ after(async () => {
 });
 
 const url = path => `https://tool.test${path}`;
-const get = (who, path, headers = {}) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
+const get = async (who, path, headers = {}) => {
+  const response = await app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
+  if (response.headers.get("content-type")?.startsWith("text/html")) checkPage(await response.clone().text());
+  return response;
+};
 // An action as call() sends it from an island of the page.
 const call = (who, name, input, headers = {}) => {
   const request = new Request(url(`${who ? "/chest" : ""}/actions/${name}`), { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
@@ -42,9 +49,6 @@ test("a page: the member's language, the tool's policy, no inline script or styl
   assert.match(html, /0 note</u); // French: zero is singular
   assert.equal(response.headers.get("content-security-policy"), "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   assert.equal(response.headers.get("cache-control"), "no-store");
-  assert.doesNotMatch(html, /\sstyle="/u);
-  assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/u);
-  assert.doesNotMatch(html, /<style/u);
   assert.equal((await get(null, "/chest")).status, 401);
 });
 
@@ -100,6 +104,10 @@ test("a form without JavaScript: posted, then back to its page", async () => {
   const refused = await form(sam, "/chest/actions/addNote", { body: "" }, "/chest");
   assert.equal(refused.headers.get("location"), "/chest?error=empty");
   assert.match(await (await get(sam, "/chest?error=empty")).text(), /role="alert">Write something first\./u);
+  // A refusal with values says them (not "{max}").
+  const long = await form(sam, "/chest/actions/addNote", { body: "x".repeat(2001) }, "/chest");
+  const back = long.headers.get("location");
+  assert.match(await (await get(sam, back)).text(), /role="alert">Too long: 2000 characters at most\./u);
 });
 
 test("a download streams the rows as CSV, formulas defused", async () => {
@@ -126,6 +134,10 @@ test("the public part: a visitor's words and form, no member", async () => {
   assert.equal((await call(null, "addNote", { body: "x" })).status, 404, "a members' action is not a public one");
   const lang = await get(null, "/lang/fr?back=/");
   assert.match(lang.headers.get("set-cookie"), /^lang=fr;/u);
+  // Never back to another site: //evil, /\evil, /<tab>/evil.
+  for (const evil of ["//evil.example", "/%5Cevil.example", "/%09/evil.example", "https://evil.example"]) {
+    assert.equal((await get(null, `/lang/fr?back=${evil}`)).headers.get("location"), "/", evil);
+  }
 });
 
 test("errors: the reader's page, the right status", async () => {
@@ -144,9 +156,13 @@ test("the Chest's events and schedules, each delivered at least once", async () 
   assert.deepEqual(chest.acknowledged, [erased.data.erasure]);
   const [{ authors }] = await database.sql`select count(*)::int as authors from notes where author = ${sam.id}`;
   assert.equal(authors, 0);
-  await database.sql`update notes set deleted_at = now() - interval '31 days' where body = 'Hello team'`;
-  assert.equal(await chest.run("purge", to), 204);
-  assert.equal(await chest.run("nothing", to), 404);
-  const [{ left }] = await database.sql`select count(*)::int as left from notes where body = 'Hello team'`;
-  assert.equal(left, 0);
+  assert.equal(await chest.run("nothing", to), 404, "a schedule without a handler");
+});
+
+test("a public write is bounded: so many a day", async () => {
+  await database.sql`insert into notes (body, author) select 'visitor ' || n, null from generate_series(1, 60) n`;
+  const refused = await form(null, "/actions/sendMessage", { body: "One more", website: "" }, "/");
+  assert.equal(refused.headers.get("location"), "/?error=busy");
+  const [{ count }] = await database.sql`select count(*)::int from notes where body = 'One more'`;
+  assert.equal(count, 0);
 });

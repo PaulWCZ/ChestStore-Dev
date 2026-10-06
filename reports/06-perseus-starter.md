@@ -1,385 +1,479 @@
 # A better starter for Perseus Code
 
-_Written on 5 October 2026 against the reference snapshot of that day
-(`reference/perseus-starter/`, Chest `0c2bcfd`; `@argentic/chest-sdk`
-0.4.1). The proposed template is [`starter/`](../starter/); the measuring
-tools are [`lab/starter-bench/`](../lab/starter-bench/), their raw output
-[`lab/starter-bench/results/run-2.json`](../lab/starter-bench/results/run-2.json).
-What is measured is said with its method; what is assumed is marked so._
+_Version 2, 6 October 2026. It follows an independent review of version 1
+and the first two tools moved onto the starter (Polls and Tasks). The
+reference snapshot is the one of 5 October (`reference/perseus-starter/`,
+Chest `0c2bcfd`; `@argentic/chest-sdk` 0.4.1)._
+
+_Where things are:_
+- _the template: [`starter/`](../starter/);_
+- _its machinery, now a package: [`app/`](../app/) (`@argentic/chest-app`
+  0.1.0-studio.1);_
+- _the measuring tools: [`lab/starter-bench/`](../lab/starter-bench/), with
+  their raw output in `lab/starter-bench/results/`._
+
+_Each measurement says how it was made. Anything assumed is marked as
+such._
 
 ## 1. In short
 
-- **The reference starter's stack is right** — Hono, React rendered on the
-  server, islands, Vite, TypeScript — and it is light: 75 MiB at rest
-  (RSS of the server process), a 0.9 s build. Nothing measured justifies
-  another stack: Next.js (the studio's template) rests at 141 MiB, builds
-  in 14 s with an 894 MiB peak, installs 504 MiB.
-- **What it lacks is everything a real tool does next**: a way to change
-  data (no action, no form handling, no CSRF rule), a refresh after a
-  change, words in two languages, dates in the member's zone, error pages,
-  a database, the Chest's events and schedules, the UI kit, logs, and
-  tests beyond one greeting. Each agent re-invents them, differently.
-- **`starter/` keeps the stack and adds those, at the same weight**:
-  74 MiB at rest (vs 75), build 1.2 s with a 250 MiB peak (fits the
-  512 MiB build container), 79 KiB of gzip JS+CSS for the members' page,
-  axe-core clean. 35 files, 1,698 lines (the reference: 16 files, 311
-  lines) — of which 579 are machinery an agent rarely opens (`src/core/`).
-- **It needs no `"csp": "tool"` permission for a public part**: no inline
-  script, no inline style element, no `style=""` — the page is exactly
-  what the Chest's default public policy admits, and its own policy is the
-  same one. The look of the UI kit is built into the stylesheet.
-- **Recommendation**: ship `starter/`'s conventions as the official
-  starter (§8), and change two things in the platform that cost every tool
-  more than any starter choice: the resident `npm` process (≈ 68 MiB RSS,
-  18 MiB private, per awake tool) and Intl objects made per row (§9).
+- **Keep the reference starter's stack.** Hono, React rendered on the
+  server, islands, Vite and TypeScript are the right choice, and they are
+  light. Nothing measured justifies changing stack. The studio's Next.js
+  template:
+  - rests at 141 MiB, against 70–75 MiB;
+  - builds in 14 s, with an 894 MiB peak — more than the 512 MiB build
+    container, as this host counts memory;
+  - keeps 443 MiB of `node_modules` in the image.
+- **The reference starter lacks what every tool needs on its second
+  turn:** a way to change data (actions, CSRF protection), a refresh after
+  a change, two languages, dates in the member's time zone, error pages, a
+  database, the Chest's events and schedules, the UI kit, logs and tests.
+  Each agent re-invents them. The two pilots each patched the same holes.
+- **`starter/` keeps the stack and adds those.** Its machinery is no longer
+  copied into each tool. It is a versioned package, `@argentic/chest-app`,
+  vendored the way the UI kit is, so a fix reaches every tool when the
+  tool re-vendors it. The lead decided this; §7 compares both options.
+- **What it costs, measured with the candidates run in turn (§4):**
+  - **At rest**, the starter's server takes **74.5 MiB RSS**. The
+    reference takes **70.4 MiB with the same V8 flag** (A′) and 75.3 MiB as
+    shipped (A).
+  - **Where the extra 4 MiB over A′ goes:** the example page's database
+    connection, kit components and Intl formats. The same server with a
+    plain page rests at 67 MiB, below A′.
+  - **Cold start:** 15 to 20 ms slower (median 193 ms against 174–179 ms,
+    started without npm; the host was noisy).
+  - **In the Perseus workbench:** with a real PostgreSQL, `npm test` peaks
+    at 331 MiB RSS (237 MiB PSS) and the dev server rests at 427 MiB RSS
+    (251 MiB PSS). Together they stay under the workbench's 1 GiB.
+  - **With PGlite**, the last-resort database, `npm test` alone takes
+    1.3 GiB. So the tests use the preview's database whenever there is one.
+- **No `"csp": "tool"` permission is needed for a public part.** The pages
+  have no inline script, no inline `<style>` and no `style=""` attribute,
+  so they are exactly what the Chest's default public policy accepts.
+- **Two decisions belong to the owner (§8):**
+  - whether the Chest ships the package, as it ships the SDK tarball;
+  - whether the Chest ships the UI kit.
+
+  Today the Chest ships neither: both are studio packages.
 
 ## 2. What Perseus needs from a starter
 
-From `reference/product/specs/perseus-build.md` ("Knowledge", "The
-starter") and `reference/contract/application-contract.md`:
+These needs come from `reference/product/specs/perseus-build.md` ("The
+workbench", "Knowledge", "The starter") and
+`reference/contract/application-contract.md`.
 
-1. It **builds, runs and passes its test** on the first turn, in the
-   workbench (`NODE_ENV=development`, the draft's own `CHEST_API`, three
-   fake members, a database `pb_<project>`) and in the Chest's build
-   (`npm ci`, `npm run build` in 512 MiB and one CPU, `npm prune
-   --omit=dev`, read-only tree, `NODE_ENV=production`, started as
-   `node /chest/launcher.mjs npm start`).
-2. **Lean**: little memory at rest (256 MiB per tool by default; the Chest
-   reserves memory for awake tools only), fast cold start (a sleeping tool
-   wakes on the first request; a browser sees "Waking up…" after 2 s).
-3. **Extended, never restarted** ("extend the starter, never start over"):
-   the agent reads it in full each turn, with the project's `AGENTS.md`
-   (kept current at each checkpoint) and the Chest memory (4,000 tokens).
-   So: one way to do each thing, conventions the agent can copy, types
-   and tests that catch the mistakes it will make.
-4. The Chest's rules out of the box: identity only from `member()`, the
-   capabilities declared, the strict policy, nothing on disk or in memory
-   that must survive, logs an operator reads (stdout/stderr, 7 days, 4 KiB
-   a line), English source with translatable strings.
+1. **It builds, runs and passes its test on the first turn**, in two places:
+   - the workbench: `NODE_ENV=development`, the draft's own `CHEST_API`,
+     three fake members, a database `pb_<project>`, and 1 GiB on the
+     Starter plan with the dev server running;
+   - the Chest's build: `npm ci`, then `npm run build` in 512 MiB and one
+     CPU, then `npm prune --omit=dev`, a read-only tree,
+     `NODE_ENV=production`, started as `node /chest/launcher.mjs npm start`.
+2. **It is lean.**
+   - Little memory at rest: 256 MiB per tool by default, and the Chest
+     reserves memory only for awake tools.
+   - A fast cold start: a sleeping tool wakes on the first request, and a
+     browser shows "Waking up…" after 2 s.
+3. **An agent extends it and never starts over.** The agent reads the
+   project's `AGENTS.md` on every turn, so the starter needs:
+   - one way to do each thing;
+   - conventions an agent can copy;
+   - types and tests that catch the mistakes an agent makes.
+4. **It follows the Chest's rules out of the box:**
+   - identity only from `member()`;
+   - the capabilities the tool uses declared, and nothing more;
+   - the strict content security policy;
+   - nothing on disk or in memory that must survive;
+   - logs an operator can read, with no secret and no personal data — they
+     are kept 7 days and readable through `/api/v1/logs`.
 
 ## 3. Candidates
 
-| | What | Built and measured |
+| | What | Measured |
 |---|---|---|
-| **A** | `reference/perseus-starter/` as it is (SDK tgz from npm 0.4.1 in `vendor/`) | yes |
-| **A′** | A with one change: `node --optimize-for-size` in `start` — to separate the flag's effect from the starter's design | yes |
-| **B** | `starter/` (this work) | yes |
-| **C** | `lab/template/` — the studio's Next.js 16.3.6 template (SDK 0.3.1-studio.1, kit 0.2.3) | yes |
+| **A** | `reference/perseus-starter/` as it is (the SDK tgz from npm 0.4.1 in `vendor/`) | yes |
+| **A′** | A with `node --optimize-for-size` in `start`. B uses this flag; A′ separates the flag's effect from the design | yes |
+| **B1** | `starter/` version 1: the machinery copied into the tool (`src/core/`, 579 lines) | yes (5 October, run 2) |
+| **B2** | `starter/` version 2: the machinery as the package `@argentic/chest-app`, vendored | yes (6 October, run 3) |
+| **C** | `lab/template/`, the studio's Next.js 16.3.6 template | yes (run 2) |
 
-Considered, not built: **Preact** in the browser (would cut ~50 KiB gzip of
-the 71 KiB of JS, but the kit's components are React 19 and untested on
-`preact/compat`; the page's JS is not where the memory is), **no React on
-the server** (Hono's JSX: the kit's components are React components, and
-the islands must render the same on both sides). Neither was measured, so
-neither is recommended.
+B1 and B2 run the same code. The server bundles the package either way, so
+a page costs the same whether the machinery was copied or vendored: 74.3
+and 74.5 MiB at rest. They differ in what an agent reads and in how a fix
+reaches the tools (§7).
+
+Considered but not built:
+- Preact in the browser;
+- Hono's own JSX on the server.
+
+Both were ruled out because the kit's components are React.
 
 ## 4. Measurements
 
-**Method** (`lab/starter-bench/measure.mjs`, one candidate after the other,
-never two builds at once). Machine: the studio's container, 4 CPUs, 16 GB,
-Linux 6.18, shared with other agents' builds (timings are noisy; memory is
-not: 5 runs within 0.4 MiB). Node **v24.21.0** (`/opt/node24/bin`, the
-Chest's pinned version). 5 October 2026, 23:30–23:55 UTC.
+**Machine.** The studio's container: 4 CPUs, 16 GB, Linux 6.18. It is
+**shared with other agents' builds**, so timings are noisy: a cold start's
+maximum was 2 to 4 times its minimum. Memory figures are stable: 5 runs
+fall within 0.5 MiB. Node **v24.21.0**, the Chest's pinned version.
 
-- **Install**: `npm ci` from a clean copy (files Git tracks); size of
-  `node_modules` (`du -sk`), then again after `npm prune --omit=dev` (what
-  the Chest's image keeps).
-- **Build**: `npm run build`, 3 runs, median time. Peak memory sampled
-  every 50 ms over the whole process tree (no GNU `time` on this host):
-  the sum of PSS, and the largest single process's RSS.
-- **Cold start**: spawn `npm start` (with `PORT`, a fakeChest from the
-  candidate's own SDK, and for B and C a fresh PostgreSQL database with the
-  migrations played) → first 200 on `/chest` with a signed member; 10
-  runs, median. It includes npm's own start (~100 ms).
-- **At rest**: start as above, the members' page loaded in Chromium
-  through a local front that adds a fresh `Chest-Member` assertion (run 1)
-  or 5 GETs of `/chest` (runs 2–5), 30 s idle, then
-  `/proc/<pid>/smaps_rollup` of every process of the tree; 5 runs, median.
-  "Server" is the tool's own process (B and C query their database on that
-  page; A has none).
-- **Browser**: every script and stylesheet the members' page loads,
-  gzip -9; axe-core 4.10.3, tags wcag2a, 2aa, 21a, 21aa, 22aa.
+### Run 3 — the candidates in turn
 
-| | A reference | A′ ref. + flag | **B starter/** | C Next.js template |
+Date: 6 October. Script: `lab/starter-bench/interleaved.mjs`. A, A′ and B2
+run one after the other, round after round, so the host's load falls on
+all of them alike.
+
+- **Cold start:** from spawn to the first 200 on `/chest` as a signed
+  member. 15 rounds, started both with the start script's `node …`
+  command and through `npm start`.
+- **At rest:** started with `npm start`, `/chest` requested 5 times, then
+  30 s idle. Then the server process's RSS, USS (private memory) and PSS,
+  read from `/proc/<pid>/smaps_rollup`. 5 rounds.
+- B's page reads its database: a PostgreSQL 16 on the host, a fresh
+  database for each start. A's page has no database.
+
+| | A reference | A′ ref. + flag | **B2 starter v2** |
+|---|---|---|---|
+| **At rest, server RSS** (median of 5) | 75.3 MiB | **70.4 MiB** | **74.5 MiB** |
+| At rest, server USS / PSS | 23.8 / 27.1 MiB | 18.4 / 21.9 MiB | 22.7 / 26.9 MiB |
+| Cold start, `node …` (median, min–max of 15) | 174 ms (109–392) | 179 ms (125–536) | 193 ms (137–481) |
+| Cold start, `npm start` | 339 ms (200–634) | 357 ms (228–745) | 396 ms (228–858) |
+| `npm start` process beside the server | 68 MiB RSS / 18 MiB USS | same | same |
+
+**The reviewer's numbers agree.** On another run on the same machine they
+measured:
+- at rest: A 69.2 MiB, A′ 65.0 MiB, B 74.4 MiB;
+- cold start, interleaved, 15 starts each: A 134 ms (90–188), B 173 ms
+  (150–223).
+
+So **B costs about 4 to 9 MiB and 15 to 40 ms more than A′.**
+
+**Where the extra memory goes.** Same harness, 3 runs each, `node
+--optimize-for-size`, all in the same session:
+
+| B2's server with… | At rest |
+|---|---|
+| its `/chest` page reduced to a plain `<p>` | **67.2 MiB** |
+| that plain page and a plain layout too | 66.9 MiB |
+| A′, for comparison | 70.4 MiB |
+
+- The machinery itself (actions, refresh, i18n, the policy, bundling)
+  costs nothing at rest.
+- The example page's PostgreSQL connection, the kit's shell and components,
+  and the ICU date formats cost about 7 MiB. Any tool that reads a database
+  and uses the kit pays that, whatever its starter.
+- Most of the extra cold-start time is the first database connection; A
+  connects to nothing.
+
+### Run 2 — the earlier, one-at-a-time run
+
+Date: 5 October. Script: `measure.mjs`, one candidate after the other.
+Run 3 did not repeat these figures; B2's were checked again on 6 October.
+
+| | A | B1 (copied core) | **B2 (package)** | C Next.js |
 |---|---|---|---|---|
-| `node_modules` after `npm ci` | 109 MiB (1,715 files) | 109 MiB | 110 MiB (2,369 files) | 504 MiB (11,635 files) |
-| … after `npm prune --omit=dev` | 12.8 MiB | 12.8 MiB | 14.9 MiB | 443 MiB |
-| `npm ci` | 1.7 s | 1.6 s | 1.8 s | 9.4 s |
-| Build time (median of 3) | 0.9 s | 0.9 s | 1.2 s | 13.7 s |
-| Build peak, tree PSS / largest RSS | 185 / 203 MiB | 167 / 185 MiB | 250 / 266 MiB | **894 / 907 MiB** |
-| Build output | 0.2 MiB | 0.2 MiB | 1.0 MiB | 3.4 MiB |
-| Cold start to first 200 (median, min–max) | 196 ms (180–222) | 239 ms (227–273) | 230 ms (218–281) | 823 ms (655–1,090) |
-| **At rest, server RSS** (median of 5) | **75.3 MiB** | 70.5 MiB | **74.3 MiB** | **140.9 MiB** |
-| At rest, server USS (private) | 23.8 MiB | 18.7 MiB | 22.6 MiB | 84.8 MiB |
-| At rest, `npm start` process beside it | 68 RSS / 18 USS | same | same | same |
-| At rest, whole tree RSS / USS | 145 / 42 MiB | 140 / 37 MiB | 144 / 41 MiB | 211 / 104 MiB |
-| Members' page JS, gzip (raw) | 66 KiB (214) | 66 KiB | 71 KiB (228) | 135 KiB (455), 7 requests |
-| Members' page CSS, gzip | 0.2 KiB | 0.2 KiB | 7.9 KiB | 7.3 KiB |
+| `node_modules` after `npm ci` | 109 MiB | 110 MiB | 110 MiB | 504 MiB |
+| … after `npm prune --omit=dev` (what the image keeps) | 12.8 MiB | 14.9 MiB | 16 MiB | 443 MiB |
+| Build time (median of 3) | 0.9 s | 1.2 s | 1.1 s | 13.7 s |
+| Build peak, tree PSS / largest RSS | 185 / 203 MiB | 250 / 266 MiB | 233 / 260 MiB | 894 / 907 MiB |
+| Members' page JS, gzip | 66 KiB | 71 KiB | 72 KiB | 135 KiB, 7 requests |
+| Members' page CSS, gzip | 0.2 KiB | 7.9 KiB | 7.9 KiB | 7.3 KiB |
 | axe-core violations on `/chest` | 0 | 0 | 0 | 0 |
+| At rest, server RSS (run 2) | 75.3 MiB | 74.3 MiB | (run 3: 74.5) | 140.9 MiB |
 
-Raw output: [`lab/starter-bench/results/run-2.json`](../lab/starter-bench/results/run-2.json)
-(5 October, 23:30–23:55 UTC). A first full run 30 minutes earlier gave
-the same memory (within 0.2 MiB; C's USS 64 instead of 85 MiB, its RSS
-the same) but left the servers of earlier runs alive — a harness bug,
-since fixed: npm does not pass `SIGTERM` on to its script, so the harness
-now stops the whole tree. Its timings were noisier; this table is the
-second run's.
+### In the workbench
 
-Notes on the table:
+Date: 6 October. Script: `lab/starter-bench/workbench.mjs`. The process
+tree is sampled every 50 ms. The dev server is measured after its first
+build and 20 s idle. `npm test` is measured alone, then again beside the
+running dev server.
 
-- **Cold start** is dominated by the machine's load here: A and A′ run the
-  same code, and A′ measured 40 ms slower. Started without npm (`node
-  dist/server/main.js`, 3 runs each, same harness), A answered in
-  120–145 ms and B in 118–152 ms. Read the column as "A and B are equal,
-  C is 3× slower".
-- **B's own memory, before and after this work's fixes** (same harness,
-  `node dist/server/main.js`, 3 runs): 92 MiB as first written; 90 MiB with
-  `react-dom/client` kept out of the server; 76.6 MiB with the starter's
-  packages bundled into the server (React's development build removed);
-  74.4 MiB with `--optimize-for-size`. The flag costs nothing visible:
-  /chest with 30 notes, 400 requests, p50 2.7 ms vs 2.6 ms, and the RSS
-  after that load is 87 MiB instead of 106.
-- **Under load, a bug the starter now avoids**: B as first written made
-  one `Intl.DateTimeFormat` per date shown. 400 renders of a 30-note page
-  took the server to **427 MiB** (and p50 latency to 8 ms): ICU objects
-  live outside V8's heap, so the garbage collector does not see them
-  pile up. Made once per language/zone/style, the same load ends at
-  87–106 MiB, p50 2.6 ms. The studio's tools make `Intl` objects per row
-  (e.g. `tools/private/tasks/app/chest/page.tsx`, `dayLabel`), and so
-  will an agent unless the starter gives it a formatter that does not.
-- **C's build** peaks above the Chest's 512 MiB build container on this
-  host's accounting (sum of PSS; the container's cgroup may count shared
-  pages differently — not verified in a real container), although
-  `lab/template/next.config.ts` already has the Forms settings (`cpus: 1`,
-  no build worker, webpack memory optimisations).
-- Not measured: a real Chest container (the launcher adds one more Node
-  process — `node /chest/launcher.mjs` — that I could not run here),
-  Firefox and Safari.
+| | A | B2, tests on PGlite | **B2, tests on a PostgreSQL server** |
+|---|---|---|---|
+| `npm test` peak, RSS / PSS | 194 / 122 MiB, 0.9 s | **1,298 / 1,164 MiB**, 5.6 s | **331 / 237 MiB**, 1.9 s |
+| `npm run dev` at rest, RSS / PSS | 389 / 210 MiB | 424 / 247 MiB | 427 / 251 MiB |
+| Both at once (sum of the peaks, an upper bound) | 586 / 332 MiB | 1,722 / 1,411 MiB | **758 / 488 MiB** |
+
+- **B2 fits the 1 GiB workbench only when its tests use a real
+  PostgreSQL.** `testDatabase()` picks one by itself:
+  - in the workbench, the preview's `DATABASE_URL`, with a throwaway
+    schema;
+  - in the studio, `TEST_DATABASE_URL`, with a throwaway role and
+    database;
+  - PGlite only as a last resort: `PGlite.create()` alone takes about
+    500 MiB. The package's AGENTS page says so.
+- **B's `npm test` peak comes from its server build,** which bundles the
+  packages as the production build does.
+- **Its dev server is lighter than version 1's** (499 MiB): `npm run dev`
+  no longer bundles the server's packages.
+
+### Also measured
+
+- **Intl objects made per call.** Version 1 made one
+  `Intl.DateTimeFormat` per date shown, which is what the SDK's guidance
+  leads to. After 400 renders of a 30-note page, its server held 427 MiB.
+  ICU objects live outside V8's heap, so the garbage collector is in no
+  hurry to free them. Made once per language, zone and style, the same
+  load holds 87 to 106 MiB. The package caches them.
+- **Stopping.** B's server exits 6 ms after `SIGTERM` with its database
+  pool open. The reviewer found that the reference's `SIGTERM` handler,
+  with its own `db()` recipe, waits more than 10 s: it calls
+  `server.close()` and never exits.
+
+### Not measured
+
+- A real Chest (its launcher is one more Node process).
+- The real Perseus workbench.
+- Firefox and Safari.
+- Dark mode. Version 1's "dark" axe audits were not dark: the starter's
+  theme, the Chest's own sheet, is light only, so they audited the light
+  page again.
 
 ## 5. Judgement, criterion by criterion
 
-**Memory at rest.** A and B are equal (75.3 vs 74.3 MiB server RSS);
-B carries a database driver with a live connection, the kit's
-components, ICU formatting and 6 more routes, and pays for them by bundling
-its packages and the V8 flag. C costs 66 MiB more per awake tool (61 MiB more private memory). Beside
-each of them, `npm start` keeps a 68 MiB process (§9.1).
+**Memory at rest.** A′ 70.4 MiB, B2 74.5, A 75.3, C 140.9. B2 is about
+4 MiB above A′ because its example reads a database and uses the kit; its
+machinery alone is lighter than A′. Every candidate also keeps a 68 MiB
+`npm start` process beside its server (§9.1).
 
-**Cold start.** A ≈ B (≈ 130 ms without npm, ≈ 200–230 ms with it);
-C 823 ms. All far under the Chest's 2 s before "Waking up…".
+**Cold start.** A and A′ about 175 ms, B2 about 195 ms (started without
+npm; medians on a noisy host), C about 820 ms. All are well under the 2 s
+before the browser shows "Waking up…".
 
-**Install and build.** A and B: about 110 MiB installed (typescript 7's
-native binary, vite/rolldown, and for B PGlite for tests), 13–15 MiB kept
-after prune, builds in about 1 s under 270 MiB. C: 443 MiB kept, 14 s, more
-than the build container.
+**Install, build, workbench.**
+- A and B: 110 MiB installed, 13 to 16 MiB in the image, builds in about
+  1 s under 270 MiB.
+- B2's tests and dev server fit the workbench when they use a real
+  database (§4).
+- C: 443 MiB in the image, a 14 s build, and a build peak above 512 MiB.
 
-**Simplicity for an AI agent.** What each change takes:
+### Simplicity for an AI agent
 
-| Change | A reference | B `starter/` | C Next.js template |
+| Change | A reference | B2 `starter/` | C Next.js template |
 |---|---|---|---|
-| A page | a component + a route (2 files); no words, no layout | a component in `src/pages/` + a route in `src/app.tsx` + words in `en.ts`/`fr.ts` (4) | `app/chest/x/page.tsx` + words (3) |
-| A mutation | **not provided**: invent a POST route, body parsing, CSRF, a client fetch, a reload | one entry in `src/actions.ts` (+ the rule in `src/lib/`); a `<form>` or `call()` (2) | a `"use server"` function + a client component + `router.refresh()` (3) |
-| A table | the recipe in AGENTS.md (create `db.ts`, add `postgres`) | a migration file + queries in `src/lib/` (2) | same (2) |
-| A public page | a route outside `/chest` + `"public": true` | `publicPage()` + `"public": true`; a `publicAction()` for its form | a page + `"public": true` **and `"csp": "tool"`** (Next's inline scripts) |
-| A schedule | not shown (the SDK's README) | a line in `chest.json` + a handler beside `purge` (2) | the studio's own `chest-jobs` (pre-0.4) |
-| A translation | none (one English string) | a key in `en.ts` and `fr.ts`; tsc refuses a missing one | same, checked by a test |
+| A page | a component + a route (2 files); no words, no layout | a component in `src/pages/` + a route in `src/app.tsx` + words in `en.ts`/`fr.ts` (4 files) | `app/chest/x/page.tsx` + words (3 files) |
+| A mutation | **not provided** | one entry in `src/actions.ts` + its rule in `src/lib/`; a `<form>` or `call()` | a `"use server"` function + a client component + `router.refresh()` |
+| A table | a recipe in prose | a migration + queries in `src/lib/` | same as B2 |
+| A public page | a route + `"public": true` | `publicPage()`/`publicAction()` + `"public": true` | the same + `"csp": "tool"` |
+| A schedule | not shown | a line in `chest.json` + a handler in `src/app.tsx` | the studio's pre-0.4 `chest-jobs` |
+| A translation | none | a key in `en.ts` and `fr.ts`; tsc refuses a missing one | same as B2 |
 
-What B's types and tests refuse (those marked † I verified by breaking the
-code once and seeing the check fail; the others I did not break on purpose): an island prop that is a function or a `Date`† (or a Map) (tsc:
-`Plain<…>`); `call()` with a wrong input shape† or an unknown action (tsc,
-from the action's fields); a key missing from `fr.ts`† (tsc); a
-`{placeholder}` that differs between languages, a colour in the CSS†, a
-`style={}` anywhere in `src/`†, an island that imports the SDK†, `src/lib/`
-or `src/actions.ts`, a theme that fails the kit's contrast contract
-(`test/units.test.ts`); a rendered page with an inline script, a `<style>`
-or a `style=""`, a cross-site POST, a members' action reached from the
-public part (`test/app.test.mjs`); enums and other syntax Node cannot strip
-(`erasableSyntaxOnly`), unchecked index access (`noUncheckedIndexedAccess`).
+**What B2's types and tests refuse.** Each case is either checked by a
+test of the package or was checked by breaking the starter once.
+- A prop given to an island that is a function or a Date.
+- `call()` with a wrong input or an unknown action. The tool registers its
+  actions, words and islands once, in `src/register.ts`.
+- A key missing from `fr.ts`.
+- A `{placeholder}` that differs between languages.
+- French text without its narrow no-break space before `: ; ? !`.
+- `style={}`, or a spread that carries one, anywhere in `src/`.
+- An island or a shared component that imports the SDK or server code.
+- A colour written in the CSS.
+- **A CSS class defined nowhere.** The reviewer's agent guessed
+  `ck-field-group`; that now fails.
+- **A capability declared and unused, or used and not declared** — what
+  Perseus forgets to prune.
+- A schedule without a handler.
+- A rendered page with an inline script, a `<style>` or a `style=""`
+  (checked on every page the tests fetch).
+- A cross-site POST.
+- A test file left with fewer tests than it promised (`atLeast(n)`).
 
-Concepts an agent must learn in B: route + `page()`, `Island`, `action()`
-+ fields, `call()`/forms, `fail`/`notFound`/`redirect`, `t`/`f`, `db()`.
-Next.js asks for more and subtler ones (server vs client components,
-`"use server"`, caching and `revalidatePath`, `proxy.ts` for the nonce,
-`next/link` as a client reference for the kit). A asks for fewer but
-leaves the hard ones (mutations, refresh, i18n) to be invented.
+Not caught: business rules, that is, who may do what. The example shows
+where they go: `src/lib/`, decided from `member`.
 
-**UI quality with the kit.** A: unstyled HTML. B and C: the kit's shell,
-page header, empty state, toasts with a truthful Undo, buttons and fields,
-in the theme of the tool's choice (B: the Chest's own sheet by default,
-one line to change). B has no runtime theming: with SDK 0.4.1 there is no
-`chest.theme()`, so the look is the tool's and is built into the stylesheet
-(§9.4).
+**Size of what the agent reads.**
+- The project's `AGENTS.md` is now 39 lines: what Perseus rewrites
+  (purpose, data model, decisions, what to delete from the example).
+- The reference page is the package's `AGENTS.md`, 222 lines, read from
+  `node_modules/@argentic/chest-app/`. It covers how the package works,
+  fields, words, the database, recipes, rules, the kit's classes, tests
+  and pitfalls.
+- The template is 28 files and 861 lines. The package is 1,292 lines of
+  source and 234 of tests.
 
-**Accessibility.** axe-core: zero violations for A, B, C on `/chest`, and
-for B also on `/` and on `/chest` with a note, light and dark, at phone
-width (390 px). B adds: a label for every field, `aria-describedby` from
-each row's buttons to its note, the skip link and `main` landmark of the
-kit's shell, focus moved to `main` when a refresh removes the focused
-element, `aria-busy` while a form is sent, toasts in live regions,
-reduced motion (kit tokens + a global rule), 44 px targets. Checked by hand
-in Chromium only.
+**UI quality with the kit.**
+- A: unstyled HTML.
+- B2 and C: the kit's shell, page header, empty state, toasts with an Undo
+  that tells the truth, buttons and fields.
+- B2's default look is the Chest's own sheet, light only. A catalogue
+  theme, or the tool's own, is a one-line change.
+- A look chosen at run time is supported by the package (the `look`
+  option: a stylesheet served with its hash). This is for when an SDK
+  gives the company's choice.
 
-**i18n.** A: none (`Hello ${firstName}`, `lang` from the member). B: one
-catalogue per language (English source and fallback, French second; a new
-language is one file and one code), the kit's words in the same catalogue
-(`t.kit`), `member.language` on `/chest`, the visitor's choice / Accept-
-Language / the Chest's language on the public part, plural rules
-(`Intl.PluralRules`: French "0 note"), dates and numbers written on the
-server in the member's language and zone, amounts in `chest.currency`.
-C: the same rules, spread over more files.
+**Accessibility.** axe-core finds zero violations for A, B and C on
+`/chest`, and for B also on `/` and on `/chest` with a note, at phone
+width (light only, see §4). B adds:
+- a label for every field;
+- `aria-describedby` from each row's buttons to its note;
+- the shell's skip link and `main` landmark;
+- focus moved to `main` when a refresh removes the focused element;
+- `aria-busy` while a form is sent, and "still sending" on a second submit;
+- toasts in live regions, outside `main`, kept across pages;
+- reduced motion, and 44 px targets.
 
-**Tests.** A: one test of the built server. B: 16 in 4–6 s (`npm test`):
-10 of the built server with the official fakeChest and a real PostgreSQL
-(PGlite in the process, served on 127.0.0.1 in the Chest's URL shape, so
-`databaseUrl()` is untouched), 6 unit tests run by Node directly from the
-`.ts` sources; plus 6 browser tests in `lab/starter-bench/` (Chromium):
-hydration without warning under the policy, a form sent in place, a refresh
-that keeps typed text, scroll, a toast (an island's state) and a moved
-row's island, Undo, a refusal as a toast, the same forms without
-JavaScript, the public page under both policies. C: unit tests of its
-library, none of the built server.
+Checked in Chromium only.
 
-**Security.** All three take identity only from `member()`. B adds: the
-same strict policy on every answer (`default-src 'self'`, no inline
-anything), `nosniff`, `Referrer-Policy: same-origin`, COOP,
-`Cache-Control: no-store` on pages; mutations only by POST to an action,
-refused unless `Sec-Fetch-Site: same-origin` (or, without it, an `Origin`
-equal to the `Host`), and JSON only with a header a cross-site page cannot
-send without a preflight (`x-tool-action`); a 1 MiB body limit; inputs read
-by typed fields; SQL only as tagged templates; CSV cells that would run as
-formulas defused; the language cookie `HttpOnly; Secure; SameSite=Lax`;
-logs of ids and counts only (a database error's text is not logged: it
-can hold a row's values). A's policy carries a nonce nothing uses and no
-mutation rule. C needs `"csp": "tool"` and `style-src-attr 'unsafe-inline'`.
+**Languages.** B has:
+- one catalogue per language: English is the source and fallback, French
+  second; the kit's words sit inside it (`t.kit`);
+- `member.language` for members; for visitors on the public part, their
+  own choice, then Accept-Language, then the Chest's language;
+- plural rules, on the server and in islands;
+- dates and numbers written on the server in the member's language and
+  time zone;
+- amounts in cents (`field.money`, `f.money(…, { cents: true })`), and
+  date columns read as text.
 
-## 6. The reference starter: keep, and what it lacks
+**Tests.** B2 has:
+- 15 tests in the starter: 11 against the built server, with the SDK's
+  fakeChest and a real PostgreSQL, and 4 on the sources;
+- 13 tests in the package: its fields, redirects, formats and checks, and
+  a small tool built on the packaged code;
+- 10 Chromium tests (`lab/starter-bench/browser.test.mjs`). They check
+  hydration under the policy, forms sent in place, and a refresh that
+  keeps typed text, scroll, an island's state and a moved row's island.
+  They also check Undo, a refusal shown as a toast, a refresh that meets a
+  502 (the page is kept) or a 403 (the page reloads), and Delete and the
+  forms without JavaScript. Finally, a second submit, the public page
+  under both policies, and the cache headers on `/assets/`.
 
-**Keep** (B keeps all of it): the stack; two Vite builds of one source with
-fixed asset names under one `build.static` prefix; islands named in one
-registry and hydrated from `data-props` (no inline script); tests of the
-built server with fakeChest; `--test-force-exit`; `dev.mjs` without a
-shell; `SIGTERM` handling; a short `AGENTS.md` with a map.
+**Security.**
+- Identity only from `member()`.
+- The strict policy on every answer, plus `nosniff`,
+  `Referrer-Policy: same-origin`, COOP, and `no-store` on pages.
+- Mutations only by POST to an action, refused unless
+  `Sec-Fetch-Site: same-origin`, or an `Origin` equal to the `Host`. JSON
+  is accepted only with a header a cross-site page cannot send without a
+  preflight.
+- A body limit per action.
+- **Redirects only to a path of the tool.** Version 1 let `/\evil` and
+  `/<tab>/evil` through `redirect()` and the language switch — an open
+  redirect the review found. `toolPath()` now resolves the target and
+  refuses any other origin. The tests cover `//`, `/\`, `/%5C`, `/%09/` and
+  `https:`.
+- A public write is bounded (the example allows 50 a day, counted in the
+  database) and has a honeypot field.
+- **The request log names the route's pattern** (`/p/:link/actions/:name`),
+  never the path or the query. Otherwise a guest's link or a token in an
+  address would sit in the log for 7 days.
+- Database errors are logged without their detail, which can hold row
+  values.
 
-**Lacks**: mutations and CSRF; refresh after a change; 404/403/500 pages
-(Hono's plain "404 Not Found"); the public part; i18n and formatting;
-database wiring in code (only in prose); events and schedules; the kit;
-cache headers on `/assets/` (none: every page load revalidates); logs; a
-test of anything but the greeting. Its policy's `'nonce-…'` in
-`style-src`/`script-src` is unused (there is no inline script or style),
-and its `AGENTS.md` does not say that React's `style={}` is blocked on a
-public part.
+## 6. The reference starter: what to keep, what it lacks
 
-## 7. What `starter/` decides
+**Keep — B keeps all of it:**
+- the stack;
+- two Vite builds of one source, with fixed asset names under one
+  `build.static` prefix;
+- islands named in one registry and hydrated from `data-props`, with no
+  inline script;
+- tests of the built server with fakeChest, with `--test-force-exit`;
+- `dev.mjs`, which needs no shell;
+- a short `AGENTS.md`.
 
-- **Pages** are React components rendered on the server by a route of
-  `src/app.tsx`: `page(async ({ member, t, f, param, query }) => ({ title,
-  body }))`; `publicPage()` for the public part. The layout
-  (`src/layout.tsx`) goes around: the kit's `AppShell` for members, a plain
-  header with the language switch for visitors.
-- **Islands** are the only browser code: `<Island name props />`, listed in
-  `src/islands/index.ts`; props are plain data and carry their words.
-- **Actions** are the only mutations: `action(fields, run)` in
-  `src/actions.ts` at `POST /chest/actions/<name>`; `publicAction` at
-  `/actions/<name>`. Called by `call(name, input)` from an island (typed;
-  JSON) or by a plain `<form method="post">` (redirect after post without
-  JavaScript; sent in place with it, the form emptied, a refusal as a
-  toast).
-- **Refresh**: after a successful call or form, the page is fetched again
-  and merged node by node (a morph of about 70 lines in `src/core/client.tsx`): what
-  did not change is not touched, so focus, scroll, typed text, open
-  `<details>`/`<dialog>` and each island's React state stay; islands get
-  their new props; rows keep their place by `id`. No framework router.
-- **Refusals** are codes (`fail("too_long", { max })`), said in the reader's
-  language by the server (`{ ok: false, error, message }`); `notFound()`,
-  `forbidden()`, `redirect(path)` work in pages and actions.
-- **`style={}` is forbidden**, in the members' part too: the Chest's
-  public policy blocks style attributes, and a page rendered on the server
-  with one does not hydrate right (React does not patch attributes the
-  browser refused). Sizes from data are SVG attributes, `<progress>`,
-  `<meter>` or classes; an island may set a style through a ref (CSSOM is
-  not blocked). The kit already complies: its components set positions
-  through CSSOM (`float.ts`, `toast.tsx`), never as attributes. **No kit
-  change was needed.** The 18 tools use `style={}` 88 times (bars,
-  drag-and-drop transforms, a timeline's custom properties): their
-  migration must replace them.
-- **The look** is a theme of the kit (`src/theme.ts`, the Chest's sheet by
-  default), turned into CSS at build time by a 6-line Vite plugin.
-- **Everything else**: `db()` (postgres.js, opened on first use), `seen`
-  (a table) for `events.handle`/`schedules.handle`, `names()` for member
-  ids, `log.info/warn/error`, `after()` for work after the answer, a
-  streamed CSV download.
+**What it lacks:**
+- mutations and CSRF protection;
+- a refresh after a change;
+- error pages;
+- a public part;
+- languages;
+- database wiring in code: there is only a recipe in prose, and with it
+  `SIGTERM` hangs;
+- events and schedules;
+- the kit;
+- cache headers on `/assets/`;
+- logs;
+- tests beyond the greeting.
+
+Also, its policy's nonce is never used, and its `AGENTS.md` does not say
+that React's `style={}` is blocked on a public part.
+
+## 7. Copied core or a package — for Perseus
+
+| | Copied core (B1) | Package (B2) |
+|---|---|---|
+| A fix (an open redirect, a caching bug) | Reaches no existing tool: each copy must be patched by hand. The two pilots diverged from the starter, and from each other, within a day | Re-vendored with `scripts/add-app.mjs`, like the kit; the version number says which tool has it |
+| What the agent reads | All of it, every turn (579 lines) — and it may "improve" it | The tool's code and the package's `AGENTS.md`; the machinery stays out of its way |
+| What the agent can change | Everything, for one tool | Nothing in the package. A need it does not meet becomes a request to the package, not a fork |
+| Runtime cost | — | None measured (both are bundled the same way) |
+| Typing | Direct imports of the tool's actions | One `src/register.ts` (module augmentation) |
+| Who ships it | The starter | **The Chest must ship it** for Perseus, as it ships the SDK tarball. A tool's `vendor/` holds the copy it was built with |
+
+The lead decided on the package. For the Chest, that means a third
+vendored tarball beside the SDK (and the kit, §8), versioned with each
+Chest release so that Perseus always knows the exact API — the same
+arrangement as the SDK's knowledge-pack page. The owner decides.
 
 ## 8. Recommendation
 
-1. **Ship `starter/` as the official Perseus starter**, or fold its
-   conventions into `reference/perseus-starter/`: they are what every tool
-   needs on its second turn, and the measurements show they cost nothing at
-   rest. If the Chest wants the smallest possible first read, the
-   example (Notes: `src/pages`, `src/islands/DeleteNote.tsx`, `src/lib/notes.ts`,
-   the migration, the tests' cases) can shrink; the machinery
-   (`src/core/`) should not.
-2. **Generate its knowledge-pack page from its `AGENTS.md`** (174 lines:
-   map, how it works, recipes, rules, pitfalls) as the spec says.
-3. **Keep the strict default policy and no `"csp"` permission** for
-   tools made from it: a public part then asks only `"public": true`.
-4. Move the 18 studio tools onto it (the lead's next step); the summary of
-   conventions for the migrating agents is in the final message to the
-   lead and §7.
+1. **Ship B2.** Make the starter's conventions the official Perseus
+   starter, and ship its machinery as `@argentic/chest-app`, vendored like
+   the SDK — if the owner agrees that the Chest ships it (§7).
+2. **Decide on the UI kit separately.** Today the Chest ships only the SDK
+   tarball; the kit (`@argentic/chest-ui`) is the studio's. The starter's
+   UI quality depends on it.
+3. **Keep the strict default policy** and no `"csp"` permission for tools
+   made from the starter.
+4. **Generate the knowledge-pack page** from the package's `AGENTS.md`.
 
 ## 9. What the platform or the SDK makes hard (for the SDK report)
 
-1. **`npm start` stays resident.** `build.start` must be `npm start` or
-   `npm run <script>`, so every awake tool keeps an npm process: measured
-   68 MiB RSS, 18 MiB private, for every candidate — as much as the
-   whole server of A or B. In the Chest the launcher (`node
-   /chest/launcher.mjs`) is a third Node process (not measured here).
-   Ask: let `build.start` be `node <file> [flags]` (an argument vector,
-   no shell), or have the launcher read `scripts.start` and run it
-   itself. Saves ~18 MiB private (68 MiB RSS) per awake tool.
-2. **Intl objects outside V8's heap.** Not a Chest bug, but the SDK's
-   guidance ("format with `timeZone: member.timeZone`") leads straight to
-   `new Intl.DateTimeFormat` per row: 427 MiB after 400 renders in B's first
-   version. The SDK could export a cached formatter
-   (`format.date(member, value)`), or its AGENTS.md could warn. The SDK's
-   own `chest.timeZone` getter builds an `Intl.DateTimeFormat` on every
-   read to validate the zone (`client/src/chest.ts`, `knownZone`): the
-   same pattern, once per request.
-3. **No database in `fakeChest`.** Every tool's tests need one; the studio
-   uses PGlite behind `pglite-socket` (with `maxConnections` raised: its
-   default is 1, and a pool of 4 gets `ECONNRESET`). An official
-   `fakeChest({ database: true })` would give every tool the same,
-   with the migrations played as the Chest plays them.
-4. **No theme in the official SDK.** The kit can only build the tool's own
-   look into its stylesheet. When `chest.theme()` comes, a starter that
-   wants no inline `<style>` needs the look as a **file**: e.g. the Chest
-   serving `/_chest/theme/look.css` per tool (it already serves
-   `/_chest/` on the tool's hosts), so tools keep `style-src 'self'`.
-5. **`Chest-*` headers are stripped from the browser's requests** (rightly),
-   so a tool's own CSRF header must be named otherwise (`x-tool-action`);
-   worth one line in the contract, an agent's first guess is
-   `Chest-Action`.
-6. **The public host does not check `Sec-Fetch-Site`/`Origin` on POST**
-   (the team host does, application-contract "Team host"); every public
-   form must. Worth saying in the contract's "public part".
-7. **Assertions live 5 s** (`iat`/`exp`): fine for the Chest, but a local
-   browser test needs a front that signs each request (`lab/starter-bench/chest.mjs`).
-   The SDK's `testing` could offer `fakeChest().front(port, member)`.
-8. **The reference starter** (`reference/perseus-starter/`): an unused
-   nonce in its policy, no cache headers on `/assets/`, and an AGENTS.md
-   that does not warn that `style={}` is blocked on a public part (§6).
-   The SDK's `contract/README.md` "Inline styles" suggests
-   `style-src-attr 'unsafe-inline'` for the tool's own policy — which a
-   public part without `"csp": "tool"` cannot use.
+1. **`npm start` stays resident.** Each awake tool keeps an npm process of
+   68 MiB RSS (18 MiB private) — as much as the starter's server. The
+   launcher adds a third Node process. Ask: let `build.start` be
+   `node <file> [flags]`.
+2. **Intl objects made per call** (§4). The SDK could export a cached
+   formatter, or warn about this in its AGENTS.md. Its own `chest.timeZone`
+   builds an `Intl.DateTimeFormat` on every read (`client/src/chest.ts`,
+   `knownZone`).
+3. **`fakeChest` has no database,** yet every tool's tests need one.
+   - PGlite costs about 500 MiB per test file, too much for the workbench.
+   - `pglite-socket` accepts a single connection unless told otherwise.
+   - An official `fakeChest({ database })` would serve every tool: a schema
+     in the preview's database, with the migrations played as the Chest
+     plays them.
+4. **The official SDK has no theme.** When it gets one, the look should be
+   a stylesheet (the package already serves `/chest/look.css?v=<hash>`),
+   so tools can keep `style-src 'self'`.
+5. **The Chest strips `Chest-*` headers from browser requests.** So a
+   tool's CSRF header must be named something else (`x-tool-action`).
+6. **The public host does not check `Sec-Fetch-Site` or `Origin` on
+   POST** (the team host does). The tool must do it.
+7. **Member assertions.** `fakeChest` signs them for 60 s, and `member()`
+   allows 5 s of clock skew (`client/src/member.ts`, `testing.ts`).
+   Version 1 of this report wrongly said they live 5 s. A local browser
+   test still needs a front that signs each request
+   (`lab/starter-bench/chest.mjs`).
+8. **Logs are kept 7 days and agents can read them.** A framework that
+   logs raw paths leaks whatever an address carries. This deserves a line
+   in the contract's "Logs" section.
+9. **The reference starter itself:**
+   - its policy carries a nonce nothing uses;
+   - `/assets/` has no cache headers;
+   - `SIGTERM` hangs once a database pool is open;
+   - nothing warns that `style={}` is blocked on a public part. The SDK's
+     contract suggests `style-src-attr 'unsafe-inline'`, which a public part
+     without `"csp": "tool"` cannot use.
 
 ## 10. What I verified, and what I did not
 
-Verified here: `npm ci && npm run build && npm test` (16 tests) and
-`node scripts/chest-check.mjs starter` ("OK … contract 0.4"; it asks
-database, members, receives, schedule purge); `npm run dev` rebuilds and
-serves; `npm start` serves `/chest` and `/`; the 6 browser tests and the
-axe audits in Chromium; every number of §4 by the method said.
-Not verified: a real Chest (its launcher, its cgroup accounting, its
-front), the Perseus workbench, Firefox and Safari, the `Origin` fallback
-of the CSRF check with a browser that lacks `Sec-Fetch-Site` (tested with
-crafted requests only), and the starter's `public` mode behind the Chest's
-real public host (emulated: the local front adds the Chest's default
-policy beside the tool's).
+**Verified:**
+- In `starter/`: `npm ci && npm run build && npm test` (15 tests), run
+  against three databases — PGlite; a PostgreSQL server through
+  `TEST_DATABASE_URL`; and a `pb_…` preview-shaped database through
+  `DATABASE_URL`. Each run cleans up after itself.
+- `node scripts/chest-check.mjs starter`: OK for contract 0.4; the tool
+  asks for database, members and receives.
+- `npm run dev` and `npm start` serve the tool.
+- In `app/`: `npm test` (13 tests).
+- The 10 Chromium tests and the axe audits.
+- Every number in §4, by the method stated there.
+
+**Not verified:**
+- a real Chest and its launcher;
+- the real Perseus workbench;
+- Firefox and Safari;
+- the CSRF `Origin` fallback in a browser that does not send
+  `Sec-Fetch-Site`;
+- dark mode: the starter's theme has none.
