@@ -25,11 +25,12 @@ const actions = {
   refuse: action({}, async () => fail("forbidden")),
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null),
 };
+let completed = 0;
 const layout = ({ notice, children }) => h("main", { id: "main" }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
   look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }] }),
-  complete: async who => ({ ...who, groups: ["grp_completedcompletedcompleted"] }),
+  complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
 app.post("/p/:link/actions/:name", publicActionsAt());
 app.get("/chest/groups", page(({ member }) => ({ title: "Groups", body: h("p", null, member.groups.join(",")) })));
@@ -100,7 +101,9 @@ test("options: a look served as a stylesheet with its hash, the member completed
   const href = /href="(\/chest\/look\.css\?v=[^"]+)"/u.exec(html)?.[1];
   assert.ok(href, "the look's link");
   assert.match(html, /<meta name="theme-color" media="\(prefers-color-scheme: light\)" content="#ffffff"\/>/u);
+  const before = completed;
   const sheet = await get(href);
+  assert.equal(completed, before, "complete() is not run for the look");
   assert.equal(await sheet.text(), ":root{--ink:#111}");
   assert.equal(sheet.headers.get("cache-control"), "private, max-age=31536000, immutable");
   assert.equal((await get("/look.css", null)).headers.get("cache-control"), "private, no-cache");
@@ -109,4 +112,22 @@ test("options: a look served as a stylesheet with its hash, the member completed
   assert.equal((await json("/p/abc/actions/echo", { text: "x" })).status, 404, "a members' action is not served there");
   assert.match(await (await get("/chest/nothing")).text(), /href="\/chest">Back</u);
   assert.doesNotMatch(await (await get("/nothing", null)).text(), />Back</u);
+});
+
+test("the log names the route, never the path or the query", async () => {
+  const lines = [];
+  const write = console.log;
+  console.log = line => lines.push(String(line));
+  try {
+    await json("/p/secret-guest-link/actions/shout?token=abc", { text: "x" });
+    await get("/chest/day?token=abc");
+    await get("/nowhere/secret", null);
+  } finally {
+    console.log = write;
+  }
+  const text = lines.join("\n");
+  assert.doesNotMatch(text, /secret|token|abc/u);
+  assert.match(text, /route=\/p\/:link\/actions\/:name action=shout status=200/u);
+  assert.match(text, /route=\/chest\/day status=200/u);
+  assert.match(text, /route=\(none\) status=404/u);
 });

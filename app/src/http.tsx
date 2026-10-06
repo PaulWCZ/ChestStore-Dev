@@ -7,6 +7,7 @@ import { member, type Member } from "@argentic/chest-sdk/member";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { getCookie, setCookie } from "hono/cookie";
+import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
@@ -50,9 +51,12 @@ export type AppOptions = {
   // A look that depends on the request (the Chest's theme choice, when an
   // SDK gives it); without it, the look is built into client.css.
   look?: (viewer: Viewer) => Look | Promise<Look>;
-  // What the tool adds to the member the Chest asserts, once per request
-  // before any page or action reads it (more about the same person —
-  // every group they are in —, never another identity).
+  // What the tool adds to the member the Chest asserts, once per /chest
+  // request before any page or action reads it (more about the same
+  // person — every group they are in —, never another identity). Not run
+  // for /assets/ nor the look. A hook that asks the Chest (members.groups…)
+  // must cache its answer a minute: the members API allows 600 calls a
+  // minute for the whole tool.
   complete?: (who: Member) => Promise<Member>;
 };
 
@@ -277,7 +281,14 @@ export function createApp(appOptions: AppOptions) {
     c.header("Referrer-Policy", "same-origin");
     c.header("Cross-Origin-Opener-Policy", "same-origin");
     if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
-    if (!c.req.path.startsWith("/assets/") || c.res.status >= 400) log.info("request", { method: c.req.method, path: c.req.path, status: c.res.status, ms: Math.round(performance.now() - started) });
+    // The route's pattern (/p/:link/actions/:name), never the path or the
+    // query: an address may carry a secret (a guest's link, a token), and
+    // the log is kept 7 days. An action is named (a name of the code).
+    if (!c.req.path.startsWith("/assets/") || c.res.status >= 400) {
+      const route = routePath(c, -1);
+      const name = c.req.param("name");
+      log.info("request", { method: c.req.method, route: route && route !== "*" && route !== "/*" ? route : "(none)", action: route.endsWith("/actions/:name") && name && Object.hasOwn(options.actions, name) ? name : undefined, status: c.res.status, ms: Math.round(performance.now() - started) });
+    }
   });
 
   // The browser's files (dist/client/assets, from src/ and public/assets/):
@@ -295,7 +306,8 @@ export function createApp(appOptions: AppOptions) {
     if (!isMembers(c.req.path)) return next();
     const asserted = member(c.req.raw);
     if (!asserted) return c.text(visitor(c).t.pages.signIn, 401);
-    const who = options.complete ? await options.complete(asserted) : asserted;
+    // complete() is skipped where nothing reads more than the assertion.
+    const who = options.complete && c.req.path !== "/chest/look.css" ? await options.complete(asserted) : asserted;
     const locale = localeIn(options.locales, who.language);
     c.set("viewer", { member: who, locale, t: options.words(locale), f: formatter(locale, who.timeZone, chest.currency), request: c.req.raw, cookies: cookiesOf(c) });
     return next();
@@ -322,8 +334,8 @@ export function createApp(appOptions: AppOptions) {
   app.onError((error, c) => {
     if (error instanceof HttpStatus && error.to) return c.redirect(error.to, c.req.method === "GET" ? 302 : 303);
     if (error instanceof HttpStatus) return html(c, errorView(viewerOf(c), error.status === 403 ? 403 : 404), viewerOf(c), error.status === 403 ? 403 : 404);
-    if (chestDown(error)) log.warn("the Chest did not answer", { path: c.req.path, error: error.name });
-    else log.error("page failed", error, { path: c.req.path });
+    if (chestDown(error)) log.warn("the Chest did not answer", { route: routePath(c, -1), error: error.name });
+    else log.error("page failed", error, { route: routePath(c, -1) });
     return html(c, errorView(viewerOf(c), 500), viewerOf(c), 500);
   });
   return app;

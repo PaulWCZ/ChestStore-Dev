@@ -147,7 +147,9 @@ serve it under that path too: `app.post("/p/:link/actions/:name",
 publicActionsAt())`, and call it there: `call("answer", input, { at:
 location.pathname })` or a form `action="/p/abc/actions/answer"`.
 **More about the member** (every group they are in) —
-`createApp({ complete: async who => ({ ...who, groups }) })`, once per request.
+`createApp({ complete: async who => ({ ...who, groups }) })`, once per
+/chest request (not for /assets/ nor the look); a hook that asks the Chest
+must cache its answer a minute (600 members calls a minute per tool).
 **A look chosen at run time** (a theme the company picks) —
 `createApp({ look: viewer => ({ css, colors }) })`: pages link
 `/chest/look.css?v=<hash>` or `/look.css?v=<hash>`, served by the package;
@@ -171,7 +173,9 @@ catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
   fails on a class defined nowhere.
 - **Nothing kept in memory between requests**: the tool sleeps when idle.
 - **Logs**: `log.info("what happened", { note: id })`; ids and counts
-  only, never a name, an email, a token or what someone wrote.
+  only, never a name, an email, a token or what someone wrote. Every
+  request is logged by its route's pattern (`/p/:link/actions/:name`),
+  never its path or query (an address may carry a secret).
 - **Capabilities**: each used is declared, each declared is used
   (`checkSources` checks both): the owner approves each one.
 - **Accessible**: a label for every field, a heading per page, buttons
