@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { applies, AppError as BrowserError } from "../dist/client.js";
 import { db, seenIn } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
@@ -34,6 +34,7 @@ const app = createApp({
   complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
 app.post("/p/:link/actions/:name", publicActionsAt());
+app.post("/chest/import", rawRoute({ maxBytes: 100 }, (body, { viewer, c }) => c.json({ bytes: body.length, who: viewer.member?.id ?? null })));
 app.get("/chest/groups", page(({ member }) => ({ title: "Groups", body: h("p", null, member.groups.join(",")) })));
 app.get("/chest", page(({ t }) => ({ title: "Home", body: h("div", null, h(Island, { name: "Labelled", props: { label: "A" } }), h(Island, { name: "Labelled", props: { label: "B" } }), t.tool.name) })));
 app.get("/chest/day", page(async () => {
@@ -236,4 +237,34 @@ test("seen: any table of the tool's, forgotten after so many days", async () => 
   await db()`update my_seen set at = now() - interval '40 days'`;
   await mine.forget();
   assert.equal(await mine.has("evt_1"), false);
+});
+
+test("rawRoute: the body counted while read, 413 past the cap (chunked too), 403 cross-site", async () => {
+  const ok = await post("/chest/import", "x".repeat(50), { "content-type": "application/octet-stream" });
+  assert.deepEqual(await ok.json(), { bytes: 50, who: member.id });
+  assert.equal((await post("/chest/import", "x".repeat(200), { "content-type": "application/octet-stream" })).status, 413);
+  const chunked = new ReadableStream({ start(controller) { for (let i = 0; i < 5; i++) controller.enqueue(new TextEncoder().encode("x".repeat(40))); controller.close(); } });
+  const request = withMember(new Request(url("/chest/import"), { method: "POST", body: chunked, duplex: "half", headers: { "sec-fetch-site": "same-origin" } }), member);
+  assert.equal(request.headers.get("content-length"), null);
+  assert.equal((await app.fetch(request)).status, 413);
+  assert.equal((await post("/chest/import", "x", { "sec-fetch-site": "cross-site" })).status, 403);
+});
+
+test("zipStream: a zip any reader opens, written as it is read", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  async function* entries() {
+    yield { name: "notes.csv", data: "id,body\r\n1,héllo\r\n" };
+    yield { name: "files/photo.bin", data: (async function* () { yield new Uint8Array([1, 2, 3]); yield new Uint8Array(70000).fill(7); })() };
+    yield { name: "vide.txt", data: new Uint8Array() };
+  }
+  const bytes = new Uint8Array(await new Response(zipStream(entries())).arrayBuffer());
+  const file = join(mkdtempSync(join(tmpdir(), "zip-")), "export.zip");
+  writeFileSync(file, bytes);
+  assert.match(execFileSync("unzip", ["-t", file]).toString(), /No errors detected/u);
+  assert.equal(execFileSync("unzip", ["-p", file, "notes.csv"]).toString(), "id,body\r\n1,héllo\r\n");
+  assert.equal(execFileSync("unzip", ["-p", file, "files/photo.bin"]).length, 70003);
+  await assert.rejects(new Response(zipStream([{ name: "../evil", data: "x" }])).arrayBuffer(), RangeError);
 });

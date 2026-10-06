@@ -193,7 +193,7 @@ export const publicPage = (render: (p: PageContext<VisitorContext>) => Promise<V
 
 // A mutation is sent by the page itself: the browser says so
 // (Sec-Fetch-Site), or, for an older one, its Origin is this host.
-function sameOrigin(request: Request): boolean {
+export function sameOrigin(request: Request): boolean {
   const site = request.headers.get("sec-fetch-site");
   if (site) return site === "same-origin";
   const origin = request.headers.get("origin");
@@ -379,4 +379,39 @@ export function createApp(options: AppOptions) {
     return html(c, errorView(viewerOf(c), 500), viewerOf(c), 500);
   });
   return app;
+}
+
+// rawRoute(): a POST that takes its body as bytes (an import, a file the
+// tool keeps itself), bounded and same-origin like an action:
+//   app.post("/chest/import", rawRoute({ maxBytes: 20 << 20 }, async (body, { viewer }) => …))
+// The body is counted while it is read — a chunked one without
+// Content-Length too — and refused with 413 past maxBytes; a cross-site
+// request is refused with 403. viewer: the member on /chest, the visitor
+// elsewhere. The handler answers a Response (c.json(…), a redirect…).
+export function rawRoute(options: { maxBytes: number }, handler: (body: Uint8Array, context: { viewer: Viewer; c: Context }) => Response | Promise<Response>) {
+  return async (c: Context<Env>) => {
+    if (!sameOrigin(c.req.raw)) return c.text("Cross-site request refused.", 403);
+    const declared = Number(c.req.header("content-length") ?? NaN);
+    if (Number.isFinite(declared) && declared > options.maxBytes) return c.text("Too large.", 413);
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const reader = c.req.raw.body?.getReader();
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > options.maxBytes) {
+        await reader.cancel();
+        return c.text("Too large.", 413);
+      }
+      chunks.push(value);
+    }
+    const body = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) {
+      body.set(chunk, at);
+      at += chunk.byteLength;
+    }
+    return handler(body, { viewer: viewerOf(c), c });
+  };
 }

@@ -189,6 +189,16 @@ handler in `events.handle`: on `member.erased`, delete or anonymise, then
 `@argentic/chest-app/members` (`members` capability).
 **A download** — a route returning a `Response`, or `stream(c, …)` from
 `hono/streaming` with a cursor; `csvLine([...])` quotes and defuses formulas.
+**An archive** (an export with the files) — `zipStream(entries())` from
+`@argentic/chest-app`, given an async generator that yields `{ name,
+data }` one file at a time (`(await files.get(name)).data`, or a stream):
+the zip is written as it is read, never whole in memory (256 MiB per
+tool). Stored, not compressed; up to 65,535 files and 4 GiB.
+**An import** (a body the tool reads itself) — `app.post("/chest/import",
+rawRoute({ maxBytes: 20 << 20 }, async (body, { viewer, c }) => …))`:
+same-origin checked, the body counted while read (chunked too), 413 past
+`maxBytes`. An action takes `{ maxBody }` instead when its input is a form
+or JSON. `sameOrigin(request)` is exported for a route of the tool's own.
 **An upload** (`files`) — an action answers `await files.uploadUrl("photos/",
 { maxSize, types })`; the island `PUT`s there, then a second action checks
 `files.stat(name)` before recording it.
