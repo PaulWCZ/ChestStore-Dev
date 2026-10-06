@@ -45,7 +45,7 @@ In brand mode the company's logo stands where the Rooms mark is.
 a clean geometric-grotesque with a technical flavour that stays friendly;
 *DM Mono* (OFL-1.1) for the drawing's annotations: desk numbers, times,
 day names and the small uppercase legends ("THIS WEEK", "FIRST FLOOR"),
-like the lettering on a plan. Both self-hosted in `public/fonts/`; tabular
+like the lettering on a plan. Both self-hosted in `public/assets/fonts/`; tabular
 figures for times. 16 px body.
 
 **Shape**: thin 1 px lines, dashed for what is free (a free desk, a free
@@ -111,8 +111,8 @@ free — without reading.
     { "name": "Blueprint night", "value": "#0b1a30" }
   ],
   "fonts": {
-    "display": { "family": "Albert Sans", "file": "public/fonts/albert-sans-latin-wght-normal.woff2", "weight": 650 },
-    "body": { "family": "DM Mono", "file": "public/fonts/dm-mono-latin-500-normal.woff2", "weight": 500 }
+    "display": { "family": "Albert Sans", "file": "public/assets/fonts/albert-sans-latin-wght-normal.woff2", "weight": 650 },
+    "body": { "family": "DM Mono", "file": "public/assets/fonts/dm-mono-latin-500-normal.woff2", "weight": 500 }
   },
   "specimen": "D-04 · Thursday 09:30–10:00 · Atlas"
 }
