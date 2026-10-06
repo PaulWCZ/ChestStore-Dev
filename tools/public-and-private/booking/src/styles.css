@@ -55,7 +55,6 @@ select.field { appearance: auto; }
 .notice.calm { background: var(--accent-soft); color: var(--ink); }
 .notice.calm svg { color: var(--accent-text); }
 .notice.calm a { color: var(--accent-text); }
-.honey { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 code, .code { font-family: var(--font-mono); font-size: 0.9em; background: var(--surface-2); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
 
 /* The members' part */

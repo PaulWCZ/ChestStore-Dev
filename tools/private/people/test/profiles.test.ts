@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { directory } from "../lib/directory.ts";
-import { AppError } from "../lib/errors.ts";
-import { choices, profile, reportsOf, updateJob, updateOwn } from "../lib/profiles.ts";
+import { directory } from "../src/lib/directory.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { choices, profile, reportsOf, updateJob, updateOwn } from "../src/lib/profiles.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, id, ines, lea, nora, paul, tom } from "./support/members.ts";
@@ -12,7 +12,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();

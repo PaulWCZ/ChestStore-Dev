@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import { addDays, mondayOf, todayIn } from "../lib/days.ts";
-import { addEntry } from "../lib/entries.ts";
-import * as projects from "../lib/projects.ts";
-import { saveReminder } from "../lib/settings.ts";
-import { submitWeek } from "../lib/weeks.ts";
+import { chestSchedules as POST } from "../src/calls.ts";
+import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
+import { addEntry } from "../src/lib/entries.ts";
+import * as projects from "../src/lib/projects.ts";
+import { saveReminder } from "../src/lib/settings.ts";
+import { submitWeek } from "../src/lib/weeks.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, tom } from "./support/members.ts";
@@ -16,7 +16,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase({ timeZone: "Europe/Paris" });
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test", ...(p.id === tom.id ? { mailPreference: "none" as const } : {}) })), capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, schedules: [{ name: "friday", cron: "30 15 * * 5" }], chest: { timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test", ...(p.id === tom.id ? { mailPreference: "none" as const } : {}) })), capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();

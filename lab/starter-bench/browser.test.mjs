@@ -196,6 +196,38 @@ test("links between pages go in place: the toast survives, Back restores the pag
   await close();
 });
 
+test("a download is asked once (a link with download, or to a file's address); a link with a #place goes there in place", async () => {
+  const { page, problems, close } = await open({ acceptDownloads: true });
+  await page.fill("#body", "Exported");
+  await page.click("form.composer button");
+  await page.waitForSelector("li.note >> text=Exported");
+  const before = tool.seen.length;
+  const asked = () => tool.seen.slice(before).filter(r => r.startsWith("GET /chest/notes.csv")).length;
+  const [first] = await Promise.all([page.waitForEvent("download"), page.click("a[href='/chest/notes.csv']")]);
+  assert.match(first.suggestedFilename(), /^notes-\d{4}-\d{2}-\d{2}\.csv$/u);
+  await page.evaluate(() => document.querySelector("a[href='/chest/notes.csv']")?.removeAttribute("download"));
+  const [second] = await Promise.all([page.waitForEvent("download"), page.click("a[href='/chest/notes.csv']")]);
+  assert.ok(second);
+  assert.equal(asked(), 2, "one request per click (the server makes the file once each time)");
+  // A #place on another page of the part: in place, then there.
+  const id = await page.locator("li.note p[id$='-text']").first().getAttribute("id");
+  await page.goto(`${tool.origin}/chest/notes/1`);
+  await page.evaluate(place => {
+    window.samePage = true;
+    const a = document.createElement("a");
+    a.href = `/chest#${place}`;
+    a.id = "to-place";
+    a.textContent = "there";
+    document.querySelector("main")?.append(a);
+  }, id);
+  await page.click("#to-place");
+  await page.waitForURL(new RegExp(`/chest#${id}$`, "u"));
+  assert.equal(await page.evaluate(() => window.samePage), true, "no page load");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), id, "at the place");
+  assert.deepEqual(problems, []);
+  await close();
+});
+
 test("actions go one at a time, in the order asked", async () => {
   const { page, close } = await open();
   const events = [];

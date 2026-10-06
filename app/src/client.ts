@@ -13,3 +13,8 @@ export { Honeypot } from "./form.tsx";
 // read in the browser to show it, then again on the server): they refuse
 // with the same codes on both sides.
 export { AppError, fail } from "./tool.ts";
+// The types an island needs: an action's outcome (call()'s answer), what
+// it sends, the codes and words, plain props.
+export type { Outcome, SentOf } from "./tool.ts";
+export type { ErrorCode, Words } from "./register.ts";
+export type { Plain } from "./island.tsx";

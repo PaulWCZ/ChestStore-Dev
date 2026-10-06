@@ -1,36 +1,16 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "people",
   "title": "People",
   "description": "The team's directory and org chart, HR records with the staff register, and checklists to welcome newcomers and see off those who leave.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": [
-    "hr",
-    "member"
+  "roles": ["hr", "member"],
+  "role_labels": {"hr": "HR", "member": "Member"},
+  "capabilities": ["database", "files", "members", "members.email", "notifications"],
+  "receives": ["member.*"],
+  "schedules": [
+    {"name": "morning", "cron": "40 7 * * 1-5"}
   ],
-  "role_labels": {
-    "hr": "HR",
-    "member": "Member"
-  },
-  "capabilities": [
-    "database",
-    "files",
-    "members",
-    "members.email",
-    "notifications"
-  ],
-  "receives": [
-    "member.*"
-  ],
-  "build": {
-    "runtime": "node",
-    "install": "npm ci",
-    "command": "npm run build",
-    "start": "npm start",
-    "port": 3000,
-    "static": [
-      "/_next/static/"
-    ]
-  }
+  "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
 }

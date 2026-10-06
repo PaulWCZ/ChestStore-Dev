@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { forgetFormer, formerPeople, planImport, runImport } from "../lib/import.ts";
-import { nameFor, people as lookup } from "../lib/people.ts";
-import { dateOrder, detect, fold, parseExport, readDate, readDuration, readTime } from "../lib/import-formats.ts";
-import * as projects from "../lib/projects.ts";
-import { report } from "../lib/reports.ts";
-import { lock } from "../lib/settings.ts";
+import { forgetFormer, formerPeople, planImport, runImport } from "../src/lib/import.ts";
+import { nameFor, people as lookup } from "../src/lib/people.ts";
+import { dateOrder, detect, fold, parseExport, readDate, readDuration, readTime } from "../src/shared/import-formats.ts";
+import * as projects from "../src/lib/projects.ts";
+import { report } from "../src/lib/reports.ts";
+import { lock } from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";

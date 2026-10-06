@@ -7,54 +7,59 @@ must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest: roles `hr`, `member`; `database`, `files`, `members`, `members.email`, `notifications`; `receives` |
-| `chest.proposals.json` | Proposal keys (the `morning` schedule, `emits`, `receives` of other tools' events) — kept apart, a Chest refuses unknown keys |
-| `lib/access.ts` | **Who may do what**: abilities (`can`), who sees a checklist (`seesJourney`), who ticks a step (`ticks`) |
-| `lib/model.ts` | Bounds, text cleaning, days, phones, topics, birthdays, checklist roles and offsets — pure |
-| `lib/profiles.ts` | Profiles: read, own edits, HR's job edits, the loop check (`wouldLoop`), purge of departed people |
-| `lib/directory.ts` | The directory: the Chest's members + profiles |
-| `lib/tree.ts`, `lib/calendar.ts` | The org chart from managers; newcomers, arrivals, birthdays, anniversaries — pure, used in pages |
-| `lib/journeys.ts` | Templates and checklists (called *journeys* in code): start, tick, edit steps, stop, lists, counts |
-| `lib/arrivals.ts` | Arrivals written by HR (`manual`) or told by Hiring (events between tools): read and check each event, add and correct by hand, cancel, link to a member, remove, purge after 90 days, suggestions (work email, then name) |
-| `lib/away.ts` | Leaves told by Leave (events between tools): read and check each event, "away today and back when" (`awayToday`, pure), the badge's words, purge once past |
-| `lib/share.ts` | What People tells other tools: departures (`people.leaving`, `people.leaving_cancelled`) around a leaving checklist's start, stop and restart (`around`); a record's number, days and week (`people.record`, `tellRecords`, only when changed: `records.told`) |
-| `lib/zone.ts` | The Chest's time zone and today (`chest.timeZone`, `chest.today()`: the database's `current_date` is the same day), a member's own zone and day (`zoneOf`, `todayOf`) — server only. Tests run the database in the fake Chest's zone (`testDatabase({timeZone})`, `test/zones.test.ts`) |
-| `lib/examples.ts` | The two example templates; their steps' phrases and their names (`phrase` = kind), shown in each reader's language (`stepText`, `listName`) until reworded (`samePhrase`, `sameName`) |
-| `lib/importer.ts`, `lib/export.ts`, `lib/csv.ts` | CSV import (header aliases, HR's column mapping, email then name matching, date order asked when ambiguous), export, CSV reading/writing (formula-safe, phones untouched, `unquote` on the way back) |
-| `lib/records.ts` | **HR records**: read (journal), create (one, for everyone), edit (field by field), link, delete a mistake, documents (upload through the Chest, open by signed link), what is coming up, purge after five years, erasure |
-| `lib/register.ts` | The staff register (registre unique du personnel) from the records, its mentions and its CSV; `registerGaps`: who it cannot list (no record, no first day, gone without an exit date, an intern's tutor gone) — shown, printed and in the CSV |
-| `lib/changes.ts` | "Request a change": the person asks (address, emergency contact), HR accepts (through `writeRecord`) or declines; values kept only while waiting |
-| `lib/record-import.ts` | Import of HR records (Lucca, BambooHR, a spreadsheet): header aliases, value readers (contract, sex, working time), matching (number → member → legal name → new record), one transaction |
-| `lib/letters.ts` | Letters from templates: merge fields (`fill`, pure), the two examples by phrase, printing from a record (journal `letter_printed`) |
-| `lib/journal.ts` | Who read or changed a record, the register, someone's job details — field names only; kept two years |
-| `lib/fields.ts` | HR's extra profile fields (text, date with an optional reminder, choice) and their values (`valueFor` checks one); `dueDates` for the morning bell |
-| `lib/numbers.ts` | One population (`workersOf`: records + members without one): headcount, by team/office/contract, arrivals and departures by month, turnover — pure |
-| `lib/people.ts` | Names and photos from ids (`people`, `nameOf`), everyone (`everyone`), who is here (`present`) |
-| `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language, keyed per checklist) and badges |
-| `lib/lifecycle.ts`, `lib/morning.ts` | Leaving and erasure; the scheduled morning (proposal) |
-| `lib/theme.ts` | The identity (`defineTheme`, = the catalogue's "Portrait gallery") and `currentLook` (the company's choice, else the identity) |
-| `app/tokens.css`, `app/globals.css` | The tool's own tokens (from contract tokens) and its CSS (contract tokens only; dresses the kit's components in the gallery; the neutral print style) |
-| `components/shell.tsx` | The kit's `AppShell` with Next's `Link` and the current path; the member chip links to one's profile |
-| `components/portrait.tsx`, `lib/tint.ts` | The portrait in its arch (a categorical slot per team) — only where the face is the point; the kit's `Avatar` elsewhere |
-| `lib/choices.ts` | What a person picker offers before anything is typed |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
-| `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes; the bell after a change |
-| `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
-| `app/chest/**/*-view.tsx`, `*-form.tsx`, `*-editor.tsx`, `org-chart.tsx`, `todo-list.tsx`, `importer.tsx` | Client views |
-| `app/chest-events/route.ts`, `app/chest-jobs/[name]/route.ts` | Lifecycle events; scheduled runs |
+| `chest.json` | Manifest (contract 0.4): roles `hr`, `member`; `database`, `files`, `members`, `members.email`, `notifications`; `receives: ["member.*"]`; the `morning` schedule; `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Proposal keys (`mail`, `emits`, `receives` of other tools' events, `translations`) — kept apart, a Chest refuses unknown keys |
+| `src/app.tsx` | **Every route**: `createApp({…})`, the pages (`people()`: a role, and the "My to-dos" number for the layout), downloads, `/chest-events`, `/chest-schedules` |
+| `src/actions.ts` | **Every mutation**, by name (`call("tickItem", …)` from an island): thin; the services check rights and input; the bell after the answer (`after()`) |
+| `src/pages/` | Pages rendered on the server: read, resolve names, write every word and date, hand plain data to islands (`parts.tsx`: back link, meter, the directory's foot) |
+| `src/islands/` | What runs in the browser (`index.ts` lists them): the directory's search, forms, the table, checklists, imports, documents… Each imports React, the kit, `src/components/`, `src/shared/` and `@argentic/chest-app/client` only (types from `src/lib/` allowed) |
+| `src/components/` | Shared by pages and islands: icons, the mark, the portrait (`s-<size>` classes), the kind badge, date fields' refusals (`date-problems.tsx`), `busy.ts` (`useBusy`, `useWorking`) |
+| `src/layout.tsx` | The kit's shell (sections, member chip → one's profile), the toasts; the public layout |
+| `src/theme.ts` | The identity (`identityOf("people")`, the catalogue's "Portrait gallery"), `currentLook` (the company's choice), `pageLook` (served as `/chest/look.css`) |
+| `src/tokens.css`, `src/styles.css` | The tool's own tokens (from contract tokens) and its CSS (contract tokens only; the neutral print style; bars as `pct-0…pct-100` classes) |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts`; `tool`, `pages`, `errors`, `kit` are the package's |
+| `src/shared/` | Rules and formats shared with islands, pure: `model.ts` (bounds, days, phones, roles, `percent`), `tree.ts`, `calendar.ts`, `tint.ts`, `choices.ts`, `format.ts` (**the only place an `Intl` object is made**, kept per language), `app-error.ts` (the package's `AppError` and People's codes) |
+| `src/lib/access.ts` | **Who may do what**: abilities (`can`), who sees a checklist (`seesJourney`), who ticks a step (`ticks`) |
+| `src/lib/profiles.ts` | Profiles: read, own edits, HR's job edits, the loop check (`wouldLoop`), purge of departed people |
+| `src/lib/directory.ts` | The directory: the Chest's members + profiles |
+| `src/lib/journeys.ts` | Templates and checklists (called *journeys* in code): start, tick, edit steps, stop, lists, counts |
+| `src/lib/arrivals.ts` | Arrivals written by HR (`manual`) or told by Hiring (events between tools): read and check each event, add and correct by hand, cancel, link to a member, remove, purge after 90 days, suggestions (work email, then name) |
+| `src/lib/away.ts` | Leaves told by Leave (events between tools): read and check each event, "away today and back when" (`awayToday`, pure), the badge's words, purge once past |
+| `src/lib/share.ts` | What People tells other tools: departures (`people.leaving`, `people.leaving_cancelled`) around a leaving checklist's start, stop and restart (`around`); a record's number, days and week (`people.record`, `tellRecords`, only when changed: `records.told`) |
+| `src/lib/zone.ts` | The Chest's time zone and today (`chest.timeZone`, `chest.today()`), a member's own zone and day (`zoneOf`, `todayOf`). Tests run the database in the fake Chest's zone (`testDatabase({timeZone})`) |
+| `src/lib/examples.ts` | The two example templates; their steps' phrases and names, shown in each reader's language (`stepText`, `listName`) until reworded |
+| `src/lib/importer.ts`, `export.ts`, `csv.ts` | CSV import (header aliases, HR's column mapping, email then name matching, date order asked when ambiguous), export, CSV reading/writing (formula-safe, phones untouched) |
+| `src/lib/records.ts` | **HR records**: read (journal), create, edit field by field, link, delete a mistake, documents (upload through the Chest, open by signed link), what is coming up, purge after five years, erasure |
+| `src/lib/register.ts` | The staff register from the records, its mentions and CSV; `registerGaps`: who it cannot list — shown, printed and in the CSV |
+| `src/lib/changes.ts` | "Request a change": the person asks, HR accepts (through `writeRecord`) or declines |
+| `src/lib/record-import.ts` | Import of HR records (Lucca, BambooHR, a spreadsheet) |
+| `src/lib/letters.ts` | Letters from templates: merge fields (`fill`), the two examples, printing from a record |
+| `src/lib/journal.ts` | Who read or changed a record, the register, someone's job details — field names only; kept two years |
+| `src/lib/fields.ts` | HR's extra profile fields and their values (`valueFor`); `dueDates` for the morning bell |
+| `src/lib/numbers.ts` | One population (`workersOf`): headcount, by team/office/contract, arrivals and departures by month, turnover — pure |
+| `src/lib/people.ts` | Names and photos from ids (`people`, `nameOf` — former, no access, erased), everyone (`everyone`) |
+| `src/lib/tell.ts`, `notify.ts` | The bell (each recipient's language, keyed per checklist) and badges |
+| `src/lib/lifecycle.ts`, `morning.ts`, `deliveries.ts` | Leaving and erasure; the scheduled morning; what the Chest posts (`onEvent`, `onSchedule`, the delivered ids in `chest_events`) |
+| `src/lib/db.ts` | The pool (`db()`, opened on first use; `provide()` for tests) |
 | `migrations/` | Schema (`0004_records.sql`: manual arrivals, manager left, phrases, extra fields, records, documents, journal; `0005_field_kinds_and_names.sql`: field kinds, choices and reminders; example template names as phrases; `0006_privacy_permits_requests_letters.sql`: who sees a field (dates made private), employee number, permit end, days worked, `told`, asked changes, letters, journal actions). Never edit a shipped file; add the next number |
 | `seed/sample.sql` | A sample company for local runs and screenshots |
-| `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
+| `test/` | `node:test` with `fakeChest` and PostgreSQL (`TEST_DATABASE_URL`, else PGlite): the services directly; `app.test.ts` the built server (`dist/test/app.js`); `units.test.ts` the package's `checkSources` |
 
 ## Commands
 
 ```sh
-npm ci && npm test && npm run build   # all three must pass
+npm ci && npm test && npm run build   # all three must pass (Node 24)
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test   # a real PostgreSQL
+NODE_ENV=development npm test         # as the Perseus workbench runs them
+npm run dev                           # rebuilds on change (the harness: lab/chest-dev)
 ```
+
+How a page, an island, an action, a word or a test is written:
+`node_modules/@argentic/chest-app/AGENTS.md` — read it first.
 
 ## Rules
 
-- **Identity only from `member()`** (`lib/session.ts`); store `mbr_…` ids,
+- **Identity only from `member`** (the page's or the action's context); store `mbr_…` ids,
   never names or emails. The directory is `members.list`: never keep a copy
   of names.
 - **Every service function takes `(sql, actor, …)`**, checks rights through
@@ -110,17 +115,23 @@ npm ci && npm test && npm run build   # all three must pass
   written by HR nor by the import.
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →
   tests with each role; a lifecycle change → `test/lifecycle.test.ts`.
-- **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,
-  `lib/model.ts`, `lib/tree.ts`, `lib/calendar.ts`, `lib/tint.ts`,
-  `lib/choices.ts`, `@argentic/chest-ui/components` (and `/components/logic`)
-  and types. Never the SDK, `lib/db.ts`, `lib/session.ts`.
-- **Words live in `lib/i18n/`**, in every catalogue (tests compare keys and
+- **Islands import only** `src/shared/`, `src/components/`,
+  `@argentic/chest-ui/components` (and `/components/logic`),
+  `@argentic/chest-app/client` and types (`checkSources` refuses the rest).
+  Props are plain data with their words; dates and numbers are written on
+  the server (an import's preview gets its days written by the action).
+  An island whose state belongs to one subject is keyed by it
+  (`<Island id={"record-form-" + version}>`), so a refresh never carries a
+  draft to another.
+- **No style attribute, no inline script or style**: a bar's length is a
+  `pct-N` class, a portrait's size an `s-N` class.
+- **Words live in `src/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
 - **No network, no disk, no background work.** Deferred work runs on the
   next request (badges on *My to-dos*, the purge on the directory) or in the
   `morning` schedule when the Chest has schedules.
 - **Looks: the CSS names only contract tokens** (`ui/tokens/CONTRACT.md`)
-  and the tool's tokens of `app/tokens.css`, themselves defined from
+  and the tool's tokens of `src/tokens.css`, themselves defined from
   contract tokens; never a colour (`test/theme.test.ts`). Text on a ground
   only on measured pairs (`--ink` on `--bg` for the plum, `--cat-N-ink` on
   `--cat-N-soft`…). The identity stays equal to the catalogue's `gallery`
@@ -131,7 +142,7 @@ npm ci && npm test && npm run build   # all three must pass
   what is for good (never `window.confirm`), `PeoplePicker`, `DateField`
   (never `type="date"`; `today` from the server), `SearchBox`,
   `FilePicker`, `DataTable`, `EmptyState`, `Avatar`, `StatusBadge`,
-  `Segmented`, `AppShell` (Next's `Link` passed as it is). A single
+  `Segmented`, `AppShell` (plain links: the package opens them in place). A single
   picker that may stay empty (a manager, who does a step) is `clearable`;
   the register's rows open the record (`rowHref`); HR's sheet dates are
   the compact `DateField`; chips take `--radius-chip`. Kept on purpose:

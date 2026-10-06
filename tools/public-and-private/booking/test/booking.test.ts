@@ -19,7 +19,7 @@ after(async () => {
   await database.close();
 });
 beforeEach(async () => {
-  await database.sql`truncate hosts, bookings, settings, form_counts, form_tokens cascade`;
+  await database.sql`truncate hosts, bookings, settings, form_counts, chest_bounds, chest_seen cascade`;
 });
 
 // Monday 5 October 2026, 08:00 in Paris (UTC+2).
@@ -193,75 +193,13 @@ test("bookings over for longer than kept are deleted; a guest's data can be eras
   assert.equal(await b.cleanup(sql, Date.parse("2028-11-01T00:00:00Z")), 1);
 });
 
-test("the form's guard stops a visitor after a few bookings an hour", async () => {
+test("one guest's link cannot fill the changes' budget: held after a few changes an hour, another link is not", async () => {
   const { sql } = await ready();
-  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await b.guard(sql, "203.0.113.9");
-  await refuses(b.guard(sql, "203.0.113.9"), "too_many");
-  await b.guard(sql, "198.51.100.4");
+  const { perLink } = await import("../src/lib/guard.ts");
+  for (let i = 0; i < b.formLimits.perSubjectHour; i++) await perLink(sql, "link-one");
+  await refuses(perLink(sql, "link-one"), "limit");
+  await perLink(sql, "link-two");
+  // An hour later, the first link may change its booking again.
+  await b.guard(sql, "change", "another", Date.now() + 3600000);
 });
 
-test("counters by kind and subject: changes never close the booking form, one token cannot fill it, the hourly ceiling and the daily cap", async () => {
-  const { sql } = await ready();
-  // A flood of changes (cancellations, moves) fills only the changes' counter.
-  for (let i = 0; i < b.formLimits.perHour; i++) await b.guard(sql, `c:visitor${i}`, "change", `link${i}`);
-  await refuses(b.guard(sql, "c:another", "change", "linkx"), "too_many");
-  await b.guard(sql, "c:another", "new", "token1");
-  // One form's token replayed: held after a few attempts, whoever sends it.
-  for (let i = 1; i < b.formLimits.perSubjectHour; i++) await b.guard(sql, `c:robot${i}`, "new", "token1");
-  await refuses(b.guard(sql, "c:robot-last", "new", "token1"), "too_many");
-  // The hourly ceiling for everyone.
-  await sql`update form_counts set count = ${b.formLimits.perHour} where key = 'all:new'`;
-  await refuses(b.guard(sql, "c:someone", "new", "token2"), "too_many");
-  // The earlier hours of the last day count too, for everyone…
-  await sql`delete from form_counts`;
-  const now = Date.now();
-  const hour = Math.floor(now / 3600000) * 3600000;
-  await sql`insert into form_counts (key, hour, count) values ('all:new', ${new Date(hour - 5 * 3600000)}, ${b.formLimits.perDay})`;
-  await refuses(b.guard(sql, "a:203.0.113.20", "new", "token3", now), "too_many");
-  // …and a day later they are forgotten.
-  await b.guard(sql, "a:203.0.113.21", "new", "token4", now + 86400000);
-});
-
-test("the public forms' guard: the Chest counts when it can, the tool's own counters otherwise", async () => {
-  const { admit, checkForm, formToken } = await import("../src/lib/guard.ts");
-  const { sql } = await ready();
-  // A form sent within 3 seconds is not refused: the answer waits the rest
-  // (a clock that moves as it sleeps).
-  let clock = Date.now();
-  const slept: number[] = [];
-  await checkForm(formToken(clock - 1000), () => clock, async ms => { slept.push(ms); clock += ms; });
-  assert.ok(slept.length === 1 && slept[0]! >= 2000 && slept[0]! <= 2100, `waited ${slept[0]}`);
-  // In time: no wait at all.
-  await checkForm(formToken(clock - 5000), () => clock, async ms => { slept.push(ms); });
-  assert.equal(slept.length, 1);
-  await assert.rejects(checkForm("nonsense"), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  // A form shown more than two hours ago is refused.
-  await assert.rejects(checkForm(formToken(Date.now() - 3 * 3600000)), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  // The visitor's address is the one the Chest's front saw
-  // (Chest-Visitor-Address, visitors.address()), never X-Forwarded-For,
-  // which the visitor writes: a new one at each request changes nothing.
-  const jar = () => { const kept = new Map<string, string>(); return { get: (n: string) => kept.get(n), set: (n: string, v: string) => { kept.set(n, v); } }; };
-  const h = new Headers({ "chest-visitor-address": "203.0.113.50" });
-  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await admit(sql, new Headers({ "chest-visitor-address": "203.0.113.50", "x-forwarded-for": `198.51.100.${i}` }), jar(), "new", `t${i}`);
-  await refuses(admit(sql, h, jar(), "new", "t-last"), "too_many");
-  // Another visitor is not held by the first.
-  await admit(sql, new Headers({ "chest-visitor-address": "198.51.100.50" }), jar(), "new", "t-other");
-  // Without an address, a browser is known by a cookie of its own: held
-  // after a few bookings, while another browser is not.
-  const browser = jar();
-  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await admit(sql, new Headers(), browser, "new", `c${i}`);
-  assert.match(browser.get("chest_v") ?? "", /^[A-Za-z0-9_-]{22}$/u);
-  await refuses(admit(sql, new Headers(), browser, "new", "c-last"), "too_many");
-  await admit(sql, new Headers(), jar(), "new", "c-other");
-});
-
-test("one booking per form shown: a token is taken by a booking, given back when it fails", async () => {
-  const { claimForm, formToken } = await import("../src/lib/guard.ts");
-  const { sql } = await ready();
-  const token = formToken();
-  const release = await claimForm(sql, token);
-  await refuses(claimForm(sql, token), "invalid");
-  await release();
-  await claimForm(sql, token);
-  await refuses(claimForm(sql, token), "invalid");
-});

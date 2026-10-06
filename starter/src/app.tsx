@@ -1,10 +1,9 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import * as events from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import { createApp, csvLine, page } from "@argentic/chest-app";
+import { createApp, csvLine, download, page, textStream } from "@argentic/chest-app";
 import { db, seen } from "@argentic/chest-app/db";
 import { names } from "@argentic/chest-app/members";
-import { stream } from "hono/streaming";
 import { actions } from "./actions.ts";
 import { locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
@@ -37,18 +36,17 @@ app.get("/chest/notes/:id", page(async ({ param, t, f }) => {
   return { title: t.home.title, body: <NotePage note={note} name={people.get(note.author) ?? t.people.unknown} t={t} f={f} /> };
 }));
 
-// A download, written as the rows are read (any size, little memory).
+// A download, written as the rows are read (any size, little memory):
+// download() sends it as a file; a refusal there (fail("forbidden")) is a
+// page in the reader's words. A link to it carries `download`.
 // EXAMPLE (Notes)
-app.get("/chest/notes.csv", c => {
-  c.header("Content-Type", "text/csv; charset=utf-8");
-  c.header("Content-Disposition", `attachment; filename="notes-${chest.today()}.csv"`);
-  return stream(c, async out => {
-    await out.write(csvLine(["id", "created_at", "author", "pinned", "body"]));
-    for await (const rows of db()`select id, created_at, author, pinned, body from notes where deleted_at is null order by id`.cursor(500)) {
-      await out.write(rows.map(r => csvLine([r.id, (r.created_at as Date).toISOString(), r.author, r.pinned ? "yes" : "no", r.body])).join(""));
-    }
-  });
-});
+app.get("/chest/notes.csv", download(() => ({ name: `notes-${chest.today()}.csv`, type: "text/csv; charset=utf-8", body: textStream(noteLines()) })));
+async function* noteLines() {
+  yield csvLine(["id", "created_at", "author", "pinned", "body"]);
+  for await (const rows of db()`select id, created_at, author, pinned, body from notes where deleted_at is null order by id`.cursor(500)) {
+    yield rows.map(r => csvLine([r.id, (r.created_at as Date).toISOString(), r.author, r.pinned ? "yes" : "no", r.body])).join("");
+  }
+}
 
 // ---- No public part: with "public": true in chest.json, publicPage()
 // and publicAction() serve visitors (the package's AGENTS.md, "The public

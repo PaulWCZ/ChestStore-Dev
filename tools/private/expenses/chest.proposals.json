@@ -2,16 +2,6 @@
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "reminder",
-      "cron": "0 9 25 * *"
-    },
-    {
-      "name": "cleanup",
-      "cron": "40 3 * * *"
-    }
-  ],
   "translations": {
     "fr": {
       "title": "Notes de frais",

@@ -3,11 +3,11 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { download, formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { AppError as BrowserError } from "../dist/client.js";
 import { applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
-import { checkPage, testDatabase } from "../dist/testing.js";
+import { checkPage, settled, testDatabase } from "../dist/testing.js";
 
 // A tool of a few lines on the built package, asked as the Chest asks.
 const words = {
@@ -25,6 +25,7 @@ const actions = {
   go: action({}, async () => redirect("/chest/elsewhere")),
   big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
   refuse: action({}, async () => fail("forbidden")),
+  summarise: action({}, async () => null, { parallel: true }),
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
   write: publicAction({ text: field.text({ max: 5 }) }, async ({ text }) => { if (text === "taken") fail("invalid"); written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
   book: publicAction({ secret: field.text({ min: 0, max: 20 }) }, async ({ secret }, { charge }) => {
@@ -33,6 +34,9 @@ const actions = {
     written++;
     return null;
   }, { bound: { budgets: { new: { perVisitor: 1, perDay: 10 }, change: { perVisitor: 3, perDay: 10 } }, formMinutes: 30 } }),
+  guarded: publicAction({}, async () => fail("forbidden"), { bound: { perVisitor: 1, perDay: 1 } }),
+  rsvp: publicAction({ link: field.text({ max: 20 }) }, async ({ link }, { charge }) => { await charge("change", { subject: link }); return null; }, { bound: { budgets: { change: { perVisitor: 50, perDay: 50, perSubject: 2 } } } }),
+  chat: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 2 } }),
   patient: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 5, formSeconds: 1 } }),
   forgot: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 1 } } } }),
 };
@@ -56,6 +60,15 @@ app.get("/chest/refused", page(() => fail("forbidden")));
 app.get("/chest/missing", page(() => fail("not_found")));
 app.get("/chest/invalid", page(() => fail("invalid")));
 app.get("/chest/own-policy", page(() => new Response("framed", { headers: { "content-security-policy": "frame-ancestors https://partner.example" } })));
+app.get("/chest/export.csv", download(({ query }) => {
+  if (query("who") === "other") fail("forbidden");
+  if (query("year") === "1900") fail("too_long", { max: 5 });
+  return { name: "Absences été 2026.csv", type: "text/csv; charset=utf-8", body: "a,b\r\n" };
+}));
+let pulled = 0;
+app.get("/chest/archive.zip", download(() => ({ name: "archive.zip", type: "application/zip", body: new ReadableStream({ pull(controller) { pulled++; controller.enqueue(new Uint8Array(4096)); if (pulled > 50) controller.close(); } }) })));
+app.get("/chest/short", page(() => ({ title: "Short", body: "x" })));
+app.get("/chest/long", page(() => ({ title: "Long", body: h("p", null, "word ".repeat(2000)) })));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot), h("p", null, "hello")) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
@@ -225,6 +238,17 @@ test("after(): a task that throws before its first await is logged, never thrown
   assert.match(lines.join("\n"), /^error "probe failed"/mu);
 });
 
+test("settled(): waits for after()'s tasks, and those they start", async () => {
+  const done = [];
+  afterAnswer("first", async () => {
+    await new Promise(resolve => setTimeout(resolve, 30));
+    done.push("first");
+    afterAnswer("second", async () => { await new Promise(resolve => setTimeout(resolve, 30)); done.push("second"); });
+  });
+  await settled();
+  assert.deepEqual(done, ["first", "second"]);
+});
+
 test("which page read is put in place: a navigation is never lost to a refresh or an action", () => {
   const read = { ticket: 3, latest: 3, move: 1, moves: 1, settled: true, sending: 0 };
   assert.equal(applies({ ...read, navigation: false }), true);
@@ -326,6 +350,9 @@ test("a route's own policy is kept; failures named by what failed", async () => 
 test("the database runs in the Chest's zone (a far one)", async () => {
   const { chest: sdkChest } = await import("@argentic/chest-sdk/chest");
   const [{ day }] = await db()`select current_date::text as day`;
+  const [{ seeded }] = await database.sql`select current_date::text as seeded`;
+  assert.equal(seeded, day, "testDatabase()'s sql (the seeds) on the same day as db()");
+  for (const sql of [db(), database.sql]) assert.equal((await sql`select current_setting('TimeZone') as zone`)[0].zone, "Pacific/Kiritimati");
   assert.equal(day, sdkChest.today());
 });
 
@@ -398,4 +425,59 @@ test("after a change in place, the focus goes to <main> only if nothing new took
   assert.equal(focusMain(gone, panel, body), false, "a panel that arrived focused itself: kept");
   assert.equal(focusMain(panel, panel, body), false, "the focused element stayed");
   assert.equal(focusMain(body, body, body), false);
+});
+
+test("download(): a file as an attachment, never cached; a refusal is a page in the reader's words with its status", async () => {
+  const file = await get("/chest/export.csv");
+  assert.equal(file.status, 200);
+  assert.equal(await file.text(), "a,b\r\n");
+  assert.equal(file.headers.get("content-disposition"), `attachment; filename="Absences _t_ 2026.csv"; filename*=UTF-8''Absences%20%C3%A9t%C3%A9%202026.csv`);
+  assert.equal(file.headers.get("cache-control"), "no-store");
+  const refused = await get("/chest/export.csv?who=other");
+  assert.equal(refused.status, 403);
+  assert.match(await refused.text(), /Forbidden\./u);
+  const invalid = await get("/chest/export.csv?year=1900");
+  assert.equal(invalid.status, 400);
+  assert.match(await invalid.text(), /Too long: 5 at most\./u);
+});
+
+test("bounds: refusals have a budget (ten times the day's), a subject its own, a visitor who wrote today a reserve", async () => {
+  const send = (name, fields = {}, cookie) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}) } }));
+  for (let i = 0; i < 10; i++) assert.equal((await send("guarded")).status, 403);
+  const stopped = await send("guarded");
+  assert.equal(stopped.status, 429, "the eleventh refusal stops before the run");
+  assert.equal((await stopped.json()).error, "limit");
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 429, "two a day for one link");
+  assert.equal((await send("rsvp", { link: "guest-b" })).status, 200, "another link");
+  const a = "chest_v=visitoraaaaaaaaaaaaaaaa", b = "chest_v=visitorbbbbbbbbbbbbbbbb", c = "chest_v=visitorcccccccccccccccc";
+  assert.equal((await send("chat", {}, a)).status, 200);
+  assert.equal((await send("chat", {}, b)).status, 200);
+  assert.equal((await send("chat", {}, c)).status, 429, "everyone's two");
+  assert.equal((await send("chat", {}, a)).status, 200, "one who wrote today: the reserve");
+  assert.equal((await send("chat", {}, a)).status, 429, "a reserve of one");
+});
+
+test("compression measured (a short page as it is, a long one gzipped), the look's tag compared weakly, a file asked in place answered 204 unmade, parallel actions listed", async () => {
+  const gz = { "accept-encoding": "gzip, br" };
+  const at = (path, headers = {}, who = member) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
+  const short = await at("/nothing", gz, null);
+  assert.equal(short.headers.get("content-encoding"), null, "under 1 KiB: as it is");
+  const long = await at("/chest/long", gz);
+  assert.equal(long.headers.get("content-encoding"), "gzip");
+  assert.match(long.headers.get("vary") ?? "", /Accept-Encoding/u);
+  const sheet = await at("/look.css", gz, null);
+  const tag = sheet.headers.get("etag");
+  await sheet.arrayBuffer();
+  assert.equal((await at("/look.css", { ...gz, "if-none-match": tag }, null)).status, 304, `304 for ${tag}`);
+  const before = pulled;
+  const file = await at("/chest/archive.zip", { "x-tool-navigate": "1" });
+  assert.equal(file.status, 204);
+  assert.equal(file.headers.get("x-tool-file"), "1");
+  assert.ok(pulled - before <= 2, `the archive was not made: ${pulled - before} chunks`);
+  const whole = await at("/chest/archive.zip");
+  assert.equal(whole.headers.get("content-disposition"), `attachment; filename="archive.zip"; filename*=UTF-8''archive.zip`);
+  assert.ok((await whole.arrayBuffer()).byteLength > 4096, "followed plainly, the file comes whole");
+  assert.match(await (await at("/chest")).text(), /<meta name="chest-parallel" content="summarise"\/>/u);
 });

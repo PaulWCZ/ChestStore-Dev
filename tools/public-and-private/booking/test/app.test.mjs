@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
+import { formToken } from "@argentic/chest-app";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { testDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
@@ -42,6 +43,10 @@ const clean = html => {
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/u, "no inline script");
   assert.doesNotMatch(html, /<style/u, "no style element");
 };
+// The form token a public page carries (<meta name="chest-form">), and a
+// fresh one shown long enough ago that the package does not wait for it.
+const tokenOf = html => /<meta name="chest-form" content="([^"]+)"/u.exec(html)[1];
+const shown = () => formToken(Date.now() - 10_000);
 const props = (html, island) => JSON.parse(new RegExp(`data-island="${island}"[^>]*? data-props="([^"]*)"`, "u").exec(html)[1].replaceAll("&quot;", "\"").replaceAll("&amp;", "&").replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">"));
 
 test("the agenda: the member's language, the policy, the look as a stylesheet, nothing inline; 401 without the Chest", async () => {
@@ -159,7 +164,7 @@ test("the public pages: the company, a host, a type to book, in the visitor's wo
   const island = props(page, "BookTime");
   assert.equal(island.typeSlug, "project-call");
   assert.ok(island.zones.length > 1, "the time zones, written by the server");
-  assert.ok(island.started.length > 10, "the form's signed shown-at time");
+  assert.ok(tokenOf(page).split(".").length === 3, "the page carries a form token");
   assert.equal((await get(null, "/nobody-here")).status, 404);
   assert.match(await (await get(null, "/nobody-here")).text(), /This page does not exist/u);
   assert.equal((await get(null, "/chest-events")).status, 404, "a reserved name is no host");
@@ -167,17 +172,19 @@ test("the public pages: the company, a host, a type to book, in the visitor's wo
 
 test("booking a time as a visitor: the form's guard, the booking, the guest's page, cancelled by its guest", async () => {
   const page = await (await get(null, "/ines-moreau/project-call")).text();
-  const { started } = props(page, "BookTime");
+  const started = tokenOf(page);
   const from = new Date().toISOString().slice(0, 10), to = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
   const slots = await (await get(null, `/api/slots?host=ines-moreau&type=project-call&from=${from}&to=${to}`)).json();
   assert.equal((await get(null, `/api/slots?host=ines-moreau&type=project-call&from=${from}&to=${to}`)).headers.get("cache-control"), "private, max-age=15");
   assert.ok(slots.slots.length > 0, "free times");
   assert.equal((await get(null, "/api/slots?host=ines-moreau&type=project-call&from=x&to=y")).status, 400);
-  const fields = { host: "ines-moreau", type: "project-call", start: slots.slots[0], zone: "America/Montreal", started, website: "", name: "Alex Martin", email: "alex@example.com", phone: "", note: "Hello", q_project1: "A home", q_budget01: "", q_plans001: "yes" };
-  // A robot fills the field people never see: refused, nothing kept.
-  const robot = await form("/actions/bookTime", { ...fields, website: "spam.test" });
-  assert.equal(robot.status, 400);
-  assert.equal((await robot.json()).error, "invalid");
+  const fields = { host: "ines-moreau", type: "project-call", start: slots.slots[0], zone: "America/Montreal", chest_form: started, website: "", name: "Alex Martin", email: "alex@example.com", phone: "", note: "Hello", q_project1: "A home", q_budget01: "", q_plans001: "yes" };
+  // A robot fills the field people never see: answered "done", nothing kept.
+  const robot = await form("/actions/bookTime", { ...fields, chest_form: shown(), website: "spam.test" });
+  assert.equal((await robot.json()).ok, true);
+  assert.equal((await database.sql`select 1 from bookings where guest_email = 'alex@example.com'`).length, 0);
+  // Without the page's token: refused, nothing kept.
+  assert.equal((await (await form("/actions/bookTime", { ...fields, chest_form: "1.2.3" })).json()).error, "expired");
   // A person (the server waits the few seconds a person takes, if needed).
   // (In English: the host's choices are answered as the visitor read them.)
   const booked = await form("/actions/bookTime", fields, { "chest-visitor-address": "203.0.113.7", "accept-language": "en" });
@@ -188,13 +195,14 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   const [row] = await database.sql`select guest_name, guest_language, answers from bookings where guest_email = 'alex@example.com'`;
   assert.equal(row.guest_name, "Alex Martin");
   assert.ok(chest.notifications.some(n => n.member === ines.id), "Inès is told in her bell");
-  // The same form again: one booking per form shown.
-  assert.equal((await (await form("/actions/bookTime", fields)).json()).error, "invalid");
-  // The same time from a new form: taken, in the visitor's words — and
-  // that form's token is given back (a person picks another time with it).
-  const { started: second } = props(await (await get(null, "/ines-moreau/project-call")).text(), "BookTime");
-  assert.equal((await (await form("/actions/bookTime", { ...fields, started: second })).json()).error, "taken");
-  assert.equal((await database.sql`select 1 from form_tokens where hash = encode(sha256(convert_to(${second}, 'UTF8')), 'hex')`).length, 0);
+  assert.equal(typeof outcome.form, "string", "the answer brings the next token");
+  // The same token again: each serves once.
+  assert.equal((await (await form("/actions/bookTime", fields)).json()).error, "expired");
+  // The same time with the next token: taken, in the visitor's words — and
+  // the token is given back (a person picks another time with it).
+  const second = outcome.form;
+  assert.equal((await (await form("/actions/bookTime", { ...fields, chest_form: second })).json()).error, "taken");
+  assert.equal((await (await form("/actions/bookTime", { ...fields, chest_form: second })).json()).error, "taken", "not expired: given back");
   // The guest's page, its calendar file, then cancelled by its guest.
   const guestPage = await get(null, outcome.redirect);
   assert.equal(guestPage.status, 200);
@@ -205,8 +213,8 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   const ics = await get(null, `/b/${secret}/ics`);
   assert.equal(ics.headers.get("content-type"), "text/calendar; charset=utf-8");
   assert.match(await ics.text(), /^BEGIN:VCALENDAR\r\n/u);
-  const cancelled = await form("/actions/cancelMine", { secret, reason: "Sorry" });
-  assert.deepEqual(await cancelled.json(), { ok: true, value: null });
+  const cancelled = await form("/actions/cancelMine", { secret, reason: "Sorry", chest_form: shown() });
+  assert.equal((await cancelled.json()).ok, true);
   const [{ status }] = await database.sql`select status from bookings where guest_email = 'alex@example.com'`;
   assert.equal(status, "cancelled");
   assert.match(await (await get(null, `/b/${secret}`)).text(), /cancel/iu);
@@ -214,26 +222,30 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
 });
 
 test("junk cannot close the booking form: invalid cancels, moves and bookings are refused uncounted", async () => {
+  await database.sql`delete from chest_bounds`;
   await database.sql`delete from form_counts`;
   const junk = (n) => Array.from({ length: n }, (_, i) => i);
+  // Even with valid form tokens: a link that opens nothing costs nothing.
   for (const i of junk(300)) {
-    const r = await form("/actions/cancelMine", { secret: ("junk" + i).padEnd(32, "x"), reason: "" });
+    const r = await form("/actions/cancelMine", { secret: ("junk" + i).padEnd(32, "x"), reason: "", chest_form: shown() });
     assert.equal(r.status, 404);
   }
-  for (const i of junk(20)) assert.equal((await form("/actions/moveMine", { secret: ("junk" + i).padEnd(32, "y"), start: "2030-01-01T09:00:00.000Z" })).status, 404);
+  for (const i of junk(20)) assert.equal((await form("/actions/moveMine", { secret: ("junk" + i).padEnd(32, "y"), start: "2030-01-01T09:00:00.000Z", chest_form: shown() })).status, 404);
+  // Without a token: refused before anything.
+  assert.equal((await form("/actions/cancelMine", { secret: "x".repeat(32), reason: "" })).status, 400);
   // A booking of a type that does not exist, or a time that is no time.
-  const { started } = props(await (await get(null, "/ines-moreau/project-call")).text(), "BookTime");
-  assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "nothing", start: "2030-01-01T09:00:00.000Z", started, website: "", name: "X", email: "x@example.com" })).status, 404);
-  assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: "soon", started, website: "", name: "X", email: "x@example.com" })).status, 400);
-  const [{ n }] = await database.sql`select count(*)::int as n from form_counts`;
+  assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "nothing", start: "2030-01-01T09:00:00.000Z", chest_form: shown(), name: "X", email: "x@example.com" })).status, 404);
+  assert.equal((await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: "soon", chest_form: shown(), name: "X", email: "x@example.com" })).status, 400);
+  const [{ n }] = await database.sql`select count(*)::int as n from chest_bounds where count > 0`;
   assert.equal(n, 0, "nothing was counted");
-  // A real visitor books at once.
+  assert.equal((await database.sql`select 1 from form_counts`).length, 0);
+  // A real visitor books at once, known by a cookie of their browser's
+  // (the harness's front names no visitor).
   const from = new Date().toISOString().slice(0, 10), to = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
   const { slots } = await (await get(null, `/api/slots?host=ines-moreau&type=project-call&from=${from}&to=${to}`)).json();
-  const booked = await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: slots.at(-1), zone: "Europe/Paris", started, website: "", name: "Real Person", email: "real@example.com", phone: "", note: "", q_project1: "A home" }, { "accept-language": "en" });
+  const booked = await form("/actions/bookTime", { host: "ines-moreau", type: "project-call", start: slots.at(-1), zone: "Europe/Paris", chest_form: shown(), name: "Real Person", email: "real@example.com", phone: "", note: "", q_project1: "A home" }, { "accept-language": "en" });
   assert.equal((await booked.json()).ok, true);
-  // A browser without the front's address is known by a cookie of its own.
-  assert.match(booked.headers.get("set-cookie") ?? "", /chest_v=[\w-]{22};/u);
+  assert.match(booked.headers.get("set-cookie") ?? "", /chest_v=[\w-]{16,64};/u);
 });
 
 test("downloads: the bookings as CSV for the team, a host's private feed", async () => {

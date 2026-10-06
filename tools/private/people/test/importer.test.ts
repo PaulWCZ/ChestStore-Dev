@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { directory } from "../lib/directory.ts";
-import { AppError } from "../lib/errors.ts";
-import { directoryCsv } from "../lib/export.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { applyImport, dateOrder, plan, previewImport, readDate, readHeader } from "../lib/importer.ts";
+import { directory } from "../src/lib/directory.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { directoryCsv } from "../src/lib/export.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { applyImport, dateOrder, plan, previewImport, readDate, readHeader } from "../src/lib/importer.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { toCsv, unquote } from "../lib/csv.ts";
-import { addField, listFields } from "../lib/fields.ts";
-import type { Colleague } from "../lib/people.ts";
-import { profile, updateJob } from "../lib/profiles.ts";
+import { toCsv, unquote } from "../src/lib/csv.ts";
+import { addField, listFields } from "../src/lib/fields.ts";
+import type { Colleague } from "../src/lib/people.ts";
+import { profile, updateJob } from "../src/lib/profiles.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
@@ -21,7 +21,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();

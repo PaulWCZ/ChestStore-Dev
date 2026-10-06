@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { amountText, hoursText, parseAmount, parseHours } from "../lib/amounts.ts";
-import { formatClock, formatDuration, hours, parseDuration } from "../lib/duration.ts";
+import { field } from "@argentic/chest-app";
+import { amountText, hoursText, parseAmount, parseHours } from "../src/shared/amounts.ts";
+import { readAmount } from "../src/shared/import-formats.ts";
+import { formatClock, formatDuration, hours, parseDuration } from "../src/shared/duration.ts";
 
 test("durations are read the way people type them", () => {
   const cases: [string, number | null][] = [
@@ -24,19 +26,47 @@ test("durations are written as hours:minutes, decimals for exports", () => {
   assert.equal(hours(20), 0.33);
 });
 
+// The island reads what a manager types to see whether a rate changed;
+// the server reads it again with the package's field.money: they agree.
+test("a typed amount is read the same in the form and on the server", () => {
+  const server = field.money({ min: 0, max: 100_000_000 });
+  for (const typed of ["80", "80.5", "80,50", "1 200", "1,200", "1.200", "1,200.50", "1.200,50", "1 234,5", "12.345", "1.234", "0", "ten", "1,2,3", "€ 95", "9.99", "99,999"]) {
+    let read: number | null;
+    try {
+      read = server.read(typed);
+    } catch {
+      read = null;
+    }
+    assert.equal(parseAmount(typed), read, typed);
+  }
+});
+
 test("rates and budgets are read in both languages' ways", () => {
   assert.equal(parseAmount("80"), 8000);
   assert.equal(parseAmount("80.50"), 8050);
   assert.equal(parseAmount("80,5"), 8050);
   assert.equal(parseAmount("1 200"), 120000);
-  assert.equal(parseAmount("1,200"), 120000);
-  assert.equal(parseAmount("1.200,50 €"), 120050);
-  assert.equal(parseAmount("€ 95"), 9500);
+  assert.equal(parseAmount("1,200.50"), 120050);
+  assert.equal(parseAmount("1,200"), null);
+  assert.equal(parseAmount("1.200,50"), 120050);
+  assert.equal(parseAmount("1 234,50"), 123450);
+  // Which one was meant? Refused, as the server refuses it.
+  assert.equal(parseAmount("12.345"), null);
+  assert.equal(parseAmount("1.234"), null);
+  // A form's field says its currency: a sign typed in it is not read.
+  assert.equal(parseAmount("€ 95"), null);
+  // An old tool's export: its signs aside, more lenient (one program, one convention).
+  assert.equal(readAmount("1.200,50 €"), 120050);
+  assert.equal(readAmount("€ 95"), 9500);
+  assert.equal(readAmount("95.000"), 9500000);
   assert.equal(parseAmount(""), null);
   assert.equal(parseAmount("ten"), null);
   assert.equal(parseAmount("-5"), null);
   assert.equal(parseHours("120"), 7200);
   assert.equal(parseHours("12,5"), 750);
+  assert.equal(parseHours("1,5"), 90);
+  assert.equal(parseHours("1.5"), 90);
+  assert.equal(parseHours("1,234"), null);
   assert.equal(parseHours("12:30"), 750);
   assert.equal(parseHours("40h"), 2400);
   assert.equal(parseHours("x"), null);

@@ -206,16 +206,21 @@ export async function forgetMember(sql: Query, memberId: string): Promise<void> 
 // Booking and Hiring (lib/busy.ts). Run after every change, after the
 // Chest's and People's events, and each morning (recheck: a Chest that
 // refused the calendar is asked again). Never fails the change.
-export async function keepInLine(sql: Sql, options: { recheck?: boolean } = {}): Promise<void> {
+export type InLine = { published: number; put: number; removed: number; busy: number };
+export async function keepInLine(sql: Sql, options: { recheck?: boolean } = {}): Promise<InLine> {
+  const done: InLine = { published: 0, put: 0, removed: 0, busy: 0 };
   try {
-    await shareLeave(sql);
+    done.published = await shareLeave(sql);
   } catch (error) {
     log.error("leave events: not in line", error);
   }
   try {
-    await sync(sql, options.recheck ? { recheck: true, max: 2000 } : {});
-    await shareBusy(sql);
+    const feeds = await sync(sql, options.recheck ? { recheck: true, max: 2000 } : {});
+    done.put = feeds.put;
+    done.removed = feeds.removed;
+    done.busy = await shareBusy(sql);
   } catch (error) {
     log.error("calendar and busy times: not in line", error);
   }
+  return done;
 }

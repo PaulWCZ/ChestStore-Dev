@@ -41,6 +41,8 @@ export type CoreWords = {
     // A public form open too long, or sent twice (optional: "unavailable"
     // otherwise): "This form expired: send it again."
     readonly expired?: string;
+    // An amount written "1,250": 1250 or 1.25? (optional: "invalid" otherwise).
+    readonly amount_ambiguous?: string;
   };
   readonly kit: KitWords;
 };
