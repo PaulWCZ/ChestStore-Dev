@@ -29,7 +29,10 @@ export const policy = "default-src 'self'; script-src 'self'; style-src 'self'; 
 export type Viewer = MemberContext | VisitorContext;
 // What a page handler gets, and gives back (or a Response of its own).
 export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; param(name: string): string; query(name: string): string | undefined };
-export type View = { title: string; body: ReactNode };
+// head: more in the <head> of this page (robots, a feed's link); exactTitle:
+// the title as given, without " · <tool>" (a public page in the company's
+// name).
+export type View = { title: string; body: ReactNode; head?: ReactNode; exactTitle?: boolean };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
 // look: the request's look when createApp has one (its logo, in brand
@@ -121,9 +124,10 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{view.title === name ? view.title : `${view.title} · ${name}`}</title>
+        <title>{view.title === name || view.exactTitle ? view.title : `${view.title} · ${name}`}</title>
         {look?.colors?.map(m => <meta key={m.media} name="theme-color" media={m.media} content={m.color} />)}
         {options.head?.(viewer)}
+        {view.head}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
         <script type="module" src={`/assets/client.js?v=${v}`} />
@@ -281,9 +285,13 @@ export function createApp(appOptions: AppOptions) {
   app.use(async (c, next) => {
     const started = performance.now();
     await next();
-    c.header("Content-Security-Policy", policy);
+    // A route that answers with its own policy keeps it (a banner other
+    // sites may frame: its frame-ancestors; a picture: a stricter one), and
+    // its own Referrer-Policy (a page whose address holds a secret:
+    // no-referrer). Pages and actions never set one: they get this.
+    if (!c.res.headers.has("Content-Security-Policy")) c.header("Content-Security-Policy", policy);
     c.header("X-Content-Type-Options", "nosniff");
-    c.header("Referrer-Policy", "same-origin");
+    if (!c.res.headers.has("Referrer-Policy")) c.header("Referrer-Policy", "same-origin");
     c.header("Cross-Origin-Opener-Policy", "same-origin");
     if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
     // The route's pattern (/p/:link/actions/:name), never the path or the

@@ -158,6 +158,14 @@ must cache its answer a minute (600 members calls a minute per tool).
 404 reads `pages.notFound.publicBody` when the catalogue has one.
 **The head** (an icon, robots) —
 `createApp({ head: viewer => <><link rel="icon" href="/assets/icon.svg" /></> })`.
+**A page's own head or title** — `{ title, body, head: <meta name="robots"
+content="index, follow" />, exactTitle: true }`: `head` goes in that page's
+`<head>`; `exactTitle` keeps the title as given (no " · <tool>").
+**A route with its own policy** (a banner other sites frame, a picture) —
+answer a `Response` with its own `Content-Security-Policy` (and
+`Referrer-Policy`): the package keeps them; a page or an action gets the
+strict one. A middleware may set `Referrer-Policy` (`no-referrer` for a
+page whose address holds a secret).
 **Static files** — `public/assets/…`, served at `/assets/…`; the
 catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
 **A package the server needs** — `npm install it`; add it to `bundle` in

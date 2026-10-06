@@ -40,6 +40,10 @@ app.get("/chest/day", page(async () => {
   return { title: "Day", body: h("p", null, typeof day + " " + day) };
 }));
 app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
+app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
+app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
+app.use("/secret/*", async (c, next) => { await next(); c.header("Referrer-Policy", "no-referrer"); });
+app.get("/secret/:token", publicPage(() => ({ title: "Secret", body: h("p", null, "yours") })));
 
 const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
 let chest, database;
@@ -141,4 +145,17 @@ test("layouts receive the look (its logo) and the page's status; a visitor's 404
   assert.match(text, /data-status="404"/u);
   assert.match(text, /Ask whoever sent the link\./u);
   assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
+});
+
+test("a page's own head and exact title; a route's own policy and referrer policy are kept", async () => {
+  const company = await (await get("/company", null)).text();
+  assert.match(company, /<title>Atelier status<\/title>/u);
+  assert.match(company, /<meta name="robots" content="index, follow"\/>/u);
+  assert.match(await (await get("/", null)).text(), /<title>Public · Probe<\/title>/u);
+  const framed = await get("/framed", null);
+  assert.equal(framed.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors https://shop.test");
+  const secret = await get("/secret/abc", null);
+  assert.equal(secret.headers.get("referrer-policy"), "no-referrer");
+  assert.match(secret.headers.get("content-security-policy"), /frame-ancestors 'none'/u);
+  assert.equal((await get("/", null)).headers.get("referrer-policy"), "same-origin");
 });
