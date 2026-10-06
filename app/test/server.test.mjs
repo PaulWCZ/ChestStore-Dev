@@ -264,3 +264,12 @@ test("seen: any table of the tool's, forgotten after so many days", async () => 
   await mine.forget();
   assert.equal(await mine.has("evt_1"), false);
 });
+
+test("after a change in place, the focus goes to <main> only if nothing new took it", async () => {
+  const { focusMain } = await import("../dist/runtime.js");
+  const body = { isConnected: true }, gone = { isConnected: false }, panel = { isConnected: true };
+  assert.equal(focusMain(gone, body, body), true, "the focused link went: <main>");
+  assert.equal(focusMain(gone, panel, body), false, "a panel that arrived focused itself: kept");
+  assert.equal(focusMain(panel, panel, body), false, "the focused element stayed");
+  assert.equal(focusMain(body, body, body), false);
+});

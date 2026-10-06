@@ -130,3 +130,34 @@ test("files are recorded once the Chest holds them; search finds cards on visibl
   assert.ok(!(await cards.searchCards(sql, asMember(ines), "floor")).some(x => x.title === "Floor secret"));
   assert.deepEqual(await cards.searchCards(sql, asMember(ines), "%%%"), []);
 });
+
+test("cards added and moved at once never share a position; two that do are spread again by a move between them", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup("team");
+  // Eight quick adds sent at once (a person typing fast).
+  const made = await Promise.all(Array.from({ length: 8 }, (_, i) => cards.addCard(sql, asMember(hugo), b.id, todo.id, `C${i + 1}`)));
+  const rows = await sql<{ id: string; position: string }[]>`select id::text, position from cards where column_id = ${todo.id} order by position, id`;
+  assert.equal(new Set(rows.map(r => r.position)).size, rows.length, "every card its own key");
+  // A column left with two cards on one key (an earlier version): a drop
+  // between them lands between them, and the keys are written again.
+  await sql`update cards set position = (select position from cards where id = ${made[1]!.id}) where id = ${made[2]!.id}`;
+  await cards.moveCard(sql, asMember(hugo), made[7]!.id, todo.id, made[1]!.id, made[2]!.id);
+  const order = (await sql<{ title: string }[]>`select title from cards where column_id = ${todo.id} order by position, id`).map(r => r.title);
+  assert.equal(order.indexOf("C8"), order.indexOf("C2") + 1, "dropped right after C2: " + order.join(","));
+  const keys = await sql<{ position: string }[]>`select position from cards where column_id = ${todo.id}`;
+  assert.equal(new Set(keys.map(k => k.position)).size, keys.length);
+});
+
+test("a card restored after its key was given to another keeps a key of its own", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup("team");
+  const one = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "One");
+  await cards.archiveCard(sql, asMember(hugo), one.id, true);
+  // A card added on top takes a key below the first card shown: the
+  // archived one's, here.
+  const two = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Two", { top: true });
+  await sql`update cards set position = ${one.position} where id = ${two.id}`;
+  await cards.archiveCard(sql, asMember(hugo), one.id, false);
+  const keys = await sql<{ position: string }[]>`select position from cards where column_id = ${todo.id}`;
+  assert.equal(new Set(keys.map(k => k.position)).size, keys.length);
+});

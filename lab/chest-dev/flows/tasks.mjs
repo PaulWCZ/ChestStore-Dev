@@ -705,5 +705,99 @@ await step("phone width: the board scrolls sideways, the card panel fills the sc
   expect(box.width >= 385, "panel width " + box.width);
 });
 
+// ---- Review of 6 October: a board of its own for the drag, the panel and
+// quick add, so the steps above keep their data.
+let labUrl = null;
+await step("quick-add eight cards typed fast: they keep the order typed", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/boards");
+  await page.getByRole("button", { name: "New board" }).first().click();
+  await page.waitForFunction(() => document.activeElement?.id === "board-name");
+  await page.keyboard.type("Drag lab");
+  await page.getByRole("button", { name: "Create the board" }).click();
+  await page.waitForURL(/\/chest\/boards\/\d+$/u);
+  labUrl = page.url();
+  await page.locator(".lane").first().getByRole("button", { name: "Add a card" }).click();
+  for (let i = 1; i <= 8; i++) {
+    await page.getByPlaceholder("What needs doing?").fill("C" + i);
+    await page.keyboard.press("Enter");
+  }
+  await page.waitForTimeout(2500);
+  await page.reload();
+  const titles = await page.locator(".lane").first().locator(".card-title").allTextContents();
+  expect(titles.join("|") === "C1|C2|C3|C4|C5|C6|C7|C8", "order: " + titles.join("|"));
+});
+
+// Drags toward the bottom of an empty column, slowly (the layout changes
+// under the pointer as the card moves in: no loop, the board stays).
+async function dragTo(title, lane, { drop = true } = {}) {
+  const card = page.locator(".card", { hasText: new RegExp(`^${title}`, "u") }).first();
+  const target = page.locator(".lane").nth(lane);
+  const a = await card.boundingBox(), b = await target.boundingBox();
+  await page.mouse.move(a.x + 20, a.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(a.x + 40, a.y + 20, { steps: 5 });
+  for (const y of [0.5, 0.75, 0.9, 0.95, 0.8, 0.95]) await page.mouse.move(b.x + b.width / 2, b.y + b.height * y, { steps: 8 });
+  await page.waitForTimeout(300);
+  if (drop) await page.mouse.up();
+  else { await page.keyboard.press("Escape"); await page.mouse.up(); }
+  await page.waitForTimeout(1500);
+}
+const boardIntact = async () => {
+  expect(await page.getByRole("heading", { name: "Drag lab" }).isVisible(), "the board's header is there");
+  expect(await page.locator(".lane").count() >= 3, "the columns are there");
+  expect(!problems.some(p => /Maximum update depth|#185/u.test(p)), "no update loop: " + problems.join(" | "));
+};
+
+await step("drag a card into the bottom of an empty column: it lands there, the board stays", async () => {
+  await dragTo("C1", 1);
+  await boardIntact();
+  await page.reload();
+  const doing = await page.locator(".lane").nth(1).locator(".card-title").allTextContents();
+  expect(doing.join("|") === "C1", "Doing: " + doing.join("|"));
+});
+
+await step("start a drag toward the bottom of an empty column, Escape: nothing moves, the board stays", async () => {
+  await dragTo("C2", 2, { drop: false });
+  await boardIntact();
+  const todo = await page.locator(".lane").first().locator(".card-title").allTextContents();
+  expect(todo[0] === "C2", "C2 back in To do: " + todo.join("|"));
+  expect(await page.locator(".lane").nth(2).locator(".card").count() === 0, "Done still empty");
+});
+
+await step("another card opened shows its own panel: no draft of the last one, the focus in it", async () => {
+  await page.goto(labUrl);
+  const idOf = async title => page.locator(".card-handle", { hasText: new RegExp(`^${title}`, "u") }).getAttribute("data-card");
+  const c3 = await idOf("C3"), c4 = await idOf("C4");
+  await page.goto(`${labUrl}?card=${c3}`);
+  // C3 waits for C4: its link opens C4 in place, as Back and Forward do.
+  await page.locator("#add-blocker").selectOption(c4);
+  await page.locator(".links a", { hasText: "C4" }).waitFor();
+  await page.getByRole("button", { name: "Add a description" }).click();
+  await page.locator("#card-description").fill("Draft of C3");
+  await page.locator(".links a", { hasText: "C4" }).click();
+  await page.waitForURL(new RegExp(`card=${c4}`, "u"));
+  await page.waitForFunction(() => document.querySelector("#card-title")?.value === "C4");
+  expect(await page.locator("#card-description").count() === 0, "no editor left open from C3");
+  expect(await page.evaluate(() => !!document.activeElement?.closest(".panel")), "the focus is in C4's panel");
+  await page.goBack();
+  await page.waitForFunction(() => document.querySelector("#card-title")?.value === "C3");
+  expect(await page.locator("#card-description").count() === 0, "C3 again, its draft not kept");
+  await page.reload();
+  expect(!(await page.locator(".panel").innerText()).includes("Draft of C3"), "nothing of the draft was saved");
+});
+
+await step("closing a card gives the focus back to the card that opened it", async () => {
+  await page.goto(labUrl);
+  const handle = page.locator(".card-handle", { hasText: /^C5/u });
+  await handle.focus();
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/card=/u);
+  await page.keyboard.press("Escape");
+  await page.waitForURL(u => !/card=/u.test(String(u)));
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => document.activeElement?.textContent?.startsWith("C5") === true && document.activeElement.classList.contains("card-handle")), "focus on C5: " + await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80)));
+});
+
 await browser.close();
 done(problems);
