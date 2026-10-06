@@ -153,7 +153,7 @@ function GuestsField({ team, value, onChange, perPerson, t }: { team: ComposeDat
   const chips = [...value.members.map(m => ({ key: m.id, name: m.name, drop: () => onChange({ ...value, members: value.members.filter(x => x.id !== m.id) }) })),
     ...value.names.map(n => ({ key: "n:" + n, name: n, drop: () => onChange({ ...value, names: value.names.filter(x => x !== n) }) }))];
   return (
-    <div className="field-row">
+    <div className="field-row guests">
       <label htmlFor="guest">{t.form.guests}</label>
       {chips.length > 0 && (
         <ul className="guest-list">

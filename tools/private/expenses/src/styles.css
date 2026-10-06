@@ -406,6 +406,8 @@ span.pick { display: inline-block; width: 22px; }
 .lightbox-open { justify-self: start; }
 
 /* Guests at a meal: chips that can be taken off, and one field to add. */
+/* Who was at the table: a little more air between its parts. */
+.field-row.guests { gap: var(--space-2); }
 .guest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .guest-list .chip { cursor: default; padding-right: 4px; max-width: 100%; }
 .chip-x { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-2); cursor: pointer; }
