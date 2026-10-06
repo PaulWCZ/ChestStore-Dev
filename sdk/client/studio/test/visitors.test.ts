@@ -51,10 +51,16 @@ test("counting: per visitor, per hour for everyone, and the Chest's ceiling per 
     for (let i = 0; i < 3; i++) assert.equal((await visitors.count(a, "contact", { perVisitor: 10, perHour: 100 })).allowed, true);
     assert.equal((await visitors.count(a, "contact", { perVisitor: 10, perHour: 100 })).allowed, false);
     await assert.rejects(visitors.count(a, "Bad Name", { perVisitor: 1, perHour: 1 }));
-    // A robot that writes a new X-Forwarded-For at every request is still
-    // one visitor: without the front's address, all count together.
-    for (let i = 0; i < 2; i++) assert.equal((await visitors.count(new Headers({ "x-forwarded-for": `192.0.2.${i}` }), "forged", { perVisitor: 2, perHour: 100 })).allowed, true);
-    assert.equal((await visitors.count(new Headers({ "x-forwarded-for": "192.0.2.99" }), "forged", { perVisitor: 2, perHour: 100 })).allowed, false);
+    // Without the front's address (X-Forwarded-For is never read), a
+    // visitor is nobody in particular: perVisitor does not apply — a few
+    // requests must not close the form for everybody —, only perHour.
+    for (let i = 0; i < 8; i++) assert.equal((await visitors.count(new Headers({ "x-forwarded-for": `192.0.2.${i}` }), "forged", { perVisitor: 2, perHour: 10 })).allowed, true);
+    for (let i = 0; i < 2; i++) assert.equal((await visitors.count(new Headers(), "forged", { perVisitor: 2, perHour: 10 })).allowed, true);
+    const ceiling = await visitors.count(new Headers(), "forged", { perVisitor: 2, perHour: 10 });
+    assert.deepEqual([ceiling.allowed, ceiling.retryAfter > 0], [false, true], "the ceiling for everyone still holds");
+    // An unknown visitor does not use up the Chest's ceiling per address
+    // (6 an hour here) for the others either.
+    assert.equal((await visitors.count(new Headers(), "other", { perVisitor: 1, perHour: 100 })).allowed, true);
   } finally {
     await fake.close();
   }

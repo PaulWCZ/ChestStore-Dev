@@ -14,12 +14,6 @@
     "people.leaving_cancelled",
     "people.record"
   ],
-  "schedules": [
-    {
-      "name": "morning",
-      "cron": "30 8 * * 1-5"
-    }
-  ],
   "translations": {
     "fr": {
       "title": "Congés",

@@ -3,8 +3,9 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
-import { applies, AppError as BrowserError } from "../dist/client.js";
+import { formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { AppError as BrowserError } from "../dist/client.js";
+import { applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
@@ -24,18 +25,29 @@ const actions = {
   go: action({}, async () => redirect("/chest/elsewhere")),
   big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
   refuse: action({}, async () => fail("forbidden")),
-  shout: publicAction({ text: field.text({ max: 5 }) }, async () => null),
+  shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
+  write: publicAction({ text: field.text({ max: 5 }) }, async ({ text }) => { if (text === "taken") fail("invalid"); written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
+  book: publicAction({ secret: field.text({ min: 0, max: 20 }) }, async ({ secret }, { charge }) => {
+    if (secret && secret !== "s3cret") fail("forbidden"); // checked before it counts
+    await charge(secret ? "change" : "new");
+    written++;
+    return null;
+  }, { bound: { budgets: { new: { perVisitor: 1, perDay: 10 }, change: { perVisitor: 3, perDay: 10 } }, formMinutes: 30 } }),
+  patient: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 5, formSeconds: 1 } }),
+  forgot: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 1 } } } }),
 };
 let completed = 0;
-const layout = ({ notice, look, status, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "" }, notice && h("p", { role: "alert" }, notice), children);
+let written = 0;
+const layout = ({ notice, look, status, data, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "", "data-trash": String(data.trash ?? "none") }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en", "fr"], words: locale => (locale === "fr" ? { ...words, tool: { name: "Sonde" } } : words), layouts: { members: layout, public: layout },
   look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: { url: "/_chest/theme/brand/logo.svg", alt: "Brand" } }),
   complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
 app.post("/p/:link/actions/:name", publicActionsAt());
+app.post("/chest/import", rawRoute({ maxBytes: 100 }, (body, { viewer, c }) => c.json({ bytes: body.length, who: viewer.member?.id ?? null })));
 app.get("/chest/groups", page(({ member }) => ({ title: "Groups", body: h("p", null, member.groups.join(",")) })));
-app.get("/chest", page(({ t }) => ({ title: "Home", body: h("div", null, h(Island, { name: "Labelled", props: { label: "A" } }), h(Island, { name: "Labelled", props: { label: "B" } }), t.tool.name) })));
+app.get("/chest", page(({ t }) => ({ title: "Home", layout: { trash: true }, body: h("div", null, h(Island, { name: "Labelled", props: { label: "A" } }), h(Island, { name: "Labelled", props: { label: "B" } }), t.tool.name) })));
 app.get("/chest/day", page(async () => {
   const [{ day }] = await db()`select date '2026-10-05' as day`;
   return { title: "Day", body: h("p", null, typeof day + " " + day) };
@@ -43,7 +55,9 @@ app.get("/chest/day", page(async () => {
 app.get("/chest/refused", page(() => fail("forbidden")));
 app.get("/chest/missing", page(() => fail("not_found")));
 app.get("/chest/invalid", page(() => fail("invalid")));
-app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
+app.get("/chest/own-policy", page(() => new Response("framed", { headers: { "content-security-policy": "frame-ancestors https://partner.example" } })));
+app.post("/chest-schedules", () => { throw new Error("boom"); });
+app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot), h("p", null, "hello")) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
 app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
 app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
@@ -52,7 +66,7 @@ app.get("/secret/:token", publicPage(() => ({ title: "Secret", body: h("p", null
 
 const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
 let chest, database;
-before(async () => { chest = await fakeChest({ members: [member] }); database = await testDatabase({ migrations: "test/no-migrations" }); });
+before(async () => { chest = await fakeChest({ members: [member], chest: { timeZone: "Pacific/Kiritimati" } }); database = await testDatabase({ migrations: "test/no-migrations" }); });
 after(async () => { await database.close(); await chest.close(); });
 
 const url = path => `https://tool.test${path}`;
@@ -167,11 +181,11 @@ test("the script is linked by its hashed name, never with a query: a chunk an is
 
 test("layouts receive the look (its logo) and the page's status; a visitor's 404 says its own words", async () => {
   const home = await (await get("/chest")).text();
-  assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg"/u);
+  assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg" data-trash="true"/u, "and what the page told it (View.layout)");
   const missing = await get("/nothing", null);
   assert.equal(missing.status, 404);
   const text = await missing.text();
-  assert.match(text, /data-status="404"/u);
+  assert.match(text, /data-status="404"[^>]*data-trash="none"/u);
   assert.match(text, /Ask whoever sent the link\./u);
   assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
 });
@@ -263,6 +277,118 @@ test("seen: any table of the tool's, forgotten after so many days", async () => 
   await db()`update my_seen set at = now() - interval '40 days'`;
   await mine.forget();
   assert.equal(await mine.has("evt_1"), false);
+});
+
+test("rawRoute: the body counted while read, 413 past the cap (chunked too), 403 cross-site", async () => {
+  const ok = await post("/chest/import", "x".repeat(50), { "content-type": "application/octet-stream" });
+  assert.deepEqual(await ok.json(), { bytes: 50, who: member.id });
+  assert.equal((await post("/chest/import", "x".repeat(200), { "content-type": "application/octet-stream" })).status, 413);
+  const chunked = new ReadableStream({ start(controller) { for (let i = 0; i < 5; i++) controller.enqueue(new TextEncoder().encode("x".repeat(40))); controller.close(); } });
+  const request = withMember(new Request(url("/chest/import"), { method: "POST", body: chunked, duplex: "half", headers: { "sec-fetch-site": "same-origin" } }), member);
+  assert.equal(request.headers.get("content-length"), null);
+  assert.equal((await app.fetch(request)).status, 413);
+  assert.equal((await post("/chest/import", "x", { "sec-fetch-site": "cross-site" })).status, 403);
+});
+
+test("zipStream: a zip any reader opens, written as it is read", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  async function* entries() {
+    yield { name: "notes.csv", data: "id,body\r\n1,héllo\r\n" };
+    yield { name: "files/photo.bin", data: (async function* () { yield new Uint8Array([1, 2, 3]); yield new Uint8Array(70000).fill(7); })() };
+    yield { name: "vide.txt", data: new Uint8Array() };
+  }
+  const bytes = new Uint8Array(await new Response(zipStream(entries())).arrayBuffer());
+  const file = join(mkdtempSync(join(tmpdir(), "zip-")), "export.zip");
+  writeFileSync(file, bytes);
+  assert.match(execFileSync("unzip", ["-t", file]).toString(), /No errors detected/u);
+  assert.equal(execFileSync("unzip", ["-p", file, "notes.csv"]).toString(), "id,body\r\n1,héllo\r\n");
+  assert.equal(execFileSync("unzip", ["-p", file, "files/photo.bin"]).length, 70003);
+  await assert.rejects(new Response(zipStream([{ name: "../evil", data: "x" }])).arrayBuffer(), RangeError);
+});
+
+test("a route's own policy is kept; failures named by what failed", async () => {
+  assert.equal((await get("/chest/own-policy")).headers.get("content-security-policy"), "frame-ancestors https://partner.example");
+  assert.match((await get("/chest/day")).headers.get("content-security-policy"), /^default-src 'self'/u);
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    await app.fetch(new Request(url("/chest-schedules"), { method: "POST" }));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /^error "schedule failed"/mu);
+});
+
+test("the database runs in the Chest's zone (a far one)", async () => {
+  const { chest: sdkChest } = await import("@argentic/chest-sdk/chest");
+  const [{ day }] = await db()`select current_date::text as day`;
+  assert.equal(day, sdkChest.today());
+});
+
+test("a public action's bound: a form token served once, then counted per visitor and for everyone; the honeypot", async () => {
+  await db()`create table if not exists chest_bounds (scope text, visitor text, day date, count integer not null, primary key (scope, visitor, day))`;
+  await db()`create table if not exists chest_seen (id text primary key, at timestamptz not null default now())`;
+  const send = (name, fields, { cookie, address, form = formToken() } = {}) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, ...(form ? { chest_form: form } : {}) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}), ...(address ? { "chest-visitor-address": address } : {}) } }));
+  // The public page carries a token, in its <meta> and in <Honeypot />'s field.
+  const home = await (await get("/", null)).text();
+  const token = /<meta name="chest-form" content="([^"]+)"/u.exec(home)?.[1];
+  assert.ok(token);
+  assert.match(home, new RegExp(`name="chest_form" value="${token.replace(/[.]/gu, "\\.")}"`, "u"));
+  assert.doesNotMatch(await (await get("/chest")).text(), /chest-form/u, "a member's page has none");
+  // Junk costs nothing: no token, a forged one, an old one, invalid fields.
+  for (const form of [null, "1.2.3", formToken(Date.now() - 3 * 3600_000)]) {
+    const junk = await send("write", { text: "a" }, { form });
+    assert.equal(junk.status, 400);
+    assert.equal((await junk.json()).error, "expired");
+  }
+  assert.equal((await send("write", { text: "toolong" })).status, 400);
+  assert.equal((await send("write", { text: "taken" })).status, 400, "a run that refuses gives its count back");
+  // A token serves once (the answer brings the next).
+  const once = formToken();
+  const first = await send("write", { text: "a" }, { form: once });
+  assert.equal(first.status, 200);
+  assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.[\w-]+$/u);
+  assert.equal((await (await send("write", { text: "a" }, { form: once })).json()).error, "expired");
+  const cookie = /chest_v=[\w-]+/u.exec(first.headers.get("set-cookie") ?? "")?.[0];
+  assert.ok(cookie, "a visitor cookie, for the next calls");
+  // That first call had no cookie yet: everyone's count only.
+  assert.equal((await send("write", { text: "b" }, { cookie })).status, 200);
+  assert.equal((await send("write", { text: "c" }, { cookie })).status, 200);
+  const third = await send("write", { text: "d" }, { cookie });
+  assert.equal(third.status, 429, "this browser's two");
+  assert.equal((await third.json()).error, "limit");
+  assert.equal((await send("write", { text: "e" }, { cookie: "chest_v=anotherbrowseranotherbrowser" })).status, 429, "everyone's three");
+  const before = written;
+  assert.equal((await send("write", { text: "f", website: "spam.example" })).status, 200, "a robot is answered done");
+  assert.equal(written, before, "and nothing is done");
+});
+
+test("budgets by kind, charged once the request is checked; a visitor known by the front's address", async () => {
+  const send = (fields, address) => app.fetch(new Request(url("/actions/book"), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", "chest-visitor-address": address } }));
+  for (let i = 0; i < 5; i++) assert.equal((await send({ secret: "wrong" }, "203.0.113.7")).status, 403, "a wrong secret spends nothing");
+  const made = await send({}, "203.0.113.7");
+  assert.equal(made.status, 200, JSON.stringify(await made.clone().json()));
+  assert.equal((await send({}, "203.0.113.7")).status, 429, "one new booking");
+  for (let i = 0; i < 3; i++) assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 200, "changes have their own budget");
+  assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 429);
+  assert.equal((await send({}, "2001:db8::1")).status, 200, "another address");
+  const started = Date.now();
+  const quick = await app.fetch(new Request(url("/actions/patient"), { method: "POST", body: JSON.stringify({ chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  assert.equal(quick.status, 200);
+  assert.ok(Date.now() - started >= 950, "a form sent at once waits its formSeconds");
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    await app.fetch(new Request(url("/actions/forgot"), { method: "POST", body: JSON.stringify({ chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /public action ran without charge\(\)/u, "a run that forgets charge() is said loudly");
 });
 
 test("after a change in place, the focus goes to <main> only if nothing new took it", async () => {

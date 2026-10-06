@@ -7,7 +7,6 @@ import { fill as format, type Catalogue, type Locale } from "../i18n/index.ts";
 import { guestMailOffered } from "../lib/agenda.ts";
 import { dates, optionText } from "../lib/dates.ts";
 import type { Sql } from "../lib/db.ts";
-import { formToken } from "../lib/guard.ts";
 import { guestCookie } from "../lib/guest-cookie.ts";
 import { byLink, mine } from "../lib/guests.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -78,7 +77,6 @@ export async function guestPage({ sql, t, locale, cookies }: { sql: Sql; t: Cata
         <Island name="GuestForm" props={{
           link,
           pollId: poll.id,
-          token: formToken(),
           options,
           signup: poll.slots !== null,
           mailOn,

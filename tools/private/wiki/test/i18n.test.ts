@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { en } from "../lib/i18n/en.ts";
-import { catalogue, format, locales, plural, publicLocale } from "../lib/i18n/index.ts";
+import { en } from "../src/i18n/en.ts";
+import { checkWords } from "@argentic/chest-app/testing";
+import { catalogue, format, locales, plural } from "../src/i18n/index.ts";
 
 // Every catalogue has exactly the keys of the English one, no empty word,
 // and the same {placeholders} in each word.
@@ -22,15 +23,12 @@ test("every language has every word of English, none empty, with the same placeh
       assert.ok(text.trim().length > 0, `${locale}: ${key} is empty`);
       assert.equal(placeholders(text), placeholders(source.get(key)!), `${locale}: ${key} placeholders`);
     }
-    assert.equal(catalogue(locale).meta.lang, locale);
+    assert.equal(catalogue(locale).tool.lang, locale);
   }
 });
 
-test("the public part's language: the visitor's choice, then the browser's, then English", () => {
-  assert.equal(publicLocale("fr", "en-GB"), "fr");
-  assert.equal(publicLocale(undefined, "de-DE,fr;q=0.8,en;q=0.5"), "fr");
-  assert.equal(publicLocale("xx", "de"), "en");
-  assert.equal(publicLocale(undefined, null), "en");
+test("the package's word rules: same keys and placeholders, French typography", () => {
+  checkWords(Object.fromEntries(locales.map(l => [l, catalogue(l)])));
 });
 
 test("plurals and placeholders follow the language", () => {
@@ -43,7 +41,7 @@ test("plurals and placeholders follow the language", () => {
 });
 
 test("the example handbook exists in every language and links its own pages", async () => {
-  const { fromMarkdown } = await import("../lib/markdown.ts");
+  const { fromMarkdown } = await import("../src/lib/markdown.ts");
   for (const locale of locales) {
     const starter = catalogue(locale).starter;
     const keys = Object.keys(starter.pages);

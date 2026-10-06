@@ -137,3 +137,24 @@ test("the limit is per type and per host: Hugo's bookings do not fill Inès's da
   await b.book(sql, host, type, { ...guest(2), start: tuesday(9) }, monday);
   assert.equal((await b.freeTimes(sql, host, type, "2026-10-06", "2026-10-06", monday)).length, 0);
 });
+
+test("a host blocking a time and a visitor booking it at the same moment: never both", async () => {
+  const { sql, host, type } = await ready();
+  for (let round = 0; round < 5; round++) {
+    const start = new Date(Date.parse("2026-10-06T08:00:00Z") + round * 3600000);
+    const minutes = 600 + round * 60;
+    const results = await Promise.allSettled([
+      b.blockTime(sql, asMember(ines), { day: "2026-10-06", from: minutes, to: minutes + 30, note: "" }, monday),
+      b.book(sql, host, type, { ...guest(round), start: start.toISOString() }, monday),
+    ]);
+    assert.ok(results.some(r => r.status === "fulfilled"), "one of them holds");
+    const booked = results[1].status === "fulfilled";
+    const blocked = results[0].status === "fulfilled";
+    // A block may be laid over a meeting already made (the host's choice);
+    // a booking is never made into a time already blocked.
+    if (booked && blocked) {
+      const [row] = await sql<{ made: Date; laid: Date }[]>`select b.created_at as made, k.created_at as laid from bookings b, blocks k where b.member_id = ${ines.id} and k.member_id = ${ines.id} and b.starts_at = ${start} and lower(k.span) = ${start}`;
+      assert.ok(row && row.made.getTime() <= row.laid.getTime(), "the booking came first");
+    }
+  }
+});

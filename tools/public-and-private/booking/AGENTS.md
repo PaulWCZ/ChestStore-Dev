@@ -141,11 +141,18 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
 - **Dates in islands**: written on the server (the page's props carry
   them as text), or with `src/i18n/format.ts` (one Intl object per
   language, zone and style — never one per row).
-- **The public part's writes are bounded**: the form's guard
-  (`src/lib/guard.ts`: a honeypot field, the signed "shown at" time, the
-  Chest's visitor counters when it has them, else `form_counts`: per
-  visitor — `visitors.address()`, never `X-Forwarded-For` — per hour for
-  everyone, and a daily cap). A new public action calls `admit()`.
+- **The public part's writes are bounded, and only valid ones count**:
+  `src/actions.ts` refuses what could never write anything (honeypot,
+  the form's token — two hours, one booking, `claimForm` —, the type
+  found, a well-formed time, `changeAllowed` for a guest's link) before
+  `admit()` counts it, by kind (`new`, `change`) and subject (the token,
+  the link), per visitor (`visitors.address()`, else the `chest_v`
+  cookie; never `X-Forwarded-For`), for everyone per hour and a daily cap
+  (`form_counts`). A new public action does the same. (The package's
+  `bound`/`charge()` of chest-app studio.3 is the same design: switch to
+  it when it is vendored.)
+- **Calendar UIDs** are `Booking.uid` (`calendarUid`): never build one by
+  hand; bookings made before migration 0007 keep `booking-<id>@chest`.
 - Identity from `member()` only (the package's `page()`/`action()`);
   rights in `src/lib/access.ts`; words in every catalogue; islands and
   `src/components/` import only `src/shared/`, `src/i18n/format.ts`, the

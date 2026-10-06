@@ -327,8 +327,8 @@ Wiki's spaces kept to groups).
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`, and the
-studio's app machinery `@argentic/chest-app` (0.1.0-studio.1).
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`, and the
+studio's app machinery `@argentic/chest-app` (0.1.0-studio.3).
 
 - `member.language` (SDK 0.3.0 and later): the interface in each member's language;
   `members.*` `language` for the bell and emails in the recipient's.

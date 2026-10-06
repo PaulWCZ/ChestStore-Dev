@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { busySnapshot } from "../lib/busy-snapshot.ts";
-import { shareBusy } from "../lib/busy.ts";
-import { addDays } from "../lib/calendar.ts";
-import { putAll, state, sync, type Row } from "../lib/leave-calendar.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { keepInLine } from "../lib/share.ts";
-import { instants, zoned } from "../lib/spans.ts";
-import { setApprover } from "../lib/staff.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { busySnapshot } from "../src/lib/busy-snapshot.ts";
+import { shareBusy } from "../src/lib/busy.ts";
+import { addDays } from "../src/shared/calendar.ts";
+import { putAll, state, sync, type Row } from "../src/lib/leave-calendar.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { keepInLine } from "../src/lib/share.ts";
+import { instants, zoned } from "../src/lib/spans.ts";
+import { setApprover } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -25,7 +25,7 @@ const zone = "Europe/Paris";
 before(async () => {
   database = await testDatabase({ timeZone: zone });
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({
+  chest = await fakeChest({ network: {},
     tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone },
     capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Leave", company: "Atelier Martin" },
     emits: ["leave.approved", "leave.cancelled", "leave.busy"], receivers: 1,
@@ -190,14 +190,14 @@ test("erased: the events go, and what was told of them is forgotten", async () =
 test("a Chest without the calendar: nothing fails, the home stops promising it, asked again in the morning", async () => {
   const { sql } = database;
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, calendar: false });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, calendar: false });
   const monday = quietMonday(63);
   const r = await requests.createRequest(sql, asMember(tom), { typeId: sick, start: monday, startHalf: "am", end: monday, endHalf: "pm" });
   await keepInLine(sql);
   assert.equal(await state(sql), "off");
   assert.deepEqual(await sync(sql), { put: 0, removed: 0 }, "not asked again within the hour");
   await chest.close();
-  chest = await fakeChest({ tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, tool: "leave", members: everyone, groups: fakeGroups, chest: { timeZone: zone }, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test" } });
   await sync(sql, { recheck: true });
   assert.equal(await state(sql), "on");
   assert.ok(chest.calendar.has(`leave:${r.id}`));

@@ -2,12 +2,12 @@
 // (the harness runs the tool with --reset: the sample company is there).
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
-import { as, control, done, expect, id, open, step } from "./lib.mjs";
+import { as, control, done, expect, id, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4400);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(approvals|settings|people)$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
-const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, "/t_leave"), { max: 1, onnotice: () => {} });
+const db = postgres(toolDatabase("leave", port), { max: 1, onnotice: () => {} });
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const day = d => d.toISOString().slice(0, 10);
 const plus = (d, n) => new Date(d.getTime() + n * 864e5);
@@ -26,9 +26,11 @@ const typeDay = async (selector, value) => {
   await page.locator(selector).press("Enter");
 };
 
-// A Monday about ten weeks ahead; the flow moves a week on if a public
-// holiday makes the week cost less than 5 days.
-let monday = plus(new Date(), 70);
+// A Monday about seven weeks ahead; the flow moves a week on if a public
+// holiday makes the week cost less than 5 days. Seven, so that the week
+// stays inside the 90 days of busy times told to Booking even when the
+// weeks around Christmas are skipped.
+let monday = plus(new Date(), 49);
 while (monday.getUTCDay() !== 1) monday = plus(monday, 1);
 
 async function ask(start, end, options = {}) {
@@ -675,7 +677,9 @@ await step("Inès leaves: her approved leave after the last day is cancelled, th
   await page.goto(origin + "/chest/people/" + id("ines"));
   const after = await page.locator(".balance", { hasText: "Paid leave" }).locator(".balance-figure strong").innerText();
   expect(Number(after) === Number(before) + 0.5, "the half day comes back: " + before + " → " + after);
-  expect(await page.locator(".ledger tr", { hasText: "After their last day" }).count() === 1, "the ledger says why");
+  // The paid half day's line (her RTT day after the last day, when the
+  // seed's dates put one there, has its own).
+  expect(await page.locator(".ledger tr", { hasText: "After their last day" }).filter({ hasText: "Paid leave" }).count() === 1, "the ledger says why");
   expect((await page.locator(".requests").innerText()).includes("Cancelled"), "the leave is cancelled");
 });
 

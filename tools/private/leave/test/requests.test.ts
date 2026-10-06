@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addDays } from "../lib/calendar.ts";
-import { balances } from "../lib/balances.ts";
-import * as requests from "../lib/requests.ts";
-import { archiveType, saveType, types } from "../lib/rules.ts";
-import { setApprover, setStartDate } from "../lib/staff.ts";
-import * as tell from "../lib/tell.ts";
-import { today } from "../lib/today.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addDays } from "../src/shared/calendar.ts";
+import { balances } from "../src/lib/balances.ts";
+import * as requests from "../src/lib/requests.ts";
+import { archiveType, saveType, types } from "../src/lib/rules.ts";
+import { setApprover, setStartDate } from "../src/lib/staff.ts";
+import * as tell from "../src/lib/tell.ts";
+import { today } from "../src/lib/today.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -22,7 +22,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
   const all = await types(database.sql);
   paid = all.find(t => t.key === "paid")!.id;
   sick = all.find(t => t.key === "sick")!.id;

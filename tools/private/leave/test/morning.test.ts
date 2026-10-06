@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import * as requests from "../lib/requests.ts";
-import { types } from "../lib/rules.ts";
-import { setApprover } from "../lib/staff.ts";
+import { chestSchedules as POST } from "../src/calls.ts";
+import { reminderAfterDays } from "../src/lib/morning.ts";
+import * as requests from "../src/lib/requests.ts";
+import { types } from "../src/lib/rules.ts";
+import { setApprover } from "../src/lib/staff.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { asMember } from "./support/member.ts";
@@ -17,7 +18,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups, schedules: [{ name: "morning", cron: "30 8 * * 1-5" }] });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
 });
 after(async () => {
   await chest.close();
@@ -29,7 +30,7 @@ test("the weekday morning reminds approvers of requests waiting more than two da
   await setApprover(sql, asMember(camille), hugo.id, ines.id);
   const paid = (await types(sql)).find(t => t.key === "paid")!.id;
   const old = await requests.createRequest(sql, asMember(hugo), { typeId: paid, ...week(quietMonday(30)) });
-  await sql`update requests set created_at = now() - interval '3 days' where id = ${old.id}`;
+  await sql`update requests set created_at = now() - make_interval(days => ${reminderAfterDays + 1}) where id = ${old.id}`;
   await requests.createRequest(sql, asMember(sofia), { typeId: paid, ...week(quietMonday(30)) }); // new: no reminder yet
   assert.equal(await chest.run("morning", POST), 204);
   assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key, n.path]), [[ines.id, "1 demande attend votre réponse", "reminder", "/chest/approvals"]]);
@@ -41,6 +42,6 @@ test("the weekday morning reminds approvers of requests waiting more than two da
 });
 
 test("a run not signed by the Chest is refused", async () => {
-  const response = await POST(new Request("http://tool.test/chest-jobs/morning", { method: "POST", body: "{}" }));
+  const response = await POST(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}" }));
   assert.equal(response.status, 401);
 });

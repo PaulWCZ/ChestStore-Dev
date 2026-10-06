@@ -29,7 +29,6 @@ export const en = {
     closed: "This poll is closed. The organiser is choosing the date.",
     yourAnswerKept: "Thanks, {name}: your answer was counted.",
     privacy: "The organiser and the people asked in the company see your name and your answer. You see only your own.",
-    honey: "Leave this field empty",
   },
   pages: {
     notFound: {
@@ -462,7 +461,8 @@ export const en = {
     no_answer: "Answer at least one question.",
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
-    too_fast: "That was quick! Wait a second and send it again.",
+    limit: "Too many answers from here today. Try again tomorrow.",
+    expired: "This page was open too long. Reload it, then send your answer again.",
     bad_email: "This email address does not look right.",
     guests_full: "This poll has all the guests it can take ({max}).",
   },

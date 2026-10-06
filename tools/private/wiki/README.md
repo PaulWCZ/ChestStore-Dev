@@ -193,8 +193,10 @@ corners and logo), for all its tools or for the wiki alone. Every feature
 is the same in every look, and every text stays readable (the kit's
 contract, WCAG AA, light and dark); in brand mode the company's logo
 stands where the book mark does. The look is resolved on the server
-(`lib/theme.ts`, `chest.theme()` of the SDK — Proposal (studio)): no
-script, no flash of the wrong look. The shared pieces — toasts with a
+(`src/theme.ts`, `chest.theme()` of the SDK — Proposal (studio)) and
+served as a stylesheet of its own (`/chest/look.css`, kept by the browser
+until the company chooses another look): no script, no inline style, no
+flash of the wrong look. The shared pieces — toasts with a
 truthful Undo, dialogs, the shell with its labelled tabs, menus, the file
 picker… — are the store's UI kit (`@argentic/chest-ui`), so the wiki
 behaves like the other tools.
@@ -216,8 +218,8 @@ creator and the Chest's admins, whatever their role (a page they cannot
 see answers "not found" — and so do its comments, by page or by
 comment id, including a page moved to a space the member cannot read).
 Nobody is told in the bell about a page they cannot read now. Rules are
-enforced on the server in `lib/access.ts`, `lib/comments.ts` and
-`lib/tell.ts` (tested in `test/access.test.ts`, `test/comments.test.ts`,
+enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
+`src/lib/tell.ts` (tested in `test/access.test.ts`, `test/comments.test.ts`,
 `test/templates-reviews.test.ts`).
 
 ## First minute
@@ -264,11 +266,11 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
 | `/chest/import` | Import Confluence, Notion, Google Docs, Word, Markdown, HTML |
 | `/chest/trash` | Deleted pages |
 | `/chest/files/<id>` | Opens an image or file of a page (a fresh 15-minute link from the Chest) |
-| `/chest/api/pages/<id>/upload` | POST authorises an upload, PUT records it |
+| `/chest/actions/<name>` | Every change, by name (`src/actions.ts`): pages, spaces, comments, the editor's lock and drafts, uploads (`requestUpload`, then `recordUpload` once the Chest holds the file)… — sent by the page itself only |
 | `/chest/api/import` | POST the import's files (form) |
 | `/chest/api/pages/<id>/leave` | POST (a beacon, same origin only): the editor closed; gives the lock back, keeps the draft |
 | `/chest-events` | The members' lifecycle, signed by the Chest |
-| `/chest-jobs/reviews` | The `reviews` schedule (Proposal (studio)), signed by the Chest: weekdays 07:40 |
+| `/chest-schedules` | The `reviews` schedule (`chest.json`, contract 0.4), signed by the Chest: weekdays 07:40, the Chest's time |
 
 ## On a Chest
 
@@ -278,8 +280,8 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
   items: comments, saves of watched pages, reviews due; keyed
   `comments:<page>`, `saved:<page>`, `review:<page>`, withdrawn when the
   page goes to the trash or moves where the person cannot read it; also
-  `read:<page>`, `mention:<page>`). No network. Schedule (proposal, `chest.proposals.json`): `reviews`,
-  `40 7 * * 1-5`.
+  `read:<page>`, `mention:<page>`). No network. Schedule (`chest.json`): `reviews`,
+  `40 7 * * 1-5`, on the Chest's clock.
 - **Database**: `migrations/0003_search_editors_reads.sql` indexes
   hyphenated words joined too (`wiki_compounds`), keeps the wiki's words
   for typos (`search_words`, filled by a trigger), adds the lock's
@@ -315,21 +317,23 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
   (an HTML page up to 8 MiB), zip entries bounded (5,000 entries, 32 MiB each,
   256 MiB in all, sizes checked before inflating, paths cleaned).
 - **Security**: content is ProseMirror JSON checked on the server against
-  the schema of `lib/doc.ts` (unknown nodes, marks and attributes dropped;
+  the schema of `src/lib/doc.ts` (unknown nodes, marks and attributes dropped;
   links http, https, mailto or the wiki's own pages and files; images only
   from the wiki's files) and turned into HTML by the server
-  (`lib/render.ts`), every word escaped. Imported Markdown never keeps raw
-  HTML. A strict nonce Content-Security-Policy on every page.
+  (`src/lib/render.ts`), every word escaped. Imported Markdown never keeps raw
+  HTML. A strict Content-Security-Policy on every page: the wiki's own
+  scripts and stylesheets only, no inline script, no inline style.
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`:
-`member.language` and `member.timeZone` (the interface in each member's
-language, times in their zone), `chest.today()` in the Chest's zone for
-the day of a reminder's key (0.3.0). Uses the working copy's **schedules** proposal (`reviews`, weekday
-mornings) for review reminders; on a Chest without it, reminders stay set
-and due pages still ask their editors "Still correct?" and show on the home
-page — only the bell item is missing. Bell items need `notifications`
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`, on
+the tool contract 0.4: `member.language` and `member.timeZone` (the
+interface in each member's language, times in their zone), `chest.today()`
+in the Chest's zone for the day of a reminder's key, **schedules**
+(`reviews`, weekday mornings, on `POST /chest-schedules`) for review
+reminders and read reminders, `chest.tool.teamUrl` for the links an export
+writes back to the wiki, and lookup's `no_access` (someone still in the
+Chest who lost the wiki is named "Léa Dubois (no access)"). Bell items need `notifications`
 (a Chest that refuses them loses nothing else). What would make it better
 (details in the studio's SDK report):
 
@@ -342,15 +346,12 @@ page — only the bell item is missing. Bell items need `notifications`
   concerns. Watchers who lose a space through a group change still keep
   old bell items until the page changes.
 
-- **The team host's address** (e.g. `CHEST_ORIGIN`, or `chest.origin()`):
-  exports write links back to the wiki; today the address is taken from the
-  forwarded host (`lib/origin.ts`).
 - **A live channel** (server-sent events or a presence API) — for real
   co-editing some day; today a lock and drafts stand in for it.
 - **Localized manifest titles**: `chest.json` has one `title`.
 - `groups` — **Proposal (studio)**, declared (`"groups": "read"`, as
   News): `members.groups.all()` gives every group of the Chest, for "who
-  reads", "who edits" and "ask to confirm" (lib/groups.ts; without it,
+  reads", "who edits" and "ask to confirm" (`src/lib/groups.ts`; without it,
   the groups that give the wiki, as before). 0.3.0's `member.groups`
   lists only the groups that give the wiki — none for a wiki open to
   everyone —, so whether someone is in a group is asked of the Chest:
@@ -359,7 +360,7 @@ page — only the bell item is missing. Bell items need `notifications`
   on `member.updated` (groups) and `group.*`.
 - `mail` — **Proposal (studio)**, declared (`"mail": {"send": true}`, as
   News, Tasks, Polls and Goals): read requests, reminders and review
-  reminders by email (lib/mail.ts). On a Chest without mail, nothing is
+  reminders by email (`src/lib/mail.ts`). On a Chest without mail, nothing is
   sent and nothing fails: the bell has told them. "Ask readers to confirm"
   and "Remind those who have not confirmed" ask the Chest first
   (`mail.available()`, studio.16; `mailNow`) and say "in the bell" only
@@ -374,18 +375,56 @@ page — only the bell item is missing. Bell items need `notifications`
   with the member's assertion like any other request (untested on a real
   Chest). Without it, the two-minute lease still frees the page.
 
+## How it is made
+
+The studio's starter stack: a **Hono** server that renders **React** pages,
+with a few **islands** in the browser, built by **Vite** — on the vendored
+package `@argentic/chest-app` (the machinery: pages, typed actions,
+`call()`, `refresh()`, `navigate()`, the strict policy, words and formats,
+logs, the database, test helpers), the SDK and the UI kit. Every route is
+in `src/app.tsx`; every change goes through a named action of
+`src/actions.ts`; the rules and SQL are in `src/lib/`; the pages
+(`src/pages/`) are rendered on the server, and only what people act on
+runs in the browser (`src/islands/`: the sidebar's tree, dialogs, a page's
+actions, comments, the editor). **Tiptap**, the editor, is a script of its
+own fetched only when the editor opens: the other pages never load it,
+and the server never holds it. `AGENTS.md` maps the folders.
+
+Moved from Next.js 16 in October 2026, with every feature, word, test and
+screen kept: the browser flow passes its 39 steps unchanged in what it
+checks (plus Google Docs' bold now kept on paste), the screens match the
+earlier ones, the audit finds nothing on 38 screens.
+
+Measured with the studio's bench (`lab/measure/measure.mjs`, same method
+for every tool: the image built as the Chest builds it, 10 cold starts,
+memory of the process tree at rest after 19 pages, 5 rests of 30 s; Node
+24.21, 4 CPUs; 6 October 2026, `results/after-package/wiki.json`), against
+the Next.js version (`results/before-next16/wiki.json`, 5 October):
+
+| | Next.js 16 | Starter stack |
+|---|--:|--:|
+| Memory at rest (PSS, MiB) | 155.5 | 74.1 (−52 %) |
+| Peak (PSS, MiB) | 189.4 | 78.2 |
+| First page after a cold start (ms) | 730 | 402 |
+| Image (MiB) | 485 | 38 |
+| Build in 512 MiB and 1 CPU | no (killed for memory) | yes, 3.6 s, peak 287 MiB |
+
 ## Develop
 
 ```sh
 npm ci
-npm test                                   # PGlite (with pg_trgm and unaccent)
+npm run build                              # tsc, the browser's files, the server
+npm test                                   # tsc, the server built into dist/test, the tests (PGlite with pg_trgm and unaccent: ~1.3 GiB)
 TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
-npm run build
+NODE_ENV=development npm test              # as Perseus's workbench runs it
+npm run dev                                # rebuilds on every change, restarts the server
+npm start                                  # the built server, as the Chest runs it
 node seed/build.ts                         # after editing seed/pages/*.md → seed/sample.sql
 # from the studio's root:
-node lab/chest-dev/dev.mjs tools/private/wiki --prod --reset --port 4300
+node lab/chest-dev/dev.mjs tools/private/wiki --prod --build --reset --port 4300
 node lab/chest-dev/flows/wiki.mjs 4300
 node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
+node lab/chest-dev/audit.mjs tools/private/wiki --port 4300
 ```
 
 ## What it does not do (yet)
@@ -396,7 +435,7 @@ node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
   subpages): access is per space — reading (everyone or some groups) and
   editing (every editor or some groups and people). A salary grid goes in
   a space kept to the office group; "only me" is *My pages*. Planned
-  next, reusing the space rules of `lib/access.ts`.
+  next, reusing the space rules of `src/lib/access.ts`.
 - **My pages**: one per person (no sub-spaces), not shared with a few
   people (a page is private or in a space), not renamed; a reader cannot
   share a page of theirs (they write nowhere else: an editor copies it);

@@ -307,7 +307,12 @@ export const actions = {
   // address belongs to. Each ends on a page (redirect), so the forms work
   // the same with or without JavaScript; what went wrong is in the
   // address (?error=<code>), said by that page beside the form.
-
+  // The public actions guard themselves for now (subscribe and
+  // subscribeChat: the tool's own counters and form time; the others: a
+  // secret token in the address): bound: false says so to checkSources.
+  // They move to the package's bound (a single-use form token, counted
+  // only once valid, per visitor by address or cookie) in Status's next
+  // step.
   subscribe: publicAction({ ...guarded, email: loose(400), scope: loose(10), component: field.list(loose(20), 200) }, async (input, { locale, request }) => {
     let target = "/subscribe?sent=1";
     try {
@@ -328,7 +333,7 @@ export const actions = {
       target = `/subscribe?error=${failed(error)}`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 
   confirmSubscription: publicAction({ token: loose(80) }, async ({ token: given }) => {
     const token = tokenOf(given);
@@ -339,7 +344,7 @@ export const actions = {
       target = failed(error) === "not_found" ? "/s/unknown" : `/s/${token}?error=unavailable`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 
   chooseFollowed: publicAction({ token: loose(80), scope: loose(10), component: field.list(loose(20), 200) }, async ({ token: given, scope, component }) => {
     const token = tokenOf(given);
@@ -351,7 +356,7 @@ export const actions = {
       target = code === "not_found" ? "/s/unknown" : `/s/${token}?error=${code}`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 
   unsubscribe: publicAction({ token: loose(80) }, async ({ token: given }) => {
     const token = tokenOf(given);
@@ -362,7 +367,7 @@ export const actions = {
       if (failed(error) !== "not_found") target = `/s/${token}?error=unavailable`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 
   // ---- Updates in a chat (Proposal (studio): webhooks) ----------------------
 
@@ -381,7 +386,7 @@ export const actions = {
       target = `/subscribe/chat?error=${failed(error)}${/^(slack|teams|generic)$/u.test(input.kind) ? `&kind=${input.kind}` : ""}`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 
   chooseChatFollowed: publicAction({ token: loose(80), scope: loose(10), component: field.list(loose(20), 200) }, async ({ token: given, scope, component }) => {
     const token = tokenOf(given);
@@ -393,7 +398,7 @@ export const actions = {
       target = code === "not_found" ? "/w/unknown" : `/w/${token}?error=${code}`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 
   retryChat: publicAction({ token: loose(80) }, async ({ token: given }) => {
     const token = tokenOf(given);
@@ -405,7 +410,7 @@ export const actions = {
       target = code === "not_found" ? "/w/unknown" : `/w/${token}?error=${code}`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 
   stopChat: publicAction({ token: loose(80) }, async ({ token: given }) => {
     const token = tokenOf(given);
@@ -416,6 +421,6 @@ export const actions = {
       if (failed(error) !== "not_found") target = `/w/${token}?error=unavailable`;
     }
     redirect(target);
-  }),
+  }, { bound: false }),
 };
 

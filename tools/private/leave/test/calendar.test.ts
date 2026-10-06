@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addMonths, clip, completedMonths, cost, coverage, earned, easter, endAfterStart, holidays, holidaysBetween, isDay, monthDays, overlaps, periodStart, spanValid, type Rules, type Span } from "../lib/calendar.ts";
+import { addMonths, clip, completedMonths, cost, coverage, earned, easter, endAfterStart, holidays, holidaysBetween, isDay, monthDays, overlaps, periodStart, spanValid, type Rules, type Span } from "../src/shared/calendar.ts";
 
 // The French calendar and the counting of days: pure, checked against
 // dates anyone can verify.
