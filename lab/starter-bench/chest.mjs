@@ -96,6 +96,9 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
   }
   if (ready === null) throw new Error(`${dir}: no 200 on /chest after 6 s`);
   return {
+    // sql(text): a statement on the tool's database, as another person's
+    // write would land (tests of a page left open).
+    sql: text => execFileSync("psql", ["-h", "127.0.0.1", "-U", `t_${manifest.name.replace(/[^a-z0-9]/gu, "_")}`, "-d", `t_${manifest.name.replace(/[^a-z0-9]/gu, "_")}`, "-v", "ON_ERROR_STOP=1", "-q", "-c", text], { env: { ...process.env, PGPASSWORD: "bench" } }).toString(),
     seen,
     origin,
     port,

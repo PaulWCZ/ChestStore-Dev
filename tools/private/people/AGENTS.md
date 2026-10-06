@@ -127,9 +127,14 @@ How a page, an island, an action, a word or a test is written:
   `pct-N` class, a portrait's size an `s-N` class.
 - **Words live in `src/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
-- **No network, no disk, no background work.** Deferred work runs on the
-  next request (badges on *My to-dos*, the purge on the directory) or in the
-  `morning` schedule when the Chest has schedules.
+- **No network, no disk, no background work.** Deferred work runs after
+  an answer (`after()`: the bell, badges) or in the `morning` schedule (the
+  purges). **Reading a page never deletes data nor files.**
+- **Pages grow linearly**: never a list of everyone inside every row (the
+  table's manager is a picker cell; `test/scale.test.ts` holds 2,000
+  people under a page size and memory bound).
+- **A read-then-write of a record holds its row** (`writeRecord`: `select
+  … for update` first, in the caller's transaction; `test/races.test.ts`).
 - **Looks: the CSS names only contract tokens** (`ui/tokens/CONTRACT.md`)
   and the tool's tokens of `src/tokens.css`, themselves defined from
   contract tokens; never a colour (`test/theme.test.ts`). Text on a ground

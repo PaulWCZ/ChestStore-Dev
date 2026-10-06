@@ -314,9 +314,12 @@ await step("HR edits as a table: a cell saves on leaving it, Undo puts it back; 
   await page.reload();
   expect((await page.getByLabel("Team of Hugo Bernard").inputValue()) === "Key accounts", "undone");
   // A loop of managers is refused and the cell comes back.
-  await page.getByLabel("Manager of Camille Martin").selectOption({ label: "Hugo Bernard" });
+  // (A manager cell is a name on a button that opens the person picker.)
+  await page.getByRole("button", { name: "Manager of Camille Martin: No manager" }).click();
+  await page.getByRole("combobox", { name: "Manager of Camille Martin" }).fill("Hugo");
+  await page.getByRole("option", { name: "Hugo Bernard" }).click();
   await page.locator(".ck-toast", { hasText: "loop" }).waitFor();
-  expect((await page.getByLabel("Manager of Camille Martin").inputValue()) === "", "refused loop comes back");
+  await page.getByRole("button", { name: "Manager of Camille Martin: No manager" }).waitFor();
   await page.getByRole("button", { name: "Add a field" }).click();
   await page.getByLabel("Name of the field").fill("T-shirt");
   await page.getByRole("button", { name: "Add", exact: true }).click();

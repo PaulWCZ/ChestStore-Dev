@@ -21,6 +21,7 @@ import { journalText } from "./lib/journal.ts";
 import { handlers } from "./lib/lifecycle.ts";
 import { thumbnailTypes } from "./shared/model.ts";
 import { runFile } from "./lib/payments.ts";
+import { ocrFiles, ocrVersion } from "./shared/ocr-files.ts";
 import { vehicleProofObject } from "./lib/settings.ts";
 import { approvePage } from "./pages/Approve.tsx";
 import { cardsPage } from "./pages/Cards.tsx";
@@ -164,21 +165,17 @@ app.get("/chest/export/zip", async c => {
 });
 
 // The receipt reader's files (tesseract.js: its worker, core and French
-// model, copied into dist/ocr by scripts/ocr-assets.mjs), for the members'
+// model, copied into dist/ocr/<version> by scripts/ocr-assets.mjs; the
+// version in the address, so they are kept a year), for the members'
 // browsers. They are answered with a policy of their own: the worker
 // compiles WebAssembly ('wasm-unsafe-eval'), which the pages' policy
 // forbids — a worker obeys the policy its own script comes with, so the
 // pages keep theirs. Members only (under /chest), never a page.
-const ocrFiles: Record<string, string> = {
-  "worker.min.js": "text/javascript; charset=utf-8",
-  "tesseract-core-simd-lstm.wasm.js": "text/javascript; charset=utf-8",
-  "fra.traineddata.gz": "application/octet-stream",
-};
 const ocrPolicy = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'";
-app.get("/chest/ocr/:file", c => {
+app.get("/chest/ocr/:version/:file", c => {
   const name = c.req.param("file");
-  const type = Object.hasOwn(ocrFiles, name) ? ocrFiles[name] : undefined;
-  const path = join("dist", "ocr", name);
+  const type = c.req.param("version") === ocrVersion && Object.hasOwn(ocrFiles, name) ? ocrFiles[name] : undefined;
+  const path = join("dist", "ocr", ocrVersion, name);
   let size: number;
   try {
     if (!type) throw new Error("not an OCR file");
@@ -187,7 +184,7 @@ app.get("/chest/ocr/:file", c => {
     return c.body(null, 404);
   }
   const body = Readable.toWeb(createReadStream(path)) as ReadableStream<Uint8Array>;
-  return new Response(body, { headers: { "Content-Type": type, "Content-Length": String(size), "Content-Security-Policy": ocrPolicy, "Cache-Control": "private, max-age=86400" } });
+  return new Response(body, { headers: { "Content-Type": type, "Content-Length": String(size), "Content-Security-Policy": ocrPolicy, "Cache-Control": "private, max-age=31536000, immutable" } });
 });
 
 // ---- The host's root: Expenses has no public part (a Chest answers 404

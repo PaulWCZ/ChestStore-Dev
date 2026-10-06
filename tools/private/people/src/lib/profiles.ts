@@ -3,11 +3,7 @@ import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { birthday, clean, day, keepLeftDays, limits, memberId, phone, skills } from "../shared/model.ts";
-import { purgeArrivals } from "./arrivals.ts";
-import { purgeAway } from "./away.ts";
-import { purgeFields } from "./fields.ts";
-import { note, purgeJournal } from "./journal.ts";
-import { purgeRecords } from "./records.ts";
+import { note } from "./journal.ts";
 import { present } from "./people.ts";
 
 // What the directory knows of a person beyond their name and photo (which
@@ -68,21 +64,14 @@ export async function reportsOf(sql: Query, actor: Member | null, id: string): P
 }
 
 // Keeping the table true to the Chest: the people it lists again are no
-// longer "left"; profiles of people gone for more than 30 days are purged
-// (nothing runs in the background: this runs when the directory is read,
-// and each morning when schedules exist).
-export async function reconcile(sql: Sql, presentIds: string[], now: string): Promise<void> {
-  if (presentIds.length > 0) {
-    await sql`update profiles set left_at = null where left_at is not null and member_id = any(${presentIds}::text[])`;
-    // A manager who came back is their reports' manager again.
-    await sql`update profiles set manager_left = false where manager_left and manager_id = any(${presentIds}::text[])`;
-  }
-  await purgeLeft(sql);
-  await purgeArrivals(sql, now);
-  await purgeAway(sql, now);
-  await purgeRecords(sql, now);
-  await purgeFields(sql);
-  await purgeJournal(sql);
+// longer "left" (a manager who came back is their reports' manager again).
+// Nothing else: the purges (profiles gone for 30 days, past leaves,
+// arrivals, records, fields, the journal) are the morning schedule's
+// (lib/morning.ts) — reading a page never deletes data nor files.
+export async function reconcile(sql: Sql, presentIds: string[]): Promise<void> {
+  if (presentIds.length === 0) return;
+  await sql`update profiles set left_at = null where left_at is not null and member_id = any(${presentIds}::text[])`;
+  await sql`update profiles set manager_left = false where manager_left and manager_id = any(${presentIds}::text[])`;
 }
 
 export async function purgeLeft(sql: Query): Promise<number> {
@@ -101,16 +90,24 @@ export type OwnInput = { phone?: unknown; pronouns?: unknown; bio?: unknown; ski
 
 export async function updateOwn(sql: Sql, actor: Member | null, input: unknown): Promise<Profile> {
   if (!actor || !can(actor, "profile.own")) throw new AppError("forbidden");
-  if (!input || typeof input !== "object") throw new AppError("invalid");
-  const given = input as OwnInput;
+  const read = readOwn(input);
   const current = (await profiles(sql, actor, [actor.id])).get(actor.id)!;
-  const next: Profile = { ...current };
-  if ("phone" in given) next.phone = phone(given.phone);
-  if ("pronouns" in given) next.pronouns = clean(given.pronouns, limits.pronouns, { optional: true });
-  if ("bio" in given) next.bio = clean(given.bio, limits.bio, { multiline: true, optional: true });
-  if ("skills" in given) next.skills = skills(given.skills);
-  if ("birthday" in given) next.birthday = birthday(given.birthday);
-  return save(sql, next);
+  return save(sql, { ...current, ...read });
+}
+
+// What a person's own part says, checked — nothing written: a form that
+// also changes job fields or extra fields checks every part before it
+// writes any (src/actions.ts, saveProfile).
+export function readOwn(input: unknown): Partial<Pick<Profile, "phone" | "pronouns" | "bio" | "skills" | "birthday">> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new AppError("invalid");
+  const given = input as OwnInput;
+  const read: Partial<Pick<Profile, "phone" | "pronouns" | "bio" | "skills" | "birthday">> = {};
+  if ("phone" in given) read.phone = phone(given.phone);
+  if ("pronouns" in given) read.pronouns = clean(given.pronouns, limits.pronouns, { optional: true });
+  if ("bio" in given) read.bio = clean(given.bio, limits.bio, { multiline: true, optional: true });
+  if ("skills" in given) read.skills = skills(given.skills);
+  if ("birthday" in given) read.birthday = birthday(given.birthday);
+  return read;
 }
 
 // The job fields, set by HR for anyone: title, team, office, manager, start

@@ -11,7 +11,7 @@ import { lockOf } from "../lib/editing.ts";
 import { AppError } from "../lib/errors.ts";
 import { companyGroups, membersOfTool } from "../lib/groups.ts";
 import { mailNow } from "../lib/mail.ts";
-import { ancestors, backlinks, page, pageStamp, titles, tree, type Page } from "../lib/pages.ts";
+import { ancestors, backlinks, page, titles, tree, type Page } from "../lib/pages.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { isPinned } from "../lib/pins.ts";
 import { readState } from "../lib/reads.ts";
@@ -70,7 +70,7 @@ export async function readPage({ member, locale: language, t, param, query: q }:
   return { title: p.title, body: (
     <div className={`page reading color-${p.space.color}`}>
       <Island name="Flash" props={{ text: flash }} />
-      <Island id={`refresh-${p.id}`} name="AutoRefresh" props={{ seconds: 60, pageId: p.id, stamp: await pageStamp(sql, member, p.id) }} />
+      <Island id={`refresh-${p.id}`} name="AutoRefresh" props={{ seconds: 60 }} />
       <nav className="crumbs" aria-label={t.page.breadcrumb}>
         <a href={`/chest/spaces/${p.spaceId}`} className="kicker">{p.space.name}</a>
         {path.map(a => <span key={a.id}><span aria-hidden="true">/</span><a href={`/chest/pages/${a.id}`}>{a.title}</a></span>)}

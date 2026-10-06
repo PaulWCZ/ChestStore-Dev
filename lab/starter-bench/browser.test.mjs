@@ -228,6 +228,42 @@ test("a download is asked once (a link with download, or to a file's address); a
   await close();
 });
 
+test("a page left open: read again while the person is there (a 304 when nothing changed), never once they are idle; again when they come back", async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.clock.install();
+  const statuses = [];
+  page.on("response", r => { if (new URL(r.url()).pathname === "/chest" && r.request().method() === "GET") statuses.push(r.status()); });
+  await page.goto(`${tool.origin}/chest`);
+  await page.waitForFunction(() => document.querySelector("[data-island='AutoRefresh']") !== null && window.__chestStarted !== false);
+  await page.waitForTimeout(300);
+  const reads = () => statuses.length;
+  // Someone else posts a note; the person scrolls: within a minute it shows.
+  tool.sql("insert into notes (body, author) values ('From another desk', 'mbr_" + "s".repeat(26) + "')");
+  await page.mouse.wheel(0, 10);
+  await page.clock.runFor(61_000);
+  await page.waitForSelector("li.note >> text=From another desk");
+  // Nothing new: the next read is a 304 (the page's version), and waits longer.
+  await page.mouse.wheel(0, 10);
+  await page.clock.runFor(61_000);
+  await page.waitForFunction(n => n > 0, statuses.filter(s => s === 304).length || 0).catch(() => {});
+  await page.waitForTimeout(200);
+  assert.ok(statuses.includes(304), `a 304 among ${JSON.stringify(statuses)}`);
+  // Idle: after ten minutes without input, no read at all.
+  await page.clock.runFor(15 * 60_000);
+  await page.waitForTimeout(200);
+  const idle = reads();
+  await page.clock.runFor(60 * 60_000);
+  await page.waitForTimeout(200);
+  assert.equal(reads(), idle, "an idle tab lets the tool sleep");
+  // Back: the window gets the focus, the page is read at once.
+  await page.evaluate(() => dispatchEvent(new Event("focus")));
+  await page.waitForFunction(n => n, true);
+  await page.waitForTimeout(500);
+  assert.equal(reads(), idle + 1, "read again on coming back");
+  await context.close();
+});
+
 test("actions go one at a time, in the order asked", async () => {
   const { page, close } = await open();
   const events = [];

@@ -205,7 +205,12 @@ export function read(given: { [key: string]: unknown }): Partial<Fields> {
         else throw new AppError("invalid");
         break;
       }
-      case "birthDate": f.birthDate = date(key, 1900); break;
+      case "birthDate": {
+        f.birthDate = date(key, 1900);
+        // Nobody is born in the future (a day of margin: any zone's today).
+        if (f.birthDate && f.birthDate > new Date(Date.now() + 864e5).toISOString().slice(0, 10)) throw new AppError("invalid");
+        break;
+      }
       case "nationality": f.nationality = text(key, limits.nationality); break;
       case "job": f.job = text(key, limits.title); break;
       case "qualification": f.qualification = text(key, limits.qualification); break;
@@ -254,9 +259,19 @@ export async function updateRecord(sql: Sql, actor: Member | null, recordId: unk
 // writeRecord writes the fields given (already read) into one record, in
 // the caller's transaction, checks the dates and the tutor, and notes the
 // change in the journal (field names only). Says what changed.
+//
+// The row is locked first (for update) and read under the lock: two saves
+// at once (two HR forms, an accepted change and a form) apply one after
+// the other, each over what the other wrote — never a write of every
+// column from a stale read. The caller's transaction holds the lock.
+// A record detached by an erasure keeps no address nor emergency contact:
+// they are never written again.
+export const erasedFields = ["address", "emergencyName", "emergencyRelation", "emergencyPhone"] as const;
 export async function writeRecord(tx: Query, who: Member, key: string, given: Partial<Fields>, action: "changed" | "imported"): Promise<{ changed: Field[] }> {
+  await tx`select id from records where id = ${key} for update`;
   const current = await load(tx, key);
   if (!current) throw new AppError("not_found");
+  if (current.erased_at !== null && erasedFields.some(f => given[f] !== undefined && given[f] !== "")) throw new AppError("erased");
   const before = toFields(current);
   const next: Fields = { ...before, ...given };
   if (given.tutorId && given.tutorId !== before.tutorId && !(await present([given.tutorId])).has(given.tutorId)) throw new AppError("not_member");

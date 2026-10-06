@@ -2,6 +2,9 @@ import { createApp, download, page, publicPage, rawRoute } from "@argentic/chest
 import { actions } from "./actions.ts";
 import { chestEvents, chestSchedules, exportAll, exportPage, exportSpace, importUpload, leaveEditor, openFile, readsCsv } from "./calls.ts";
 import { framed } from "./frame.tsx";
+import { roleOf } from "./lib/access.ts";
+import { db } from "./lib/db.ts";
+import { pageStamp } from "./lib/pages.ts";
 import { locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
@@ -54,7 +57,9 @@ app.get("/chest/spaces/:id", members(spacePage));
 app.get("/chest/spaces/:id/settings", members(spaceSettingsPage));
 // A page: read it, edit it (the lock is taken once the editor is on
 // screen), its history, who has read it.
-app.get("/chest/pages/:id", members(readPage));
+// Its version (pageStamp: what its reader sees changing) makes the
+// re-reading of a page left open (AutoRefresh) a 304 while nothing changed.
+app.get("/chest/pages/:id", page(framed(readPage), { version: ({ member, param }) => (roleOf(member) === null ? null : pageStamp(db(), member, param("id"))) }));
 app.get("/chest/pages/:id/edit", members(editPage));
 app.get("/chest/pages/:id/history", members(historyPage));
 app.get("/chest/pages/:id/reads", members(readsPage));

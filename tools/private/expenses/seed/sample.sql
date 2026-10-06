@@ -100,7 +100,8 @@ insert into bank_accounts (owner, iban, last4, country, bic, holder, updated_by,
   ('company', 'v0.FR1420041010050500013M02606', '2606', 'FR', null, '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-01 10:00:00+02'),
   ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'v0.FR7630006000011234567890189', '0189', 'FR', 'AGRIFRPP', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-06-02 10:00:00+02'),
   ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'v0.DE89370400440532013000', '3000', 'DE', null, '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', '2026-09-24 18:00:00+02'),
-  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'v0.GB82WEST12345698765432', '5432', 'GB', 'NWBKGB2L', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-05-12 10:00:00+02');
+  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'v0.GB82WEST12345698765432', '5432', 'GB', 'NWBKGB2L', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-05-12 10:00:00+02'),
+  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'v0.FR7610107001011234567890129', '0129', 'FR', null, '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-28 11:00:00+02');
 insert into member_accounts (member_id, account) values ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '421BERNARD'), ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', '421WALKER');
 insert into rates (currency, rate_micro, updated_by) values ('GBP', 1165300, 'mbr_camilleaaaaaaaaaaaaaaaaaaa');
 update expenses set guest_names = '{"M. Garnier (Garnier & Fils)"}' where id = 1;

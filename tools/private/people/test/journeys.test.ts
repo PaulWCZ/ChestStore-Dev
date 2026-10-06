@@ -46,7 +46,7 @@ test("HR writes templates; items are checked; members may not", async () => {
   await assert.rejects(j.createTemplate(sql, hr, { kind: "holiday", name: "x" }), refused("invalid"));
   await assert.rejects(j.createTemplate(sql, hr, { kind: "onboarding", name: " " }), refused("empty"));
   await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "boss", offset: 0 }), refused("invalid"));
-  await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "member", offset: 0 }), refused("not_found"));
+  await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "member", offset: 0 }), refused("invalid"));
   await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "member", memberId: "mbr_" + "q".repeat(26), offset: 0 }), refused("not_member"));
   await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "hr", offset: 1000 }), refused("invalid"));
   await assert.rejects(j.addTemplateItem(sql, hr, "999999", { text: "x", role: "hr", offset: 0 }), refused("not_found"));

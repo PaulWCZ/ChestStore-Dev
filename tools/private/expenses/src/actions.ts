@@ -30,15 +30,16 @@ import { catalogue, localeOf } from "./i18n/index.ts";
 // the same, which the island may leave out.
 const given = <T,>(): Field<unknown, T> => ({ read: value => value });
 const maybe = <T,>(): Field<unknown, T> & { readonly omissible: true } => ({ omissible: true, read: value => value });
-// Imports carry their lines: up to 2,000 (src/shared/model.ts), 8 MiB at most.
-const lines = { maxBody: 8 << 20 };
+// Imports carry their lines: up to 2,000 (src/shared/model.ts), 8 MiB at
+// most; slow, they do not hold the page's other actions (parallel).
+const lines = { maxBody: 8 << 20, parallel: true };
 
 export const actions = {
   // ---- One's own expenses.
   // A receipt goes from the browser to the Chest: this authorises that one
   // upload (the tool names the object), the island PUTs the file, then the
   // save checks it arrived (lib/receipts.ts).
-  grantUpload: action({ type: given<string>(), size: given<number>() }, async (input, { member }): Promise<{ url: string; method: string; object: string }> => grant(db(), member, input)),
+  grantUpload: action({ type: given<string>(), size: given<number>() }, async (input, { member }): Promise<{ url: string; method: string; object: string }> => grant(db(), member, input), { parallel: true }),
 
   // `receipt`: the object the browser uploaded (checked here: it must be the
   // member's own upload, arrived), null to take the receipt off, absent to
@@ -73,6 +74,14 @@ export const actions = {
     const sql = db();
     await expenses.restore(sql, member, id);
     await tell.refresh(sql, [member.id]);
+    return null;
+  }),
+  // Takes back an expense sent and not decided yet: a draft again.
+  retractExpense: action({ id: given<string>() }, async ({ id }, { member }): Promise<null> => {
+    const sql = db();
+    const back = await expenses.retract(sql, member, id);
+    await tell.settleWaiting(sql, [member.id]);
+    await tell.refresh(sql, [member.id, ...(back.approver ? [back.approver] : [])]);
     return null;
   }),
   // Sends drafts; answers how many and to whom, in the sender's words —
@@ -118,9 +127,11 @@ export const actions = {
     await tell.paid(sql, member, made.decisions, made.run.executionDate);
     return { id: made.run.id, count: made.run.count, total: made.run.total, skipped: made.skipped.length };
   }),
-  cancelTransferFile: action({ id: given<string>() }, async ({ id }, { member }): Promise<null> => {
+  // notPaid: the accountant says their bank did not pay a file whose day
+  // has come (lib/payments.ts).
+  cancelTransferFile: action({ id: given<string>(), notPaid: maybe<boolean>() }, async ({ id, notPaid }, { member }): Promise<null> => {
     const sql = db();
-    await tell.unpaid(sql, await payments.cancelRun(sql, member, id));
+    await tell.unpaid(sql, await payments.cancelRun(sql, member, id, { notPaid }));
     return null;
   }),
 
@@ -131,6 +142,11 @@ export const actions = {
     const saved = await bank.setBankDetails(db(), member, target, (input ?? {}) as bank.BankInput);
     await tell.bankChanged(member, String(target), saved.masked.slice(-4));
     return { masked: saved.masked };
+  }),
+  // The owner confirms bank details someone else entered (lib/bank.ts).
+  confirmBank: action({}, async (_input, { member }): Promise<null> => {
+    await bank.confirmBankDetails(db(), member);
+    return null;
   }),
   removeBank: action({ owner: given<string>() }, async ({ owner }, { member }): Promise<null> => {
     await bank.removeBankDetails(db(), member, owner === "me" ? member.id : owner);
