@@ -1,9 +1,12 @@
 import { themeCss } from "@argentic/chest-ui";
 import type { Theme } from "@argentic/chest-ui/contract";
-import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 import { defineConfig, type BuildEnvironmentOptions, type Plugin, type UserConfig } from "vite";
+import { islandRegistry } from "./registry.ts";
+
+export { islandRegistry, type IslandSource } from "./registry.ts";
 
 // The tool's vite.config.ts:
 //   export default chestConfig({ theme: identity });
@@ -41,25 +44,17 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     copyPublicDir: false,
     rolldownOptions: { input: { main: "src/main.ts", app: "src/app.tsx" }, output: { entryFileNames: "[name].js" }, onLog },
   };
-  // virtual:chest-islands: every component src/islands/*.tsx exports (a
-  // capitalised name), as a loader of its file — each file a chunk the
-  // browser loads when a page shows one of its islands.
+  // virtual:chest-islands: every island the registry lists
+  // (src/islands/index.ts, islandRegistry), as a loader of its file — each
+  // file a chunk the browser loads when a page shows one of its islands.
   const islands: Plugin = {
     name: "chest-islands",
     resolveId: id => (id === "virtual:chest-islands" ? "\0chest-islands" : null),
     load(id) {
       if (id !== "\0chest-islands") return null;
-      const dir = join(process.cwd(), "src", "islands");
-      const lines: string[] = [];
-      let files: string[] = [];
-      try {
-        files = readdirSync(dir).filter(f => /\.tsx$/u.test(f)).sort();
-      } catch { /* no islands */ }
-      for (const file of files) {
-        this.addWatchFile(join(dir, file));
-        const text = readFileSync(join(dir, file), "utf8");
-        for (const m of text.matchAll(/^export (?:function|const) ([A-Z]\w*)/gmu)) lines.push(`  ${m[1]}: () => import(${JSON.stringify(join(dir, file))}).then(m => m.${m[1]}),`);
-      }
+      const index = join(process.cwd(), "src", "islands", "index.ts");
+      if (existsSync(index)) this.addWatchFile(index);
+      const lines = islandRegistry().map(i => `  ${i.name}: () => import(${JSON.stringify(i.file)}).then(m => m[${JSON.stringify(i.exported)}]),`);
       return `export default {\n${lines.join("\n")}\n};\n`;
     },
   };
@@ -90,11 +85,13 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
         return [fileName, ...(chunk?.imports ?? []).flatMap(i => closure(i, seen))];
       };
       const islands: Record<string, string[]> = {};
-      for (const chunk of chunks) {
-        const source = chunk.facadeModuleId;
-        if (!source || !/[/\\]src[/\\]islands[/\\][^/\\]+\.tsx$/u.test(source)) continue;
-        const files = closure(chunk.fileName).map(f => f.replace(/^assets\//u, ""));
-        for (const m of readFileSync(source, "utf8").matchAll(/^export (?:function|const) ([A-Z]\w*)/gmu)) islands[m[1]!] = files;
+      const registry = islandRegistry();
+      for (const island of registry) {
+        const file = resolve(island.file);
+        // Its file's own chunk, else the chunk it went into (a file another
+        // island imports too).
+        const chunk = chunks.find(c => c.facadeModuleId && resolve(c.facadeModuleId) === file) ?? chunks.find(c => Object.keys(c.modules).some(m => resolve(m) === file));
+        if (chunk) islands[island.name] = closure(chunk.fileName).map(f => f.replace(/^assets\//u, ""));
       }
       this.emitFile({ type: "asset", fileName: "chest-islands.json", source: JSON.stringify(islands) });
       const css = Object.values(bundle).find(file => file.type === "asset" && file.fileName === "assets/client.css");

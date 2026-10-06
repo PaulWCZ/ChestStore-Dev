@@ -21,9 +21,9 @@ const propsOf = (el: Element): object => JSON.parse(el.getAttribute("data-props"
 // what a script added there (a portal, a live region) stays.
 const served = new WeakSet<Node>();
 
-// Islands loaded when a page shows them (start(islands, lazy): each of
-// the tool's src/islands/*.tsx a chunk of its own, by name —
-// virtual:chest-islands of chestConfig): a page downloads the code of its
+// Islands loaded when a page shows them (start(islands, lazy): each
+// island the registry, src/islands/index.ts, lists — its file a chunk of
+// its own, by name: virtual:chest-islands of chestConfig): a page downloads the code of its
 // own islands only.
 type Lazy = Record<string, () => Promise<unknown>>;
 let lazyIslands: Lazy = {};
@@ -32,8 +32,24 @@ function loadIsland(name: string): Promise<ComponentType<object> | undefined> {
   if (registry[name]) return Promise.resolve(registry[name]);
   const loader = lazyIslands[name];
   if (!loader) return Promise.resolve(undefined);
-  if (!loading.has(name)) loading.set(name, loader().then(component => (registry[name] = component as ComponentType<object>)));
+  // A load that failed (a chunk gone with a deploy, the network) is not
+  // kept: the next page asks again.
+  if (!loading.has(name)) loading.set(name, loader().then(component => (registry[name] = component as ComponentType<object>), (error: unknown) => { loading.delete(name); throw error; }));
   return loading.get(name)!;
+}
+
+// A chunk that failed to load stays failed in the browser's module map
+// (import() of the same address fails again without asking): the page is
+// loaded again, once — after a deploy, its new HTML names the new chunks.
+function reloadOnce(): void {
+  try {
+    const last = Number(sessionStorage.getItem("chest-reloaded") ?? 0);
+    if (Date.now() - last < 30_000) return;
+    sessionStorage.setItem("chest-reloaded", String(Date.now()));
+  } catch {
+    return; // no storage: never risk a loop
+  }
+  location.reload();
 }
 
 export async function startIslands(islands: Record<string, ComponentType<never>>, reactDom: ReactDom, lazy: Lazy = {}): Promise<void> {
@@ -43,7 +59,10 @@ export async function startIslands(islands: Record<string, ComponentType<never>>
   for (const node of document.body.childNodes) served.add(node);
   // The page's own islands' code first (preloaded beside the entry), then
   // every island comes to life together.
-  await Promise.all([...new Set([...document.querySelectorAll("[data-island]")].map(el => el.getAttribute("data-island") ?? ""))].map(name => loadIsland(name)));
+  // A chunk that fails to load: the page loaded again, once.
+  let failed = false;
+  await Promise.all([...new Set([...document.querySelectorAll("[data-island]")].map(el => el.getAttribute("data-island") ?? ""))].map(name => loadIsland(name).catch(() => { failed = true; })));
+  if (failed) reloadOnce();
   for (const el of document.querySelectorAll("[data-island]")) mount(el);
   document.documentElement.dataset["ready"] = "";
   // Back and Forward between addresses navigate() made: the page follows,
@@ -65,7 +84,10 @@ function mount(el: Element, now = false): void {
   if (roots.has(el)) return;
   if (!component) {
     // Its code is loaded first (a chunk of its own), then it comes to life.
-    if (lazyIslands[name]) void loadIsland(name).then(loaded => { if (loaded && el.isConnected) mount(el, now); });
+    if (lazyIslands[name]) void loadIsland(name).then(loaded => { if (loaded && el.isConnected) mount(el, now); }, reloadOnce);
+    // An island neither in start()'s islands nor in src/islands/index.ts:
+    // its HTML stays dead (its form would post as a page load) — said.
+    else if (process.env.NODE_ENV === "development") console.warn(`chest-app: no island "${name}" — list it in src/islands/index.ts (the registry chestConfig reads)`);
     return;
   }
   const options = { identifierPrefix: el.getAttribute("data-prefix") ?? "" };
@@ -107,11 +129,12 @@ function setMeta(name: string, value: string): void {
   meta.content = value;
 }
 // A page's HTML as two reads compare it: without its render's mark and
-// its form token (both new at every read).
-function comparable(html: string, doc: Document): string {
-  const mark = metaOf(doc, "chest-render");
-  return (mark ? html.replaceAll(mark, "") : html).replace(/<meta name="chest-form" content="[^"]*"\/?>/u, "");
+// its form tokens (both new at every read).
+export function comparable(html: string, mark: string): string {
+  return (mark ? html.replaceAll(mark, "") : html).replace(/(<input\b[^>]*\bdata-chest-form=""[^>]*\bvalue=")[^"]*"/gu, '$1"');
 }
+// The build a page belongs to: its entry script's hashed name.
+const entryOf = (doc: Document) => doc.querySelector<HTMLScriptElement>('head script[type="module"][src]')?.getAttribute("src") ?? "";
 
 async function load(href: string, push: false | "push" | "replace"): Promise<boolean> {
   const ticket = ++latest;
@@ -166,11 +189,26 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     return false;
   }
   const next = new DOMParser().parseFromString(html, "text/html");
+  // Another build (a deploy since this page loaded): its islands' chunks
+  // are not this script's — the page is loaded plainly.
+  const entry = entryOf(next);
+  if (entry && entry !== entryOf(document)) {
+    if (push) location.assign(response.url + hashOf(href, response));
+    else location.reload();
+    return false;
+  }
   // The code of the islands the new page shows, loaded before it is put in
-  // place: each comes to life at once, its keys and focus ready.
-  await Promise.all([...new Set([...next.querySelectorAll("[data-island]")].map(el => el.getAttribute("data-island") ?? ""))].map(name => loadIsland(name)));
+  // place: each comes to life at once, its keys and focus ready. A chunk
+  // that does not load: the page loaded plainly.
+  try {
+    await Promise.all([...new Set([...next.querySelectorAll("[data-island]")].map(el => el.getAttribute("data-island") ?? ""))].map(name => loadIsland(name)));
+  } catch {
+    if (push) location.assign(response.url + hashOf(href, response));
+    else location.reload();
+    return false;
+  }
   if (!applies({ navigation: push !== false, ticket, latest, move, moves, settled, sending })) return false;
-  const read = comparable(html, next);
+  const read = comparable(html, metaOf(next, "chest-render"));
   unchanged = push === false && read === lastRead;
   lastRead = read;
   setMeta("chest-version", metaOf(next, "chest-version"));
@@ -380,22 +418,33 @@ export function send<T>(url: string, headers: Record<string, string>, body: Body
   return asked.then(outcome => answered(outcome, options));
 }
 async function request<T>(url: string, headers: Record<string, string>, body: BodyInit): Promise<Outcome<T> & { redirect?: string }> {
-  let outcome: Outcome<T> & { redirect?: string };
+  let outcome!: Outcome<T> & { redirect?: string };
   const refused = (message: string, error = "unavailable") => ({ ok: false, error, message }) as typeof outcome;
   sending++;
   try {
     // A public page's form token (a bounded action requires it).
     const action = actionOf(url);
-    const form = action ? currentForm(action) : "";
-    // A form that asks a proof of work (bound.work): found first.
-    const work = form ? await proof(form) : "";
-    const response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1", ...(form ? { "x-chest-form": form } : {}), ...(work ? { "x-chest-work": work } : {}) }, body });
-    if (response.headers.get("content-type")?.startsWith("application/json")) {
+    let response: Response;
+    for (let attempt = 0; ; attempt++) {
+      const form = action ? currentForm(action) : "";
+      // A form that asks a proof of work (bound.work): found first.
+      const work = form ? await proof(form) : "";
+      response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1", ...(form ? { "x-chest-form": form } : {}), ...(work ? { "x-chest-work": work } : {}) }, body });
+      if (!response.headers.get("content-type")?.startsWith("application/json")) break;
       outcome = await response.json() as typeof outcome;
       // The token served once: the answer brings the next one.
       const next = (outcome as { form?: unknown }).form;
       if (typeof next === "string" && action) renewForm(action, next);
-    } else {
+      // The token refused before anything ran (open for hours, the day's
+      // proof grown harder, sent twice): once more, with the one given or
+      // the page's own read again.
+      if (!outcome.ok && (outcome as { retry?: unknown }).retry === true && attempt === 0 && action) {
+        if (typeof next !== "string") await readTokens();
+        continue;
+      }
+      break;
+    }
+    if (!response.headers.get("content-type")?.startsWith("application/json")) {
       void response.body?.cancel();
       if (response.status === 401 || response.status === 403) {
         // Signed out, or the Chest's "Access removed": its page, loaded again.
@@ -432,6 +481,17 @@ async function proof(token: string): Promise<string> {
     clearTimeout(slow);
     worker.terminate();
   }
+}
+
+// The page's form tokens read again (a fresh read of the page, not put
+// in place).
+async function readTokens(): Promise<void> {
+  try {
+    const response = await fetch(location.href, { headers: { accept: "text/html", "x-tool-navigate": "1" } });
+    if (!response.headers.get("content-type")?.startsWith("text/html")) return void response.body?.cancel();
+    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    for (const input of page.querySelectorAll<HTMLInputElement>("input[data-chest-form][data-action]")) renewForm(input.dataset["action"]!, input.value);
+  } catch { /* the refusal stands */ }
 }
 
 async function answered<T>(outcome: Outcome<T> & { redirect?: string }, options: { refresh?: boolean; quiet?: boolean }): Promise<Outcome<T> & { redirect?: string }> {

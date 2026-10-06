@@ -5,7 +5,7 @@ import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
 import { download, formToken, solveWork, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { AppError as BrowserError } from "../dist/client.js";
-import { applies } from "../dist/runtime.js";
+import { applies, comparable } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
 import { checkPage, settled, testDatabase } from "../dist/testing.js";
 
@@ -14,7 +14,7 @@ const words = {
   kit,
   tool: { name: "Probe" },
   pages: { notFound: { title: "Nothing here", body: ".", publicBody: "Ask whoever sent the link." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language", back: "Back" },
-  errors: { invalid: "Invalid.", empty: "Empty.", too_long: "Too long: {max} at most.", too_large: "Too large.", forbidden: "Forbidden.", not_found: "Not found.", unavailable: "Unavailable.", unknown: "Unknown." },
+  errors: { invalid: "Invalid.", empty: "Empty.", too_long: "Too long: {max} at most.", too_large: "Too large.", forbidden: "Forbidden.", not_found: "Not found.", unavailable: "Unavailable.", unknown: "Unknown.", expired: "Expired.", needs_javascript: "This form needs JavaScript." },
 };
 function Labelled({ label }) {
   const id = useId();
@@ -25,6 +25,7 @@ const actions = {
   go: action({}, async () => redirect("/chest/elsewhere")),
   big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
   refuse: action({}, async () => fail("forbidden")),
+  taken: action({ email: field.text({ max: 50 }) }, async () => fail("invalid", undefined, { field: "email" })),
   summarise: action({}, async () => null, { parallel: true }),
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
   write: publicAction({ text: field.text({ max: 5 }) }, async ({ text }) => { if (text === "taken") fail("invalid"); written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
@@ -77,6 +78,7 @@ app.get("/chest/sent", page(({ sent }) => ({ title: "Sent", body: h("p", { id: "
 app.get("/chest/versioned", page(() => { rendered++; return { title: "Versioned", body: h("p", null, versionOfPage) }; }, { version: () => versionOfPage }));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot, { action: "write" }), h("p", null, "hello")) })));
+app.get("/hard", publicPage(() => ({ title: "Hard", body: h("form", { method: "post", action: "/actions/hard" }, h(Honeypot, { action: "hard" }), h(Island, { name: "Labelled", props: { label: "Name" } })) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
 app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
 app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
@@ -381,7 +383,10 @@ test("a public action's bound: a form token served once, then counted per visito
   for (const form of [null, "1.2.3", formToken("write", Date.now() - 3 * 3600_000)]) {
     const junk = await send("write", { text: "a" }, { form });
     assert.equal(junk.status, 400);
-    assert.equal((await junk.json()).error, "expired");
+    const said = await junk.json();
+    assert.equal(said.error, "expired");
+    assert.equal(said.form, undefined, "a request without a valid token gets none back");
+    assert.equal(said.retry, true, "the browser reads the page's tokens again and sends once more");
   }
   assert.equal((await send("write", { text: "toolong" })).status, 400);
   assert.equal((await send("write", { text: "taken" })).status, 400, "a run that refuses gives its count back");
@@ -390,7 +395,9 @@ test("a public action's bound: a form token served once, then counted per visito
   const first = await send("write", { text: "a" }, { form: once });
   assert.equal(first.status, 200);
   assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.write\.0\.[\w-]+$/u);
-  assert.equal((await (await send("write", { text: "a" }, { form: once })).json()).error, "expired");
+  const replayed = await (await send("write", { text: "a" }, { form: once })).json();
+  assert.equal(replayed.error, "expired");
+  assert.equal(replayed.form, undefined, "a token sent twice brings none");
   const cookie = /chest_v=[\w-]+/u.exec(first.headers.get("set-cookie") ?? "")?.[0];
   assert.ok(cookie, "a visitor cookie, for the next calls");
   // That first call had no cookie yet: everyone's count only.
@@ -537,13 +544,40 @@ test("bound.work: a token asks a proof of work; a flood that does not compute it
   const before = worked;
   const flood = await Promise.all(Array.from({ length: 60 }, () => send(formToken("hard", Date.now(), 8))));
   assert.ok(flood.every(r => r.status === 400), "60 at once without the proof: refused");
-  assert.equal((await send(formToken("hard", Date.now(), 8), "12345")).status, 400, "a wrong proof");
+  const bodies = await Promise.all(flood.map(r => r.json()));
+  assert.ok(bodies.every(b => b.error === "needs_javascript" && b.form === undefined), "said needs JavaScript, and no token given back");
+  const wrong = await (await send(formToken("hard", Date.now(), 8), "12345")).json();
+  assert.equal(wrong.error, "expired", "a wrong proof");
+  assert.equal(wrong.form, undefined);
   assert.equal((await send(formToken("hard", Date.now(), 0))).status, 400, "a token asking less than the action's work");
   const token = formToken("hard", Date.now(), 8);
   const done = await send(token, solveWork(token));
   assert.equal(done.status, 200);
-  assert.match((await done.json()).form, /^\d{13}\.[\w-]+\.hard\.(8|9|10)\.[\w-]+$/u, "the next token asks a proof too");
+  assert.match((await done.json()).form, /^\d{13}\.[\w-]+\.hard\.8\.[\w-]+$/u, "the next token asks a proof too");
   assert.equal(worked, before + 1);
+  // The day's budget past half: today's tokens ask one bit more, and one
+  // issued before (8 bits, its proof done) is refused — its answer brings
+  // one of today's, and the browser sends again.
+  await db()`insert into chest_bounds (scope, visitor, day, count) values ('hard', '*', current_date, 60) on conflict (scope, visitor, day) do update set count = 60`;
+  try {
+    const early = formToken("hard", Date.now(), 8);
+    const refused = await send(early, solveWork(early));
+    assert.equal(refused.status, 400);
+    const said = await refused.json();
+    assert.equal(said.error, "expired");
+    assert.equal(said.retry, true);
+    assert.match(said.form, /\.hard\.9\./u, "today's token");
+    assert.equal(worked, before + 1, "nothing ran");
+    const again = await send(said.form, solveWork(said.form));
+    assert.equal(again.status, 200);
+    assert.equal(worked, before + 2);
+  } finally {
+    await db()`delete from chest_bounds where scope = 'hard' and visitor = '*'`;
+  }
+});
+
+test("fail() from a run names a field", async () => {
+  assert.deepEqual(await (await json("/chest/actions/taken", { email: "a@b.c" })).json(), { ok: false, error: "invalid", message: "Invalid.", field: "email" });
 });
 
 test("a form sent without JavaScript and refused: the page it goes back to has what it held, once", async () => {
@@ -555,4 +589,37 @@ test("a form sent without JavaScript and refused: the page it goes back to has w
   const back = await get("/chest/sent", member, { cookie });
   assert.match(await back.text(), /<p id="sent">far too long<\/p>/u);
   assert.match(back.headers.get("set-cookie") ?? "", /chest_sent=;/u, "taken once");
+});
+
+test("a form asking a proof of work, without JavaScript: <noscript> says it needs JavaScript, and a post is told so", async () => {
+  const page = await (await get("/hard", null)).text();
+  assert.match(page, /<noscript><p class="ck-error" role="alert">This form needs JavaScript\.<\/p><\/noscript>/u);
+  assert.doesNotMatch(await (await get("/", null)).text(), /<noscript>/u, "a form without work has none");
+  const form = /data-action="hard" name="chest_form" value="([^"]+)"/u.exec(page)?.[1];
+  const sent = await app.fetch(new Request(url("/actions/hard"), { method: "POST", body: new URLSearchParams({ text: "hi", chest_form: form }), headers: { "sec-fetch-site": "same-origin", host: "tool.test", referer: url("/hard") } }));
+  assert.equal(sent.status, 303);
+  assert.match(sent.headers.get("location"), /error=needs_javascript/u);
+  assert.match(await (await get(sent.headers.get("location"), null)).text(), /role="alert">This form needs JavaScript\./u);
+});
+
+test("concurrent public reads: each page's render mark is its own islands' (the mark set after the last await)", async () => {
+  const pages = await Promise.all(Array.from({ length: 30 }, () => get("/hard", null).then(r => r.text())));
+  for (const page of pages) {
+    const mark = /<meta name="chest-render" content="([^"]+)"/u.exec(page)?.[1];
+    const prefix = /data-prefix="([^"]+)"/u.exec(page)?.[1];
+    assert.ok(mark && prefix);
+    assert.ok(prefix.endsWith(`${mark}-`), `${prefix} has the mark ${mark}`);
+  }
+});
+
+test("the page's version follows the reader's time zone; a refresh compares pages without their form tokens", async () => {
+  const first = await (await get("/chest/versioned")).text();
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(first)?.[1];
+  const elsewhere = { ...member, timeZone: "America/Lima" };
+  assert.equal((await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), elsewhere))).status, 200);
+  const one = await (await get("/", null)).text();
+  const two = await (await get("/", null)).text();
+  assert.notEqual(one, two);
+  const mark = text => /<meta name="chest-render" content="([^"]+)"/u.exec(text)?.[1] ?? "";
+  assert.equal(comparable(one, mark(one)), comparable(two, mark(two)));
 });

@@ -20,8 +20,13 @@ export class AppError extends Error {
     this.values = values;
   }
 }
-export const fail = (code: ErrorCode, values?: Record<string, string | number>): never => {
-  throw new AppError(code, values);
+// fail(code, values?, { field }): field names the input field the refusal
+// is about, from a run too (a rule that reads the database: "already
+// registered") — a form shows the sentence under it.
+export const fail = (code: ErrorCode, values?: Record<string, string | number>, options: { field?: string } = {}): never => {
+  const error = new AppError(code, values);
+  if (options.field) error.field = options.field;
+  throw error;
 };
 
 // ---- Thrown by a page or an action, answered by the server.
@@ -329,8 +334,10 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 //   carries one (the page made it, signed with a key from CHEST_TOKEN and
 //   the action's name: another action refuses it); it lasts formMinutes (120 by
 //   default) and serves once, whatever the answer (each answer, and the
-//   page a form goes back to, brings the next) — without a fresh one,
-//   "expired"; with formSeconds, a form sent sooner than a person fills it
+//   page a form goes back to, brings the next; a refusal of a request
+//   without a valid token brings none) — without a fresh one, "expired"
+//   (the browser reads the page's tokens again and sends once more); with
+//   formSeconds, a form sent sooner than a person fills it
 //   waits the seconds left;
 // - a robot that fills <Honeypot />'s field ("website") is answered "done"
 //   and nothing is done;
@@ -363,10 +370,18 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 // the action writes nothing anyone could fill (or guards itself).
 export type Budget = { perVisitor: number; perDay: number; perSubject?: number };
 // work: a proof of work the browser computes before it sends (a Worker;
-// true = 14 bits, a fraction of a second on a laptop, about a second at
-// worst on a mid-range phone; twice, then four times harder as the day's
-// budget runs low) — a robot pays it for every call. The form
-// then needs JavaScript.
+// true = 14 bits, twice then four times harder as the day's budget runs
+// low; a token issued before that is refused and the answer brings one of
+// today's). What it is for: it stops the robots that run no JavaScript
+// (most form spam) and costs a person nothing they notice. What it is
+// not: it barely slows a native script — 14 bits is about 16,000 hashes,
+// ~1 ms per token for optimised native code (reasoned, not measured).
+// Cost to a person, measured in Chromium on the studio's laptop: ~60 ms
+// on average, ~0.5 s at worst; a mid-range phone is assumed four to five
+// times slower (not measured). The real protection stays the budgets
+// (perSubject, perDay) and the visitor's address from the Chest's front.
+// The form then needs JavaScript: without it, "needs_javascript"
+// (<Honeypot> says so in a <noscript>).
 export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number; formSeconds?: number; work?: boolean | number };
 // What a public action's run gets: the visitor, and charge(kind, { subject }),
 // the budget it spends (with budgets of several kinds; once per call).

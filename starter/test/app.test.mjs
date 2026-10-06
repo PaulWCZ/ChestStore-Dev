@@ -7,7 +7,7 @@ import { atLeast, checkPage, testDatabase } from "@argentic/chest-app/testing";
 // Chest asks it: members signed by a fake Chest, a real PostgreSQL
 // (TEST_DATABASE_URL, the preview's, or PGlite: testDatabase()). Every
 // page fetched is checked for what the policy would block (checkPage).
-atLeast(8);
+atLeast(9);
 const member = (id, firstName, language, extra = {}) => ({ id: `mbr_${id.padEnd(26, "a")}`, firstName, lastName: "Test", name: `${firstName} Test`, photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language, timeZone: "Europe/Paris", ...extra });
 const camille = member("camille", "Camille", "fr");
 const sam = member("sam", "Sam", "en", { timeZone: "America/New_York" });
@@ -86,6 +86,21 @@ test("a note is changed only by its author", async () => {
   assert.doesNotMatch(await (await get(sam, "/chest")).text(), /Fire drill/u);
   assert.equal((await (await call(sam, "restoreNote", { id })).json()).ok, true);
   assert.match(await (await get(sam, "/chest")).text(), /Fire drill/u);
+});
+
+test("the page's version: a refresh with nothing new is a 304; an empty statement changes nothing, a write moves it", async () => {
+  const version = async () => /<meta name="chest-version" content="([^"]+)"/u.exec(await (await get(sam, "/chest")).text())?.[1];
+  const refresh = v => get(sam, "/chest", { "x-tool-version": v });
+  const first = await version();
+  assert.ok(first);
+  assert.equal((await refresh(first)).status, 304, "nothing new: nothing rendered");
+  // A statement that touches no row (the notes table is watched).
+  await database.sql`update notes set pinned = pinned where false`;
+  await database.sql`delete from notes where id = -1`;
+  assert.equal((await refresh(first)).status, 304, "an empty statement does not move it");
+  assert.equal((await call(sam, "addNote", { body: "Version moved" })).status, 200);
+  assert.equal((await refresh(first)).status, 200, "a write moves it");
+  await database.sql`delete from notes where body = 'Version moved'`;
 });
 
 test("cross-site requests are refused", async () => {

@@ -319,3 +319,44 @@ test("a refresh that meets a 404 loads the page plainly (its 404), not 'did not 
   await page.waitForFunction(() => window.samePage !== true);
   await close();
 });
+
+test("after a deploy: a page of another build is loaded plainly, never put in place; an island's chunk that failed to load: the page loaded again, once", async () => {
+  const { page, problems, close } = await open();
+  await page.fill("#body", "Before the deploy");
+  await page.click("form.composer button");
+  await page.waitForSelector("li.note >> text=Before the deploy");
+  await page.evaluate(() => { window.samePage = true; });
+  // The server now runs another build: its pages link another entry.
+  await page.route(/\/chest\/notes\/\d+$/u, async route => {
+    if (!route.request().headers()["x-tool-navigate"]) return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({ response, body: (await response.text()).replace(/\/assets\/client-[\w-]+\.js/u, "/assets/client-NEXTBUILD.js") });
+  });
+  await page.locator("li.note a.note-link", { hasText: "Before the deploy" }).click();
+  await page.waitForURL(/\/chest\/notes\/\d+$/u);
+  await page.waitForSelector("article.note >> text=Before the deploy");
+  assert.notEqual(await page.evaluate(() => window.samePage), true, "loaded plainly");
+  await close();
+  // A chunk refused once (the network, a deploy): the page is loaded again
+  // (the browser keeps a failed module failed), and the island comes to life.
+  const context = await browser.newContext();
+  const fresh = await context.newPage();
+  let refused = 0;
+  await fresh.route(/\/assets\/DeleteNote-[\w-]+\.js$/u, route => (refused++ === 0 ? route.abort() : route.continue()));
+  await fresh.goto(`${tool.origin}/chest`);
+  await fresh.waitForFunction(() => document.documentElement.hasAttribute("data-ready"));
+  const note = fresh.locator("li.note", { hasText: "Before the deploy" });
+  await note.getByRole("button", { name: "Delete" }).click();
+  await fresh.waitForSelector(".ck-toast >> text=Note deleted.");
+  assert.ok(refused >= 2, `asked again (${refused} requests)`);
+  // Refused for good: loaded again once only, never in a loop.
+  const stuck = await context.newPage();
+  await stuck.route(/\/assets\/DeleteNote-[\w-]+\.js$/u, route => route.abort());
+  let loads = 0;
+  stuck.on("load", () => loads++);
+  await stuck.goto(`${tool.origin}/chest`);
+  await stuck.waitForTimeout(1500);
+  assert.equal(loads, 2, "one reload");
+  assert.deepEqual(problems, []);
+  await context.close();
+});

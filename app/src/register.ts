@@ -41,6 +41,10 @@ export type CoreWords = {
     // A public form open too long, or sent twice (optional: "unavailable"
     // otherwise): "This form expired: send it again."
     readonly expired?: string;
+    // A form whose action asks a proof of work (bound.work), sent by a
+    // browser without JavaScript (required then): "This form needs
+    // JavaScript: turn it on, or write to us another way."
+    readonly needs_javascript?: string;
     // An amount written "1,250": 1250 or 1.25? (optional: "invalid" otherwise).
     readonly amount_ambiguous?: string;
   };
@@ -50,7 +54,7 @@ export type CoreWords = {
 type Registered<K extends string, Fallback> = Register extends { [P in K]: infer T } ? T : Fallback;
 export type Words = Registered<"words", CoreWords> & CoreWords;
 // The codes of the tool's own catalogue (a code it does not say, as the
-// optional "limit" and "expired", is not one it may use).
+// optional "limit", "expired" and "needs_javascript", is not one it may use).
 export type ErrorCode = Extract<keyof Registered<"words", CoreWords>["errors"], string>;
 export type RegisteredActions = Registered<"actions", Record<string, unknown>>;
 export type RegisteredIslands = Registered<"islands", Record<string, ComponentType<any>>>;
