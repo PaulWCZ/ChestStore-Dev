@@ -196,6 +196,7 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
     const actions = (plain.match(/\bpublicAction\(/gu) ?? []).length;
     const bounds = (plain.match(/\bbound\s*:/gu) ?? []).length;
     if (actions > bounds) problems.push(`${file}: a publicAction without bound — anyone on the Internet may call it: bound: { perVisitor, perDay } (or bound: false)`);
+    if (/\bbudgets\s*:/u.test(plain) && !/\bcharge\(/u.test(plain)) problems.push(`${file}: a publicAction with budgets never calls charge(kind): say which budget a call spends, once its request is checked`);
   }
   const publicPages = /\bpublicPage\(/u.test(code_);
   if (publicWrites && !manifestPublic) problems.push(`src/ has public actions (publicAction) without "public": true in chest.json: the Chest would never route to them`);

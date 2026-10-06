@@ -258,16 +258,34 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
   return { access: "member", input, maxBody: options.maxBody ?? 1 << 20, run: run as Action<F, R>["run"] };
 }
 // bound (public actions): anyone on the Internet may call one, so each is
-// bounded — perVisitor a day for one browser (a cookie the package sets:
-// the official SDK gives no visitor address), perDay for everyone together
-// (one bot slows the form, never fills the table) — and a form's hidden
-// field "website" (<Honeypot />), filled only by robots, makes the call
-// succeed without running. Counted in chest_bounds (the tool's
-// migrations/0001_chest.sql). Refused with the code "limit".
-// checkSources() fails on a publicAction without bound; bound: false says
-// the action writes nothing anyone could fill (or guards itself).
-export type Bound = { perVisitor: number; perDay: number };
-export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: VisitorContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false } = {}): Action<F, R> {
+// bounded, the same way in every tool:
+// - a form token: <Honeypot /> in the form carries one (the page made it,
+//   signed with a key from CHEST_TOKEN); it lasts formMinutes (120 by
+//   default) and serves once — a call without a fresh one is refused with
+//   "expired" (the answer brings a new one: sent again, it goes);
+// - a robot that fills <Honeypot />'s field ("website") is answered "done"
+//   and nothing is done;
+// - budgets, a day (the Chest's): perVisitor for one visitor, perDay for
+//   everyone together (one robot slows the form, never fills the table).
+//   The visitor is the address the Chest's front gives
+//   (Chest-Visitor-Address, a studio proposal), else the browser's cookie
+//   (chest_v); a visitor with neither is counted in perDay only — never
+//   all of them together as one. Past a budget: "limit".
+// Only a valid call is counted: the token and the fields checked first,
+// and a call whose run throws (a wrong secret, a slot already taken) gives
+// its count and its token back. Kinds of write with budgets of their own
+// (a new booking, a change to one): { budgets: { new: …, change: … } },
+// and run says which once it has checked the request: await charge("new").
+// Counted in chest_bounds, tokens in chest_seen (the tool's
+// migrations/0001_chest.sql). checkSources() fails on a publicAction
+// without bound; bound: false says the action writes nothing anyone could
+// fill (or guards itself).
+export type Budget = { perVisitor: number; perDay: number };
+export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number };
+// What a public action's run gets: the visitor, and charge(kind), the
+// budget it spends (with budgets of several kinds; once per call).
+export type PublicContext = VisitorContext & { charge(kind: string): Promise<void> };
+export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: PublicContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false } = {}): Action<F, R> {
   return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), run: run as Action<F, R>["run"] };
 }
 

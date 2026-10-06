@@ -102,16 +102,36 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   permission the owner approves (`checkSources` fails on a `publicAction`
   without it, and on it with nothing public served): any path outside `/chest`, served by `publicPage()` and
   `publicAction()`; no member; the visitor's language (`/lang/<code>`
-  switch). **Every public action is bounded**: `publicAction(fields, run,
-  { bound: { perVisitor: 5, perDay: 200 } })` counts it per browser (a
-  cookie the package sets: the official SDK gives no visitor address —
-  `visitors.address` is a studio proposal — so it slows a person, not a
-  determined bot) and for everyone (one bot slows the form, never fills
-  the table), in `chest_bounds` (`migrations/0001_chest.sql`); past it,
-  the code `limit` (`t.errors.limit`). Put `<Honeypot />` in the form: a
-  robot that fills it is answered "done" and nothing is done. `bound:
-  false` only for an action that writes nothing (`checkSources` fails on a
-  `publicAction` without `bound`).
+  switch). **Every public action is bounded** — the one way, the same in
+  every tool:
+  ```tsx
+  // a form of a public page or of an island: <Honeypot /> in it
+  <form method="post" action="/actions/book"><Honeypot />…</form>
+  // src/actions.ts
+  book: publicAction(fields, async (input, { charge }) => {
+    const slot = await freeSlot(input.slot);          // check first: a refusal costs nothing
+    if (!slot) fail("invalid");
+    await charge(input.secret ? "change" : "new");    // then spend the budget it uses
+    …write…
+  }, { bound: { budgets: { new: { perVisitor: 3, perDay: 200 }, change: { perVisitor: 10, perDay: 500 } } } }),
+  // one kind of write: { bound: { perVisitor: 5, perDay: 200 } }, no charge()
+  ```
+  The package then: requires the page's **form token** (`<Honeypot />`
+  carries it, `call()` sends it; 120 minutes, `formMinutes` to change;
+  serves once, the answer brings the next; else the code `expired`);
+  answers "done" without running to a robot that fills the honeypot;
+  counts the call **only once it is valid** (token, fields, and in your
+  run, what you check before `charge()`; a run that throws gives its count
+  and token back) per visitor and for everyone a day, in `chest_bounds`;
+  past it, the code `limit`. The visitor is the address the Chest's front
+  gives (`Chest-Visitor-Address`, a studio proposal: none today), else
+  the browser's cookie; one with neither counts in `perDay` only. Words:
+  `t.errors.limit` and `t.errors.expired` ("This form expired: send it
+  again."). A test sends `{ chest_form: formToken() }`. `bound: false`
+  only for an action that writes nothing (`checkSources` fails on a
+  `publicAction` without `bound`, and on budgets without `charge(`).
+  A page with a bounded form is never cached by a shared cache (its
+  token would be everyone's).
 
 ## Fields of an action
 

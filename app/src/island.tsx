@@ -33,17 +33,6 @@ export function startRender(islands: Record<string, ComponentType<never>>): void
 // be plain data. After a refresh, an island keeps its state and receives
 // its new props. id: a stable id for an island that must survive a move
 // to another page (the layout's ToastHost: id="toasts").
-// <Honeypot />: the field people never see ("website") in a public form;
-// a robot that fills it is answered "done" and nothing is done (a public
-// action with a bound).
-export function Honeypot() {
-  return (
-    <div hidden>
-      <label>Website <input name="website" tabIndex={-1} autoComplete="off" /></label>
-    </div>
-  );
-}
-
 export function Island<N extends Extract<keyof RegisteredIslands, string>>({ name, props, id }: { name: N; props: Plain<ComponentProps<RegisteredIslands[N]>>; id?: string }) {
   const component = registry[name];
   if (!component) throw new Error(`the island ${name} is not listed in src/islands/index.ts`);

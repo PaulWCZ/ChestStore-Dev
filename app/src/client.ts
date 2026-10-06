@@ -7,6 +7,8 @@ export { call, navigate, onLinkClick, refresh, toast, ToastHost } from "./runtim
 // — for a form an island sends itself (a FormData to an action's URL).
 export { send } from "./runtime.tsx";
 export { fill, plural, type Plural } from "./i18n.ts";
+// The honeypot and token of a public form an island renders.
+export { Honeypot } from "./form.tsx";
 // For rules a tool shares between its server and its islands (an import
 // read in the browser to show it, then again on the server): they refuse
 // with the same codes on both sides.

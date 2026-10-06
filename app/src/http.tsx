@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
@@ -12,10 +12,11 @@ import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
+import { setRenderingForm } from "./form.tsx";
 import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
 import type { ErrorCode, Words } from "./register.ts";
-import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Bound, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
+import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Budget, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
 
 // The server of a tool: security headers and a log line on every answer,
 // the browser's files under /assets/, the member of every /chest request,
@@ -139,6 +140,10 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   const notice = noticeOf(c, viewer.t);
   const { members: Members, public: Public } = options.layouts;
   startRender(options.islands);
+  // A public page of a tool with bounded actions carries a form token
+  // (<Honeypot /> puts it in a form; call() sends it).
+  const form = viewer.member === null && hasBounds(options) ? formToken() : "";
+  setRenderingForm(form);
   const page = renderToString(
     <html lang={viewer.locale}>
       <head>
@@ -148,6 +153,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
         {look?.colors?.map(m => <meta key={m.media} name="theme-color" media={m.media} content={m.color} />)}
         {options.head?.(viewer)}
         {view.head}
+        {form && <meta name="chest-form" content={form} />}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
         <script type="module" src={`/assets/${script}`} />
@@ -246,8 +252,9 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const definition = Object.hasOwn(options.actions, name) ? options.actions[name] : undefined;
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
+  let renew: Record<string, string> = {};
   const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
-    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code] ?? viewer.t.errors.unavailable, values) }, status) : c.redirect(back(c, members, code, values), 303);
+    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code] ?? viewer.t.errors.unavailable, values), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
   const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -258,21 +265,48 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   if (!json && type !== "application/x-www-form-urlencoded" && type !== "multipart/form-data") return refuse(415, "invalid");
   let answer: Response | undefined;
   const bound = definition.access === "public" ? definition.bound ?? false : false;
+  // A bounded action's answer brings the next form token (the one sent
+  // served once).
+  const next = bound ? { form: formToken() } : {};
+  renew = next;
+  const ok = (value: unknown) => (fetched ? c.json({ ok: true, value: value ?? null, ...next }) : c.redirect(back(c, members), 303));
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
     try {
       const raw = json ? await c.req.json<Record<string, unknown>>() : formFields(await c.req.formData());
-      if (bound) {
-        // A robot filled the field people never see: "done", nothing done.
-        if (typeof raw?.["website"] === "string" && raw["website"] !== "") {
-          answer = fetched ? c.json({ ok: true, value: null }) : c.redirect(back(c, members), 303);
-          return;
+      let spent: Spent | null = null;
+      let charged = false;
+      const charge = async (kind: string) => {
+        if (!bound || !("budgets" in bound) || !Object.hasOwn(bound.budgets, kind)) throw new Error(`charge("${kind}"): ${name} has no such budget`);
+        if (charged) throw new Error(`charge(): ${name} spends one budget a call`);
+        charged = true;
+        spent = await spend(c, `${name}:${kind}`, bound.budgets[kind]!, spent);
+      };
+      try {
+        if (bound) {
+          // A robot filled the field people never see: "done", nothing done.
+          if (typeof raw?.["website"] === "string" && raw["website"] !== "") {
+            answer = ok(null);
+            return;
+          }
+          spent = await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120);
         }
-        await counted(c, name, bound);
+        const input = readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {});
+        if (bound && !("budgets" in bound)) spent = await spend(c, name, bound, spent);
+        const value = await definition.run(input as never, { ...viewer, cookies: cookiesOf(c), request: c.req.raw, ...(definition.access === "public" ? { charge } : {}) } as never);
+        if (bound && "budgets" in bound && !charged) {
+          // Written without a budget: a bug of the tool's, said loudly.
+          log.error("public action ran without charge()", new Error("charge() not called"), { action: name });
+          if (process.env.NODE_ENV === "development") throw new Error(`${name}: a public action with budgets must call charge(kind)`);
+        }
+        answer = ok(value);
+      } catch (error) {
+        // Refused or failed (a redirect is done): its count and its token
+        // given back.
+        if (!(error instanceof HttpStatus && error.to)) await (spent as Spent | null)?.release();
+        throw error;
       }
-      const value = await definition.run(readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {}) as never, { ...viewer, cookies: cookiesOf(c), request: c.req.raw } as never);
-      answer = fetched ? c.json({ ok: true, value: value ?? null }) : c.redirect(back(c, members), 303);
     } catch (error) {
-      if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to }) : c.redirect(error.to, 303);
+      if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to, ...next }) : c.redirect(error.to, 303);
       else if (error instanceof HttpStatus) answer = refuse(error.status === 403 ? 403 : 404, error.status === 403 ? "forbidden" : "not_found");
       else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : error.code === "limit" ? 429 : 400, error.code, error.values);
       else if (error instanceof SyntaxError || (error instanceof TypeError && /form|body|parse/iu.test(error.message))) answer = refuse(400, "invalid");
@@ -288,22 +322,77 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   return refused ?? answer ?? refuse(500, "unknown");
 }
 
-// A public action's bound: this browser's count and everyone's, today (the
-// Chest's day), in chest_bounds; past either, refused ("limit"). The
-// browser is known by a cookie of the tool's own, set at its first call.
-async function counted(c: Context, scope: string, bound: Bound): Promise<void> {
+// ---- Public actions' bounds (tool.ts, publicAction, says what and why).
+const hasBounds = (options: AppOptions) => Object.values(options.actions).some(a => a.access === "public" && a.bound);
+
+// What a call took (its form token, its counts), given back when it fails.
+type Spent = { release(): Promise<void> };
+const chain = (first: Spent | null, then: () => Promise<void>): Spent => ({ release: async () => { await then(); await first?.release(); } });
+
+// A form token: "<ms>.<nonce>.<signature>", the signature under a key
+// derived from CHEST_TOKEN (never sent anywhere).
+function formKey(): Buffer {
+  const token = process.env["CHEST_TOKEN"];
+  if (!token) throw new Error("CHEST_TOKEN is not set");
+  return createHmac("sha256", token).update("chest-app form token 1 " + (process.env["CHEST_TOOL"] ?? "")).digest();
+}
+const formSignature = (value: string) => createHmac("sha256", formKey()).update(value).digest("base64url");
+// formToken(): a fresh token, as a public page carries (a test that calls
+// a bounded action sends one: { chest_form: formToken() }).
+export function formToken(now = Date.now()): string {
+  const value = `${Math.floor(now)}.${randomBytes(12).toString("base64url")}`;
+  return `${value}.${formSignature(value)}`;
+}
+// A token ours, younger than its minutes and never served: taken (in
+// chest_seen) until the call fails. Otherwise "expired".
+async function takeForm(token: unknown, minutes: number): Promise<Spent> {
+  const parts = typeof token === "string" && token.length <= 128 ? token.split(".") : [];
+  const [time = "", nonce = "", signature = ""] = parts;
+  const expected = parts.length === 3 && /^\d{13}$/u.test(time) ? formSignature(`${time}.${nonce}`) : "";
+  const age = Date.now() - Number(time);
+  if (!expected || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) || age < -60_000 || age > minutes * 60_000) fail("expired" as ErrorCode);
   const { db } = await import("./db.ts");
-  let visitor = getCookie(c, "chest_v");
-  if (!visitor || !/^[\w-]{16,64}$/u.test(visitor)) {
-    visitor = randomBytes(18).toString("base64url");
-    setCookie(c, "chest_v", visitor, { path: "/", maxAge: 365 * 86_400, sameSite: "Lax", secure: true, httpOnly: true });
-  }
   const sql = db();
-  const count = async (who: string) => (await sql<{ count: number }[]>`
-    insert into chest_bounds (scope, visitor, day, count) values (${scope}, ${who}, current_date, 1)
-    on conflict (scope, visitor, day) do update set count = chest_bounds.count + 1 returning count`)[0]!.count;
-  if ((await count(visitor)) > bound.perVisitor || (await count("*")) > bound.perDay) fail("limit");
+  const id = `form:${nonce}`;
+  if ((await sql`insert into chest_seen (id) values (${id}) on conflict do nothing returning id`).length === 0) fail("expired" as ErrorCode);
+  if (Math.random() < 0.02) await sql`delete from chest_seen where id like 'form:%' and at < now() - interval '2 days'`;
+  return { release: async () => { await sql`delete from chest_seen where id = ${id}`; } };
+}
+
+// The visitor a budget counts: the address the Chest's front gives
+// (Chest-Visitor-Address: the client cannot send a Chest-* header, the
+// front removes them), else this browser's cookie (set at its first call);
+// null for one with neither — counted with everyone only.
+function visitorKey(c: Context): string | null {
+  const address = (c.req.header("chest-visitor-address") ?? "").trim();
+  if (/^[0-9a-fA-F:.]{2,45}$/u.test(address) && /[.:]/u.test(address)) return "a:" + createHash("sha256").update(address).digest("base64url").slice(0, 22);
+  const cookie = getCookie(c, "chest_v");
+  if (cookie && /^[\w-]{16,64}$/u.test(cookie)) return "c:" + cookie;
+  setCookie(c, "chest_v", randomBytes(18).toString("base64url"), { path: "/", maxAge: 365 * 86_400, sameSite: "Lax", secure: true, httpOnly: true });
+  return null;
+}
+
+// One more in a budget, today (the Chest's day), for this visitor and for
+// everyone, in chest_bounds; past either, refused ("limit") and not kept.
+async function spend(c: Context, scope: string, budget: Budget, before: Spent | null): Promise<Spent> {
+  const { db } = await import("./db.ts");
+  const sql = db();
+  const who = visitorKey(c);
+  const add = async (key: string, by: number) => (await sql<{ count: number }[]>`
+    insert into chest_bounds (scope, visitor, day, count) values (${scope}, ${key}, current_date, ${by})
+    on conflict (scope, visitor, day) do update set count = chest_bounds.count + ${by} returning count`)[0]!.count;
+  const keys = who === null ? ["*"] : [who, "*"];
+  const taken: string[] = [];
+  const release = async () => { for (const key of taken) await add(key, -1); };
+  for (const key of keys) {
+    taken.push(key);
+    if ((await add(key, 1)) > (key === "*" ? budget.perDay : budget.perVisitor)) {
+      await release();
+      fail("limit" as ErrorCode);
+    }
+  }
   if (Math.random() < 0.02) await sql`delete from chest_bounds where day < current_date - 1`;
+  return chain(before, release);
 }
 
 // A form's fields; a name sent several times (checkboxes) is a list.

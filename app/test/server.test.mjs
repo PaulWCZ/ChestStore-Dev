@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { AppError as BrowserError } from "../dist/client.js";
 import { applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
@@ -26,7 +26,14 @@ const actions = {
   big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
   refuse: action({}, async () => fail("forbidden")),
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
-  write: publicAction({ text: field.text({ max: 5 }) }, async () => { written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
+  write: publicAction({ text: field.text({ max: 5 }) }, async ({ text }) => { if (text === "taken") fail("invalid"); written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
+  book: publicAction({ secret: field.text({ min: 0, max: 20 }) }, async ({ secret }, { charge }) => {
+    if (secret && secret !== "s3cret") fail("forbidden"); // checked before it counts
+    await charge(secret ? "change" : "new");
+    written++;
+    return null;
+  }, { bound: { budgets: { new: { perVisitor: 1, perDay: 10 }, change: { perVisitor: 3, perDay: 10 } }, formMinutes: 30 } }),
+  forgot: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 1 } } } }),
 };
 let completed = 0;
 let written = 0;
@@ -49,7 +56,7 @@ app.get("/chest/missing", page(() => fail("not_found")));
 app.get("/chest/invalid", page(() => fail("invalid")));
 app.get("/chest/own-policy", page(() => new Response("framed", { headers: { "content-security-policy": "frame-ancestors https://partner.example" } })));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
-app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
+app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot), h("p", null, "hello")) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
 app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
 app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
@@ -321,20 +328,60 @@ test("the database runs in the Chest's zone (a far one)", async () => {
   assert.equal(day, sdkChest.today());
 });
 
-test("a public action's bound: per visitor, for everyone, and the honeypot", async () => {
+test("a public action's bound: a form token served once, then counted per visitor and for everyone; the honeypot", async () => {
   await db()`create table if not exists chest_bounds (scope text, visitor text, day date, count integer not null, primary key (scope, visitor, day))`;
-  const send = (cookie, fields) => app.fetch(new Request(url("/actions/write"), { method: "POST", body: JSON.stringify(fields), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}) } }));
-  const first = await send(null, { text: "a" });
+  await db()`create table if not exists chest_seen (id text primary key, at timestamptz not null default now())`;
+  const send = (name, fields, { cookie, address, form = formToken() } = {}) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, ...(form ? { chest_form: form } : {}) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}), ...(address ? { "chest-visitor-address": address } : {}) } }));
+  // The public page carries a token, in its <meta> and in <Honeypot />'s field.
+  const home = await (await get("/", null)).text();
+  const token = /<meta name="chest-form" content="([^"]+)"/u.exec(home)?.[1];
+  assert.ok(token);
+  assert.match(home, new RegExp(`name="chest_form" value="${token.replace(/[.]/gu, "\\.")}"`, "u"));
+  assert.doesNotMatch(await (await get("/chest")).text(), /chest-form/u, "a member's page has none");
+  // Junk costs nothing: no token, a forged one, an old one, invalid fields.
+  for (const form of [null, "1.2.3", formToken(Date.now() - 3 * 3600_000)]) {
+    const junk = await send("write", { text: "a" }, { form });
+    assert.equal(junk.status, 400);
+    assert.equal((await junk.json()).error, "expired");
+  }
+  assert.equal((await send("write", { text: "toolong" })).status, 400);
+  assert.equal((await send("write", { text: "taken" })).status, 400, "a run that refuses gives its count back");
+  // A token serves once (the answer brings the next).
+  const once = formToken();
+  const first = await send("write", { text: "a" }, { form: once });
   assert.equal(first.status, 200);
+  assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.[\w-]+$/u);
+  assert.equal((await (await send("write", { text: "a" }, { form: once })).json()).error, "expired");
   const cookie = /chest_v=[\w-]+/u.exec(first.headers.get("set-cookie") ?? "")?.[0];
-  assert.ok(cookie, "a visitor cookie");
-  assert.equal((await send(cookie, { text: "b" })).status, 200);
-  const third = await send(cookie, { text: "c" });
-  assert.equal(third.status, 429);
+  assert.ok(cookie, "a visitor cookie, for the next calls");
+  // That first call had no cookie yet: everyone's count only.
+  assert.equal((await send("write", { text: "b" }, { cookie })).status, 200);
+  assert.equal((await send("write", { text: "c" }, { cookie })).status, 200);
+  const third = await send("write", { text: "d" }, { cookie });
+  assert.equal(third.status, 429, "this browser's two");
   assert.equal((await third.json()).error, "limit");
-  assert.equal((await send("chest_v=anotherbrowseranotherbrowser", { text: "d" })).status, 200, "another browser");
-  assert.equal((await send("chest_v=yetanotherbrowseryetanother", { text: "e" })).status, 429, "everyone's ceiling");
+  assert.equal((await send("write", { text: "e" }, { cookie: "chest_v=anotherbrowseranotherbrowser" })).status, 429, "everyone's three");
   const before = written;
-  assert.equal((await send(null, { text: "f", website: "spam.example" })).status, 200, "a robot is answered done");
+  assert.equal((await send("write", { text: "f", website: "spam.example" })).status, 200, "a robot is answered done");
   assert.equal(written, before, "and nothing is done");
+});
+
+test("budgets by kind, charged once the request is checked; a visitor known by the front's address", async () => {
+  const send = (fields, address) => app.fetch(new Request(url("/actions/book"), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", "chest-visitor-address": address } }));
+  for (let i = 0; i < 5; i++) assert.equal((await send({ secret: "wrong" }, "203.0.113.7")).status, 403, "a wrong secret spends nothing");
+  const made = await send({}, "203.0.113.7");
+  assert.equal(made.status, 200, JSON.stringify(await made.clone().json()));
+  assert.equal((await send({}, "203.0.113.7")).status, 429, "one new booking");
+  for (let i = 0; i < 3; i++) assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 200, "changes have their own budget");
+  assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 429);
+  assert.equal((await send({}, "2001:db8::1")).status, 200, "another address");
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    await app.fetch(new Request(url("/actions/forgot"), { method: "POST", body: JSON.stringify({ chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /public action ran without charge\(\)/u, "a run that forgets charge() is said loudly");
 });

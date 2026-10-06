@@ -137,6 +137,12 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   fails("src/app.tsx", "export const A = () => null;", /asks "database"/u);
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nimport * as m from "@argentic/chest-sdk/members";', /declare it/u);
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null) };', /without "public": true/u);
+  write("chest.json", JSON.stringify({ capabilities: ["database"], public: true }));
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null) };', /without bound/u);
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 9 } } } }) };', /never calls charge/u);
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { budgets: { new: { perVisitor: 1, perDay: 9 } } } }) };');
+  checkSources({ root: dir });
+  write("chest.json", JSON.stringify({ capabilities: ["database"] }));
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\n// publicPage() would serve visitors\nexport const A = () => <div className="note" />;');
   checkSources({ root: dir });
   mkdirSync(join(dir, "src", "lib"));

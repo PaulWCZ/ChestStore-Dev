@@ -37,6 +37,9 @@ export type CoreWords = {
     readonly unknown: string;
     // A public action past its bound (optional: "unavailable" otherwise).
     readonly limit?: string;
+    // A public form open too long, or sent twice (optional: "unavailable"
+    // otherwise): "This form expired: send it again."
+    readonly expired?: string;
   };
   readonly kit: KitWords;
 };
@@ -44,7 +47,7 @@ export type CoreWords = {
 type Registered<K extends string, Fallback> = Register extends { [P in K]: infer T } ? T : Fallback;
 export type Words = Registered<"words", CoreWords> & CoreWords;
 // The codes of the tool's own catalogue (a code it does not say, as the
-// optional "limit", is not one it may use).
+// optional "limit" and "expired", is not one it may use).
 export type ErrorCode = Extract<keyof Registered<"words", CoreWords>["errors"], string>;
 export type RegisteredActions = Registered<"actions", Record<string, unknown>>;
 export type RegisteredIslands = Registered<"islands", Record<string, ComponentType<any>>>;

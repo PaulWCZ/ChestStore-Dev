@@ -5,6 +5,7 @@ import type { flushSync } from "react-dom";
 import type { createRoot, hydrateRoot, Root } from "react-dom/client";
 import type { RegisteredActions } from "./register.ts";
 import type { Action, Outcome, SentOf } from "./tool.ts";
+import { currentForm } from "./form.tsx";
 
 // The browser's side (its public part is ./client.ts, for islands; the
 // rest is for ./browser.tsx). Nothing here runs on import, and nothing
@@ -113,12 +114,26 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     history.pushState({ scroll: 0 }, "", response.url);
   } else if (push === "replace" || response.redirected) history.replaceState({ scroll: scrollY }, "", response.url);
   document.title = next.title;
+  const form = next.querySelector<HTMLMetaElement>('meta[name="chest-form"]')?.content;
+  if (form) setForm(form);
   const focused = document.activeElement;
   attributes(document.body, next.body);
   children(document.body, next.body);
   // The focused element went with what changed: the page's main region.
   if (focused && focused !== document.body && !focused.isConnected) document.getElementById("main")?.focus({ preventScroll: true });
   return true;
+}
+
+// The page's form token, renewed: its <meta> and every form's field.
+function setForm(token: string): void {
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="chest-form"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = "chest-form";
+    document.head.append(meta);
+  }
+  meta.content = token;
+  for (const input of document.querySelectorAll<HTMLInputElement>('input[name="chest_form"]')) input.value = token;
 }
 
 // ---- navigate(): another page of the same part without loading it again:
@@ -278,8 +293,15 @@ async function sendNow<T>(url: string, headers: Record<string, string>, body: Bo
   let outcome: Outcome<T> & { redirect?: string };
   sending++;
   try {
-    const response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1" }, body });
-    if (response.headers.get("content-type")?.startsWith("application/json")) outcome = await response.json() as typeof outcome;
+    // A public page's form token (a bounded action requires it).
+    const form = currentForm();
+    const response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1", ...(form ? { "x-chest-form": form } : {}) }, body });
+    if (response.headers.get("content-type")?.startsWith("application/json")) {
+      outcome = await response.json() as typeof outcome;
+      // The token served once: the answer brings the next one.
+      const next = (outcome as { form?: unknown }).form;
+      if (typeof next === "string") setForm(next);
+    }
     else if (response.status === 401 || response.status === 403) {
       // Signed out, or the Chest's "Access removed": its page, loaded again.
       location.reload();

@@ -387,9 +387,10 @@ Checked in Chromium only.
 - 15 tests in the starter: 11 against the built server, with the SDK's
   fakeChest and a real PostgreSQL, and 4 on the sources — passing with and
   without `NODE_ENV=development`;
-- 28 tests in the package: its fields, redirects, formats and checks, and
+- 29 tests in the package: its fields, redirects, formats and checks, and
   a small tool built on the packaged code (the pilots' own included; and
-  bounds, `rawRoute`, `zipStream` read by `unzip`, the database in a far
+  bounds — junk spends nothing, a token serves once, budgets by kind,
+  a visitor by the front's address —, `rawRoute`, `zipStream` read by `unzip`, the database in a far
   time zone, a route's own policy and referrer policy, a public page in
   its own language, a page's own head and exact title);
 - 14 Chromium tests (`lab/starter-bench/browser.test.mjs`). They check
@@ -419,10 +420,17 @@ Checked in Chromium only.
   backslashes, control characters, any `.` or `..` segment raw or encoded,
   and any result starting with `//`; `redirect()`, the language switch and
   the form-back redirect all use it. The tests cover each of those inputs.
-- A public write must be bounded per visitor and overall (the package's
-  AGENTS.md: the official SDK gives no visitor address — `visitors.address`
-  is a studio proposal — so a cookie keys a visitor, and a daily ceiling
-  in the database keeps one bot from closing the form for everyone). The
+- A public write is bounded the same way in every tool (`publicAction`'s
+  `bound`, after the Booking review): a form token the page makes,
+  short-lived (2 h) and served once; a call counted only once valid (the
+  token, the fields, what the run checks before `charge(kind)`; a run
+  that throws gives its count and token back), so junk cannot exhaust
+  the shared ceiling; budgets per kind of write (new, change); the
+  visitor keyed by the front's address (a studio proposal), else a
+  cookie, and one with neither counted with everyone only. Verified by
+  the package's server tests; the browser side (the token in `call()`'s
+  header, renewed from each answer) is not yet run in Chromium: the
+  starter has no public part to run it on. The
   starter itself has no public part: a public part is a permission, and an
   agent that forgets to prune would leave a form open on the Internet.
 - A body that is neither a form nor JSON is a 415, logged as a request,
@@ -551,7 +559,7 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
 - `node scripts/chest-check.mjs starter`: OK for contract 0.4; the tool
   asks for database, members and receives.
 - `npm run dev` (run by the workbench bench) and `npm start` serve the tool.
-- In `app/`: `npm test` (28 tests; its peak 277 MiB RSS on the local
+- In `app/`: `npm test` (29 tests, also under `NODE_ENV=development`; its peak 277 MiB RSS on the local
   server, against 1.2 GiB on PGlite).
 - Polls, Tasks, News and Booking, copied with `@argentic/chest-app`
   0.1.0-studio.3 in place of theirs: `tsc` passes for all four; Tasks
