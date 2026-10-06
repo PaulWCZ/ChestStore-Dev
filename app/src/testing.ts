@@ -106,9 +106,14 @@ export async function testDatabase({ migrations = "migrations", extensions = [] 
 
 // ---- checkPage(html): what the policy would block, found in a page the
 // server rendered: a style attribute (React's style={}), an inline
-// script, a <style> element. Throws with the first one.
+// script, a <style> element. Throws with the first one. A data block —
+// <script type="application/ld+json"> (a job posting's structured data),
+// "application/json" — is no script: the browser never runs it, and the
+// policy lets it be.
+const dataBlock = /^<script\b[^>]*\btype\s*=\s*["']?application\/(ld\+)?json["'\s>]/iu;
 export function checkPage(html: string): string {
-  const found = /<[a-z][^>]*\sstyle=/iu.exec(html)?.[0] ?? /<script(?![^>]*\bsrc=)[^>]*>/iu.exec(html)?.[0] ?? /<style[\s>]/iu.exec(html)?.[0];
+  const script = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>/giu)].map(m => m[0]).find(tag => !dataBlock.test(tag));
+  const found = /<[a-z][^>]*\sstyle=/iu.exec(html)?.[0] ?? script ?? /<style[\s>]/iu.exec(html)?.[0];
   if (found) throw new Error(`the policy blocks this in the page: ${found.slice(0, 120)}`);
   return html;
 }

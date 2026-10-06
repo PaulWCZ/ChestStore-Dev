@@ -31,10 +31,49 @@ export function start(islands: Record<string, ComponentType<never>>): void {
     if (form.getAttribute("aria-busy") === "true") return toast({ id: "busy", text: busyText() });
     form.setAttribute("aria-busy", "true");
     const body = new FormData(form, event.submitter);
-    void send(url, {}, body, { refresh: false, ...(form.hasAttribute("data-parallel") ? { parallel: true } : {}) }).then(async outcome => {
-      if (!outcome.ok || outcome.redirect) return;
+    clearFieldErrors(form);
+    void send(url, {}, body, { refresh: false, quiet: true, ...(form.hasAttribute("data-parallel") ? { parallel: true } : {}) }).then(async outcome => {
+      if (!outcome.ok) {
+        // A refusal about one field: said under it, the field focused; any
+        // other, a toast.
+        if (!(outcome.field && showFieldError(form, outcome.field, outcome.message))) toast({ text: outcome.message, tone: "error" });
+        return;
+      }
+      if (outcome.redirect) return;
       await refresh();
       form.reset();
     }).finally(() => form.removeAttribute("aria-busy"));
   });
+}
+
+// A refusal under its field: aria-invalid, the sentence in a .ck-error
+// the field describes itself by, the focus there. Gone at the next send.
+function showFieldError(form: HTMLFormElement, name: string, message: string): boolean {
+  const named = form.elements.namedItem(name);
+  const field = named instanceof RadioNodeList ? (named[0] as HTMLElement | undefined) : (named as HTMLElement | null);
+  if (!field || !(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) || field.type === "hidden") return false;
+  const id = `${field.id || `${name}-${Math.random().toString(36).slice(2, 6)}`}-error`;
+  const said = document.createElement("p");
+  said.id = id;
+  said.className = "ck-error";
+  said.setAttribute("data-field-error", "");
+  said.setAttribute("role", "alert");
+  said.textContent = message;
+  field.insertAdjacentElement("afterend", said);
+  field.setAttribute("aria-invalid", "true");
+  field.setAttribute("aria-describedby", [field.getAttribute("aria-describedby"), id].filter(Boolean).join(" "));
+  field.focus();
+  return true;
+}
+function clearFieldErrors(form: HTMLFormElement): void {
+  for (const said of form.querySelectorAll("[data-field-error]")) {
+    const field = form.querySelector<HTMLElement>(`[aria-describedby~="${said.id}"]`);
+    if (field) {
+      field.removeAttribute("aria-invalid");
+      const rest = (field.getAttribute("aria-describedby") ?? "").split(" ").filter(x => x && x !== said.id).join(" ");
+      if (rest) field.setAttribute("aria-describedby", rest);
+      else field.removeAttribute("aria-describedby");
+    }
+    said.remove();
+  }
 }

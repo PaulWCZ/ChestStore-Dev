@@ -20,7 +20,7 @@ node scripts/add-app.mjs starter                 # or tools/private/<name>
 | `@argentic/chest-app` | `createApp`, `serve`, `page`, `publicPage`, `download`, `publicDownload`, `publicActionsAt`, `rawRoute`, `sameOrigin`, `policy`, `formToken`, `zipStream`, `Island`, `Honeypot`, `action`, `publicAction`, `field`, `fail`, `notFound`, `forbidden`, `redirect`, `after`, `toolPath`, `cutText`, `readMoney`, `fill`, `formatter`, `localeIn`, `publicLocale`, `csvLine`, `textStream`, `log`, types (`Bound`, `Budget`, `Download`, `LayoutData`, `PublicContext`, `Register`, `CoreWords`, `MemberContext`, `VisitorContext`, `LayoutProps`, `Format`…) |
 | `@argentic/chest-app/client` | `call`, `refresh`, `navigate`, `onLinkClick`, `toast`, `ToastHost`, `Honeypot`, `fill`, `plural`, `send`, `AppError`, `fail`, `readMoney`, `useAutoRefresh`; types `Outcome`, `SentOf`, `ErrorCode`, `Words`, `Plain` (for islands) |
 | `@argentic/chest-app/browser` | `start(islands)` (the tool's `src/entry.tsx`) |
-| `@argentic/chest-app/db` | `db`, `seen`, `seenIn` |
+| `@argentic/chest-app/db` | `db`, `seen`, `seenIn`, `changeStamp`, `forgetChanges` (with `sql/changes.sql`, the change log a tool copies into a migration) |
 | `@argentic/chest-app/members` | `names` |
 | `@argentic/chest-app/vite` | `chestConfig({ theme, bundle? })`, `baseCss` (what every `client.css` starts with) |
 | `@argentic/chest-app/testing` | `testDatabase`, `checkPage`, `checkWords`, `checkSources`, `settled`, `atLeast` |

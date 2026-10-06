@@ -59,6 +59,8 @@ test("fields read forms and JSON alike, and refuse with a code", () => {
   assert.equal(dinar.read(1.25), 1250);
   refused(() => dinar.read("1.2345"), "invalid");
   assert.equal(readMoney("1 250", 0), 1250);
+  for (const [typed, minor] of [["€12 500", 1250000], ["12 500 €", 1250000], ["12500 EUR", 1250000], ["EUR 12,50", 1250], ["-$5", -500], ["12\u202f500,25\u00a0€", 1250025]] as const) assert.equal(field.money({ min: -1e9, max: 1e12 }).read(typed), minor, typed);
+  refused(() => field.money({ max: 1e12 }).read("€"), "invalid");
   refused(() => readMoney("1,250"), "amount_ambiguous");
   for (const odd of [12.345, 1.005, Infinity]) refused(() => field.money({ max: 1e12 }).read(odd), "invalid");
   refused(() => field.money({ max: 1e9 }).read(undefined), "empty");
@@ -117,6 +119,9 @@ test("checkPage finds what the policy blocks", () => {
   assert.throws(() => checkPage("<script>alert(1)</script>"));
   assert.throws(() => checkPage("<style>a{}</style>"));
   assert.equal(checkPage('<script type="module" src="/assets/client.js"></script><div class="x"></div>'), '<script type="module" src="/assets/client.js"></script><div class="x"></div>');
+  checkPage('<script type="application/ld+json">{"@type":"JobPosting"}</script><script type="application/json" id="d">{}</script>');
+  assert.throws(() => checkPage('<script type="application/ld+json"></script><script>alert(1)</script>'), /policy blocks/u);
+  assert.throws(() => checkPage('<script type="module">1</script>'), /policy blocks/u);
 });
 
 test("checkWords: missing texts, placeholders, French typography", () => {

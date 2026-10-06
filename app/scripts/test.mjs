@@ -18,5 +18,5 @@ if (existsSync(sizes) && existsSync(new URL("../../reports/06-perseus-starter.md
   const check = spawnSync(process.execPath, [sizes.pathname, "--check"], { stdio: "inherit" });
   if (check.status !== 0) process.exit(check.status ?? 1);
 }
-const run = spawnSync(process.execPath, ["--test", "--test-force-exit", "--test-concurrency=1", "test/units.test.ts", "test/server.test.mjs"], { stdio: "inherit", env });
+const run = spawnSync(process.execPath, ["--test", "--test-force-exit", "--test-concurrency=1", "test/units.test.ts", "test/server.test.mjs", "test/changes.test.mjs"], { stdio: "inherit", env });
 process.exit(run.status ?? 1);

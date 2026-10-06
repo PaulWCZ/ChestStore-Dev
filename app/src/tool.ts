@@ -10,6 +10,9 @@ import type { ErrorCode, Words } from "./register.ts";
 export class AppError extends Error {
   readonly code: ErrorCode;
   readonly values: Record<string, string | number>;
+  // The input field it refuses (set by the fields of an action): a form
+  // shows the sentence under that field.
+  field?: string;
   constructor(code: ErrorCode, values: Record<string, string | number> = {}) {
     super(code);
     this.name = "AppError";
@@ -139,7 +142,9 @@ function cents(value: unknown, places = 2): number | null {
     const n = Math.round(value * scale);
     return Math.abs(n / scale - value) < 1e-9 ? n : null;
   }
-  let s = text(value).trim();
+  // A currency's sign or code before or after the number ("€12 500",
+  // "12 500 €", "12500 EUR", "-$5"): the number alone is read.
+  let s = text(value).trim().replace(/^(-?)\s*(?:\p{Sc}|[A-Z]{3})\s*/u, "$1").replace(/\s*(?:\p{Sc}|[A-Z]{3})$/u, "");
   const part = places > 0 ? `(?:[.,]\\d{1,${places}})?` : "";
   // Spaces (any kind) only as group separators: "1 234,50", never "12 50".
   if (/[\s\u00a0\u202f]/u.test(s)) {
@@ -275,7 +280,14 @@ export type SentOf<F extends Fields> = { [K in Exclude<keyof F, Leavable<F>>]: W
 
 export function readInput<F extends Fields>(fields: F, raw: Record<string, unknown>): InputOf<F> {
   const input: Record<string, unknown> = {};
-  for (const [name, f] of Object.entries(fields)) input[name] = f.read(raw[name], raw);
+  for (const [name, f] of Object.entries(fields)) {
+    try {
+      input[name] = f.read(raw[name], raw);
+    } catch (error) {
+      if (error instanceof AppError && error.field === undefined) error.field = name;
+      throw error;
+    }
+  }
   return input as InputOf<F>;
 }
 
@@ -359,4 +371,5 @@ export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf
 
 // An outcome as an island receives it: the value, or the code and the
 // sentence in the reader's language.
-export type Outcome<T> = { ok: true; value: T } | { ok: false; error: ErrorCode; message: string };
+// field: the input field a refusal is about (a form shows it under it).
+export type Outcome<T> = { ok: true; value: T } | { ok: false; error: ErrorCode; message: string; field?: string };

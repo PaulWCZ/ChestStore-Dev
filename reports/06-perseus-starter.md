@@ -1,6 +1,6 @@
 # A better starter for Perseus Code
 
-_Version 4.1 (package studio.6), 6 October 2026. It follows four independent reviews (of
+_Version 4.2 (package studio.7), 6 October 2026. It follows four independent reviews (of
 versions 1, 2, 3 and 3.1) and the tools moved onto the package (Polls,
 Tasks, News, Booking, Support, Status, Wiki, Leave, Expenses, People). The
 reference snapshot is the one of 5 October (`reference/perseus-starter/`,
@@ -342,13 +342,13 @@ reviews found hand-copied figures stale four times: app's `npm test` now
 runs `sizes.mjs --check` against this paragraph):
 - The project's `AGENTS.md` is 39 lines: what Perseus rewrites
   (purpose, data model, decisions, what to delete from the example).
-- The reference page is the package's `AGENTS.md`, 464 lines, read from
+- The reference page is the package's `AGENTS.md`, 473 lines, read from
   `node_modules/@argentic/chest-app/`. It covers how the package works,
   fields, words, the database, recipes (roles, writing to another member,
   paging, imports and archives, a schedule's test…), rules, the kit's
   classes, tests and pitfalls.
-- The template is 29 files and 847 lines. The package is 2,663 lines of
-  source and 733 of tests. (The reference starter: 16 files, 311 lines.)
+- The template is 29 files and 895 lines. The package is 2,748 lines of
+  source and 738 of tests. (The reference starter: 16 files, 311 lines.)
 
 **UI quality with the kit.**
 - A: unstyled HTML.
@@ -580,6 +580,38 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
 - `npm run dev` (run by the workbench bench) and `npm start` serve the tool.
 - In `app/`: `npm test` (35 tests, also under `NODE_ENV=development`; its peak 277 MiB RSS on the local
   server, against 1.2 GiB on PGlite).
+- **studio.7** (6 October; breaking). The changes:
+  - **a page's version that stays right**: `changeStamp()` of `/db`,
+    over a change log a tool copies into a migration (`sql/changes.sql`,
+    then `select chest_watch('<table>')`). Each transaction that changes
+    watched rows inserts one log row (statement triggers with transition
+    tables: an empty `delete` adds nothing; a transaction-local flag: one
+    row per transaction); the stamp is the count of rows, visible only
+    at commit, read before the page renders. The tools' own designs were
+    wrong both ways: a counter row serialises writers (Clients' import of
+    5,000 rows over ten minutes), a sequence's `nextval` is seen before
+    the commit (Goals: a stale 304 after a write committed late),
+    `max(updated_at)` has the same hole. Proven on PostgreSQL (the
+    package's `test/changes.test.mjs`): a write uncommitted while the
+    page is read moves the stamp at its commit; two writers committing
+    out of order both move it; an empty statement does not; 5,000
+    inserts in one transaction take about 0.55 s while another write
+    beside them waits 2–5 ms; folding the old rows keeps the stamp;
+  - the version is keyed by the reader's role, admin flag and groups too;
+  - a field's refusal names its field (`{ …, field }`): a form sent in
+    place shows it under the field (`.ck-error`, `aria-invalid`, focus),
+    no toast — tests that compared a refusal whole must add `field`
+    (News, Wiki, Polls, Support, the starter did);
+  - `field.money({ decimals })` (0 to 4) and `readMoney(text, decimals)`
+    (server and browser); a currency's sign or code around the number
+    is accepted ("€12 500", "12500 EUR");
+  - `checkPage` accepts data blocks (`application/ld+json`, JSON) and
+    AGENTS shows structured data on a public page; `checkSources({
+    requireTests })` sees `lib/`'s folders (breaking for a tool with an
+    untested module there); types are not class names; `testDatabase`
+    never takes its own earlier address for a preview's.
+  Expenses and Timesheets use the change log (their first sequence-based
+  stamp never shipped); the starter's notes page too.
 - **studio.6** (6 October; breaking). The changes:
   - an island's wrapper DOM id is `island-<id>` (it was `<id>`): CSS or
     tests that select an island's wrapper by id (`#toasts`) must add the

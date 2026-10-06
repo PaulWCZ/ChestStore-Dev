@@ -160,6 +160,11 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
 
 ## Fields of an action
 
+A field's refusal names its field (`{ ok: false, error, message, field }`):
+a form sent in place shows the sentence under that field (`.ck-error`,
+`aria-invalid`, the focus there) instead of a toast; an island reads
+`outcome.field` to do the same.
+
 Each field has two types: what `run()` receives (read) and what `call()`
 may send (the wire): `money()` receives cents, a `number`, and accepts
 `"12,50"`, `"1 234,50"`, `"1,234.50"`, `"1.000.000"` or `12.5` on the wire — send what
@@ -240,36 +245,34 @@ words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
 **A page others change, left open** (a board, a queue, a timesheet) —
 an island that calls `useAutoRefresh(60)` from
 `@argentic/chest-app/client` (not the kit's: it reads all day long), and
-`page(render, { version: p => … })`, what the page shows in a few
-characters (`select md5(string_agg(…))`, a max of `updated_at`, a count):
-the page is read again when the tab comes back and every minute while
+`page(render, { version: () => changeStamp() })` (below: "A page's
+version that stays right"): the page is read again when the tab comes back and every minute while
 its reader was active in the last ten (idle, it stops: the Chest may
 put the tool to sleep), less often while nothing changes, and a read
-with the same version is a 304 — nothing rendered. The version is keyed
-by the reader and their language; include what only they see.
-**A page's version from one change number** (the cheapest `version` for
-a tool whose pages read many tables) — a sequence every write bumps, by
-trigger, in a migration:
-```sql
-create sequence change_stamp;
-create function bump_change_stamp() returns trigger language plpgsql as $$
-begin perform nextval('change_stamp'); return null; end; $$;
--- per ROW (insert, update, delete), plus truncate: a statement that
--- changes nothing (a purge run as a page is read) must not change it
-create trigger notes_stamp after insert or update or delete on notes
-  for each row execute function bump_change_stamp();
-create trigger notes_stamp_all after truncate on notes
-  for each statement execute function bump_change_stamp();
-```
-then, with what else the page depends on — the day, the quarter hour
-(the names of people come from the Chest and follow then):
-```ts
-const stamp = async () => (await db()<{ v: string }[]>`select last_value || ':' || is_called as v from change_stamp`)[0]!.v;
-app.get("/chest", page(render, { version: async () => `${await stamp()}.${chest.today()}.${Math.floor(Date.now() / 900_000)}` }));
-```
-A sequence takes no lock: writers never wait for it. (A per-statement
-trigger also fires for an `update`/`delete` that matched no row: a page
-that runs one as it is read never gets its 304.)
+with the same version is a 304 — nothing rendered.
+**A page's version that stays right** (a page left open, read again with
+`useAutoRefresh`) — the change log of the package, never your own:
+copy `node_modules/@argentic/chest-app/sql/changes.sql` into a migration
+(`migrations/0007_chest_changes.sql`), then in it, for each table the
+pages read, `select chest_watch('deals');`; and
+`page(render, { version: () => changeStamp() })` (`@argentic/chest-app/db`),
+with what else the page depends on: `` async () => `${await changeStamp()}.${chest.today()}` ``.
+Each transaction that changes watched rows adds one log row, visible when
+it commits; a statement that changes nothing adds none; `page()` reads
+the version before it renders. Proven on PostgreSQL by the package's
+tests: a write still uncommitted while a page is read moves the stamp
+when it commits; two writers committing out of order both move it; a
+5,000-row import leaves another write waiting 5 ms. **Never a counter
+row** (`update stamp set n = n + 1` serialises every writer behind an
+import: quadratic, deadlocks), **never a sequence** (`nextval` is seen
+before the commit: a reader stamps the new number on the old rows, and
+every refresh after is a stale 304), **never `max(updated_at)` or
+`now()`** (a transaction's `now()` is its start: a late commit hides
+behind an earlier stamp). The package keys the version by the reader —
+their role, admin or not, their groups — and their language. Anything
+that depends on the time (a button that opens ten minutes before a
+start, "in 5 min") is decided in an island from the browser's clock,
+never under a version that changes only with the data.
 **A big list in an island** (an inventory, a directory) — never the whole
 table in its props: they are rendered and sent twice in the page (7,045
 items made 14 MB of HTML and 272 MiB, past the tool's 256). Give the
@@ -371,6 +374,12 @@ was written in) — return `{ title, body, locale }` from `publicPage()`:
 **A page's own head or title** — `{ title, body, head: <meta name="robots"
 content="index, follow" />, exactTitle: true }`: `head` goes in that page's
 `<head>`; `exactTitle` keeps the title as given (no " · <tool>").
+**Structured data on a public page** (a job posting, an event for search
+engines) — a data block in the page's `head`: `<script
+type="application/ld+json" dangerouslySetInnerHTML={{ __html:
+JSON.stringify(data).replaceAll("<", "\\u003c") }} />`. The browser never
+runs it, so the strict policy (`script-src 'self'`) lets it be, and
+`checkPage` accepts it (an executable inline script stays refused).
 **A route with its own policy** (a banner other sites frame, a picture) —
 answer a `Response` with its own `Content-Security-Policy` (and
 `Referrer-Policy`): the package keeps them; a page or an action gets the

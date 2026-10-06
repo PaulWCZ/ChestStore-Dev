@@ -1,5 +1,6 @@
 import { databaseUrl } from "@argentic/chest-sdk/database";
 import postgres from "postgres";
+import { after } from "./tool.ts";
 
 // The tool's PostgreSQL database, as the Chest gives it: one pool per
 // process, opened on first use (never at build time or import). Queries
@@ -53,3 +54,26 @@ export function seenIn(table: string) {
   };
 }
 export const seen = seenIn("chest_seen");
+
+// ---- changeStamp(): a page's version that is right under concurrency —
+// page(render, { version: () => changeStamp() }) — from the tool's change
+// log (sql/changes.sql of this package, copied into a migration, then
+// select chest_watch('<table>') for each table the pages read). It is the
+// number of transactions that changed watched rows: each adds one log row
+// that becomes visible when it commits, so a write committed after a page
+// was read always moves the stamp (also when transactions commit out of
+// order), and a statement that changed nothing never does. page() reads
+// the version before it renders: whatever the render read is at least as
+// new as the stamp, never older.
+export async function changeStamp(sql: postgres.Sql<{ date: string }> | postgres.TransactionSql<{ date: string }> = db()): Promise<string> {
+  const [row] = await sql<{ n: string }[]>`select ((select folded from chest_changes_base) + (select count(*) from chest_changes))::text as n`;
+  // Now and then, the log's old rows folded into its base (after the answer).
+  if (Math.random() < 0.002) after("forget changes", () => forgetChanges());
+  return row?.n ?? "0";
+}
+// forgetChanges(): the log's rows older than a day folded into one number
+// (the stamp does not move). changeStamp() calls it now and then.
+export async function forgetChanges(sql: postgres.Sql<{ date: string }> = db()): Promise<void> {
+  await sql`with gone as (delete from chest_changes where at < now() - interval '1 day' returning 1)
+    update chest_changes_base set folded = folded + (select count(*) from gone) where one`;
+}

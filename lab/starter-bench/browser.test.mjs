@@ -84,12 +84,21 @@ test("a refresh keeps what is typed, the scroll, an island's state; Undo works",
   await close();
 });
 
-test("a refusal is a toast in the reader's words", async () => {
+test("a field's refusal is said under that field in the reader's words, gone at the next send", async () => {
   const { page, close } = await open();
   await page.evaluate(() => document.querySelector("#body").removeAttribute("required"));
   await page.fill("#body", "   ");
   await page.click("form.composer button");
-  await page.waitForSelector(".ck-toast-error >> text=Write something first.");
+  await page.waitForSelector("#body + .ck-error >> text=Write something first.");
+  assert.equal(await page.getAttribute("#body", "aria-invalid"), "true");
+  assert.match(await page.getAttribute("#body", "aria-describedby"), /body-error/u);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "body");
+  assert.equal(await page.locator(".ck-toast-error").count(), 0, "no toast");
+  await page.fill("#body", "Now something");
+  await page.click("form.composer button");
+  await page.waitForSelector("li.note >> text=Now something");
+  assert.equal(await page.locator("#body + .ck-error").count(), 0);
+  assert.equal(await page.getAttribute("#body", "aria-invalid"), null);
   await close();
 });
 

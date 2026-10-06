@@ -104,7 +104,7 @@ test("a page: islands rendered each as its own root (ids that match the browser'
 
 test("actions: JSON for an island, a redirect for a form, refusals with their values", async () => {
   assert.deepEqual(await (await json("/chest/actions/echo", { text: "hi" })).json(), { ok: true, value: { text: "hi", who: member.id } });
-  assert.deepEqual(await (await json("/chest/actions/echo", { text: "toolong" })).json(), { ok: false, error: "too_long", message: "Too long: 5 at most." });
+  assert.deepEqual(await (await json("/chest/actions/echo", { text: "toolong" })).json(), { ok: false, error: "too_long", message: "Too long: 5 at most.", field: "text" });
   assert.deepEqual(await (await json("/chest/actions/go", {})).json(), { ok: true, value: null, redirect: "/chest/elsewhere" });
   assert.equal((await json("/chest/actions/refuse", {})).status, 403);
   const big = await json("/chest/actions/big", { text: "x".repeat(200) });

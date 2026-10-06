@@ -249,17 +249,23 @@ export const publicDownload = (render: (p: PageContext<VisitorContext>) => Promi
 // page(): a page of the members' part (under /chest); publicPage(): one of
 // the public part. The handler reads what the page needs and returns its
 // title and body (the layout goes around), or a Response of its own.
-// version (optional): what the page shows, in a few characters — the
-// newest change of its rows (`select max(updated_at)…`), a count. A
+// version (optional): what the page shows, in a few characters —
+// changeStamp() of ./db (never max(updated_at), a sequence or a counter
+// row: AGENTS.md says why), with what else it depends on (the day). A
 // refresh (useAutoRefresh, refresh()) that already has this version is
 // answered 304 before the page is rendered: a cheap read for a page left
-// open. The package keys it by the reader and their language.
+// open. The package keys it by the reader (their role and groups too)
+// and their language.
 export type PageOptions<V extends Viewer> = { version?: (p: PageContext<V>) => Promise<string | number | null> | string | number | null };
 async function versionOf<V extends Viewer>(c: Context, p: PageContext<V>, options: PageOptions<V>): Promise<string | undefined> {
   if (!options.version) return undefined;
   const v = await options.version(p);
   if (v === null || v === undefined) return undefined;
-  return createHash("sha256").update(`${p.member?.id ?? "-"}|${p.locale}|${c.req.path}|${new URL(c.req.url).search}|${String(v)}`).digest("base64url").slice(0, 22);
+  // The reader as the page may depend on them: who, their role, admin or
+  // not, their groups (a page whose buttons follow the role never answers
+  // 304 after the role changed), their language, the address.
+  const who = p.member ? `${p.member.id}|${p.member.role}|${p.member.isAdmin}|${[...(p.member.groups ?? [])].sort().join(",")}` : "-";
+  return createHash("sha256").update(`${who}|${p.locale}|${c.req.path}|${new URL(c.req.url).search}|${String(v)}`).digest("base64url").slice(0, 22);
 }
 export const page = (render: (p: PageContext<MemberContext>) => Promise<View | Response> | View | Response, options: PageOptions<MemberContext> = {}) => async (c: Context<Env>) => {
   const p = contextOf(c, c.get("viewer"));
@@ -326,8 +332,8 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
   let renew: Record<string, string> = {};
-  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
-    fetched ? c.json({ ok: false, error: code, message: fill(sayError(viewer.t, code), values), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
+  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>, field?: string) =>
+    fetched ? c.json({ ok: false, error: code, message: fill(sayError(viewer.t, code), values), ...(field ? { field } : {}), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
   const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -392,7 +398,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
     } catch (error) {
       if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to, ...next }) : c.redirect(error.to, 303);
       else if (error instanceof HttpStatus) answer = refuse(error.status === 403 ? 403 : 404, error.status === 403 ? "forbidden" : "not_found");
-      else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : error.code === "limit" ? 429 : 400, error.code, error.values);
+      else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : error.code === "limit" ? 429 : 400, error.code, error.values, error.field);
       else if (error instanceof SyntaxError || (error instanceof TypeError && /form|body|parse/iu.test(error.message))) answer = refuse(400, "invalid");
       else if (chestDown(error)) {
         log.warn("the Chest did not answer", { action: name, error: (error as Error).name });
