@@ -322,9 +322,9 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
   written one at a time; exports are streamed, a page and its files at a
   time. Measured in a 256 MiB cgroup (the Chest's default; the built server
   with a fake Chest and PostgreSQL, 6 October 2026): a 37 MiB Confluence
-  export of 490 pages and 25 pictures of 1.5 MB peaks at 138 MiB, a 54 MiB
-  one at 143 MiB; "Download everything" of the result (47–64 MB) at
-  141–163 MiB. Before, the first was killed for memory.
+  export of 490 pages and 25 pictures of 1.5 MB peaks at 118 MiB, a 54 MiB
+  one at 146 MiB; "Download everything" of the result (47–64 MB) at
+  147–168 MiB. Before, the first was killed for memory.
 - **Security**: content is ProseMirror JSON checked on the server against
   the schema of `src/lib/doc.ts` (unknown nodes, marks and attributes dropped;
   links http, https, mailto or the wiki's own pages and files; images only
