@@ -99,7 +99,7 @@ export function DetailView(props: {
               <hr className="rule" />
               <div className="actions-bar">
                 <a className="button quiet small" href={props.receipt.open} target="_blank" rel="noopener">{t.receipt.open}</a>
-                <a className="button quiet small" href={props.receipt.download}><Download />{t.receipt.download}</a>
+                <a className="button quiet small" href={props.receipt.download} download><Download />{t.receipt.download}</a>
               </div>
             </>
           )}

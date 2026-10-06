@@ -1,5 +1,4 @@
 import { Island, type LayoutProps, type MemberContext, type VisitorContext } from "@argentic/chest-app";
-import type { Member } from "@argentic/chest-sdk/member";
 import { AppShell, BrandMark, LanguageSwitch, NoAccess, type NavItem } from "@argentic/chest-ui/components";
 import { Download, Gear, Plus, Receipt, Stamp, Wallet } from "./components/icons.tsx";
 import { Mark } from "./components/mark.tsx";
@@ -7,10 +6,9 @@ import { languageNames, locales } from "./i18n/index.ts";
 import { can, roleOf } from "./lib/access.ts";
 
 // What waits in each section (the tabs' numbers): read by the page's
-// handler (src/app.tsx, `expenses()`), kept beside the very member object
-// the layout receives, for this request only.
+// handler (src/app.tsx, `expenses()`) and told to the layout (View.layout;
+// none on an error page).
 export type NavCounts = { approve: number; pay: number };
-export const navCounts = new WeakMap<Member, NavCounts>();
 
 // The members' part, in the kit's shell: the tool's mark (or the company's
 // logo in brand mode), the sections as labelled tabs with what waits in
@@ -19,10 +17,10 @@ export const navCounts = new WeakMap<Member, NavCounts>();
 // A member whose role gives nothing sees why, not an error. The toasts sit
 // outside <main>, under an id: a page met by navigate() keeps them, and a
 // toast's Undo with them.
-export function MembersLayout({ viewer: { member, t }, path, notice, look, status, children }: LayoutProps<MemberContext>) {
+export function MembersLayout({ viewer: { member, t }, path, notice, look, status, data, children }: LayoutProps<MemberContext>) {
   const role = roleOf(member);
   const brand = <a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark><span>{t.meta.name}</span></a>;
-  const counts = navCounts.get(member);
+  const counts = data.counts;
   const nav: NavItem[] = role ? [
     { href: "/chest", label: t.shell.mine, icon: <Receipt />, exact: true, also: ["/chest/new", "/chest/expenses", "/chest/search"] },
     ...(can(member, "approve") ? [{ href: "/chest/approve", label: t.shell.approve, icon: <Stamp />, ...(counts ? { count: counts.approve } : {}) }] : []),

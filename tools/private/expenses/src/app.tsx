@@ -11,7 +11,7 @@ import * as schedules from "@argentic/chest-sdk/schedules";
 import { actions } from "./actions.ts";
 import { format, localeOf, locales, words, type Catalogue } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
-import { MembersLayout, navCounts, PublicLayout } from "./layout.tsx";
+import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
 import { receiptObject, sectionCounts } from "./lib/expenses.ts";
@@ -56,8 +56,7 @@ export const app = createApp({
 const expenses = (render: (p: PageContext) => Promise<View>) => page(async p => {
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: null };
   const [view, counts] = await Promise.all([render(p), sectionCounts(db(), p.member)]);
-  navCounts.set(p.member, counts);
-  return view;
+  return { ...view, layout: { counts } };
 });
 
 // ---- The members' part (/chest…).
