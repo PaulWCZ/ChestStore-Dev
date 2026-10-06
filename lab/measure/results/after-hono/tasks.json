@@ -1,0 +1,1007 @@
+{
+ "tool": "tasks",
+ "label": "after-hono",
+ "source": "/home/user/wt/tasks/tools/private/tasks",
+ "date": "2026-10-06T00:58:57.296Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "d5f7128 2026-10-06 (with uncommitted changes)",
+ "load": {
+  "atStart": {
+   "one": 3.25,
+   "five": 3,
+   "fifteen": 2.71
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 100,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 54.1,
+    "rssMiB": 28,
+    "command": "postgres"
+   },
+   {
+    "cpu": 46.2,
+    "rssMiB": 108,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 43.4,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 10.7,
+    "rssMiB": 39,
+    "command": "postgres"
+   }
+  ],
+  "atEnd": {
+   "one": 2.64,
+   "five": 2.74,
+   "fifteen": 2.67
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 157,
+    "rssMiB": 785,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 20.3,
+    "rssMiB": 550,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 11.4,
+    "rssMiB": 52,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 11.3,
+    "rssMiB": 243,
+    "command": "chrome"
+   },
+   {
+    "cpu": 11.1,
+    "rssMiB": 170,
+    "command": "next-server (v1"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 11.1,
+  "apparentMiB": 10.6,
+  "files": 187
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 2351,
+  "peakRssMiB": 221.5,
+  "peakPssMiB": 172.7,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 283.6,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 3.25,
+   "five": 3,
+   "fifteen": 2.71
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 113.4,
+   "apparentMiB": 104.5,
+   "files": 2712
+  },
+  "pruned": {
+   "diskMiB": 18.5,
+   "apparentMiB": 13.6,
+   "files": 1354
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 3599,
+   "peakRssMiB": 358,
+   "peakPssMiB": 310.6,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 294.2,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "one": 3.15,
+    "five": 2.98,
+    "fifteen": 2.71
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 2221,
+   "peakRssMiB": 345.7,
+   "peakPssMiB": 273.6,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 292.3,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 3.54,
+    "five": 3.07,
+    "fifteen": 2.74
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 2.2,
+  "apparentMiB": 2.1,
+  "files": 11,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 31.8
+ },
+ "sdk": "0.4.1-studio.2",
+ "pages": {
+  "source": "lab/measure/pages/tasks.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?card=1",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?card=17",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?view=list",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?view=calendar",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/boards/2",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/import",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?view=timeline",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/2?view=timeline",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/boards/1?card=3",
+    "member": "hugo",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 235,
+    "firstMs": 333.2,
+    "statuses": [
+     200
+    ],
+    "load": 3.54
+   },
+   {
+    "portMs": 274.4,
+    "firstMs": 392.7,
+    "statuses": [
+     200
+    ],
+    "load": 3.15
+   },
+   {
+    "portMs": 345.5,
+    "firstMs": 463.5,
+    "statuses": [
+     200
+    ],
+    "load": 2.81
+   },
+   {
+    "portMs": 307.3,
+    "firstMs": 429.2,
+    "statuses": [
+     200
+    ],
+    "load": 2.7
+   },
+   {
+    "portMs": 407.1,
+    "firstMs": 601.2,
+    "statuses": [
+     200
+    ],
+    "load": 2.43
+   },
+   {
+    "portMs": 294.3,
+    "firstMs": 391.5,
+    "statuses": [
+     200
+    ],
+    "load": 2.8
+   },
+   {
+    "portMs": 262.2,
+    "firstMs": 358,
+    "statuses": [
+     200
+    ],
+    "load": 2.54
+   },
+   {
+    "portMs": 340,
+    "firstMs": 504.5,
+    "statuses": [
+     200
+    ],
+    "load": 2.38
+   },
+   {
+    "portMs": 312.1,
+    "firstMs": 453.8,
+    "statuses": [
+     200
+    ],
+    "load": 2.7
+   },
+   {
+    "portMs": 326.9,
+    "firstMs": 460.1,
+    "statuses": [
+     200
+    ],
+    "load": 2.52
+   }
+  ],
+  "port": {
+   "median": 309.70000000000005,
+   "min": 235,
+   "max": 407.1
+  },
+  "first200": {
+   "median": 441.5,
+   "min": 333.2,
+   "max": 601.2
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 171.5,
+     "pss": 68.2
+    },
+    "peakMiB": {
+     "rss": 178.4,
+     "pss": 74.9,
+     "cgroup": 68.6
+    },
+    "afterRequestsMiB": {
+     "rss": 178.4,
+     "pss": 74.9
+    },
+    "restMiB": {
+     "rss": 174.8,
+     "pss": 70.7,
+     "pssAnon": 61.9,
+     "pssFile": 8.8,
+     "cgroupAnon": 61.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 20.5
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 106.1,
+      "pssMiB": 50
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20358,
+      "ms": 26.8
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 44795,
+      "ms": 176.9
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88799,
+      "ms": 54
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 85036,
+      "ms": 48.4
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 39815,
+      "ms": 17
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 47464,
+      "ms": 22.5
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 29645,
+      "ms": 11.2
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 15561,
+      "ms": 8.2
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 39497,
+      "ms": 15.1
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 11711,
+      "ms": 3.5
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 56209,
+      "ms": 13.9
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 50228,
+      "ms": 11.9
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83450,
+      "ms": 32.5
+     }
+    ],
+    "load": {
+     "mean": 2.31,
+     "max": 2.54
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 171,
+     "pss": 68.9
+    },
+    "peakMiB": {
+     "rss": 179.7,
+     "pss": 77.5,
+     "cgroup": 70.2
+    },
+    "afterRequestsMiB": {
+     "rss": 179.7,
+     "pss": 77.5
+    },
+    "restMiB": {
+     "rss": 175.3,
+     "pss": 72.6,
+     "pssAnon": 62.6,
+     "pssFile": 10,
+     "cgroupAnon": 62.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 21.3
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 106.5,
+      "pssMiB": 51.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20358,
+      "ms": 17.8
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 44795,
+      "ms": 24.7
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88799,
+      "ms": 62.8
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 85036,
+      "ms": 29.8
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 39815,
+      "ms": 12.9
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 47464,
+      "ms": 11.8
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 29645,
+      "ms": 8.8
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 15561,
+      "ms": 5.7
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 39497,
+      "ms": 10.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 11711,
+      "ms": 3.1
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 56209,
+      "ms": 9.9
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 50228,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83450,
+      "ms": 15
+     }
+    ],
+    "load": {
+     "mean": 2.69,
+     "max": 2.98
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 171.3,
+     "pss": 68.8
+    },
+    "peakMiB": {
+     "rss": 178.4,
+     "pss": 75.5,
+     "cgroup": 68.8
+    },
+    "afterRequestsMiB": {
+     "rss": 178.4,
+     "pss": 75.5
+    },
+    "restMiB": {
+     "rss": 175.4,
+     "pss": 70.8,
+     "pssAnon": 62.5,
+     "pssFile": 8.2,
+     "cgroupAnon": 62.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 20.5
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 106.7,
+      "pssMiB": 50.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20358,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 44795,
+      "ms": 23.5
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88799,
+      "ms": 43.1
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 85036,
+      "ms": 25.7
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 39815,
+      "ms": 19
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 47464,
+      "ms": 11.7
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 29645,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 15561,
+      "ms": 7.3
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 39497,
+      "ms": 11
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 11711,
+      "ms": 3
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 56209,
+      "ms": 12.5
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 50228,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83450,
+      "ms": 62.5
+     }
+    ],
+    "load": {
+     "mean": 2.34,
+     "max": 2.49
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 168.4,
+     "pss": 65.8
+    },
+    "peakMiB": {
+     "rss": 177.5,
+     "pss": 72.8,
+     "cgroup": 67.8
+    },
+    "afterRequestsMiB": {
+     "rss": 177.5,
+     "pss": 72.8
+    },
+    "restMiB": {
+     "rss": 173.2,
+     "pss": 70.4,
+     "pssAnon": 60.4,
+     "pssFile": 10,
+     "cgroupAnon": 60.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 21.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 104.5,
+      "pssMiB": 49
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20358,
+      "ms": 64
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 44795,
+      "ms": 53.7
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88799,
+      "ms": 49.9
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 85036,
+      "ms": 66.7
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 39815,
+      "ms": 28.8
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 47464,
+      "ms": 11.4
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 29645,
+      "ms": 10.6
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 15561,
+      "ms": 6.9
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 39497,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 11711,
+      "ms": 3.1
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 56209,
+      "ms": 11.7
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 50228,
+      "ms": 8.2
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83450,
+      "ms": 16.9
+     }
+    ],
+    "load": {
+     "mean": 2.61,
+     "max": 2.78
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 174.4,
+     "pss": 71
+    },
+    "peakMiB": {
+     "rss": 177.9,
+     "pss": 73.7,
+     "cgroup": 73
+    },
+    "afterRequestsMiB": {
+     "rss": 177.9,
+     "pss": 73.7
+    },
+    "restMiB": {
+     "rss": 173.3,
+     "pss": 70.5,
+     "pssAnon": 60.4,
+     "pssFile": 10.1,
+     "cgroupAnon": 60.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 21.3
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 104.5,
+      "pssMiB": 49.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 20358,
+      "ms": 39.9
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 44795,
+      "ms": 37.8
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88799,
+      "ms": 49.6
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 85036,
+      "ms": 49.3
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 39815,
+      "ms": 27.1
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 47464,
+      "ms": 12.3
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 29645,
+      "ms": 9.6
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 15561,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 39497,
+      "ms": 14.7
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 11711,
+      "ms": 3.1
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 56209,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 50228,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83450,
+      "ms": 31.4
+     }
+    ],
+    "load": {
+     "mean": 3.19,
+     "max": 3.3
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 174.8,
+    "min": 173.2,
+    "max": 175.4
+   },
+   "pss": {
+    "median": 70.7,
+    "min": 70.4,
+    "max": 72.6
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 178.4,
+    "min": 177.5,
+    "max": 179.7
+   },
+   "pss": {
+    "median": 74.9,
+    "min": 72.8,
+    "max": 77.5
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 108,
+    "min": 106.4,
+    "max": 108.6
+   },
+   "pss": {
+    "median": 50.2,
+    "min": 49.2,
+    "max": 51.3
+   }
+  }
+ }
+}
