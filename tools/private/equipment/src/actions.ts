@@ -143,8 +143,8 @@ export const actions = {
     return null;
   }),
 
-  // ---- "I received it", "Remind them" (the bell, and email where the
-  // Chest sends it: says whether the email left), the rules.
+  // ---- "I received it", "Remind them" (the bell item rung again; the
+  // Chest mails it to the holder if they chose so), the rules.
   confirmReceipt: act({ id: id(), remark: maybe<string>(), charterId: maybe<string>() }, async ({ id, remark, charterId }, { member }): Promise<null> => {
     await confirm(db(), member, id, { remark, charterId });
     return null;

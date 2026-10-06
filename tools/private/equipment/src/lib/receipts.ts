@@ -181,8 +181,8 @@ export async function returnSheet(sql: Query, actor: Member | null, holder: unkn
 }
 
 // remind: a manager reminds the holder of a receipt still waiting ("Remind
-// them" on the overview) — once a day at most. Says whom, what and since
-// when, for the bell and the email (lib/tell.ts).
+// them" on the overview) — once a day at most (20 hours, on the server).
+// Says whom, what and since when, for the bell (lib/tell.ts).
 export async function remind(sql: Sql, actor: Member | null, itemId: unknown): Promise<{ holder: string; item: Item; givenOn: string; givenBy: string }> {
   manager(actor);
   return sql.begin(async tx => {
