@@ -5,7 +5,7 @@ import type { PageContext, View } from "@argentic/chest-app";
 import { Island } from "@argentic/chest-app";
 import type { MemberContext } from "@argentic/chest-app";
 import { clock, dayWords, endClock, format, isLocale, plural, relative, localeOf } from "../i18n/index.ts";
-import { can } from "../lib/access.ts";
+import { can, roleOf } from "../lib/access.ts";
 import * as b from "../lib/booking.ts";
 import * as calendars from "../lib/calendars.ts";
 import { db } from "../lib/db.ts";
@@ -26,6 +26,8 @@ type Item = { kind: "booking"; at: Date; booking: b.Booking } | { kind: "block";
 export async function agendaPage(v: PageContext<MemberContext>): Promise<View> {
   const { member, t, request, query } = v;
   const locale = localeOf(v.locale);
+  // No role: the layout says why (NoAccess); nothing to read.
+  if (!roleOf(member)) return { title: t.noAccess.title, body: null };
   const shown = query("show");
   const scope: b.Scope = shown === "past" || shown === "cancelled" ? shown : "upcoming";
   const seesAll = can(member, "bookings.all");

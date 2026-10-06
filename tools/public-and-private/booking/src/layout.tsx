@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { Calendar, Clock, Gear, Stack } from "./components/icons.tsx";
 import { Mark } from "./components/mark.tsx";
 import { can, roleOf } from "./lib/access.ts";
-import { lookNow } from "./theme.ts";
 
 // What goes around every page. The members' part: the kit's shell (skip
 // link, header, labelled sections — on a phone in a row of their own —,
@@ -21,8 +20,8 @@ type Section = "bookings" | "types" | "hours" | "settings";
 const icons: Record<Section, () => ReactNode> = { bookings: Calendar, types: Stack, hours: Clock, settings: Gear };
 const hrefs: Record<Section, string> = { bookings: "/chest", types: "/chest/types", hours: "/chest/hours", settings: "/chest/settings" };
 
-export function MembersLayout({ viewer: { member, t }, path, notice, children }: LayoutProps<MemberContext>) {
-  const look = lookNow("team");
+// The look (createApp's, src/app.tsx) carries the company's logo in brand mode.
+export function MembersLayout({ viewer: { member, t }, look, path, notice, children }: LayoutProps<MemberContext>) {
   const role = roleOf(member);
   const hosts = can(member, "host");
   const sections: Section[] = !role ? [] : ["bookings", ...(hosts ? ["types", "hours"] as const : []), "settings"];
@@ -33,7 +32,7 @@ export function MembersLayout({ viewer: { member, t }, path, notice, children }:
   return (
     <>
       <AppShell
-        brand={<a href="/chest"><BrandMark logo={look.logo}><Mark /></BrandMark>{t.tool.name}</a>}
+        brand={<a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark>{t.tool.name}</a>}
         nav={nav}
         path={shown}
         member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}
@@ -47,12 +46,19 @@ export function MembersLayout({ viewer: { member, t }, path, notice, children }:
   );
 }
 
-export function PublicLayout({ viewer: { t }, notice, children }: LayoutProps<VisitorContext>) {
+// A public page draws its own frame (src/pages/PublicShell.tsx: the
+// company, the language switch); an error page gets a plain one here.
+export function PublicLayout({ viewer: { t }, look, notice, status, children }: LayoutProps<VisitorContext>) {
   return (
     <>
       <a className="ck-skip" href="#main">{t.shell.skip}</a>
       {notice && <p className="notice spaced" role="alert">{notice}</p>}
-      {children}
+      {status === 200 ? children : (
+        <div className="public">
+          <header className="public-top"><span className="company"><BrandMark logo={look?.logo ?? null}>{t.tool.name}</BrandMark></span></header>
+          <main className="public-main" id="main" tabIndex={-1}>{children}</main>
+        </div>
+      )}
       <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy } }} />
     </>
   );

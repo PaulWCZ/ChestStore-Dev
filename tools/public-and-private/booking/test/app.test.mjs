@@ -42,7 +42,7 @@ const clean = html => {
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/u, "no inline script");
   assert.doesNotMatch(html, /<style/u, "no style element");
 };
-const props = (html, island) => JSON.parse(new RegExp(`data-island="${island}" data-props="([^"]*)"`, "u").exec(html)[1].replaceAll("&quot;", "\"").replaceAll("&amp;", "&").replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">"));
+const props = (html, island) => JSON.parse(new RegExp(`data-island="${island}"[^>]*? data-props="([^"]*)"`, "u").exec(html)[1].replaceAll("&quot;", "\"").replaceAll("&amp;", "&").replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">"));
 
 test("the agenda: the member's language, the policy, the look as a stylesheet, nothing inline; 401 without the Chest", async () => {
   const response = await get(ines, "/chest");
@@ -69,10 +69,11 @@ test("the look: a stylesheet with its hash, kept a year when linked by it, 304 w
   assert.equal(sheet.status, 200);
   assert.equal(sheet.headers.get("content-type"), "text/css; charset=utf-8");
   assert.equal(sheet.headers.get("cache-control"), "private, max-age=31536000, immutable");
+  const etag = sheet.headers.get("etag");
   const css = await sheet.text();
   assert.match(css, /--accent:\s*#5b2a86/u, "Booking's own identity: Appointment card");
   assert.match(css, /url\(\/assets\/fonts\/figtree-latin-wght-normal\.woff2\)/u);
-  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": `"${v}"` })).status, 304);
+  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": etag })).status, 304);
   assert.equal((await app.fetch(new Request(team + "/chest/look.css"))).status, 401, "the team's look is the team's");
   // The company chooses a catalogue theme for all its tools: the team's
   // pages wear it, the public ones keep Booking's own.
@@ -177,7 +178,8 @@ test("booking a time as a visitor: the form's guard, the booking, the guest's pa
   assert.equal(robot.status, 400);
   assert.equal((await robot.json()).error, "invalid");
   // A person (the server waits the few seconds a person takes, if needed).
-  const booked = await form("/actions/bookTime", fields, { "chest-visitor-address": "203.0.113.7", "accept-language": "fr" });
+  // (In English: the host's choices are answered as the visitor read them.)
+  const booked = await form("/actions/bookTime", fields, { "chest-visitor-address": "203.0.113.7", "accept-language": "en" });
   assert.equal(booked.status, 200);
   const outcome = await booked.json();
   assert.equal(outcome.ok, true);

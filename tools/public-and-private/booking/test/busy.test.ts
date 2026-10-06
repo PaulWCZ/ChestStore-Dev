@@ -281,12 +281,11 @@ test("the websites allowed to show the booking pages: https origins only, ten at
   assert.deepEqual((await b.settings(sql)).embedOrigins, ["https://a.fr"]);
 });
 
-test("a website allowed in Settings may frame the booking pages on the very next request, as the proxy reads it", async () => {
+test("a website allowed in Settings may frame the booking pages on the very next request: read each time, never kept", async () => {
   const { sql } = await ready();
-  // Next.js runs proxy.ts in its own module instance, apart from the server
-  // actions: load lib/embed.ts a second time, as the proxy does, and read
-  // through db() exactly as it calls it.
-  const proxied = (await import(`../lib/embed.ts?proxy=${Date.now()}`)) as typeof import("../src/lib/embed.ts");
+  // Read through db() exactly as the server's framing calls it
+  // (src/app.tsx; the whole answer: test/app.test.mjs).
+  const proxied = await import("../src/lib/embed.ts");
   assert.deepEqual(await proxied.embedOrigins(), []);
   assert.equal(proxied.frameAncestors(await proxied.embedOrigins(), false), "frame-ancestors 'none'");
   await b.saveEmbed(sql, asMember(camille), "https://www.atelier-martin.fr");

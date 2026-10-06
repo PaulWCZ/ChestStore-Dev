@@ -51,21 +51,11 @@ export async function sheetOf(surface: Surface): Promise<Sheet> {
   const choice = await chest.theme();
   const kept = written.get(choice) ?? {};
   const found = kept[surface];
-  if (found) return (latest[surface] = found);
+  if (found) return found;
   const look = resolveTheme(choice, identity, { surface, ownFonts: "/assets/fonts" });
   if (look.problem) log.warn("theme not usable: the tool's own look is used", { problem: look.problem });
   const css = lookCss(look);
   const sheet: Sheet = { look, css, etag: createHash("sha256").update(css).digest("base64url").slice(0, 16), colors: lookColors(look) };
   written.set(choice, { ...kept, [surface]: sheet });
-  latest[surface] = sheet;
   return sheet;
-}
-
-// The sheet of a surface as last read: what the layout draws with (the
-// company's logo in brand mode), within the request whose look was just
-// read — createApp's look() runs before the page is rendered, with no wait
-// between the two. The identity's own until a look was read.
-const latest: Partial<Record<Surface, Sheet>> = {};
-export function lookNow(surface: Surface): Look {
-  return latest[surface]?.look ?? resolveTheme(null, identity, { surface, ownFonts: "/assets/fonts" });
 }

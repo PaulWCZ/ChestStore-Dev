@@ -46,7 +46,7 @@ const routes = createApp({
   head: () => <><meta name="robots" content="noindex, nofollow" /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
   look: async viewer => {
     const sheet = await sheetOf(viewer.member ? "team" : "public");
-    return { css: sheet.css, colors: sheet.colors };
+    return { css: sheet.css, colors: sheet.colors, logo: sheet.look.logo ?? null };
   },
 });
 

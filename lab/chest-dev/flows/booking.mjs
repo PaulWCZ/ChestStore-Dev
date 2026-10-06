@@ -642,7 +642,7 @@ await step("four wrong calendar addresses, four plain answers; webcal:// is take
 });
 
 await step("a French visitor in Montréal reads French cities, « Toronto, Montréal » chosen, and « à l’arrivée d’Inès »", async () => {
-  const montreal = await browser.newContext({ locale: "fr-CA", timezoneId: "America/Toronto", viewport: { width: 390, height: 844 } });
+  const montreal = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-CA", timezoneId: "America/Toronto", viewport: { width: 390, height: 844 } });
   const visitor = await montreal.newPage();
   visitor.on("pageerror", e => problems.push("page: " + e.message));
   await visitor.goto(origin + "/lang/fr?back=/ines-moreau/project-call");

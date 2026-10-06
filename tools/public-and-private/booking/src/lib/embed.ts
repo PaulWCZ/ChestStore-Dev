@@ -3,12 +3,12 @@ import { db, type Query } from "./db.ts";
 
 // The websites an administrator allowed to show the public pages in a
 // frame (Settings), read from the database for every public page's policy
-// (proxy.ts), never kept in the process: Next.js runs proxy.ts in its own
-// module instance, apart from the server actions, so a copy kept here could
-// not be told of a change and a newly allowed website would be refused
-// until it expired. One row by its key: as cheap as a query gets.
-export async function embedOrigins(sql: Query = db()): Promise<string[]> {
+// (src/app.tsx, framed), never kept in the process: two instances run
+// during an update, and a newly allowed website must count at once. One
+// row by its key: as cheap as a query gets.
+export async function embedOrigins(given?: Query): Promise<string[]> {
   try {
+    const sql = given ?? db();
     const [row] = await sql<{ value: unknown }[]>`select value from settings where key = 'embed_origins'`;
     const value = row?.value;
     return Array.isArray(value) ? value.filter((o): o is string => typeof o === "string" && isOrigin(o)) : [];
