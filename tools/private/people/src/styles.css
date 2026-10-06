@@ -25,9 +25,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 ul, ol { margin: 0; padding: 0; list-style: none; }
 img { max-width: 100%; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
-/* An island's wrapper (@argentic/chest-app) lays out nothing of its own:
-   its inside is part of the page's layout. */
-.island { display: contents; }
 /* Parts the flows and the tests find by name, styled by what they hold. */
 .setup, .documents, .letters, .letter-card, .letter-form, .node, .template, .todo-group { min-width: 0; }
 /* A refusal of a form sent without JavaScript (the layout's notice). */
