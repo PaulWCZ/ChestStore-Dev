@@ -685,5 +685,34 @@ await step("a dialog never loses what was typed: Escape asks first; Keep editing
   expect(await page.locator("dialog[open]").count() === 0, "closed");
 });
 
+await step("two managers at once: a take-back from a page read before someone else's is refused (it moved), and the page shows where it is", async () => {
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(itemUrl);
+  if (await page.getByRole("button", { name: "Take back" }).count() === 0) {
+    await page.getByRole("button", { name: "Give to someone" }).click();
+    await page.getByPlaceholder("Find someone").fill("hug");
+    await page.getByRole("option", { name: /Hugo Bernard/u }).click();
+    await page.getByRole("button", { name: "Give it to Hugo Bernard" }).click();
+    await page.getByText("Given to Hugo Bernard.").waitFor();
+    await page.goto(itemUrl);
+  }
+  // Camille, elsewhere, takes it back first.
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  await other.addCookies([{ name: "dev_member", value: id("camille"), url: origin }, { name: "dev_locale", value: "en", url: origin }]);
+  const camille = await other.newPage();
+  await camille.goto(itemUrl);
+  await camille.getByRole("button", { name: "Take back" }).first().click();
+  await camille.getByRole("button", { name: "Take it back" }).click();
+  await camille.locator("dialog[open]").waitFor({ state: "detached" });
+  await other.close();
+  // Sofia's page still says Hugo has it: her take-back is refused.
+  await page.getByRole("button", { name: "Take back" }).first().click();
+  await page.getByRole("button", { name: "Take it back" }).click();
+  await page.getByText("Someone moved it meanwhile").waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByText("In stock", { exact: false }).first().waitFor();
+});
+
 await browser.close();
 done(problems);

@@ -64,7 +64,7 @@ export function RequestsPanel({ requests, t }: { requests: WaitingRequest[]; t: 
             <ul className="pick-list" aria-busy={offer.loading}>
               {shown.map(o => (
                 <li key={o.id}>
-                  <button type="button" className="pick" disabled={pending} onClick={() => giving && run(() => call("fulfilRequest", { id: giving.id, itemId: o.id }, { quiet: true }), format(w.givenDone, { name: giving.name }), () => setGiving(null))}>
+                  <button type="button" className="pick" disabled={pending || offer.loading} onClick={() => giving && run(() => call("fulfilRequest", { id: giving.id, itemId: o.id }, { quiet: true }), format(w.givenDone, { name: giving.name }), () => setGiving(null))}>
                     <span className="pick-icon" aria-hidden="true"><CategoryIcon name={o.icon} /></span>
                     <span className="pick-text"><span>{o.name}</span><span className="small muted"><span className="mono">{o.tag}</span> · {o.holder.kind === "seats" || o.holder.kind === "stock" ? o.holderText : o.category}</span></span>
                   </button>

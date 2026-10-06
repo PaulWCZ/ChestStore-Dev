@@ -3,40 +3,55 @@
 // spreadsheets use ";"). Small and tested; no dependency.
 
 export function parseCsv(text: string, maxRows = 20000): string[][] {
-  const source = text.replace(/^﻿/u, "");
+  const source = text.replace(/^\uFEFF/u, "");
   const firstLine = source.slice(0, source.search(/\r?\n|$/u));
   const separator = (firstLine.match(/;/gu)?.length ?? 0) > (firstLine.match(/,/gu)?.length ?? 0) ? ";" : ",";
+  // Each cell is a slice of the text (no string built a character at a
+  // time: a 5 MB file made millions of strings for the collector).
   const rows: string[][] = [];
   let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < source.length; i++) {
-    const c = source[i]!;
-    if (quoted) {
-      if (c === '"') {
-        if (source[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else quoted = false;
-      } else field += c;
-      continue;
-    }
-    if (c === '"' && field === "") quoted = true;
-    else if (c === separator) {
-      row.push(field);
-      field = "";
-    } else if (c === "\n" || c === "\r") {
-      if (c === "\r" && source[i + 1] === "\n") i++;
-      row.push(field);
-      field = "";
-      if (row.length > 1 || row[0] !== "") rows.push(row);
-      row = [];
-      if (rows.length > maxRows) break;
-    } else field += c;
-  }
-  if (field !== "" || row.length > 0) {
-    row.push(field);
+  let i = 0;
+  const n = source.length;
+  const endRow = () => {
     if (row.length > 1 || row[0] !== "") rows.push(row);
+    row = [];
+  };
+  while (i <= n) {
+    let value: string;
+    if (source[i] === '"') {
+      // Quoted: up to the closing quote, a doubled quote is one.
+      const pieces: string[] = [];
+      let from = i + 1;
+      for (;;) {
+        const quote = source.indexOf('"', from);
+        if (quote === -1) { pieces.push(source.slice(from)); i = n; break; }
+        pieces.push(source.slice(from, quote));
+        if (source[quote + 1] === '"') { pieces.push('"'); from = quote + 2; continue; }
+        i = quote + 1;
+        break;
+      }
+      value = pieces.join("");
+      // Anything after the closing quote, up to the separator, is kept (as
+      // spreadsheets do).
+      let end = i;
+      while (end < n && source[end] !== separator && source[end] !== "\n" && source[end] !== "\r") end++;
+      if (end > i) value += source.slice(i, end);
+      i = end;
+    } else {
+      let end = i;
+      while (end < n && source[end] !== separator && source[end] !== "\n" && source[end] !== "\r") end++;
+      value = source.slice(i, end);
+      i = end;
+    }
+    row.push(value);
+    if (i >= n) { endRow(); break; }
+    const c = source[i];
+    if (c === separator) { i++; if (i === n) { row.push(""); endRow(); break; } continue; }
+    // A line break: \r\n, \n or \r.
+    i += c === "\r" && source[i + 1] === "\n" ? 2 : 1;
+    endRow();
+    if (rows.length > maxRows) break;
+    if (i === n) break;
   }
   return rows;
 }

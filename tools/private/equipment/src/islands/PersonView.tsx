@@ -108,7 +108,7 @@ export function PersonView({ holder, name, present, gone, items, seats, more = 0
             <ul className="pick-list">
               {shown.map(o => (
                 <li key={o.id}>
-                  <button type="button" className="pick" disabled={pending} onClick={() => give(o)}>
+                  <button type="button" className="pick" disabled={pending || offer.loading} onClick={() => give(o)}>
                     <span className="pick-icon" aria-hidden="true"><CategoryIcon name={o.icon} /></span>
                     <span className="pick-text"><span>{o.name}</span><span className="small muted"><span className="mono">{o.tag}</span> · {o.holder.kind === "seats" ? o.holderText : o.category}</span></span>
                   </button>

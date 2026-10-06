@@ -5,8 +5,9 @@ import type { Row } from "../lib/view.ts";
 // What a Give dialog offers (the stockOffer action): read when the dialog
 // opens and again as the manager types (a short pause first), never sent
 // with the page — a company with 1,000 things in stock made every visit of
-// the overview carry them. The newest answer wins; loading tells the list
-// it is on its way (it keeps what it showed).
+// the overview carry them. The newest answer wins; while one is on its way
+// the list keeps what it showed, its buttons disabled (a click would give
+// a thing of the previous search).
 export type Offer = Row & { categoryId: string };
 export function useOffer(open: boolean, ask: { categoryId?: string | null; consumables: boolean; person?: string | null }): { rows: Offer[]; loading: boolean; q: string; setQ: (q: string) => void } {
   const [q, setQ] = useState("");

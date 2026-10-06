@@ -554,8 +554,8 @@ export async function takeBack(sql: Sql, actor: Member | null, itemId: unknown, 
   const when = onDay(input.day);
   const result = await sql.begin(async tx => {
     const before = await load(tx, itemId, { lock: true });
-    if (!before.holder && !before.place) throw new AppError("not_held");
     if (expected !== undefined && !sameHolding(before, expected)) throw new AppError("moved");
+    if (!before.holder && !before.place) throw new AppError("not_held");
     await tx`update items set holder = null, place = null, held_since = null, status = ${status}, updated_at = now() where id = ${before.id}`;
     await record(tx, { item: before.id, actor: who.id, kind: "returned", member: before.holder, place: before.place, status, note, day: when });
     await closeReceipts(tx, before.id);
