@@ -1,0 +1,922 @@
+{
+ "tool": "leave",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/tools/private/leave",
+ "date": "2026-10-06T09:35:08.922Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "fc16acb 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.04,
+   "five": 0.54,
+   "fifteen": 1.15
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 58.8,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 12.7,
+    "rssMiB": 548,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 80,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 144,
+    "command": "postgres"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ],
+  "atEnd": {
+   "one": 0.67,
+   "five": 0.76,
+   "fifteen": 1.04
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 12.6,
+    "rssMiB": 551,
+    "command": "claude"
+   },
+   {
+    "cpu": 6.7,
+    "rssMiB": 216,
+    "command": "chrome"
+   },
+   {
+    "cpu": 5.1,
+    "rssMiB": 206,
+    "command": "chrome"
+   },
+   {
+    "cpu": 3.4,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 2.9,
+    "rssMiB": 124,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 8,
+  "apparentMiB": 7.5,
+  "files": 179
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 3564,
+  "peakRssMiB": 561.8,
+  "peakPssMiB": 529.6,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.36,
+   "five": 0.6,
+   "fifteen": 1.17
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 7333,
+  "peakRssMiB": 774,
+  "peakPssMiB": 741.8,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1263.2,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.41,
+   "max": 0.41
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 34251,
+   "peakRssMiB": 605.4,
+   "peakPssMiB": 529.9,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 493.6,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.44,
+    "max": 0.5
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 13938,
+   "peakRssMiB": 1060.4,
+   "peakPssMiB": 984.6,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 957.8,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 0.55,
+    "max": 0.57
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 4.8,
+  "apparentMiB": 4.1,
+  "files": 181,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 455.4
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/leave.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/calendar",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/new",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/approvals",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/requests/13",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/payroll",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 320.4,
+    "firstMs": 676.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.95
+   },
+   {
+    "portMs": 256.2,
+    "firstMs": 622.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.81
+   },
+   {
+    "portMs": 253.1,
+    "firstMs": 633.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.76
+   },
+   {
+    "portMs": 282.6,
+    "firstMs": 638.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.64
+   },
+   {
+    "portMs": 312.2,
+    "firstMs": 710.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.55
+   },
+   {
+    "portMs": 264.1,
+    "firstMs": 617.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.46
+   },
+   {
+    "portMs": 319.4,
+    "firstMs": 741.9,
+    "statuses": [
+     200
+    ],
+    "load": 0.39
+   },
+   {
+    "portMs": 287.7,
+    "firstMs": 676.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.38
+   },
+   {
+    "portMs": 357.3,
+    "firstMs": 764.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.4
+   },
+   {
+    "portMs": 390.4,
+    "firstMs": 972.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.42
+   }
+  ],
+  "port": {
+   "median": 299.95,
+   "min": 253.1,
+   "max": 390.4
+  },
+  "first200": {
+   "median": 676.25,
+   "min": 617.9,
+   "max": 972.2
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 239.1,
+     "pss": 156.5
+    },
+    "peakMiB": {
+     "rss": 258.6,
+     "pss": 175.9,
+     "cgroup": 130.2
+    },
+    "afterRequestsMiB": {
+     "rss": 258.6,
+     "pss": 175.9
+    },
+    "restMiB": {
+     "rss": 227.4,
+     "pss": 138.4,
+     "pssAnon": 93.1,
+     "pssFile": 45.3,
+     "cgroupAnon": 93.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 24.6
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 158.7,
+      "pssMiB": 113.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36609,
+      "ms": 25
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 59.4
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 31.5
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 26.4
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 23.7
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 27.2
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 30.2
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 31.4
+     }
+    ],
+    "load": {
+     "mean": 0.51,
+     "max": 0.66
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 238.8,
+     "pss": 162.2
+    },
+    "peakMiB": {
+     "rss": 263.9,
+     "pss": 187.3,
+     "cgroup": 135.3
+    },
+    "afterRequestsMiB": {
+     "rss": 263.9,
+     "pss": 187.3
+    },
+    "restMiB": {
+     "rss": 232.6,
+     "pss": 137.1,
+     "pssAnon": 98.4,
+     "pssFile": 38.7,
+     "cgroupAnon": 98.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 24.3
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 163.6,
+      "pssMiB": 112.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36609,
+      "ms": 55.2
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 52.8
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 25.7
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 27.6
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 23.3
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 25.4
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 23.4
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 21.7
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 17.8
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 17.1
+     }
+    ],
+    "load": {
+     "mean": 0.85,
+     "max": 1.06
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 238.4,
+     "pss": 161.8
+    },
+    "peakMiB": {
+     "rss": 259.9,
+     "pss": 183.2,
+     "cgroup": 131.8
+    },
+    "afterRequestsMiB": {
+     "rss": 259.9,
+     "pss": 183.2
+    },
+    "restMiB": {
+     "rss": 228.4,
+     "pss": 132.9,
+     "pssAnon": 94.2,
+     "pssFile": 38.7,
+     "cgroupAnon": 94.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 24
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 159.8,
+      "pssMiB": 108.7
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36609,
+      "ms": 24.1
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 40.5
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 22.5
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 23.9
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 20.8
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 24
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 22.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 20.3
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 16.7
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 16
+     }
+    ],
+    "load": {
+     "mean": 0.94,
+     "max": 1.28
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 239,
+     "pss": 162.4
+    },
+    "peakMiB": {
+     "rss": 262.2,
+     "pss": 185.6,
+     "cgroup": 133.5
+    },
+    "afterRequestsMiB": {
+     "rss": 262.2,
+     "pss": 185.6
+    },
+    "restMiB": {
+     "rss": 230.3,
+     "pss": 134.4,
+     "pssAnon": 96.1,
+     "pssFile": 38.3,
+     "cgroupAnon": 96.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 23.8
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.6,
+      "pssMiB": 110.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36609,
+      "ms": 24.5
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 40.9
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 22.1
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 47.7
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 23.7
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 27.5
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 24.4
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 20.5
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 17.8
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 19
+     }
+    ],
+    "load": {
+     "mean": 1.41,
+     "max": 1.51
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 238.4,
+     "pss": 142.5
+    },
+    "peakMiB": {
+     "rss": 259.8,
+     "pss": 163.9,
+     "cgroup": 131.3
+    },
+    "afterRequestsMiB": {
+     "rss": 259.8,
+     "pss": 163.9
+    },
+    "restMiB": {
+     "rss": 228.1,
+     "pss": 132.2,
+     "pssAnon": 94,
+     "pssFile": 38.2,
+     "cgroupAnon": 93.9,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.7,
+      "pssMiB": 23.7
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 159.6,
+      "pssMiB": 108.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 36609,
+      "ms": 27
+     },
+     {
+      "path": "/chest/calendar",
+      "status": 200,
+      "bytes": 89500,
+      "ms": 42.1
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 35835,
+      "ms": 22.8
+     },
+     {
+      "path": "/chest/approvals",
+      "status": 200,
+      "bytes": 37372,
+      "ms": 27.7
+     },
+     {
+      "path": "/chest/requests/13",
+      "status": 200,
+      "bytes": 35963,
+      "ms": 29.7
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 46500,
+      "ms": 32.2
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 53934,
+      "ms": 39.8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 69186,
+      "ms": 51.2
+     },
+     {
+      "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40045,
+      "ms": 21.3
+     },
+     {
+      "path": "/chest/people/payroll",
+      "status": 200,
+      "bytes": 35484,
+      "ms": 22.2
+     }
+    ],
+    "load": {
+     "mean": 0.99,
+     "max": 1.21
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 228.4,
+    "min": 227.4,
+    "max": 232.6
+   },
+   "pss": {
+    "median": 134.4,
+    "min": 132.2,
+    "max": 138.4
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 259.9,
+    "min": 258.6,
+    "max": 263.9
+   },
+   "pss": {
+    "median": 183.2,
+    "min": 163.9,
+    "max": 187.3
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 161.7,
+    "min": 160.6,
+    "max": 165.5
+   },
+   "pss": {
+    "median": 110.6,
+    "min": 108.6,
+    "max": 113.8
+   }
+  }
+ }
+}
