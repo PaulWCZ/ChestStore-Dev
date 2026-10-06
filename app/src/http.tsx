@@ -151,9 +151,6 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   const name = viewer.t.tool.name;
   const notice = noticeOf(c, viewer.t);
   const { members: Members, public: Public } = options.layouts;
-  // The render's mark (in the islands' prefixes): the browser leaves it
-  // out when it compares two reads of a page (useAutoRefresh's back-off).
-  const render = startRender(options.islands);
   // A public page issues a token per bounded action it shows a form for
   // (<Honeypot action="…" />).
   const form = viewer.member === null && hasBounds(options);
@@ -162,7 +159,12 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   if (form) for (const [name, a] of Object.entries(options.actions)) if (a.access === "public" && a.bound && baseBits(a.bound) > 0) bits.set(name, await workBits(name, a.bound));
   // The actions call() sends at once (beside the queue): this part's.
   const parallel = Object.entries(options.actions).filter(([, a]) => a.parallel && a.access === (viewer.member !== null ? "member" : "public")).map(([name]) => name);
-  startForms(form ? action => formToken(action, Date.now(), bits.get(action) ?? 0) : null);
+  // The render's mark (in the islands' prefixes): the browser leaves it
+  // out when it compares two reads of a page (useAutoRefresh's back-off).
+  // Set right before the render, after the last await: renderToString is
+  // synchronous, so no other page's render comes between.
+  const render = startRender(options.islands);
+  startForms(form ? action => formToken(action, Date.now(), bits.get(action) ?? 0) : null, (viewer.t.errors as { needs_javascript?: string }).needs_javascript ?? viewer.t.errors.unavailable);
   const page = renderToString(
     <html lang={viewer.locale}>
       <head>
@@ -302,9 +304,12 @@ async function versionOf<V extends Viewer>(c: Context, p: PageContext<V>, option
   if (v === null || v === undefined) return undefined;
   // The reader as the page may depend on them: who, their role, admin or
   // not, their groups (a page whose buttons follow the role never answers
-  // 304 after the role changed), their language, the address.
-  const who = p.member ? `${p.member.id}|${p.member.role}|${p.member.isAdmin}|${[...(p.member.groups ?? [])].sort().join(",")}` : "-";
-  return createHash("sha256").update(`${who}|${p.locale}|${c.req.path}|${new URL(c.req.url).search}|${String(v)}`).digest("base64url").slice(0, 22);
+  // 304 after the role changed), their language,
+  // their time zone (the hours a page shows), the address — and the build
+  // (the entry's hashed name): after a deploy a refresh is never a 304 of
+  // a page whose script is gone.
+  const who = p.member ? `${p.member.id}|${p.member.role}|${p.member.isAdmin}|${[...(p.member.groups ?? [])].sort().join(",")}|${p.member.timeZone ?? ""}` : "-";
+  return createHash("sha256").update(`${browserFiles().script}|${who}|${p.locale}|${c.req.path}|${new URL(c.req.url).search}|${String(v)}`).digest("base64url").slice(0, 22);
 }
 export const page = (render: (p: PageContext<MemberContext>) => Promise<View | Response> | View | Response, options: PageOptions<MemberContext> = {}) => async (c: Context<Env>) => {
   const p = contextOf(c, c.get("viewer"));
@@ -370,7 +375,10 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const definition = Object.hasOwn(options.actions, name) ? options.actions[name] : undefined;
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
-  let renew: Record<string, string> = {};
+  // A bounded action's answer brings the next form token — only to a
+  // request whose own token was ours, with its proof of work: a request
+  // without one gets none (a refusal is never a free token).
+  let renew: { form?: string; retry?: true } = {};
   let sentRaw: Record<string, unknown> | null = null;
   const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>, field?: string) =>
     fetched ? c.json({ ok: false, error: code, message: fill(sayError(viewer.t, code), values), ...(field ? { field } : {}), ...renew }, status) : (keepSent(c, sentRaw), c.redirect(back(c, members, code, values), 303));
@@ -384,11 +392,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   if (!json && type !== "application/x-www-form-urlencoded" && type !== "multipart/form-data") return refuse(415, "invalid");
   let answer: Response | undefined;
   const bound = definition.access === "public" ? definition.bound ?? false : false;
-  // A bounded action's answer brings the next form token (the one sent
-  // served once).
-  const next = bound ? { form: formToken(name, Date.now(), await workBits(name, bound)) } : {};
-  renew = next;
-  const ok = (value: unknown) => (fetched ? c.json({ ok: true, value: value ?? null, ...next }) : c.redirect(back(c, members), 303));
+  const ok = (value: unknown) => (fetched ? c.json({ ok: true, value: value ?? null, ...(renew.form ? { form: renew.form } : {}) }) : c.redirect(back(c, members), 303));
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
     try {
       const raw = json ? await c.req.json<Record<string, unknown>>() : formFields(await c.req.formData());
@@ -412,9 +416,21 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
             answer = ok(null);
             return;
           }
-          // The token is spent whatever follows (a refusal's answer, or the
-          // page it goes back to, brings the next one).
-          await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], c.req.header("x-chest-work") ?? raw?.["chest_work"], name, bound, Math.min(bound.formSeconds ?? 0, 30));
+          // The token: its signature, its age and its proof checked first
+          // (no database: a flood costs a signature and a hash); then the
+          // day's proof (a token issued before the day's budget ran low
+          // asks less: refused, and its answer brings one of today's);
+          // then spent, whatever follows (a refusal's answer, or the page
+          // it goes back to, brings the next one).
+          const sent = readForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], c.req.header("x-chest-work") ?? raw?.["chest_work"], name, bound);
+          const today = await workBits(name, bound);
+          const next = () => ({ form: formToken(name, Date.now(), today) });
+          if (sent.bits < today) {
+            renew = next();
+            throw new FormRefused("expired" as ErrorCode);
+          }
+          await takeForm(sent, Math.min(bound.formSeconds ?? 0, 30));
+          renew = next();
           who = visitorKey(c);
           ({ flooded } = await refusals(name, who, bound));
         }
@@ -437,7 +453,13 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
         throw error;
       }
     } catch (error) {
-      if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to, ...next }) : c.redirect(error.to, 303);
+      if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to, ...(renew.form ? { form: renew.form } : {}) }) : c.redirect(error.to, 303);
+      else if (error instanceof FormRefused) {
+        // The token refused before anything ran: the browser reads the
+        // page's tokens again (or takes the one given) and sends once more.
+        if (error.code === "expired") renew = { ...renew, retry: true };
+        answer = refuse(400, error.code);
+      }
       else if (error instanceof HttpStatus) answer = refuse(error.status === 403 ? 403 : 404, error.status === 403 ? "forbidden" : "not_found");
       else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : error.code === "limit" ? 429 : 400, error.code, error.values, error.field);
       else if (error instanceof SyntaxError || (error instanceof TypeError && /form|body|parse/iu.test(error.message))) answer = refuse(400, "invalid");
@@ -506,23 +528,42 @@ async function workBits(name: string, bound: Bound): Promise<number> {
   return base + (used > perDay / 2 ? 1 : 0) + (used > (perDay * 4) / 5 ? 1 : 0);
 }
 // A token ours, for this action, younger than its minutes, with its proof
-// of work when it asks one, and never served: taken (in chest_seen) — a
-// refusal spends it too. Otherwise "expired", found without the database
-// (a forged or old token, a proof missing: a signature and a hash).
-async function takeForm(token: unknown, work: unknown, action: string, bound: Bound, seconds: number): Promise<void> {
+// of work when it asks one — checked without the database (a forged or old
+// token, a proof missing: a signature and a hash). Refused "expired" (the
+// browser reads the page's tokens again and sends once more: retry), or
+// "needs_javascript" when the proof is missing altogether (a browser
+// without JavaScript, or a robot that runs none).
+class FormRefused extends Error {
+  readonly code: ErrorCode;
+  constructor(code: ErrorCode) {
+    super(code);
+    this.code = code;
+  }
+}
+type SentForm = { token: string; nonce: string; bits: number; age: number };
+function readForm(token: unknown, work: unknown, action: string, bound: Bound): SentForm {
   const parts = typeof token === "string" && token.length <= 200 ? token.split(".") : [];
   const [time = "", nonce = "", scope = "", bitsText = "", signature = ""] = parts;
   const expected = parts.length === 5 && /^\d{13}$/u.test(time) && scope === action && /^\d{1,2}$/u.test(bitsText) ? formSignature(`${time}.${nonce}.${scope}.${bitsText}`) : "";
   const age = Date.now() - Number(time);
-  if (!expected || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) || age < -60_000 || age > (bound.formMinutes ?? 120) * 60_000) fail("expired" as ErrorCode);
+  if (!expected || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) || age < -60_000 || age > (bound.formMinutes ?? 120) * 60_000) throw new FormRefused("expired" as ErrorCode);
   const bits = Number(bitsText);
-  if (bits < baseBits(bound) || (bits > 0 && !(typeof work === "string" && /^\d{1,12}$/u.test(work) && leadingZeros(createHash("sha256").update(`${token as string}:${work}`).digest(), bits)))) fail("expired" as ErrorCode);
+  if (bits < baseBits(bound)) throw new FormRefused("expired" as ErrorCode);
+  if (bits > 0) {
+    if (work === undefined || work === null || work === "") throw new FormRefused("needs_javascript" as ErrorCode);
+    if (!(typeof work === "string" && /^\d{1,12}$/u.test(work) && leadingZeros(createHash("sha256").update(`${token as string}:${work}`).digest(), bits))) throw new FormRefused("expired" as ErrorCode);
+  }
+  return { token: token as string, nonce, bits, age };
+}
+// The token taken (in chest_seen): it never serves twice — a refusal
+// spends it too.
+async function takeForm(sent: SentForm, seconds: number): Promise<void> {
   // Sent sooner than a person fills it: the seconds left, waited.
-  if (age < seconds * 1000) await new Promise(resolve => setTimeout(resolve, seconds * 1000 - Math.max(0, age)));
+  if (sent.age < seconds * 1000) await new Promise(resolve => setTimeout(resolve, seconds * 1000 - Math.max(0, sent.age)));
   const { db } = await import("./db.ts");
   const sql = db();
-  const id = `form:${nonce}`;
-  if ((await sql`insert into chest_seen (id) values (${id}) on conflict do nothing returning id`).length === 0) fail("expired" as ErrorCode);
+  const id = `form:${sent.nonce}`;
+  if ((await sql`insert into chest_seen (id) values (${id}) on conflict do nothing returning id`).length === 0) throw new FormRefused("expired" as ErrorCode);
   if (Math.random() < 0.02) await sql`delete from chest_seen where id like 'form:%' and at < now() - interval '2 days'`;
 }
 

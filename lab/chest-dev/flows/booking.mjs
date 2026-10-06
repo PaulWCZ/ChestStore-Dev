@@ -1,6 +1,24 @@
 // Booking, as visitors and hosts use it, in a real browser:
 //   node lab/chest-dev/flows/booking.mjs [port]   (harness with --reset)
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { as, done, expect, open, step } from "./lib.mjs";
+
+// The Calendly export of the tests, its days moved so that its first is
+// tomorrow (a fixed date passes; an import skips the past).
+function calendlyFromTomorrow() {
+  const text = readFileSync(new URL("../../../tools/public-and-private/booking/test/fixtures/calendly-scheduled-events.csv", import.meta.url), "utf8");
+  const days = [...text.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/gu)].map(m => m[1]).sort();
+  const tomorrow = new Date();
+  tomorrow.setUTCHours(0, 0, 0, 0);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const shift = Math.round((tomorrow.getTime() - Date.parse(days[0] + "T00:00:00Z")) / 86_400_000);
+  const moved = text.replace(/\b(\d{4}-\d{2}-\d{2})\b/gu, day => new Date(Date.parse(day + "T00:00:00Z") + shift * 86_400_000).toISOString().slice(0, 10));
+  const dir = mkdtempSync(join(tmpdir(), "booking-flow-"));
+  writeFileSync(join(dir, "calendly-scheduled-events.csv"), moved);
+  return { file: join(dir, "calendly-scheduled-events.csv"), remove: () => rmSync(dir, { recursive: true, force: true }) };
+}
 
 const port = Number(process.argv[2] ?? 5100);
 const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
@@ -381,9 +399,15 @@ await step("a host imports the meetings booked in Calendly", async () => {
   await as(context, origin, "camille");
   await english();
   await page.goto(origin + "/chest/settings");
-  await page.getByLabel("The exported file (.csv)").setInputFiles(new URL("../../../tools/public-and-private/booking/test/fixtures/calendly-scheduled-events.csv", import.meta.url).pathname);
-  await page.getByRole("button", { name: "Import" }).click();
-  await page.waitForSelector(".ck-toast");
+  // The browser reads the file when the form sends it: kept until then.
+  const calendly = calendlyFromTomorrow();
+  try {
+    await page.getByLabel("The exported file (.csv)").setInputFiles(calendly.file);
+    await page.getByRole("button", { name: "Import" }).click();
+    await page.waitForSelector(".ck-toast");
+  } finally {
+    calendly.remove();
+  }
   expect(/bookings? imported/u.test(await page.locator(".ck-toast").innerText()), "imported: " + await page.locator(".ck-toast").innerText());
   await page.goto(origin + "/chest");
   expect((await page.locator(".agenda").innerText()).includes("Marie Leroy"), "on the agenda");

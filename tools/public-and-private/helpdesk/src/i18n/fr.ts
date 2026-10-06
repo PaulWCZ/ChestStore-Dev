@@ -648,6 +648,7 @@ export const fr: Catalogue = {
     too_many: "Trop de demandes pour le moment. Réessayez dans une heure.",
     limit: "Trop de messages pour l’instant. Réessayez plus tard, ou demain.",
     expired: "Ce formulaire a expiré : envoyez-le à nouveau.",
+    needs_javascript: "Ce formulaire a besoin de JavaScript : activez-le dans votre navigateur, puis renvoyez-le.",
     invalid_rule: "Écrivez une adresse (nom@entreprise.fr) ou un domaine (entreprise.fr).",
     rule_empty: "Choisissez ce que fait la règle : une étiquette, une priorité ou une personne.",
     invalid_origin: "Écrivez chaque site sous la forme https://www.exemple.fr, sans page.",

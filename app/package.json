@@ -1,6 +1,6 @@
 {
   "name": "@argentic/chest-app",
-  "version": "0.1.0-studio.7",
+  "version": "0.1.0-studio.8",
   "description": "The server and browser machinery of a Chest tool on Hono and React: pages rendered on the server, islands, typed actions callable from an island or a plain form, a refresh that keeps the page's state, the member's words and formats, the strict policy, logs, the database, tests.",
   "license": "MIT",
   "author": "Argentic",

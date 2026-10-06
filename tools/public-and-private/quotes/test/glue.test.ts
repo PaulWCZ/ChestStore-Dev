@@ -131,6 +131,8 @@ test("the lists' version moves with what they show, and only then", async () => 
   const { sql } = database;
   const first = await listStamp(sql, today);
   assert.equal(await listStamp(sql, today), first, "nothing new: the same mark (a refresh gets a 304)");
+  await sql`update documents set updated_at = updated_at where false`;
+  assert.equal(await listStamp(sql, today), first, "an empty statement changes nothing");
   const c = await client(sql, { name: "Version Témoin" });
   const withClient = await listStamp(sql, today);
   assert.notEqual(withClient, first, "a client's name changed");

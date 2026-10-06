@@ -576,8 +576,11 @@ seeded (files are the Chest's): the flow uploads one.
   device, 12 hours at most) — a privacy decision to take first.
 - A robot can still fill a public form up to its day's budget (above):
   without a visitor's identity, the budgets bound the harm but do not stop
-  it. The proof of work makes each answer cost it real computing time; the
-  Chest's own bot protection (the SDK report) would do better.
+  it. The proof of work stops robots that run no JavaScript, but a script
+  that computes it pays about a millisecond per answer (reasoned, not
+  measured): the budgets are what bound the harm, and the Chest's own
+  bot protection with the visitor's address (the SDK report) would do
+  better. A visitor without JavaScript is told the form needs it.
 - **Not shown in another website yet** (the Chest's frame policy, above);
   the button code works. Web addresses get each answer (webhooks), but
   there is **no two-way spreadsheet sync** and no Google Sheets

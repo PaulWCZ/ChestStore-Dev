@@ -597,6 +597,7 @@ export const en = {
     too_large: "Too large to send.",
     limit: "Too many requests from here today. Try again tomorrow, or write to us.",
     expired: "This page was open too long. Reload it, then send again.",
+    needs_javascript: "This form needs JavaScript: turn it on in your browser, then send it again.",
     empty: "Write something first.",
     too_many: "Too many bookings right now. Try again in an hour.",
     too_many_types: "{max} booking types at most.",

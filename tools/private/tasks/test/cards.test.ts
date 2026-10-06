@@ -141,9 +141,13 @@ test("cards added and moved at once never share a position; two that do are spre
   // A column left with two cards on one key (an earlier version): a drop
   // between them lands between them, and the keys are written again.
   await sql`update cards set position = (select position from cards where id = ${made[1]!.id}) where id = ${made[2]!.id}`;
-  await cards.moveCard(sql, asMember(hugo), made[7]!.id, todo.id, made[1]!.id, made[2]!.id);
+  // The two, in the order the column shows them (same key: by id — the
+  // quick adds may have been written in any order).
+  const [first, second] = await sql<{ id: string; title: string }[]>`select id::text, title from cards where id in (${made[1]!.id}, ${made[2]!.id}) order by position, id`;
+  await cards.moveCard(sql, asMember(hugo), made[7]!.id, todo.id, first!.id, second!.id);
   const order = (await sql<{ title: string }[]>`select title from cards where column_id = ${todo.id} order by position, id`).map(r => r.title);
-  assert.equal(order.indexOf("C8"), order.indexOf("C2") + 1, "dropped right after C2: " + order.join(","));
+  assert.equal(order.indexOf("C8"), order.indexOf(first!.title) + 1, `dropped right after ${first!.title}: ` + order.join(","));
+  assert.equal(order.indexOf(second!.title), order.indexOf("C8") + 1, "and before the other");
   const keys = await sql<{ position: string }[]>`select position from cards where column_id = ${todo.id}`;
   assert.equal(new Set(keys.map(k => k.position)).size, keys.length);
 });

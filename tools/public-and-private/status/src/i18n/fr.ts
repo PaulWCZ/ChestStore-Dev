@@ -541,6 +541,7 @@ export const fr: Catalogue = {
     too_many: "Trop de demandes à la fois. Réessayez dans une heure.",
     limit: "Trop de demandes aujourd’hui. Réessayez demain.",
     expired: "Ce formulaire est resté ouvert trop longtemps. Envoyez-le de nouveau.",
+    needs_javascript: "Ce formulaire a besoin de JavaScript : activez-le dans votre navigateur, puis renvoyez-le.",
     too_fast: "C’était rapide. Attendez deux secondes et renvoyez.",
     no_components: "Choisissez au moins un service.",
     in_use: "Il a un historique : masquez-le plutôt.",

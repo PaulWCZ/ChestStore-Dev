@@ -199,6 +199,8 @@ test("a page read again with nothing changed is a 304; after a change, the page"
   const version = /<meta name="chest-version" content="([^"]+)"/u.exec(first.html)![1]!;
   const again = await app(withMember(new Request(url("/chest/company"), { headers: { "x-tool-version": version } }), hugo));
   assert.equal(again.status, 304);
+  await w.database.sql`update key_results set title = title where false`;
+  assert.equal((await app(withMember(new Request(url("/chest/company"), { headers: { "x-tool-version": version } }), hugo))).status, 304, "an empty statement changes nothing");
   await call(ines, "checkIn", { id: krId, value: "7", confidence: "at_risk", note: "" });
   const changed = await app(withMember(new Request(url("/chest/company"), { headers: { "x-tool-version": version } }), hugo));
   assert.equal(changed.status, 200);

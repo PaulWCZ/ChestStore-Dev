@@ -8,8 +8,12 @@
 // the page carries in that form, which each answer renews.
 let issue: ((action: string) => string) | null = null;
 const issued = new Map<string, string>();
-export function startForms(issuer: ((action: string) => string) | null): void {
+// What a form that asks a proof of work says to a browser without
+// JavaScript (the page's words: errors.needs_javascript).
+let noScript = "";
+export function startForms(issuer: ((action: string) => string) | null, needsJavaScript = ""): void {
   issue = issuer;
+  noScript = needsJavaScript;
   issued.clear();
 }
 const selector = (action: string) => `input[data-chest-form][data-action="${action}"]`;
@@ -33,12 +37,19 @@ export function renewForm(action: string, token: string): void {
 // is answered "done" and nothing is done — and the form's token
 // (chest_form) for that action, which it requires. In a page or in an
 // island; call() of an island sends the token of a Honeypot of the page.
+// An action that asks a proof of work (bound.work): a <noscript> line says
+// the form needs JavaScript (the browser never renders its inside).
 export function Honeypot({ action }: { action: string }) {
+  const token = currentForm(action);
+  const work = Number(token.split(".")[3] ?? 0) > 0;
   return (
-    <div hidden>
-      <label>Website <input name="website" tabIndex={-1} autoComplete="off" /></label>
-      <input type="hidden" name="chest_form" data-chest-form="" data-action={action} defaultValue={currentForm(action)} />
-    </div>
+    <>
+      <div hidden>
+        <label>Website <input name="website" tabIndex={-1} autoComplete="off" /></label>
+        <input type="hidden" name="chest_form" data-chest-form="" data-action={action} defaultValue={token} />
+      </div>
+      {work && <noscript><p className="ck-error" role="alert">{typeof document === "undefined" ? noScript : ""}</p></noscript>}
+    </>
   );
 }
 

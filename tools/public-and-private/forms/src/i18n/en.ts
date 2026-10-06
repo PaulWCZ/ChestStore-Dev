@@ -782,6 +782,7 @@ export const en = {
     // (the package's bound), and a page left open too long.
     limit: "Too many sends for today. Try again tomorrow, or ask the person who sent you the form.",
     expired: "This page was open too long: send it again.",
+    needs_javascript: "This form needs JavaScript: turn it on in your browser, then send it again.",
     too_large: "This is too large to send.",
   },
   follow: {

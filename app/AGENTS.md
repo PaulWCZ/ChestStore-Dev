@@ -21,7 +21,7 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
 | `src/i18n/` | Every word: `en.ts` (source, fallback), `fr.ts`, `index.ts` (languages) |
 | `src/theme.ts`, `src/styles.css` | The look (a kit theme) and the tool's own CSS |
 | `src/register.ts`, `src/entry.tsx`, `src/main.ts`, `vite.config.ts` | Wiring: rarely touched |
-| `migrations/` | `0001_chest.sql` (keep), then the tool's tables |
+| `migrations/` | `0001_chest.sql` (keep: `chest_seen`, `chest_bounds`, the change log and `chest_watch()`), then the tool's tables |
 | `test/` | `app.test.mjs` (the built server), `units.test.ts` (sources, words, rules) |
 | `vendor/` | The SDK, the kit, this package, packed: never edit |
 
@@ -72,7 +72,8 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   toast says so and the page stays, with what is typed (the Chest's 5xx,
   "Waking up…" included). `refresh()` and `navigate(path)` by hand
   (`{ top: false }`: the scroll and the focus stay — a panel opened beside
-  a list); `useAutoRefresh(refresh, 30)` (kit) on a timer. A navigation is
+  a list); `useAutoRefresh(60)` from `@argentic/chest-app/client` on a
+  timer (never the kit's: below, "A page others change"). A navigation is
   never lost to a refresh or an action on its way; an island it brings is
   live the moment it shows.
 - **Links** between pages of the same part go in place too (`start()`
@@ -95,15 +96,26 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   constraint).
 - **Each page downloads its own islands' code**: `src/entry.tsx` runs
   `await start({ ToastHost }, lazy)` with `lazy` from
-  `virtual:chest-islands` (`chestConfig` lists every capitalised export
-  of `src/islands/*.tsx`; `src/env.d.ts` declares the module): each file
-  of `src/islands/` is a chunk, preloaded by the pages that show one of
-  its islands, and a page's islands come to life together, before its
-  load event (`<html data-ready>`); a page met by `navigate()` gets its
-  islands' code before it is put in place. Keep an island's file to
-  itself and what it needs: a public form then downloads its form, not
-  the builder (Forms' answer page: 411 → 293 KB of JavaScript). The
-  styles stay one file (`client.css`).
+  `virtual:chest-islands` (`chestConfig` reads the registry,
+  `src/islands/index.ts` — every island it lists, from whatever file:
+  a folder, `export default`, `export { X }`, a re-export, an alias;
+  `src/env.d.ts` declares the module): each island's file is a chunk,
+  preloaded by the pages that show one of its islands, and a page's
+  islands come to life together, before its load event (`<html
+  data-ready>`); a page met by `navigate()` gets its islands' code before
+  it is put in place. An island the registry cannot place (defined in
+  `index.ts` itself) fails the build and `checkSources`; one a page shows
+  that is in neither `start()`'s islands nor the registry is warned about
+  in the console in development. Keep an island's file to itself and
+  what it needs: a public form then downloads its form, not the builder
+  (Forms' answer page: 411 → 293 KB of JavaScript). The styles stay one
+  file (`client.css`).
+- **Deploys**: a page's version includes the build (the entry's hashed
+  name), so a page left open is never answered 304 with the old HTML
+  after a deploy; a page read in place (a refresh, a link) that links
+  another `client-*.js` is loaded plainly instead, and an island's chunk
+  that fails to load is asked again next time (never a cached failure)
+  while the page is loaded plainly.
 - **Compressed**: pages, JSON and downloads of 1 KiB and more are gzipped
   as they go; the browser's files are compressed at build (`.br`, `.gz`
   beside each, served by `Accept-Encoding`). The Chest's front compresses
@@ -143,7 +155,9 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   `formSeconds: 2` makes a form sent sooner than a person fills it wait
   the seconds left; it serves once whatever the answer, and the answer —
   or the page a plain form goes back to — brings the next; else the code
-  `expired`); answers "done" without running to a robot that fills the
+  `expired`, and `call()` and forms read the page's tokens again and send
+  once more by themselves; a request without a valid token never gets one
+  back); answers "done" without running to a robot that fills the
   honeypot; counts a call **only once it is valid** (token, fields, and in
   your run what you check before `charge()`; a run that throws gives its
   counts back) per visitor and for everyone a day, in `chest_bounds`;
@@ -160,18 +174,27 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   call that passes your checks still writes, and your run is told
   (`{ flooded }` in its context) to keep its checks cheap. A forged or
   old token is refused from its signature alone, before any query.
-  **A proof of work** against a robot that loads the page for each fresh
-  token (a form of few places, a booking, an application):
-  `bound: { …, work: true }` — each token asks one (14 bits, found in a
-  Worker, `/assets/chest-work.js`, while the page says it is checking:
-  measured in Chromium on a laptop, about 60 ms on average and 0.5 s at
-  worst; a mid-range phone four or five times that; one bit more — twice
-  the work — once half the day's budget is spent, another past four
-  fifths). Checked from a hash before anything is counted: a flood that
-  does not compute it costs a signature and a hash. No puzzle, nothing to
-  see or hear, no third party; the form then needs JavaScript. A test
-  sends `{ chest_form: token, chest_work: solveWork(token) }`
-  (`formToken(action, Date.now(), 14)`).
+  **A proof of work** — `bound: { …, work: true }`: each token asks one
+  (14 bits, found in a Worker, `/assets/chest-work.js`; one bit more —
+  twice the work — once half the day's budget is spent, another past four
+  fifths, and a token issued before that is refused, its answer bringing
+  one of today's: the browser sends again by itself). The signature and
+  the proof are checked first, from the token and a hash, before any
+  query: a flood without them costs a signature and a hash. **What it
+  stops**: robots that run no JavaScript — most form spam. **What it does
+  not**: a native script finds 14 bits in about a millisecond (about
+  16,000 hashes; reasoned, not measured), so it barely slows a determined
+  one; the protection that holds stays the budgets (`perSubject`,
+  `perDay`) and, once the Chest gives it, the visitor's address. **What
+  it costs a person**: measured in Chromium on the studio's laptop, about
+  60 ms on average and 0.5 s at worst; a mid-range phone is assumed four
+  to five times that (not measured); past 400 ms the page says
+  `checking` (below). No puzzle, nothing to see or hear, no third party.
+  The form then **needs JavaScript**: a browser without it is told
+  `needs_javascript` (a code of its own, in every catalogue:
+  `checkSources` asks it), and `<Honeypot>` shows that sentence in a
+  `<noscript>`. A test sends `{ chest_form: token, chest_work:
+  solveWork(token) }` (`formToken(action, Date.now(), 14)`).
   **What it does not do:** the visitor is the address the Chest's front
   gives (`Chest-Visitor-Address`, a studio proposal — no Chest gives it
   yet), else the browser's cookie; a robot that clears its cookie and
@@ -189,7 +212,19 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   members only, or a search on the server that answers a few names.
   Words: `t.errors.limit` and `t.errors.expired` ("This form expired:
   send it again.") — `checkSources` asks them in every catalogue when a
-  bounded action exists. A test sends `{ chest_form: formToken("book") }`.
+  bounded action exists — and `t.errors.needs_javascript` ("This form
+  needs JavaScript: turn it on, or write to us another way.") when one
+  asks a proof of work. The toasts' words (`ToastHost`'s `words`):
+  `unavailable`, `busy`, and optionally `tooLarge` and `limit` (what the
+  Chest's front refuses: 413, 429 — pass `t.errors.too_large` and
+  `t.errors.limit`) and `checking` (said while a proof of work takes more
+  than 400 ms — "Still sending…" when absent).
+  **Notifying members from a public action** (a new application, a
+  booking): fine, once per accepted, charged call — `after("notify", …)`
+  after `charge()`, so a flood of refused calls notifies nobody and the
+  day's budget bounds the rest. Never `members.get` per request: store
+  the member's language (and zone) with the record they own (the form's
+  owner, the calendar's) when they set it up, and write in it. A test sends `{ chest_form: formToken("book") }`.
   `bound: false` only for an action that writes nothing (`checkSources`
   fails on a `publicAction` without `bound`, on budgets without
   `charge(`, on `perSubject` without a subject). A page with a bounded
@@ -203,7 +238,9 @@ never in the address) — `defaultValue={sent("body") ?? ""}`.
 A field's refusal names its field (`{ ok: false, error, message, field }`):
 a form sent in place shows the sentence under that field (`.ck-error`,
 `aria-invalid`, the focus there) instead of a toast; an island reads
-`outcome.field` to do the same.
+`outcome.field` to do the same. A run names one too:
+`fail("invalid", undefined, { field: "email" })` (a rule that reads the
+database: "this address is already registered").
 
 Each field has two types: what `run()` receives (read) and what `call()`
 may send (the wire): `money()` receives cents, a `number`, and accepts
@@ -289,11 +326,16 @@ an island that calls `useAutoRefresh(60)` from
 version that stays right"): the page is read again when the tab comes back and every minute while
 its reader was active in the last ten (idle, it stops: the Chest may
 put the tool to sleep), less often while nothing changes, and a read
-with the same version is a 304 — nothing rendered.
+with the same version is a 304 — nothing rendered. A wall display (a
+board on a screen nobody touches): `useAutoRefresh(60, { idleMinutes:
+600 })` — it keeps reading while visible, and keeps the tool awake.
 **A page's version that stays right** (a page left open, read again with
 `useAutoRefresh`) — the change log of the package, never your own:
-copy `node_modules/@argentic/chest-app/sql/changes.sql` into a migration
-(`migrations/0007_chest_changes.sql`), then in it, for each table the
+the starter's `migrations/0001_chest.sql` already holds it (the
+package's `sql/changes.sql`); a tool made before studio.7 copies
+`node_modules/@argentic/chest-app/sql/changes.sql` into a new migration
+once (`migrations/0007_chest_changes.sql`). Then, in a migration of the
+tool's (the one that creates the table, or a new one), for each table the
 pages read, `select chest_watch('deals');`; and
 `page(render, { version: () => changeStamp() })` (`@argentic/chest-app/db`),
 with what else the page depends on: `` async () => `${await changeStamp()}.${chest.today()}` ``.
@@ -302,14 +344,18 @@ it commits; a statement that changes nothing adds none; `page()` reads
 the version before it renders. Proven on PostgreSQL by the package's
 tests: a write still uncommitted while a page is read moves the stamp
 when it commits; two writers committing out of order both move it; a
-5,000-row import leaves another write waiting 5 ms. **Never a counter
+5,000-row import leaves another write waiting 5 ms. `changeStamp()` counts
+the log's rows of the last day at each read (`forgetChanges()` folds the
+older ones: call it from a schedule): cheap for a tool's writes, and
+the price of a stamp no writer waits for. **Never a counter
 row** (`update stamp set n = n + 1` serialises every writer behind an
 import: quadratic, deadlocks), **never a sequence** (`nextval` is seen
 before the commit: a reader stamps the new number on the old rows, and
 every refresh after is a stale 304), **never `max(updated_at)` or
 `now()`** (a transaction's `now()` is its start: a late commit hides
 behind an earlier stamp). The package keys the version by the reader —
-their role, admin or not, their groups — and their language. Anything
+their role, admin or not, their groups, their time zone — their language,
+the address, and the build. Anything
 that depends on the time (a button that opens ten minutes before a
 start, "in 5 min") is decided in an island from the browser's clock,
 never under a version that changes only with the data.
@@ -425,6 +471,28 @@ answer a `Response` with its own `Content-Security-Policy` (and
 `Referrer-Policy`): the package keeps them; a page or an action gets the
 strict one. A middleware may set `Referrer-Policy` (`no-referrer` for a
 page whose address holds a secret).
+**A picture on a members' page** (a photo, a logo the team uploaded) —
+`const { url } = await files.url(name, { thumbnail: 256 })` while the
+page renders, `<img src={url} alt="…" />`: signed for 15 minutes on the
+tool's own host (the policy's `img-src 'self'` admits it). A page left
+open keeps showing the pictures it loaded; one a refresh brings is signed
+anew. Never in a public page (the link opens the file to anyone).
+**A picture on a public page** (a company logo on a booking page, a
+form's header) — one way: **copy it under `public/` when it is
+published** (`files.move` or a fresh `files.put` to `public/logo.png`,
+with the `"files": { "publicFiles": true }` permission — a studio
+proposal), then link `files.publicPath("public/logo.png", { version:
+stat.updated })`: served by the Chest, cached, never by the tool per
+request. Never stream a member's file through a public route.
+**A visitor's personal data** (an email a public form keeps: an
+applicant, a guest, a requester) — say what is kept and for how long in
+the form (`t.form.privacy`), keep the address with the record it serves
+and nothing else, and **erase on a schedule**: a `"schedules"` entry
+(daily) deletes or anonymises the records past their time (closed
+requests after 12 months, refused applicants after 6), and an action
+for a member to erase one visitor's data on request (every table where
+the address appears, in one transaction). Never in logs (`log` takes no
+input text), never in a notification's body.
 **Static files** — `public/assets/…`, served at `/assets/…`; the
 catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
 **A package the server needs** — `npm install it`; add it to `bundle` in

@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { after, beforeEach } from "node:test";
 import postgres from "postgres";
+import { islandRegistry } from "./registry.ts";
 
 // Tests of a tool: its database, the rules of its pages and sources.
 
@@ -190,7 +191,7 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
       for (const name of literals.flatMap(l => l.split(/\s+/u)).filter(Boolean)) if (!defined(name)) problems.push(`${file}: the class "${name}" is in no stylesheet (the tool's or the kit's)`);
     }
   }
-  const manifest = JSON.parse(readFileSync(join(root, "chest.json"), "utf8")) as { capabilities?: string[]; receives?: string[]; schedules?: { name: string }[]; public?: boolean };
+  const manifest = JSON.parse(readFileSync(join(root, "chest.json"), "utf8")) as { name?: string; capabilities?: string[]; receives?: string[]; schedules?: { name: string }[]; public?: boolean };
   const all = code.map(c => c.text).join("\n");
   const uses: Record<string, RegExp> = {
     database: /from "@argentic\/chest-(app\/db|sdk\/database)"/u,
@@ -215,23 +216,26 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   // charge() (with { subject } for a perSubject one). Read in each
   // publicAction(…) call itself, not in the rest of the file.
   let bounded = false;
+  let worked = false;
   for (const { file, text } of code) {
     const plain = text.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
     for (const m of plain.matchAll(/\bpublicAction\(/gu)) {
       const call = balanced(plain, m.index + m[0].length - 1);
       if (!/\bbound\s*:/u.test(call)) problems.push(`${file}: a publicAction without bound — anyone on the Internet may call it: bound: { perVisitor, perDay } (or bound: false)`);
       else if (!/\bbound\s*:\s*false\b/u.test(call)) bounded = true;
+      if (/\bwork\s*:\s*(?!false\b|0\b)/u.test(call)) worked = true;
       if (/\bbudgets\s*:/u.test(call) && !/\bcharge\(/u.test(call)) problems.push(`${file}: a publicAction with budgets never calls charge(kind): say which budget a call spends, once its request is checked`);
       if (/\bperSubject\s*:/u.test(call) && !/\bcharge\([^)]*\bsubject\b/u.test(call)) problems.push(`${file}: a publicAction with perSubject never says its subject: charge(kind, { subject })`);
     }
   }
-  // A bounded action refuses with "limit" and "expired": the catalogues say them.
+  // A bounded action refuses with "limit" and "expired" (and, asking a
+  // proof of work, "needs_javascript"): the catalogues say them.
   if (bounded) {
     for (const file of walk(join(root, "src", "i18n")).filter(f => /\.ts$/u.test(f) && !f.endsWith("index.ts"))) {
       const text = readFileSync(file, "utf8");
       // A catalogue (its errors), not a helper of the folder (format.ts).
       if (!/\berrors\s*:\s*\{/u.test(text)) continue;
-      for (const code of ["limit", "expired"]) if (!new RegExp(`\\b${code}\\s*:`, "u").test(text)) problems.push(`${file}: errors.${code} — a bounded public action refuses with it (in this language's words)`);
+      for (const code of ["limit", "expired", ...(worked ? ["needs_javascript"] : [])]) if (!new RegExp(`\\b${code}\\s*:`, "u").test(text)) problems.push(`${file}: errors.${code} — a bounded public action refuses with it (in this language's words)`);
     }
   }
   const publicPages = /\bpublicPage\(/u.test(code_);
@@ -251,6 +255,19 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   if ((manifest.receives?.length ?? 0) > 0 && !handlesEvents) problems.push(`chest.json "receives" without events.handle on /chest-events`);
   if ((manifest.receives?.length ?? 0) === 0 && handlesEvents && /"member\.[a-z]+"\s*:/u.test(all)) problems.push(`events handled without "receives": ["member.*"] in chest.json`);
   for (const { name } of manifest.schedules ?? []) if (!new RegExp(`["']?\\b${name}\\b["']?\\s*:`, "u").test(all)) problems.push(`the schedule "${name}" of chest.json has no handler in schedules.handle`);
+  // The islands' registry, read as chestConfig reads it (each page's
+  // islands loaded apart): an island it cannot place is in no bundle.
+  try {
+    islandRegistry(root);
+  } catch (error) {
+    problems.push((error as Error).message);
+  }
+  // The starter's example left in a tool of its own (a warning: it may be
+  // on its way out).
+  if (manifest.name !== "my-tool") {
+    const left = code.filter(c => /\bEXAMPLE \(Notes\)/u.test(c.text)).map(c => c.file);
+    if (left.length > 0) console.warn(`checkSources: the starter's example is still marked in ${left.join(", ")} — replace it or remove the EXAMPLE (Notes) marker`);
+  }
   if (problems.length > 0) throw new Error(problems.join("\n"));
 }
 

@@ -463,6 +463,7 @@ export const en = {
     unknown: "Something went wrong. Try again.",
     limit: "Too many answers from here today. Try again tomorrow.",
     expired: "This page was open too long. Reload it, then send your answer again.",
+    needs_javascript: "This form needs JavaScript: turn it on in your browser, then send it again.",
     bad_email: "This email address does not look right.",
     guests_full: "This poll has all the guests it can take ({max}).",
   },

@@ -780,6 +780,7 @@ export const fr: Catalogue = {
     at_most: "Limite atteinte : {max} au plus.",
     limit: "Trop d’envois pour aujourd’hui. Réessayez demain, ou demandez à la personne qui vous a envoyé le formulaire.",
     expired: "Cette page est restée ouverte trop longtemps : envoyez-la à nouveau.",
+    needs_javascript: "Ce formulaire a besoin de JavaScript : activez-le dans votre navigateur, puis renvoyez-le.",
     too_large: "C’est trop lourd pour être envoyé.",
   },
   follow: {

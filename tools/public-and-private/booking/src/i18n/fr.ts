@@ -591,6 +591,7 @@ export const fr: Catalogue = {
     too_large: "Trop volumineux pour être envoyé.",
     limit: "Trop de demandes depuis ici aujourd’hui. Réessayez demain, ou écrivez-nous.",
     expired: "Cette page est restée ouverte trop longtemps. Rechargez-la, puis renvoyez.",
+    needs_javascript: "Ce formulaire a besoin de JavaScript : activez-le dans votre navigateur, puis renvoyez-le.",
     empty: "Écrivez d’abord quelque chose.",
     too_many: "Trop de réservations pour le moment. Réessayez dans une heure.",
     too_many_types: "{max} types de rendez-vous au plus.",

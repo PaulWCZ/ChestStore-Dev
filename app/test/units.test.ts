@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { csvLine } from "../src/csv.ts";
 import { formatter, publicLocale } from "../src/i18n.ts";
+import { islandRegistry } from "../src/registry.ts";
 import { checkPage, checkSources, checkWords } from "../src/testing.ts";
 import { AppError, cutText, field, readMoney, toolPath } from "../src/tool.ts";
 
@@ -213,4 +214,62 @@ test("text: code points, bidirectional overrides removed, only invisible charact
   assert.equal(field.text({ max: 40 }).read("invoice\u202Efdp.exe"), "invoicefdp.exe");
   refusedAs(() => field.text({ max: 5 }).read("\u200b"), "empty");
   refusedAs(() => field.text({ max: 5 }).read("\u200b \ufeff"), "empty");
+});
+
+test("the islands' registry: each island with its file and its name there — a folder, a default export, an alias; a package's left out", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chest-app-"));
+  mkdirSync(join(dir, "src", "islands", "deep"), { recursive: true });
+  mkdirSync(join(dir, "src", "components"), { recursive: true });
+  const write = (path: string, text: string) => writeFileSync(join(dir, path), text);
+  write("chest.json", JSON.stringify({ name: "probe" }));
+  write("package.json", "{}");
+  write("src/islands/A.tsx", "export function A() { return null; }");
+  write("src/islands/deep/B.tsx", "export default function B() { return null; }");
+  write("src/islands/deep/index.tsx", "export { A as Again } from \"../A.tsx\";");
+  write("src/components/board.tsx", "const Board = () => null;\nexport { Board };");
+  write("src/islands/index.ts", [
+    "import { ToastHost } from \"@argentic/chest-app/client\";",
+    "// import { Gone } from \"./Gone.tsx\";",
+    "import { A } from \"./A.tsx\";",
+    "import B from \"./deep/B.tsx\";",
+    "import { Again as C } from \"./deep\";",
+    "import { Board } from \"../components/board.tsx\";",
+    "export const islands = {\n  ToastHost, A,\n  Bee: B, C, Board,\n};",
+  ].join("\n"));
+  const found = islandRegistry(dir).map(i => [i.name, i.file.slice(dir.length).replaceAll("\\", "/"), i.exported]);
+  assert.deepEqual(found, [
+    ["A", "/src/islands/A.tsx", "A"],
+    ["Bee", "/src/islands/deep/B.tsx", "default"],
+    ["C", "/src/islands/deep/index.tsx", "Again"],
+    ["Board", "/src/components/board.tsx", "Board"],
+  ]);
+  checkSources({ root: dir });
+  // A wrapper's call around the list is read through.
+  write("src/islands/index.ts", "import { A } from \"./A.tsx\";\nimport B from \"./deep/B.tsx\";\nexport const islands = allLive({ A, B });");
+  assert.deepEqual(islandRegistry(dir).map(i => i.name), ["A", "B"]);
+  // An island defined in the registry itself is in no file: refused, by checkSources too.
+  write("src/islands/index.ts", "import { A } from \"./A.tsx\";\nconst Local = () => null;\nexport const islands = { A, Local };");
+  assert.throws(() => islandRegistry(dir), /Local is not imported from a file/u);
+  assert.throws(() => checkSources({ root: dir }), /Local is not imported from a file/u);
+});
+
+test("checkSources: a public action asking a proof of work needs errors.needs_javascript; the starter's example left is warned about", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chest-app-"));
+  mkdirSync(join(dir, "src", "i18n"), { recursive: true });
+  const write = (path: string, text: string) => writeFileSync(join(dir, path), text);
+  write("package.json", "{}");
+  write("chest.json", JSON.stringify({ name: "probe", capabilities: ["database"], public: true }));
+  write("src/i18n/en.ts", "export const en = { errors: { limit: \"Too many.\", expired: \"Expired.\" } };");
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\n// EXAMPLE (Notes)\nexport const a = { send: publicAction({}, async () => null, { bound: { perVisitor: 1, perDay: 9, work: true } }) };');
+  assert.throws(() => checkSources({ root: dir }), /errors\.needs_javascript/u);
+  write("src/i18n/en.ts", "export const en = { errors: { limit: \"Too many.\", expired: \"Expired.\", needs_javascript: \"Needs JavaScript.\" } };");
+  const warned: string[] = [];
+  const warn = console.warn;
+  console.warn = (text: string) => void warned.push(text);
+  try {
+    checkSources({ root: dir });
+  } finally {
+    console.warn = warn;
+  }
+  assert.match(warned.join("\n"), /EXAMPLE \(Notes\)/u);
 });

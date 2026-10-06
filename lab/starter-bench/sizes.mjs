@@ -13,6 +13,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const tracked = dir => execFileSync("git", ["ls-files", dir], { cwd: root }).toString().split("\n").filter(f => f && !/(package-lock\.json|\.tgz|\.png)$/u.test(f));
 const lines = files => files.reduce((n, f) => n + readFileSync(join(root, f), "utf8").split("\n").length - 1, 0);
 const template = tracked("starter");
+// Tests as written (each top-level test(…) call), per file.
+const tests = files => files.reduce((n, f) => n + (readFileSync(join(root, f), "utf8").match(/^test\(/gmu) ?? []).length, 0);
+const appVersion = JSON.parse(readFileSync(join(root, "app/package.json"), "utf8")).version;
 const figures = {
   "starter: files (no lock, no tgz)": template.length,
   "starter: lines": lines(template),
@@ -22,8 +25,15 @@ const figures = {
   "app/AGENTS.md: lines": lines(["app/AGENTS.md"]),
   "reference/perseus-starter: files": tracked("reference/perseus-starter").length,
   "reference/perseus-starter: lines": lines(tracked("reference/perseus-starter")),
+  "app: tests": tests(["app/test/units.test.ts", "app/test/server.test.mjs", "app/test/changes.test.mjs"]),
+  "app: unit tests": tests(["app/test/units.test.ts"]),
+  "app: server tests": tests(["app/test/server.test.mjs"]),
+  "app: change-log tests": tests(["app/test/changes.test.mjs"]),
+  "Chromium tests": tests(["lab/starter-bench/browser.test.mjs"]),
+  "starter: tests": tests(tracked("starter/test").filter(f => /\.test\./u.test(f))),
 };
 if (!process.argv.includes("--check") && !process.argv.includes("--write")) {
+  console.log(`${"app: version".padEnd(40)} ${appVersion}`);
   for (const [name, value] of Object.entries(figures)) console.log(`${name.padEnd(40)} ${value}`);
   process.exit(0);
 }
@@ -47,6 +57,12 @@ const said = {
   "app/test: lines": /source and ([\d,]+) of tests/u,
   "reference/perseus-starter: files": /reference starter: ([\d,]+) files/u,
   "reference/perseus-starter: lines": /reference starter: [\d,]+ files, ([\d,]+) lines/u,
+  "app: tests": /package's tests: ([\d,]+) \(/u,
+  "app: unit tests": /package's tests: [\d,]+ \(([\d,]+) units/u,
+  "app: server tests": /units, ([\d,]+) server/u,
+  "app: change-log tests": /server, ([\d,]+) change log\)/u,
+  "Chromium tests": /Chromium: ([\d,]+) tests/u,
+  "starter: tests": /starter's: ([\d,]+) tests/u,
 };
 // --write: the report's figures set to the files' (then --check passes).
 if (process.argv.includes("--write")) {
@@ -65,6 +81,12 @@ if (process.argv.includes("--write")) {
   process.exit(0);
 }
 const wrong = [];
+// The package's version: in the paragraph, and every "studio.N" of the
+// report's header (before § 1) is this one.
+const studio = /studio\.\d+$/u.exec(appVersion)?.[0];
+if (!block.includes(`package is ${appVersion}`)) wrong.push(`app: version: the paragraph does not say "package is ${appVersion}"`);
+const header = report.slice(0, report.indexOf("\n## 1."));
+for (const m of header.matchAll(/studio\.\d+/gu)) if (studio && m[0] !== studio) wrong.push(`the header says ${m[0]}, the package is ${appVersion}`);
 for (const [name, pattern] of Object.entries(said)) {
   const found = pattern.exec(block)?.[1];
   if (found === undefined) wrong.push(`${name}: not found in the report's paragraph`);
