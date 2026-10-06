@@ -313,86 +313,139 @@ public files 3, webhooks 3, checks 1).
   when a schedule runs ("next: Monday 07:30") are not in the SDK; the
   Chest's own overview says it, so a tool does not need them.
 
-### 4.2 Mail — send, receive, availability and the person's preference
+### 4.2 Mail — to people outside the company only (owner's decisions, 6 October 2026)
 
-- **Needed by 17 of 18** to send (every tool but Clients imports
-  `@argentic/chest-sdk/mail`): Support replies and Hiring's candidate
-  messages, Booking's confirmations with `.ics`, Quotes sending invoices,
-  Status's subscriber updates, Forms' confirmations and alerts, People's
-  first-day email to a newcomer (`src/lib/welcome.ts`), and reminders by email
-  for members who never open the Chest (Tasks, Leave, Goals, Expenses,
-  Timesheets, News, Wiki, Polls, Rooms, Equipment). **Receiving**: Support
-  (`mailboxes: ["support"]`; `POST /chest-mail` in `src/app.tsx` and
-  `src/lib/mail-in.ts` turn an email into
-  a ticket or a reply) and Hiring (`["jobs"]`, applications by email).
-  13 tools ask `mail.available()` before offering an email; 14 pass
-  `transactional` or read the person's preference. 0.4.1 has no mail,
-  though its README already says "a notification or an email to another
-  member is written in *their* language (`members.get(id).language`)".
-- **Working copy**: `sdk/client/studio/mail.ts` —
-  `mail.send({to, cc, subject, text, html, mailbox, thread, fromName,
-  replyTo, inReplyTo, references, attachments, key, transactional})`
-  (a member is a recipient by id, `{member}`: no `members.email` needed),
-  `status(id)`, `mailboxAddress(name)`, `available() → {ok, reason,
-  remainingToday}`, `preference(memberId)`, `handle(request, {message,
-  bounce}, {seen})` on `POST /chest-mail` (signed `Chest-Mail`, a channel
-  of 0.4.1's `signed.ts`), `threadAddress`, `threadOf`;
-  `fakeChest({mail, delivery})`, `chest.outbox`, `chest.receive()`,
-  `chest.bounce()`, `chest.held`; `sdk/client/studio/test/mail.test.ts`.
-- **Manifest and approval**: `"mail": {"send": true, "mailboxes":
-  ["support"]}` — "Sends emails in your company's name, up to 500 a day";
-  "Receives the emails sent to support@<your domain>".
-- **Design notes recorded when it was built**:
-  - *Threads that cannot be forged*: `send({mailbox, thread})` sets
-    Reply-To `support+t1042-<tag>@…`, the tag 50 bits of HMAC under a key
-    derived from `CHEST_TOKEN`; `support+1042@` lands nowhere special;
-    fallback on `In-Reply-To`/`References`.
-  - *HTML cleaned by the Chest*, once (allow-list, http/https/mailto links,
-    no images, no attributes), `text` always kept, the original `.eml`
-    stored for "Show original" — rather than each small tool carrying a
-    server sanitiser and getting it wrong once.
-  - *What the Chest found*: `spam` (quarantined), `authenticated`
-    (DMARC-aligned), `auto` (out-of-office: never answer robots), `dropped`
-    attachments. *Bounces apart*: posted as `{kind: "bounce"}`, never as a
-    message (a bounce must not reopen a ticket).
-  - *Idempotency keys are hashed, never cut*: a key built as
-    `` `${key}:${member}` `` and cut to 64 characters dropped the second
-    recipient's email silently (reproduced in `mail.test.ts`); the SDK now
-    sends a long key as `sha256:` + digest, and the Chest answers
-    `key_conflict` (409) for a key reused within 24 hours for other
-    recipients. The same rule covers `events.publish` and `webhooks.send`.
-    Keys built from database ids carry the recipient (a restored database
-    reuses ids).
-  - *One preference per person*: `"all" | "digest" | "none"`, read with
-    `mail.preference(memberId)` (until 0.3.1-studio a field of `Member`,
-    which 0.4.1's members module does not read), applied by the Chest
-    inside `send`; `transactional: true`
-    for what the person must get (the answer to their own request, a
-    booking's confirmation). Both switches apply: the tool's decides
-    whether it sends (Tasks' "no reminders"), the Chest's whether and how
-    the person receives.
-  - *Ask before acting*: `available()` never throws for a missing
-    capability; its `reason` (`not_granted`, `not_connected`, `suspended`,
-    `quota`) is a different sentence and a different person to ask.
-- **Limits**: 500 messages a day (the owner may raise), 50 recipients,
-  10 MiB sent, 25 MiB received, 20 attachments; a suppression list per
-  Chest. The Chest logs to, subject, size and status — not bodies.
-- **Risks**: spam and reputation (quotas, suppression, the company's own
-  domain), phishing through a tool (the sender is always the company's
-  domain), an open relay (impossible: mailboxes only), loops (`auto`).
-- **Elsewhere** (vendors' docs as a web search showed them, 2026-09-29):
-  Postmark posts inbound mail as JSON with `MailboxHash` for threading
-  ([docs](https://postmarkapp.com/developer/webhooks/inbound-webhook));
-  Mailgun routes post a parsed message to a URL
-  ([docs](https://documentation.mailgun.com/docs/mailgun/user-manual/receive-forward-store/receive-http)).
-  Neither authenticates the "+" part nor cleans HTML for the app.
-  Supabase and Firebase leave email to a provider the developer configures
-  with credentials in the app. Here: one connection by the owner,
-  per-tool permission and quota, members addressable by id.
-- **Still missing**: mailboxes chosen at install (`"mailboxes": {"min",
-  "max"}`, Support adding `sales@`); a one-click unsubscribe (RFC 8058,
-  from memory) that sets the preference; whether a given mailbox can
-  receive.
+**The decisions** (`brief/08-update-2026-10.md`, "Addendum 2026-10-06",
+final): mail to members is never a tool's job — every mail a tool sent to
+a member is now a notification, and the Chest mails members their
+notifications by each member's choice (each one, once or twice a day, off;
+off per tool). The Chest never receives mail: no mailboxes, no inbound, no
+reply threads; replies go to the company's own address (Reply-To). Mail to
+people outside the company stays where a public flow needs it, through the
+SDK's `mail.send`, to be backed by a connector to the company's own mail
+provider (not built). Groups and broadcast come in the official SDK
+(proposed 0.5), with no fixed caps.
+
+**What the studio changed** (6–7 October 2026; SDK working copy
+`0.4.1-studio.5` → `.7`, every tool migrated, each reviewed by an
+independent agent and its fixes merged):
+
+- **Removed from the proposal**: member recipients (`{member}`, an `mbr_`
+  string → `invalid_recipient`), `mail.preference`, `transactional`,
+  receiving (`handle`, `POST /chest-mail`, mailboxes, threads,
+  `mailboxAddress`, `inReplyTo`/`references`). `check-manifest` refuses
+  `mailboxes`; the proposal is `"mail": {"send": true}` — "Sends emails to
+  people outside your company (customers, candidates, visitors) through
+  your company's mail provider".
+- **Kept**: `mail.send({to, cc?, subject, text, html?, fromName?, replyTo?,
+  attachments?, key?})` → `{id, messageId, status}`; `mail.available()` →
+  `{ok, reason: not_granted|not_connected|suspended|quota, remainingToday,
+  replyTo}`; `mail.status(id)` (the only bounce signal now). Reply-To is the
+  connector's company address unless the tool sets one. Header fields
+  refuse every control character, attachment names included (studio.6,
+  found by review: a stored file's name could inject a `Bcc:`).
+- **Notices**: `notify(ids, {title, body?, path?, key?, translations?: {fr:
+  {title, body?}}})` and `broadcast(notice, {to?: {roles?, groups?},
+  except?})` (§4.12). Tools no longer look up each member's language.
+- **Groups**: `members.groups` capability (`"capabilities":
+  ["members.groups"]` in `chest.proposals.json`), `member.groups`,
+  `members.list({group})`. Studio.7 parses assertions and answers without
+  0.4.1's caps (16 groups per member, 128 members per group): with them a
+  member in 17 groups gets `member() === null` and is shown "Sign in" while
+  signed in — **even without the proposal**, since the contract caps
+  neither (application contract, `Chest-Member`; reviews of Tasks, Leave,
+  Goals, Rooms). Ceiling now: a 16 KiB assertion (Node's default header
+  limit), about 300 groups — 0.5 must say how a member in more is carried.
+
+**Mail to people outside the company, tool by tool** (from each tool's
+README table, compared with its code by its reviewer; all through
+`mail.send`, Reply-To the company's address unless said):
+
+| Tool | Recipient | Mail | Attachments | Reply-To / bounds |
+|---|---|---|---|---|
+| Booking | a guest | confirmation, new time, cancellation, reminder the day before | `.ics` (PUBLISH, same UID with higher SEQUENCE, CANCEL) — not on the reminder | company; 10 per visitor, 1,000 a day, proof of work |
+| Quotes | a client | quote (PDF + terms of sale, answer link), invoice or credit note (PDF), payment reminder by hand and automatic | PDFs | the company email set in Settings, else the connector's |
+| Forms | a visitor who asked | a copy of the form's own words (never typed text) | — | company; 1 per address a day, 20 per form an hour |
+| Polls | a guest who gave an email | the chosen date (again if it changes) | — (the `.ics` is on the page) | company |
+| Status | a subscriber | double opt-in, "already subscribed", each incident/maintenance update | — | company; 3 a day per address |
+| Support | a customer | confirmation (request page link), each agent answer (fresh link) | the agent's files, 10 MiB a message | company; 3 an hour per address on the public form |
+| Hiring | a candidate | application confirmation, recruiter's message, link to choose a time, interview time, called off, rejection (after a 15 s Undo) | recruiter's files (5, 9 MB); `.ics` PUBLISH/CANCEL | company; 3 confirmations an hour per address |
+| People | an arrival not yet a member, at the work address HR typed | welcome before access | — | the HR person, else company; checked with `matchEmails` first — a member gets a notification |
+| Rooms | a visitor | invitation, cancellation | `visit.ics` (1 h: a visit has no end) | company; 4 per visit, 3 per address a day, 100 per announcer a day; a colleague's address refused |
+
+Tasks, Leave, Expenses, Timesheets, Goals, News, Wiki, Equipment and
+Clients mail nobody any more (their `mail` proposal is gone).
+
+**Member mails that became notifications** (same moment, English with
+French, a path, a key): Tasks (assigned, step, mention, morning reminder;
+the grouped emails and their queue gone), Leave (to answer, answered,
+cancellation and outcome, recorded for someone), People (a member's
+welcome), Expenses (to approve, receipt needed, drafts and approvers on the
+25th — the approvers' one restored by review), Timesheets (week to approve,
+Remind, Friday), Goals (Friday, Remind), Polls (reminders), News (Important
+posts and reminders; the weekly digest gone), Wiki (read-and-confirm and
+reminders, reviews), Booking (booked/moved/cancelled — including by a
+colleague, restored by review), Forms (answer batches to watchers, a
+member's own copy), Status, Support and Hiring (team notices; Hiring's
+interviewers' morning mail), Rooms (guests invited/changed/cancelled),
+Equipment (Remind).
+
+**What the decisions cost, and what the connector needs** (each with its
+proof):
+
+1. **Unavailable is ambiguous.** `send` throws the same `Unavailable` for
+   "not connected", "paused" and "the Chest did not answer"; Hiring,
+   Support, Quotes and Forms call `available()` again to tell them apart
+   (Quotes had recorded "no mail" after a transient failure — fixed by
+   review). Ask: a `reason` on the error, or `NotConnected`. S.
+2. **Bounces are polled.** No inbound channel means `mail.status` on a
+   schedule: Support and Hiring keep a `mail_checks` table (≈20 calls per
+   message when the provider never says "delivered"); People polls a
+   welcome for two weeks; Rooms does not follow bounces. Ask: "statuses
+   since X" for the tool, or a signed bounce event. S–M.
+3. **Limits on typed addresses are rebuilt by every tool** (Booking, Forms,
+   Status, Support, Hiring, Rooms — four had none until review: Support's
+   public form was a relay, Hiring could flood an inbox, Rooms could mail
+   anyone without limit, Forms could carry typed text). Ask: per-recipient
+   and per-tool caps and a suppression list in the connector. M.
+4. **Is this address a member?** `members.matchEmails` answers only for
+   members who have the tool, and needs `members.email`; Quotes, Forms and
+   Booking cannot warn at all, People and Rooms only for their own members.
+   Ask: a yes/no "member of this Chest" check that reveals nothing else. S.
+5. **Support without inbound.** A customer's emailed reply lands in the
+   company's inbox; an agent pastes it with "Their email" (added by review:
+   it becomes the customer's message and reopens the request). There is no
+   per-tool Reply-To (`support@…`) either. The owner decided; the cost is a
+   copy by hand. Ask, if revisited: a per-tool Reply-To address. S.
+6. **The notification mails the Chest sends** carry what a tool lost:
+   Forms' answers could be replied to from the inbox, News' "I'm coming"
+   was one tap, Booking's host got an `.ics` (now the calendar feed, which
+   Google reads hours later). Ask: actions on a notice (`notify(…,
+   {actions})`), and an `.ics` a notice can carry. M.
+7. **Reminder buttons need limits now** that each notification may become a
+   mail: Wiki's "Remind" had none (5 clicks, 5 mails a person — fixed by
+   review: 12 h); Polls 12 h, News one a day, Equipment 20 h. A rule for the
+   store, or a rate per key at the Chest. S.
+8. **`calendar.ics`** cannot write a start-only event (RFC 5545 allows it:
+   Rooms invents one hour) and writes `METHOD:PUBLISH/CANCEL` without an
+   `ORGANIZER`, which RFC 5546 requires (some clients may ignore a CANCEL;
+   **not tested** in real clients). S.
+9. **`notify`** answers no per-recipient result, and caps 500 a call and
+   1,000 an hour (0.4.1); a refused chunk used to stop the rest (fixed in
+   the tools). `broadcast` has no `to: {members}` (Polls pages by name). S.
+10. **Notice text**: the Chest keeps line breaks in a body; tools that tidied
+    white space with `\s` destroyed French no-break spaces (`20,50 €`,
+    `« … »`) — found in Expenses, fixed in every tool. A line in the SDK
+    docs. S.
+
+**`reference/` contradicts the decisions** (to correct when 0.5 ships):
+`README.md` (~189) and `AGENTS.md` (~329) "a notification or an email to
+another member is written in *their* language (`members.get(id).language`)";
+`README.md` (~339), `client/src/notifications.ts` and
+`product/specs/members-and-notifications.md` (lines 10, 225) "no email" for
+notifications; `README.md:422`, `members-and-notifications.md:294`,
+`AGENTS.md:23`, `scheduled-tasks.md:8` digests as a tool's job;
+`product/proposals/sdk-and-agents-vision.md:75` inbound email for Helpdesk.
 
 ### 4.3 The calendar bridge — `calendar` (feed, `putMany`)
 
@@ -732,24 +785,27 @@ addresses**:
   be withdrawn from someone who left a group; letting the owner hide a
   sensitive group from tools.
 
-### 4.12 Notify everyone — `notifications.broadcast`
+### 4.12 Notify everyone — `notifications.broadcast`, `translations`
 
-- **Needed by**: Polls (a question to everyone or some groups,
-  `src/lib/tell.ts`), Status (an incident to its editors, `src/lib/tell.ts`
-  `tellTeam`), Forms (a team form just published, to everyone who has the
-  tool, `src/lib/tell.ts` `opened`). News still pages by hand: it groups recipients by
-  language and calls `notify` per 500 (`news/src/lib/tell.ts`), and 0.4.1's
-  1,000 recipients an hour means a company of 1,300 cannot be told of its
-  move in one go.
-- **Working copy**: `notifications.broadcast({messages: {en, fr…}, path,
-  key, to: {roles, groups}, except})` → `{delivered}`; the fake resolves
-  recipients and picks each one's language; `fakeChest({broadcast:
-  false})` for a tool's fallback.
-- **Quota**: 30 broadcasts an hour per tool, outside the recipients-an-
-  hour quota (the Chest delivers at its own pace); each member keeps 100
-  items a day.
-- **0.3.0 helped**: now that `members` answers each member's `language`,
-  a tool can at least group by language without a second source.
+- **Announced for 0.5** (`brief/08`, addendum of 6 October 2026):
+  `notifications.broadcast(notice, {to, except})` and `translations` on
+  notices; the studio's working copy has that shape since `studio.5`.
+- **Needed by**: every tool that used to mail members now tells them by
+  notice (§4.2). Broadcast proper: Polls (a question to everyone or some
+  groups), Status (an incident to its editors, by roles), Forms (a team
+  form just published), Support and Hiring (a new request or application
+  to the agents or recruiters). News still pages by hand on purpose (the
+  same page sets each reader's tile).
+- **Working copy**: `broadcast({title, body?, path?, key?, translations?:
+  {fr: {title, body?}}}, {to?: {roles?, groups?}, except?})` →
+  `{delivered}`; no caps on roles, groups or `except` (a 1 MiB body);
+  **an empty `to` is refused** (studio.6, found by review: `{groups:
+  undefined}` from an unset setting reached everyone) — no `to` means
+  everyone. `notify` takes `translations` too; the fake records them and
+  `shownTo(notice, "fr")` says what a French member reads.
+- **Still missing**: `to: {members}` (Polls' polls put to people by name
+  page through `notify`, 500 a call, 1,000 an hour); a per-recipient
+  result; actions on a notice (§4.2, item 6).
 
 ### 4.13 The store's words in other languages — manifest `translations`
 
@@ -779,7 +835,7 @@ addresses**:
   `left_at` in lookup's former entries; the studio cannot add it without
   changing 0.4.1's `lookup`, so it is a call of its own until the Chest's
   members API carries it. Kept after an erasure (a date names nobody).
-- **The person's email preference** — `mail.preference(id)`, see §4.2.
+- **The person's email preference** — gone with the owner's decisions of 6 October 2026: the Chest mails members their notifications by each member's choice (§4.2).
 - **Now official** (0.4.0): `status: "no_access"` for someone who lost
   access but stayed (Equipment's "Léa holds 3 laptops", Goals' "needs a
   new owner"), and `language`/`timeZone` in `member.updated`'s `changed`.
@@ -1115,7 +1171,7 @@ migrators is kept with the lead, not in the repository):
 | The tool's own addresses, currency | `chest.teamUrl`, `chest.publicUrl` (null outside a Chest), `chest.currency` (EUR) — never throw | `chest.tool.teamUrl`, `chest.tool.publicUrl`, `chest.currency` — throw `not_in_chest` | the official members; the studio's went |
 | Other tools' addresses | `chest.toolUrl(name, {surface})`, `chest.toolLink(…)`; `CHEST_TOOL_URLS` `{team, public}`, http on localhost allowed | — | `chest.tools.get(name)` → `{teamUrl, publicUrl}` (`chest.tool`'s shape), `chest.tools.link(…)`; `{teamUrl, publicUrl}`, https origins only (§4.5) |
 | Former members | `{id, name, status: "former" \| "erased", leftAt?}` | `{id, name, status: "no_access" \| "former" \| "erased"}` | the official type, unchanged; when someone left is a call of its own, `members.leftAt(ids)` (adding a field would change 0.4.1's `lookup`) |
-| A member's email preference | `Member.mailPreference`, answered by `members.*` as `mail_pref` | — (no mail) | `mail.preference(memberId)`: mail's, asked of mail; `Member` stays 0.4.1's |
+| A member's email preference | `Member.mailPreference`, answered by `members.*` as `mail_pref` | — (no mail) | removed (studio.5): members are never mailed by a tool; the Chest mails their notifications by their choice |
 | Public uploads | `files.uploadUrl(name, {public: true})` | `uploadUrl` checks its answer is on the team host (`chestLink`) | `files.publicUploadUrl(name, {…})`, a function of its own; 0.4.1's `uploadUrl` untouched |
 | Local links | `files.url`/`uploadUrl` accept `http://localhost`, `fakeChest({origin})` | links on `CHEST_API`'s origin only, where the fake serves them | the official rule; the harness must serve the fake's links itself (§9) |
 | Signed deliveries | one HS256 routine per module (`Chest-Job`, `Chest-Mail`, `Chest-Check`, `Chest-Webhooks`) | one `signed.ts` (`Channel`, `delivery`, `sign`, `Seen`) for `Chest-Event`, `Chest-Schedule` | the studio's channels are `Channel`s on `signed.ts`; `mail`, `checks`, `webhooks` `handle(…, {seen})` like 0.4.1's |
@@ -1386,13 +1442,12 @@ the studio's recommended order among them, and why, follows the table.
 
 | Order | Gap (§) | Tools that need it | Kind | Effort | Priority | Why |
 |---|---|---|---|---|---|---|
-| 1 | `groups` read (§4.11) | 7 (News, Polls, Wiki, Rooms, Goals, Tasks, Leave) | Chest + SDK (built) | S | **P1** | "post to the Sales team", "ask only Tech" do not work in the default setup (open to everyone) |
-| 1 | `notifications.broadcast` (§4.12) | Polls, Status, Forms (+ News by hand) | Chest + SDK (built) | S | P2 | "tell everyone" stops at 1,000 people an hour |
+| 1 | `members.groups` (§4.11, §4.2; announced for 0.5) | 7 (News, Polls, Wiki, Rooms, Goals, Tasks, Leave) | Chest + SDK (built, studio.7 without 0.4.1's 16/128 caps) | S | **P1** | "post to the Sales team", "ask only Tech" do not work in the default setup (open to everyone) |
+| 1 | `notifications.broadcast` and `translations` on notices (§4.12; announced for 0.5) | Polls, Status, Forms, Support, Hiring (+ News by hand) | Chest + SDK (built) | S | **P1** | every former member mail is a notice now; "tell everyone" stops at 1,000 people an hour |
 | 2 | Events between tools (§4.4) | 14 | Chest + SDK (built) | M | **P1** | the suite is the pitch; 12 publishers, 11 receivers |
 | 3 | Calendar feed (§4.3) | 8 | Chest + SDK (built) | M | **P1** | Rooms, Leave, Booking, Hiring cannot replace their SaaS without it |
 | 4 | Web push and a digest of the bell (§4.15) | every tool with approvals | Chest only | M | **P1** | approvals wait in a bell nobody opens |
-| 5 | `mail` send, availability, preference (§4.2) | 17 (all but Clients) | Chest + SDK (built) | L | **P1** | the only way to reach customers, candidates, guests, and members who never open the Chest |
-| 5 | `mail` receive (§4.2) | Support, Hiring | Chest + SDK (built) | L | **P1** | without it Support is a contact form, not a helpdesk |
+| 5 | `mail` send to outside people through the company's connector, availability, status (§4.2) | 9 (Booking, Quotes, Forms, Polls, Status, Support, Hiring, People, Rooms) | Chest connector + SDK (built) | L | **P1** | the only way to reach customers, candidates, guests and visitors; members are reached by notifications, which the Chest mails (owner's decision, 6 October 2026); no inbound mail |
 | — | **new** `Chest-Visitor-Address` and bot protection for public writes (§4.8, §4.17) | the 7 public tools (proofs: Hiring, Forms, Support, Status, Booking) | Chest front (+ SDK `visitors`, built) | S (header) + M (challenge) | **P1 — blocker** | one cookieless robot closes a public form for everybody for the day |
 | — | **new** A role builders do not get by default, sealed fields (§4.17, §4.16) | People (Expenses' bank details) | contract + Chest | M | **P1** | the owner, admins and builder read every HR record |
 | — | Public uploads and files, `claim` (§4.7) | Forms, Support, Hiring | Chest + SDK (from the spec) | M | **P1** | a candidate cannot send a CV |
