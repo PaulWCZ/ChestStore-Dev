@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { test } from "node:test";
-import { catalogue, locales } from "../lib/i18n/index.ts";
+import { catalogue, locales } from "../src/i18n/index.ts";
 
 // What a client reads on the public pages never shows a raw "{company}".
 // Every word a public page takes from the catalogue is found in its source
@@ -17,12 +17,11 @@ const root = join(import.meta.dirname, "..");
 // Each public file, and what its names stand for in the catalogue ("" is
 // the catalogue itself; several roots: the first that holds the key).
 const publicFiles: Record<string, Record<string, string[]>> = {
-  "app/page.tsx": { t: [""] },
-  "app/not-found.tsx": { t: [""] },
-  "app/q/[secret]/page.tsx": { t: [""], o: ["online"], pdfWords: ["pdf"] },
-  "app/q/[secret]/answer-form.tsx": { t: ["online", "errors"] },
-  "components/quote-sheet.tsx": { words: ["pdf"] },
-  "components/public-shell.tsx": {},
+  "src/pages/PublicHome.tsx": { t: [""] },
+  "src/pages/Answer.tsx": { t: [""], o: ["online"] },
+  "src/islands/AnswerForm.tsx": { t: ["online"] },
+  "src/components/quote-sheet.tsx": { words: ["pdf"] },
+  "src/layout.tsx": { t: [""] },
 };
 
 type Found = { file: string; path: string; key: string; text: string };
@@ -103,6 +102,7 @@ test("every word of the public pages that holds a placeholder is filled, in ever
 test("every public page is scanned", () => {
   const walk = (dir: string): string[] => readdirSync(join(root, dir), { withFileTypes: true })
     .flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith(".tsx") ? [join(dir, e.name)] : []));
-  const pages = [...walk("app/q"), "app/page.tsx", "app/not-found.tsx"].map(f => relative(".", f));
+  // The public part's pages, and the islands they show.
+  const pages = [...walk("src/pages").filter(f => /PublicHome|Answer/u.test(f)), "src/islands/AnswerForm.tsx", "src/layout.tsx"].map(f => relative(".", f));
   for (const page of pages) assert.ok(page in publicFiles, `${page} is a public page: list it in test/public-words.test.ts`);
 });

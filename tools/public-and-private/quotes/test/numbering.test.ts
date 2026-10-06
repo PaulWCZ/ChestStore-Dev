@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import postgres from "postgres";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { connectionOptions, type Sql } from "../lib/db.ts";
-import { finalise, nextNumber } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
+import { connectionOptions, type Sql } from "../src/lib/db.ts";
+import { finalise, nextNumber } from "../src/lib/documents.ts";
+import { AppError } from "../src/lib/app-error.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -21,8 +21,8 @@ let many: Sql;
 const real = Boolean(process.env["TEST_DATABASE_URL"]);
 
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
   await company(database.sql);
   many = real ? (postgres(database.url, { max: 10, ...connectionOptions }) as unknown as Sql) : database.sql;
 });

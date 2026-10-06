@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fakeChest } from "@argentic/chest-sdk/testing";
-import { goesBy } from "../lib/company.ts";
+import { goesBy } from "../src/lib/company.ts";
 
 // The name on pages and in emails is the one the admin entered here; the
 // Chest's organization only stands in before the settings are filled in,

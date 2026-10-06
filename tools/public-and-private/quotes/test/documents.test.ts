@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
+import { AppError } from "../src/lib/app-error.ts";
 import {
   createDocument, decideQuote, duplicate, finalise, getDocument, invoiceFromQuote, listDocuments, markReady, receivables, removeDraft, restoreDraft,
   saveDraft, sendQuote, startCreditNote, stateOf,
-} from "../lib/documents.ts";
-import { addPayment } from "../lib/payments.ts";
-import { archiveClient } from "../lib/clients.ts";
+} from "../src/lib/documents.ts";
+import { addPayment } from "../src/lib/payments.ts";
+import { archiveClient } from "../src/lib/clients.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, defaults, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -16,8 +16,8 @@ import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/membe
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

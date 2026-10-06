@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { addClient, archiveClient, getClient, listClients, updateClient } from "../lib/clients.ts";
-import { company, missing, updateCompany } from "../lib/company.ts";
-import { AppError } from "../lib/errors.ts";
-import { addItem, archiveItem, listItems, updateItem } from "../lib/items.ts";
+import { addClient, archiveClient, getClient, listClients, updateClient } from "../src/lib/clients.ts";
+import { company, missing, updateCompany } from "../src/lib/company.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addItem, archiveItem, listItems, updateItem } from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
@@ -12,8 +12,8 @@ import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/membe
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -104,7 +104,7 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
 
 test("the company's row comes back empty if it was ever missing, and the payment link is https only", async () => {
   const { sql } = database;
-  const { company: read, updateCompany: update } = await import("../lib/company.ts");
+  const { company: read, updateCompany: update } = await import("../src/lib/company.ts");
   await assert.rejects(update(sql, asMember(camille), { paymentLink: "http://pay.test" }), (e: unknown) => (e as { code?: string }).code === "link_invalid");
   assert.equal((await update(sql, asMember(camille), { paymentLink: "https://pay.test/x" })).paymentLink, "https://pay.test/x");
   await sql`delete from company`;

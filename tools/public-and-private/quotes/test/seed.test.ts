@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { missing, company } from "../lib/company.ts";
-import { listDocuments } from "../lib/documents.ts";
-import { totals } from "../lib/totals.ts";
+import { missing, company } from "../src/lib/company.ts";
+import { listDocuments } from "../src/lib/documents.ts";
+import { totals } from "../src/lib/totals.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, lea } from "./support/members.ts";
@@ -16,8 +16,8 @@ import { everyone, lea } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
   await database.sql.unsafe(readFileSync(join(import.meta.dirname, "..", "seed", "sample.sql"), "utf8")).simple();
 });
 after(async () => {

@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { lineKey, proposeFor, readBank, recordBankLine } from "../lib/bank.ts";
-import { bankDay, decodeStatement, guessBankMapping, linesOf, readStatement } from "../lib/bank-parse.ts";
-import { finalise, getDocument } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { removePayment, restorePayment } from "../lib/payments.ts";
+import { lineKey, proposeFor, readBank, recordBankLine } from "../src/lib/bank.ts";
+import { bankDay, decodeStatement, guessBankMapping, linesOf, readStatement } from "../src/lib/bank-parse.ts";
+import { finalise, getDocument } from "../src/lib/documents.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { removePayment, restorePayment } from "../src/lib/payments.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -81,8 +81,8 @@ test("the match: its number first, then the amount with the client, the amount a
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

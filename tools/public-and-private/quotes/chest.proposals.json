@@ -2,20 +2,6 @@
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "badges",
-      "cron": "50 6 * * *"
-    },
-    {
-      "name": "followup",
-      "cron": "10 7 * * *"
-    },
-    {
-      "name": "archive",
-      "cron": "30 4 1 * *"
-    }
-  ],
   "emits": [
     "quotes.invoiced"
   ],

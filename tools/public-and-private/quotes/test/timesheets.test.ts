@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
-import { finalise, getDocument } from "../lib/documents.ts";
-import { handoffOf, invoicedHandoff, occurredAtFor, publishPending, readBillable } from "../lib/timesheets.ts";
+import { chestEvents as POST } from "../src/lib/deliveries.ts";
+import { chestSchedules as JOB } from "../src/lib/deliveries.ts";
+import { finalise, getDocument } from "../src/lib/documents.ts";
+import { handoffOf, invoicedHandoff, occurredAtFor, publishPending, readBillable } from "../src/lib/timesheets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -21,11 +21,10 @@ let chest: FakeChest;
 // event (not approved yet, or down), as the SDK's publish then throws.
 const chestWith = (emits: string[]) => fakeChest({
   tool: "quotes", members: everyone, emits, tools: { timesheets: true }, chest: { organization: "Atelier Martin", currency: "EUR", language: "fr" },
-  schedules: [{ name: "followup", cron: "10 7 * * *" }],
 });
 before(async () => {
-  database = await testDatabase();
   chest = await chestWith(["quotes.invoiced"]);
+  database = await testDatabase();
   await company(database.sql);
   await client(database.sql, { name: "Boulangerie Dupain SAS" });
 });

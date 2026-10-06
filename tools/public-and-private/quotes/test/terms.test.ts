@@ -3,12 +3,12 @@ import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import * as files from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { company as readCompany } from "../lib/company.ts";
-import { getDocument } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { answer, openLink, shownPdf } from "../lib/online.ts";
-import { draftMessage, sendDocument } from "../lib/sending.ts";
-import { grantTerms, removeTerms, saveTerms, termsFile } from "../lib/terms.ts";
+import { company as readCompany } from "../src/lib/company.ts";
+import { getDocument } from "../src/lib/documents.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { answer, openLink, shownPdf } from "../src/lib/online.ts";
+import { draftMessage, sendDocument } from "../src/lib/sending.ts";
+import { grantTerms, removeTerms, saveTerms, termsFile } from "../src/lib/terms.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -21,8 +21,8 @@ import { camille, everyone, ines, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test" } });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

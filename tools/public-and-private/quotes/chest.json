@@ -1,35 +1,20 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "quotes",
   "title": "Quotes & invoices",
   "description": "Quotes, invoices with the legal numbering and Factur-X, reminders, accountant exports. Keep your approved platform (PA) to send e-invoices.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": [
-    "admin",
-    "billing",
-    "sales",
-    "viewer"
-  ],
-  "role_labels": {
-    "admin": "Administrator",
-    "billing": "Billing",
-    "sales": "Sales",
-    "viewer": "Viewer"
-  },
+  "roles": ["admin", "billing", "sales", "viewer"],
+  "role_labels": { "admin": "Administrator", "billing": "Billing", "sales": "Sales", "viewer": "Viewer" },
   "public": true,
-  "csp": "tool",
-  "capabilities": [
-    "database",
-    "files",
-    "members",
-    "notifications"
-  ],
-  "receives": [
-    "member.*"
-  ],
-  "network": [
-    "recherche-entreprises.api.gouv.fr"
+  "capabilities": ["database", "files", "members", "notifications"],
+  "receives": ["member.*"],
+  "network": ["recherche-entreprises.api.gouv.fr"],
+  "schedules": [
+    { "name": "badges", "cron": "50 6 * * *" },
+    { "name": "followup", "cron": "10 7 * * *" },
+    { "name": "archive", "cron": "30 4 1 * *" }
   ],
   "build": {
     "runtime": "node",
@@ -37,8 +22,6 @@
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": [
-      "/_next/static/"
-    ]
+    "static": ["/assets/"]
   }
 }

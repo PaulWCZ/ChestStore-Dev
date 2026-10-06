@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import { lookupSiren, registered, registryHost, streetOf } from "../lib/registry.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { lookupSiren, registered, registryHost, streetOf } from "../src/lib/registry.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, lea } from "./support/members.ts";
 
