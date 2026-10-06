@@ -374,7 +374,7 @@ suggestions to confirm with the company's accountant.
 ## Needs from the SDK
 
 The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.4.1 +
-studio proposals (0.4.1-studio.3), contract 0.4 (`chest check` OK).
+studio proposals (0.4.1-studio.4), `@argentic/chest-app` 0.1.0-studio.6, contract 0.4 (`chest check` OK).
 
 - `member.language` (SDK 0.3.0): interface, bell and export in each
   member's language (English for a language the tool does not speak yet).

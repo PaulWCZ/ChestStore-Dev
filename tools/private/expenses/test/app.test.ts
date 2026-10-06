@@ -15,6 +15,7 @@ import { cleanup } from "../src/lib/jobs.ts";
 import { letterText } from "../src/lib/mail.ts";
 import { cut } from "../src/lib/notify.ts";
 import { rowView } from "../src/lib/rows.ts";
+import { stamp } from "../src/lib/stamp.ts";
 import { ocrBase } from "../src/shared/ocr-files.ts";
 import { categories } from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -74,6 +75,25 @@ test("My expenses: the figures, what to send, the sections' numbers in the tabs"
   assert.match(forInes, new RegExp(`À valider[^<]*</span><span[^>]*class="ck-count"[^>]*>${waiting}<`, "u"));
   // An employee has no "To approve" tab.
   assert.doesNotMatch(html, /href="\/chest\/approve"/u);
+});
+
+test("a page left open (My expenses, To approve): a read with nothing new is a 304, any write changes its version", async () => {
+  const versionOf = (html: string) => /<meta name="chest-version" content="([^"]+)"/u.exec(html)?.[1];
+  for (const path of ["/chest", "/chest/approve"]) {
+    const version = versionOf(await (await get(ines, path)).text());
+    assert.ok(version, `${path} has a version`);
+    assert.equal((await get(ines, path, { "x-tool-version": version })).status, 304, `${path}: nothing new`);
+    await database.sql`update settings set value = value`;
+    const again = await get(ines, path, { "x-tool-version": version });
+    assert.equal(again.status, 200, `${path}: a write since`);
+    assert.notEqual(versionOf(await again.text()), version);
+  }
+  assert.equal(versionOf(await (await get(ines, "/chest/new")).text()), undefined, "a form page has none");
+  // The stamp itself: the day and the quarter hour count too.
+  const at = new Date("2026-10-06T08:00:00Z");
+  assert.equal(await stamp(database.sql, "2026-10-06", at), await stamp(database.sql, "2026-10-06", new Date(at.getTime() + 14 * 60_000)));
+  assert.notEqual(await stamp(database.sql, "2026-10-06", at), await stamp(database.sql, "2026-10-06", new Date(at.getTime() + 15 * 60_000)));
+  assert.notEqual(await stamp(database.sql, "2026-10-06", at), await stamp(database.sql, "2026-10-07", at));
 });
 
 test("the look: the company's choice as a stylesheet, its address the hash of its text; the tool's own outside /chest", async () => {

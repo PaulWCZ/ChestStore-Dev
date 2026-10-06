@@ -1,11 +1,12 @@
-import { refresh } from "@argentic/chest-app/client";
-import { useAutoRefresh } from "@argentic/chest-ui/components";
+import { useAutoRefresh } from "@argentic/chest-app/client";
 
 // The Chest has no WebSocket: a page others change (My expenses, To
-// approve) reads itself again every few seconds while it is visible, and at
-// once when it becomes visible again (the kit's useAutoRefresh; refresh()
-// changes only what changed, and keeps what is being typed).
+// approve) is read again when it comes back into view, and every few
+// seconds while its reader was active in the last ten minutes — idle, it
+// stops, so a tab left open lets the tool sleep (the package's
+// useAutoRefresh). The page's version (src/app.tsx) makes a read with
+// nothing new a 304.
 export function AutoRefresh({ seconds }: { seconds: number }) {
-  useAutoRefresh(() => void refresh(), seconds);
+  useAutoRefresh(seconds);
   return null;
 }

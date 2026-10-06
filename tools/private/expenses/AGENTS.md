@@ -56,7 +56,9 @@ npm ci && npm test && npm run build   # all three must pass (and NODE_ENV=develo
   `DataTable` (import preview), `Tabs`, `Segmented` (Export's "Month of"
   is its link variant), `Filters` (Export's month and person, as select
   groups in the address), `Switch` (the month-end reminder), `EmptyState`,
-  `Avatar`, `StatusBadge`, `LanguageSwitch`, `useAutoRefresh`. Their words
+  `Avatar`, `StatusBadge`, `LanguageSwitch` (the re-reading of a page left
+  open is the package's `useAutoRefresh`, with the version of
+  `src/lib/stamp.ts`). Their words
   are the catalogues' `toast`, `dialog`, `date`, `files`, `table` sections
   (also inside `kit`, which the package reads).
   The registration certificate's `FilePicker` shows a photo's thumbnail

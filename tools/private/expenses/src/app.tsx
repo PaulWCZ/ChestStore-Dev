@@ -14,6 +14,8 @@ import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
+import { stamp } from "./lib/stamp.ts";
+import { today } from "./lib/today.ts";
 import { receiptObject, sectionCounts } from "./lib/expenses.ts";
 import { exportCsv, exportZip, selectionOf } from "./lib/export.ts";
 import { cleanup, reminder } from "./lib/jobs.ts";
@@ -54,22 +56,24 @@ export const app = createApp({
 // A page of Expenses: a member whose role gives nothing sees why (the
 // layout's NoAccess) and the page reads nothing; for the others, the
 // numbers of the sections' tabs (what waits for them), for the layout.
-const expenses = (render: (p: PageContext) => Promise<View>) => page(async p => {
+// changing: a page others change, left open (My expenses, To approve: an
+// AutoRefresh island) has a version, so a read with nothing new is a 304.
+const expenses = (render: (p: PageContext) => Promise<View>, { changing = false } = {}) => page(async p => {
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: null };
   const [view, counts] = await Promise.all([render(p), sectionCounts(db(), p.member)]);
   return { ...view, layout: { counts } };
-});
+}, changing ? { version: ({ member }) => (roleOf(member) ? stamp(db(), today()) : null) } : {});
 
 // ---- The members' part (/chest…).
 // My expenses: to send, waiting, approved, paid back.
-app.get("/chest", expenses(homePage));
+app.get("/chest", expenses(homePage, { changing: true }));
 // Add an expense (?trip=1 a car trip, ?allowance=1 a flat rate).
 app.get("/chest/new", expenses(newPage));
 // One expense, and its edit screen (its owner, while a draft).
 app.get("/chest/expenses/:id", expenses(expensePage));
 app.get("/chest/expenses/:id/edit", expenses(editPage));
 // To approve (approvers, accountants).
-app.get("/chest/approve", expenses(approvePage));
+app.get("/chest/approve", expenses(approvePage, { changing: true }));
 // Search what the reader may see.
 app.get("/chest/search", expenses(searchPage));
 // To pay back, and the company cards (accountants).
