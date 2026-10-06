@@ -5,6 +5,8 @@ import { conflict, span } from "./booking-rules.ts";
 import { dayKey, enqueue } from "./calendar.ts";
 import type { TransactionSql } from "postgres";
 import type { Query, Sql } from "./db.ts";
+import { ChestError } from "@argentic/chest-sdk/errors";
+import * as members from "@argentic/chest-sdk/members";
 import { groupsOf } from "./groups.ts";
 import { addDays, id, isStatus, mondayOf, partMinutes, today, weekday, type Status } from "../shared/model.ts";
 import { presenceHorizon } from "./presence.ts";
@@ -54,7 +56,7 @@ export async function setUsualWeek(sql: Sql, actor: Member | null, input: { days
   const deskId = input.deskId === null || input.deskId === undefined || input.deskId === "" ? null : id(input.deskId);
   if (input.lendDesk !== undefined && typeof input.lendDesk !== "boolean") throw new AppError("invalid");
   const lend = input.lendDesk as boolean | undefined;
-  const mine = deskId && !can(actor, "bookings.any") ? await groupsOf(actor) : [];
+  const mine = !can(actor, "bookings.any") ? await groupsOf(actor) : [];
   return sql.begin(async tx => {
     if (deskId) {
       const [desk] = await tx<{ assigned_to: string | null; group_id: string | null }[]>`
@@ -81,7 +83,9 @@ export async function setUsualWeek(sql: Sql, actor: Member | null, input: { days
     const reopened = [...new Set([...freed, ...unsaid].map(r => r.day))];
     if (reopened.length > 0) await tx`delete from usual_applied where member_id = ${actor.id} and day in ${tx(reopened)}`;
     await enqueue(tx, reopened.map(d => dayKey(actor.id, d)));
-    return { applied: await applyWithin(tx, zone, actor.id) };
+    // The member's own groups, asked before the transaction (above).
+    const kept: Kept = new Map([[actor.id, { exempt: can(actor, "bookings.any"), groups: mine }]]);
+    return { applied: await applyWithin(tx, zone, kept, actor.id) };
   });
 }
 
@@ -92,10 +96,32 @@ export async function applyUsual(sql: Sql, zone: string, memberId?: string): Pro
   // Nothing to do, most of the time: no transaction for that.
   const [any] = await sql`select 1 from usual_week ${memberId ? sql`where member_id = ${memberId}` : sql``} limit 1`;
   if (!any) return 0;
-  return sql.begin(tx => applyWithin(tx, zone, memberId));
+  const kept = await keptAreas(sql, memberId);
+  return sql.begin(tx => applyWithin(tx, zone, kept, memberId));
 }
 
-async function applyWithin(tx: TransactionSql, zone: string, memberId?: string): Promise<number> {
+// Who may book a desk in an area kept for a group, as bookDesk decides it:
+// the group's members, admins and office managers. Asked of the Chest
+// before the transaction (never inside it), for the members whose usual
+// desk is in such an area only; when the Chest cannot say, nobody (the day
+// is said without the desk).
+type Kept = Map<string, { exempt: boolean; groups: string[] }>;
+async function keptAreas(sql: Sql, memberId?: string): Promise<Kept> {
+  const ids = (await sql<{ member_id: string }[]>`
+    select p.member_id from member_prefs p join desks d on d.id = p.usual_desk join areas a on a.id = d.area_id
+    where a.group_id is not null ${memberId ? sql`and p.member_id = ${memberId}` : sql``}`).map(r => r.member_id);
+  const kept: Kept = new Map();
+  if (ids.length === 0) return kept;
+  try {
+    const found = await members.lookup(ids);
+    for (const m of found.members) kept.set(m.id, { exempt: can(m, "bookings.any"), groups: await groupsOf(m) });
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+  }
+  return kept;
+}
+
+async function applyWithin(tx: TransactionSql, zone: string, kept: Kept, memberId?: string): Promise<number> {
   const r = await rules(tx);
   const from = today(zone);
   const days: string[] = [];
@@ -124,8 +150,8 @@ async function applyWithin(tx: TransactionSql, zone: string, memberId?: string):
       applied++;
       continue;
     }
-    const [prefs] = await tx<{ office_id: string | null; desk_id: string | null; desk_office: string | null; assigned_to: string | null }[]>`
-      select p.office_id, d.id as desk_id, f.office_id as desk_office, d.assigned_to
+    const [prefs] = await tx<{ office_id: string | null; desk_id: string | null; desk_office: string | null; assigned_to: string | null; group_id: string | null }[]>`
+      select p.office_id, d.id as desk_id, f.office_id as desk_office, d.assigned_to, a.group_id
       from member_prefs p
       left join desks d on d.id = p.usual_desk and d.archived_at is null
       left join areas a on a.id = d.area_id left join floors f on f.id = a.floor_id
@@ -133,8 +159,15 @@ async function applyWithin(tx: TransactionSql, zone: string, memberId?: string):
     const [first] = await tx<{ id: string }[]>`select id from offices order by position, id limit 1`;
     const office = prefs?.desk_office ?? prefs?.office_id ?? first?.id ?? null;
     await tx`insert into presence (member_id, day, status, office_id, usual) values (${c.member_id}, ${c.day}, 'office', ${office}, true) on conflict do nothing`;
-    // A desk given to them needs no booking; one given to someone else meanwhile is not taken.
-    if (prefs?.desk_id && prefs.assigned_to === null && await withinDeskDays(tx, r.maxDeskDays, c.member_id, c.day)) {
+    // A desk given to them needs no booking; one given to someone else
+    // meanwhile is not taken; one in an area kept for a group they are no
+    // longer in is not either; and the desk days a week hold, under the
+    // same lock as bookDesk takes (two bookings of one person never pass
+    // the count together).
+    const who = kept.get(c.member_id);
+    const allowed = prefs?.group_id ? Boolean(who && (who.exempt || who.groups.includes(prefs.group_id))) : true;
+    if (prefs?.desk_id && prefs.assigned_to === null && allowed) await tx`select pg_advisory_xact_lock(hashtext('desk-days'), hashtext(${c.member_id}))`;
+    if (prefs?.desk_id && prefs.assigned_to === null && allowed && await withinDeskDays(tx, r.maxDeskDays, c.member_id, c.day)) {
       const [start, end] = partMinutes.day;
       try {
         await tx.savepoint(async sp => {

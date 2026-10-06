@@ -134,6 +134,13 @@ export async function eventOf(sql: Query, key: string, zone: string, now = new D
       where b.member_id = ${member} and b.day = ${d} and b.cancelled_at is null and d.archived_at is null
       order by lower(b.during)`;
     if (!said && desks.length === 0) return null;
+    // When the day last changed (said, a desk taken or freed): its stamp,
+    // and its sequence (seconds since 2026), so a calendar that has the
+    // event takes the newer one.
+    const [{ at } = { at: null }] = await sql<{ at: Date | null }[]>`
+      select greatest((select changed_at from presence where member_id = ${member} and day = ${d}),
+        (select max(coalesce(cancelled_at, created_at)) from desk_bookings where member_id = ${member} and day = ${d})) as at`;
+    const changed = at ? new Date(at).getTime() : Date.parse(d + "T00:00:00Z");
     const office = desks[0]?.office ?? said?.office ?? null;
     const address = desks[0]?.address ?? said?.address ?? null;
     return {
@@ -147,8 +154,8 @@ export async function eventOf(sql: Query, key: string, zone: string, now = new D
       path: `/chest?day=${d}`,
       busy: false,
       days: { first: d, last: d },
-      stamp: new Date(Math.max(0, ...desks.map(x => new Date(x.created_at).getTime())) || Date.parse(d + "T00:00:00Z")),
-      sequence: 0,
+      stamp: new Date(changed),
+      sequence: Math.max(0, Math.floor((changed - Date.UTC(2026, 0, 1)) / 1000)),
       lastDay: d,
     };
   }

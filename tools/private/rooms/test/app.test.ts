@@ -129,6 +129,17 @@ test("a page read again while nothing changed is a 304 (its version); a change a
   assert.equal((await get(hugo, "/chest/rooms", { "x-tool-version": version })).status, 200, "someone else's change shows");
 });
 
+test("My week too answers 304 when nothing changed: reading it writes nothing; another page read in between changes nothing either", async () => {
+  await page(tom, "/chest"); // the usual week applied, the calendars told
+  const first = await get(tom, "/chest");
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(await first.text())?.[1];
+  assert.ok(version);
+  assert.equal((await get(tom, "/chest", { "x-tool-version": version })).status, 304);
+  await page(hugo, "/chest");
+  await page(camille, "/chest/desks");
+  assert.equal((await get(tom, "/chest", { "x-tool-version": version })).status, 304, "others reading pages write nothing");
+});
+
 test("a member whose role gives nothing is told why, and no page runs for them", async () => {
   for (const path of ["/chest", "/chest/desks", "/chest/rooms"]) {
     const html = await page(nora, path);

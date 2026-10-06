@@ -65,6 +65,10 @@ export function RulesForm({ rules, locale, t }: { rules: Rules; locale: string; 
         <span>{t.rules.keepMonths}</span>
         <input className="field narrow-field" type="number" min={1} max={60} value={r.keepMonths} onChange={e => setR({ ...r, keepMonths: Number(e.target.value) || 1 })} />
       </label>
+      <label className="inline-label">
+        <span>{t.rules.visitorDays}</span>
+        <input className="field narrow-field" type="number" min={1} max={90} value={r.visitorDays} onChange={e => setR({ ...r, visitorDays: Number(e.target.value) || 1 })} />
+      </label>
       <div className="stack-s">
         <label className="check">
           <input type="checkbox" checked={r.checkIn} onChange={e => setR({ ...r, checkIn: e.target.checked })} />
@@ -74,6 +78,7 @@ export function RulesForm({ rules, locale, t }: { rules: Rules; locale: string; 
       </div>
       <ul className="hint notes">
         <li>{t.rules.keepHint}</li>
+        <li>{t.rules.visitorHint}</li>
         <li>{t.rules.adminsFree}</li>
       </ul>
       <div><button type="submit" className="button" disabled={pending}>{t.rules.save}</button></div>

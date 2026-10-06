@@ -55,7 +55,8 @@ in?*
   and guests optional; guests hear it in the Chest's bell, in their own
   language. Change the time, room or guests; cancel with *Undo*; repeat
   *every week on this day for N weeks* (each occurrence is a booking of its
-  own, cancelled one by one or "this and the next ones"). On a phone the
+  own, changed or cancelled one by one or "this and the next ones"; a moved
+  meeting is reminded and checked in afresh). On a phone the
   grid becomes a list of rooms with their free slots ("Tap a free time").
   A tap outside a booking form someone started does not close it; moving
   the start keeps the length chosen. Days beyond how far ahead one may book
@@ -86,8 +87,9 @@ in?*
   arrived*: the host hears "Paul Durand (Client SA) is here to see you" in
   the bell. Cancelling a visit and marking an arrival both have *Undo*.
   My week shows my visitors on their day. Only the host, whoever announced
-  the visit and the reception see a visitor's name; it goes with the past
-  bookings (the rule "how long past bookings are kept").
+  the visit and the reception see a visitor's name; it is deleted 30 days
+  after the visit (a rule an admin sets, 1 to 90 days — sooner than the
+  bookings: visitors are not the company's people).
 - **When a desk's holder comes back** (says *Office* on a day their given
   desk was lent), whoever booked it that day hears it in the bell ("Sofia
   Rossi is coming in on Thursday 8 October: D-12 is their desk…"); the
@@ -127,7 +129,8 @@ in?*
   dozen, numbered on: D-07, D-08…), a desk given to someone. **Rules**: how
   many days ahead (14), desk days per person and week (no limit), how long a
   weekly booking lasts (12 weeks), the rooms' hours, the working days, how
-  long past bookings are kept (12 months), check-in. **Export**: how full
+  long past bookings are kept (12 months), how long visitors' names are kept
+  (30 days), check-in. **Export**: how full
   the office is on each working day (a bar per day, counts only: the
   average **since the first day someone came**, eight weeks at most — the
   weeks before anyone used Rooms are no data, not zeros; the chart says
@@ -232,14 +235,16 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
   weekly series). Booking a desk for oneself is silent; a desk or room an
   admin cancels for you, or a desk given to someone else, is told to you.
 - **No badge**, on purpose: a badge means "something waits for you", and
-  nothing here does (no check-in, no approval). A count of today's bookings
+  nothing does for long (check-in is a reminder in the bell and a button
+  on the meeting, no approval). A count of today's bookings
   would sit on the tile every day and mean nothing; keeping it right would
   also need a schedule every morning.
 - **One schedule** (`chest.json`, contract 0.4):
-  `quarter`, every 15 minutes — reminders before meetings and, with
-  check-in on, freeing unclaimed rooms. Everything else needs none: what
-  the rules no longer keep is deleted when *My week* is next read; the
-  usual weeks are applied and the calendars told when any page is read.
+  `quarter`, every 15 minutes — reminders before meetings (marked sent
+  once the bell took them: a failed run reminds again), with check-in on
+  freeing unclaimed rooms, and deleting what the rules no longer keep
+  (past bookings, visitors). The usual weeks are applied and the
+  calendars told when any page is read.
 - **Calendar UIDs**: a room booking's event (the members' feeds, its
   `.ics` files and invitations) is keyed `room:<id>:<salt>`, the salt
   random per booking (`migrations/0008`): unique across companies (the team

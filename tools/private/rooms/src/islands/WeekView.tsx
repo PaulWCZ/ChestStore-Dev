@@ -5,6 +5,7 @@ import { Badge, CalendarAdd, Check, Desk, Door, Download, Laptop, Moon, Plan, Re
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatDay, plural } from "../i18n/format.ts";
 import type { Part, Status } from "../shared/model.ts";
+import { useMinutes } from "../components/clock.ts";
 
 export type WeekDay = {
   day: string;
@@ -21,7 +22,9 @@ export type WeekDay = {
   othersCount: number;
   teamCount: number;
   desks: { id: string; name: string; area: string; part: Part }[];
-  rooms: { id: string; room: string; span: string; title: string; by: string | null; checkable: boolean }[];
+  // check: the minutes "I'm here" is offered between, today (check-in on,
+  // not checked in yet); the reader's clock decides when.
+  rooms: { id: string; room: string; span: string; title: string; by: string | null; check: [number, number] | null }[];
   usualFree: boolean;
   // My own desk, lent that day to this person.
   lentTo: string | null;
@@ -52,7 +55,7 @@ const choices = ["office", "remote", "off"] as const;
 // Faces shown, "+n" included: few enough that every face stays readable.
 const faces = 4;
 
-export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desks, calendarPage, self, locale, t }: {
+export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desks, calendarPage, self, zone, now: served, locale, t }: {
   days: WeekDay[];
   self: { name: string; photo: string | null };
   // null: no office yet — presence only, no desks.
@@ -63,9 +66,13 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
   weekdays: { day: number; name: string }[];
   desks: { id: string; name: string; mine: boolean }[];
   calendarPage: string | null;
+  // The office's zone and the server's minute: the clock of the page.
+  zone: string;
+  now: number;
   locale: string;
   t: WeekWords;
 }) {
+  const now = useMinutes(zone, served);
   // What the member just chose shows at once; the server's answer (the
   // page refreshed by call()) follows, and the local choice goes with it.
   const [chosen, setChosen] = useState<Record<string, Status | null>>({});
@@ -189,7 +196,7 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
                             {b.title && <span> · {b.title}</span>}
                             {b.by && <span className="muted"> · {b.by}</span>}
                           </a>
-                          {b.checkable && <button type="button" className="button small" onClick={() => void here(b.id)}><Check />{t.checkIn}</button>}
+                          {b.check && now >= b.check[0] && now < b.check[1] && <button type="button" className="button small" onClick={() => void here(b.id)}><Check />{t.checkIn}</button>}
                         </li>
                       ))}
                       {d.visitors.map(v => (
