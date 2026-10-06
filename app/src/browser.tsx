@@ -31,7 +31,7 @@ export function start(islands: Record<string, ComponentType<never>>): void {
     if (form.getAttribute("aria-busy") === "true") return toast({ id: "busy", text: busyText() });
     form.setAttribute("aria-busy", "true");
     const body = new FormData(form, event.submitter);
-    void send(url, {}, body, { refresh: false }).then(async outcome => {
+    void send(url, {}, body, { refresh: false, ...(form.hasAttribute("data-parallel") ? { parallel: true } : {}) }).then(async outcome => {
       if (!outcome.ok || outcome.redirect) return;
       await refresh();
       form.reset();

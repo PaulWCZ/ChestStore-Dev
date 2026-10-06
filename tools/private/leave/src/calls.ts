@@ -30,9 +30,9 @@ export async function chestSchedules(request: Request): Promise<Response> {
   return new Response(null, {
     status: await schedules.handle(request, {
       morning: async run => {
-        await morning(sql, run);
+        const done = await morning(sql, run);
         const forgotten = await forgetSeen(sql);
-        log.info("morning", { forgotten });
+        log.info("morning", { ...done, forgotten });
       },
     }, { seen: seen(sql) }),
   });

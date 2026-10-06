@@ -17,7 +17,7 @@ export function MembersLayout({ viewer: { member, t }, path, notice, children }:
         {notice && <p className="notice" role="alert">{notice}</p>}
         {children}
       </AppShell>
-      <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy } }} />
+      <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy, tooLarge: t.errors.too_large } }} />
     </>
   );
 }
@@ -34,7 +34,7 @@ export function PublicLayout({ viewer: { locale, t }, path, notice, children }: 
         {notice && <p className="notice" role="alert">{notice}</p>}
         {children}
       </main>
-      <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy } }} />
+      <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy, tooLarge: t.errors.too_large } }} />
     </div>
   );
 }

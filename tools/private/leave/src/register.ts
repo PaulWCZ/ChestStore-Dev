@@ -10,5 +10,8 @@ declare module "@argentic/chest-app" {
     words: Catalogue;
     actions: typeof actions;
     islands: typeof islands;
+    // What a page tells the layout: the requests waiting for the member's
+    // answer ("To answer" in the sections).
+    layout: { waiting: number };
   }
 }

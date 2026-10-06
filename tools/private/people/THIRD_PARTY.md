@@ -2,7 +2,7 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| Outfit (font) | [Outfitio/Outfit-Fonts](https://github.com/Outfitio/Outfit-Fonts), via `@fontsource-variable/outfit` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-outfit.txt` |
+| Outfit (font) | [Outfitio/Outfit-Fonts](https://github.com/Outfitio/Outfit-Fonts), via `@fontsource-variable/outfit` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-outfit.txt` |
 
 No code is copied from other projects. Ideas only (no code) came from the
 projects studied in the studio's research (`reports/02-open-source/people.md`):
@@ -11,11 +11,14 @@ onboarding templates of activities given to roles (Frappe HR, GPL-3.0;
 Horilla, LGPL-2.1), and the CSS tree of an org chart (dabeng/OrgChart, MIT —
 the idea of nested lists with connector lines, rewritten here).
 
-Dependencies (`next`, `react`, `react-dom`, `postgres`) are installed from
-npm under their own licences; `@argentic/chest-sdk` and `@argentic/chest-ui`
-(the store's UI kit: themes and shared components, MIT, © 2026 Argentic)
-are packed copies in `vendor/`; `@electric-sql/pglite` is a
-development dependency for tests only.
+Dependencies are installed from npm under their own licences: `hono` and
+`@hono/node-server` (MIT), `react` and `react-dom` (MIT), `postgres` (the
+Unlicense); for the build and the tests only, `vite` (MIT), `typescript`
+(Apache-2.0) and `@electric-sql/pglite` with `pglite-socket` (Apache-2.0).
+`@argentic/chest-sdk`, `@argentic/chest-ui` (the store's UI kit: themes and
+shared components) and `@argentic/chest-app` (the starter's machinery:
+pages, islands, actions) are the studio's packages, MIT, © 2026 Argentic,
+as packed copies in `vendor/`. Next.js is no longer used.
 
 ## Formats and rules followed (no code copied)
 

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError, type ErrorCode } from "../lib/app-error.ts";
-import * as expenses from "../lib/expenses.ts";
-import { today } from "../lib/today.ts";
-import { grant } from "../lib/receipts.ts";
-import * as settings from "../lib/settings.ts";
-import * as tell from "../lib/tell.ts";
-import * as approvals from "../lib/approvals.ts";
-import { search } from "../lib/search.ts";
+import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
+import * as expenses from "../src/lib/expenses.ts";
+import { today } from "../src/lib/today.ts";
+import { grant } from "../src/lib/receipts.ts";
+import * as settings from "../src/lib/settings.ts";
+import * as tell from "../src/lib/tell.ts";
+import * as approvals from "../src/lib/approvals.ts";
+import { search } from "../src/lib/search.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -20,7 +20,7 @@ const cat: Record<string, string> = {};
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
   for (const r of await database.sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
 });
 after(async () => {
@@ -87,7 +87,7 @@ test("a receipt must be the member's own upload, arrived, of an accepted type an
   await assert.rejects(grant(sql, asMember(hugo), { type: "image/jpeg", size: 11 << 20 }), refuses("file_too_large"));
   await assert.rejects(grant(sql, asMember(nora), { type: "image/jpeg", size: 10 }), refuses("forbidden"));
   const up = await grant(sql, asMember(hugo), { type: "image/jpeg", size: 10 });
-  const { inspect } = await import("../lib/receipts.ts");
+  const { inspect } = await import("../src/lib/receipts.ts");
   await assert.rejects(inspect(sql, asMember(hugo), up.object), refuses("file_missing"));
   await assert.rejects(inspect(sql, asMember(lea), up.object), refuses("file_missing"));
   await assert.rejects(inspect(sql, asMember(hugo), "receipts/../x"), refuses("file_missing"));

@@ -6,4 +6,4 @@
 // (src/shared/model.ts, src/lib/import.ts read in the island) refuse with the same codes on both
 // sides. The codes are the keys of the catalogue's errors.
 export { AppError } from "@argentic/chest-app/client";
-export type { ErrorCode } from "@argentic/chest-app";
+export type { ErrorCode } from "@argentic/chest-app/client";

@@ -54,7 +54,11 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
   // by default; not a file) answers that status, as the Chest's front
   // would (403 "Access removed", 502, 503 "Waking up…") — for browser tests.
   let failNext = null;
+  // seen: every request the front relayed ("GET /chest/notes.csv"), for
+  // tests that count them.
+  const seen = [];
   const proxy = createServer((req, res) => {
+    seen.push(`${req.method} ${req.url}`);
     if (failNext && failNext.method === req.method && !req.url.startsWith("/assets/")) {
       const { status, type } = failNext;
       failNext = null;
@@ -92,6 +96,7 @@ export async function runTool(dir, { front = 0, member = camille, command = ["np
   }
   if (ready === null) throw new Error(`${dir}: no 200 on /chest after 6 s`);
   return {
+    seen,
     origin,
     port,
     pid: child.pid,

@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as arrivals from "../lib/arrivals.ts";
-import * as j from "../lib/journeys.ts";
-import { addDays } from "../lib/model.ts";
-import { mailState, stateOf } from "../lib/mailing.ts";
-import { welcome, welcomeLetter } from "../lib/welcome.ts";
-import { today } from "../lib/zone.ts";
+import * as arrivals from "../src/lib/arrivals.ts";
+import * as j from "../src/lib/journeys.ts";
+import { addDays } from "../src/shared/model.ts";
+import { mailState, stateOf } from "../src/lib/mailing.ts";
+import { welcome, welcomeLetter } from "../src/lib/welcome.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, nora, tom } from "./support/members.ts";
@@ -23,7 +23,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 const address = (key: string) => `${key}@atelier.test`;
 const withAddresses = everyone.map(p => ({ ...p, email: address(p.firstName.toLowerCase()), ...(p.id === tom.id ? { mailPreference: "none" as const } : {}) }));
-const chestWith = (mail: boolean) => fakeChest({
+const chestWith = (mail: boolean) => fakeChest({ network: {},
   tool: "people", members: withAddresses, capabilities: ["members", "members.email", "notifications", ...(mail ? ["mail" as const] : [])],
   ...(mail ? { mail: { domain: "atelier.test" } } : {}), chest: { organization: "Atelier Martin", language: "en" },
 });

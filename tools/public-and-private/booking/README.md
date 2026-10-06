@@ -365,16 +365,17 @@ released 0.4.1; what follows is not in it yet.
   remembered for emails sent by a schedule. The company's name (an administrator may
   name it otherwise for visitors) and the default time zone of new hosts
   are the Chest's (`chest.organization.name`, `chest.timeZone`, 0.3.0).
-- **The visitor's address** for the public forms' counters —
-  **Proposal (studio)** (`visitors.address()`, the header
-  `Chest-Visitor-Address` the front would set; never `X-Forwarded-For`,
-  which the visitor writes). Without it a browser is known by a cookie of
-  its own (`chest_v`). The public writes are counted only once valid (the
-  type exists, the time is well-formed, the guest's link opens a booking
-  still to come — junk is refused uncounted): bookings and changes apart,
-  per visitor (8 an hour), per form or link (10 an hour), for everyone
-  (200 an hour, 1,000 over the last 24 hours), in `form_counts`. A form
-  is good for two hours and one booking (`form_tokens`).
+- **The visitor's address** — **Proposal (studio)**
+  (`Chest-Visitor-Address`, which the front would set; never
+  `X-Forwarded-For`, which the visitor writes). The public writes are
+  bounded by the package (`@argentic/chest-app`'s `publicAction({ bound })`):
+  a form token that serves once and lasts two hours, the field only robots
+  fill, and budgets a day per visitor (the front's address, else a
+  `chest_v` cookie of the browser's) and for everyone — bookings (10 / 1,000)
+  and changes (20 / 1,000) apart — spent only once a request is valid
+  (the type exists, the time is well-formed, the guest's link opens a
+  booking still to come: junk is refused uncounted). Booking adds a cap
+  per guest's link (10 changes an hour, `form_counts`).
 - **`calendar`** — **Proposal (studio)** (`chest.proposals.json`:
   `"calendar": true`): each booking in its host's Chest calendar feed.
   Without it, the tool's own private feed (Settings) remains.
