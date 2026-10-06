@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { decideQuote, finalise, invoiceFromQuote, sendQuote, startCreditNote } from "../lib/documents.ts";
-import { period } from "../lib/export.ts";
-import { exportJournal } from "../lib/journal.ts";
-import { revenue } from "../lib/revenue.ts";
+import { decideQuote, finalise, invoiceFromQuote, sendQuote, startCreditNote } from "../src/lib/documents.ts";
+import { period } from "../src/lib/export.ts";
+import { exportJournal } from "../src/lib/journal.ts";
+import { revenue } from "../src/lib/revenue.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -26,8 +26,8 @@ import { everyone, hugo, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

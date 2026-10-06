@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatMoney, formatQuantity, formatRate, parseAmount, parsePercent, parseQuantity, plainAmount } from "../lib/money.ts";
-import { depositBases, lineNet, roundDiv, share, totals, vatOf, type LineAmounts } from "../lib/totals.ts";
+import { formatMoney, formatQuantity, formatRate, parseAmount, parsePercent, parseQuantity, plainAmount } from "../src/shared/money.ts";
+import { depositBases, lineNet, roundDiv, share, totals, vatOf, type LineAmounts } from "../src/shared/totals.ts";
 
 const l = (quantity: number, unitPrice: number, vatRate = 2000, discount = 0): LineAmounts => ({ kind: "line", quantity, unitPrice, vatRate, discount });
 

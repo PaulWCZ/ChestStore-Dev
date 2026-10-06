@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { decideQuote, getDocument, saveDraft } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { reviseQuote } from "../lib/versions.ts";
-import { answer, answerPdf, answersOf, ensureLink, liveLink, openLink, renewLink, revokeLink, shownPdf } from "../lib/online.ts";
-import { draftMessage, markSent, sendDocument, withAnswerLink } from "../lib/sending.ts";
-import { answeredOnline } from "../lib/tell.ts";
+import { decideQuote, getDocument, saveDraft } from "../src/lib/documents.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { reviseQuote } from "../src/lib/versions.ts";
+import { answer, answerPdf, answersOf, ensureLink, liveLink, openLink, renewLink, revokeLink, shownPdf } from "../src/lib/online.ts";
+import { draftMessage, markSent, sendDocument, withAnswerLink } from "../src/lib/sending.ts";
+import { answeredOnline } from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -22,8 +22,8 @@ import { everyone, hugo, ines, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test" } });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {
@@ -166,7 +166,7 @@ test("past its validity date the link says the quote expired", async () => {
   const later = "2027-06-01";
   assert.equal((await openLink(sql, secret, later))!.showing, "expired");
   const { sha256 } = await shownPdf(sql, opened, today);
-  await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, later), refused("expired"));
+  await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, later), refused("quote_expired"));
 });
 
 test("a link turned off never works again; a new one does", async () => {

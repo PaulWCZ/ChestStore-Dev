@@ -2,17 +2,17 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| Libre Caslon Text (font, the screens; in the UI kit's registry) | [Impallari Type](https://github.com/impallari/Libre-Caslon-Text), via `@fontsource/libre-caslon-text` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-libre-caslon-text.txt` |
-| Hanken Grotesk (font, the screens; in the UI kit's registry) | [marcologous/hanken-grotesk](https://github.com/marcologous/hanken-grotesk), via `@fontsource-variable/hanken-grotesk` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-hanken-grotesk.txt` |
-| Liberation Sans Regular and Bold, Liberation Serif Regular, Bold and Italic 2.1.5 (fonts, the PDFs) | [liberationfonts](https://github.com/liberationfonts), as packaged by Debian/Ubuntu (`fonts-liberation` 1:2.1.5-3), files unmodified | OFL-1.1 (Reserved Font Name "Liberation") | `lib/pdf/fonts/*.ttf`, licence and copyright in `lib/pdf/fonts/LICENSE-liberation.txt` |
-| CSV reader | Written for the studio's Clients tool (same licence, same studio), copied | MIT (this repository) | `parseCsv` in `lib/csv.ts`, `lib/fold.ts` |
+| Libre Caslon Text (font, the screens; in the UI kit's registry) | [Impallari Type](https://github.com/impallari/Libre-Caslon-Text), via `@fontsource/libre-caslon-text` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-libre-caslon-text.txt` |
+| Hanken Grotesk (font, the screens; in the UI kit's registry) | [marcologous/hanken-grotesk](https://github.com/marcologous/hanken-grotesk), via `@fontsource-variable/hanken-grotesk` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-hanken-grotesk.txt` |
+| Liberation Sans Regular and Bold, Liberation Serif Regular, Bold and Italic 2.1.5 (fonts, the PDFs) | [liberationfonts](https://github.com/liberationfonts), as packaged by Debian/Ubuntu (`fonts-liberation` 1:2.1.5-3), files unmodified | OFL-1.1 (Reserved Font Name "Liberation") | `src/pdf/fonts/*.ttf`, licence and copyright in `src/pdf/fonts/LICENSE-liberation.txt` |
+| CSV reader | Written for the studio's Clients tool (same licence, same studio), copied | MIT (this repository) | `parseCsv` in `src/shared/csv.ts`, `src/shared/fold.ts` |
 | Test fixture of the public directory's answer (`test/fixtures/registry-search.json`) | The ADEME record of [annuaire-entreprises-data-gouv-fr/site](https://github.com/annuaire-entreprises-data-gouv-fr/site) `unit-tests/recherche-entreprise/fixtures/search-385290309.json` (read 2026-09-29), reshaped to the API's top-level `results` list and trimmed | MIT (that repository) | `test/fixtures/registry-search.json` only; no code copied |
-| ZIP writer, CSV writer | Written for the studio's Expenses tool (same licence, same studio), copied | MIT (this repository) | `lib/zip.ts`, `lib/csv.ts` |
+| ZIP writer, CSV writer | Written for the studio's Expenses tool (same licence, same studio), copied | MIT (this repository) | `src/lib/zip.ts`, `src/shared/csv.ts` |
 
 **The PDF fonts.** PDF/A (and so Factur-X) requires every font to be
 embedded. The Liberation fonts have the widths of Helvetica and Times, so
 the documents keep their layout; each PDF embeds a subset of them (the
-glyphs it shows, others emptied, `lib/pdf/truetype.ts`). The font files in
+glyphs it shows, others emptied, `src/pdf/truetype.ts`). The font files in
 the repository are the originals, unmodified. The OFL allows fonts to be
 embedded in documents and says its terms do not apply "to any document
 created using the fonts or their derivatives"; that a subset embedded in a
@@ -22,12 +22,12 @@ the glyph widths of Adobe's Core 14 AFM files (via pdfkit 0.20.2) and
 embedded nothing; those widths are no longer in the tool.
 
 Written for this tool, from the public specifications, with no code copied:
-the PDF writer and its PDF/A-3 parts (`lib/pdf/writer.ts`, ISO 32000-1,
-ISO 19005-3), the TrueType reader and subsetter (`lib/pdf/truetype.ts`,
-OpenType specification), the sRGB ICC profile (`lib/pdf/icc.ts`, from the
+the PDF writer and its PDF/A-3 parts (`src/pdf/writer.ts`, ISO 32000-1,
+ISO 19005-3), the TrueType reader and subsetter (`src/pdf/truetype.ts`,
+OpenType specification), the sRGB ICC profile (`src/pdf/icc.ts`, from the
 IEC 61966-2-1 primaries and curve, ICC.1:2001-04), the Factur-X / CII
-writer (`lib/einvoice.ts`), the PNG and JPEG readers for the logo
-(`lib/pdf/image.ts`, W3C PNG, ITU T.81).
+writer (`src/lib/einvoice.ts`), the PNG and JPEG readers for the logo
+(`src/pdf/image.ts`, W3C PNG, ITU T.81).
 
 **Factur-X: what it was written from and checked against** (read
 2026-09-29). The Factur-X 1.09.2 (FNFE-MPE / FeRD, released 2026-08-04,
@@ -86,10 +86,14 @@ note, deposit invoices), Invoice Ninja (ELv2 — recurring invoices,
 reminders), Crater and InvoiceShelf (AGPL-3.0 — calm quote → invoice flow),
 SolidInvoice (MIT — VAT rate kept on each line).
 
-Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`, `@argentic/chest-ui` — the studio's UI kit, MIT, packed in `vendor/`) are
-installed from npm under their own licences. No PDF library is used.
+Dependencies (`hono` and `@hono/node-server` (MIT), `react` and `react-dom` (MIT),
+`postgres` (Unlicense); for the build only `vite` (MIT), `typescript`
+(Apache-2.0), `@electric-sql/pglite` (Apache-2.0, the tests); and the
+studio's `@argentic/chest-sdk`, `@argentic/chest-ui` (the UI kit) and
+`@argentic/chest-app` (the package), MIT, packed in `vendor/`) are
+installed from npm under their own licences. Next.js is no longer used. No PDF library is used.
 
-**Filling a client from its SIREN** (`lib/registry.ts`). Written for this
+**Filling a client from its SIREN** (`src/lib/registry.ts`). Written for this
 tool against the State's free "API Recherche d'entreprises"
 (`https://recherche-entreprises.api.gouv.fr/search?q=…`). Its own
 documentation (`/docs/`, `/openapi.json`) and data.gouv.fr's page could
@@ -105,7 +109,7 @@ web search result summarising api.gouv.fr's catalogue, 2026-09-29), not
 verified. The top-level `results` list is inferred from the site's
 fixture (which wraps it in `result`); unverified against the live API.
 
-**Bank statements** (`lib/bank-parse.ts`). No bank's CSV specification
+**Bank statements** (`src/shared/bank-parse.ts`). No bank's CSV specification
 could be read from the studio on 2026-09-29: the help pages found by a web
 search (macompta.fr, comptalib.com, openflyers.com) were refused by the
 network egress. The headers recognised are the usual French and English

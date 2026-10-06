@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { decideQuote, finalise, getDocument, sendQuote } from "../lib/documents.ts";
-import { addPayment } from "../lib/payments.ts";
+import { chestEvents as POST } from "../src/lib/deliveries.ts";
+import { decideQuote, finalise, getDocument, sendQuote } from "../src/lib/documents.ts";
+import { addPayment } from "../src/lib/payments.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -12,8 +12,8 @@ import { camille, everyone, hugo, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

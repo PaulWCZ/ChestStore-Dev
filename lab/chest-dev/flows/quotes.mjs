@@ -16,7 +16,7 @@
 import { as, control, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
-const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const french = async () => context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
@@ -26,7 +26,7 @@ let invoiceUrl = "";
 let answerPath = "";
 // A visitor of the public host: no member, their own phone.
 async function visitor(locale = "fr-FR") {
-  const other = await browser.newContext({ viewport: { width: 390, height: 844 }, locale, hasTouch: true });
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, locale, hasTouch: true });
   const p = await other.newPage();
   p.on("pageerror", e => problems.push("visitor page: " + e.message));
   p.on("console", m => { if (m.type() === "error" && !/Failed to load resource/u.test(m.text())) problems.push("visitor console: " + m.text()); });
@@ -89,11 +89,11 @@ await step("Hugo sends it: numbered, emailed in French with the PDF", async () =
 
 await step("the client, on their phone: reads the quote, opens the PDF, accepts it with Bon pour accord", async () => {
   const { other, p } = await visitor();
-  await p.goto(origin + answerPath);
+  await p.goto(publicOrigin + answerPath);
   expect((await p.locator("h1").innerText()).startsWith("Devis D-"), "the quote's page, in the visitor's French");
   const sheet = await p.locator(".sheet").innerText();
   expect(sheet.includes("Photos de l’atelier") && sheet.includes("Garage Rossi SARL"), "the quote as a page");
-  const pdf = await p.request.get(origin + answerPath + "/pdf");
+  const pdf = await p.request.get(publicOrigin + answerPath + "/pdf");
   expect(pdf.status() === 200 && Buffer.from(await pdf.body()).subarray(0, 5).toString() === "%PDF-", "its PDF");
   expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, "no sideways scroll on the phone");
   expect((await p.locator(".public-foot").innerText()).includes("pas une signature électronique certifiée (eIDAS)"), "says it is not an eIDAS signature");
@@ -158,7 +158,7 @@ await step("round 3: a sent quote changes only through its version 2; the client
 
   // The client opens it and starts answering.
   const { other, p } = await visitor();
-  await p.goto(origin + link);
+  await p.goto(publicOrigin + link);
   await p.getByLabel("Vos prénom et nom").fill("Luca Rossi");
   await p.getByText("Bon pour accord", { exact: true }).click();
 
@@ -172,7 +172,7 @@ await step("round 3: a sent quote changes only through its version 2; the client
   await page.getByLabel("Unit price excluding VAT of line 1").waitFor();
   // Meanwhile the link says a new version is coming, and takes no answer.
   const { other: other2, p: p2 } = await visitor();
-  await p2.goto(origin + link);
+  await p2.goto(publicOrigin + link);
   expect((await p2.locator("h1").innerText()).includes("en cours de mise à jour"), "revising: " + await p2.locator("h1").innerText());
   expect(await p2.locator("form").count() === 0, "no answer while it is rewritten");
   await other2.close();
@@ -209,7 +209,7 @@ await step("round 3: a sent quote changes only through its version 2; the client
   expect((await p.locator("h1").innerText()).includes("v2"), "the page shows version 2 without a reload");
   expect((await p.locator(".answer-state .lead").innerText()).replace(/\s/gu, " ").includes("144,00 €"), "the new price, in place");
   expect((await p.locator(".replaces").innerText()).includes("remplace la version 1"), "says what it replaces");
-  const earlier = await p.request.get(origin + (await p.locator(".earlier a").first().getAttribute("href")));
+  const earlier = await p.request.get(publicOrigin + (await p.locator(".earlier a").first().getAttribute("href")));
   expect(earlier.status() === 200, "the client reads version 1 too");
   expect(await p.getByLabel("Vos prénom et nom").inputValue() === "Luca Rossi", "their name kept");
   await p.getByText("Bon pour accord", { exact: true }).click();
@@ -457,11 +457,11 @@ await step("a link turned off stops working; a new one works", async () => {
   await page.waitForSelector(".card.online");
   const { other, p } = await visitor("en-GB");
   const secretPath = "/q/SampleAnswerLinkQuoteD0006Roux01";
-  await p.goto(origin + secretPath);
+  await p.goto(publicOrigin + secretPath);
   expect((await p.locator("h1").innerText()).startsWith("Quote D-"), "open, in English");
   // The terms and conditions of sale, linked; accepting accepts them too.
   const termsLink = p.getByRole("link", { name: "Terms and conditions of sale (PDF)" });
-  const termsPdf = await p.request.get(origin + (await termsLink.getAttribute("href")));
+  const termsPdf = await p.request.get(publicOrigin + (await termsLink.getAttribute("href")));
   expect(termsPdf.status() === 200 && Buffer.from(await termsPdf.body()).subarray(0, 5).toString() === "%PDF-", "the client reads the terms");
   expect((await p.locator(".agree").innerText()).includes("and the terms and conditions of sale"), "accepting names the terms");
   await page.getByRole("button", { name: "Turn the link off" }).click();
@@ -472,9 +472,9 @@ await step("a link turned off stops working; a new one works", async () => {
   await page.getByRole("button", { name: "Make a new link" }).click();
   await page.locator(".ck-toast", { hasText: "New link made" }).waitFor();
   const url = await page.locator(".copy-link input").inputValue();
-  await p.goto(origin + new URL(url).pathname);
+  await p.goto(publicOrigin + new URL(url).pathname);
   expect((await p.locator("h1").innerText()).startsWith("Quote D-"), "the new link works");
-  const bad = await p.goto(origin + "/q/" + "x".repeat(32));
+  const bad = await p.goto(publicOrigin + "/q/" + "x".repeat(32));
   expect(bad.status() === 200 && (await p.locator("h1").innerText()) === "This link does not work", "a wrong link says so");
   await other.close();
 });
