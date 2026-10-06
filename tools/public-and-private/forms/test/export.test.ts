@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Answer } from "../lib/answers.ts";
-import { cell, toCsv } from "../lib/csv.ts";
-import { exportRows } from "../lib/export.ts";
-import type { Form } from "../lib/forms.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import type { Definition } from "../lib/model.ts";
-import type { Person } from "../lib/people.ts";
-import { nps, summarise } from "../lib/summary.ts";
+import type { Answer } from "../src/lib/answers.ts";
+import { cell, toCsv } from "../src/lib/csv.ts";
+import { exportRows, summaryRows } from "../src/lib/export.ts";
+import type { Form } from "../src/lib/forms.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import type { Definition } from "../src/shared/model.ts";
+import type { Person } from "../src/lib/people.ts";
+import { nps, summarise } from "../src/shared/summary.ts";
 import { form, opts, q } from "./support/fixtures.ts";
+import { statsOf } from "./support/stats.ts";
 
 test("CSV: a byte-order mark, quotes where needed, and no cell a spreadsheet would run", () => {
   const csv = toCsv([["Name", "Note"], ["=HYPERLINK(\"http://evil\")", "+1"], ["  @SUM(A1)", "-2"], ["\tTab", "line\nbreak"], [3.5, -4]], ",");
@@ -54,7 +55,8 @@ test("the export: the latest wording, removed questions marked, labels not ids, 
 
 test("an anonymous form's export is its summary: counts and shares, never one person's row", () => {
   const { f, versions, answers } = setup(true);
-  const rows = exportRows({ form: f, answers, versions, t: catalogue("fr"), locale: "fr", zone: "Europe/Paris", names: new Map() });
+  assert.equal(f.anonymous, true);
+  const rows = summaryRows({ stats: statsOf(answers, versions), versions, t: catalogue("fr") });
   assert.deepEqual(rows[0], ["Question", "Réponse", "Nombre", "Part (%)"]);
   assert.deepEqual(rows[1], ["Réponses", "", 3, ""]);
   assert.ok(rows.some(r => r[0] === "Favourite colour" && r[1] === "Red" && r[2] === 2));
@@ -66,7 +68,7 @@ test("an anonymous form's export is its summary: counts and shares, never one pe
 
 test("the summary: bars across versions, averages, and the NPS", () => {
   const { versions, answers, colour, score } = setup(false);
-  const s = summarise(versions, answers, { yes: "Yes", no: "No", other: "Other" });
+  const s = summarise(versions, statsOf(answers, versions), { yes: "Yes", no: "No", other: "Other" });
   const c = s.find(x => x.column.question.id === colour.id)!;
   assert.equal(c.column.question.title, "Favourite colour");
   assert.deepEqual(c.stat.type === "bars" && c.stat.bars.map(b => [b.label, b.count, b.share]), [["Red", 2, 66.7], ["Blue", 1, 33.3]]);

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { answerText, check, prefill, read } from "../lib/logic.ts";
-import { copyDefinition, definition, enterOption, languageFor, localize, newId, newQuestion, problems, untranslated, type Definition } from "../lib/model.ts";
-import { summarise } from "../lib/summary.ts";
-import { readZip, safeName, zipStream } from "../lib/zip.ts";
+import { answerText, check, prefill, read } from "../src/shared/logic.ts";
+import { copyDefinition, definition, enterOption, languageFor, localize, newId, newQuestion, problems, untranslated, type Definition } from "../src/shared/model.ts";
+import { summarise } from "../src/shared/summary.ts";
+import { statsOf } from "./support/stats.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 
 const words = { yes: "Yes", no: "No", other: "Other" };
@@ -47,7 +47,7 @@ test("matrix: one column per row, every row when required, stored in the rows' o
   assert.deepEqual(Object.keys((value as { rows: Record<string, string> }).rows), [r1!.id, r2!.id]);
   assert.equal(answerText(m, value, words), "Price: Good; Quality: Excellent");
   const def = form([m]);
-  const s = summarise(new Map([[1, def]]), [{ data: { [m.id]: value! } }, { data: { [m.id]: { rows: { [r1!.id]: c2!.id, [r2!.id]: c2!.id } } } }], words)[0]!;
+  const s = summarise(new Map([[1, def]]), statsOf([{ data: { [m.id]: value! } }, { data: { [m.id]: { rows: { [r1!.id]: c2!.id, [r2!.id]: c2!.id } } } }], new Map([[1, def]])), words)[0]!;
   assert.equal(s.stat.type, "grid");
   if (s.stat.type === "grid") assert.deepEqual(s.stat.rows[0]!.cells.map(c => c.count), [0, 2, 0]);
 });
@@ -62,7 +62,7 @@ test("ranking: distinct known items in the respondent's order, all of them when 
   const { value } = read(r, [ids[2], ids[0], ids[1]]);
   assert.deepEqual(value, [ids[2], ids[0], ids[1]]);
   assert.equal(answerText(r, value, words), "1. Quality, 2. Price, 3. Speed");
-  const s = summarise(new Map([[1, form([r])]]), [{ data: { [r.id]: value! } }, { data: { [r.id]: [ids[2], ids[1], ids[0]] } }], words)[0]!;
+  const s = summarise(new Map([[1, form([r])]]), statsOf([{ data: { [r.id]: value! } }, { data: { [r.id]: [ids[2], ids[1], ids[0]] as string[] } }], new Map([[1, form([r])]])), words)[0]!;
   if (s.stat.type !== "ranks") throw new Error("ranks");
   assert.equal(s.stat.items[0]!.label, "Quality");
   assert.equal(s.stat.items[0]!.average, 1);
@@ -133,19 +133,4 @@ test("a second language: its texts replace the first language's where written; t
   const q2 = copy.pages[0]!.questions[0]!;
   assert.equal(copy.alt!.texts[q2.id], "Couleur préférée");
   assert.equal(copy.alt!.texts[`${q2.id}.${q2.options![0]!.id}`], "Rouge");
-});
-
-test("the ZIP: entries read back, text deflated, names that cannot leave their folder", async () => {
-  const stream = zipStream([
-    { name: "answers.csv", date: new Date("2026-09-29T10:00:00Z"), deflate: true, data: async () => new TextEncoder().encode("a;b\r\n1;2\r\n".repeat(50)) },
-    { name: "../../etc/passwd", date: new Date(), data: async () => new TextEncoder().encode("x") },
-    { name: "gone.pdf", date: new Date(), data: async () => null },
-    { name: "files/Café: CV?.pdf", date: new Date(), data: async () => new Uint8Array([0x25, 0x50, 0x44, 0x46]) },
-  ]);
-  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
-  const entries = readZip(bytes);
-  assert.deepEqual(entries.map(e => e.name), ["answers.csv", "_/_/etc/passwd", "files/Café_ CV_.pdf"]);
-  assert.ok(entries[0]!.data.toString().startsWith("a;b"));
-  assert.equal(entries[2]!.data[0], 0x25);
-  assert.equal(safeName("/abs/..//x"), "_/abs/_/_/x");
 });

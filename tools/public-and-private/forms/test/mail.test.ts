@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fakeChest } from "@argentic/chest-sdk/testing";
-import { sendCopy } from "../lib/mailer.ts";
+import { sendCopy } from "../src/lib/mailer.ts";
 import { form, q } from "./support/fixtures.ts";
 import { everyone, hugo } from "./support/members.ts";
 

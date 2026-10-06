@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import * as forms from "../lib/forms.ts";
-import { take } from "../lib/respond.ts";
-import { cleanRoutes, contactEvent, eventLimits, readRoutes, requestEvent, type ContactEvent, type RequestEvent } from "../lib/routes.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as forms from "../src/lib/forms.ts";
+import { take } from "../src/lib/respond.ts";
+import { cleanRoutes, contactEvent, eventLimits, readRoutes, requestEvent, type ContactEvent, type RequestEvent } from "../src/lib/routes.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -18,7 +18,6 @@ import { camille, everyone, hugo, ines, tom } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   process.env["CHEST_TOOL"] = "forms";
   chest = await fakeChest({
     members: everyone,
@@ -26,7 +25,9 @@ before(async () => {
     emits: ["forms.answered", "forms.contact", "forms.request"],
     receivers: 1,
     chest: { organization: "Atelier Martin" },
+    network: {},
   });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -119,7 +120,7 @@ test("an answer makes a contact and opens a ticket when the form says so, once e
   assert.deepEqual(f.routes.contact, { name: name.id, email: mail.id, phone: null, company: null, message: message.id });
   const before = chest.published.length;
   const answered = await take(sql, f, { version: f.version, answers: { [name.id]: "Nina Roux", [mail.id]: "nina@example.com", [topic.id]: { ids: [topic.options![0]!.id] }, [message.id]: "Six chaises en chêne." } }, null, "fr");
-  assert.equal(answered.ok, true);
+  assert.deepEqual(answered, { copy: false });
   const sent = chest.published.slice(before);
   assert.deepEqual(sent.map(e => e.type).sort(), ["forms.contact", "forms.request"]);
   const contact = sent.find(e => e.type === "forms.contact")!.data as ContactEvent;
@@ -129,7 +130,7 @@ test("an answer makes a contact and opens a ticket when the form says so, once e
   assert.equal(request.form.title, "Contact us");
   // An answer without an address: no contact, no ticket — the answer is kept.
   const quiet = await take(sql, f, { version: f.version, answers: { [name.id]: "Anonymous visitor", [topic.id]: { ids: [topic.options![1]!.id] }, [message.id]: "Hello" } }, null, "en");
-  assert.equal(quiet.ok, true);
+  assert.deepEqual(quiet, { copy: false });
   assert.equal(chest.published.length, before + 2);
   // Off by default.
   const plain = await publishedForm(def, {});

@@ -2,17 +2,18 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as webhookEvents } from "../app/chest-webhooks/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as answers from "../lib/answers.ts";
-import * as forms from "../lib/forms.ts";
-import * as hooks from "../lib/hooks.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { installed, links, mailState, startOf } from "../lib/linked.ts";
-import { take } from "../lib/respond.ts";
-import { guessRoutes } from "../lib/routes.ts";
-import { putSetting } from "../lib/settings.ts";
-import { template } from "../lib/templates.ts";
+import * as webhooks from "@argentic/chest-sdk/webhooks";
+import { seen } from "@argentic/chest-app/db";
+import { AppError } from "../src/lib/app-error.ts";
+import * as answers from "../src/lib/answers.ts";
+import * as forms from "../src/lib/forms.ts";
+import * as hooks from "../src/lib/hooks.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { installed, links, mailState, startOf } from "../src/lib/linked.ts";
+import { take } from "../src/lib/respond.ts";
+import { guessRoutes } from "../src/lib/routes.ts";
+import { putSetting } from "../src/lib/settings.ts";
+import { template } from "../src/lib/templates.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, opts, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -25,8 +26,9 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 // for a public form; each answer sent to web addresses (webhooks).
 let database: TestDatabase;
 let chest: FakeChest;
+// The tool's /chest-webhooks, as src/app.tsx answers it.
+const webhookEvents = async (request: Request) => new Response(null, { status: await webhooks.handle(request, { disabled: event => hooks.told(database.sql, event) }, { seen }) });
 before(async () => {
-  database = await testDatabase();
   process.env["CHEST_TOOL"] = "forms";
   chest = await fakeChest({
     members: everyone,
@@ -36,7 +38,9 @@ before(async () => {
     receivers: 1,
     chest: { organization: "Atelier Martin", language: "en" },
     webhooks: { max: 200, to: webhookEvents },
+    network: {},
   });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -137,7 +141,7 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   const f = await published(def, { sendCopy: true, routes });
   const before = chest.outbox.length;
   const r = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
-  assert.deepEqual(r, { ok: true, copy: false });
+  assert.deepEqual(r, { copy: false });
   assert.equal(chest.outbox.slice(before).filter(m => JSON.stringify(m.to).includes("nina@example.com")).length, 0, "Support confirms: no copy from Forms");
   const a = await lastAnswer(f.id);
   assert.deepEqual(a.sent, ["forms.contact", "forms.request"]);
@@ -146,7 +150,7 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   // confirms, so the copy goes; the answer does not claim a ticket.
   chest.linked["forms.request"] = [];
   const unlinked = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
-  assert.deepEqual(unlinked, { ok: true, copy: true });
+  assert.deepEqual(unlinked, { copy: true });
   const unlinkedAnswer = await lastAnswer(f.id);
   assert.deepEqual(unlinkedAnswer.sent, ["forms.contact", "copy"]);
   // The recipient in the copy's key (studio.16).
@@ -155,7 +159,7 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   // Support not installed: nobody confirms, so the copy goes.
   chest.removeTool("helpdesk");
   const again = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
-  assert.deepEqual(again, { ok: true, copy: true });
+  assert.deepEqual(again, { copy: true });
   assert.ok((await lastAnswer(f.id)).sent.includes("copy"));
   // No route, a copy: only the copy.
   const plain = await published(def, { sendCopy: true });
@@ -180,7 +184,7 @@ test("web addresses: a form's editors add Slack, Teams or a signed receiver; che
   assert.equal(listed.available, true);
   assert.deepEqual(listed.hooks.map(h => h.label), ["Sales channel", "Zapier → Sheets"]);
   for (let i = 0; i < 3; i++) await hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: `More ${i}` });
-  await assert.rejects(hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: "Sixth" }), refused("too_many"));
+  await assert.rejects(hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: "Sixth" }), refused("at_most"));
   // An anonymous form's answers are never sent anywhere.
   const pulse = await published(form([q("rating", "Mood")], "Pulse"), { audience: "team", anonymous: true });
   await assert.rejects(hooks.addHook(sql, asMember(ines), pulse.id, { url: slack, kind: "slack", label: "Team" }), refused("invalid"));
@@ -259,7 +263,7 @@ test("a Chest without webhooks yet: Settings says so; answers are kept all the s
     assert.equal(listed.available, false);
     assert.equal(listed.delivery, "not_granted");
     await assert.rejects(hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: "Sales" }), refused("webhooks_unavailable"));
-    assert.equal((await take(sql, f, { version: f.version, answers: reply() }, null, "en")).ok, true);
+    assert.deepEqual(await take(sql, f, { version: f.version, answers: reply() }, null, "en"), { copy: false });
   } finally {
     await plain.close();
   }

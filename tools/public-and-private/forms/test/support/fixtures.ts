@@ -1,4 +1,4 @@
-import { newId, type Definition, type Question } from "../../lib/model.ts";
+import { newId, type Definition, type Question } from "../../src/shared/model.ts";
 
 // Small forms for the tests, built by hand so every id is known.
 export const q = (kind: Question["kind"], title: string, extra: Partial<Question> = {}): Question => ({ id: newId(), kind, title, help: "", required: false, ...extra });
