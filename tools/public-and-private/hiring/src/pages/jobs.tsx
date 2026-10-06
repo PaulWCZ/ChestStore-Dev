@@ -82,7 +82,7 @@ export async function jobsPage({ member, t, locale: tag, f }: PageContext<Member
                 <li key={i.id} id={`upcoming-${i.id}`}>
                   <a href={`/chest/candidates/${i.candidateId}`}>
                     <span className="up-when">{meetingTime(i.start, f.timeZone, locale)}</span>
-                    <span className="up-who">{format(t.home.waitingItem, { candidate: i.candidateName, job: i.jobTitle })}</span>
+                    <span>{format(t.home.waitingItem, { candidate: i.candidateName, job: i.jobTitle })}</span>
                     {i.place && <span className="muted small">{i.place}</span>}
                   </a>
                 </li>

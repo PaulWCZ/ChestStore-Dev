@@ -14,7 +14,7 @@ export function Notes({ candidateId, notes, canWrite, t }: { candidateId: string
   const [text, setText] = useState("");
   const w = t.candidate;
   return (
-    <div className="notes">
+    <div>
       {notes.length === 0 ? <p className="muted">{w.noNotes}</p> : (
         <ul className="note-list">
           {notes.map(n => (

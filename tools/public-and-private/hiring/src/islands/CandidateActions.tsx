@@ -477,10 +477,10 @@ function InterviewForm({ candidate, mailing, interview, t, onDone, onTyped }: { 
           <p className="hint">{w.linkHint}</p>
           {off && <p className="hint" data-mail="off">{format(w.linkNoMailAhead, { name: candidate.name })}</p>}
           <div className="three">
-            <div className="field-block iv-day">
+            <div className="field-block">
               <WatchedDateField id="iv-from" onProblem={dates.watch("iv-from")} label={w.fromDay} value={firstDay} onChange={d => { setFirstDay(d); if (d && lastDay && lastDay < d) setLastDay(addIsoDays(d, 7)); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
             </div>
-            <div className="field-block iv-day">
+            <div className="field-block">
               <WatchedDateField id="iv-to" onProblem={dates.watch("iv-to")} label={w.toDay} value={lastDay} onChange={d => { setLastDay(d); onTyped(); }} today={interview.today} min={firstDay ?? interview.today} max={firstDay ? addIsoDays(firstDay, 21) : last} required labels={t.date} />
             </div>
             {lengthField}
@@ -502,7 +502,7 @@ function InterviewForm({ candidate, mailing, interview, t, onDone, onTyped }: { 
         </>
       ) : (
         <div className="three">
-          <div className="field-block iv-day">
+          <div className="field-block">
             <WatchedDateField id="iv-day" onProblem={dates.watch("iv-day")} label={w.day} value={day} onChange={d => { setDay(d); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
           </div>
           <div className="field-block">

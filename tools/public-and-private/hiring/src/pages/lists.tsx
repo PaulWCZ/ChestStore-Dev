@@ -102,7 +102,7 @@ export async function reportsPage({ member, t, locale: tag, query }: PageContext
   return {
     title: current ? format(w.titleJob, { job: current.title }) : w.title,
     body: (
-      <div className="reports">
+      <div>
         <PageHeader title={current ? format(w.titleJob, { job: current.title }) : w.title} />
         <nav className="report-jobs" aria-label={w.pick}>
           <a href="/chest/reports" aria-current={!current ? "page" : undefined}>{w.all}</a>

@@ -5,7 +5,7 @@ import type { Catalogue } from "./index.ts";
 export const fr: Catalogue = {
   tool: { name: "Recrutement" },
   pages: {
-    notFound: { title: "Rien ici", body: "Cette page n’existe pas, ou elle a été supprimée.", publicBody: "Cette page n’existe pas. Le poste est peut-être pourvu : voyez les offres ouvertes." },
+    notFound: { title: "Rien ici", body: "Cette page n’existe pas, ou elle a été supprimée.", publicBody: "Cette page n’existe pas. Le poste est peut-être pourvu : voyez les offres ouvertes." },
     forbidden: { title: "Pas autorisé", body: "Votre rôle ne le permet pas. Demandez à un recruteur de votre entreprise." },
     failed: { title: "Un problème est survenu", body: "Réessayez dans un instant. Si cela continue, prévenez la personne qui gère votre Chest." },
     signIn: "Connectez-vous à votre Chest pour ouvrir cette page.",
@@ -148,7 +148,7 @@ export const fr: Catalogue = {
     too_fast: "C’était très rapide. Attendez quelques secondes, puis renvoyez.",
     closed: "Cette offre ne reçoit plus de candidatures.",
     consent: "Merci de cocher la case, pour que l’équipe puisse étudier votre candidature.",
-    cv_off: "Cette page ne peut pas encore recevoir de fichiers : donnez plutôt un lien vers votre CV.",
+    cv_off: "Cette page ne peut pas encore recevoir de fichiers : donnez plutôt un lien vers votre CV.",
     cv_missing: "Ajoutez votre CV, ou un lien vers celui-ci.",
     cv_invalid: "Le CV doit être un fichier PDF ou Word, ou une photo du CV (JPEG, PNG, HEIC).",
     cv_too_large: "Ce fichier est trop lourd : 10 Mo au maximum.",
@@ -169,7 +169,7 @@ export const fr: Catalogue = {
     unknown: "Un problème est survenu. Réessayez.",
     too_large: "Trop volumineux pour être envoyé.",
     limit: "Trop d’envois aujourd’hui. Réessayez demain, ou écrivez à l’entreprise.",
-    expired: "Ce formulaire a expiré : envoyez-le de nouveau.",
+    expired: "Ce formulaire a expiré : envoyez-le de nouveau.",
   },
   roles: {
     recruiter: "Recruteur",

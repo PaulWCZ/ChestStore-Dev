@@ -23,7 +23,7 @@ export function Interviews({ list, links = [], manage, mailing = "unknown", t }:
       {links.length > 0 && (
         <ul className="meetings">
           {links.map(l => (
-            <li key={l.id} className="waiting-link">
+            <li key={l.id}>
               <span className="meet-when">{format(w.waiting, { from: l.from, to: l.to })}</span>
               {l.people && <span className="muted small">{l.people}</span>}
               {manage && (

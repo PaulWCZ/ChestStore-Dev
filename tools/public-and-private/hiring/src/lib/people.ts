@@ -2,6 +2,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { catalogue, format } from "../i18n/index.ts";
+import { isMemberId } from "../shared/model.ts";
 
 // The people a page shows, from the member ids the tool stores: names and
 // photos come from the Chest when rendering, never from the tool's data.
@@ -12,7 +13,9 @@ import { catalogue, format } from "../i18n/index.ts";
 export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "no_access" | "erased" | "unknown"; locale: Locale };
 
 export async function people(ids: Iterable<string>): Promise<Map<string, Person>> {
-  const wanted = [...new Set(ids)].filter(id => typeof id === "string" && id.startsWith("mbr_"));
+  // Only ids of the Chest's shape: one malformed id would fail the whole
+  // question.
+  const wanted = [...new Set(ids)].filter(isMemberId);
   const found = new Map<string, Person>();
   if (wanted.length === 0) return found;
   try {

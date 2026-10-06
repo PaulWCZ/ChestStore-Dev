@@ -57,7 +57,7 @@ export async function careersPage(ctx: PageContext<VisitorContext>): Promise<Vie
           {intro && <p className="lede">{intro}</p>}
         </section>
         {c.brand.photos.length > 0 && (
-          <div className={`photos n${c.brand.photos.length}`}>
+          <div className={`photos n-${c.brand.photos.length}`}>
             {c.brand.photos.map(src => <img key={src} src={src} alt="" loading="lazy" />)}
           </div>
         )}
@@ -72,7 +72,7 @@ export async function careersPage(ctx: PageContext<VisitorContext>): Promise<Vie
             <p>{t.careers.noneBody}</p>
           </section>
         ) : (
-          <section aria-labelledby="open-jobs" className="openings">
+          <section aria-labelledby="open-jobs">
             <div className="openings-head">
               <h2 id="open-jobs">{t.careers.openJobs}</h2>
               <span className="count">{plural(t.careers.count, list.length, locale)}</span>

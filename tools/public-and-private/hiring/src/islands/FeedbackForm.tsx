@@ -18,7 +18,7 @@ export function FeedbackForm({ candidateId, mine, t }: { candidateId: string; mi
   const w = t.candidate;
   const ratingWords = [w.ratings.r1, w.ratings.r2, w.ratings.r3, w.ratings.r4];
   return (
-    <form className="stack feedback-form" onSubmit={e => {
+    <form className="stack" onSubmit={e => {
       e.preventDefault();
       const data = new FormData(e.currentTarget);
       if (!rating || !recommendation) return setError(t.empty);
@@ -33,7 +33,7 @@ export function FeedbackForm({ candidateId, mine, t }: { candidateId: string; mi
         <legend className="label">{w.rating}</legend>
         <div className="scale">
           {ratingWords.map((word, i) => (
-            <label key={i} className={`scale-step s${i + 1}${rating === i + 1 ? " on" : ""}`}>
+            <label key={i} className={`scale-step s-${i + 1}${rating === i + 1 ? " on" : ""}`}>
               <input type="radio" name="rating" value={i + 1} checked={rating === i + 1} onChange={() => setRating(i + 1)} required />
               <span className="scale-n">{i + 1}</span>
               <span className="scale-word">{word}</span>

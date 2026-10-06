@@ -328,7 +328,7 @@ function FeedbackList({ mine, others, hidden, locale, t }: { mine: (Feedback & {
           <li key={x.id} id={`fb-${x.id}`} className="feedback-card">
             <div className="feedback-head">
               <strong>{x.authorName}</strong>
-              <span className={`score s${x.rating}`}>{x.rating}/4 · {ratingWords[x.rating - 1]}</span>
+              <span className={`score s-${x.rating}`}>{x.rating}/4 · {ratingWords[x.rating - 1]}</span>
               <span className={`reco-tag reco-${x.recommendation}`}>{w.recommendations[x.recommendation]}</span>
             </div>
             {x.strengths && <p><span className="fb-label">{w.strengths}</span> <span className="pre">{x.strengths}</span></p>}

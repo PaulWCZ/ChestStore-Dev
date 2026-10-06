@@ -111,7 +111,7 @@ export function ImportView({ jobId, language, stages, locale, t }: { jobId: stri
 
   const labels: Record<ImportField, string> = w.fields;
   return (
-    <div className="stack import">
+    <div className="stack">
       <section className="panel" aria-labelledby="step-file">
         <h2 id="step-file">{w.step1}</h2>
         <p className="hint tight-top">{w.fileHint}</p>

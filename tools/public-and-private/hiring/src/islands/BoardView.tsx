@@ -246,8 +246,8 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
             const hidden = countOf(stage) - here.length;
             return (
               <LaneView key={stage.id} stage={stage} count={countOf(stage)} current={stage.id === shownStage} manage={manage && !selecting} locale={locale} t={t}
-                more={hidden > 0 ? <a className="button link small lane-more" href={`/chest/jobs/${jobId}?more=${stage.id}`}>{plural(t.board.more, hidden, locale)}</a>
-                  : stage.open && perStage < stage.count ? <a className="button link small lane-more" href={`/chest/jobs/${jobId}`}>{t.board.fewer}</a> : null}>
+                more={hidden > 0 ? <a className="button link small" href={`/chest/jobs/${jobId}?more=${stage.id}`}>{plural(t.board.more, hidden, locale)}</a>
+                  : stage.open && perStage < stage.count ? <a className="button link small" href={`/chest/jobs/${jobId}`}>{t.board.fewer}</a> : null}>
                 {here.map(c => (selecting
                   ? (<li key={c.id} id={`cand-${c.id}`}><label className={`cand pick${chosen.has(c.id) ? " chosen" : ""}`}><input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} /><CardBody card={c} locale={locale} t={t} /></label></li>)
                   : manage
@@ -367,12 +367,12 @@ function CardBody({ card, locale, t }: { card: Card; locale: string; t: Words })
       </span>
       <span className="cand-meta">
         {rating !== null ? (
-          <span className={`rating r${Math.round(card.rating!)}`} title={`${format(t.board.rating, { rating })} · ${plural(t.board.ratingCount, card.ratings, locale)}`}>
+          <span className={`rating r-${Math.round(card.rating!)}`} title={`${format(t.board.rating, { rating })} · ${plural(t.board.ratingCount, card.ratings, locale)}`}>
             <Star /><span>{rating}</span><span className="visually-hidden">{format(t.board.rating, { rating })}</span>
           </span>
         ) : null}
-        <span className="days" title={t.board.daysTitle}><Clock />{plural(t.board.days, card.days, locale)}</span>
-        {card.hasCv && <span className="has-cv" title={t.board.hasCv}><File /><span className="visually-hidden">{t.board.hasCv}</span></span>}
+        <span title={t.board.daysTitle}><Clock />{plural(t.board.days, card.days, locale)}</span>
+        {card.hasCv && <span title={t.board.hasCv}><File /><span className="visually-hidden">{t.board.hasCv}</span></span>}
         {card.askedOfMe && <span className="asked-me" title={t.board.askedOfMe}><Bell /><span className="visually-hidden">{t.board.askedOfMe}</span></span>}
         {card.source !== "careers" && <span className="visually-hidden">{t.board.referral}</span>}
       </span>
