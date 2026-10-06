@@ -33,6 +33,7 @@ const actions = {
     written++;
     return null;
   }, { bound: { budgets: { new: { perVisitor: 1, perDay: 10 }, change: { perVisitor: 3, perDay: 10 } }, formMinutes: 30 } }),
+  patient: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 5, formSeconds: 1 } }),
   forgot: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 1 } } } }),
 };
 let completed = 0;
@@ -375,6 +376,10 @@ test("budgets by kind, charged once the request is checked; a visitor known by t
   for (let i = 0; i < 3; i++) assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 200, "changes have their own budget");
   assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 429);
   assert.equal((await send({}, "2001:db8::1")).status, 200, "another address");
+  const started = Date.now();
+  const quick = await app.fetch(new Request(url("/actions/patient"), { method: "POST", body: JSON.stringify({ chest_form: formToken() }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  assert.equal(quick.status, 200);
+  assert.ok(Date.now() - started >= 950, "a form sent at once waits its formSeconds");
   const lines = [];
   const write = console.error;
   console.error = line => lines.push(String(line));

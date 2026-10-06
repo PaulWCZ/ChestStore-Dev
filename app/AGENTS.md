@@ -118,6 +118,8 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   ```
   The package then: requires the page's **form token** (`<Honeypot />`
   carries it, `call()` sends it; 120 minutes, `formMinutes` to change;
+  `formSeconds: 2` makes a form sent sooner than a person fills it wait
+  the seconds left;
   serves once, the answer brings the next; else the code `expired`);
   answers "done" without running to a robot that fills the honeypot;
   counts the call **only once it is valid** (token, fields, and in your

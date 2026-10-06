@@ -261,7 +261,9 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 // bounded, the same way in every tool:
 // - a form token: <Honeypot /> in the form carries one (the page made it,
 //   signed with a key from CHEST_TOKEN); it lasts formMinutes (120 by
-//   default) and serves once — a call without a fresh one is refused with
+//   default) and serves once; with formSeconds, a form sent sooner than a
+//   person fills it waits the seconds left (a person sees a slower
+//   "Sending…", a robot gains nothing) — a call without a fresh one is refused with
 //   "expired" (the answer brings a new one: sent again, it goes);
 // - a robot that fills <Honeypot />'s field ("website") is answered "done"
 //   and nothing is done;
@@ -281,7 +283,7 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 // without bound; bound: false says the action writes nothing anyone could
 // fill (or guards itself).
 export type Budget = { perVisitor: number; perDay: number };
-export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number };
+export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number; formSeconds?: number };
 // What a public action's run gets: the visitor, and charge(kind), the
 // budget it spends (with budgets of several kinds; once per call).
 export type PublicContext = VisitorContext & { charge(kind: string): Promise<void> };

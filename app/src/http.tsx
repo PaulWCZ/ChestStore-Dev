@@ -288,7 +288,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
             answer = ok(null);
             return;
           }
-          spent = await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120);
+          spent = await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], bound.formMinutes ?? 120, Math.min(bound.formSeconds ?? 0, 30));
         }
         const input = readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {});
         if (bound && !("budgets" in bound)) spent = await spend(c, name, bound, spent);
@@ -345,12 +345,14 @@ export function formToken(now = Date.now()): string {
 }
 // A token ours, younger than its minutes and never served: taken (in
 // chest_seen) until the call fails. Otherwise "expired".
-async function takeForm(token: unknown, minutes: number): Promise<Spent> {
+async function takeForm(token: unknown, minutes: number, seconds: number): Promise<Spent> {
   const parts = typeof token === "string" && token.length <= 128 ? token.split(".") : [];
   const [time = "", nonce = "", signature = ""] = parts;
   const expected = parts.length === 3 && /^\d{13}$/u.test(time) ? formSignature(`${time}.${nonce}`) : "";
   const age = Date.now() - Number(time);
   if (!expected || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) || age < -60_000 || age > minutes * 60_000) fail("expired" as ErrorCode);
+  // Sent sooner than a person fills it: the seconds left, waited.
+  if (age < seconds * 1000) await new Promise(resolve => setTimeout(resolve, seconds * 1000 - Math.max(0, age)));
   const { db } = await import("./db.ts");
   const sql = db();
   const id = `form:${nonce}`;
