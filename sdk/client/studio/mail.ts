@@ -85,7 +85,7 @@ export { idempotencyKey };
 
 export const limits = { recipients: 50, size: 10 << 20, subject: 998, perDay: 500 } as const;
 export const messageIdPattern = /^msg_[a-z2-7]{26}$/u;
-const address = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
+const address = /^[^\s\p{Cc}@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
 // The keys a message may have; anything else (mailbox, thread, inReplyTo,
 // references, transactional — gone on 6 October 2026) is refused, so a
 // tool written for the earlier shape fails loudly rather than sending a
@@ -105,14 +105,18 @@ function recipients(value: unknown): string[] {
   if (value === undefined) return [];
   const list: unknown[] = Array.isArray(value) ? value : [value];
   for (const r of list) {
-    const member = (r !== null && typeof r === "object" && "member" in r) || (typeof r === "string" && !r.includes("@") && /^\s*mbr_/u.test(r));
+    const member = (r !== null && typeof r === "object" && "member" in r) || (typeof r === "string" && !r.includes("@") && /^\s*mbr_/iu.test(r));
     if (member) throw new ChestError("invalid_recipient", 400, "mail is for people outside the company: tell a member with notifications.notify");
     if (!isAddress(r)) throw new ChestError("invalid_address", 400, "invalid recipient");
   }
   return list as string[];
 }
 
-const headerSafe = (s: string) => !/[\r\n]/u.test(s);
+// A header's words (subject, sender's name, an attachment's name and type)
+// hold no line break and no control character but the tab: nothing a
+// message's headers could be split on (CR, LF, NEL, the Unicode line and
+// paragraph separators) or that a provider would choke on (NUL…).
+const headerSafe = (s: string) => !/[\u0000-\u0008\u000a-\u001f\u007f\u0085\u2028\u2029]/u.test(s);
 
 // send asks the Chest to send one message to people outside the company;
 // it answers once the message is queued (sending is the Chest's). Errors:
@@ -139,10 +143,16 @@ export async function send(message: Message): Promise<Sent> {
   if (message.replyTo !== undefined && !isAddress(message.replyTo)) throw new ChestError("invalid_address", 400, "invalid reply-to");
   const key = message.key === undefined ? undefined : idempotencyKey(message.key);
   if (key === null) throw new ChestError("invalid_message", 400, "a key is 1 to 512 characters, without control characters");
+  if (message.attachments !== undefined && !Array.isArray(message.attachments)) throw new ChestError("invalid_message", 400, "attachments is a list");
   const attachments = (message.attachments ?? []).map(a => {
-    if (a === null || typeof a !== "object") throw new ChestError("invalid_message", 400, "an attachment is {file} or {name, type, content}");
-    if ("file" in a) return { file: a.file, ...(a.name ? { name: a.name } : {}) };
-    if (typeof a.name !== "string" || typeof a.type !== "string" || !headerSafe(a.name) || !headerSafe(a.type)) throw new ChestError("invalid_message", 400, "an attachment is {file} or {name, type, content}");
+    const shape = "an attachment is {file, name?} or {name, type, content}";
+    if (a === null || typeof a !== "object") throw new ChestError("invalid_message", 400, shape);
+    const named = (name: unknown) => typeof name === "string" && name.trim() !== "" && name.length <= 255 && headerSafe(name);
+    if ("file" in a) {
+      if (typeof a.file !== "string" || a.file === "" || (a.name !== undefined && !named(a.name))) throw new ChestError("invalid_message", 400, shape);
+      return { file: a.file, ...(a.name !== undefined ? { name: a.name } : {}) };
+    }
+    if (!named(a.name) || typeof a.type !== "string" || a.type === "" || !headerSafe(a.type) || !(typeof a.content === "string" || a.content instanceof Uint8Array)) throw new ChestError("invalid_message", 400, shape);
     return { name: a.name, type: a.type, content: Buffer.from(typeof a.content === "string" ? new TextEncoder().encode(a.content) : a.content).toString("base64") };
   });
   const body = JSON.stringify({

@@ -108,6 +108,43 @@ test("send refuses before sending: bad addresses, header injection, too many; th
     await assert.rejects(mail.send({ to: "b@example.com", subject: "y", text: "" }), QuotaExceeded);
     assert.equal(mail.isAddress("léa@exemple.fr"), true);
     assert.equal(mail.isAddress("a@b"), false);
+    assert.equal(mail.isAddress("a\u0000b@example.com"), false, "no control character in an address");
+    assert.equal(mail.isAddress("a@example.com\r\nBcc: victim@example.com"), false);
+  } finally {
+    await chest.close();
+  }
+});
+
+test("header injection and malformed attachments are refused by the SDK and by the Chest, nothing sent", async () => {
+  const chest = await fakeChest({ capabilities: ["mail", "files"] });
+  try {
+    const base = { to: "a@example.com", subject: "x", text: "" };
+    // Every line break or control character a header could be split on.
+    for (const bad of ["x\nBcc: v@example.com", "x\rBcc: v@example.com", "x\u0085Bcc", "x\u2028Bcc", "x\u0000", "x\u001b[31m"]) {
+      await assert.rejects(mail.send({ ...base, subject: bad }), code("invalid_message"), JSON.stringify(bad));
+      await assert.rejects(mail.send({ ...base, fromName: bad }), code("invalid_message"), JSON.stringify(bad));
+      await assert.rejects(mail.send({ ...base, attachments: [{ name: bad, type: "text/plain", content: "hi" }] }), code("invalid_message"), JSON.stringify(bad));
+      await assert.rejects(mail.send({ ...base, attachments: [{ name: "a.txt", type: bad, content: "hi" }] }), code("invalid_message"), JSON.stringify(bad));
+      await assert.rejects(mail.send({ ...base, attachments: [{ file: "a.pdf", name: bad }] }), code("invalid_message"), "a stored file's name too");
+    }
+    await mail.send({ ...base, subject: "Tab\tis fine" });
+    // Attachments the Chest could not send.
+    await assert.rejects(mail.send({ ...base, attachments: "a.pdf" as never }), code("invalid_message"));
+    await assert.rejects(mail.send({ ...base, attachments: [{ name: "a.txt", type: "text/plain" }] as never }), code("invalid_message"));
+    await assert.rejects(mail.send({ ...base, attachments: [{ file: 42 }] as never }), code("invalid_message"));
+    // Members in any spelling are refused as members; whitespace does not hide one.
+    for (const to of [" mbr_camilleaaaaaaaaaaaaaaaaaaa", "MBR_camilleaaaaaaaaaaaaaaaaaaa", "mbr_camilleaaaaaaaaaaaaaaaaaaa\n"]) await assert.rejects(mail.send({ ...base, to }), code("invalid_recipient"), JSON.stringify(to));
+    await assert.rejects(mail.send({ ...base, cc: ["b@example.com", " mbr_x"] }), code("invalid_recipient"));
+    await assert.rejects(mail.send({ ...base, to: [["a@example.com"]] as never }), code("invalid_address"));
+    assert.equal(chest.outbox.length, 1, "only the tab");
+    // The Chest refuses the same for a tool that bypassed the SDK.
+    const raw = (m: Record<string, unknown>) => fetch(process.env["CHEST_API"] + "/mail/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: ["a@example.com"], subject: "x", text: "", ...m }) }).then(async r => [r.status, ((await r.json()) as { error?: string }).error]);
+    assert.deepEqual(await raw({ subject: "x\r\nBcc: v@example.com" }), [400, "invalid_message"]);
+    assert.deepEqual(await raw({ from_name: "A\nBcc: v@example.com" }), [400, "invalid_message"]);
+    assert.deepEqual(await raw({ attachments: [{ name: "a\r\nX: y", type: "text/plain", content: "aGk=" }] }), [400, "invalid_message"]);
+    assert.deepEqual(await raw({ attachments: [{ file: "missing.pdf" }] }), [400, "invalid_message"], "a file the tool does not have");
+    assert.deepEqual(await raw({ to: ["MBR_camilleaaaaaaaaaaaaaaaaaaa"] }), [400, "invalid_recipient"]);
+    assert.equal(chest.outbox.length, 1);
   } finally {
     await chest.close();
   }

@@ -871,7 +871,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const addresses = (list: unknown): string[] | "member" | null => {
       if (!Array.isArray(list)) return null;
       for (const r of list) {
-        if ((r !== null && typeof r === "object") || (typeof r === "string" && !r.includes("@") && r.trim().startsWith("mbr_"))) return "member";
+        if ((r !== null && typeof r === "object") || (typeof r === "string" && !r.includes("@") && /^\s*mbr_/iu.test(r))) return "member";
         if (!isAddress(r)) return null;
       }
       return list as string[];
@@ -879,8 +879,19 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const to = addresses(m["to"]), cc = addresses(m["cc"] ?? []);
     if (to === "member" || cc === "member") return send(response, 400, { error: "invalid_recipient" });
     if (!to || !cc || to.length < 1 || to.length + cc.length > 50) return send(response, 400, { error: "invalid_address" });
-    if (typeof m["subject"] !== "string" || typeof m["text"] !== "string") return send(response, 400, { error: "invalid_message" });
+    // What the Chest checks whatever the SDK did (a tool that bypassed it):
+    // headers that cannot be split, attachments it can send.
+    const headerSafe = (v: unknown, max: number) => typeof v === "string" && v.length <= max && !/[\u0000-\u0008\u000a-\u001f\u007f\u0085\u2028\u2029]/u.test(v);
+    if (!headerSafe(m["subject"], 998) || (m["subject"] as string).trim() === "" || typeof m["text"] !== "string" || (m["html"] !== undefined && typeof m["html"] !== "string")) return send(response, 400, { error: "invalid_message" });
+    if (m["from_name"] !== undefined && !headerSafe(m["from_name"], 100)) return send(response, 400, { error: "invalid_message" });
     if (m["reply_to"] !== undefined && !isAddress(m["reply_to"])) return send(response, 400, { error: "invalid_address" });
+    const given = m["attachments"] ?? [];
+    if (!Array.isArray(given) || !given.every(a => {
+      const one = a !== null && typeof a === "object" && !Array.isArray(a) ? a as Record<string, unknown> : null;
+      if (!one) return false;
+      if ("file" in one) return typeof one["file"] === "string" && chest.files.has(one["file"]) && (one["name"] === undefined || headerSafe(one["name"], 255)) && Object.keys(one).every(k => k === "file" || k === "name");
+      return headerSafe(one["name"], 255) && headerSafe(one["type"], 255) && typeof one["content"] === "string" && Object.keys(one).every(k => k === "name" || k === "type" || k === "content");
+    })) return send(response, 400, { error: "invalid_message" });
     // The same key within 24 hours answers the first message — for the
     // same recipients only: a key reused for others (a key cut by the
     // tool, which lost the recipient) is refused, nothing sent.
@@ -892,9 +903,9 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const now = Date.now();
     if (live(mailDay, 86_400_000, now) && mailDay.count >= (mailOptions.perDay ?? 500)) return send(response, 429, { error: "quota_exceeded" }, wait(mailDay, 86_400_000, now));
     count(mailDay, 86_400_000, now, 1);
-    const attachments = Array.isArray(m["attachments"]) ? (m["attachments"] as Record<string, unknown>[]).map(a => typeof a["file"] === "string"
-      ? { name: String(a["name"] ?? a["file"]), type: files.get(a["file"])?.type ?? "application/octet-stream", size: files.get(a["file"])?.data.byteLength ?? 0 }
-      : { name: String(a["name"]), type: String(a["type"]), size: Buffer.from(String(a["content"] ?? ""), "base64").byteLength }) : [];
+    const attachments = (given as Record<string, unknown>[]).map(a => typeof a["file"] === "string"
+      ? { name: String(a["name"] ?? a["file"]), type: chest.files.get(a["file"])!.type, size: chest.files.get(a["file"])!.data.byteLength }
+      : { name: String(a["name"]), type: String(a["type"]), size: Buffer.from(String(a["content"]), "base64").byteLength });
     const id = newId("msg_");
     // Reply-To: the tool's, or the company's reply address set with the connector.
     const reply = typeof m["reply_to"] === "string" ? m["reply_to"] : replyTo();
@@ -903,7 +914,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       from: `no-reply@${domain}`,
       fromName: typeof m["from_name"] === "string" ? m["from_name"] : null,
       to: to.filter(a => allowed.includes(a)), cc: cc.filter(a => allowed.includes(a)),
-      subject: m["subject"], text: m["text"],
+      subject: m["subject"] as string, text: m["text"] as string,
       ...(typeof m["html"] === "string" ? { html: m["html"] } : {}),
       ...(reply !== null ? { replyTo: reply } : {}),
       attachments,
@@ -1170,7 +1181,11 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     if (to === null || typeof to !== "object" || Array.isArray(to) || Object.keys(to).some(k => k !== "roles" && k !== "groups")
       || (to.roles !== undefined && (!Array.isArray(to.roles) || !to.roles.every(r => typeof r === "string")))
       || (to.groups !== undefined && (!Array.isArray(to.groups) || !to.groups.every(g => typeof g === "string" && groupIdPattern.test(g))))) return send(response, 400, { error: "invalid_body" });
-    const roles = (to.roles ?? []) as string[], targets = (to.groups ?? []) as string[];
+    if (command["to"] !== undefined && to.roles === undefined && to.groups === undefined) return send(response, 400, { error: "invalid_body" });
+    // A group the tool does not know (one that does not give it, without
+    // "members.groups") tells nobody.
+    const unseen = hiding();
+    const roles = (to.roles ?? []) as string[], targets = ((to.groups ?? []) as string[]).filter(g => !unseen.has(g));
     const now = Date.now();
     if (live(broadcasts, 3_600_000, now) && broadcasts.count >= 30) return send(response, 429, { error: "quota_exceeded" }, wait(broadcasts, 3_600_000, now));
     count(broadcasts, 3_600_000, now, 1);
@@ -1441,7 +1456,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   chest.bounce = (messageId, given = {}) => {
     const sent = chest.outbox.find(m => m.id === messageId);
     if (!sent) throw new Error(`fakeChest: no message ${messageId} in the outbox`);
-    const recipient = given.recipient ?? sent.to[0]!;
+    const recipient = given.recipient ?? [...sent.to, ...sent.cc][0];
+    if (recipient === undefined || ![...sent.to, ...sent.cc].some(a => a.toLowerCase() === recipient.toLowerCase())) throw new Error(`fakeChest: ${String(recipient)} is not a recipient of ${messageId}`);
     sent.status = given.complained ? "complained" : "bounced";
     if (given.complained || (given.permanent ?? true)) suppressed.add(recipient.toLowerCase());
   };

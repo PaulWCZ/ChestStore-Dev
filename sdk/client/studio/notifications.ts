@@ -147,8 +147,9 @@ export async function notify(memberIds: Iterable<string>, notice: Notice): Promi
 //
 // to: roles (the tool's, chest.json "roles") and groups (grp_…: any group
 // of the Chest the tool knows — those that give it, or every group with
-// the capability "members.groups"); a member of any of them is told; none:
-// everyone with the tool. except: members left out (the author, those who
+// the capability "members.groups"; another group tells nobody); a member
+// of any of them is told; to left out: everyone with the tool. A to that
+// names neither roles nor groups (to: {}) is refused, never "everyone". except: members left out (the author, those who
 // already answered). No fixed cap on members or groups — the server's
 // capacity is the only limit; the request itself is bounded by its size
 // (1 MiB: about 30,000 identifiers in except). Quota: 30 broadcasts an
@@ -174,6 +175,10 @@ export async function broadcast(notice: Notice, audience: Audience = {}): Promis
   const to = a["to"] === undefined ? undefined : plain(a["to"]);
   if (a["to"] !== undefined && (!to || Object.keys(to).some(k => k !== "roles" && k !== "groups"))) throw new ChestError("invalid_body", 400, "to is {roles?, groups?}");
   const roles = to?.["roles"], groups = to?.["groups"];
+  // to names someone: a to without roles and groups (to: {}, or a setting
+  // left undefined) is refused, never read as "everyone" — leave to out
+  // for everyone with the tool.
+  if (to && roles === undefined && groups === undefined) throw new ChestError("invalid_body", 400, "to names roles or groups; leave to out to tell everyone with the tool");
   if (roles !== undefined && (!Array.isArray(roles) || !roles.every(r => typeof r === "string" && rolePattern.test(r)))) throw new ChestError("invalid_body", 400, "roles: role identifiers (chest.json roles)");
   if (groups !== undefined && (!Array.isArray(groups) || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)))) throw new ChestError("invalid_body", 400, "groups: group identifiers (grp_…)");
   const given = a["except"];

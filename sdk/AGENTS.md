@@ -379,7 +379,7 @@ before opening a pull request.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the guide of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.5**: 0.4.1 unchanged,
+0.4.1, word for word. This package is **0.4.1-studio.6**: 0.4.1 unchanged,
 plus the studio's proposals — primitives the store's tools need that no
 Chest gives yet, in files of their own (`client/studio/`). `README.md`,
 "Studio proposals", is their reference; this is the short path.
@@ -472,5 +472,6 @@ uploads served by the fake on its own origin, `FileObject.sha256`.
 | A member is in a group but `who.groups` does not have it | The group does not give the tool: declare `"capabilities": ["members.groups"]` in `chest.proposals.json` (`groups.of` and `"groups": "read"` are gone since studio.5). |
 | `ChestError` `invalid_recipient` from `mail.send` | A member (`{member}` or `mbr_…`) as a recipient: tell them with `notifications.notify` instead. |
 | `ChestError` `invalid_message` "unknown field" from `mail.send` | `mailbox`, `thread`, `inReplyTo`, `references` or `transactional`: gone since studio.5 (the Chest receives no mail; members get notifications). |
+| `ChestError` `invalid_body` "to names roles or groups" from `broadcast` | `to: {}` (or `{ groups: undefined }`): leave `to` out to tell everyone with the tool; an empty list (`groups: []`) tells nobody. |
 | `ChestError` `invalid_body` "replaced broadcast({messages" | `broadcast(notice, { to, except })`: English `title`/`body`, the other languages in `translations`. |
 | `chest.tools.get(name)` is null for an installed tool | Its address is not an https origin (a local `http://` one included) — or `CHEST_TOOL_URLS` still names `team`/`public` (before 0.4.1-studio): `teamUrl`/`publicUrl` now. |
