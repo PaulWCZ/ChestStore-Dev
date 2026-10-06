@@ -6,8 +6,7 @@ import { fakeChest, withMember } from "../testing.js";
 
 // The studio's member module (not in 0.4.1): the store's languages (locales,
 // localeOf) that a tool narrows member.language to, and the fake's members
-// without a language or a zone. mailPreference went to mail.preference
-// (mail.test.ts).
+// without a language or a zone.
 
 const base = { firstName: "Léa", lastName: "Roy", name: "Léa Roy", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "America/Montreal" };
 
@@ -15,15 +14,15 @@ test("the studio's member module is 0.4.1's: the same values, and the assertion 
   const official = await import("../../src/member.js");
   const studio = await import("../member.js");
   for (const [name, value] of Object.entries(official)) assert.equal((studio as Record<string, unknown>)[name], value, name);
-  const lea = { ...base, id: "mbr_" + "lea".padEnd(26, "a"), mailPreference: "digest" as const };
+  const lea = { ...base, id: "mbr_" + "lea".padEnd(26, "a") };
   const fake = await fakeChest({ members: [lea], capabilities: ["members"] });
   try {
-    // A test's member may carry the studio's email preference (mail.preference);
-    // the assertion carries 0.4.1's claims only.
+    // The assertion carries 0.4.1's claims only, and the members API the
+    // same member.
     const signed = member(withMember(new Request("http://tool.test/chest"), lea));
     assert.ok(signed);
-    assert.equal(Object.hasOwn(signed, "mailPreference"), false);
-    assert.equal(Object.hasOwn((await members.get(lea.id))!, "mailPreference"), false, "nor the members API: mail.preference says it");
+    assert.deepEqual(Object.keys(signed).sort(), ["firstName", "groups", "id", "isAdmin", "isBuilder", "language", "lastName", "name", "photo", "role", "timeZone"]);
+    assert.deepEqual(await members.get(lea.id), signed);
   } finally {
     await fake.close();
   }

@@ -5,9 +5,9 @@ import { groups as officialGroups, type Group } from "../src/members.js";
 
 // @argentic/chest-sdk/members as the studio publishes it: 0.4.1's module —
 // list, get, lookup, forget, groups.list, every type, the same values — and
-// the studio's proposals: every group of the Chest (groups.all, members,
-// of), matching addresses (matchEmails), when former members left
-// (leftAt).
+// the studio's proposals: every group of the Chest (the capability
+// "members.groups", groups.all), matching addresses (matchEmails), when
+// former members left (leftAt).
 export * from "../src/members.js";
 
 const text = (value: unknown, max: number): value is string => typeof value === "string" && value.length <= max;
@@ -17,92 +17,56 @@ function checkId(id: unknown): string {
   return id;
 }
 
-function checkGroup(id: unknown): string {
-  if (typeof id !== "string" || !groupIdPattern.test(id)) throw new ChestError("invalid_id", 400, "invalid group identifier");
-  return id;
-}
-
-// ---- Every group of the Chest (Studio proposal) --------------------------------
+// ---- Every group of the Chest (Studio proposal, announced for 0.5) -------------
 //
 // 0.4.1's groups.list() says only the groups that give the tool. A tool open
 // to everyone — News, Polls, Wiki, Tasks, the usual case — has none, so it
-// cannot offer "post to the Sales team" or "ask only Tech". With
-// "groups": "read" in chest.proposals.json (approved: “Sees your Chest's
-// groups and who is in them”), all() says every group of the Chest,
-// members(id) who is in one (among the members who have the tool: a member
-// without access stays unknown) and of(id) every group a member is in.
-// member(request).groups and members.* keep 0.4.1's meaning — the groups
-// that give the tool, 16 at most — whatever "groups" says: a tool that asks
-// "is this member in Sales?" of a group that does not give it asks of(id).
+// cannot offer "post to the Sales team" or "ask only Tech". The capability
+// "members.groups" (the name announced for the official 0.5; until then in
+// chest.proposals.json: "capabilities": ["members.groups"], approved:
+// “Sees your Chest's groups and who is in them”) widens what the tool
+// sees, with 0.4.1's own names:
+// - member(request).groups and members.get/list/lookup's groups: every
+//   group of the Chest the member is in (without it: the groups that give
+//   the tool);
+// - members.list({ group }): the members who have the tool in any group of
+//   the Chest (without it: a group that gives the tool);
+// - groups.all(): every group of the Chest, by name.
 // With "receives": ["group.*"] (chest.proposals.json), the Chest tells the
 // tool when a group is renamed, changes members or is deleted (events).
-// Errors: CapabilityNotGranted (403: not declared or not approved),
-// RateLimited (shared with members: 600 calls a minute), Unavailable.
+// No fixed cap on members or groups: the server's capacity is the only
+// limit. (0.4.1's own parsers still refuse a member listed in more than 16
+// groups and a groups.list() group of more than 128 members — official
+// code the studio does not change; 0.5 lifts them.) Errors:
+// CapabilityNotGranted (403: not declared or not approved), RateLimited
+// (shared with members: 600 calls a minute), Unavailable.
+//
+// Until 0.4.1-studio.5 the proposal was "groups": "read" with
+// groups.members(id) (now members.list({group})) and groups.of(id) (now
+// member.groups, or members.get(id)'s groups).
 
-// A group of the Chest as a tool with "groups": "read" sees it: its
+// A group of the Chest as a tool with "members.groups" sees it: its
 // identifier, its name, and how many of its members have the tool.
 export type ChestGroup = { id: string; name: string; size: number };
-// A page of a group's members: the identifiers of those who have the tool.
-export type GroupMembers = { members: string[]; next: string | null };
 
 export const groups: {
   list(): Promise<Group[]>;
   all(): Promise<ChestGroup[]>;
-  members(id: string, options?: { after?: string; limit?: number }): Promise<GroupMembers | null>;
-  of(id: string): Promise<string[] | null>;
 } = {
   // 0.4.1's: the groups that give the tool, with their members.
   list: officialGroups.list,
-  // all is every group of the Chest (500 at most), by name: its id, its
-  // name and how many of its members have the tool.
+  // all is every group of the Chest, by name: its id, its name and how
+  // many of its members have the tool.
   async all(): Promise<ChestGroup[]> {
-    const response = await ask("groups", "GET", "/groups/all");
-    if (response.status !== 200) throw await refusal(response, "groups");
+    const response = await ask("members.groups", "GET", "/groups/all");
+    if (response.status !== 200) throw await refusal(response, "members.groups");
     const answer = (await json(response)) as { groups?: unknown } | null;
-    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > 500) throw new Unavailable();
+    if (!answer || !Array.isArray(answer.groups)) throw new Unavailable();
     return answer.groups.map(value => {
       const g = value as { id?: unknown; name?: unknown; size?: unknown } | null;
       if (!g || typeof g.id !== "string" || !groupIdPattern.test(g.id) || !text(g.name, 256) || typeof g.size !== "number" || !Number.isInteger(g.size) || g.size < 0) throw new Unavailable();
       return { id: g.id, name: g.name, size: g.size };
     });
-  },
-  // members says who is in a group, among the members who have the tool,
-  // limit at a time (500 by default, 1,000 at most), by identifier; null
-  // for a group the Chest does not have (never was, or deleted).
-  async members(id: string, options: { after?: string; limit?: number } = {}): Promise<GroupMembers | null> {
-    checkGroup(id);
-    const query = new URLSearchParams();
-    if (options.after !== undefined) query.set("after", checkId(options.after));
-    if (options.limit !== undefined) {
-      if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 1000) throw new ChestError("invalid_query", 400, "limit is 1 to 1000");
-      query.set("limit", String(options.limit));
-    }
-    const response = await ask("groups", "GET", `/groups/${id}/members` + (query.size ? "?" + query.toString() : ""));
-    if (response.status === 404) {
-      const code = ((await json(response).catch(() => null)) as { error?: unknown } | null)?.error;
-      if (code === "group_not_found") return null;
-      throw new Unavailable();
-    }
-    if (response.status !== 200) throw await refusal(response, "groups");
-    const answer = (await json(response)) as { members?: unknown; next?: unknown } | null;
-    if (!answer || !Array.isArray(answer.members) || answer.members.length > 1000 || !answer.members.every(m => typeof m === "string" && memberIdPattern.test(m)) || !(answer.next === null || (typeof answer.next === "string" && memberIdPattern.test(answer.next)))) throw new Unavailable();
-    return { members: [...answer.members] as string[], next: answer.next };
-  },
-  // of says every group of the Chest a member who has the tool is in (64 at
-  // most), by identifier — those that give the tool and the others; null for
-  // a member the tool does not have (never was, left, or without access).
-  async of(id: string): Promise<string[] | null> {
-    checkId(id);
-    const response = await ask("groups", "GET", `/groups/of/${id}`);
-    if (response.status === 404) {
-      const code = ((await json(response).catch(() => null)) as { error?: unknown } | null)?.error;
-      if (code === "member_not_found") return null;
-      throw new Unavailable();
-    }
-    if (response.status !== 200) throw await refusal(response, "groups");
-    const answer = (await json(response)) as { groups?: unknown } | null;
-    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > 64 || !answer.groups.every(g => typeof g === "string" && groupIdPattern.test(g))) throw new Unavailable();
-    return [...answer.groups] as string[];
   },
 };
 

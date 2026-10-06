@@ -18,7 +18,7 @@ import { fakeChest } from "../testing.js";
 
 // How the studio's modules sit on 0.4.1's: every official name is the
 // official value, and what the studio defines again (events.handle,
-// members.groups) hands 0.4.1's part to 0.4.1's code.
+// members.groups, notifications.notify) hands 0.4.1's part to 0.4.1's code.
 
 const camille: Member = { id: "mbr_" + "camille".padEnd(26, "a"), firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "Europe/Paris" };
 
@@ -26,7 +26,7 @@ test("every name of 0.4.1's modules is, through the studio's, the very same valu
   const pairs: [string, Record<string, unknown>, Record<string, unknown>, string[]][] = [
     ["files", officialFiles, files, []],
     ["members", officialMembers, members, ["groups"]],
-    ["notifications", officialNotifications, notifications, []],
+    ["notifications", officialNotifications, notifications, ["notify"]],
     ["events", officialEvents, events, ["handle"]],
   ];
   for (const [name, official, studio, redefined] of pairs) {
@@ -98,7 +98,7 @@ test("the studio's deliveries are 0.4.1's signed deliveries on channels of their
 });
 
 test("the members API's 600 calls a minute are one budget for 0.4.1's routes and the studio's", async () => {
-  const chest = await fakeChest({ members: [camille], capabilities: ["members", "groups"] });
+  const chest = await fakeChest({ members: [camille], capabilities: ["members", "members.groups"] });
   try {
     for (let i = 0; i < 300; i++) await members.groups.all();
     for (let i = 0; i < 300; i++) await members.list();

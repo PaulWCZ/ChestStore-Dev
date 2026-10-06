@@ -5,9 +5,11 @@
 //
 // - chest.proposals.json: the manifest keys of the SDK working copy's
 //   proposals (sdk/, "Studio proposals"), which a Chest of contract 0.4
-//   would refuse in chest.json (it refuses any key it does not know): mail,
-//   calendar, groups, emits, receives (events of other tools, group.*),
-//   files (publicUploads, publicFiles), checks, webhooks, translations —
+//   would refuse in chest.json (it refuses any key it does not know): mail
+//   (to people outside, {"send": true} only), calendar, capabilities
+//   (["members.groups"], announced for 0.5), emits, receives (events of
+//   other tools, group.*), files (publicUploads, publicFiles), checks,
+//   webhooks, translations —
 //   their grammar, and how they fit the chest.json beside them;
 // - that chest.json holds none of them (and no "version", the key of the
 //   contract before 0.4), with the move to make;
@@ -27,7 +29,16 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // The keys the SDK working copy proposes for the manifest, and those of the
 // tool contract 0.4 (reference/sdk/contract/contract.json), which belong in
 // chest.json.
-const proposalKeys = new Set(["mail", "files", "emits", "receives", "translations", "checks", "calendar", "groups", "webhooks"]);
+const proposalKeys = new Set(["mail", "files", "emits", "receives", "translations", "checks", "calendar", "capabilities", "webhooks"]);
+// The capabilities the SDK working copy proposes (chest.proposals.json
+// "capabilities"), each with the official one it needs in chest.json. They
+// move to chest.json's "capabilities" when the Chest knows them (0.5).
+const proposedCapabilities = { "members.groups": "members" };
+// Keys the working copy proposed once and dropped, with the move to make.
+const droppedKeys = {
+  groups: '"groups": "read" became the capability "members.groups" (the name announced for 0.5): write "capabilities": ["members.groups"] in chest.proposals.json',
+  mailboxes: 'mailboxes are gone: the Chest receives no mail (owner\'s decision, 2026-10-06) — replies from the public go to the company\'s address (Reply-To)',
+};
 const officialKeys = new Set(JSON.parse(readFileSync(join(root, "reference", "sdk", "contract", "contract.json"), "utf8")).manifest.keys.map(k => k.key).filter(k => !k.includes(".")));
 const studioDist = join(root, "sdk", "dist", "studio");
 const load = async name => existsSync(join(studioDist, name)) ? import(pathToFileURL(join(studioDist, name)).href) : null;
@@ -70,8 +81,10 @@ export function checkTool(folder) {
   // goes, and the key of the contract before 0.4.
   for (const key of Object.keys(manifest)) {
     if (key === "version") error('chest.json: "version" is the contract before 0.4 — write "chest": "0.4" instead');
+    else if (key === "groups") error(`chest.json: ${droppedKeys.groups}`);
     else if (proposalKeys.has(key) && !officialKeys.has(key)) error(`chest.json: "${key}" is a proposal of the SDK working copy — move it to chest.proposals.json (a 0.4 Chest refuses a key it does not know)`);
   }
+  for (const c of Array.isArray(manifest.capabilities) ? manifest.capabilities : []) if (Object.hasOwn(proposedCapabilities, c)) error(`chest.json: the capability "${c}" is a proposal of the SDK working copy (announced for 0.5) — move it to chest.proposals.json ("capabilities": ["${c}"]); a 0.4 Chest refuses it`);
   if (Array.isArray(manifest.receives) && manifest.receives.some(e => e !== "member.*")) error('chest.json: receives is ["member.*"] in 0.4 — events of other tools and "group.*" go in chest.proposals.json');
   if (manifest.files !== undefined && manifest.files !== null && typeof manifest.files === "object" && ("publicUploads" in manifest.files || "publicFiles" in manifest.files)) error('chest.json: files.publicUploads and files.publicFiles are proposals — move them to chest.proposals.json ("files": {...}); 0.4\'s "files" is {"quota", "maxObject"}');
   const roles = manifest.roles;
@@ -89,20 +102,27 @@ export function checkTool(folder) {
         // chest.json, the proposals' (other tools' events, group.*; public
         // uploads and files) here.
         if (proposalKeys.has(key)) continue;
-        if (officialKeys.has(key)) error(`chest.proposals.json: "${key}" is a key of the tool contract 0.4 — move it to chest.json`);
+        if (Object.hasOwn(droppedKeys, key)) error(`chest.proposals.json: ${droppedKeys[key]}`);
+        else if (officialKeys.has(key)) error(`chest.proposals.json: "${key}" is a key of the tool contract 0.4 — move it to chest.json`);
         else error(`chest.proposals.json: unknown proposal key "${key}"`);
       }
       const eventName = /^[a-z0-9]+(-[a-z0-9]+)*\.[a-z][a-z0-9_.-]{0,62}$/u;
       if (proposals.emits !== undefined && (!Array.isArray(proposals.emits) || proposals.emits.length > 32 || !proposals.emits.every(e => typeof e === "string" && eventName.test(e) && e.startsWith(manifest.name + ".")))) error(`chest.proposals.json: emits is up to 32 event names "${manifest.name}.<name>"`);
-      // "group.*": the Chest's group events, with "groups": "read".
+      // "group.*": the Chest's group events, with the capability "members.groups".
       const toolEvents = Array.isArray(proposals.receives) ? proposals.receives.filter(e => e !== "group.*") : [];
       if (proposals.receives !== undefined && (!Array.isArray(proposals.receives) || proposals.receives.length > 32 || !toolEvents.every(e => typeof e === "string" && eventName.test(e) && !e.startsWith(manifest.name + ".") && !e.startsWith("group.") && !e.startsWith("member.")))) error("chest.proposals.json: receives is up to 32 event names of other tools (<tool>.<name>), and \"group.*\" (\"member.*\" stays in chest.json)");
-      if (Array.isArray(proposals.receives) && proposals.receives.includes("group.*") && proposals.groups !== "read") error('chest.proposals.json: receives "group.*" needs "groups": "read"');
-      // The Chest's groups: "groups": "read" — “Sees your Chest's groups and who is in them”.
-      if (proposals.groups !== undefined) {
-        if (proposals.groups !== "read") error('chest.proposals.json: groups is "read"');
-        else if (!(manifest.capabilities ?? []).includes("members")) error("chest.proposals.json: groups needs the capability members");
+      // Proposed capabilities: "members.groups" — “Sees your Chest's groups
+      // and who is in them” (member.groups and members.list({group}) of
+      // every group, members.groups.all()).
+      const proposedCaps = proposals.capabilities;
+      if (proposedCaps !== undefined) {
+        if (!Array.isArray(proposedCaps) || !proposedCaps.every(c => typeof c === "string") || new Set(proposedCaps).size !== proposedCaps.length) error(`chest.proposals.json: capabilities is a list of distinct proposed capabilities (${Object.keys(proposedCapabilities).join(", ")})`);
+        else for (const c of proposedCaps) {
+          if (!Object.hasOwn(proposedCapabilities, c)) error(`chest.proposals.json: capabilities: "${c}" is not a proposed capability (${Object.keys(proposedCapabilities).join(", ")}); official ones go in chest.json`);
+          else if (!(manifest.capabilities ?? []).includes(proposedCapabilities[c])) error(`chest.proposals.json: the capability ${c} needs the capability ${proposedCapabilities[c]} in chest.json`);
+        }
       }
+      if (Array.isArray(proposals.receives) && proposals.receives.includes("group.*") && !(Array.isArray(proposedCaps) && proposedCaps.includes("members.groups"))) error('chest.proposals.json: receives "group.*" needs "capabilities": ["members.groups"]');
       // The calendar bridge: "calendar": true — “Adds events to the calendar of the members concerned”.
       if (proposals.calendar !== undefined && proposals.calendar !== true) error('chest.proposals.json: calendar is true');
       if (proposals.files !== undefined) {
@@ -111,13 +131,13 @@ export function checkTool(folder) {
         else if (!(manifest.capabilities ?? []).includes("files")) error("chest.proposals.json: files needs the capability files");
         else if (f.publicUploads && manifest.public !== true) error("chest.proposals.json: public uploads need a public part");
       }
+      // Mail to people outside the company: "mail": {"send": true} —
+      // “Sends emails to people outside your company (customers,
+      // candidates, visitors) through your company's mail provider”.
       if (proposals.mail !== undefined) {
         const m = proposals.mail;
-        if (m === null || typeof m !== "object" || Array.isArray(m) || Object.keys(m).some(k => k !== "send" && k !== "mailboxes")) error('chest.proposals.json: mail is {"send": true, "mailboxes": [...]}');
-        else {
-          if (m.send !== undefined && typeof m.send !== "boolean") error("chest.proposals.json: mail.send is true or false");
-          if (m.mailboxes !== undefined && (!Array.isArray(m.mailboxes) || m.mailboxes.length > 4 || !m.mailboxes.every(b => typeof b === "string" && /^[a-z][a-z0-9-]{0,31}$/u.test(b)) || new Set(m.mailboxes).size !== m.mailboxes.length)) error("chest.proposals.json: mail.mailboxes is up to 4 distinct names (lowercase letters, digits, hyphens)");
-        }
+        if (m !== null && typeof m === "object" && !Array.isArray(m) && "mailboxes" in m) error(`chest.proposals.json: mail.${droppedKeys.mailboxes}; mail is {"send": true}`);
+        else if (m === null || typeof m !== "object" || Array.isArray(m) || Object.keys(m).some(k => k !== "send") || m.send !== true) error('chest.proposals.json: mail is {"send": true} (mail to people outside the company; members are told with notifications) — leave "mail" out when the tool sends none');
       }
       // The store's words in other languages: {"fr": {"title", "description",
       // "role_labels"}} — the tile and the admin's screens in each member's

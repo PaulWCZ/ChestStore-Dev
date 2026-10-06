@@ -19,7 +19,7 @@ export * from "../src/events.js";
 
 // ---- The Chest's groups (Studio proposal) ---------------------------------------
 //
-// For a tool that holds "groups": "read" and receives "group.*"
+// For a tool that holds "members.groups" and receives "group.*"
 // (chest.proposals.json): a group was renamed or changed members (who is in
 // it; member.updated with "groups" also comes for each member concerned who
 // has the tool), or was deleted — withdraw what targeted it.

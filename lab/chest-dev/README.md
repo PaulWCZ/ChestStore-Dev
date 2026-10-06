@@ -194,8 +194,9 @@ Paul Lefèvre (`mbr_paulaaaa…`) is a former member who left three weeks ago
 - `docs/dev.json` of a tool: `{"roles": {"ines": "approver"}, "timeZones": {"lea": "Asia/Tokyo"}}`.
 - Groups (Office, Sales, Tech): as on a Chest where the tool is open to
   everyone, **no group gives the tool** — `member(request).groups` and
-  `members.*.groups` are `[]`; a member's groups are
-  `members.groups.of(id)` (with `"groups": "read"`). `--granting-groups`:
+  `members.*.groups` are `[]` — every group they are in when the tool holds
+  the capability `members.groups` (`chest.proposals.json` `"capabilities":
+  ["members.groups"]`, the 0.5 name). `--granting-groups`:
   the three groups give the tool (the former behaviour; a tool given to
   groups).
 
@@ -211,7 +212,18 @@ with `build.start`; refused when sources are newer, unless `--stale-ok`),
 `--sleep-after <s>` (put the tool to sleep after that many idle seconds),
 `--tools a,b` (tools installed beside it), `--linked` (an
 admin linked them for the events they receive), `--elsewhere`,
-`--granting-groups`.
+`--granting-groups`, `--no-mail-connector` (the company's mail provider is
+not connected: `mail.available()` says `not_connected` and `mail.send`
+throws `Unavailable`, as on a Chest whose owner has not connected it yet;
+**Delivery** › Mail `ready` connects it).
+
+**Mail.** A tool mails people **outside** the company only (owner's
+decision, 2026-10-06): the outbox shows each message with the Reply-To it
+went with (`contact@atelier-martin.test`, the company's address set with
+the connector, unless the tool gave its own). The Chest receives no mail:
+there is no mailbox and no way to send an email to the tool. Members are
+told with notifications; the bell shows each one's French words too
+(`translations.fr`).
 
 ## /_dev — the controls
 
@@ -221,22 +233,23 @@ done, `400` for a value the Chest would not give. From a flow:
 ```js
 import { control, open } from "./lib.mjs";
 const { page, origin, publicOrigin } = await open(port, "hugo", { language: "fr" });
-await control(page, origin, "member", { member: id("hugo"), mailPreference: "digest" });
+await control(page, origin, "member", { member: id("hugo"), timeZone: "Asia/Tokyo" });
 ```
 
 | Control | Form | What it plays |
 |---|---|---|
 | `/_dev/as` | `member`, `language` (`en`, `fr`, or empty: theirs; `locale` still read) | who is signed in on `/chest`. Cookies `dev_member`, `dev_locale` |
-| `/_dev/member` | `member`, `mailPreference` (`all`, `digest`, `none`), `timeZone` (IANA) | what the member chose in the Chest: `members.get/list/lookup` answer `mailPreference` (absent for `all`) and `timeZone`; the next request's assertion carries the zone. No event: the Chest sends none for these. The tool's `members.lookup` may keep an answer for a minute |
+| `/_dev/member` | `member`, `timeZone` (IANA) | what the member chose in the Chest: `members.get/list/lookup` answer the `timeZone`; the next request's assertion carries it. No event: the Chest sends none. The tool's `members.lookup` may keep an answer for a minute |
 | `/_dev/delivery` | `mail` (`ready`, `not_connected`, `suspended`, `quota`), `webhooks` (`ready`, `suspended`) | whether the Chest delivers: `mail.available()`, `webhooks.available()` and `send` follow it |
 | `/_dev/deliver` | `type`, `data` (JSON), optional `occurredAt` (ISO 8601), `source` (a tool's name; the type's first part by default), `id` (`evt_…`: the same event twice) | an event of another tool, as the Chest delivers it |
 | `/_dev/event` | `member`, `type` (`member.updated`, `access.revoked`, `member.removed`, `member.erased`) | a member's lifecycle; `member.removed` and `member.erased` move them to the former members with `leftAt` now |
 | `/_dev/group` | `member`, `group`, `action` (`add`, `remove`) | an admin moves someone in or out of a group (`member.updated`, `group.changed`) |
 | `/_dev/schedule` | `name` (a schedule of `chest.json`) | a run now, signed, to `POST /chest-schedules` (the tool woken first) |
 | `/_dev/sleep`, `/_dev/wake` | — | the Chest puts the tool to sleep (its process stops), or wakes it |
-| `/_dev/webhook`, `/_dev/receive`, `/_dev/bounce`, `/_dev/feed`, `/_dev/check`, `/_dev/theme`, `/_dev/clear` | as before | webhooks' answers, incoming mail, bounces, calendar addresses, checks, the company's look, the bell |
+| `/_dev/bounce` | `message` (`msg_…` of the outbox), `permanent` (`1`, `0`) or `complained=1` | the message could not be delivered (or was marked as spam): `mail.status(id)` says `bounced` (`complained`), a permanent one or a complaint suppresses the address. Nothing is posted to the tool |
+| `/_dev/webhook`, `/_dev/feed`, `/_dev/check`, `/_dev/theme`, `/_dev/clear` | as before | webhooks' answers, calendar addresses, checks, the company's look, the bell |
 
-Every delivery a control makes (an event, a run, a mail, a check) wakes a
+Every delivery a control makes (an event, a run, a check) wakes a
 sleeping tool first, as the Chest does. `GET /_dev/logs` (and
 `/_dev/logs.txt`) shows the tool's log.
 
@@ -251,8 +264,7 @@ from the page (a form or the page's `fetch`).
 
 The page shows: the member signed in (language, zone) and the Chest
 (organization, zone, today); the bell, badges and files; **Members'
-choices** (each member's email preference and zone, and what their
-preferences held back: `chest.held`, `{reason, member, subject, text}`);
+choices** (each member's zone);
 **Delivery** (with mail or webhooks); **Events between tools**, each
 published event as `<code>type</code> <small>{data}</small>` (the line flows
 match) followed by its `key` and `occurredAt`; the former members with the

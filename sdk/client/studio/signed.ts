@@ -9,8 +9,6 @@ import type { Channel } from "../src/signed.js";
 // modules below verify with 0.4.1's delivery() instead of a copy of it. Not
 // a published module.
 
-// Received mail and bounces (mail): POST /chest-mail.
-export const mailChannel: Channel = { header: "Chest-Mail", label: "Chest-Mail v1", id: /^(rcv|bnc)_[a-z2-7]{26}$/u, maxBody: 4 << 20 };
 // The results of the checks the Chest runs (checks): POST /chest-checks.
 export const checkChannel: Channel = { header: "Chest-Check", label: "Chest-Check v1", id: /^chk_[a-z2-7]{26}$/u, maxBody: 4096 };
 // The Chest's notices about the tool's webhook targets (webhooks): POST

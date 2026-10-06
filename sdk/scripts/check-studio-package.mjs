@@ -44,8 +44,9 @@ const studio = {
   files: ["claim", "publicLimits", "publicPath", "publicUploadUrl"],
   members: ["leftAt", "matchEmails", "matchLimits"],
   notifications: ["broadcast"],
+  testing: ["shownTo"],
   events: ["occurredAtOf", "occurredLimits", "publish", "receivers", "toolEventPattern"],
-  mail: ["available", "bouncePattern", "handle", "idempotencyKey", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "preference", "send", "status", "threadAddress", "threadOf", "threadPattern", "threadTag", "verify"],
+  mail: ["available", "idempotencyKey", "isAddress", "limits", "messageIdPattern", "send", "status"],
   calendar: ["ics", "keyPattern", "limits", "list", "pick", "put", "putMany", "remove", "uidOf"],
   webhooks: ["add", "available", "checkUrl", "deliveryIdPattern", "enable", "eventIdPattern", "handle", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "send", "targetIdPattern", "verify", "webhookEventPattern"],
   visitors: ["address", "addressHeader", "checkForm", "count", "formToken", "language", "visitor"],
@@ -121,7 +122,7 @@ try {
     `let streamed = "";`,
     `for await (const piece of modules[${JSON.stringify(name + "/ai")}].chat({ model: "fast", messages: [{ role: "user", content: "Hi there" }], stream: true })) streamed += piece.text;`,
     `const calls = chest.ai.map(c => c.path);`,
-    `const studio = [root.chest.currency, root.chest.tool.teamUrl, root.chest.tools.get("forms"), (await root.chest.theme()).mode, root.localeOf(chest.members[0].language), await root.mail.preference(chest.members[0].id).catch(e => e.code)];`,
+    `const studio = [root.chest.currency, root.chest.tool.teamUrl, root.chest.tools.get("forms"), (await root.chest.theme()).mode, root.localeOf(chest.members[0].language), await root.mail.send({ to: "a@example.com", subject: "x", text: "" }).catch(e => e.code)];`,
     `const ran = await chest.run("morning", request => root.schedules.handle(request, { morning: () => {} }).then(status => new Response(null, { status })));`,
     `const answered = await chest.emit({ type: "access.revoked", data: { id: chest.members[0].id } }, request => root.events.handle(request, { "access.revoked": e => { told.push(e.data.id); } }).then(status => new Response(null, { status })));`,
     `await chest.close();`,
@@ -192,12 +193,12 @@ import type { FileData, FileObject, FilePage } from "${name}/files";
 import * as members from "${name}/members";
 import { groups, type Group, type Lookup, type MemberPage } from "${name}/members";
 import * as notifications from "${name}/notifications";
-import type { BadgeCount, BadgeWrite, Delivery, Notice } from "${name}/notifications";
+import type { Audience, BadgeCount, BadgeWrite, Delivery, Notice, Translations } from "${name}/notifications";
 import * as events from "${name}/events";
 import type { ChestEvent, Handlers, MemberErased, Seen } from "${name}/events";
 import * as ai from "${name}/ai";
 import type { AiModel, AiUsage, ChatChunk, ChatMessage, ChatResult, ChatTool, Embeddings } from "${name}/ai";
-import { fakeChest, signAssertion, withMember, type FakeAi, type FakeAiCall, type FakeChest, type FakeEvent, type FakeMember, type FakeNotification, type FakeRun } from "${name}/testing";
+import { fakeChest, shownTo, signAssertion, withMember, type FakeAi, type FakeAiCall, type FakeChest, type FakeEvent, type FakeMember, type FakeNotification, type FakeRun } from "${name}/testing";
 import type { Chest } from "${name}/chest";
 import { chest, forgetTheme, type ThemeChoice } from "${name}/chest";
 import { localeOf, type Locale } from "${name}/member";
@@ -218,6 +219,10 @@ export async function team(): Promise<[MemberPage, Member | null, Lookup, Group[
 }
 export async function tell(ids: string[], notice: Notice, counts: BadgeCount[]): Promise<[Delivery, void, boolean, BadgeWrite]> {
   return [await notifications.notify(ids, notice), await sdk.notifications.withdraw("task:1", ids), await notifications.badge.set("mbr_x", 1), await notifications.badge.setMany(counts)];
+}
+export async function tellAll(ids: string[], translations: Translations): Promise<[Delivery, { delivered: number }]> {
+  const audience: Audience = { to: { roles: ["reader"], groups: ["grp_x"] }, except: new Set(ids) };
+  return [await notifications.notify(ids, { title: "Hello", translations }), await sdk.notifications.broadcast({ title: "Hello", path: "/chest", key: "k", translations: { fr: { title: "Bonjour" } } }, audience)];
 }
 export async function receive(request: Request, seen: Seen): Promise<[number, ChestEvent | null]> {
   const handlers: Handlers = { "member.erased": async (e: MemberErased) => { await events.acknowledgeErasure(e.data.erasure); }, "member.updated": e => { void e.data.changed; } };
@@ -252,12 +257,14 @@ export async function test(someone: Member): Promise<string> {
   return signAssertion(someone, { token: chest.token, tool: chest.tool }) + request.url + sent.length + badges.size + acknowledged.length;
 }
 export function where(): [Chest, string, string, string | null] { return [chest, chest.currency, new URL("/chest", chest.tool.teamUrl).href, chest.tool.publicUrl]; }
-export async function studio(someone: Member, request: Request): Promise<[string, string, string | null, string | null, ThemeChoice, string, Locale, mail.MailPreference | null, mail.MailAvailability, string, number, unknown, unknown, Map<string, string>, number]> {
-  const bare: FakeMember = { id: someone.id, firstName: "A", lastName: "B", name: "A B", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], mailPreference: "digest" };
-  const fake = await fakeChest({ tool: "tasks", members: [bare], chest: { organization: "Acme SAS", currency: "CHF", publicUrl: null }, tools: { forms: true } });
+export async function studio(someone: Member, request: Request): Promise<[string, string, string | null, string | null, ThemeChoice, string, Locale, mail.Sent, mail.MailAvailability, string, number, unknown, unknown, Map<string, string>, number]> {
+  const bare: FakeMember = { id: someone.id, firstName: "A", lastName: "B", name: "A B", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [] };
+  const fake = await fakeChest({ tool: "tasks", members: [bare], chest: { organization: "Acme SAS", currency: "CHF", publicUrl: null }, tools: { forms: true }, mail: { connected: false, replyTo: null } });
+  const shown: string = shownTo(fake.notifications[0]!, "fr").title + (fake.notifications[0]?.translations?.fr?.title ?? "");
+  fake.bounce("msg_x", { permanent: true });
   forgetTheme();
   const run: FakeRun = { attempt: 2 };
-  const result: [string, string, string | null, string | null, ThemeChoice, string, Locale, mail.MailPreference | null, mail.MailAvailability, string, number, unknown, unknown, Map<string, string>, number] = [chest.organization.name, chest.currency, chest.tools.get("forms")?.teamUrl ?? null, chest.tools.link("forms", "/chest"), await chest.theme(), chest.todayIn(someone.timeZone), localeOf(someone.language), await mail.preference(someone.id), await mail.available(), visitors.language(request), (await sdk.members.groups.of(someone.id))?.length ?? 0, calendar.limits, [webhooks.limits, checks.limits], await members.leftAt([someone.id]), await fake.run("morning", r => schedules.handle(r, { morning: () => {} }).then(status => new Response(null, { status })), run)];
+  const result: [string, string, string | null, string | null, ThemeChoice, string, Locale, mail.Sent, mail.MailAvailability, string, number, unknown, unknown, Map<string, string>, number] = [chest.organization.name + shown, chest.currency, chest.tools.get("forms")?.teamUrl ?? null, chest.tools.link("forms", "/chest"), await chest.theme(), chest.todayIn(someone.timeZone), localeOf(someone.language), await mail.send({ to: "a@example.com", subject: "x", text: "", replyTo: "b@example.com", attachments: [{ name: "a.ics", type: "text/calendar", content: "BEGIN" }] }), await mail.available(), visitors.language(request), (await sdk.members.groups.all()).length, calendar.limits, [webhooks.limits, checks.limits], await members.leftAt([someone.id]), await fake.run("morning", r => schedules.handle(r, { morning: () => {} }).then(status => new Response(null, { status })), run)];
   await fake.close();
   return result;
 }

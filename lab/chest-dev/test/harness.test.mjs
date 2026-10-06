@@ -37,6 +37,13 @@ const app = createServer(async (req, res) => {
     runs.push({ header: Boolean(req.headers["chest-schedule"]), body: JSON.parse(body) });
     res.writeHead(204); return res.end();
   }
+  // Mail to people outside (the proposal), asked of the Chest's API as the SDK asks it.
+  if (url.pathname === "/chest/mail-status") return json(res, 200, await (await fetch(process.env.CHEST_API + "/mail/status")).json());
+  if (url.pathname === "/chest/mail") {
+    const to = url.searchParams.get("to");
+    const answer = await fetch(process.env.CHEST_API + "/mail/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: [to.startsWith("mbr_") ? { member: to } : to], cc: [], subject: "Your booking", text: "See you on Monday." }) });
+    return json(res, answer.status, await answer.json());
+  }
   if (url.pathname === "/chest/env") return json(res, 200, { member: Boolean(req.headers["chest-member"]), env: process.env });
   if (url.pathname === "/chest/runs") return json(res, 200, runs);
   if (url.pathname === "/chest/cookies") return json(res, 200, {}, { "Set-Cookie": ["good=1; Path=/; HttpOnly", "wide=1; Domain=localhost; Path=/", "__Host-chest=stolen; Path=/; Secure"] });
@@ -60,9 +67,10 @@ before(async () => {
   writeFileSync(join(folder, "server.mjs"), server);
   writeFileSync(join(folder, "package.json"), JSON.stringify({ name: "fixture", private: true, type: "module", scripts: { start: "node server.mjs" } }));
   writeFileSync(join(folder, "package-lock.json"), JSON.stringify({ name: "fixture", lockfileVersion: 3, requires: true, packages: { "": { name: "fixture" } } }));
+  writeFileSync(join(folder, "chest.proposals.json"), JSON.stringify({ mail: { send: true } }));
   writeFileSync(join(folder, "chest.json"), JSON.stringify({ chest: "0.4", name: "fixture", title: "Fixture", description: "A tool of the harness's test.", public: true, env: ["SLOW_START_MS"], schedules: [{ name: "nightly", cron: "0 3 * * *" }], build: { runtime: "node", install: "npm ci", start: "npm start", port: 3000, static: ["/assets/"] } }));
   mkdirSync(join(folder, "node_modules"));
-  harness = spawn(process.execPath, [join(root, "lab", "chest-dev", "dev.mjs"), folder, "--prod", "--port", String(port), "--sleep-after", "2"], { env: { ...process.env, SLOW_START_MS: "2600", NODE_OPTIONS: "--max-old-space-size=64" }, stdio: ["ignore", "pipe", "pipe"] });
+  harness = spawn(process.execPath, [join(root, "lab", "chest-dev", "dev.mjs"), folder, "--prod", "--port", String(port), "--sleep-after", "2", "--no-mail-connector"], { env: { ...process.env, SLOW_START_MS: "2600", NODE_OPTIONS: "--max-old-space-size=64" }, stdio: ["ignore", "pipe", "pipe"] });
   harness.stdout.on("data", (c) => { output += c; });
   harness.stderr.on("data", (c) => { output += c; });
   for (let i = 0; i < 600 && !(await portOpen(port)); i++) await pause(100);
@@ -90,6 +98,30 @@ test("the Chest's environment, and nothing of the shell's", async () => {
   assert.match(env.CHEST_API, /^http:\/\/127\.0\.0\.1:\d+$/u);
   assert.notEqual(env.CHEST_API, team, "the API is the fake's own address");
   assert.ok(env.CHEST_TOKEN && env.CHEST_TOOL === "fixture");
+});
+
+test("mail to people outside: the connector absent, then connected; Reply-To the company's; no member, no mailbox", async () => {
+  const before = await (await get(`${team}/chest/mail-status`)).json();
+  assert.equal(before.send, "not_connected", "--no-mail-connector");
+  assert.equal(before.reply_to, "contact@atelier-martin.test");
+  const refused = await get(`${team}/chest/mail?to=client@example.com`);
+  assert.deepEqual([refused.status, await refused.json()], [503, { error: "not_connected" }]);
+  const connect = await fetch(`${team}/_dev/delivery`, { method: "POST", body: new URLSearchParams({ mail: "ready" }), redirect: "manual" });
+  assert.equal(connect.status, 303);
+  assert.equal((await (await get(`${team}/chest/mail-status`)).json()).send, "ready");
+  const sent = await get(`${team}/chest/mail?to=client@example.com`);
+  assert.equal(sent.status, 201);
+  const { id } = await sent.json();
+  const member = await get(`${team}/chest/mail?to=mbr_hugoaaaaaaaaaaaaaaaaaaaaaa`);
+  assert.deepEqual([member.status, await member.json()], [400, { error: "invalid_recipient" }]);
+  const page = await (await fetch(`${team}/_dev`)).text();
+  assert.match(page, /Mail to people outside \(proposal\)/u);
+  assert.match(page, /replies to <code>contact@atelier-martin\.test<\/code>/u);
+  assert.doesNotMatch(page, /_dev\/receive|Send an email to the tool|mailPreference/u);
+  const bounced = await fetch(`${team}/_dev/bounce`, { method: "POST", body: new URLSearchParams({ message: id, permanent: "1" }), redirect: "manual" });
+  assert.equal(bounced.status, 303);
+  assert.match(await (await fetch(`${team}/_dev`)).text(), /<code>bounced<\/code>/u);
+  assert.notEqual((await fetch(`${team}/_dev/receive`, { method: "POST", body: new URLSearchParams({ mailbox: "support" }), redirect: "manual" })).status, 303, "no inbound mail");
 });
 
 test("the team host: static files without a member, the rest to the public host", async () => {

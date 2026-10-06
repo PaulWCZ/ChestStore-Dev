@@ -82,8 +82,8 @@ export async function startFakeChest(dir, port) {
     // As dev.mjs: the groups exist, none gives the tool (a tool open to
     // everyone): the assertion carries no group.
     groups: cast.groups.map((g) => ({ ...g, members: members.filter((m) => m.groups.includes(g.id)).map((m) => m.id), grants: false })),
-    capabilities: [...capabilities.filter((c) => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(proposals.groups === "read" || manifest.groups === "read" ? ["groups"] : [])],
-    mail: { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [], perDay: 500 },
+    capabilities: [...capabilities.filter((c) => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(Array.isArray(proposals.capabilities) && proposals.capabilities.includes("members.groups") ? ["members.groups"] : [])],
+    mail: { domain: "atelier-martin.test", replyTo: "contact@atelier-martin.test", perDay: 500 },
     calendar: { domain: "atelier-martin.test", toolTitle: manifest.title ?? manifest.name, company: "Atelier Martin" },
     emits: proposals.emits ?? [],
     storage: { publicUploads: proposals.files?.publicUploads === true, publicFiles: proposals.files?.publicFiles === true },

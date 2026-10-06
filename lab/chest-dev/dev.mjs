@@ -2,7 +2,7 @@
 // on this machine — any tool that follows the contract (`npm ci`,
 // `build.command`, `build.start` with PORT), whatever its framework.
 //
-//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--build] [--stale-ok] [--seed] [--reset] [--empty] [--sleep-after <s>] [--tools crm,helpdesk] [--linked] [--elsewhere] [--granting-groups]
+//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--build] [--stale-ok] [--seed] [--reset] [--empty] [--sleep-after <s>] [--tools crm,helpdesk] [--linked] [--elsewhere] [--granting-groups] [--no-mail-connector]
 //
 // lab/chest-dev/README.md: the Chest is "Atelier Martin", in
 // CHEST_TIME_ZONE (Europe/Paris unless set), speaking English, paying in
@@ -34,8 +34,12 @@
 //   no member; 404 without one); /_chest/… is the fake Chest's
 //   front (uploads, file links, photos), /_dev is the harness: who you are,
 //   the bell, badges, files, and buttons that play the Chest (member
-//   lifecycle events, proposals such as scheduled tasks, the outbox and
-//   received mail, the calendar feeds, the Chest's groups, webhooks);
+//   lifecycle events, proposals such as scheduled tasks, the outbox of mail
+//   to people outside, the calendar feeds, the Chest's groups, webhooks);
+//   the Chest receives no mail (owner's decision, 2026-10-06): no mailbox;
+//   --no-mail-connector starts with the company's mail provider not
+//   connected (mail.available() says not_connected, send throws
+//   Unavailable; /_dev "Delivery" connects it);
 // - the tools whose events it receives, installed beside it (CHEST_TOOL_URLS),
 //   and those named by --tools (a sender that checks its receivers are
 //   installed: Forms asks for Clients and Support); with --linked, an
@@ -69,7 +73,7 @@ const option = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 if (!folder || !existsSync(join(folder, "chest.json"))) {
-  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--build] [--stale-ok] [--seed] [--reset] [--empty] [--sleep-after <s>] [--tools a,b] [--linked] [--elsewhere] [--granting-groups]");
+  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--build] [--stale-ok] [--seed] [--reset] [--empty] [--sleep-after <s>] [--tools a,b] [--linked] [--elsewhere] [--granting-groups] [--no-mail-connector]");
   process.exit(1);
 }
 // The Chest's zone (CHEST_TIME_ZONE): the tool's chest.timeZone, the zone of
@@ -202,8 +206,11 @@ const runs = [];
 // The fake Chest, with the cast given the tool's roles.
 process.env["CHEST_TOOL"] = manifest.name;
 // The mail options stay this harness's: /_dev/delivery "quota" sets perDay
-// to 0 (the day's messages used), which the fake reads at each call.
-const mailOptions = { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [], perDay: 500 };
+// to 0 (the day's messages used), which the fake reads at each call. Mail
+// goes to people outside only; Reply-To is the company's address set with
+// the connector unless the tool gives its own.
+const mailOptions = { domain: "atelier-martin.test", replyTo: "contact@atelier-martin.test", perDay: 500, connected: !flag("no-mail-connector") };
+const groupsRead = Array.isArray(proposals.capabilities) && proposals.capabilities.includes("members.groups");
 const members = castFor(manifest, tool, { zone, elsewhere: flag("elsewhere") });
 // Paul Lefèvre left the company three weeks ago (FormerMember.leftAt,
 // Proposal (studio.15)): the seeds' "former member".
@@ -213,11 +220,12 @@ const chest = await testing.fakeChest({
   former: [{ id: "mbr_" + "paul" + "a".repeat(22), name: "Paul Lefèvre", leftAt: paulLeft }],
   // Every cast member has the tool without a group giving it (a tool open
   // to everyone, the usual case): as on a Chest, member.groups and
-  // members.*.groups are then [], and a member's groups are asked with
-  // members.groups.of (a tool with "groups": "read"). --granting-groups:
-  // the three groups give the tool (a tool the owner gave to groups).
+  // members.*.groups are then [] — unless the tool holds the capability
+  // "members.groups" (chest.proposals.json "capabilities"), which shows
+  // every group. --granting-groups: the three groups give the tool (a tool
+  // the owner gave to groups).
   groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id), grants: flag("granting-groups") })),
-  capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(proposals.groups === "read" ? ["groups"] : [])],
+  capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(groupsRead ? ["members.groups"] : [])],
   mail: mailOptions,
   // The calendar bridge (Proposal (studio)): each member's feed at
   // https://127.0.0.1:<port>/_chest/calendar/<secret>.ics — a calendar app
@@ -405,14 +413,14 @@ function cookies(request) {
 // The member signed in, as the Chest asserts them: their language, or the
 // one chosen on /_dev (the cookie keeps its name, dev_locale: flows set
 // it), and only the groups that give the tool (0.3.0: the assertion
-// carries no other).
+// carries no other) — every group with "members.groups".
 const languages = new Set(["en", "fr"]);
 function current(request) {
   const jar = cookies(request);
   const chosen = chest.members.find(m => m.id === jar["dev_member"]) ?? chest.members[0];
   const language = languages.has(jar["dev_locale"]) ? jar["dev_locale"] : null;
   const granting = new Set(chest.groups.filter(g => g.grants !== false).map(g => g.id));
-  return { ...chosen, groups: chosen.groups.filter(g => granting.has(g)), ...(language ? { language } : {}) };
+  return { ...chosen, groups: groupsRead ? chosen.groups : chosen.groups.filter(g => granting.has(g)), ...(language ? { language } : {}) };
 }
 
 function relay(request, response, target, headers) {
@@ -497,25 +505,13 @@ async function teamHost(request, response) {
         }
         return void response.writeHead(303, back).end();
       }
-      if (path === "/_dev/receive") {
-        // Proposal (studio): a new message, or a reply to one the tool sent
-        // (to its thread address when it had one, In-Reply-To its id).
-        const replied = chest.outbox.find(m => m.id === form.get("reply"));
-        const mailbox = form.get("mailbox");
-        const message = { mailbox, from: form.get("from"), fromName: form.get("fromName") || undefined, subject: form.get("subject"), text: form.get("text"), ...(form.get("html") ? { html: form.get("html") } : {}), auto: form.get("auto") === "1", authenticated: form.get("forged") !== "1" };
-        if (replied) {
-          message.subject = /^re:/iu.test(replied.subject) ? replied.subject : `Re: ${replied.subject}`;
-          message.inReplyTo = replied.messageId;
-          message.references = [...(replied.references ?? []), replied.messageId];
-          if (replied.replyTo && replied.replyTo.startsWith(mailbox + "+")) message.deliveredTo = replied.replyTo;
-        }
-        const status = await chest.receive(message, await to("an incoming mail"));
-        console.log(`mail to ${message.deliveredTo ?? mailbox} → ${status}`);
-        return void response.writeHead(303, back).end();
-      }
       if (path === "/_dev/bounce") {
-        const status = await chest.bounce(form.get("message"), await to("a bounce"), { permanent: form.get("permanent") !== "0" });
-        console.log(`bounce of ${form.get("message")} → ${status}`);
+        // The message could not be delivered (or the person complained):
+        // mail.status(id) says so; nothing is posted to the tool.
+        const sent = chest.outbox.find(m => m.id === form.get("message"));
+        if (!sent) return void response.writeHead(404, { "Content-Type": "text/plain" }).end("no such message");
+        chest.bounce(sent.id, { permanent: form.get("permanent") !== "0", complained: form.get("complained") === "1" });
+        console.log(`bounce of ${sent.id} → ${sent.status}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/feed") {
@@ -553,24 +549,19 @@ async function teamHost(request, response) {
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/member") {
-        // What a member chose in the Chest (their profile): how they want
-        // email (mailPreference, Proposal (studio.15): all, digest, none —
-        // read by members.get/list/lookup, applied by mail.send) and the
-        // zone they work in (member.timeZone). No event tells the tool: the
-        // next request's assertion, and the members API, say it.
+        // What a member chose in the Chest (their profile): the zone they
+        // work in (member.timeZone). No event tells the tool: the next
+        // request's assertion, and the members API, say it. (How they get
+        // their notifications by email is the Chest's, never a tool's.)
         const who = chest.members.find(m => m.id === form.get("member"));
         if (!who) return void response.writeHead(404, { "Content-Type": "text/plain" }).end("no such member");
-        const preference = form.get("mailPreference");
-        if (preference !== null && !["all", "digest", "none", ""].includes(preference)) return void response.writeHead(400, { "Content-Type": "text/plain" }).end("mailPreference: all, digest or none");
-        if (preference === "all" || preference === "") delete who.mailPreference;
-        else if (preference) who.mailPreference = preference;
         const place = form.get("timeZone");
         if (place) {
           try { new Intl.DateTimeFormat("en", { timeZone: place }); } catch { return void response.writeHead(400, { "Content-Type": "text/plain" }).end("timeZone: an IANA zone"); }
           who.timeZone = place;
         }
         chest.clearCaches();
-        console.log(`${who.name}: email ${who.mailPreference ?? "all"}, zone ${who.timeZone}`);
+        console.log(`${who.name}: zone ${who.timeZone}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/delivery") {

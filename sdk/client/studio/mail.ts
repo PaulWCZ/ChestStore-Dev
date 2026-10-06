@@ -1,48 +1,53 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import type { IncomingMessage } from "node:http";
 import { ask, json, refusal } from "../src/api.js";
 import { CapabilityNotGranted, ChestError, TooLarge, Unavailable } from "../src/errors.js";
-import { memberIdPattern } from "../src/member.js";
-import { delivery, json as parse, memorySeen, object, type Seen } from "../src/signed.js";
 import { idempotencyKey } from "./keys.js";
-import { mailChannel } from "./signed.js";
 
-// Studio proposal (not in 0.4.1) — email. A tool sends email in the company's name and
-// receives the email sent to its mailboxes; the Chest holds the company's
-// mail provider (its SMTP or API, connected once by the owner), never the
-// tool. Capabilities, not credentials.
+// Studio proposal (not in 0.4.1) — email to people OUTSIDE the company.
 //
-//   // chest.json — each entry is a permission, said at approval:
-//   //   "send": “Sends emails in your company's name, up to 500 a day”
-//   //   "mailboxes": “Receives the emails sent to support@<your domain>”
-//   "mail": { "send": true, "mailboxes": ["support"] }
+// The owner's decisions of 6 October 2026 (brief/08, addendum):
+// - Mail to members is never a tool's job. A tool tells a member with a
+//   notification (notifications.notify, notifications.broadcast); the Chest
+//   itself mails members their notifications, by each member's choice.
+//   send refuses a member as a recipient ({member} or an "mbr_…").
+// - The Chest never receives mail: no mailbox, no inbound message, no reply
+//   thread, no POST /chest-mail. A tool that wants replies from the public
+//   lets them go to the company's own address (Reply-To): they land in the
+//   company's usual mailbox, not in the tool.
+// - Mail to the public stays where a public flow needs it (a booking's
+//   recap with its calendar file, a quote or an invoice sent, a form's
+//   receipt, a candidate's confirmation, a support answer, a status update
+//   to a subscriber). It goes through this one seam, send, which the Chest
+//   backs with a connector to the company's own mail provider (its SMTP or
+//   API, connected once by the owner, its own domain). Not sent by
+//   Argentic. Not built yet: a studio proposal.
+//
+//   // chest.proposals.json — said at approval:
+//   //   “Sends emails to people outside your company (customers,
+//   //    candidates, visitors) through your company's mail provider”
+//   "mail": { "send": true }
 //
 //   import * as mail from "@argentic/chest-sdk/mail";
-//   await mail.send({ to: "client@example.com", subject: "Your request #42", text, mailbox: "support", key: "reply:981" });
-//   await mail.send({ to: { member: "mbr_…" }, subject, text });   // a member, without the tool knowing their address
+//   const can = await mail.available();          // {ok, reason, remainingToday, replyTo}
+//   await mail.send({ to: "client@example.com", subject: "Your booking on 3 November", text, attachments: [{ name: "booking.ics", type: "text/calendar", content: ics }], key: `booking:${id}:recap` });
 //
-//   // app/chest-mail/route.ts — the Chest posts each received email, signed
-//   export async function POST(request: Request) {
-//     return new Response(null, { status: await mail.handle(request, async message => { await openTicket(message); }) });
-//   }
-//
-// What the Chest does: it signs and sends from the company's domain (SPF,
-// DKIM set when the owner connected it); it keeps a journal of every
-// message (to, subject, size, status — never the body by default); it
-// refuses addresses that bounced or complained (a suppression list per
-// Chest); it stores received attachments in the tool's files (mail/…)
-// before posting the message; it filters spam (a score) and drops what its
-// provider flags as a virus. A tool never sees the provider's credentials,
-// and sees members' addresses only with "members.email".
+// What the Chest does: it sends through the company's provider, from the
+// address the owner connected (the provider signs it: SPF, DKIM on the
+// company's domain); Reply-To is the company's reply address the owner set
+// with the connector, unless the tool gives its own (replyTo, from its own
+// settings); it keeps a journal of every message (to, subject, size,
+// status — never the body by default); it refuses addresses that bounced
+// or complained (a suppression list per Chest). A tool never holds a mail
+// credential. status(id) is how a tool learns that a message bounced:
+// nothing is posted to the tool.
 //
 // Bounds: 500 messages a day per tool (the owner may raise it), 50
 // recipients a message, 10 MiB a message with its attachments, 998
-// characters a subject line; received: 25 MiB a message (larger ones are
-// refused by the Chest's mail server, the sender told), 20 attachments,
-// 1 MiB of text and 2 MiB of cleaned HTML posted (the rest cut, the
-// original .eml kept whole), 4 MiB posted in all.
+// characters a subject line.
 
-export type Address = string | { member: string };
+// A recipient: an email address, as a string. Never a member (notify them).
+export type Address = string;
+// A file of the tool's (files), or bytes the tool made: the .ics of a
+// booking, the PDF of a quote.
 export type Attachment = { file: string; name?: string } | { name: string; type: string; content: Uint8Array | string };
 export type Message = {
   to: Address | Address[];
@@ -50,119 +55,42 @@ export type Message = {
   subject: string;
   text: string;
   html?: string;
-  // The mailbox the message comes from (its address and the company's name);
-  // without, the Chest's no-reply address in the company's name.
-  mailbox?: string;
-  // The name shown with the address: "Camille at Atelier Martin".
+  // The name shown with the sending address: "Camille at Atelier Martin";
+  // the company's name when left out.
   fromName?: string;
+  // Where replies go. Left out: the company's reply address set with the
+  // connector (available().replyTo), or the sending address when the owner
+  // set none. A tool gives one only from its own settings ("Replies go to").
   replyTo?: string;
-  // Proposal (studio): the tool's name for a conversation (a ticket, a
-  // candidate): 1 to 16 of a-z 0-9. With a mailbox, replies go to that
-  // mailbox's thread address (support+t1042-…@), and the message the
-  // Chest delivers back says thread "1042" — only if the address is one
-  // this tool made (threadTag). Not with replyTo.
-  thread?: string;
-  // Threading, for replies to a received message.
-  inReplyTo?: string;
-  references?: string[];
   attachments?: Attachment[];
   // The same key within 24 hours sends nothing again and answers the first
   // message: a retry never sends twice. Any text of 1 to 512 characters
-  // without control characters (0.3.0-studio.15): build it from what names the
-  // message — `digest:${day}:${member}` — and never cut it; the SDK sends
-  // a long one as its SHA-256 (idempotencyKey). The same key for other
-  // recipients is refused (ChestError key_conflict), never dropped.
+  // without control characters: build it from what names the message —
+  // `booking:${id}:recap` — and never cut it; the SDK sends a long one as
+  // its SHA-256 (idempotencyKey). The same key for other recipients is
+  // refused (ChestError key_conflict), never dropped.
   key?: string;
-  // Proposal (0.3.0-studio.15): a message the person must get whatever their
-  // email preference (preference(), below) — a password, a booking's
-  // confirmation, a payslip, an answer to what they asked. Everything else
-  // (reminders, digests, "a task was assigned") honours it: a member who
-  // turned email off is skipped, one who reads a daily digest gets it
-  // there. The Chest journals the flag; the owner sees each tool's share.
-  transactional?: boolean;
 };
-// What send did: the message queued, and (Proposal (0.3.0-studio.15)) the members
-// it did not go to now because of their email preference — skipped: email
-// off; digest: in their daily digest from the Chest. status "held" when
-// nobody receives it now.
-export type Sent = { id: string; messageId: string; status: "queued" | "held"; skipped: string[]; digest: string[] };
-export type Status = { id: string; status: "queued" | "held" | "sent" | "delivered" | "bounced" | "complained" | "failed"; at: string };
+// What send did: the message queued (sending is the Chest's).
+export type Sent = { id: string; messageId: string; status: "queued" };
+// Where a sent message stands. bounced: the address does not exist or
+// refuses (the Chest suppresses it); complained: the person marked it as
+// spam; failed: the provider gave up (a full mailbox after the retries).
+export type Status = { id: string; status: "queued" | "sent" | "delivered" | "bounced" | "complained" | "failed"; at: string };
 
-export type Received = {
-  kind: "message";
-  id: string;
-  mailbox: string;
-  from: { address: string; name: string | null };
-  to: string[];
-  cc: string[];
-  // The address the Chest received it for (the envelope's): the mailbox,
-  // or one of its thread addresses (support+t1042-…@).
-  deliveredTo: string;
-  // The tool's thread when deliveredTo is a thread address this tool made
-  // (its tag verified: nobody can guess one); null otherwise — then match
-  // inReplyTo and references against the messageIds of what it sent.
-  thread: string | null;
-  subject: string;
-  // The plain text: the text part, or the HTML part made text.
-  text: string;
-  // The HTML part cleaned by the Chest: allowed tags only (paragraphs,
-  // emphasis, lists, quotes, tables, links http/https/mailto), no script,
-  // no style, no attribute but a link's href, no image (remote images
-  // track the reader). Still show it inside the tool's strict policy.
-  html: string | null;
-  // The message exactly as received (RFC 5322, .eml), in the tool's
-  // files: for "Show original" — download only, never shown inline.
-  original: string | null;
-  messageId: string;
-  inReplyTo: string | null;
-  references: string[];
-  // Stored by the Chest in the tool's files before the message was posted.
-  attachments: { file: string; name: string; type: string; size: number }[];
-  // Attachments the Chest did not keep: beyond 20, a type it refuses
-  // (executables), a virus, or the tool's files full.
-  dropped: { name: string; size: number; reason: "count" | "type" | "virus" | "quota" }[];
-  receivedAt: string;
-  // 0 (clean) to 10 (surely spam), from the Chest's filter; the Chest
-  // keeps 8 and above in its quarantine (the owner sees it) and never
-  // posts them.
-  spam: number;
-  // The sender's domain vouches for it (DMARC, or SPF or DKIM aligned with
-  // the From domain): without, "from" may be forged — never act on it
-  // alone (a reply goes to a new thread, not an existing customer's).
-  authenticated: boolean;
-  // An automatic answer (out of office, Auto-Submitted, a list's
-  // notice): never answer it automatically — mail loops.
-  auto: boolean;
-};
-// Proposal (studio): a message the tool sent that could not be delivered.
-// The Chest recognises bounces (its own return path per message), updates
-// status(), adds a permanent failure's address to the Chest's suppression
-// list, and posts the bounce — never as a received message.
-export type Bounce = {
-  kind: "bounce";
-  id: string;
-  // The message sent (send's id).
-  message: string;
-  recipient: string;
-  // true: the address does not exist or refuses (no retry, suppressed);
-  // false: a temporary failure after the Chest's retries (a full mailbox).
-  permanent: boolean;
-  // What the receiving server said, shortened (plain text, 500 characters).
-  reason: string;
-  at: string;
-};
-export type MailHandlers = { message?: (message: Received) => void | Promise<void>; bounce?: (bounce: Bounce) => void | Promise<void> };
-
-// idempotencyKey (0.3.0-studio.15) is the key the Chest receives for a key a tool
-// gives: the key itself when it is 1 to 64 of A-Z a-z 0-9 . _ : -,
-// otherwise "sha256:" and its digest; null when it is not a key.
+// idempotencyKey is the key the Chest receives for a key a tool gives: the
+// key itself when it is 1 to 64 of A-Z a-z 0-9 . _ : -, otherwise "sha256:"
+// and its digest; null when it is not a key.
 export { idempotencyKey };
 
-export const limits = { recipients: 50, size: 10 << 20, subject: 998, perDay: 500, received: 25 << 20, attachments: 20, text: 1 << 20, html: 2 << 20 } as const;
-export const threadPattern = /^[a-z0-9]{1,16}$/u;
-export const mailboxPattern = /^[a-z][a-z0-9-]{0,31}$/u;
+export const limits = { recipients: 50, size: 10 << 20, subject: 998, perDay: 500 } as const;
 export const messageIdPattern = /^msg_[a-z2-7]{26}$/u;
 const address = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
+// The keys a message may have; anything else (mailbox, thread, inReplyTo,
+// references, transactional — gone on 6 October 2026) is refused, so a
+// tool written for the earlier shape fails loudly rather than sending a
+// message that silently lost its meaning.
+const messageKeys = new Set(["to", "cc", "subject", "text", "html", "fromName", "replyTo", "attachments", "key"]);
 
 // isAddress says whether a text is an email address the Chest would send
 // to (a plain address: no name, no comment, 254 characters at most).
@@ -170,51 +98,60 @@ export function isAddress(value: unknown): value is string {
   return typeof value === "string" && value.length <= 254 && address.test(value);
 }
 
-function recipients(value: Address | Address[] | undefined): (string | { member: string })[] {
+// recipients reads to or cc: addresses only. A member — {member: "mbr_…"}
+// or the identifier itself — is refused with invalid_recipient: members
+// are told with notifications, and the Chest mails them by their choice.
+function recipients(value: unknown): string[] {
   if (value === undefined) return [];
-  const list = Array.isArray(value) ? value : [value];
+  const list: unknown[] = Array.isArray(value) ? value : [value];
   for (const r of list) {
-    if (typeof r === "string" ? !isAddress(r) : !(r && typeof r === "object" && typeof r.member === "string" && memberIdPattern.test(r.member))) throw new ChestError("invalid_address", 400, "invalid recipient");
+    const member = (r !== null && typeof r === "object" && "member" in r) || (typeof r === "string" && !r.includes("@") && /^\s*mbr_/u.test(r));
+    if (member) throw new ChestError("invalid_recipient", 400, "mail is for people outside the company: tell a member with notifications.notify");
+    if (!isAddress(r)) throw new ChestError("invalid_address", 400, "invalid recipient");
   }
-  return list;
+  return list as string[];
 }
 
 const headerSafe = (s: string) => !/[\r\n]/u.test(s);
 
-// send asks the Chest to send one message; it answers once the message is
-// queued (sending is the Chest's). Errors: ChestError invalid_address,
+// send asks the Chest to send one message to people outside the company;
+// it answers once the message is queued (sending is the Chest's). Errors:
+// ChestError invalid_recipient (a member: notify them), invalid_address,
 // invalid_message, suppressed (every recipient refuses email: bounced or
 // complained), key_conflict (409: the key was used within 24 hours for
-// other recipients — nothing sent; 0.3.0-studio.15), TooLarge, QuotaExceeded
-// (the day's messages), and CapabilityNotGranted when the version does not
-// declare "mail" or the Chest has no mail yet. A member held back by their
-// email preference is not an error: Sent says skipped or digest.
+// other recipients — nothing sent), TooLarge, QuotaExceeded (the day's
+// messages), Unavailable (the owner has not connected the company's mail
+// provider, the Chest stopped sending for now, or it did not answer), and
+// CapabilityNotGranted when the version does not declare "mail" or the
+// Chest has no mail. Ask available() first to say why on a page; whatever
+// it said, keep the flow working when send throws, and say so (no silent
+// loss: "We could not email the confirmation — it is on this page").
 export async function send(message: Message): Promise<Sent> {
+  if (message === null || typeof message !== "object") throw new ChestError("invalid_message", 400, "a message is an object");
+  const unknown = Object.keys(message).filter(k => !messageKeys.has(k));
+  if (unknown.length > 0) throw new ChestError("invalid_message", 400, `unknown field ${unknown.join(", ")} (mailboxes, threads and member recipients are gone: see the SDK's mail section)`);
   const to = recipients(message.to), cc = recipients(message.cc);
   if (to.length < 1 || to.length + cc.length > limits.recipients) throw new ChestError("invalid_message", 400, `1 to ${limits.recipients} recipients`);
   if (typeof message.subject !== "string" || message.subject.trim() === "" || message.subject.length > limits.subject || !headerSafe(message.subject)) throw new ChestError("invalid_message", 400, "invalid subject");
   if (typeof message.text !== "string") throw new ChestError("invalid_message", 400, "a text body is required");
-  if (message.mailbox !== undefined && !mailboxPattern.test(message.mailbox)) throw new ChestError("invalid_message", 400, "invalid mailbox");
+  if (message.html !== undefined && typeof message.html !== "string") throw new ChestError("invalid_message", 400, "html is a string");
   if (message.fromName !== undefined && (typeof message.fromName !== "string" || message.fromName.length > 100 || !headerSafe(message.fromName))) throw new ChestError("invalid_message", 400, "invalid sender name");
   if (message.replyTo !== undefined && !isAddress(message.replyTo)) throw new ChestError("invalid_address", 400, "invalid reply-to");
-  if (message.thread !== undefined && (typeof message.thread !== "string" || !threadPattern.test(message.thread) || message.mailbox === undefined || message.replyTo !== undefined)) throw new ChestError("invalid_message", 400, "a thread is 1 to 16 of a-z 0-9, with a mailbox and without replyTo");
   const key = message.key === undefined ? undefined : idempotencyKey(message.key);
   if (key === null) throw new ChestError("invalid_message", 400, "a key is 1 to 512 characters, without control characters");
-  if (message.transactional !== undefined && typeof message.transactional !== "boolean") throw new ChestError("invalid_message", 400, "transactional is true or false");
-  for (const id of [message.inReplyTo, ...(message.references ?? [])]) if (id !== undefined && (typeof id !== "string" || id.length > 998 || !headerSafe(id))) throw new ChestError("invalid_message", 400, "invalid message id");
-  const attachments = (message.attachments ?? []).map(a => ("file" in a ? { file: a.file, ...(a.name ? { name: a.name } : {}) } : { name: a.name, type: a.type, content: Buffer.from(typeof a.content === "string" ? new TextEncoder().encode(a.content) : a.content).toString("base64") }));
+  const attachments = (message.attachments ?? []).map(a => {
+    if (a === null || typeof a !== "object") throw new ChestError("invalid_message", 400, "an attachment is {file} or {name, type, content}");
+    if ("file" in a) return { file: a.file, ...(a.name ? { name: a.name } : {}) };
+    if (typeof a.name !== "string" || typeof a.type !== "string" || !headerSafe(a.name) || !headerSafe(a.type)) throw new ChestError("invalid_message", 400, "an attachment is {file} or {name, type, content}");
+    return { name: a.name, type: a.type, content: Buffer.from(typeof a.content === "string" ? new TextEncoder().encode(a.content) : a.content).toString("base64") };
+  });
   const body = JSON.stringify({
     to, cc, subject: message.subject, text: message.text,
     ...(message.html !== undefined ? { html: message.html } : {}),
-    ...(message.mailbox !== undefined ? { mailbox: message.mailbox } : {}),
     ...(message.fromName !== undefined ? { from_name: message.fromName } : {}),
     ...(message.replyTo !== undefined ? { reply_to: message.replyTo } : {}),
-    ...(message.thread !== undefined ? { reply_tag: threadTag(message.mailbox as string, message.thread) } : {}),
-    ...(message.inReplyTo !== undefined ? { in_reply_to: message.inReplyTo } : {}),
-    ...(message.references !== undefined ? { references: message.references } : {}),
     ...(attachments.length ? { attachments } : {}),
     ...(key !== undefined ? { key } : {}),
-    ...(message.transactional ? { transactional: true } : {}),
   });
   if (Buffer.byteLength(body) > limits.size * 1.4) throw new TooLarge();
   const response = await ask("mail", "POST", "/mail/messages", { body, type: "application/json" });
@@ -223,18 +160,15 @@ export async function send(message: Message): Promise<Sent> {
     throw new CapabilityNotGranted("mail");
   }
   if (response.status !== 200 && response.status !== 201) throw await refusal(response, "mail");
-  const answer = (await json(response)) as { id?: unknown; message_id?: unknown; status?: unknown; skipped?: unknown; digest?: unknown } | null;
+  const answer = (await json(response)) as { id?: unknown; message_id?: unknown } | null;
   if (!answer || typeof answer.id !== "string" || !messageIdPattern.test(answer.id) || typeof answer.message_id !== "string") throw new Unavailable();
-  // A Chest before email preferences says neither: nobody was held back.
-  const ids = (v: unknown): string[] | null => (v === undefined ? [] : Array.isArray(v) && v.length <= limits.recipients && v.every(id => typeof id === "string" && memberIdPattern.test(id)) ? [...v] as string[] : null);
-  const skipped = ids(answer.skipped), digest = ids(answer.digest);
-  if (!skipped || !digest) throw new Unavailable();
-  return { id: answer.id, messageId: answer.message_id, status: answer.status === "held" ? "held" : "queued", skipped, digest };
+  return { id: answer.id, messageId: answer.message_id, status: "queued" };
 }
 
-// status says where a sent message stands.
+// status says where a sent message stands; null for an identifier the
+// Chest does not know (or no longer keeps).
 export async function status(id: string): Promise<Status | null> {
-  if (!messageIdPattern.test(id)) throw new ChestError("invalid_id", 400, "invalid message identifier");
+  if (typeof id !== "string" || !messageIdPattern.test(id)) throw new ChestError("invalid_id", 400, "invalid message identifier");
   const response = await ask("mail", "GET", "/mail/messages/" + id);
   if (response.status === 404) {
     await response.body?.cancel();
@@ -242,255 +176,61 @@ export async function status(id: string): Promise<Status | null> {
   }
   if (response.status !== 200) throw await refusal(response, "mail");
   const answer = (await json(response)) as { id?: unknown; status?: unknown; at?: unknown } | null;
-  const known = ["queued", "held", "sent", "delivered", "bounced", "complained", "failed"];
+  const known = ["queued", "sent", "delivered", "bounced", "complained", "failed"];
   if (!answer || answer.id !== id || typeof answer.status !== "string" || !known.includes(answer.status) || typeof answer.at !== "string") throw new Unavailable();
   return { id, status: answer.status as Status["status"], at: answer.at };
 }
 
-// Proposal (0.3.0-studio.16): whether the Chest will deliver what the tool
-// sends, asked without sending — for a form that offers "Email the
-// newcomer their first-day details" (People) or a Settings page that says
-// whether alerts can go out. ok is true when a send would be queued now;
-// otherwise reason says why, in words a tool turns into a sentence:
+// Whether the Chest will deliver what the tool sends, asked without
+// sending — for a form that offers "Email the visitor a recap" or a
+// Settings page that says whether mails to customers can go out. ok is
+// true when a send would be queued now; otherwise reason says why, in
+// words a tool turns into a sentence:
 //   "not_granted"    the version does not declare "mail", the owner did not
-//                    approve it, or the Chest has no mail yet (outside a
-//                    Chest too) — "Emails will be sent once your Chest can
-//                    send them";
+//                    approve it, or the Chest has no mail (outside a Chest
+//                    too) — "Emails will be sent once your Chest can send
+//                    them";
 //   "not_connected"  the owner has not connected the company's mail
-//                    provider yet — "Ask your Chest's owner to connect
-//                    email";
-//   "suspended"      the Chest stopped sending for now (its provider
+//                    provider — "Ask your Chest's owner to connect email";
+//   "suspended"      the Chest stopped sending for now (the provider
 //                    refuses it, the owner paused the tool's mail);
 //   "quota"          the day's messages are used — "Emails go out again
 //                    tomorrow".
 // remainingToday is what is left of the day's messages (null when the
-// Chest does not say). A snapshot: send can still fail, and a member's own
-// preference (preference(), below) may still hold a message back.
-export type MailAvailability = { ok: boolean; reason: "not_granted" | "not_connected" | "suspended" | "quota" | null; remainingToday: number | null };
+// Chest does not say). replyTo is the company's reply address the owner
+// set with the connector — where replies to the tool's mails land when the
+// tool gives no replyTo — to show on a page ("Replies go to
+// contact@atelier-martin.fr"); null when the owner set none (replies then
+// go to the sending address) or the Chest does not say. A snapshot: send
+// can still fail.
+export type MailAvailability = { ok: boolean; reason: "not_granted" | "not_connected" | "suspended" | "quota" | null; remainingToday: number | null; replyTo: string | null };
 
 // available asks the Chest whether it would deliver now; it never sends
 // and never throws for a missing capability. Errors: Unavailable (the
 // Chest did not answer: say "unknown", not "off").
 export async function available(): Promise<MailAvailability> {
+  const off: MailAvailability = { ok: false, reason: "not_granted", remainingToday: null, replyTo: null };
   let response: Response;
   try {
     response = await ask("mail", "GET", "/mail/status");
   } catch (error) {
-    if (error instanceof CapabilityNotGranted) return { ok: false, reason: "not_granted", remainingToday: null };
+    if (error instanceof CapabilityNotGranted) return off;
     throw error;
   }
   if (response.status === 404 || response.status === 403) {
     await response.body?.cancel();
-    return { ok: false, reason: "not_granted", remainingToday: null };
+    return off;
   }
   if (response.status !== 200) throw await refusal(response, "mail");
-  const answer = (await json(response)) as { send?: unknown; remaining_today?: unknown } | null;
-  const remaining = answer?.remaining_today;
+  const answer = (await json(response)) as { send?: unknown; remaining_today?: unknown; reply_to?: unknown } | null;
+  const remaining = answer?.remaining_today, reply = answer?.reply_to;
   if (!answer || !(remaining === undefined || remaining === null || (Number.isSafeInteger(remaining) && (remaining as number) >= 0))) throw new Unavailable();
+  if (!(reply === undefined || reply === null || isAddress(reply))) throw new Unavailable();
   const remainingToday = typeof remaining === "number" ? remaining : null;
-  if (answer.send === "not_connected" || answer.send === "suspended") return { ok: false, reason: answer.send, remainingToday };
+  const replyTo = typeof reply === "string" ? reply : null;
+  if (answer.send === "not_connected" || answer.send === "suspended") return { ok: false, reason: answer.send, remainingToday, replyTo };
   // A state of a later Chest that is not "ready" is not a promise to send.
-  if (answer.send !== "ready") return { ok: false, reason: "suspended", remainingToday };
-  if (remainingToday === 0) return { ok: false, reason: "quota", remainingToday };
-  return { ok: true, reason: null, remainingToday };
-}
-
-// mailboxAddress is the address of one of the tool's mailboxes, to show on
-// its pages ("Write to support@atelier-martin.fr"); null when the owner has
-// not given it one yet.
-export async function mailboxAddress(mailbox: string): Promise<string | null> {
-  if (!mailboxPattern.test(mailbox)) throw new ChestError("invalid_message", 400, "invalid mailbox");
-  const response = await ask("mail", "GET", "/mail/mailboxes/" + mailbox);
-  if (response.status === 404) {
-    await response.body?.cancel();
-    return null;
-  }
-  if (response.status !== 200) throw await refusal(response, "mail");
-  const answer = (await json(response)) as { address?: unknown } | null;
-  return answer && isAddress(answer.address) ? answer.address : null;
-}
-
-// ---- The person's email preference (Proposal (0.3.0-studio.15)) -------------------
-//
-// Each member chooses once, in the Chest, how every tool may email them:
-// "all", "digest" (one email a day from the Chest gathering the others) or
-// "none". send applies it to every message that is not transactional, so no
-// tool can forget or override it; a tool reads it only to say so ("You
-// chose one email a day — change it in your Chest settings"). A tool may
-// keep its own switch too ("no reminders from Tasks"): both apply — the
-// tool's decides whether it sends, the Chest's whether and how the person
-// receives. Read-only.
-//
-// Until studio.1 of 0.4.1 it was a field of Member (mailPreference),
-// answered by members.get/list/lookup as mail_pref: a field the official
-// members module does not read. It is mail's, asked of mail: GET
-// /mail/preferences/<member>.
-export type MailPreference = "all" | "digest" | "none";
-
-// preference is how a member who has the tool wants email: "all" when the
-// Chest says nothing else (a Chest without preferences). null for an
-// identifier the tool does not have. Errors: ChestError invalid_id,
-// CapabilityNotGranted (not declared, or a Chest without mail), Unavailable.
-export async function preference(memberId: string): Promise<MailPreference | null> {
-  if (typeof memberId !== "string" || !memberIdPattern.test(memberId)) throw new ChestError("invalid_id", 400, "invalid member identifier");
-  const response = await ask("mail", "GET", "/mail/preferences/" + memberId);
-  if (response.status === 404) {
-    const code = ((await json(response).catch(() => null)) as { error?: unknown } | null)?.error;
-    if (code === "member_not_found") return null;
-    throw new CapabilityNotGranted("mail");
-  }
-  if (response.status !== 200) throw await refusal(response, "mail");
-  const answer = (await json(response)) as { preference?: unknown } | null;
-  const given = answer?.preference;
-  // A word of a later Chest is not a reason to refuse: read it as "all".
-  return given === "digest" || given === "none" ? given : "all";
-}
-
-// ---- Threads (Proposal (studio)) -------------------------------------------
-//
-// A reply must land on its ticket even when the customer's mail client
-// drops the References header, and nobody may drop a message into a
-// ticket that is not theirs by writing to support+1042@. So the thread
-// address carries the tool's thread and a tag only this tool can make: an
-// HMAC of the mailbox and the thread under a key derived from CHEST_TOKEN
-// (like its other keys), 50 bits in base32 — lower case, as mail systems
-// may lower-case an address. The Chest only routes mailbox+anything@ to
-// the mailbox and says which address it received; this SDK checks the tag.
-// A tag made before the token changed (a reinstall) no longer verifies:
-// the message comes with thread null and the tool falls back on
-// References.
-
-const threadLabel = "Chest-Mail-Thread v1";
-const base32 = "abcdefghijklmnopqrstuvwxyz234567";
-const tagPattern = /^t([a-z0-9]{1,16})-([a-z2-7]{10})$/u;
-
-function mac(mailbox: string, thread: string): string {
-  const token = process.env["CHEST_TOKEN"];
-  if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token)) throw new CapabilityNotGranted("mail");
-  const key = createHmac("sha256", Buffer.from(token, "utf8")).update(threadLabel).digest();
-  const sum = createHmac("sha256", key).update(mailbox + "\u0000" + thread).digest();
-  let bits = 0, value = 0, out = "";
-  for (const byte of sum) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5 && out.length < 10) {
-      out += base32[(value >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
-    if (out.length === 10) break;
-  }
-  return out;
-}
-
-// threadTag is what follows "+" in a thread address of that mailbox:
-// "t1042-k3q…". A tool rarely needs it: send({mailbox, thread}) uses it.
-export function threadTag(mailbox: string, thread: string): string {
-  if (!mailboxPattern.test(mailbox) || typeof thread !== "string" || !threadPattern.test(thread)) throw new ChestError("invalid_message", 400, "invalid mailbox or thread");
-  return `t${thread}-${mac(mailbox, thread)}`;
-}
-
-// threadOf reads an address the Chest received a message for: the thread
-// of this tool it carries, or null (no tag, another mailbox's, a tag this
-// tool did not make).
-export function threadOf(address: string, mailbox: string): string | null {
-  if (typeof address !== "string" || !mailboxPattern.test(mailbox)) return null;
-  const local = address.slice(0, address.lastIndexOf("@")).toLowerCase();
-  if (!local.startsWith(mailbox + "+")) return null;
-  const m = tagPattern.exec(local.slice(mailbox.length + 1));
-  if (!m) return null;
-  let expected: string;
-  try {
-    expected = mac(mailbox, m[1]!);
-  } catch {
-    return null;
-  }
-  const a = Buffer.from(expected), b = Buffer.from(m[2]!);
-  return a.length === b.length && timingSafeEqual(a, b) ? m[1]! : null;
-}
-
-// threadAddress is the address that brings a reply back to this thread
-// ("support+t1042-k3q…@atelier-martin.fr"), to show on a page ("reply to
-// this address"); null until the owner gives the mailbox an address.
-export async function threadAddress(mailbox: string, thread: string): Promise<string | null> {
-  const tag = threadTag(mailbox, thread);
-  const plain = await mailboxAddress(mailbox);
-  if (plain === null) return null;
-  const at = plain.lastIndexOf("@");
-  return plain.slice(0, at) + "+" + tag + plain.slice(at);
-}
-
-// ---- Received mail ---------------------------------------------------------
-
-export const bouncePattern = /^bnc_[a-z2-7]{26}$/u;
-
-const strings = (v: unknown, max: number): v is string[] => Array.isArray(v) && v.length <= max && v.every(x => typeof x === "string" && x.length <= 998);
-
-// verify returns what a delivery carries (POST /chest-mail, signed
-// Chest-Mail for this tool with 0.4.1's signed deliveries, as Chest-Event):
-// a received message, or a bounce of a message the tool sent; null for
-// anything else. It reads the body (4 MiB at most) and never throws for
-// what a request carries.
-export async function verify(request: IncomingMessage | Request): Promise<Received | Bounce | null> {
-  const signed = await delivery(request, mailChannel);
-  if (!signed) return null;
-  const { id: jti, body } = signed;
-  const m = object(parse(body.toString("utf8")));
-  if (!m || m["id"] !== jti) return null;
-  if (bouncePattern.test(jti)) {
-    if (m["kind"] !== "bounce" || typeof m["message"] !== "string" || !messageIdPattern.test(m["message"]) || !isAddress(m["recipient"]) || typeof m["permanent"] !== "boolean" || typeof m["reason"] !== "string" || m["reason"].length > 500 || typeof m["at"] !== "string") return null;
-    return { kind: "bounce", id: jti, message: m["message"], recipient: m["recipient"] as string, permanent: m["permanent"], reason: m["reason"], at: m["at"] };
-  }
-  const from = object(m["from"]);
-  const attachments = Array.isArray(m["attachments"]) ? m["attachments"].map(object) : null;
-  const dropped = Array.isArray(m["dropped"]) ? m["dropped"].map(object) : null;
-  if (m["kind"] !== "message" || typeof m["mailbox"] !== "string" || !mailboxPattern.test(m["mailbox"]) || !from || !isAddress(from["address"]) || !(from["name"] === null || typeof from["name"] === "string")) return null;
-  if (!strings(m["to"], 100) || !strings(m["cc"], 100) || !isAddress(m["delivered_to"]) || typeof m["subject"] !== "string" || typeof m["text"] !== "string" || !(m["html"] === null || typeof m["html"] === "string") || !(m["original"] === null || typeof m["original"] === "string")) return null;
-  if (typeof m["message_id"] !== "string" || !(m["in_reply_to"] === null || typeof m["in_reply_to"] === "string") || !strings(m["references"], 100) || typeof m["received_at"] !== "string" || typeof m["spam"] !== "number" || typeof m["authenticated"] !== "boolean" || typeof m["auto"] !== "boolean") return null;
-  if (!attachments || attachments.length > limits.attachments || !attachments.every(a => a && typeof a["file"] === "string" && typeof a["name"] === "string" && typeof a["type"] === "string" && typeof a["size"] === "number")) return null;
-  if (!dropped || !dropped.every(d => d && typeof d["name"] === "string" && typeof d["size"] === "number" && ["count", "type", "virus", "quota"].includes(d["reason"] as string))) return null;
-  const mailbox = m["mailbox"];
-  return {
-    kind: "message",
-    id: jti,
-    mailbox,
-    from: { address: from["address"] as string, name: from["name"] as string | null },
-    to: m["to"] as string[],
-    cc: m["cc"] as string[],
-    deliveredTo: m["delivered_to"] as string,
-    thread: threadOf(m["delivered_to"] as string, mailbox),
-    subject: m["subject"],
-    text: m["text"],
-    html: m["html"] as string | null,
-    original: m["original"] as string | null,
-    messageId: m["message_id"],
-    inReplyTo: m["in_reply_to"] as string | null,
-    references: m["references"] as string[],
-    attachments: (attachments as Record<string, unknown>[]).map(a => ({ file: a["file"] as string, name: a["name"] as string, type: a["type"] as string, size: a["size"] as number })),
-    dropped: (dropped as Record<string, unknown>[]).map(d => ({ name: d["name"] as string, size: d["size"] as number, reason: d["reason"] as Received["dropped"][number]["reason"] })),
-    receivedAt: m["received_at"],
-    spam: Math.max(0, Math.min(10, m["spam"])),
-    authenticated: m["authenticated"],
-    auto: m["auto"],
-  };
-}
-
-const remembered = memorySeen();
-
-// handle verifies a delivery and hands it to its handler, once: 401 for a
-// delivery that is not the Chest's, 204 once handled or for one already
-// handled (seen.has). handler is a function of the received messages (a
-// bounce is then accepted and ignored), or {message, bounce}. A handler
-// that throws leaves the delivery unseen and handle throws: answer 500, the
-// Chest delivers it again (at least once: the same id). seen is memorySeen
-// by default, as in 0.4.1's events and schedules; give a durable one.
-export async function handle(request: IncomingMessage | Request, handler: ((message: Received) => void | Promise<void>) | MailHandlers, options: { seen?: Seen } = {}): Promise<number> {
-  const received = await verify(request);
-  if (!received) return 401;
-  const seen = options.seen ?? remembered;
-  if (await seen.has(received.id)) return 204;
-  const handlers: MailHandlers = typeof handler === "function" ? { message: handler } : handler;
-  if (received.kind === "message") await handlers.message?.(received);
-  else await handlers.bounce?.(received);
-  await seen.add(received.id);
-  return 204;
+  if (answer.send !== "ready") return { ok: false, reason: "suspended", remainingToday, replyTo };
+  if (remainingToday === 0) return { ok: false, reason: "quota", remainingToday, replyTo };
+  return { ok: true, reason: null, remainingToday, replyTo };
 }

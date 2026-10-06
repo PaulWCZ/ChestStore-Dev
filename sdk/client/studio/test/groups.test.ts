@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CapabilityNotGranted, ChestError } from "../../src/errors.js";
+import { CapabilityNotGranted } from "../../src/errors.js";
 import * as events from "../events.js";
 import { member, type Member } from "../member.js";
 import * as members from "../members.js";
@@ -15,15 +15,15 @@ const tech = { id: gid("tech"), name: "Tech", members: [mid("lea")], grants: fal
 const office = { id: gid("office"), name: "Office", members: [mid("camille")] };
 const ines = person("ines", [sales.id]), hugo = person("hugo", [sales.id]), lea = person("lea", [tech.id]), camille = person("camille", [office.id]);
 
-test("without \"groups\", a tool sees only the groups that give it (and a member's among them)", async () => {
+test("without \"members.groups\", a tool sees only the groups that give it (and a member's among them)", async () => {
   const chest = await fakeChest({ members: [ines, hugo, lea, camille], groups: [sales, tech, office], capabilities: ["members"] });
   try {
     assert.deepEqual((await members.groups.list()).map(g => g.name), ["Office"]);
     assert.deepEqual((await members.get(ines.id))?.groups, [], "Sales does not give the tool: unseen");
     assert.deepEqual((await members.get(camille.id))?.groups, [office.id]);
+    assert.deepEqual((await members.list({ group: sales.id })).members, [], "a group that does not give the tool lists nobody");
+    assert.deepEqual((await members.list({ group: office.id })).members.map(m => m.id), [camille.id]);
     await assert.rejects(members.groups.all(), CapabilityNotGranted);
-    await assert.rejects(members.groups.members(sales.id), CapabilityNotGranted);
-    await assert.rejects(members.groups.of(ines.id), CapabilityNotGranted);
     // The assertion agrees with the members API: a group that does not give
     // the tool is never in member(request).groups.
     const signed = (who: Member) => member(withMember(new Request("http://tool.test/chest"), who))?.groups;
@@ -37,41 +37,47 @@ test("without \"groups\", a tool sees only the groups that give it (and a member
   assert.deepEqual(member(withMember(new Request("http://tool.test/chest"), ines, { token: "t".repeat(43), tool: "tool" })), null, "no CHEST_TOKEN: nobody");
 });
 
-test("with \"groups\": every group of the Chest, who is in one among those who have the tool, every group of a member (by a call)", async () => {
-  const chest = await fakeChest({ members: [ines, hugo, lea, camille], groups: [sales, tech, office], capabilities: ["members", "groups"] });
+test("with \"members.groups\" (the 0.5 names): member.groups and members.*.groups carry every group, members.list({group}) any group, groups.all() every group", async () => {
+  const chest = await fakeChest({ members: [ines, hugo, lea, camille], groups: [sales, tech, office], capabilities: ["members", "members.groups"] });
   try {
     assert.deepEqual(await members.groups.all(), [
       { id: office.id, name: "Office", size: 1 },
       { id: sales.id, name: "Sales", size: 2 },
       { id: tech.id, name: "Tech", size: 1 },
     ], "by name; the member without the tool is not counted");
-    assert.deepEqual(await members.groups.members(sales.id), { members: [hugo.id, ines.id], next: null });
-    const paged = await members.groups.members(sales.id, { limit: 1 });
-    assert.deepEqual(paged, { members: [hugo.id], next: hugo.id });
-    assert.deepEqual(await members.groups.members(sales.id, { after: paged!.next!, limit: 1 }), { members: [ines.id], next: null });
-    assert.equal(await members.groups.members(gid("nothing")), null, "a group the Chest does not have");
-    await assert.rejects(members.groups.members("sales"), (e: unknown) => e instanceof ChestError && e.code === "invalid_id");
-    // A member's groups in the members API keep 0.3.0's meaning (those that
-    // give the tool); every group of a member is a call.
-    assert.deepEqual((await members.get(ines.id))?.groups, [], "0.3.0's meaning, whatever \"groups\" says");
-    assert.deepEqual(await members.groups.of(ines.id), [sales.id]);
-    assert.deepEqual(await members.groups.of(camille.id), [office.id]);
-    assert.equal(await members.groups.of(mid("gone")), null, "not a member who has the tool");
-    await assert.rejects(members.groups.of("ines"), (e: unknown) => e instanceof ChestError && e.code === "invalid_id");
     assert.deepEqual((await members.list({ group: sales.id })).members.map(m => m.id), [hugo.id, ines.id]);
-    // The assertion carries what the Chest gives, within the 16 groups that
-    // 0.3.0's member() reads (the proposal asked 64; 0.3.1-studio keeps the
-    // official bound, and members(id) is the complete answer).
-    const groupsOf = (n: number) => Array.from({ length: n }, (_, i) => gid("g" + "abcdefghijklmnopqrstuvwxyz"[i % 26]! + "bc"[Math.floor(i / 26)]!));
+    assert.deepEqual((await members.list({ group: sales.id, limit: 1 })).members.map(m => m.id), [hugo.id]);
+    assert.deepEqual((await members.get(ines.id))?.groups, [sales.id]);
+    assert.deepEqual(member(withMember(new Request("http://tool.test/chest"), ines))?.groups, [sales.id]);
+    assert.deepEqual(member(withMember(new Request("http://tool.test/chest"), { ...ines, groups: [sales.id, office.id] }))?.groups, [sales.id, office.id]);
+    // 0.4.1's groups.list() keeps its meaning: the groups that give the tool.
+    assert.deepEqual((await members.groups.list()).map(g => g.name), ["Office"]);
+    // What the proposal no longer has (studio.5): of and members.
+    assert.equal("of" in members.groups, false);
+    assert.equal("members" in members.groups, false);
+  } finally {
+    await chest.close();
+  }
+});
+
+test("no fixed cap on groups: groups.all() lists 600 groups; 0.4.1's member() still reads 16 groups at most (official code, lifted in 0.5)", async () => {
+  const letters = "abcdefghijklmnopqrstuvwxyz";
+  const many = Array.from({ length: 600 }, (_, i) => ({ id: gid("m" + letters[i % 26]! + letters[Math.floor(i / 26) % 26]!), name: `Team ${String(i).padStart(3, "0")}`, members: [ines.id], grants: false }));
+  const chest = await fakeChest({ members: [ines], groups: many, capabilities: ["members", "members.groups"] });
+  try {
+    const all = await members.groups.all();
+    assert.equal(all.length, 600);
+    assert.equal(all[0]?.name, "Team 000");
+    const groupsOf = (n: number) => many.slice(0, n).map(g => g.id);
     assert.equal(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(16))))?.groups.length, 16);
-    assert.equal(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(17)))), null);
+    assert.equal(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(17)))), null, "0.4.1's member() refuses more than 16 groups: reported in the SDK report");
   } finally {
     await chest.close();
   }
 });
 
 test("group events: a group renamed, changing members, or deleted, verified and handed once", async () => {
-  const chest = await fakeChest({ members: [ines], groups: [sales], capabilities: ["members", "groups"], receives: ["member.*", "group.*"] });
+  const chest = await fakeChest({ members: [ines], groups: [sales], capabilities: ["members", "members.groups"], receives: ["member.*", "group.*"] });
   try {
     const told: string[] = [];
     const app = async (request: Request) => new Response(null, { status: await events.handle(request, {
