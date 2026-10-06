@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { format, formatDay, money, plural } from "../i18n/index.ts";
-import { badges, cut, notify, withdraw } from "./notify.ts";
+import { badges, cut, notify, withdraw, cutLines } from "./notify.ts";
 import { urgentCounts } from "./steps.ts";
 
 // What Clients tells people through the Chest's bell, each in their own
@@ -11,20 +11,20 @@ import { urgentCounts } from "./steps.ts";
 
 export async function dealGiven(actor: Member, to: string | null, deal: { id: string; title: string; value: number; currency?: string }): Promise<void> {
   if (!to || to === actor.id) return;
-  await notify([to], (t, locale) => ({ title: format(t.bell.dealGiven, { name: actor.name }), body: cut(`${deal.title} · ${money(deal.value, locale, { currency: deal.currency ?? "EUR" })}`, 280) }), { path: `/chest/deals/${deal.id}`, key: `deal:${deal.id}:owner` });
+  await notify([to], (t, locale) => ({ title: format(t.bell.dealGiven, { name: actor.name }), body: cutLines(`${deal.title} · ${money(deal.value, locale, { currency: deal.currency ?? "EUR" })}`, 280) }), { path: `/chest/deals/${deal.id}`, key: `deal:${deal.id}:owner` });
 }
 
 // A lead from a form given to someone else (lib/leads.ts).
 export async function leadGiven(actor: Member, to: string, contact: { id: string; name: string }): Promise<void> {
   if (to === actor.id) return;
-  await notify([to], t => ({ title: format(t.bell.leadGiven, { name: actor.name }), body: cut(contact.name, 280) }), { path: `/chest/contacts/${contact.id}`, key: `contact:${contact.id}:owner` });
+  await notify([to], t => ({ title: format(t.bell.leadGiven, { name: actor.name }), body: cutLines(contact.name, 280) }), { path: `/chest/contacts/${contact.id}`, key: `contact:${contact.id}:owner` });
 }
 
 export async function stepGiven(actor: Member, to: string | null, step: { id: string; text: string; due: string; time: string | null }, on: { kind: "deal" | "contact"; id: string; title: string } | null): Promise<void> {
   if (!to || to === actor.id) return;
   await notify([to], (t, locale) => {
     const day = formatDay(step.due, locale, { weekday: "short", day: "numeric", month: "short" }) + (step.time ? " " + step.time : "");
-    return { title: format(t.bell.stepGiven, { name: actor.name }), body: cut(on ? format(t.bell.stepBody, { text: step.text, day, on: on.title }) : format(t.bell.stepBodySelf, { text: step.text, day }), 280) };
+    return { title: format(t.bell.stepGiven, { name: actor.name }), body: cutLines(on ? format(t.bell.stepBody, { text: step.text, day, on: on.title }) : format(t.bell.stepBodySelf, { text: step.text, day }), 280) };
   }, { path: on ? `/chest/${on.kind === "deal" ? "deals" : "contacts"}/${on.id}` : "/chest", key: `step:${step.id}` });
 }
 

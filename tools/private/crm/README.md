@@ -379,7 +379,7 @@ with `booking.confirmed` or `booking.cancelled` plays Booking
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (`0.4.1-studio.6`), the studio's
+Built on SDK 0.4.1 + studio proposals (`0.4.1-studio.7`), the studio's
 package `@argentic/chest-app` (`0.1.0-studio.6`) and UI kit
 (`0.2.6-studio.1`), all in `vendor/`; tool contract 0.4 (`chest.json`).
 
