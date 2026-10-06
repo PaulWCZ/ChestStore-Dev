@@ -314,6 +314,28 @@ test("the morning schedule runs on POST /chest-schedules, at least once, and not
   assert.equal((await app.fetch(new Request(url("/chest-schedules"), { method: "POST", body: "{}" }))).status, 401);
 });
 
+test("a checklist says Hiring only for an arrival Hiring told, never for one HR wrote by hand", async () => {
+  const to = (request: Request) => app.fetch(request);
+  const list = await call(sofia, "createTemplate", { kind: "onboarding", name: "First days" });
+  assert.equal(list.ok, true, list.message);
+  assert.equal((await call(sofia, "addTemplateItem", { id: list.value.id, text: "Give the badge", role: "hr", offset: 0 })).ok, true);
+  const first = new Date(Date.now() + 12 * 86_400_000).toISOString().slice(0, 10);
+  const byHand = await call(sofia, "addArrival", { input: { name: "Marc Petit", startDate: first } });
+  assert.equal(byHand.ok, true, byHand.message);
+  assert.equal(await chest.deliver({ type: "hiring.hired", source: "hiring", data: { candidate: "cand_badge", name: "Zoé Martin", job: "Designer", team: "", place: "", startDate: first, hiredBy: null } }, to), 204);
+  const told = (await database.sql<{ id: string }[]>`select id from arrivals where source = 'hiring' and ref = 'cand_badge'`)[0]!;
+  const manual = await call(sofia, "startChecklist", { arrivalId: byHand.value.id, templateId: list.value.id, anchor: first });
+  const hiring = await call(sofia, "startChecklist", { arrivalId: String(told.id), templateId: list.value.id, anchor: first });
+  assert.equal(manual.ok && hiring.ok, true, manual.message ?? hiring.message);
+  // Sofia reads English, Camille French.
+  assert.doesNotMatch((await page(sofia, `/chest/checklists/${manual.value.id}`)).html, /class="source">Hiring</u);
+  assert.doesNotMatch((await page(camille, `/chest/checklists/${manual.value.id}`)).html, /class="source">Recrutement</u);
+  assert.match((await page(sofia, `/chest/checklists/${hiring.value.id}`)).html, /class="source">Hiring</u);
+  assert.match((await page(camille, `/chest/checklists/${hiring.value.id}`)).html, /class="source">Recrutement</u);
+  // The arrivals go (and their checklists with them): the other tests count theirs.
+  for (const gone of [byHand.value.id, String(told.id)]) assert.equal((await call(sofia, "removeArrival", { id: gone })).ok, true);
+});
+
 test("the welcome to an arrival: an address already a member's is said on the form and gets a notification; an email that bounced shows on the checklist", async () => {
   await chest.close();
   const withAddresses = everyone.map(p => ({ ...p, email: `${p.firstName.toLowerCase()}@atelier.test` }));

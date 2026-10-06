@@ -61,7 +61,7 @@ export async function checklistPage({ member, locale, t, param }: PageContext): 
           <div>
             <span className="row tags">
               <KindBadge kind={journey.kind} label={t.checklists.kinds[journey.kind]} />
-              {journey.arrivalId && <span className="source">{t.arrivals.fromHiring}</span>}
+              {journey.arrivalSource === "hiring" && <span className="source">{t.arrivals.fromHiring}</span>}
             </span>
             <h1>{title}</h1>
             <p className="muted">{listName(journey, t)} · {format(journey.kind === "onboarding" ? t.journey.firstDay : t.journey.lastDay, { date: formatDay(journey.anchor, locale, { weekday: "long", day: "numeric", month: "long" }) })}</p>
