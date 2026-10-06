@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestSchedules as POST } from "../src/calls.ts";
 import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
 import { addEntry } from "../src/lib/entries.ts";
@@ -16,7 +16,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase({ timeZone: "Europe/Paris" });
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test", ...(p.id === tom.id ? { mailPreference: "none" as const } : {}) })), capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris" } });
 });
 after(async () => {
   await chest.close();
@@ -32,7 +32,7 @@ test("an empty tool reminds nobody on Friday", async () => {
   assert.equal(chest.outbox.length, 0);
 });
 
-test("on Friday, whoever has a short week gets one item, in their language; delivered twice, still one", async () => {
+test("on Friday, whoever has a short week gets one notice, in every language; delivered twice, still one; no mail", async () => {
   const { sql } = database;
   const friday = addDays(mondayOf(todayIn("Europe/Paris")), 4);
   const p = await projects.createProject(sql, asMember(camille), { name: "Site" });
@@ -42,7 +42,7 @@ test("on Friday, whoever has a short week gets one item, in their language; deli
   await addEntry(sql, asMember(hugo), { projectId: p.id, day: addDays(friday, -7), minutes: 600 }); // last week's
   const scheduledAt = new Date(`${friday}T13:30:00Z`).toISOString();
   assert.equal(await chest.run("friday", POST, { scheduledAt }), 204);
-  const items = chest.notifications.map(n => [n.member, n.title, n.key]).sort();
+  const items = chest.notifications.map(n => [n.member, shownTo(n, everyone.find(p => p.id === n.member)!.language ?? "en"), n.key] as const).map(([m, w, k]) => [m, w.title, k]).sort();
   // Tom has no entry yet: his start is the tool's (last week, Hugo's first
   // entry), so this week is expected of him — as the Team page says.
   assert.deepEqual(items, [
@@ -50,17 +50,11 @@ test("on Friday, whoever has a short week gets one item, in their language; deli
     [ines.id, "Votre semaine compte 21,5 h — compléter le reste ?", "week"],
     [tom.id, "Your week is empty — fill it in?", "week"],
   ].sort());
-  // By email too (the mail proposal), once whatever the retries — except
-  // to Tom, who chose no email in the Chest: a reminder is not
-  // transactional, so his choice holds (the bell still tells him).
-  assert.deepEqual(chest.outbox.map(m => [m.to[0], m.subject.replace(/\s/gu, " ")]).sort(), [
-    ["hugo@atelier.test", "Your week is empty — fill it in?"],
-    ["ines@atelier.test", "Votre semaine compte 21,5 h — compléter le reste ?"],
-  ]);
-  assert.deepEqual(chest.held.map(h => [h.member, h.reason]), [[tom.id, "none"]]);
+  // The tool mails nobody: the Chest mails each member their
+  // notifications, by their own choice.
+  assert.equal(chest.outbox.length, 0);
   assert.equal(await chest.run("friday", POST, { scheduledAt }), 204);
   assert.equal(chest.notifications.length, 3);
-  assert.equal(chest.outbox.length, 2);
 });
 
 test("a week before the tool's start (anyone's start) is never reminded", async () => {
@@ -84,22 +78,22 @@ test("turned off, or a higher bar, as the manager sets it", async () => {
   assert.equal(chest.notifications.length, before);
 });
 
-test("a week sent to two managers: each gets their email, under a key of their own (never cut)", async () => {
+test("a week sent to two managers: each is told, the French words with the notice", async () => {
   const { sql } = database;
-  const sofia = { id: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", firstName: "Sofia", lastName: "Rossi", name: "Sofia Rossi", photo: null, role: "manager", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris", email: "sofia@atelier.test" };
+  const sofia = { id: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", firstName: "Sofia", lastName: "Rossi", name: "Sofia Rossi", photo: null, role: "manager", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
   chest.members.push(sofia);
   try {
     const p = await projects.createProject(sql, asMember(camille), { name: "Shop" });
     const week = addDays(mondayOf(todayIn("Europe/Paris")), -21);
     await addEntry(sql, asMember(hugo), { projectId: p.id, day: week, minutes: 480 });
-    chest.outbox.length = 0;
+    chest.notifications.length = 0;
     const sent = await submitWeek(sql, asMember(hugo), week);
     assert.equal(sent.approvers, 2);
-    assert.deepEqual(chest.outbox.map(m => m.to[0]).sort(), ["camille@atelier.test", "sofia@atelier.test"]);
-    const keys = chest.outbox.map(m => m.key);
-    assert.equal(new Set(keys).size, 2);
-    // The tool's key is longer than the Chest keeps: the SDK sends its digest.
-    assert.ok(keys.every(k => k?.startsWith("sha256:")));
+    const told = chest.notifications.filter(n => n.title.startsWith("Hugo Bernard sent their week"));
+    assert.deepEqual(told.map(n => n.member).sort(), [camille.id, sofia.id].sort());
+    assert.match(shownTo(told[0]!, "fr").title, /^Hugo Bernard a envoyé sa semaine du /u);
+    assert.ok(told.every(n => n.path === `/chest/team/${hugo.id}?week=${week}`));
+    assert.equal(chest.outbox.length, 0);
   } finally {
     chest.members.splice(chest.members.findIndex(m => m.id === sofia.id), 1);
   }

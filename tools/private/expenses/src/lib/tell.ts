@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { waitingCounts, totals, type Decision, type Expense, type Total } from "./expenses.ts";
@@ -6,7 +5,6 @@ import { format, formatDate, plural, shortDate } from "../i18n/index.ts";
 import { formatMoney } from "../shared/money.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { receiptsOwed } from "./cards.ts";
-import { email } from "./mail.ts";
 import { accountants } from "./people.ts";
 
 // What Expenses tells people through the Chest's bell, each in their own
@@ -23,8 +21,8 @@ function what(e: Expense, locale: string): string {
   return place ? `${place} · ${amount}` : amount;
 }
 
-// Someone sent expenses: their approver (or the accountants) hears of it,
-// in the bell and by email.
+// Someone sent expenses: their approver (or the accountants) hears of it
+// (the Chest mails it to them too when they chose so).
 export async function sent(sql: Query, actor: Member, result: { claim?: string; approver: string | null; expenses: Expense[] }): Promise<void> {
   const recipients = result.approver ? [result.approver] : (await accountants()).filter(a => a !== actor.id);
   const sum = totals(result.expenses);
@@ -32,10 +30,6 @@ export async function sent(sql: Query, actor: Member, result: { claim?: string; 
     title: plural(t.bell.sent, result.expenses.length, locale, { name: actor.name, total: totalText(sum, locale) }),
     body: cut(result.expenses.map(e => what(e, locale)).join("\n"), 280),
   }), { path: "/chest/approve", key: `waiting:${actor.id}` });
-  await email(recipients, (t, locale) => ({
-    subject: plural(t.mail.sent, result.expenses.length, locale, { name: actor.name, total: totalText(sum, locale) }),
-    lines: [plural(t.mail.sentLine, result.expenses.length, locale, { name: actor.name }), "", ...result.expenses.map(e => `${shortDate(e.spentOn, locale)} · ${what(e, locale)}`)],
-  }), { path: "/chest/approve", key: `sent:${result.claim ?? createHash("sha256").update(result.expenses.map(e => e.id).join(",")).digest("hex").slice(0, 24)}` });
   // Refused expenses sent again no longer need their owner's look.
   for (const e of result.expenses) await withdraw(`refused:${e.id}`, [actor.id]);
   await refresh(sql, [actor.id, ...recipients]);
@@ -113,23 +107,19 @@ export async function bankChanged(actor: Member, owner: string, last4: string): 
 }
 
 // Company card payments waiting for their receipt: each holder is asked in
-// their bell ("3 card payments need their receipt"), one item per person,
-// replaced at the next statement or reminder and withdrawn once every
-// receipt is there (settleCardReceipts).
+// their inbox, each payment named ("3 card payments need their receipt" —
+// "12 Sep · UBER *TRIP · €23.40, …"), one item per person, replaced at the
+// next statement or reminder and withdrawn once every receipt is there
+// (settleCardReceipts).
 export async function cardReceipts(sql: Query, owners: string[]): Promise<number> {
   const owed = await receiptsOwed(sql, [...new Set(owners)]);
   const lines = await receiptLines(sql, [...owed.keys()]);
   for (const [owner, count] of owed) {
-    await notify([owner], (t, locale) => ({ title: plural(t.bell.cardReceipts, count, locale), body: t.bell.cardReceiptsBody }), { path: "/chest", key: `card:${owner}` });
-    // By email too, each payment named: "Receipt needed: UBER *TRIP · €23.40".
     const mine = lines.filter(l => l.owner === owner);
-    await email([owner], (t, locale) => {
-      const named = mine.map(l => `${shortDate(l.day, locale)} · ${l.merchant} · ${formatMoney(l.amount, l.currency, locale)}`);
-      return {
-        subject: mine.length === 1 ? format(t.mail.cardOne, { what: `${mine[0]!.merchant} · ${formatMoney(mine[0]!.amount, mine[0]!.currency, locale)}` }) : plural(t.bell.cardReceipts, count, locale),
-        lines: [plural(t.mail.cardLine, count, locale), "", ...named, "", t.bell.cardReceiptsBody],
-      };
-    }, { path: "/chest", key: `card:${createHash("sha256").update(mine.map(l => l.id).join(",")).digest("hex").slice(0, 24)}` });
+    await notify([owner], (t, locale) => ({
+      title: plural(t.bell.cardReceipts, count, locale),
+      body: [...mine.slice(0, 5).map(l => `${shortDate(l.day, locale)} · ${l.merchant} · ${formatMoney(l.amount, l.currency, locale)}`), t.bell.cardReceiptsBody].join("\n"),
+    }), { path: "/chest", key: `card:${owner}` });
   }
   await refresh(sql, [...owed.keys()]);
   return owed.size;

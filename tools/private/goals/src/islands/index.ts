@@ -6,7 +6,6 @@ import { CloseCycle } from "./CloseCycle.tsx";
 import { Comments } from "./Comments.tsx";
 import { CompanyTools } from "./CompanyTools.tsx";
 import { CycleAdmin, NewCycle } from "./CycleAdmin.tsx";
-import { EmailSwitch } from "./EmailSwitch.tsx";
 import { ImportView } from "./ImportView.tsx";
 import { KeyResultCard } from "./KeyResultCard.tsx";
 import { ObjectiveActions } from "./ObjectiveActions.tsx";
@@ -23,7 +22,7 @@ import { WaitingList } from "./WaitingList.tsx";
 // with the browser's own <details>). Islands do not nest.
 export const islands = {
   ToastHost, AutoRefresh,
-  WaitingList, EmailSwitch, StartCycle, AddExample,
+  WaitingList, StartCycle, AddExample,
   CompanyTools, Remind, RemindAll,
   KeyResultCard, AddKeyResult, ObjectiveActions, Retro, Comments, ObjectiveForm,
   NewCycle, CycleAdmin, CloseCycle,

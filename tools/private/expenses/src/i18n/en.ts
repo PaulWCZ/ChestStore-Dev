@@ -775,17 +775,6 @@ export const en = {
     count: { one: "1 expense", other: "{count} expenses" },
     many: "The {count} most recent: type more to narrow",
   },
-  mail: {
-    open: "Open it: {link}",
-    why: "You get this email because Expenses needs something from you. The same is in the Chest’s bell.",
-    sent: { one: "{name} sent an expense · {total}", other: "{name} sent {count} expenses · {total}" },
-    sentLine: { one: "{name} sent you an expense to approve:", other: "{name} sent you {count} expenses to approve:" },
-    cardOne: "Receipt needed: {what}",
-    cardLine: { one: "A company card payment needs its receipt:", other: "{count} company card payments need their receipt:" },
-    reminderLine: "Open Expenses, check your drafts and send them.",
-    waiting: { one: "1 expense waits for your approval", other: "{count} expenses wait for your approval" },
-    waitingLine: "Open “To approve” to approve or refuse them.",
-  },
   bell: {
     sent: { one: "{name} sent an expense · {total}", other: "{name} sent {count} expenses · {total}" },
     approved: { one: "{name} approved your expense · {total}", other: "{name} approved {count} expenses · {total}" },

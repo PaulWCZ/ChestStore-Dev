@@ -10,7 +10,7 @@ export type ChasePerson = { person: { id: string; name: string; photo: string | 
 // "Remind" is a small island of its own. The admins may remind everyone.
 export function ChaseList({ people, all, locale, t }: { people: ChasePerson[]; all: boolean; locale: string; t: Catalogue["chase"] }) {
   const left = people.filter(p => !p.reminded).length;
-  const words = { remind: t.remind, remindName: t.remindName, reminded: t.reminded, remindedToast: t.remindedToast, remindedBell: t.remindedBell };
+  const words = { remind: t.remind, remindName: t.remindName, reminded: t.reminded, remindedToast: t.remindedToast };
   return (
     <details className="card chase">
       <summary>

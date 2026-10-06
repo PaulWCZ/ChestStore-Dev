@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { checkIn } from "../src/lib/key-results.ts";
 import { refreshBadges } from "../src/lib/tell.ts";
 import { asMember } from "./support/member.ts";
-import { camille, hugo, ines } from "./support/members.ts";
+import { camille, hugo, ines, seen } from "./support/members.ts";
 import { server, type Server } from "./support/server.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";
 
@@ -21,7 +21,7 @@ test("Friday's reminder: one bell item per owner still waiting, in their languag
   assert.equal(await w.chest.run("reminder", POST), 204);
   assert.equal(await w.chest.run("reminder", POST), 204);
   const items = w.chest.notifications.filter(n => n.key === "checkin").sort((a, b) => b.member.localeCompare(a.member));
-  assert.deepEqual(items.map(n => [n.member, n.title, n.body, n.path]), [
+  assert.deepEqual(items.map(n => [n.member, seen(n).title, seen(n).body, n.path]), [
     [ines.id, "1 résultat clé attend votre point de la semaine", "Customers signed", "/chest"],
     [hugo.id, "1 key result waits for your weekly update", "Website live", "/chest"],
   ]);

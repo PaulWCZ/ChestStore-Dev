@@ -14,20 +14,21 @@ import { camille, everyone, groups, hugo, ines, sofia } from "./members.ts";
 // outbound host (network: {}), as the Chest's egress does.
 export type World = { database: TestDatabase; chest: FakeChest; close(): Promise<void> };
 
-export async function world(options: { mail?: boolean; groups?: boolean } = {}): Promise<World> {
+export async function world(options: { groups?: boolean } = {}): Promise<World> {
   const chest = await fakeChest({
     tool: "goals",
     network: {},
-    members: everyone,
+    // Hugo is in Warehouse too, a group that does not give Goals: the
+    // Chest names it among his groups only with "members.groups".
+    members: everyone.map(m => m.id === hugo.id ? { ...m, groups: [...(m.groups ?? []), "grp_warehouseaaaaaaaaaaaaaaaaa"] } : m),
     former: [{ id: "mbr_paul" + "a".repeat(22), name: "Paul Lefèvre" }],
     groups: [
       { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] },
       { id: groups.office, name: "Office", members: [camille.id, sofia.id] },
-      // A group that does not give Goals: seen only with "groups": "read".
+      // A group that does not give Goals: seen only with "members.groups".
       { id: "grp_warehouseaaaaaaaaaaaaaaaaa", name: "Warehouse", members: [hugo.id], grants: false },
     ],
-    capabilities: ["members", "notifications", ...(options.mail === false ? [] : ["mail" as const]), ...(options.groups ? ["groups" as const] : [])],
-    mail: { domain: "atelier-martin.test" },
+    capabilities: ["members", "notifications", ...(options.groups ? ["members.groups" as const] : [])],
     chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", currency: "EUR", language: "fr", publicUrl: null },
   });
   const database = await testDatabase();

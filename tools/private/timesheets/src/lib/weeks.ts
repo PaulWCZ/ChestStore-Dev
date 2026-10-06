@@ -8,7 +8,6 @@ import { managerIds } from "./directory.ts";
 import { formatDuration } from "../shared/duration.ts";
 import { format, formatDay, type Catalogue } from "../i18n/index.ts";
 import type { Locale } from "@argentic/chest-sdk/member";
-import { email } from "./mail.ts";
 import { clean, memberPattern, numeric } from "../shared/model.ts";
 import { notify, withdraw } from "./notify.ts";
 import { people } from "./people.ts";
@@ -102,7 +101,6 @@ export async function submitWeek(sql: Query, actor: Member | null, week: unknown
   const approvers = await approversOf(sql, actor.id, w);
   const title = (t: Catalogue, locale: Locale) => format(t.bell.submitted, { name: actor.name, date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(state.minutes) });
   await notify(approvers, (t, locale) => ({ title: title(t, locale) }), { path: `/chest/team/${actor.id}?week=${w}`, key: approveKey(actor.id, w) });
-  await email(approvers, (t, locale) => ({ subject: title(t, locale), lines: [t.mail.submittedLine] }), { path: `/chest/team/${actor.id}?week=${w}`, key: `week:${actor.id}:${w}:${Date.parse(state.submittedAt ?? "")}` });
   return { ...state, approvers: approvers.length };
 }
 
@@ -294,7 +292,7 @@ export async function teamWeeks(sql: Query, actor: Member | null, memberIds: rea
 
 // remind rings the bell of those, among the people named, whose week is
 // under their usual week and not sent yet — each in their language, one
-// item per week (a second reminder replaces the first), and emails them.
+// item per week (a second reminder replaces the first), saying who asks.
 // Never the manager who presses it. Says how many.
 export async function remind(sql: Query, actor: Member | null, memberIds: unknown, week: unknown): Promise<number> {
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
@@ -312,9 +310,7 @@ export async function remind(sql: Query, actor: Member | null, memberIds: unknow
     const title = (t: Catalogue, locale: Locale) => minutes === 0
       ? format(t.bell.remindEmpty, { date: formatDay(w, locale, { day: "numeric", month: "short" }) })
       : format(t.bell.remind, { date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(minutes), usual: formatDuration(r.capacity) });
-    await notify([r.memberId], (t, locale) => ({ title: title(t, locale) }), { path: `/chest?week=${w}`, key: `remind:${w}` });
-    // By email too, once a day at most for the same week.
-    await email([r.memberId], (t, locale) => ({ subject: title(t, locale), lines: [format(t.mail.remindLine, { name: actor.name })] }), { path: `/chest?week=${w}`, key: `remind:${w}:${today()}` });
+    await notify([r.memberId], (t, locale) => ({ title: title(t, locale), body: format(t.bell.remindBy, { name: actor.name }) }), { path: `/chest?week=${w}`, key: `remind:${w}` });
   }
   return current.length;
 }

@@ -11,7 +11,7 @@ read it first. Goals' own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Contract 0.4 (`"chest": "0.4"`, schedules `reminder` and `week`, `build.static: ["/assets/"]`); the proposals (studio): `mail.send`, `groups: "read"` (+ `group.*`), `receives` of Clients', Tasks', Support's and Hiring's events, `translations` |
+| `chest.json`, `chest.proposals.json` | Contract 0.4 (`"chest": "0.4"`, schedules `reminder` and `week`, `build.static: ["/assets/"]`); the proposals (studio): capability `members.groups` (+ `group.*`), `receives` of Clients', Tasks', Support's and Hiring's events, `translations` |
 | `src/app.tsx` | Every route: the pages (a member without a role sees why), the downloads (a cycle as CSV, every update, the import's example), `/chest-events`, `/chest-schedules`; each page's version (`src/lib/stamp.ts`: a refresh with nothing new is a 304) |
 | `src/actions.ts` | Every change, by name; fields read at the boundary (a key result part by part); what only tells people runs in `after()` |
 | `src/pages/` | Pages rendered on the server; `chase-list.tsx` (who waits for an update), `cycle-group.ts` (the cycle filter) |
@@ -19,11 +19,11 @@ read it first. Goals' own:
 | `src/components/` | Shared by pages and islands (no server code): the tree (server only, folds with `<details>`), progress and confidence (SVG bars), the chart, the update form, key-result fields and dialog, icons, the mark, contours |
 | `src/layout.tsx`, `src/theme.ts` | The shell; the look (Trail map, `pageLook()`: the company's choice, the dark header in the Trail map only) |
 | `src/lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
-| `src/lib/groups.ts` | Every group a member is in (`members.groups.of`, kept a minute, forgotten on `group.*`/`member.updated`), and `readerFor` |
+| `src/lib/groups.ts` | Every group a member is in (`member.groups`, every group with `members.groups`), and `readerFor` |
 | `src/lib/model.ts` | Pure rules: bounds, values ("12,5"), measures, progress, confidence, cycles' time, scores |
 | `src/lib/read.ts` | Read models; `visibleTo(reader)`: **the one filter of confidential objectives** |
 | `src/lib/cycles.ts`, `teams.ts`, `objectives.ts`, `key-results.ts`, `comments.ts`, `orphans.ts` | Services `(sql, actor, …input)`: rights first, bounds, parameterised SQL, codes |
-| `src/lib/tell.ts`, `notify.ts`, `mail.ts`, `remind.ts` | The bell, badges, the Friday reminder, email (`mail.preference()`), Remind |
+| `src/lib/tell.ts`, `notify.ts`, `remind.ts` | Notifications (one notice per event, French in `translations`), badges, the Friday reminder, Remind — never a mail |
 | `src/lib/lifecycle.ts` | Leaving, losing access, erasure; `seen` (deliveries already handled, table `chest_events`) |
 | `src/lib/sources.ts`, `crm.ts` | Key results fed by the other tools' events |
 | `src/lib/import.ts`, `export.ts`, `csv.ts` | CSV import (presets, mapping, plan, Undo) and exports |
@@ -75,8 +75,9 @@ TEST_DATABASE_URL=postgres://… npm test   # on a real PostgreSQL (concurrent u
   reader's.
 - **Schema changes are new migration files.** Never edit one that shipped.
 - **No network, no disk, no background work** outside the Chest's signed
-  schedules and events; the tool must stay useful without them (and
-  without mail).
+  schedules and events; the tool must stay useful without them. **No
+  email to members**, ever: a notification, which the Chest mails by the
+  member's choice; no digest, no reminder mail, no "email me" setting.
 - **Keep the policy strict**: no inline script or style (the package sets it).
 - **The look**: the CSS names only the kit's contract tokens (and Goals'
   own of `src/tokens.css`, defined from them) — never a colour
@@ -84,7 +85,7 @@ TEST_DATABASE_URL=postgres://… npm test   # on a real PostgreSQL (concurrent u
   shape; text sits only on measured pairs (`ui/AGENTS.md` in the studio).
 - **The kit first** (`@argentic/chest-ui/components`): toasts (`toast()` of `@argentic/chest-app/client`,
   one `id` per act, `undo` that returns `true` or why not, `sent: true`
-  once a bell item or an email left), `Dialog` with `dirty`, `Confirm` for
+  once a notification left), `Dialog` with `dirty`, `Confirm` for
   what cannot be undone (never `window.confirm`), `PeoplePicker`,
   `DateField` (never `type="date"`), `FilePicker`, `Filters`, `Menu`,
   `DataTable`, `EmptyState`, `Avatar`, `StatusBadge`, `AppShell`. Their

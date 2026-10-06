@@ -7,7 +7,6 @@ import * as cycles from "./lib/cycles.ts";
 import { db } from "./lib/db.ts";
 import * as importer from "./lib/import.ts";
 import * as keyResults from "./lib/key-results.ts";
-import * as mail from "./lib/mail.ts";
 import { confidences, firstCycleChoices, groupPattern, kinds, levels, limits, memberPattern, visibilities } from "./lib/model.ts";
 import * as objectives from "./lib/objectives.ts";
 import { reassign as reassignOwner } from "./lib/orphans.ts";
@@ -24,7 +23,7 @@ import { isDate } from "./lib/zone.ts";
 // Chest's assertion on each call; the fields are read and bounded here, at
 // the boundary; the services of src/lib/ check the rights first, then
 // write, and refuse with a code (its sentence comes from the catalogue).
-// What only tells people (the bell, the tile's number, email) runs after
+// What only tells people (notifications, the tile's number) runs after
 // the answer (after()): a Chest that does not answer never fails a change
 // already written.
 
@@ -261,16 +260,10 @@ export const actions = {
     return done.count;
   }),
 
-  // Reminding who has not updated this week (bell and email, once a day).
-  // It sends at once: the answer says whether an email left.
-  remind: action({ owner: member }, async ({ owner }, { member: actor }): Promise<{ emailed: boolean }> => reminders.remind(db(), actor, owner, tell.clockAt()), { parallel: true }),
+  // Reminding who has not updated this week (a notification, once a day).
+  remind: action({ owner: member }, async ({ owner }, { member: actor }): Promise<null> => reminders.remind(db(), actor, owner, tell.clockAt()), { parallel: true }),
   remindAll: action({}, async (_input, { member: actor }): Promise<number> => reminders.remindAll(db(), actor, tell.clockAt()), { parallel: true }),
 
-  // My choice: reminders by email too, or only in the bell.
-  setEmail: action({ on: field.bool() }, async ({ on }, { member: actor }): Promise<null> => {
-    await mail.setEmail(db(), actor, on);
-    return null;
-  }),
 
   // Importing a spreadsheet: what it would do (read again at each choice,
   // beside the page's other actions), then doing it — and Undo. The file

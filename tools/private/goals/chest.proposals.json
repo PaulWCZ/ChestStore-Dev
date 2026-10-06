@@ -1,8 +1,7 @@
 {
-  "mail": {
-    "send": true
-  },
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "receives": [
     "group.*",
     "crm.deal.won",

@@ -196,17 +196,31 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   labels shipped). Words are matched whole, accents and case aside, the
   longest match winning (`UBER EATS` → Meals over `UBER`); no match:
   "Other" (`src/lib/card-guess.ts`, tested).
-- **Email** (the `mail` proposal): an approver is emailed when expenses are
-  sent to them (each named, with the link to *To approve*); a card holder
-  when card payments wait for their receipt ("Receipt needed: UBER *TRIP ·
-  €23.40"); on the 25th, people with drafts and approvers with expenses
-  waiting. In each person's language, sent by the Chest to their address
-  (the tool never knows it), once per event (a key). On a Chest without
-  mail, nothing is sent and the bell still says it.
-- **The bell**, in each person's language: approvers when something is sent
-  to them; employees when approved, refused (with the reason) or paid. The
-  tile's number is what waits for you: expenses to decide, plus your refused
-  drafts.
+- **Notifications** (the Chest's inbox), each in its reader's language:
+  approvers when something is sent to them (each expense named);
+  employees when approved, refused (with the reason) or paid; card holders
+  when card payments wait for their receipt (each payment named: "15 Sept ·
+  UBER *TRIP · €23.40"); on the 25th, people with drafts not sent. The
+  tile's number is what waits for you: expenses to decide, plus your
+  refused drafts. **Email**: the tool sends none to the team — the Chest
+  mails each member their notifications by their own choice (each one,
+  once or twice a day, or never; off per tool), set in the Chest, not here.
+
+## Mail to people outside the company
+
+None. Expenses mails nobody: the accountant's monthly export, the
+journal and the SEPA transfer file are downloaded from *Export* and *To pay
+back*, and handed to the outside accountant or the bank by the company as it
+does today. (The tool declares no `mail` proposal.)
+
+**Changed on 6 October 2026** (the owner's mail decisions): the emails
+Expenses used to send its team — to an approver when expenses were sent, to
+a card holder for a missing receipt, the 25th's reminder to people with
+drafts and to approvers with expenses waiting — are gone. The first three
+are notifications (they were already in the bell; the card one now names
+each payment, as its email did). The approvers' monthly email is not
+replaced: what waits for an approver is in their inbox from the moment it
+is sent until it is settled, and on the tile.
 - **One date format**: every list writes a day the same way ("8 Sept",
   "8 sept."), and a line's parts never wrap with a "·" at the start.
 - **Reminder** (schedule proposal): on the 25th at 09:00, everyone with
@@ -289,7 +303,8 @@ in `src/lib/access.ts` and tested per role.
   uploaded by the browser straight to the Chest), `members` (names; who is
   accountant or approver), `notifications`; `receives: ["member.*"]`;
   `schedules` `reminder` (25th, 09:00) and `cleanup` (nightly), contract
-  0.4; `mail: {send: true}` (proposal, `chest.proposals.json`).
+  0.4. No `mail` (the team hears through notifications; nobody outside is
+  mailed).
 - **Receipts are kept as sent**: the tool never changes the file, records
   its SHA-256, and a receipt cannot be replaced once the expense is sent.
   Uploads never used go after a day, deleted drafts after a week (nightly
@@ -385,11 +400,10 @@ studio proposals (0.4.1-studio.4), `@argentic/chest-app` 0.1.0-studio.6, contrac
   a transfer's execution day, the scale's year — the same day as the
   database's `current_date`, which the Chest puts in its zone. The SEPA
   file's creation time is written in the Chest's zone.
-- `mail` — **Proposal (studio)** (`chest.proposals.json`, `src/lib/mail.ts`):
-  emails to approvers, card holders and people with drafts. Without it,
-  the bell only. Keys are passed whole (studio.15 hashes a long one), and
-  each person's email preference in the Chest applies: none of these is
-  transactional.
+- **Notices with translations** — **Proposal (studio, announced for 0.5)**:
+  one `notifications.notify` per event, English words with their French
+  in `translations`; the Chest shows each member their language
+  (`src/lib/notify.ts`).
 - `members.leftAt(ids)` — **Proposal (studio)**: the day a former member
   left, in *To approve* and *To pay back* (lookup's `no_access` — someone
   still in the Chest who lost access to Expenses — is no "former": written
@@ -397,7 +411,6 @@ studio proposals (0.4.1-studio.4), `@argentic/chest-app` 0.1.0-studio.6, contrac
 - **Schedules** (contract 0.4, official): `reminder` and `cleanup`, run on
   `POST /chest-schedules`; the deliveries already handled (events and runs)
   are kept in `chest_events` and forgotten after 30 days by the cleanup.
-- `chest.tool.teamUrl` (0.4.1): the link in emails (none outside a Chest).
 - `FileObject.sha256` (0.4.1): a receipt's SHA-256 as the Chest took it;
   the tool never reads a receipt into its memory to hash it.
 - Wished, not built:
@@ -517,9 +530,6 @@ machine was loaded; the server's module loads in 100–170 ms alone.
   account elsewhere are paid by hand.
 - **Importing** receipts files or trips from the previous tool (lines only,
   as history); matching people by email.
-- **Email preferences**: the emails are only those that ask someone to act,
-  and nobody can turn them off yet (Tasks has a per-person switch; not
-  here).
 - **Search** is plain text (case aside, not accents: "hotel" does not find
   "Hôtel"), 100 results, no filters of its own; category words are those of
   the reader's language.

@@ -7,8 +7,7 @@ import { AppError } from "../src/lib/app-error.ts";
 import { checkBudgets, levels } from "../src/lib/budgets.ts";
 import { db, provide } from "../src/lib/db.ts";
 import { everyoneOrNone, isManager, managerIds } from "../src/lib/directory.ts";
-import { email, letterText } from "../src/lib/mail.ts";
-import { cut, notify } from "../src/lib/notify.ts";
+import { cut, notice, notify } from "../src/lib/notify.ts";
 import { friday } from "../src/lib/reminder.ts";
 import { removeStep } from "../src/lib/rates.ts";
 import { saveReminder } from "../src/lib/settings.ts";
@@ -63,11 +62,12 @@ test("a bell item is cut to the Chest's length in characters, with an ellipsis",
   assert.equal([...cut("😀".repeat(100), 80)].length, 80);
 });
 
-test("an email's text: its lines, the link to the page, why it came", () => {
-  const t = catalogue("en");
-  const text = letterText(t, { subject: "x", lines: ["Line one"] }, "/chest?week=2026-09-28", "https://timesheets-chest.chest.test");
-  assert.equal(text, `Line one\n\nOpen it: https://timesheets-chest.chest.test/chest?week=2026-09-28\n\n—\n${t.mail.why}`);
-  assert.doesNotMatch(letterText(t, { subject: "x", lines: ["Line one"] }, "/chest", null), /Open it/u);
+test("a notice is written once in every language: English its own words, French in its translations, each cut to the Chest's bounds", () => {
+  const n = notice((t, locale) => ({ title: t.bell.emptyWeek + " " + "x".repeat(locale === "fr" ? 100 : 0), body: locale === "fr" ? "é".repeat(300) : "" }));
+  assert.deepEqual(Object.keys(n).sort(), ["title", "translations"]);
+  assert.equal(n.title, "Your week is empty — fill it in?");
+  assert.equal([...n.translations!.fr!.title].length, 80);
+  assert.equal([...n.translations!.fr!.body!].length, 280);
 });
 
 test("budget alerts are at 80 and 100 %, and a project without a budget rings nobody", async () => {
@@ -79,11 +79,11 @@ test("budget alerts are at 80 and 100 %, and a project without a budget rings no
   assert.equal(chest.notifications.length, 0);
 });
 
-test("a bell item and an email go to members only, each in their language; none to an id the Chest does not know", async () => {
+test("a notice goes to members only, its French with it; none to an id the Chest does not know", async () => {
   await notify([hugo.id, "mbr_" + "z".repeat(26)], t => ({ title: t.bell.emptyWeek }), { path: "/chest", key: "week" });
   assert.equal(chest!.notifications.length, 1);
-  // Without the mail permission nothing leaves, and nothing fails.
-  assert.equal(await email([hugo.id], t => ({ subject: t.bell.emptyWeek, lines: [] }), { path: "/chest", key: "test" }), 0);
+  assert.equal(chest!.notifications[0]!.title, "Your week is empty — fill it in?");
+  assert.deepEqual(chest!.notifications[0]!.translations, { fr: { title: "Votre semaine est vide — la remplir ?" } });
 });
 
 test("the Friday reminder, turned off, sends nothing", async () => {

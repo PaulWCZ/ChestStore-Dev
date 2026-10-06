@@ -6,7 +6,8 @@ import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
 import { createObjective } from "../src/lib/objectives.ts";
 import { noCycleWords, whoStarts } from "../src/lib/people.ts";
 import { cycleObjectives, objectiveById } from "../src/lib/read.ts";
-import { forgetMemberGroups, groupsOf, readerFor } from "../src/lib/groups.ts";
+import * as members from "@argentic/chest-sdk/members";
+import { groupsOf, readerFor } from "../src/lib/groups.ts";
 import { knownBoards } from "../src/lib/sources.ts";
 import { addGroupTeam, chestGroups, forgetGroups } from "../src/lib/teams.ts";
 import { clockAt } from "../src/lib/tell.ts";
@@ -143,15 +144,16 @@ test("every group of the Chest may become a team, not only those that give Goals
   await sql`delete from teams`;
 });
 
-test("a group that does not give Goals is still a team its members write for and read: its membership is asked of the Chest", async () => {
+test("a group that does not give Goals is still a team its members write for and read: the Chest names every group of a member (members.groups)", async () => {
   const { sql } = w.database;
   const { cycle } = await running(w);
   forgetGroups();
-  forgetMemberGroups();
   const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
-  const hugoM = asMember(hugo), sofiaM = asMember(sofia);
-  // The assertion carries only the groups that give Goals: not Warehouse.
-  assert.ok(!hugoM.groups.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  // With "members.groups", the Chest names every group of the member, as
+  // member(request) carries them: Warehouse too, which does not give Goals.
+  const asserted = (await members.get(hugo.id))!.groups;
+  assert.ok(asserted.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  const hugoM = { ...asMember(hugo), groups: asserted }, sofiaM = asMember(sofia);
   assert.ok((await groupsOf(hugoM)).includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
   const o = await createObjective(sql, hugoM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Ship every order the same day", visibility: "team", keyResults: [{ title: "Orders shipped the same day", kind: "percent", start: "70", target: "95", owner: hugo.id }] });
   await assert.rejects(createObjective(sql, sofiaM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Not my team" }), refused("forbidden"));

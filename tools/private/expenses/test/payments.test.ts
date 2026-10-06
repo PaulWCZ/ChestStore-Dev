@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
 import * as bank from "../src/lib/bank.ts";
 import * as expenses from "../src/lib/expenses.ts";
@@ -145,7 +145,7 @@ test("bank details: one's own, and every one's for the accountants; never an app
   // The accountant enters Léa's (from payroll): Léa hears of it.
   await bank.setBankDetails(sql, asMember(camille), lea.id, { iban: leaIban, holder: "Léa et Marc Dubois" });
   await tell.bankChanged(asMember(camille), lea.id, "3000");
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title.replace(/\s/gu, " ")]), [[lea.id, "Camille Martin a modifié vos coordonnées bancaires (compte finissant par 3000)"]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title.replace(/\s/gu, " ")]), [[lea.id, "Camille Martin a modifié vos coordonnées bancaires (compte finissant par 3000)"]]);
   // A person changing their own: the accountants hear of it.
   chest.notifications.length = 0;
   await tell.bankChanged(asMember(hugo), hugo.id, "0189");

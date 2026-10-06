@@ -8,7 +8,6 @@ import { format, formatDay, localeOf, plural } from "../i18n/index.ts";
 import type { WaitingItem } from "../islands/WaitingList.tsx";
 import { can } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
-import { emailOn, mailPreferenceOf, mailState } from "../lib/mail.ts";
 import { daysBetween, firstCycleChoices, runsOn, type Suggestion } from "../lib/model.ts";
 import { orphans } from "../lib/orphans.ts";
 import { context, cycleWords, quarterName } from "../lib/page-data.ts";
@@ -81,9 +80,6 @@ export async function homePage({ member, t, locale: language }: PageContext): Pr
   const lost = can(member, "any.write") ? (await orphans(sql)).length : 0;
   const cw = current ? cycleWords(current, clock.today, t, locale) : null;
   const ownsAnyKr = owned.some(o => o.keyResults.some(k => k.owner === member.id));
-  // The person's email choice in the Chest (mail.preference(); the
-  // assertion never carries it), said under the switch.
-  const [preference, state, emailing] = ownsAnyKr ? await Promise.all([mailPreferenceOf(member.id), mailState(), emailOn(sql, member)]) : ["all", "unknown", true] as const;
   const cardWords = { progress: t.progress, confidence: t.confidence, objective: t.objective, checkIn: t.checkIn, levels: t.levels };
   const chip = current && cw ? <CycleChip name={current.name} dates={cw.dates} when={cw.when} elapsed={cw.elapsed} timeLabel={format(t.cycle.timeGone, { percent: pctText(t, cw.elapsed) })} /> : null;
   const actions = current && !current.closed ? <div className="actions"><a className="button quiet" href={`/chest/objectives/new?cycle=${current.id}`}><Plus />{t.home.newObjective}</a></div> : null;
@@ -134,9 +130,6 @@ export async function homePage({ member, t, locale: language }: PageContext): Pr
           )}
         </section>
 
-        {ownsAnyKr && (state === "off"
-          ? <p className="email-note">{t.home.emailUnavailable}</p>
-          : <Island name="EmailSwitch" props={{ on: emailing, note: preference === "none" ? t.home.emailNone : preference === "digest" ? t.home.emailDigest : null, t: { label: t.home.email, on: t.home.emailOn, off: t.home.emailOff } }} />)}
       </div>
     ),
   };
