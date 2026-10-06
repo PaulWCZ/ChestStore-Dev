@@ -222,6 +222,8 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   if (bounded) {
     for (const file of walk(join(root, "src", "i18n")).filter(f => /\.ts$/u.test(f) && !f.endsWith("index.ts"))) {
       const text = readFileSync(file, "utf8");
+      // A catalogue (its errors), not a helper of the folder (format.ts).
+      if (!/\berrors\s*:\s*\{/u.test(text)) continue;
       for (const code of ["limit", "expired"]) if (!new RegExp(`\\b${code}\\s*:`, "u").test(text)) problems.push(`${file}: errors.${code} — a bounded public action refuses with it (in this language's words)`);
     }
   }

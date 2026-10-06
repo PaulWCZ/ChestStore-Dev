@@ -347,8 +347,8 @@ runs `sizes.mjs --check` against this paragraph):
   fields, words, the database, recipes (roles, writing to another member,
   paging, imports and archives, a schedule's test…), rules, the kit's
   classes, tests and pitfalls.
-- The template is 28 files and 826 lines. The package is 2,480 lines of
-  source and 668 of tests. (The reference starter: 16 files, 311 lines.)
+- The template is 28 files and 826 lines. The package is 2,482 lines of
+  source and 669 of tests. (The reference starter: 16 files, 311 lines.)
 
 **UI quality with the kit.**
 - A: unstyled HTML.

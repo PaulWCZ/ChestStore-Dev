@@ -154,6 +154,7 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   // budgets: read in the publicAction call, not anywhere in the file.
   mkdirSync(join(dir, "src", "i18n"), { recursive: true });
   write("src/i18n/en.ts", "export const en = { errors: { limit: \"Too many.\", expired: \"Expired.\" } };");
+  write("src/i18n/format.ts", "export const twice = (n: number) => n * 2;");
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nconst limits = { budgets: 3 };\nexport const a = { send: publicAction({}, async () => null, { bound: { perVisitor: 1, perDay: 9 } }) };');
   checkSources({ root: dir });
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { budgets: { new: { perVisitor: 1, perDay: 9, perSubject: 2 } } } }) };', /never says its subject/u);
