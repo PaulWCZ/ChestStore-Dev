@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-06T00:57:20.175Z",
+  "node": "v24.21.0",
+  "cpus": 4,
+  "results": [
+    {
+      "name": "B (starter v2)",
+      "install": {
+        "seconds": 1.8,
+        "node_modules_mib": 110.1,
+        "files": 2415,
+        "after_prune_mib": 77.8
+      },
+      "build": {
+        "seconds": 1.1,
+        "peak_pss_mib": 232.9,
+        "largest_rss_mib": 259.5,
+        "output_mib": 1
+      },
+      "cold_start_ms": {
+        "median": 228,
+        "min": 219,
+        "max": 246
+      },
+      "rest_mib": {
+        "server_rss": 75.8,
+        "server_uss": 24.1,
+        "tree_rss": 145.5,
+        "tree_uss": 42.4,
+        "tree_pss": 50.1,
+        "runs": [
+          75.8
+        ],
+        "processes": [
+          "npm start: RSS 67.8, USS 18.2, PSS 21.6",
+          "sh -c node --optimize-for-size dist/server/main.js: RSS 1.9, USS 0.1, PSS 0.2",
+          "node --optimize-for-size dist/server/main.js: RSS 75.8, USS 24.1, PSS 28.3"
+        ]
+      },
+      "browser_kib": {
+        "js_gzip": 71.8,
+        "css_gzip": 7.9,
+        "html_gzip": 0.9,
+        "js_raw": 230,
+        "css_raw": 42,
+        "requests": 2
+      },
+      "axe": {
+        "/chest": []
+      }
+    }
+  ]
+}

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest } from "@argentic/chest-sdk/testing";
-import { answer } from "../lib/answers.ts";
-import { AppError } from "../lib/app-error.ts";
-import { all, everyone as everyoneWithPolls, inAudience } from "../lib/audience.ts";
-import { withAllGroups } from "../lib/groups.ts";
-import * as polls from "../lib/polls.ts";
-import * as tell from "../lib/tell.ts";
+import { answer } from "../src/lib/answers.ts";
+import { AppError } from "../src/core/tool.ts";
+import { all, everyone as everyoneWithPolls, inAudience } from "../src/lib/audience.ts";
+import { withAllGroups } from "../src/lib/groups.ts";
+import * as polls from "../src/lib/polls.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { chestGroups, everyone, groups, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -36,7 +36,7 @@ const noneGrant = chestGroups.map(g => ({ ...g, grants: false }));
 const as = (m: (typeof everyone)[number]) => asMember({ ...m, groups: [] });
 
 test("a poll put to a group that does not give Polls asks exactly its members: the member, the audience, the badges", async () => {
-  const chest = await fakeChest({ members: bare, groups: noneGrant, capabilities: ["members", "notifications", "groups"], chest: { timeZone: zone } });
+  const chest = await fakeChest({ network: {}, members: bare, groups: noneGrant, capabilities: ["members", "notifications", "groups"], chest: { timeZone: zone } });
   try {
     const { sql } = database;
     // The assertion names no group; the Chest says Hugo is in Sales.
@@ -68,7 +68,7 @@ test("a poll put to a group that does not give Polls asks exactly its members: t
 });
 
 test("without the groups permission, a member's groups are those the Chest gave with them", async () => {
-  const chest = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], chest: { timeZone: zone } });
+  const chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], chest: { timeZone: zone } });
   try {
     assert.deepEqual((await withAllGroups(asMember(hugo))).groups, [groups.sales]);
     assert.deepEqual((await withAllGroups(as(hugo))).groups, [], "nothing invented");

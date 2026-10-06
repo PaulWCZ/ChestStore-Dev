@@ -1,0 +1,922 @@
+{
+ "tool": "polls",
+ "label": "before-next16",
+ "source": "/tmp/claude-0/-home-user-ChestStore-Dev/1267dfd1-573d-5bb2-a4ac-b9ffb9e1c839/scratchpad/before/tools/public-and-private/polls",
+ "date": "2026-10-06T00:01:52.027Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "37d7ab3 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 1.65,
+   "five": 1.4,
+   "fifteen": 0.99
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 60,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 28.1,
+    "rssMiB": 165,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 6.7,
+    "rssMiB": 436,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.7,
+    "rssMiB": 76,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 1.1,
+    "rssMiB": 96,
+    "command": "MainThread"
+   }
+  ],
+  "atEnd": {
+   "one": 1.35,
+   "five": 1.13,
+   "fifteen": 0.99
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 8.9,
+    "rssMiB": 76,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 8.6,
+    "rssMiB": 147,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 6.9,
+    "rssMiB": 451,
+    "command": "claude"
+   },
+   {
+    "cpu": 5.1,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 4.2,
+    "rssMiB": 77,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 10.9,
+  "apparentMiB": 10.4,
+  "files": 172
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 4518,
+  "peakRssMiB": 556.4,
+  "peakPssMiB": 510.8,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 1.59,
+   "five": 1.39,
+   "fifteen": 0.99
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 9977,
+  "peakRssMiB": 765.2,
+  "peakPssMiB": 721.9,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1256.5,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 1.55,
+   "max": 1.55
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 33169,
+   "peakRssMiB": 629.8,
+   "peakPssMiB": 518.6,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 495.5,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 1.8,
+    "max": 1.97
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 17150,
+   "peakRssMiB": 1056.2,
+   "peakPssMiB": 961.7,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 951.2,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 2.27,
+    "max": 2.38
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 4.4,
+  "apparentMiB": 3.8,
+  "files": 152,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 457.9
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/polls.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/polls/1",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/polls/2",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/polls/9",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/polls/4",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/polls/3",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/polls/10",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/new?kind=survey&preset=pulse",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/p/maisonleroykickoffxyzabcde",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/chest/polls/11",
+    "member": "sofia",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 378,
+    "firstMs": 961.2,
+    "statuses": [
+     200
+    ],
+    "load": 2.08
+   },
+   {
+    "portMs": 443.5,
+    "firstMs": 956.6,
+    "statuses": [
+     200
+    ],
+    "load": 1.76
+   },
+   {
+    "portMs": 358,
+    "firstMs": 778.8,
+    "statuses": [
+     200
+    ],
+    "load": 1.49
+   },
+   {
+    "portMs": 309.7,
+    "firstMs": 686.2,
+    "statuses": [
+     200
+    ],
+    "load": 1.26
+   },
+   {
+    "portMs": 280.8,
+    "firstMs": 654.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.98
+   },
+   {
+    "portMs": 310.2,
+    "firstMs": 694.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.9
+   },
+   {
+    "portMs": 331.1,
+    "firstMs": 730.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.76
+   },
+   {
+    "portMs": 316.6,
+    "firstMs": 749.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.64
+   },
+   {
+    "portMs": 445.2,
+    "firstMs": 1000.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.54
+   },
+   {
+    "portMs": 507.8,
+    "firstMs": 1100.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.58
+   }
+  ],
+  "port": {
+   "median": 344.55,
+   "min": 280.8,
+   "max": 507.8
+  },
+  "first200": {
+   "median": 764,
+   "min": 654.6,
+   "max": 1100.3
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 238.5,
+     "pss": 141.8
+    },
+    "peakMiB": {
+     "rss": 258.8,
+     "pss": 162,
+     "cgroup": 130.3
+    },
+    "afterRequestsMiB": {
+     "rss": 258.8,
+     "pss": 162
+    },
+    "restMiB": {
+     "rss": 227.6,
+     "pss": 130.8,
+     "pssAnon": 93.5,
+     "pssFile": 37.3,
+     "cgroupAnon": 93.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 23.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 158.7,
+      "pssMiB": 107.2
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 50148,
+      "ms": 46.8
+     },
+     {
+      "path": "/chest/polls/1",
+      "status": 200,
+      "bytes": 38912,
+      "ms": 95.1
+     },
+     {
+      "path": "/chest/polls/2",
+      "status": 200,
+      "bytes": 69116,
+      "ms": 64.6
+     },
+     {
+      "path": "/chest/polls/9",
+      "status": 200,
+      "bytes": 56197,
+      "ms": 57.2
+     },
+     {
+      "path": "/chest/polls/4",
+      "status": 200,
+      "bytes": 44540,
+      "ms": 30.7
+     },
+     {
+      "path": "/chest/polls/3",
+      "status": 200,
+      "bytes": 52513,
+      "ms": 48.1
+     },
+     {
+      "path": "/chest/polls/10",
+      "status": 200,
+      "bytes": 56746,
+      "ms": 40.5
+     },
+     {
+      "path": "/chest/new?kind=survey&preset=pulse",
+      "status": 200,
+      "bytes": 39105,
+      "ms": 34.9
+     },
+     {
+      "path": "/p/maisonleroykickoffxyzabcde",
+      "status": 200,
+      "bytes": 31749,
+      "ms": 29.3
+     },
+     {
+      "path": "/chest/polls/11",
+      "status": 200,
+      "bytes": 54084,
+      "ms": 40.3
+     }
+    ],
+    "load": {
+     "mean": 0.37,
+     "max": 0.45
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 237.9,
+     "pss": 141.3
+    },
+    "peakMiB": {
+     "rss": 259.9,
+     "pss": 163.2,
+     "cgroup": 131.3
+    },
+    "afterRequestsMiB": {
+     "rss": 259.9,
+     "pss": 163.2
+    },
+    "restMiB": {
+     "rss": 228.5,
+     "pss": 131.7,
+     "pssAnon": 94.4,
+     "pssFile": 37.3,
+     "cgroupAnon": 94.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 23.1
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 159.8,
+      "pssMiB": 108.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 50148,
+      "ms": 27.6
+     },
+     {
+      "path": "/chest/polls/1",
+      "status": 200,
+      "bytes": 38912,
+      "ms": 40.9
+     },
+     {
+      "path": "/chest/polls/2",
+      "status": 200,
+      "bytes": 69116,
+      "ms": 27.7
+     },
+     {
+      "path": "/chest/polls/9",
+      "status": 200,
+      "bytes": 56197,
+      "ms": 33.7
+     },
+     {
+      "path": "/chest/polls/4",
+      "status": 200,
+      "bytes": 44540,
+      "ms": 23.1
+     },
+     {
+      "path": "/chest/polls/3",
+      "status": 200,
+      "bytes": 52513,
+      "ms": 33.4
+     },
+     {
+      "path": "/chest/polls/10",
+      "status": 200,
+      "bytes": 56746,
+      "ms": 26.6
+     },
+     {
+      "path": "/chest/new?kind=survey&preset=pulse",
+      "status": 200,
+      "bytes": 39105,
+      "ms": 32.1
+     },
+     {
+      "path": "/p/maisonleroykickoffxyzabcde",
+      "status": 200,
+      "bytes": 31749,
+      "ms": 21.5
+     },
+     {
+      "path": "/chest/polls/11",
+      "status": 200,
+      "bytes": 54084,
+      "ms": 39.6
+     }
+    ],
+    "load": {
+     "mean": 0.25,
+     "max": 0.29
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 237.1,
+     "pss": 140.3
+    },
+    "peakMiB": {
+     "rss": 259.2,
+     "pss": 162.3,
+     "cgroup": 130.9
+    },
+    "afterRequestsMiB": {
+     "rss": 259.2,
+     "pss": 162.3
+    },
+    "restMiB": {
+     "rss": 228.9,
+     "pss": 137.1,
+     "pssAnon": 94.8,
+     "pssFile": 42.3,
+     "cgroupAnon": 94.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 24.2
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 160.1,
+      "pssMiB": 112.7
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 50148,
+      "ms": 27.7
+     },
+     {
+      "path": "/chest/polls/1",
+      "status": 200,
+      "bytes": 38912,
+      "ms": 58
+     },
+     {
+      "path": "/chest/polls/2",
+      "status": 200,
+      "bytes": 69116,
+      "ms": 33.5
+     },
+     {
+      "path": "/chest/polls/9",
+      "status": 200,
+      "bytes": 56197,
+      "ms": 78.6
+     },
+     {
+      "path": "/chest/polls/4",
+      "status": 200,
+      "bytes": 44540,
+      "ms": 72.6
+     },
+     {
+      "path": "/chest/polls/3",
+      "status": 200,
+      "bytes": 52513,
+      "ms": 49.4
+     },
+     {
+      "path": "/chest/polls/10",
+      "status": 200,
+      "bytes": 56746,
+      "ms": 24.6
+     },
+     {
+      "path": "/chest/new?kind=survey&preset=pulse",
+      "status": 200,
+      "bytes": 39105,
+      "ms": 23.6
+     },
+     {
+      "path": "/p/maisonleroykickoffxyzabcde",
+      "status": 200,
+      "bytes": 31749,
+      "ms": 21.9
+     },
+     {
+      "path": "/chest/polls/11",
+      "status": 200,
+      "bytes": 54084,
+      "ms": 28.3
+     }
+    ],
+    "load": {
+     "mean": 0.23,
+     "max": 0.38
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 238.1,
+     "pss": 146.3
+    },
+    "peakMiB": {
+     "rss": 258.2,
+     "pss": 166.4,
+     "cgroup": 129.7
+    },
+    "afterRequestsMiB": {
+     "rss": 258.2,
+     "pss": 166.4
+    },
+    "restMiB": {
+     "rss": 228.3,
+     "pss": 131.9,
+     "pssAnon": 94.2,
+     "pssFile": 37.7,
+     "cgroupAnon": 94.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 23.5
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 159.3,
+      "pssMiB": 108.2
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 50148,
+      "ms": 65.3
+     },
+     {
+      "path": "/chest/polls/1",
+      "status": 200,
+      "bytes": 38912,
+      "ms": 61.6
+     },
+     {
+      "path": "/chest/polls/2",
+      "status": 200,
+      "bytes": 69116,
+      "ms": 80.6
+     },
+     {
+      "path": "/chest/polls/9",
+      "status": 200,
+      "bytes": 56197,
+      "ms": 45.8
+     },
+     {
+      "path": "/chest/polls/4",
+      "status": 200,
+      "bytes": 44540,
+      "ms": 36.9
+     },
+     {
+      "path": "/chest/polls/3",
+      "status": 200,
+      "bytes": 52513,
+      "ms": 60.5
+     },
+     {
+      "path": "/chest/polls/10",
+      "status": 200,
+      "bytes": 56746,
+      "ms": 35.6
+     },
+     {
+      "path": "/chest/new?kind=survey&preset=pulse",
+      "status": 200,
+      "bytes": 39105,
+      "ms": 26
+     },
+     {
+      "path": "/p/maisonleroykickoffxyzabcde",
+      "status": 200,
+      "bytes": 31749,
+      "ms": 43.8
+     },
+     {
+      "path": "/chest/polls/11",
+      "status": 200,
+      "bytes": 54084,
+      "ms": 28.5
+     }
+    ],
+    "load": {
+     "mean": 0.92,
+     "max": 1.11
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 239.7,
+     "pss": 143.3
+    },
+    "peakMiB": {
+     "rss": 260.9,
+     "pss": 164.5,
+     "cgroup": 132.3
+    },
+    "afterRequestsMiB": {
+     "rss": 260.9,
+     "pss": 164.5
+    },
+    "restMiB": {
+     "rss": 230.3,
+     "pss": 134.5,
+     "pssAnon": 96.2,
+     "pssFile": 38.3,
+     "cgroupAnon": 96.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 24.2
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.4,
+      "pssMiB": 110
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 50148,
+      "ms": 41.3
+     },
+     {
+      "path": "/chest/polls/1",
+      "status": 200,
+      "bytes": 38912,
+      "ms": 75.4
+     },
+     {
+      "path": "/chest/polls/2",
+      "status": 200,
+      "bytes": 69116,
+      "ms": 37.2
+     },
+     {
+      "path": "/chest/polls/9",
+      "status": 200,
+      "bytes": 56197,
+      "ms": 44.2
+     },
+     {
+      "path": "/chest/polls/4",
+      "status": 200,
+      "bytes": 44540,
+      "ms": 21
+     },
+     {
+      "path": "/chest/polls/3",
+      "status": 200,
+      "bytes": 52513,
+      "ms": 36.8
+     },
+     {
+      "path": "/chest/polls/10",
+      "status": 200,
+      "bytes": 56746,
+      "ms": 35.1
+     },
+     {
+      "path": "/chest/new?kind=survey&preset=pulse",
+      "status": 200,
+      "bytes": 39105,
+      "ms": 65.2
+     },
+     {
+      "path": "/p/maisonleroykickoffxyzabcde",
+      "status": 200,
+      "bytes": 31749,
+      "ms": 24.9
+     },
+     {
+      "path": "/chest/polls/11",
+      "status": 200,
+      "bytes": 54084,
+      "ms": 56.3
+     }
+    ],
+    "load": {
+     "mean": 1.83,
+     "max": 1.89
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 228.5,
+    "min": 227.6,
+    "max": 230.3
+   },
+   "pss": {
+    "median": 131.9,
+    "min": 130.8,
+    "max": 137.1
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 259.2,
+    "min": 258.2,
+    "max": 260.9
+   },
+   "pss": {
+    "median": 163.2,
+    "min": 162,
+    "max": 166.4
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 161.7,
+    "min": 160.6,
+    "max": 163.3
+   },
+   "pss": {
+    "median": 108.5,
+    "min": 107.4,
+    "max": 112.9
+   }
+  }
+ }
+}

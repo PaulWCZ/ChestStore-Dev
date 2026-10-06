@@ -1,10 +1,4 @@
 {
-  "schedules": [
-    {
-      "name": "pass",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "mail": {
     "send": true
   },

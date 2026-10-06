@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { answer } from "../lib/answers.ts";
-import * as polls from "../lib/polls.ts";
+import * as events from "@argentic/chest-sdk/events";
+import { answer } from "../src/lib/answers.ts";
+import { handlers, seen } from "../src/lib/lifecycle.ts";
+import * as polls from "../src/lib/polls.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, ines, lea, sofia, tom } from "./support/members.ts";
@@ -12,7 +13,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -22,6 +23,9 @@ after(async () => {
 const now = new Date("2026-10-05T08:00:00Z");
 const ctx = { zone: "Europe/Paris", now, today: "2026-10-05", known: null };
 const b32 = (c: string) => c.repeat(26);
+// What POST /chest-events does (src/app.tsx; the route itself is tested
+// against the built server, test/app.test.mjs).
+const POST = async (request: Request) => new Response(null, { status: await events.handle(request, handlers(database.sql), { seen: seen(database.sql) }) });
 
 test("losing access changes nothing; leaving the Chest removes only one's drafts", async () => {
   const { sql } = database;

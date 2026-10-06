@@ -13,8 +13,8 @@ import { pathToFileURL } from "node:url";
 const args = process.argv.slice(2);
 const folder = args.find(a => !a.startsWith("--"));
 const asJson = args.includes("--json");
-// The catalogues: src/i18n/ (the starter's layout) or lib/i18n/ (Next.js tools).
-const i18n = folder && [join(folder, "src", "i18n"), join(folder, "lib", "i18n")].find(dir => existsSync(join(dir, "en.ts")) && existsSync(join(dir, "fr.ts")));
+// A tool on the studio's starter keeps its words in src/i18n/; older ones in lib/i18n/.
+const i18n = folder && ["src", "lib"].map(d => join(folder, d, "i18n")).find(d => existsSync(join(d, "en.ts")) && existsSync(join(d, "fr.ts")));
 if (!folder || !i18n) {
   console.error("usage: node scripts/lint-words.mjs <tool folder> [--json]   (with src/i18n/ or lib/i18n/ en.ts and fr.ts)");
   process.exit(2);

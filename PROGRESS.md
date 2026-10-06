@@ -24,10 +24,10 @@ builds, checks and measurements (the shell default stays Node 22).
 | Phase | What | State |
 |---|---|---|
 | 0 | `scripts/chest-check.mjs`: the official checker on one tool as its own repository | done — all 18 tools **refused** today (`manifest`: no `"chest"`) |
-| 1a | `sdk/` → `0.4.1-studio.1` (official verbatim + proposals that 0.4.1 lacks), change list, SDK report §2/§5/§10 | agent running (`wt/sdk`) |
-| 1b | The studio starter `starter/` + `reports/06-perseus-starter.md` with measurements | agent running (`wt/starter`) |
+| 1a | `sdk/` → `0.4.1-studio.2` (official verbatim + proposals that 0.4.1 lacks), change list, SDK report §2/§5/§10 | **done, reviewed, fixed, merged** — 145 tests (69 official unchanged + 76 studio); review found `visitors` trusting a forgeable `X-Forwarded-For` → now `Chest-Visitor-Address` (proposal), 6 public tools to fix while migrating |
+| 1b | The studio starter `starter/` + `reports/06-perseus-starter.md` with measurements | v1 merged (chest check OK; 16 tests; 74 MiB at rest vs 75 reference vs 141 Next.js template); **critical review running** |
 | 1c | `lab/measure/` bench; `before-next16` numbers for the 18 tools; `lab/chest-dev` on contract 0.4 (two hosts, routing, schedules, sleep, logs) | agent running (`wt/bench`) |
-| 2 | Pilot migrations onto the starter (Polls, Tasks), critical review, starter v2 | next |
+| 2 | Pilot migrations onto the starter (Polls, Tasks), critical review, starter v2 | pilots running (`wt/polls`, `wt/tasks`) |
 | 3 | The 16 other tools, 3 at a time, each reviewed until excellent | — |
 | 4 | Before/after measured together in a quiet window; reports; critique verdicts (custom domains) | — |
 
