@@ -200,7 +200,7 @@ test("a host who does not work on clients here: the guest is a lead of nobody's,
   assert.ok(lead?.booking);
   assert.equal(lead.booking.start, d.start);
   const bell = chest.notifications.filter(n => n.key === bookingKey(d.booking));
-  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title]), [[camille.id, "Nouveau contact : Léon Blanc a pris rendez-vous"]]);
+  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title]), [[camille.id, "Nouveau contact\u202f: Léon Blanc a pris rendez-vous"]]);
   // A viewer hosting is no owner either.
   await tell(data({ host: lea.id, contact: { email: "viewer-host@example.com" } }));
   const [v] = await byEmail("viewer-host@example.com");

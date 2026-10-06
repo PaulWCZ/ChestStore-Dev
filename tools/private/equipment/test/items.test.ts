@@ -194,7 +194,7 @@ test("a holder reports a problem: every manager hears it in their language; solv
   const p = await items.report(sql, I, mac!.id, "The battery lasts one hour");
   const toCamille = chest.notifications.find(n => n.member === camille.id && n.key === `problem:${p.id}`);
   const toSofia = chest.notifications.find(n => n.member === sofia.id && n.key === `problem:${p.id}`);
-  assert.equal(shownTo(toCamille!, "fr").title, "Inès a signalé un problème : MacBook Pro 14 EQ-0001");
+  assert.equal(shownTo(toCamille!, "fr").title, "Inès a signalé un problème\u202f: MacBook Pro 14 EQ-0001");
   assert.equal(toSofia?.title, "Inès reported a problem: MacBook Pro 14 EQ-0001");
   assert.equal(toSofia?.body, "The battery lasts one hour");
   assert.equal(chest.badges.get(camille.id), 1);

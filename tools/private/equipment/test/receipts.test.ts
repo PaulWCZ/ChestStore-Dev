@@ -176,7 +176,7 @@ test("remind them: the holder hears it in the bell (the same item, rung again, w
   assert.equal(bell.length, 1);
   assert.equal(bell[0]!.title, `${camille.firstName} asks: did you receive Pixel 7 ${phone.tag}?`);
   assert.match(bell[0]!.body ?? "", /^Given on \d+ \S+ \d{4}\. Open My equipment/u);
-  assert.equal(shownTo(bell[0]!, "fr").title, `${camille.firstName} vous demande : avez-vous reçu Pixel 7 ${phone.tag} ?`);
+  assert.equal(shownTo(bell[0]!, "fr").title, `${camille.firstName} vous demande\u202f: avez-vous reçu Pixel 7 ${phone.tag}\u202f?`);
   assert.match(shownTo(bell[0]!, "fr").body ?? "", /^Remis le \d+ \S+ \d{4}\. Ouvrez Mon matériel/u);
   assert.equal(bell[0]!.path, "/chest/mine");
   assert.equal(bell[0]!.key, `item:${phone.id}:given`);

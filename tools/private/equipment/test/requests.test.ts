@@ -77,7 +77,7 @@ test("refused with a reason; cancelled by the one who asked; at most 10 waiting 
   const refusedOne = await refuse(sql, M, a.id, "Les écrans de 27 pouces suffisent");
   assert.equal(refusedOne.status, "refused");
   assert.equal(refusedOne.answer, "Les écrans de 27 pouces suffisent");
-  assert.equal(shownTo(chest.notifications.find(n => n.key === `request:${a.id}:answer`)!, "fr").title, "Camille a refusé votre demande : Un écran 32 pouces");
+  assert.equal(shownTo(chest.notifications.find(n => n.key === `request:${a.id}:answer`)!, "fr").title, "Camille a refusé votre demande\u202f: Un écran 32 pouces");
   const b = await ask(sql, I, { body: "Un casque" });
   await refused(cancel(sql, H, b.id), "not_found");
   assert.equal((await cancel(sql, I, b.id)).status, "cancelled");
