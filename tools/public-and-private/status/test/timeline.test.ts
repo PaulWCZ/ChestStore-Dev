@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { currentStates, history, lastDays, maintenancePhase, spans, uptime, type TimelineIncident } from "../lib/timeline.ts";
+import { currentStates, history, lastDays, maintenancePhase, spans, uptime, type TimelineIncident } from "../src/lib/timeline.ts";
 
 const zone = "Europe/Paris";
 const H = 3600000;

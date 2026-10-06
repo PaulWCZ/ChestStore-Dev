@@ -387,10 +387,11 @@ Checked in Chromium only.
 - 15 tests in the starter: 11 against the built server, with the SDK's
   fakeChest and a real PostgreSQL, and 4 on the sources — passing with and
   without `NODE_ENV=development`;
-- 26 tests in the package: its fields, redirects, formats and checks, and
+- 28 tests in the package: its fields, redirects, formats and checks, and
   a small tool built on the packaged code (the pilots' own included; and
   bounds, `rawRoute`, `zipStream` read by `unzip`, the database in a far
-  time zone, a route's own policy);
+  time zone, a route's own policy and referrer policy, a public page in
+  its own language, a page's own head and exact title);
 - 14 Chromium tests (`lab/starter-bench/browser.test.mjs`). They check
   hydration under the policy, forms sent in place, and a refresh that
   keeps typed text, scroll, an island's state and a moved row's island.
@@ -550,19 +551,29 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
 - `node scripts/chest-check.mjs starter`: OK for contract 0.4; the tool
   asks for database, members and receives.
 - `npm run dev` (run by the workbench bench) and `npm start` serve the tool.
-- In `app/`: `npm test` (26 tests; its peak 277 MiB RSS on the local
+- In `app/`: `npm test` (28 tests; its peak 277 MiB RSS on the local
   server, against 1.2 GiB on PGlite).
 - Polls, Tasks, News and Booking, copied with `@argentic/chest-app`
   0.1.0-studio.3 in place of theirs: `tsc` passes for all four; Tasks
   (123) and News (109) pass all their tests; Polls (102/103) and Booking
   (112/113) fail only the new `checkSources` rule (a `publicAction`
   without `bound`) — they must add `bound` (or `bound: false`) when they
-  re-vendor. Run under `NODE_ENV=development` with `TEST_DATABASE_URL`.
+  re-vendor. Run under `NODE_ENV=development` with `TEST_DATABASE_URL`,
+  before the merge of Support's and Status's View fields (`locale`,
+  `head`, `exactTitle`, which replaced this round's `lang`) and of the
+  island's default CSS — those two were tested in `app/`, the starter and
+  Chromium only. One visible change for News: its search island is a
+  flex item (`.ck-bar-end > .island { flex: … }`); with the package's
+  `.island { display: contents }` it must add `display: block` there.
 - `node scripts/check-vendor.mjs`: every vendored studio pack of the
-  starter and the 18 tools compared with `app/`, `ui/`, `sdk/` (all the
-  same at their version; 14 tools still on SDK 0.3.1-studio.1, the four
-  migrated ones on chest-app studio.1/2).
-- The 14 Chromium tests and the axe audits.
+  starter and the tools compared with `app/`, `ui/`, `sdk/`. The starter's
+  chest-app is the working copy's. It found a real drift: the six
+  migrated tools vendor `@argentic/chest-sdk` 0.4.1-studio.2, but `sdk/`
+  changed at that same version afterwards (`fakeChest.publicApi`, commit
+  9f25e80): the SDK needs a studio.3 and the tools a re-vendor (the
+  script exits 1 until then).
+- The 14 Chromium tests (one now checks every island wrapper is
+  `display: contents` from the package's CSS) and the axe audits.
 - Every number in §4, by the method stated there.
 
 **Not verified:**

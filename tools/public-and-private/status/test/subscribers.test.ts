@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addComponent, updateComponent } from "../lib/components.ts";
-import { admit, checkForm, formToken } from "../lib/guard.ts";
-import * as incidents from "../lib/incidents.ts";
-import { flush, updateEmail, welcome } from "../lib/mailer.ts";
-import { mailDelivery, mailState, setMailState } from "../lib/settings.ts";
-import * as subs from "../lib/subscribers.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addComponent, updateComponent } from "../src/lib/components.ts";
+import { admit, checkForm, formToken } from "../src/lib/guard.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { flush, updateEmail, welcome } from "../src/lib/mailer.ts";
+import { mailDelivery, mailState, setMailState } from "../src/lib/settings.ts";
+import * as subs from "../src/lib/subscribers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, nora } from "./support/members.ts";
@@ -19,7 +19,7 @@ let website = "", checkout = "", secret = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 6 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 6 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();
@@ -99,13 +99,19 @@ test("the form's guard: a signed time, then counts â€” the Chest's, else the too
   assert.throws(() => checkForm(token), (e: unknown) => e instanceof AppError && e.code === "too_fast");
   assert.throws(() => checkForm("forged.value"), (e: unknown) => e instanceof AppError && e.code === "invalid");
   assert.throws(() => checkForm(undefined), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  const headers = new Headers({ "x-forwarded-for": "203.0.113.9" });
+  const headers = new Headers({ "chest-visitor-address": "203.0.113.9" });
   for (let i = 0; i < subs.formLimits.perVisitorHour; i++) await admit(sql, headers);
   await refuses("too_many", () => admit(sql, headers));
-  await admit(sql, new Headers({ "x-forwarded-for": "203.0.113.10" }));
+  await admit(sql, new Headers({ "chest-visitor-address": "203.0.113.10" }));
   // The tool's own counters (a Chest that does not count visitors).
   for (let i = 0; i < subs.formLimits.perVisitorHour; i++) await subs.guard(sql, "198.51.100.1");
   await refuses("too_many", () => subs.guard(sql, "198.51.100.1"));
+  // A visitor the Chest's front does not name is everyone at once: only the
+  // ceiling for everyone counts, never five an hour for the whole world.
+  const later = new Date(Date.now() + 3 * 3600000);
+  for (let i = 0; i < subs.formLimits.perVisitorHour * 3; i++) await subs.guard(sql, "unknown", later);
+  for (let i = subs.formLimits.perVisitorHour * 3; i < subs.formLimits.perHour; i++) await subs.guard(sql, "198.51.100." + (i % 200), later).catch(() => {});
+  await refuses("too_many", () => subs.guard(sql, "unknown", later));
 });
 
 test("editors see and remove subscribers; nobody else", async () => {
@@ -175,7 +181,7 @@ test("the Chest's daily quota stops the queue, which goes on later; a Chest with
   const [{ count }] = (await sql`select count(*)::int as count from mail_queue`) as unknown as [{ count: number }];
   assert.equal(count, 8 - first.sent);
   // Without mail on the Chest.
-  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     const r = await subs.subscribe(sql, { email: "z@example.com", language: "en", components: "all" });
     assert.equal(await welcome(sql, r.subscriber, r.state, "https://x.test"), "none");
@@ -199,7 +205,7 @@ test("studio.16: whether the Chest sends email is asked of it (mail.available) â
   } finally {
     chest.delivery.mail = "ready";
   }
-  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     assert.deepEqual(await mailDelivery(sql), { state: "none", reason: "not_granted" });
   } finally {

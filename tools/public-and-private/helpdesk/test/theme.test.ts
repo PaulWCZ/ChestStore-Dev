@@ -7,7 +7,7 @@ import { fakeChest } from "@argentic/chest-sdk/testing";
 import { checkTheme, themeOf, validateTheme } from "@argentic/chest-ui";
 import { fontFiles } from "@argentic/chest-ui/fonts";
 import { themeStyle } from "@argentic/chest-ui/runtime";
-import { currentLook, identity } from "../lib/theme.ts";
+import { currentLook, identity, publicLook, sheetOf } from "../src/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -18,16 +18,29 @@ test("Support's own identity is a valid theme, passes every pair of the contract
   assert.deepEqual(identity, themeOf("counter"));
 });
 
-test("its fonts are the tool's own files, served at /fonts", () => {
-  const present = new Set(readdirSync(join(root, "public", "fonts")));
+test("its fonts are the tool's own files, served at /assets/fonts (a private host serves nothing at its root)", async () => {
+  const present = new Set(readdirSync(join(root, "public", "assets", "fonts")));
   const needed = fontFiles([identity.fonts.display, identity.fonts.body, identity.fonts.mono, identity.fonts.accent]);
   assert.ok(needed.length > 0);
   for (const file of needed) assert.ok(present.has(file), file);
-  assert.match(themeStyle(identity), /url\(\/fonts\/atkinson-hyperlegible-latin-400-normal\.woff2\)/u);
+  assert.match((await sheetOf("team")).css, /url\(\/assets\/fonts\/atkinson-hyperlegible-latin-400-normal\.woff2\)/u);
+});
+
+test("the public pages wear the company's brand or Support's own look — never a catalogue theme chosen for the team", async () => {
+  const chest = await fakeChest({ network: {}, theme: { all: { mode: "catalogue", theme: "newsprint" } } });
+  try {
+    assert.equal((await currentLook()).theme.id, "newsprint", "the team's pages: the catalogue theme");
+    assert.equal((await publicLook()).theme, identity, "the public pages: Support's own look");
+    chest.theme.all = { mode: "brand", brand: { name: "Atelier Martin", primary: "#0e7c66", secondary: null, neutral: null, corners: "round", density: "comfortable", display: null, body: null, logo: null } };
+    assert.equal((await publicLook()).source, "brand", "the company's brand shows on its public pages");
+  } finally {
+    await chest.close();
+    forgetTheme();
+  }
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
-  const chest = await fakeChest({ theme: { all: { mode: "catalogue", theme: "newsprint" } } });
+  const chest = await fakeChest({ network: {}, theme: { all: { mode: "catalogue", theme: "newsprint" } } });
   try {
     let look = await currentLook();
     assert.equal(look.source, "catalogue");
@@ -50,12 +63,12 @@ test("the look follows the Chest: the company's choice for all tools, this tool'
 });
 
 // A colour written in the tool's CSS (or in its drawings) would not
-// follow the theme: every colour lives in lib/theme.ts.
+// follow the theme: every colour lives in src/theme.ts.
 test("no colour is written in the tool's stylesheets or components: only contract tokens", () => {
   const found: string[] = [];
   const walk = (dir: string): string[] => readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "public", "test", "docs", "chest"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "public", "test", "docs", "chest"].includes(name)) return [];
     return statSync(path).isDirectory() ? walk(path) : /\.(css|tsx)$/u.test(path) ? [path] : [];
   });
   for (const file of walk(root)) {
@@ -66,10 +79,10 @@ test("no colour is written in the tool's stylesheets or components: only contrac
 });
 
 test("every var() of the stylesheets is a contract token or one of the tool's own", () => {
-  const own = new Set([...readFileSync(join(root, "app", "tokens.css"), "utf8").matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!));
+  const own = new Set([...readFileSync(join(root, "src", "tokens.css"), "utf8").matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!));
   const contract = new Set([...themeStyle(identity).matchAll(/(--[\w-]+):/gu)].map(m => m[1]!));
   const unknown = new Set<string>();
-  for (const file of ["app/globals.css", "app/tokens.css"]) {
+  for (const file of ["src/styles.css", "src/tokens.css"]) {
     for (const m of readFileSync(join(root, file), "utf8").matchAll(/var\((--[\w-]+)/gu)) if (!own.has(m[1]!) && !contract.has(m[1]!)) unknown.add(m[1]!);
   }
   assert.deepEqual([...unknown], []);

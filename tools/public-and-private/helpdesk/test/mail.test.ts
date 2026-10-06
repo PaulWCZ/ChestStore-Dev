@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-mail/route.ts";
-import * as mailer from "../lib/mailer.ts";
-import * as tickets from "../lib/tickets.ts";
+import { chestMail as POST } from "../src/lib/deliveries.ts";
+import * as mailer from "../src/lib/mailer.ts";
+import * as tickets from "../src/lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
@@ -17,7 +17,7 @@ let chest: FakeChest;
 const to = (request: Request) => POST(request);
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr", publicUrl: "https://support.atelier.test" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr", publicUrl: "https://support.atelier.test" } });
 });
 after(async () => {
   await chest.close();

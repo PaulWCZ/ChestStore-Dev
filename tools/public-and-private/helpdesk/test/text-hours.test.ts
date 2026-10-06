@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { defaultHours, frenchHolidays, parseHours, readHours, stamp, workMinutes, zoned, type Hours } from "../lib/hours.ts";
-import { decide, matches } from "../lib/rules.ts";
-import { baseSubject, linkify, robotAddress, splitQuoted } from "../lib/text.ts";
+import { defaultHours, frenchHolidays, parseHours, readHours, stamp, workMinutes, zoned, type Hours } from "../src/shared/hours.ts";
+import { decide, matches } from "../src/lib/rules.ts";
+import { baseSubject, linkify, robotAddress, splitQuoted } from "../src/shared/text.ts";
 
 const paris = "Europe/Paris";
 

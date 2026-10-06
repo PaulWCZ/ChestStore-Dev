@@ -30,9 +30,13 @@ export const policy = "default-src 'self'; script-src 'self'; style-src 'self'; 
 export type Viewer = MemberContext | VisitorContext;
 // What a page handler gets, and gives back (or a Response of its own).
 export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; param(name: string): string; query(name: string): string | undefined };
-// lang: the page's own language when it is not the reader's (a page that
-// exists only in its author's language).
-export type View = { title: string; body: ReactNode; lang?: string };
+// locale: a public page in a language of its own, one of the tool's (a
+// request's page in the request's language): <html lang> and the layout's
+// words follow it. A member's page is in the member's language.
+// head: more in the <head> of this page (robots, a feed's link); exactTitle:
+// the title as given, without " · <tool>" (a public page in the company's
+// name).
+export type View = { title: string; body: ReactNode; locale?: string; head?: ReactNode; exactTitle?: boolean };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
 // look: the request's look when createApp has one (its logo, in brand
@@ -136,13 +140,14 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   const { members: Members, public: Public } = options.layouts;
   startRender(options.islands);
   const page = renderToString(
-    <html lang={view.lang ?? viewer.locale}>
+    <html lang={viewer.locale}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{view.title === name ? view.title : `${view.title} · ${name}`}</title>
+        <title>{view.title === name || view.exactTitle ? view.title : `${view.title} · ${name}`}</title>
         {look?.colors?.map(m => <meta key={m.media} name="theme-color" media={m.media} content={m.color} />)}
         {options.head?.(viewer)}
+        {view.head}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
         <script type="module" src={`/assets/${script}`} />
@@ -190,8 +195,14 @@ export const page = (render: (p: PageContext<MemberContext>) => Promise<View | R
 export const publicPage = (render: (p: PageContext<VisitorContext>) => Promise<View | Response> | View | Response) => async (c: Context) => {
   const viewer = visitor(c);
   const view = await render(contextOf(c, viewer));
-  return view instanceof Response ? view : html(c, view, viewer);
+  return view instanceof Response ? view : html(c, view, speaking(c, viewer, view.locale));
 };
+// The visitor, in the page's own language when it names one the tool speaks.
+function speaking(c: Context, viewer: VisitorContext, locale: string | undefined): VisitorContext {
+  const options = optionsOf(c);
+  if (!locale || locale === viewer.locale || !options.locales.includes(locale)) return viewer;
+  return { ...viewer, locale, t: options.words(locale), f: formatter(locale, chest.timeZone, chest.currency) };
+}
 
 // A mutation is sent by the page itself: the browser says so
 // (Sec-Fetch-Site), or, for an older one, its Origin is this host.
@@ -336,11 +347,13 @@ export function createApp(options: AppOptions) {
   app.use(async (c, next) => {
     const started = performance.now();
     await next();
-    // A route may answer its own policy (wider frame-ancestors for a page
-    // the company embeds): kept. Every other answer gets the package's.
+    // A route that answers with its own policy keeps it (a banner other
+    // sites may frame: its frame-ancestors; a picture: a stricter one), and
+    // its own Referrer-Policy (a page whose address holds a secret:
+    // no-referrer). Pages and actions never set one: they get this.
     if (!c.res.headers.has("Content-Security-Policy")) c.header("Content-Security-Policy", policy);
     c.header("X-Content-Type-Options", "nosniff");
-    c.header("Referrer-Policy", "same-origin");
+    if (!c.res.headers.has("Referrer-Policy")) c.header("Referrer-Policy", "same-origin");
     c.header("Cross-Origin-Opener-Policy", "same-origin");
     if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
     // The route's pattern (/p/:link/actions/:name), never the path or the

@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { exportZip } from "../lib/export.ts";
-import { defaultHours } from "../lib/hours.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { erase, leave } from "../lib/lifecycle.ts";
-import { report } from "../lib/reports.ts";
-import * as rules from "../lib/rules.ts";
-import * as tickets from "../lib/tickets.ts";
-import * as views from "../lib/views.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { exportZip } from "../src/lib/export.ts";
+import { defaultHours } from "../src/shared/hours.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { erase, leave } from "../src/lib/lifecycle.ts";
+import { report } from "../src/lib/reports.ts";
+import * as rules from "../src/lib/rules.ts";
+import * as tickets from "../src/lib/tickets.ts";
+import * as views from "../src/lib/views.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -20,7 +20,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -222,12 +222,9 @@ test("export: every ticket and every message — notes too — in a ZIP of two s
   await assert.rejects(exportZip(sql, asMember(nora), catalogue("en"), "en"), refused("forbidden"));
 });
 
-test("a website allowed in Settings may frame the form on the very next request, as the proxy reads it", async () => {
+test("a website allowed in Settings may frame the form on the very next request: read from the database, never kept", async () => {
   const { sql } = database;
-  // Next.js runs proxy.ts in its own module instance, apart from the server
-  // actions: load lib/frame.ts a second time, as the proxy does, and read
-  // through db() exactly as it calls it.
-  const proxied = (await import(`../lib/frame.ts?proxy=${Date.now()}`)) as typeof import("../lib/frame.ts");
+  const proxied = await import("../src/lib/frame.ts");
   await tickets.saveSettings(sql, asMember(camille), { frameOrigins: "https://www.atelier-martin.fr" });
   assert.deepEqual(await proxied.frameOrigins(), ["https://www.atelier-martin.fr"]);
   await tickets.saveSettings(sql, asMember(camille), { frameOrigins: "https://www.atelier-martin.fr\nhttps://shop.atelier-martin.fr" });

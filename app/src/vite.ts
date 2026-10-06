@@ -17,6 +17,9 @@ import { defineConfig, type BuildEnvironmentOptions, type Plugin, type UserConfi
 // never an inline <style>, so the strictest policy admits it.
 // Without theme (a look chosen at run time, served by createApp's look),
 // virtual:look.css is empty: src/entry.tsx need not import it.
+// What every tool's client.css starts with.
+export const baseCss = ".island{display:contents}";
+
 export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: string[] }): UserConfig {
   // The kit's components say "use client" (for Next.js): meaningless here.
   const onLog: NonNullable<BuildEnvironmentOptions["rolldownOptions"]>["onLog"] = (level, log, handler) => (log.code === "MODULE_LEVEL_DIRECTIVE" ? undefined : handler(level, log));
@@ -42,6 +45,19 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     name: "chest-look",
     resolveId: id => (id === "virtual:look.css" ? "\0look.css" : null),
     load: id => (id === "\0look.css" ? (theme ? themeCss(theme, { fontBase: "/assets/fonts" }) : "") : null),
+  };
+  // The package's own rules, first in client.css (a tool's styles come
+  // after and may override them): an island's wrapper <div> takes no room
+  // of its own — its content lays out as if the wrapper were not there (an
+  // empty island leaves no gap in a flex or grid gap).
+  const base: Plugin = {
+    name: "chest-base",
+    apply: "build",
+    generateBundle(_, bundle) {
+      const css = Object.values(bundle).find(file => file.type === "asset" && file.fileName === "assets/client.css");
+      if (css?.type === "asset") css.source = `${baseCss}\n${typeof css.source === "string" ? css.source : new TextDecoder().decode(css.source)}`;
+      else this.emitFile({ type: "asset", fileName: "assets/client.css", source: baseCss });
+    },
   };
   // The browser's files compressed once, at build: client-<hash>.js.br and
   // .gz beside each, served by Accept-Encoding (the Chest's front does not
@@ -70,7 +86,7 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     },
   });
   return defineConfig(({ isSsrBuild, mode }) => ({
-    plugins: isSsrBuild ? [look] : [look, precompress(mode === "development")],
+    plugins: isSsrBuild ? [look] : [look, base, precompress(mode === "development")],
     // The JSX runtime and React's build follow the Vite mode, never the
     // shell's NODE_ENV (the Perseus workbench sets development: a build's
     // JSX must still be the production runtime its React provides).

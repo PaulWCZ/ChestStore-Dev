@@ -1,0 +1,28 @@
+/* Support's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — Support's identity "Calm counter" in src/theme.ts, or
+   the theme or brand the company chose in its Chest — in a stylesheet the
+   tool serves (/chest/look.css, /look.css). Here only what is Support's alone, always defined from
+   contract tokens, never from a colour, so it follows every theme. */
+:root {
+  /* The customer's coral: categorical slot 3 (the orange family in every
+     theme). The soft ground for a late wait, its ink for the words on it,
+     the solid colour for its edge. */
+  --customer: var(--cat-3-soft);
+  --customer-ink: var(--cat-3-ink);
+  --customer-line: var(--cat-3);
+
+  /* The team's butter notes: the marker pen (--highlight, --ink on it is a
+     measured pair in every theme) with slot 7's ochre (the same family) for
+     the dashed edge a note is told by. */
+  --note: var(--highlight);
+  --note-line: var(--cat-7);
+
+  /* Support's pills (buttons, chips): round in a theme with round corners,
+     square in a square one (the Chest theme's radius is 0). */
+  --radius-round: min(var(--radius-pill), calc(var(--radius-s) * 100));
+
+  /* The side column of folders, and the page's reading width. */
+  --side-width: 250px;
+  --line-bold: max(1.5px, var(--border-width));
+}

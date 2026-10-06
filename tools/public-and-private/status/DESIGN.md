@@ -8,24 +8,24 @@ customers go to feel reassured, so it must look steady and speak plainly.
 
 ## Looks
 
-The identity is a theme of the UI kit: **"Control room"** (`lib/theme.ts`,
+The identity is a theme of the UI kit: **"Control room"** (`src/lib/theme.ts`,
 `defineTheme`), the very same source as the catalogue's `control-room`
 (the tests hold the two equal and to the kit's contract, WCAG AA, light
 and dark). A company may give Status any other theme of the catalogue or
 its own brand, in its Chest: the stylesheets name only the contract's
 tokens (`ui/tokens/CONTRACT.md`) and the tool's own, defined from them
-(`app/tokens.css`), so every page follows. Two things stay the identity's
+(`src/tokens.css`), so every page follows. Two things stay the identity's
 own: **the five state colours**, in every look (they are meaning —
-`lib/states.ts`, measured against every theme and hundreds of derived
+`src/lib/states.ts`, measured against every theme and hundreds of derived
 brands), and, in its own look only, **the dark control-panel header**
-(`[data-look="own"]` in `app/globals.css`: the contract's `--inverse`
+(`[data-look="own"]` in `src/styles.css`: the contract's `--inverse`
 band with its `--inverse-ink`, `--inverse-ink-2` and `--inverse-line`,
 dark in light and dark mode alike). Any other look keeps the kit's
 header, like every tool wearing it. Incident updates and post-mortems
 read in the look's `--font-read`; chips and state pills take
 `--radius-chip` (square in a square look); fields `--field-pad-x`.
 
-## Tokens (`lib/theme.ts` for the look, `lib/states.ts` for the states)
+## Tokens (`src/lib/theme.ts` for the look, `src/lib/states.ts` for the states)
 
 A cool grey paper, near-black ink, white panels with hairlines. Colour is
 kept for states only, and a state never rests on colour: each has its own
@@ -134,8 +134,8 @@ page: it is the company's, with its name and monogram on top.
     { "name": "Major", "value": "#c42d17" }
   ],
   "fonts": {
-    "display": { "family": "Red Hat Text", "file": "public/fonts/red-hat-text-latin-wght-normal.woff2", "weight": 650 },
-    "body": { "family": "Red Hat Mono", "file": "public/fonts/red-hat-mono-latin-wght-normal.woff2", "weight": 500 }
+    "display": { "family": "Red Hat Text", "file": "public/assets/fonts/red-hat-text-latin-wght-normal.woff2", "weight": 650 },
+    "body": { "family": "Red Hat Mono", "file": "public/assets/fonts/red-hat-mono-latin-wght-normal.woff2", "weight": 500 }
   },
   "specimen": "All systems operational — 99.97% uptime"
 }

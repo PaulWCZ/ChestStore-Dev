@@ -30,11 +30,12 @@ async function open(options = {}) {
   return { page, problems, close: () => context.close() };
 }
 
-test("islands hydrate under the policy, without a warning", async () => {
+test("islands hydrate under the policy, without a warning; their wrappers take no room (the package's CSS)", async () => {
   const { page, problems, close } = await open();
   await page.waitForFunction(() => document.querySelector("[data-island='ToastHost'] .ck-toasts") !== null);
   await page.waitForTimeout(300);
   assert.deepEqual(problems, []);
+  assert.deepEqual(await page.evaluate(() => [...new Set([...document.querySelectorAll(".island")].map(e => getComputedStyle(e).display))]), ["contents"]);
   await close();
 });
 

@@ -32,7 +32,7 @@ let completed = 0;
 let written = 0;
 const layout = ({ notice, look, status, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "" }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
-  actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
+  actions, islands: { Labelled }, locales: ["en", "fr"], words: locale => (locale === "fr" ? { ...words, tool: { name: "Sonde" } } : words), layouts: { members: layout, public: layout },
   look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: { url: "/_chest/theme/brand/logo.svg", alt: "Brand" } }),
   complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
@@ -48,9 +48,13 @@ app.get("/chest/refused", page(() => fail("forbidden")));
 app.get("/chest/missing", page(() => fail("not_found")));
 app.get("/chest/invalid", page(() => fail("invalid")));
 app.get("/chest/own-policy", page(() => new Response("framed", { headers: { "content-security-policy": "frame-ancestors https://partner.example" } })));
-app.get("/chest/english", page(() => ({ title: "English only", body: "x", lang: "en-US" })));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
+app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
+app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
+app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
+app.use("/secret/*", async (c, next) => { await next(); c.header("Referrer-Policy", "no-referrer"); });
+app.get("/secret/:token", publicPage(() => ({ title: "Secret", body: h("p", null, "yours") })));
 
 const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
 let chest, database;
@@ -178,6 +182,28 @@ test("layouts receive the look (its logo) and the page's status; a visitor's 404
   assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
 });
 
+test("a public page in a language of its own: <html lang> and the layout's words follow it, one the tool does not speak is ignored", async () => {
+  const fr = await (await get("/in/fr", null)).text();
+  assert.match(fr, /<html lang="fr">/u);
+  assert.match(fr, /<title>Public · Sonde<\/title>/u);
+  const unknown = await (await get("/in/xx", null)).text();
+  assert.match(unknown, /<html lang="en">/u);
+  assert.match(unknown, /<title>Public · Probe<\/title>/u);
+});
+
+test("a page's own head and exact title; a route's own policy and referrer policy are kept", async () => {
+  const company = await (await get("/company", null)).text();
+  assert.match(company, /<title>Atelier status<\/title>/u);
+  assert.match(company, /<meta name="robots" content="index, follow"\/>/u);
+  assert.match(await (await get("/", null)).text(), /<title>Public · Probe<\/title>/u);
+  const framed = await get("/framed", null);
+  assert.equal(framed.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors https://shop.test");
+  const secret = await get("/secret/abc", null);
+  assert.equal(secret.headers.get("referrer-policy"), "no-referrer");
+  assert.match(secret.headers.get("content-security-policy"), /frame-ancestors 'none'/u);
+  assert.equal((await get("/", null)).headers.get("referrer-policy"), "same-origin");
+});
+
 test("after(): a task that throws before its first await is logged, never thrown", async () => {
   const lines = [];
   const write = console.error;
@@ -275,10 +301,9 @@ test("zipStream: a zip any reader opens, written as it is read", async () => {
   await assert.rejects(new Response(zipStream([{ name: "../evil", data: "x" }])).arrayBuffer(), RangeError);
 });
 
-test("a route's own policy is kept; a page may say its own language; failures named by what failed", async () => {
+test("a route's own policy is kept; failures named by what failed", async () => {
   assert.equal((await get("/chest/own-policy")).headers.get("content-security-policy"), "frame-ancestors https://partner.example");
   assert.match((await get("/chest/day")).headers.get("content-security-policy"), /^default-src 'self'/u);
-  assert.match(await (await get("/chest/english")).text(), /<html lang="en-US">/u);
   const lines = [];
   const write = console.error;
   console.error = line => lines.push(String(line));

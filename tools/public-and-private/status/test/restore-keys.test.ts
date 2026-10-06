@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { addComponent } from "../lib/components.ts";
-import * as incidents from "../lib/incidents.ts";
-import { flush } from "../lib/mailer.ts";
-import * as subs from "../lib/subscribers.ts";
+import { addComponent } from "../src/lib/components.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { flush } from "../src/lib/mailer.ts";
+import * as subs from "../src/lib/subscribers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone } from "./support/members.ts";
@@ -20,7 +20,7 @@ const editor = asMember(camille);
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();

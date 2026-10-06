@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { check, issue } from "../lib/form-token.ts";
-import * as mailer from "../lib/mailer.ts";
-import * as tell from "../lib/tell.ts";
-import * as tickets from "../lib/tickets.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { check, issue } from "../src/lib/form-token.ts";
+import * as mailer from "../src/lib/mailer.ts";
+import * as tell from "../src/lib/tell.ts";
+import * as tickets from "../src/lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -14,7 +14,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] } });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] } });
 });
 after(async () => {
   await chest.close();
@@ -78,7 +78,7 @@ test("replies go by email, threaded, in the customer's language; without mail, o
   assert.match(chest.outbox[1]!.subject, /^Re: Broken lamp \[#\d+\]$/u);
   await assert.rejects(tickets.reply(sql, asMember(lea), t.number, "No"), refused("forbidden"));
   // A Chest without mail: nothing sent, the answer is on the page.
-  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members"] });
+  const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members"] });
   try {
     assert.deepEqual(await mailer.answer(done.ticket, "…", asMember(ines), "", { inReplyTo: null, references: [] }, "1"), { delivery: "page" });
   } finally {

@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, mock, test } from "node:test";
 import * as files from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import * as attachments from "../lib/attachments.ts";
-import { issue } from "../lib/form-token.ts";
-import * as mailer from "../lib/mailer.ts";
-import { checkFile, fileName } from "../lib/model.ts";
-import * as tickets from "../lib/tickets.ts";
-import { GET as publicFile } from "../app/t/[secret]/files/[id]/route.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as attachments from "../src/lib/attachments.ts";
+import { issue } from "../src/lib/form-token.ts";
+import * as mailer from "../src/lib/mailer.ts";
+import { checkFile, fileName } from "../src/lib/model.ts";
+import * as tickets from "../src/lib/tickets.ts";
+import { publicFile as fileOf } from "../src/lib/downloads.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, lea } from "./support/members.ts";
@@ -19,7 +19,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, storage: { publicUploads: true } });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, storage: { publicUploads: true } });
 });
 after(async () => {
   await chest.close();
@@ -60,7 +60,7 @@ test("a visitor adds files to the form: kept on the ticket, the team sees them, 
   assert.deepEqual(kept.map(a => [a.fileName, a.type, a.size]), [["lamp.png", "image/png", png.length], ["_.._invoice.pdf", "application/pdf", pdf.length]]);
   assert.ok(!objects().some(o => o.startsWith("uploads/public/")), "moved out of the uploads");
   // The customer's link opens their own files, as downloads.
-  const answer = await publicFile(new Request("http://tool/"), { params: Promise.resolve({ secret: t.secret, id: kept[0]!.id }) });
+  const answer = await fileOf(t.secret, kept[0]!.id);
   assert.equal(answer.status, 200);
   assert.deepEqual(new Uint8Array(await answer.arrayBuffer()), png);
   assert.match(answer.headers.get("content-disposition")!, /^attachment; filename="lamp\.png"/u);
@@ -76,7 +76,7 @@ test("a visitor can never reach another's file: not by claim, not by name, not b
   const theirs = await tickets.fromForm(sql, form("bob@example.com"), visitorFiles([{ ref: await visitorSends({ started: shown() }, png, "image/png"), name: "bob.png" }]));
   const bobFile = (await tickets.ticket(sql, asMember(lea), theirs.number)).messages[0]!.attachments[0]!;
   // Bob's file through Anna's link: nothing.
-  const through = await publicFile(new Request("http://tool/"), { params: Promise.resolve({ secret: mine.secret, id: bobFile.id }) });
+  const through = await fileOf(mine.secret, bobFile.id);
   assert.equal(through.status, 404);
   assert.equal(await tickets.linkFile(sql, "x".repeat(32), bobFile.id), null);
   assert.equal(await tickets.linkFile(sql, mine.secret, "abc"), null);
@@ -174,8 +174,8 @@ test("a member adds files to a reply (emailed with it) or a note (never on the c
   const replyFile = team.messages.find(m => m.kind === "reply")!.attachments[0]!;
   const customer = (await tickets.byLink(sql, t.secret))!;
   assert.deepEqual(customer.messages.flatMap(m => m.attachments.map(a => a.fileName)), ["guide.pdf"]);
-  assert.equal((await publicFile(new Request("http://tool/"), { params: Promise.resolve({ secret: t.secret, id: noteFile.id }) })).status, 404);
-  assert.equal((await publicFile(new Request("http://tool/"), { params: Promise.resolve({ secret: t.secret, id: replyFile.id }) })).status, 200);
+  assert.equal((await fileOf(t.secret, noteFile.id)).status, 404);
+  assert.equal((await fileOf(t.secret, replyFile.id)).status, 200);
   // A file of a type not allowed, put there some other way, is refused and deleted.
   await files.put("uploads/team/aaaaaaaaaaaaaaaaaaaa.html", "<script>", "text/html");
   await assert.rejects(tickets.note(sql, asMember(hugo), t.number, "x", memberFiles([{ ref: "uploads/team/aaaaaaaaaaaaaaaaaaaa.html", name: "x.html" }])), refused("file_type"));

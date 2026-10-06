@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { formsLimits, formsLink, readRequest } from "../lib/forms-in.ts";
-import { limits } from "../lib/model.ts";
-import * as rules from "../lib/rules.ts";
-import * as tell from "../lib/tell.ts";
-import * as tickets from "../lib/tickets.ts";
+import { chestEvents as POST } from "../src/lib/deliveries.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { formsLimits, formsLink, readRequest } from "../src/lib/forms-in.ts";
+import { limits } from "../src/lib/model.ts";
+import * as rules from "../src/lib/rules.ts";
+import * as tell from "../src/lib/tell.ts";
+import * as tickets from "../src/lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -20,7 +20,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://support.atelier.test" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://support.atelier.test" } });
 });
 after(async () => {
   await chest.close();
@@ -229,7 +229,7 @@ test("the link back to the answer: Forms' address as the Chest gives it, none wh
   const path = "/chest/forms/5/answers/k3abc";
   // This fake Chest has no Forms: the ticket names the form without a link.
   assert.equal(formsLink(path), null);
-  const withForms = await fakeChest({ tools: { forms: true }, chest: { timeZone: "Europe/Paris", publicUrl: "https://support.atelier.test" } });
+  const withForms = await fakeChest({ network: {}, tools: { forms: true }, chest: { timeZone: "Europe/Paris", publicUrl: "https://support.atelier.test" } });
   try {
     assert.equal(formsLink(path), "https://forms-chest.chest.test/chest/forms/5/answers/k3abc");
     assert.equal(formsLink(null), null);
@@ -237,7 +237,7 @@ test("the link back to the answer: Forms' address as the Chest gives it, none wh
     assert.equal(formsLink("/f/contact"), null, "only an answer's page on Forms' team host");
     assert.equal(formsLink("//evil.example/chest"), null);
     // Forms at a custom domain: the stored path follows it.
-    withForms.installTool("forms", { team: "https://forms.atelier-martin.fr" });
+    withForms.installTool("forms", { teamUrl: "https://forms.atelier-martin.fr" });
     assert.equal(formsLink(path), "https://forms.atelier-martin.fr/chest/forms/5/answers/k3abc");
     // Removed from the Chest: no link (never a dead one).
     withForms.removeTool("forms");

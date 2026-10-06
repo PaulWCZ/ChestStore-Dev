@@ -87,3 +87,9 @@ test("navigation: a GET in mode navigate, or accepting HTML without a mode", () 
   assert.equal(isNavigation("GET", { "sec-fetch-mode": "cors", accept: "text/html" }), false);
   assert.equal(isNavigation("POST", { "sec-fetch-mode": "navigate" }), false);
 });
+
+test("the look's files (/_chest/theme/) are served on the public host too, for reading only", () => {
+  const origins = { teamOrigin: "https://127.0.0.1:4000", publicOrigin: "https://localhost:4002" };
+  assert.deepEqual(route("public", { method: "GET", url: "/_chest/theme/fonts/brand.woff2" }, { name: "x" }, origins), { to: "chest" });
+  assert.notDeepEqual(route("public", { method: "POST", url: "/_chest/theme/logo.svg" }, { name: "x" }, origins), { to: "chest" });
+});

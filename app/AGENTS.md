@@ -43,8 +43,10 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
   use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
   `id="toasts"`, so it survives `navigate()`). The island's HTML sits in a
-  `<div class="island">` (give it `display: contents` in the tool's CSS,
-  as the starter does): render whole elements in an island — a list's
+  `<div class="island">` (`display: contents`, first in `client.css` from
+  `chestConfig()`: it takes no room, an empty island leaves no gap; an
+  island sized as a flex item gets its box back: `.bar > .island {
+  display: block; flex: … }`): render whole elements in an island — a list's
   `<ul>`, not its `<li>` — and select its insides by class, not with `>`
   from outside.
 - **Actions** are the only way to change data: `action(fields, run,
@@ -171,11 +173,6 @@ version must keep working on the new schema.
 
 ## Recipes
 
-**A page that exists in one language** — return `{ title, body, lang:
-"en" }`: the page's `<html lang>` says so, whoever reads it.
-**A route that answers its own policy** (a page the company embeds
-elsewhere: a wider `frame-ancestors`) — answer a `Response` whose
-`Content-Security-Policy` is set: the package keeps it.
 **Optimistic state in a big island** (a board dragged, a list reordered)
 — show the server's props, unless a local state exists while a drag or a
 call is in flight: `const shown = pending ?? props.cards`; set `pending`
@@ -253,8 +250,19 @@ receives it as `look`: a brand's logo beside the name): pages link
 `chestConfig()` without `theme`. The layouts receive `look` (its `logo` in brand mode) and the page's
 `status` (an error page's public layout may draw its frame); a visitor's
 404 reads `pages.notFound.publicBody` when the catalogue has one.
+**A public page in its own language** (a request's page in the language it
+was written in) — return `{ title, body, locale }` from `publicPage()`:
+`<html lang>` and the layout's words follow it (a language the tool speaks).
 **The head** (an icon, robots) —
 `createApp({ head: viewer => <><link rel="icon" href="/assets/icon.svg" /></> })`.
+**A page's own head or title** — `{ title, body, head: <meta name="robots"
+content="index, follow" />, exactTitle: true }`: `head` goes in that page's
+`<head>`; `exactTitle` keeps the title as given (no " · <tool>").
+**A route with its own policy** (a banner other sites frame, a picture) —
+answer a `Response` with its own `Content-Security-Policy` (and
+`Referrer-Policy`): the package keeps them; a page or an action gets the
+strict one. A middleware may set `Referrer-Policy` (`no-referrer` for a
+page whose address holds a secret).
 **Static files** — `public/assets/…`, served at `/assets/…`; the
 catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
 **A package the server needs** — `npm install it`; add it to `bundle` in

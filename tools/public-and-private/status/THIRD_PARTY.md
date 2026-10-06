@@ -2,13 +2,15 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
-| Red Hat Text (font) | [RedHatOfficial/RedHatFont](https://github.com/RedHatOfficial/RedHatFont), via `@fontsource-variable/red-hat-text` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-red-hat-text.txt` |
-| Red Hat Mono (font) | [RedHatOfficial/RedHatFont](https://github.com/RedHatOfficial/RedHatFont), via `@fontsource-variable/red-hat-mono` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-red-hat-mono.txt` |
-| Colour-blind safe palette (idea) | Okabe & Ito, *Color Universal Design* (2002/2008) | a published palette, no code | `lib/states.ts` (tones darkened for contrast) |
+| Red Hat Text (font) | [RedHatOfficial/RedHatFont](https://github.com/RedHatOfficial/RedHatFont), via `@fontsource-variable/red-hat-text` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-red-hat-text.txt` |
+| Red Hat Mono (font) | [RedHatOfficial/RedHatFont](https://github.com/RedHatOfficial/RedHatFont), via `@fontsource-variable/red-hat-mono` 5.3.0 | OFL-1.1 | `public/assets/fonts/`, licence in `public/assets/fonts/LICENSE-red-hat-mono.txt` |
+| Colour-blind safe palette (idea) | Okabe & Ito, *Color Universal Design* (2002/2008) | a published palette, no code | `src/lib/states.ts` (tones darkened for contrast) |
 
 Code from the studio's own tools (same licence, MIT, © 2026 Argentic):
-`lib/ics.ts`, `lib/zone.ts`, `lib/public-origin.ts`, `lib/i18n/format.ts`
-(adapted), `lib/people.ts`, `lib/notify.ts` from Booking and the template.
+`src/lib/ics.ts`, `src/lib/zone.ts`, `src/lib/public-origin.ts`,
+`src/i18n/format.ts` (adapted), `src/lib/people.ts`, `src/lib/notify.ts`
+from Booking and the template; `test/support/db.ts` from Polls;
+`scripts/dev.mjs` from the studio's starter.
 
 Ideas only, no code copied (see `reports/02-open-source/status.md`):
 the component and incident model and statuses of Cachet (MIT on its 2.4
@@ -43,6 +45,13 @@ code that reads them):
 - **Heartbeats** — the idea of Uptime Kuma's push monitors (MIT) and
   Better Stack's heartbeats; no code.
 
-Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`,
-`@argentic/chest-ui` — the studio's UI kit, vendored: the look and the
-shared components) are installed from npm or `vendor/` under their own licences.
+Dependencies, installed from npm or `vendor/` under their own licences:
+`hono` and `@hono/node-server` (MIT), `react` and `react-dom` (MIT),
+`postgres` (Unlicense); the studio's packages, vendored (MIT, © 2026
+Argentic): `@argentic/chest-sdk` (the Chest's SDK with the studio's
+proposals), `@argentic/chest-ui` (the UI kit: the look and the shared
+components), `@argentic/chest-app` (the server, the islands, the actions).
+For development and tests only: `vite` (MIT), `typescript` (Apache-2.0),
+`@electric-sql/pglite` and `@electric-sql/pglite-socket` (Apache-2.0),
+`@types/*` (MIT). Next.js is no longer used (until October 2026: Next.js
+16.3.6, MIT).

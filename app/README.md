@@ -17,12 +17,12 @@ node scripts/add-app.mjs starter                 # or tools/private/<name>
 
 | Import | Gives |
 |---|---|
-| `@argentic/chest-app` | `createApp`, `serve`, `page`, `publicPage`, `publicActionsAt`, `rawRoute`, `sameOrigin`, `zipStream`, `Island`, `action`, `publicAction`, `field`, `fail`, `notFound`, `forbidden`, `redirect`, `after`, `toolPath`, `fill`, `formatter`, `localeIn`, `publicLocale`, `csvLine`, `log`, types (`Register`, `CoreWords`, `MemberContext`, `VisitorContext`, `LayoutProps`, `Format`…) |
+| `@argentic/chest-app` | `createApp`, `serve`, `page`, `publicPage`, `publicActionsAt`, `rawRoute`, `sameOrigin`, `policy`, `zipStream`, `Island`, `Honeypot`, `action`, `publicAction`, `field`, `fail`, `notFound`, `forbidden`, `redirect`, `after`, `toolPath`, `cutText`, `fill`, `formatter`, `localeIn`, `publicLocale`, `csvLine`, `log`, types (`Register`, `CoreWords`, `MemberContext`, `VisitorContext`, `LayoutProps`, `Format`…) |
 | `@argentic/chest-app/client` | `call`, `refresh`, `navigate`, `onLinkClick`, `toast`, `ToastHost`, `fill`, `plural` (for islands) |
 | `@argentic/chest-app/browser` | `start(islands)` (the tool's `src/entry.tsx`) |
-| `@argentic/chest-app/db` | `db`, `seen` |
+| `@argentic/chest-app/db` | `db`, `seen`, `seenIn` |
 | `@argentic/chest-app/members` | `names` |
-| `@argentic/chest-app/vite` | `chestConfig({ theme, bundle? })` |
+| `@argentic/chest-app/vite` | `chestConfig({ theme, bundle? })`, `baseCss` (what every `client.css` starts with) |
 | `@argentic/chest-app/testing` | `testDatabase`, `checkPage`, `checkWords`, `checkSources`, `atLeast` |
 
 Peers: `hono`, `@hono/node-server`, `react`, `react-dom`,

@@ -70,6 +70,13 @@ export function route(host, request, manifest, { teamOrigin, publicOrigin }) {
     if (reading(method) && underStatic(manifest, path)) return { to: "tool", member: false, static: true };
     return { status: 302, location: publicOrigin + url, reason: `outside /chest and build.static ${JSON.stringify(staticPrefixes(manifest))}: sent to the public host` };
   }
+  // A visitor's upload (Proposal (studio): files.publicUploadUrl) is the
+  // public host's own route of the Chest.
+  if (path.startsWith("/_chest/upload/")) return { to: "chest" };
+  // The look's files — a brand's logo and fonts (Proposal (studio):
+  // chest.theme()) — are served on every host of the tool, so a public
+  // page in the company's brand gets them too.
+  if (reading(method) && path.startsWith("/_chest/theme/")) return { to: "chest" };
   if (isChest(url)) return { status: 302, location: teamOrigin + url, reason: "/chest belongs to the team host" };
   if (reading(method) && underStatic(manifest, path)) return { to: "tool", member: false, static: true };
   if (!manifest.public) return { status: 404, reason: `the tool has no public part ("public": true), and ${path} is not under build.static ${JSON.stringify(staticPrefixes(manifest))}` };
