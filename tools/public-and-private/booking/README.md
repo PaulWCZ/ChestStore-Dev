@@ -135,18 +135,20 @@ confirmation; nobody is ever booked twice.
   at most), *Cancel* with an optional word.
 - **Emails to the guest** (Proposal *mail*): confirmation with the
   calendar file and their answers, new time, cancellation, and a reminder
-  the day before (Proposal *schedules*). The host hears of bookings, moves
-  and cancellations in the Chest's bell, in their language and time zone
-  (a new booking's bell shows the note and the answers, as far as it fits).
+  the day before (Proposal *schedules*); their replies go to the
+  company's address (see *Mail to people outside the company*). The host
+  hears of bookings, moves and cancellations in the Chest's bell, in
+  their language and time zone (a new booking's bell shows the note and
+  the answers, as far as it fits); the Chest mails it to them if they
+  chose so in the Chest — Booking itself never emails a member.
 - **A host books for a customer** (*New booking*: a type, a free time —
   the minimum notice aside —, the guest's name and email; they get the
   usual confirmation and link) and **moves a meeting** (*Move this
   meeting*: the guest is emailed the new time).
 - **Each booking in the host's Chest calendar** (Proposal *calendar*): put
   when booked or moved, removed when cancelled or erased, titled in each
-  reader's language. With email, the host also gets each booking with its
-  calendar file (Settings, on by default), which a calendar app adds at
-  once — the Chest's feed is read by Google hours later.
+  reader's language. Calendar apps read the Chest's feed at their own
+  pace (Google: hours); the Bookings page and the bell are at once.
 - **On the company's website**: an administrator lists the websites
   allowed to show the booking pages (their `frame-ancestors`) and copies
   a frame code, or a button code that opens the page.
@@ -334,6 +336,37 @@ does).
   Chest's migration role may create it is to be confirmed (see the SDK
   report).
 
+
+## Mail to people outside the company
+
+Booking emails only its guests — people outside the company. A host is
+never emailed by Booking: they are told in the Chest's bell, and the
+Chest mails them their notifications by their own choice (each one, once
+or twice a day, or off; off per tool), set in the Chest, not here.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| The guest | Confirmation | They book (or a host books for them) | Type, host, time in their zone, where, their answers, pay link if any, the link to change or cancel | `booking.ics` (`METHOD:PUBLISH`) | The company's address (the connector's default) |
+| The guest | New time | The guest or the host moves it | Type, host, new time, where, the link | `booking.ics` (same UID, higher `SEQUENCE`) | The company's address |
+| The guest | Cancellation | The guest or the host cancels it (or the host is erased) | Time, the host's word if any, where to book again | `booking.ics` (`METHOD:CANCEL`) | The company's address |
+| The guest | Reminder | About a day before (schedule `reminders`, hourly) | Type, host, time, where, the link | — | The company's address |
+
+Sent through the Chest's mail connector (studio proposal, not built yet):
+`mail.send` with the guest's address, in the language the guest booked in,
+signed "{host} — {company}". Each mail says "A question? Reply to this
+email": replies reach the company's usual inbox, not Booking. When the
+connector is absent or paused (`mail.available()` not ok), nothing is
+lost: the booking is made, the guest's page shows the booking with *Add
+to my calendar* first and says no email goes out, the host's toast says
+"tell them yourself", and Settings says why in plain words.
+
+**Changed on 6 October 2026** (the owner's mail decisions): the host's
+email copy with the calendar file and its *Email me* switch in Settings
+are gone (the Chest's calendar and the bell replace them); guest
+mails need no special flag any more; the bell is one notice with its French translation.
+The `hosts.email_me` column is no longer read and stays for the previous
+version during an update.
+
 ## Needs from the SDK
 
 Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), a packed copy in
@@ -353,7 +386,8 @@ released 0.4.1; what follows is not in it yet.
   mail on this Chest, email not connected, paused, the day's emails used).
   Every email's key carries its recipient, and each event's key the guest
   (studio.16): after a restore from a backup, a booking's id can name
-  another guest's meeting.
+  another guest's meeting. Settings shows where guests' replies go
+  (`mail.available().replyTo`).
 - **Scheduled tasks** (0.4.1, `chest.json`): `reminders` (hourly),
   `cleanup` (nightly) and `calendars` (every 15 minutes); each run is
   handled once (`chest_events`, the same store as the events).
@@ -399,12 +433,9 @@ released 0.4.1; what follows is not in it yet.
   host). The local harness runs the tool in its own process and does not
   route its `fetch`, so a successful read is shown by the tests
   (`test/busy.test.ts`, `test/jobs.test.ts`), not by the flow.
-- **Members' email choice** — **Proposal (studio.15)**: `mail.send`
-  applies each member's choice (all, a daily digest, none). The guest's
-  confirmation, a move and a cancellation are marked `transactional` (a
-  guest who is a member of the Chest gets them whatever they chose); the
-  reminder and the host's own notice honour the choice, beside the
-  host's "Email me" setting.
+- **Notifications with translations** — **Proposal (studio, announced
+  for 0.5)**: each bell item is one notice with English words and their
+  French `translations`; the Chest shows each host their language.
 - **Being shown in another website**: the Chest's front adds
   `frame-ancestors 'none'` to every public response (its default policy,
   and its floor even with `csp: "tool"`: contract, "Public host"), and two

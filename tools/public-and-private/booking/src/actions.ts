@@ -39,7 +39,6 @@ export const actions = {
     const done = await b.cancelByHost(sql, member, id, reason);
     await tell.quiet(done);
     await publish.unpublish(sql, done);
-    await tell.hostCopy(sql, "cancelled", done);
     await share.changed(sql, "cancelled", done);
     const origin = publicOrigin(request.headers);
     await b.rememberPublicOrigin(sql, origin);
@@ -58,7 +57,6 @@ export const actions = {
     await publish.publish(sql, made.booking);
     // Another host of the team took it: they hear of it.
     if (made.booking.memberId !== member.id) await tell.booked(made.booking, (await b.hostOf(sql, made.booking.memberId))?.zone ?? input.zone, await b.titlesOf(sql, made.booking));
-    await tell.hostCopy(sql, "booked", made.booking);
     await share.changed(sql, "booked", made.booking);
     return { id: made.booking.id, delivery };
   }),
@@ -70,7 +68,6 @@ export const actions = {
     await b.rememberPublicOrigin(sql, origin);
     const delivery = await email(sql, "moved", booking, origin);
     await publish.publish(sql, booking);
-    await tell.hostCopy(sql, "moved", booking);
     await share.changed(sql, "moved", booking, { previousHost: from });
     return { delivery };
   }),
@@ -101,7 +98,7 @@ export const actions = {
     await sql.begin(async tx => {
       await b.saveWeekly(tx, member, weekly);
       await b.saveHost(tx, member, { slug: host.slug, zone, welcome: host.welcome, listed: host.listed });
-      await b.saveHostPrefs(tx, member, { dailyMax, emailMe: host.emailMe });
+      await b.saveHostPrefs(tx, member, { dailyMax });
     });
   }),
   addDaysOff: action({ from: field.day(), to: field.day(), note: text(80) }, async (input, { member }) => b.daysOff(db(), member, input)),
@@ -153,9 +150,6 @@ export const actions = {
     const sql = db();
     const host = (await b.hostOf(sql, member.id)) ?? fail("not_host");
     await b.saveHost(sql, member, { ...input, zone: host.zone });
-  }),
-  savePrefs: action({ dailyMax: field.int({ min: 0, max: 1000 }), emailMe: field.bool() }, async (input, { member }) => {
-    await b.saveHostPrefs(db(), member, input);
   }),
   // The host's private calendar address: made on demand, shown once.
   newFeed: action({}, async (_, { member, request }) => {
@@ -218,7 +212,6 @@ export const actions = {
     const owner = made.booking.memberId === host.memberId ? host : await b.hostOf(sql, made.booking.memberId);
     await tell.booked(made.booking, owner?.zone ?? host.zone, await b.titlesOf(sql, made.booking));
     await publish.publish(sql, made.booking);
-    await tell.hostCopy(sql, "booked", made.booking);
     await share.changed(sql, "booked", made.booking);
     redirect(`/b/${made.secret}?new=1${mailed ? "&mailed=1" : ""}`);
   }, { bound: { formSeconds: b.formLimits.formSeconds, work: true, budgets: { new: b.formLimits.perKind.new } } }),
@@ -235,7 +228,6 @@ export const actions = {
     await email(sql, "cancelled", done, publicOrigin(request.headers));
     await tell.cancelled(done, host?.zone ?? done.guestZone, await b.titlesOf(sql, done));
     await publish.unpublish(sql, done);
-    await tell.hostCopy(sql, "cancelled", done);
     await share.changed(sql, "cancelled", done);
   }, { bound: { budgets: { change: b.formLimits.perKind.change } } }),
 
@@ -249,7 +241,6 @@ export const actions = {
     await email(sql, "moved", booking, publicOrigin(request.headers));
     await tell.moved(booking, host?.zone ?? booking.guestZone, await b.titlesOf(sql, booking));
     await publish.publish(sql, booking);
-    await tell.hostCopy(sql, "moved", booking);
     await share.changed(sql, "moved", booking, { previousHost: from });
     redirect(`/b/${secret}?moved=1`);
   }, { bound: { budgets: { change: b.formLimits.perKind.change } } }),

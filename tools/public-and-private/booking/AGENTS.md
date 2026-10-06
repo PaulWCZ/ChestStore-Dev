@@ -14,7 +14,7 @@ islands, refresh, fields, words, tests).
 | Path | What it is |
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest, contract 0.4 (roles `admin`, `host`; public part; `network`: the calendar hosts; `schedules`: `reminders`, `cleanup`, `calendars`) and the proposals it uses (`mail`, `calendar`, `emits`, `receives`, `translations`) |
-| `vendor/` | SDK 0.4.1 + studio proposals (0.4.1-studio.2), the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `vendor/` | SDK 0.4.1 + studio proposals (0.4.1-studio.6), the UI kit, `@argentic/chest-app`: packed copies, never edited |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, `/api/slots`, `/chest/api/slots`, `/chest/export`, `/b/<secret>/ics`, `/feed/<token>.ics`, `/chest-events`, `/chest-schedules`; `framed`: the public pages' `frame-ancestors` from Settings |
 | `src/actions.ts` | **Every mutation**, by name: the team's (`action`) and the public part's (`publicAction`: `bookTime`, `cancelMine`, `moveMine`) |
 | `src/pages/` | Pages rendered on the server: `Agenda`, `Booking`, `NewBooking`, `Types`, `TypeEdit`, `Hours`, `Settings`; public: `CompanyPage`, `HostPage`, `TypePage`, `GuestBooking`, their frame `PublicShell` |
@@ -38,7 +38,7 @@ islands, refresh, fields, words, tests).
 | `src/lib/share.ts`, `src/lib/busy-snapshot.ts` | Events between tools (README "With the other tools") |
 | `src/lib/import.ts` | Calendly's scheduled-events CSV |
 | `src/lib/embed.ts` | The websites allowed to frame the public pages |
-| `src/lib/mailer.ts`, `src/lib/guests.ts`, `src/lib/tell.ts`, `src/lib/notify.ts` | Emails to guests through the Chest's mail (falling back to the page); the host's bell |
+| `src/lib/mailer.ts`, `src/lib/guests.ts`, `src/lib/tell.ts`, `src/lib/notify.ts` | Emails to guests (people outside) through the Chest's mail connector (falling back to the page); the host's bell (notifications with translations) |
 | `src/lib/lifecycle.ts` | Members leaving or erased; `seen` (events and schedule runs handled once, `chest_events`) |
 | `src/lib/public-origin.ts` | The Chest's addresses (`chest.tool.*`); the public form's guard is the package's (`bound`, budgets in `formLimits` of `src/lib/booking.ts`) |
 | `src/lib/db.ts` | The tool's database pool (`provide()` lets the unit tests hand it their connection) |
@@ -57,8 +57,7 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
   `Avatar`, `StatusBadge`, `Confirm`, `DateField`,
   `TimeSelect` (+ `moveStart`/`moveEnd`), `FilePicker`, `BrandMark`,
   `LanguageSwitch`, `Segmented` (link variant: "Mine / Everyone", the
-  choice in the address), `Switch` (a type on or off, the email-me
-  setting: what takes effect at once; a box in a form that waits for Save
+  choice in the address), `Switch` (a type on or off: what takes effect at once; a box in a form that waits for Save
   stays a checkbox). Their words come from the catalogues' `kit` section.
   Links are plain `<a>`; an island moves with `navigate()` and says
   things with `toast()` (`@argentic/chest-app/client`: each island is a
@@ -104,12 +103,14 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
   `chest.json` `network`); never show a calendar's address again. Read
   them with plain `fetch` (no injected fetcher): tests answer the hosts
   with `fakeChest({ network })`.
-- **Email keys are whole** (studio.15: never cut; the SDK hashes a long
-  one) and name the recipient when it can change; the same key for other
-  recipients is a `key_conflict`. Only the guest's confirmation, move and
-  cancellation are `transactional`.
+- **Email keys are whole** (never cut; the SDK hashes a long one) and
+  name the recipient when it can change; the same key for other
+  recipients is a `key_conflict`.
+- **Mail goes to guests only** (`src/lib/mailer.ts`, `mail.send` to an
+  address). A member is told with a notification (`src/lib/notify.ts`:
+  one notice, English words and French `translations`), never a mail.
 - **Every change to a booking tells the Chest's calendar** (`publish` /
-  `unpublish`) and, when the host wants it, emails them (`tell.hostCopy`).
+  `unpublish`).
 - **The daily limit** has no constraint of its own: it holds because
   `book` and `moveByGuest` lock the type's row (`lockType`, `for update`)
   and check the time again inside that transaction; the host's daily
