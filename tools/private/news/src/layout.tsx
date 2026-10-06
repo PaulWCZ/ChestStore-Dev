@@ -3,7 +3,6 @@ import { AppShell, BrandMark, NoAccess } from "@argentic/chest-ui/components";
 import { Pen } from "./components/icons.tsx";
 import { Mark } from "./components/mark.tsx";
 import { can, roleOf } from "./lib/access.ts";
-import { logoOf } from "./theme.ts";
 
 // What goes around every page. For members, the kit's AppShell: the mark
 // (the company's logo in brand mode), the search at the right of the
@@ -22,8 +21,7 @@ import { logoOf } from "./theme.ts";
 
 const composing = (path: string) => path === "/chest/new" || path === "/chest/propose" || /^\/chest\/posts\/[^/]+\/edit$/u.test(path);
 
-export function MembersLayout({ viewer, path, notice, children }: LayoutProps<MemberContext>) {
-  const { member, t } = viewer;
+export function MembersLayout({ viewer: { member, t }, path, notice, look, children }: LayoutProps<MemberContext>) {
   const role = roleOf(member);
   const write = can(member, "publish") ? { label: t.shell.write, href: "/chest/new" } : role ? { label: t.shell.propose, href: "/chest/propose" } : null;
   const tools = (
@@ -35,7 +33,7 @@ export function MembersLayout({ viewer, path, notice, children }: LayoutProps<Me
   return (
     <>
       <AppShell
-        brand={<a href="/chest"><BrandMark logo={logoOf(viewer)}><Mark /></BrandMark><span>{t.tool.name}</span></a>}
+        brand={<a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark><span>{t.tool.name}</span></a>}
         path={path}
         member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}
         tools={tools}

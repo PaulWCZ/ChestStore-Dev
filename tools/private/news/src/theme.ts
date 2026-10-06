@@ -56,13 +56,9 @@ export async function sheetOf(surface: Surface): Promise<Sheet> {
 }
 
 // What createApp({ look }) asks for each page (src/app.tsx): the sheet of
-// the page's surface. The layout shows the company's logo in brand mode:
-// the look of the page it renders is kept here, by its viewer, for it
-// (the package gives a layout no look of its own).
-const shown = new WeakMap<object, Look>();
-export async function lookFor(viewer: { member: unknown }): Promise<{ css: string; colors: { media: string; color: string }[] }> {
+// the page's surface, and the company's logo in brand mode (the layout
+// shows it beside the name).
+export async function lookFor(viewer: { member: unknown }): Promise<{ css: string; colors: { media: string; color: string }[]; logo: Look["logo"] }> {
   const sheet = await sheetOf(viewer.member === null ? "public" : "team");
-  shown.set(viewer, sheet.look);
-  return { css: sheet.css, colors: sheet.colors };
+  return { css: sheet.css, colors: sheet.colors, logo: sheet.look.logo };
 }
-export const logoOf = (viewer: object): Look["logo"] => shown.get(viewer)?.logo ?? null;
