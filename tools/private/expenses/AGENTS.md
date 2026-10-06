@@ -11,7 +11,7 @@ first. Expenses' own:
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (contract 0.4): roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`; `receives`; schedules `reminder`, `cleanup`; `env` `BANK_DETAILS_KEY`; `build.static` `/assets/`. Proposals: `mail` (send), `translations` |
+| `chest.json`, `chest.proposals.json` | Manifest (contract 0.4): roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`; `receives`; schedules `reminder`, `cleanup`; `env` `BANK_DETAILS_KEY`; `build.static` `/assets/`. Proposals: `translations` (no `mail`: nobody outside is mailed) |
 | `src/app.tsx` | **Every route**: the pages (`expenses()` adds the tabs' numbers, `View.layout`), the downloads (receipts, transfer files, CSV, ZIP streamed, journal, certificates), the receipt reader's files `/chest/ocr/` (their own policy: `'wasm-unsafe-eval'`), `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every change**, by name: thin, the member from the Chest, values passed as sent (amounts as typed) to the services, which check them |
 | `src/pages/` | One module per page: reads, then hands plain data to its island |
@@ -26,7 +26,7 @@ first. Expenses' own:
 | `src/lib/cards.ts`, `src/lib/card-match.ts`, `src/lib/card-guess.ts`, `src/lib/imports.ts` | Card statements (matching, drafts waiting for receipts, Undo), card words, importing past expenses |
 | `src/lib/journal.ts`, `src/lib/export.ts`, `src/lib/csv.ts`, `src/lib/zip.ts` | FEC-layout entries; the CSV and the streamed ZIP |
 | `src/lib/receipts.ts` | Uploads: authorise, inspect (arrived, type, size, the Chest's SHA-256), forget |
-| `src/lib/tell.ts`, `src/lib/notify.ts`, `src/lib/mail.ts` | The bell, the tile's number, email (proposal) — each recipient in their language |
+| `src/lib/tell.ts`, `src/lib/notify.ts` | Notifications and the tile's number — one notice per event, English with its French in `translations` |
 | `src/lib/lifecycle.ts`, `src/lib/jobs.ts` | Leaving and erasure; the 25th's reminder, the nightly cleanup |
 | `src/lib/people.ts`, `src/lib/today.ts` | Names from the Chest (`former`, `no_access`, `erased`, `leftAt`); the Chest's day |
 | `src/lib/rows.ts`, `src/lib/compose.ts`, `src/lib/compose-words.ts` | What pages hand to islands, in the reader's words |
@@ -127,8 +127,9 @@ npm ci && npm test && npm run build   # all three must pass (and NODE_ENV=develo
   (`src/lib/payments.ts` skips it with a reason otherwise).
 - **Nobody decides on their own expense** (`expenseAccess`): keep it so;
   `waitingCounts` and `waiting` follow the same rule.
-- **Emails** leave through `src/lib/mail.ts` only, with a short key (the
-  recipient is appended; 64 characters in all).
+- **No email to members**, ever: a member hears through a notification
+  (`src/lib/notify.ts`, with `translations`); the Chest mails it by the
+  member's choice. No digest, no reminder mail, no "email me" setting.
 - Imported expenses (`imported_at`) are history: keep them out of pay,
   exports and the journal (`within()`).
 - **Today** is the Chest's day: `src/lib/today.ts` (`chest.today()`), the same

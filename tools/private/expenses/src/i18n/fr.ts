@@ -771,17 +771,6 @@ export const fr: Catalogue = {
     count: { one: "1 dépense", other: "{count} dépenses" },
     many: "Les {count} plus récentes : précisez pour affiner",
   },
-  mail: {
-    open: "Ouvrir : {link}",
-    why: "Vous recevez cet e-mail parce que Notes de frais attend quelque chose de vous. La même chose est dans la cloche du Chest.",
-    sent: { one: "{name} a envoyé une dépense · {total}", other: "{name} a envoyé {count} dépenses · {total}" },
-    sentLine: { one: "{name} vous a envoyé une dépense à valider :", other: "{name} vous a envoyé {count} dépenses à valider :" },
-    cardOne: "Justificatif demandé : {what}",
-    cardLine: { one: "Un paiement par carte de l’entreprise attend son justificatif :", other: "{count} paiements par carte de l’entreprise attendent leur justificatif :" },
-    reminderLine: "Ouvrez Notes de frais, vérifiez vos brouillons et envoyez-les.",
-    waiting: { one: "1 dépense attend votre validation", other: "{count} dépenses attendent votre validation" },
-    waitingLine: "Ouvrez « À valider » pour les valider ou les refuser.",
-  },
   bell: {
     sent: { one: "{name} a envoyé une dépense · {total}", other: "{name} a envoyé {count} dépenses · {total}" },
     approved: { one: "{name} a validé votre dépense · {total}", other: "{name} a validé {count} dépenses · {total}" },

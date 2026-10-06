@@ -12,7 +12,6 @@ import { db } from "../src/lib/db.ts";
 import { expense } from "../src/lib/expenses.ts";
 import { receiptFileName, selectionOf } from "../src/lib/export.ts";
 import { cleanup } from "../src/lib/jobs.ts";
-import { letterText } from "../src/lib/mail.ts";
 import { cut } from "../src/lib/notify.ts";
 import { rowView } from "../src/lib/rows.ts";
 import { stamp } from "../src/lib/stamp.ts";
@@ -229,7 +228,6 @@ test("the small rules of the pages: rows, words, files, letters", async () => {
   assert.deepEqual(selectionOf(new URLSearchParams("month=2026-09&by=paid")), { month: "2026-09", person: null, by: "paid" });
   assert.equal(cut("a  b", 3), "a b");
   assert.equal(cut("abcdef", 4), "abc…");
-  assert.match(letterText(t, { subject: "S", lines: ["Line"] }, "/chest/approve", "https://acme.example"), /^Line\n\nOpen it: https:\/\/acme\.example\/chest\/approve\n\n—\n/u);
   assert.deepEqual(await cleanup(database.sql), { uploads: 0, drafts: 0 });
 });
 

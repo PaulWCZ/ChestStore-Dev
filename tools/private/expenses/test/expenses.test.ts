@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
 import * as expenses from "../src/lib/expenses.ts";
 import { today } from "../src/lib/today.ts";
@@ -126,7 +126,7 @@ test("send, then the named approver approves; the owner hears it in their langua
   const sent = await expenses.submit(sql, asMember(hugo), [a.id, b.id], yes);
   assert.equal(sent.approver, ines.id);
   await tell.sent(sql, asMember(hugo), sent);
-  assert.deepEqual(chest.notifications.map(n => [n.member, spaces(n.title), n.key]), [[ines.id, "Hugo Bernard a envoyé 2 dépenses · 60,50 €", `waiting:${hugo.id}`]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, spaces(shownTo(n, "fr").title), n.key]), [[ines.id, "Hugo Bernard a envoyé 2 dépenses · 60,50 €", `waiting:${hugo.id}`]]);
   assert.equal(chest.badges.get(ines.id), 2);
   // Sent: no more changes, no second sending.
   await assert.rejects(expenses.saveExpense(sql, asMember(hugo), a.id, lunch()), refuses("not_draft"));
@@ -164,7 +164,7 @@ test("a refusal needs a reason and brings the expense back to its owner's drafts
   assert.equal(back.status, "draft");
   assert.equal(back.refusedReason, "The date is missing on the receipt");
   const bell = chest.notifications.find(n => n.member === lea.id)!;
-  assert.equal(spaces(bell.title), "Camille Martin a refusé une dépense : Chez Paul · 42,50 €");
+  assert.equal(spaces(shownTo(bell, "fr").title), "Camille Martin a refusé une dépense : Chez Paul · 42,50 €");
   assert.equal(bell.body, "The date is missing on the receipt");
   assert.equal(chest.badges.get(lea.id), 1);
   assert.equal(chest.badges.get(camille.id), undefined);
