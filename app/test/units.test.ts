@@ -120,13 +120,14 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = () => <div className="note" />;');
   fails("src/app.tsx", "export const A = () => null;", /asks "database"/u);
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nimport * as m from "@argentic/chest-sdk/members";', /declare it/u);
-  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\napp.get("/", publicPage(() => null));', /without "public": true/u);
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null) };', /without "public": true/u);
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\n// publicPage() would serve visitors\nexport const A = () => <div className="note" />;');
   checkSources({ root: dir });
   mkdirSync(join(dir, "src", "lib"));
   write("src/lib/rules.ts", "export const x = 1;");
-  assert.throws(() => checkSources({ root: dir }), /no test imports it/u);
+  checkSources({ root: dir });
+  assert.throws(() => checkSources({ root: dir, requireTests: true }), /no test imports it/u);
   mkdirSync(join(dir, "test"));
   write("test/units.test.ts", 'import { x } from "../src/lib/rules.ts";');
-  checkSources({ root: dir });
+  checkSources({ root: dir, requireTests: true });
 });

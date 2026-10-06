@@ -134,7 +134,9 @@ export function checkWords(catalogues: Record<string, object>): void {
 // - every class a page names exists (the tool's CSS or the kit's);
 // - each capability of chest.json is used, and each used is declared;
 //   "receives" goes with events.handle, "schedules" with their handlers.
-export function checkSources({ root = "." }: { root?: string } = {}): void {
+// requireTests (the starter sets it): every src/lib/ module is imported
+// by a test file.
+export function checkSources({ root = ".", requireTests = false }: { root?: string; requireTests?: boolean } = {}): void {
   const walk = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)])) : []);
   const files = walk(join(root, "src"));
   const code = files.filter(f => /\.tsx?$/u.test(f)).map(f => ({ file: f, text: readFileSync(f, "utf8") }));
@@ -182,14 +184,20 @@ export function checkSources({ root = "." }: { root?: string } = {}): void {
   }
   const manifestPublic = (manifest as { public?: boolean }).public === true;
   const code_ = all.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
-  const servesPublic = /\bpublic(Page|Action|ActionsAt)\(/u.test(code_);
-  if (servesPublic && !manifestPublic) problems.push(`src/ serves a public part (publicPage, publicAction) without "public": true in chest.json: the Chest would never route to it`);
-  if (manifestPublic && !servesPublic) problems.push(`chest.json asks "public": true and src/ serves no publicPage nor publicAction: remove it`);
-  // Every rule module is tested: a test file imports it.
-  const tests = walk(join(root, "test")).filter(f => /\.test\.(m?[jt]s|tsx)$/u.test(f)).map(f => readFileSync(f, "utf8")).join("\n");
-  for (const file of walk(join(root, "src", "lib")).filter(f => /\.tsx?$/u.test(f))) {
-    const base = file.split(/[/\\]/u).pop()!.replace(/\.tsx?$/u, "");
-    if (!new RegExp(`from "[^"]*lib/${base}(\\.tsx?|\\.js)?"`, "u").test(tests)) problems.push(`${file}: no test imports it — a rule without a test (test/units.test.ts)`);
+  // A public action without the public part is dead (the Chest never
+  // routes to it) — a page alone may stay (an "open it from your Chest"
+  // page). The public part declared with nothing served asks for nothing.
+  const publicWrites = /\bpublicAction(sAt)?\(/u.test(code_);
+  const publicPages = /\bpublicPage\(/u.test(code_);
+  if (publicWrites && !manifestPublic) problems.push(`src/ has public actions (publicAction) without "public": true in chest.json: the Chest would never route to them`);
+  if (manifestPublic && !publicWrites && !publicPages) problems.push(`chest.json asks "public": true and src/ serves no publicPage nor publicAction: remove it`);
+  // requireTests: every rule module is imported by a test.
+  if (requireTests) {
+    const tests = walk(join(root, "test")).filter(f => /\.test\.(m?[jt]s|tsx)$/u.test(f)).map(f => readFileSync(f, "utf8")).join("\n");
+    for (const file of walk(join(root, "src", "lib")).filter(f => /\.tsx?$/u.test(f))) {
+      const base = file.split(/[/\\]/u).pop()!.replace(/\.tsx?$/u, "");
+      if (!new RegExp(`from "[^"]*lib/${base}(\\.tsx?|\\.js)?"`, "u").test(tests)) problems.push(`${file}: no test imports it — a rule without a test`);
+    }
   }
   const handlesEvents = /events\.handle\(/u.test(all);
   if ((manifest.receives?.length ?? 0) > 0 && !handlesEvents) problems.push(`chest.json "receives" without events.handle on /chest-events`);

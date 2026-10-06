@@ -14,7 +14,7 @@ test("every language says every text, with the same {placeholders}; French typog
 });
 
 test("the sources: no style={}, no server code in islands, no colour in CSS, known classes, capabilities used and declared", () => {
-  checkSources();
+  checkSources({ requireTests: true });
 });
 
 test("the look passes the kit's contract", () => {
