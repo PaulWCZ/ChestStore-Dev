@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { en } from "../lib/i18n/en.ts";
-import { catalogue, format, locales, plural, publicLocale } from "../lib/i18n/index.ts";
-import { cut } from "../lib/notify.ts";
+import { en } from "../src/i18n/en.ts";
+import { catalogue, format, locales, plural, publicLocale } from "../src/i18n/index.ts";
+import { cut } from "../src/lib/notify.ts";
 
 // Every catalogue has exactly the keys of the English one, no empty word,
 // and the same {placeholders} in each word.
@@ -23,7 +23,7 @@ test("every language has every word of English, none empty, with the same placeh
       assert.ok(text.trim().length > 0, `${locale}: ${key} is empty`);
       assert.equal(placeholders(text), placeholders(source.get(key)!), `${locale}: ${key} placeholders`);
     }
-    assert.equal(catalogue(locale).meta.lang, locale);
+    assert.equal(catalogue(locale).tool.lang, locale);
   }
 });
 

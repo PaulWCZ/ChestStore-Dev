@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "news",
   "title": "News",
   "description": "The company's front page: announcements, events, new colleagues — and who has read what matters.",
@@ -22,6 +22,16 @@
   "receives": [
     "member.*"
   ],
+  "schedules": [
+    {
+      "name": "publish",
+      "cron": "*/15 * * * *"
+    },
+    {
+      "name": "digest",
+      "cron": "30 8 * * 1"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
@@ -29,7 +39,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

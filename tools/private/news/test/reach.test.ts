@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
-import { POST as chestEvents } from "../app/chest-events/route.ts";
-import { eventKey, syncEvent } from "../lib/agenda.ts";
-import { everyone as everyoneWithNews, tally } from "../lib/audience.ts";
-import { forgetViewer, freezeViews, recordView, shown, views } from "../lib/views.ts";
-import { AppError } from "../lib/errors.ts";
-import { chestGroups, forgetGroups } from "../lib/groups.ts";
-import { setDigestEmail } from "../lib/preferences.ts";
-import * as posts from "../lib/posts.ts";
-import { search } from "../lib/search.ts";
-import { learned, mailConnected, mailNow } from "../lib/state.ts";
-import * as tell from "../lib/tell.ts";
-import { startDigest } from "../lib/digest.ts";
+import { chestEvents } from "../src/calls.ts";
+import { eventKey, syncEvent } from "../src/lib/agenda.ts";
+import { everyone as everyoneWithNews, tally } from "../src/lib/audience.ts";
+import { forgetViewer, freezeViews, recordView, shown, views } from "../src/lib/views.ts";
+import { AppError } from "../src/core/tool.ts";
+import { chestGroups, forgetGroups } from "../src/lib/groups.ts";
+import { setDigestEmail } from "../src/lib/preferences.ts";
+import * as posts from "../src/lib/posts.ts";
+import { search } from "../src/lib/search.ts";
+import { learned, mailConnected, mailNow } from "../src/lib/state.ts";
+import * as tell from "../src/lib/tell.ts";
+import { startDigest } from "../src/lib/digest.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, groups, hugo, ines, lea, nora, sofia, stranger, workshop } from "./support/members.ts";
@@ -42,7 +42,7 @@ const withWorkshop = (m: FakeMember, into: boolean) => ({ ...m, groups: into ? [
 async function open(options: { members?: FakeMember[]; mail?: boolean; calendar?: boolean; groupsRead?: boolean; perDay?: number } = {}) {
   const { mail = true, calendar = true, groupsRead = true } = options;
   const members = options.members ?? everyone;
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" },
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" },
     members,
     groups: [...fakeGroups, { ...workshop, members: members.filter(m => m.groups.includes(groups.workshop)).map(m => m.id) }],
     capabilities: ["members", "files", "notifications", ...(mail ? ["mail"] : []), ...(calendar ? ["calendar"] : []), ...(groupsRead ? ["groups"] : [])],

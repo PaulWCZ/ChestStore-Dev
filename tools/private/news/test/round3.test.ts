@@ -1,20 +1,29 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET as answerLink } from "../app/chest/posts/[id]/answer/route.ts";
-import { answerToken } from "../lib/answer-links.ts";
-import { whoPublishes } from "../lib/audience.ts";
-import { startDigest } from "../lib/digest.ts";
-import { AppError } from "../lib/errors.ts";
-import { erase, leave } from "../lib/lifecycle.ts";
-import * as posts from "../lib/posts.ts";
-import * as proposals from "../lib/proposals.ts";
-import { otherLanguage, search } from "../lib/search.ts";
-import * as tell from "../lib/tell.ts";
-import { today } from "../lib/time.ts";
+import { member } from "@argentic/chest-sdk/member";
+import { answerLink as answer } from "../src/calls.ts";
+import { withGroups } from "../src/lib/groups.ts";
+import { answerToken } from "../src/lib/answer-links.ts";
+import { whoPublishes } from "../src/lib/audience.ts";
+import { startDigest } from "../src/lib/digest.ts";
+import { AppError } from "../src/core/tool.ts";
+import { erase, leave } from "../src/lib/lifecycle.ts";
+import * as posts from "../src/lib/posts.ts";
+import * as proposals from "../src/lib/proposals.ts";
+import { otherLanguage, search } from "../src/lib/search.ts";
+import * as tell from "../src/lib/tell.ts";
+import { today } from "../src/lib/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, hugo, ines, lea, sofia, stranger } from "./support/members.ts";
+
+// GET /chest/posts/<id>/answer as src/app.tsx answers it: the member the
+// Chest asserts, with all their groups.
+const answerLink = async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
+  const who = member(request);
+  return answer(request, who ? await withGroups(who) : null, (await params).id);
+};
 
 // The third severe critique: search and empty states in the reader's
 // language; "I'm coming" in one tap from an email; posts from everyone
@@ -25,7 +34,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" },
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" },
     members: everyone,
     groups: fakeGroups,
     capabilities: ["members", "files", "notifications", "mail"],
@@ -137,7 +146,7 @@ test("an Important event's email carries “I’m coming” and “Not coming”
 test("the weekly digest's email offers the answers of an event still open", async () => {
   const e = await write({ kind: "event", title: "Team lunch", locale: "en", event: { day: inDays(4) } });
   await write({ kind: "info", title: "New coffee machine", locale: "en" });
-  await startDigest(database.sql, { scheduledAt: new Date(Date.now() + 60_000).toISOString(), timeZone: zone });
+  await startDigest(database.sql, { scheduledAt: new Date(Date.now() + 60_000).toISOString() });
   const letter = chest.outbox.find(m => m.to[0] === hugo.email)!;
   assert.match(letter.text, /• New coffee machine\n• Team lunch\n {2}I’m coming: \S+answer\?a=yes&t=\S+\n {2}Not coming: \S+answer\?a=no&t=\S+\n/u);
   const link = /I’m coming: (\S+)/u.exec(letter.text)![1]!;
