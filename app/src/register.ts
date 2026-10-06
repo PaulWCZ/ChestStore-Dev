@@ -17,7 +17,8 @@ export interface Register {}
 export type CoreWords = {
   readonly tool: { readonly name: string };
   readonly pages: {
-    readonly notFound: { readonly title: string; readonly body: string };
+    // publicBody: what a visitor reads instead (optional).
+    readonly notFound: { readonly title: string; readonly body: string; readonly publicBody?: string };
     readonly forbidden: { readonly title: string; readonly body: string };
     readonly failed: { readonly title: string; readonly body: string };
     readonly signIn: string;

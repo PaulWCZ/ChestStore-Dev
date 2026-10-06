@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Check, Cross, Maybe, Party } from "../components/icons.tsx";
-import { send } from "../core/client.tsx";
+import { send } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import { fill as format, plural, type Plural } from "./words.ts";
 

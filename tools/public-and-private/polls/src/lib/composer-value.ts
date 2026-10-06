@@ -1,6 +1,6 @@
-// Safe in the browser: no SDK here.
-// What the composer edits (app/chest/composer.tsx), and a new poll's start:
-// kept apart from the client component so that server pages can build it.
+// No SDK here: an island imports its types.
+// What the composer edits (src/islands/Composer.tsx), and a new poll's
+// start: kept apart from the island so that the pages can build it.
 export type Kind = "choice" | "date" | "survey";
 export type Slot = { start: string; end: string };
 export type SurveyQuestion = { kind: "choice" | "scale" | "text" | "enps"; text: string; options: string[]; multiple: boolean; low: string; high: string };

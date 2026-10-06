@@ -1,7 +1,7 @@
 // Safe in the browser: no SDK here.
 // The rules of what a person writes, and the shapes pages receive. No
 // framework, no database: tested alone.
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { day as readDay, time as readTime, zoned } from "./time.ts";
 
 export const limits = {

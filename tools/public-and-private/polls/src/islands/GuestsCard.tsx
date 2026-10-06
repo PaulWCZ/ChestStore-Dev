@@ -1,6 +1,6 @@
 import { Confirm, Switch } from "@argentic/chest-ui/components";
 import { useState } from "react";
-import { call, toast } from "../core/client.tsx";
+import { call, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import { fill as format, plural, type Plural } from "./words.ts";
 

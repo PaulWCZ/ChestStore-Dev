@@ -12,7 +12,6 @@ export const en = {
   public: {
     title: "Polls lives in your Chest",
     body: "Open it from your Chest’s home page, signed in with your work account.",
-    language: "Language",
   },
   guest: {
     title: "Your answer",
@@ -36,12 +35,14 @@ export const en = {
     notFound: {
       title: "Nothing here",
       body: "This poll does not exist, or it is not for you.",
-      back: "Back to the polls",
       publicBody: "This link does not open a poll: it may have been turned off. Ask whoever sent it to you.",
     },
     forbidden: { title: "Not allowed", body: "Your role does not allow this. Ask whoever manages Polls." },
     failed: { title: "Something went wrong", body: "Try again in a moment. If it goes on, tell whoever manages Polls." },
     signIn: "Sign in through your Chest to open this page.",
+    busy: "Still sending: wait a moment.",
+    language: "Language",
+    back: "Back to the polls",
   },
   roles: {
     organiser: "Organiser",
@@ -433,6 +434,7 @@ export const en = {
     guestEmail: "Email (guests)",
   },
   errors: {
+    too_large: "Too large to send.",
     forbidden: "Your role does not allow this.",
     not_found: "This poll no longer exists.",
     invalid: "Check what you wrote.",

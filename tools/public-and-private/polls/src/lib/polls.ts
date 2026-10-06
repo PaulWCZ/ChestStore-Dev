@@ -1,6 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { asked, can, companySurvey, edits, surveys, manages, resultsState, sees, settles, namesShown, type PollRights, type Policy, type ResultsState } from "./access.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import type { Query, Sql } from "./db.ts";
 import { checkOpening, clean, id, limits, readPoll, type Kind, type PollSpec, type Repeat } from "./model.ts";
 import { fromAnswers, results, type AnswerRow, type Counts, type QuestionResult, type QuestionRow, type TextRow } from "./results.ts";

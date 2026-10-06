@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { manages, resultsState, sees } from "./access.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import type { Query, Sql } from "./db.ts";
 import { clean, limits } from "./model.ts";
 import { closeDue, load, rights, type Poll } from "./polls.ts";

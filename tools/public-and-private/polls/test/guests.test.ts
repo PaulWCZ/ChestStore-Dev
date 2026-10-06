@@ -4,7 +4,7 @@ import { idempotencyKey } from "@argentic/chest-sdk/mail";
 import { formToken } from "@argentic/chest-sdk/visitors";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { emailGuests, eventKey, guestMailOffered, learned, notInCalendar, syncFinal } from "../src/lib/agenda.ts";
 import { checkForm, count } from "../src/lib/guard.ts";
 import * as guests from "../src/lib/guests.ts";

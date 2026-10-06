@@ -1,7 +1,8 @@
 /* The tool's own tokens. The contract's (colours, fonts, sizes, spacing,
    corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
-   look of the page — the tool's identity "Confetti" in lib/theme.ts, or the
-   theme the company chose — in a <style> of app/layout.tsx. Here only what
+   look of the page — the tool's identity "Confetti" in src/theme.ts, or the
+   theme the company chose — in the stylesheet the tool serves
+   (/chest/look.css, /look.css). Here only what
    is Polls' alone, always defined from contract tokens, never from a
    colour, so it follows every theme. */
 :root {

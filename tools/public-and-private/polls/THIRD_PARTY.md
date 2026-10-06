@@ -11,14 +11,14 @@
 | Ideas only: the weekly pulse | Officevibe (Workleap, proprietary) — a recurring anonymous pulse, its trend over time, eNPS | — | The pulse tile, repeating surveys, the trend card. **No code, no wording copied** |
 | eNPS (definition) | The Net Promoter method (F. Reichheld, "The One Number You Need to Grow", *Harvard Business Review*, December 2003), applied to employees: share answering 9–10 minus share answering 0–6 on a 0–10 scale. "Net Promoter" and "NPS" are trademarks of Bain & Company, Satmetrix and Fred Reichheld: the tool says "eNPS" only, as the HR trade does | — | `src/lib/model.ts` (`enps`) |
 
-The machinery of `src/core/` (server, actions, islands, refresh) is a
-copy of the studio's starter (`starter/`, MIT, same authors), extended for
-Polls (see `AGENTS.md`).
+The machinery (server, actions, islands, refresh) is the studio's package
+`@argentic/chest-app` (MIT, same authors), packed in `vendor/`.
 
 Dependencies installed from npm under their own licences: `hono` and
 `@hono/node-server` (MIT), `react`, `react-dom` (MIT), `postgres`
 (Unlicense), `@argentic/chest-sdk` (MIT, the studio's working copy
-0.4.1-studio.2 in `vendor/`), `@argentic/chest-ui` (MIT, the studio's UI
+0.4.1-studio.2 in `vendor/`), `@argentic/chest-app` (MIT, the studio's package in `vendor/`),
+`@argentic/chest-ui` (MIT, the studio's UI
 kit: themes, the shell, toasts, dialogs, people picker, date and time
 fields — packed in `vendor/`); to build and test only: `vite` (MIT),
 `typescript` (Apache-2.0), `@electric-sql/pglite` and
