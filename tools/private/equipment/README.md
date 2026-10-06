@@ -376,7 +376,7 @@ notification only (the bell item rung again, with the day it was given).
 ## Needs from the SDK
 
 All in `vendor/` (the studio's working copy: SDK 0.4.1 + studio proposals
-(0.4.1-studio.5)):
+(0.4.1-studio.6)):
 
 - `member.language` (0.3.0) — the interface and the bell in each member's
   language.

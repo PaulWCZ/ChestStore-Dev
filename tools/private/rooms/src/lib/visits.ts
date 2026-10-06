@@ -1,6 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
 import * as members from "@argentic/chest-sdk/members";
+import { ChestError } from "@argentic/chest-sdk/errors";
+import { log } from "@argentic/chest-app";
 import { can, roleOf } from "./access.ts";
 import { localeOf } from "../i18n/index.ts";
 import { AppError } from "../shared/app-error.ts";
@@ -71,6 +73,23 @@ export function visitorEmail(value: unknown): string | null {
   return text;
 }
 
+// A colleague is not a visitor: Rooms never mails a member (they hear of
+// things in their bell). An address the Chest matches to a member who has
+// Rooms (members.matchEmails: nothing else is learnt) is refused, so that
+// it cannot be typed into the visitor's field by mistake. When the Chest
+// cannot be asked, the address is taken as given (logged).
+async function notColleague(email: string): Promise<void> {
+  let found: Record<string, string>;
+  try {
+    found = await members.matchEmails([email]);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    log.warn("a visitor's address could not be checked", { code: error.code });
+    return;
+  }
+  if (Object.keys(found).length > 0) throw new AppError("colleague_email");
+}
+
 export async function announce(sql: Sql, actor: Member | null, input: VisitInput, zone: string): Promise<Visit> {
   if (!actor || !can(actor, "book")) throw new AppError("forbidden");
   const d = day(input.day);
@@ -84,6 +103,7 @@ export async function announce(sql: Sql, actor: Member | null, input: VisitInput
   const office = id(input.officeId);
   const host = await hostOf(actor, input.host);
   const email = visitorEmail(input.email);
+  if (email) await notColleague(email);
   const [found] = await sql`select 1 from offices where id = ${office}`;
   if (!found) throw new AppError("not_found");
   const [row] = await sql<Row[]>`

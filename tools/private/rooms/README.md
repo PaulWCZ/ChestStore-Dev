@@ -235,7 +235,7 @@ Sent through the Chest's mail connector (studio proposal, not built yet):
 
 | Recipient | Purpose | When | Content | Attachments | Reply-To |
 |---|---|---|---|---|---|
-| A visitor (outside the company), when whoever announced them gave their address | Invitation | When the visit is announced; again when a cancelled visit is restored (*Undo*) | Who expects them, the company, the day and time, the office's name and address, "give your name at the reception", "reply to this email to change something"; in the announcer's language | `visit.ics` (the visit, an hour, `METHOD:PUBLISH`) | The company's reply address (the connector's default; Rooms sets none) |
+| A visitor (outside the company), when whoever announced them gave their address | Invitation | When the visit is announced; again when a cancelled visit is restored (*Undo*) | Who expects them, the company, the day and time, the office's name and address, "give your name at the reception", "reply to this email to change something"; in the announcer's language | `visit.ics` (`visite.ics` in French: the visit, from its time for an hour — a visit has no end time, a calendar needs one —, `METHOD:PUBLISH`) | The company's reply address (the connector's default; Rooms sets none) |
 | The same visitor | Cancellation | When the visit is cancelled, or its host leaves the company | The visit that is cancelled, "reply to this email with a question" | `visit.ics` (`METHOD:CANCEL`, the same UID, a higher `SEQUENCE`) | The company's reply address |
 
 When the Chest cannot send (no mail, not connected, paused, the day's
@@ -243,6 +243,15 @@ emails spent, the address refused), the form says *This Chest cannot send
 emails right now* before the visit is announced, or the toast says *The
 invitation could not be sent: tell them yourself* after; the visitor's row
 reads *invitation not sent* and the address is not kept.
+
+The visitor's field is no way to mail anyone at will (the name typed is in
+the message): an address the Chest matches to a colleague who has Rooms
+(`members.matchEmails`) is refused — Rooms never mails a member —; a visit
+sends at most 4 messages (invitation, cancellation, an *Undo*'s
+invitation, its cancellation); one address is invited to at most 3 visits
+a day; one member announces at most 100 invited visitors a day. Past a
+bound the visit stands and the invitation reads *not sent*, as above
+(`src/lib/invitations.ts`, `mailBounds`).
 
 ## On a Chest
 
@@ -340,7 +349,7 @@ back), an approval until its last day is past; an erasure forgets them.
 ## Needs from the SDK
 
 All in the SDK working copy packed in `vendor/`: SDK 0.4.1 + studio
-proposals (0.4.1-studio.4).
+proposals (0.4.1-studio.6).
 
 - `member.language`, `chest.timeZone`, `chest.language`,
   `chest.tool.teamUrl`, `schedules` — SDK 0.4.1 (official).

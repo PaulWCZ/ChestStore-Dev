@@ -127,9 +127,11 @@ test("weekly: change this one and the next ones — the same time, title, people
   assert.equal(after.get(w4!.id)!.title, "Moved");
   assert.deepEqual([...after.get(w4!.id)!.attendees].sort(), [hugo.id, ines.id].sort());
   assert.equal(after.get(w1!.id)!.title, "Weekly", "before this one: untouched");
-  // A day moved: each later one moves by as many days.
-  const moved = await rooms.updateFollowing(sql, asMember(camille), w2!.id, { day: addDays(w2!.day, 1) }, zone);
-  if (weekday(addDays(w2!.day, 1)) <= 5) assert.deepEqual(moved.changes.map(c => c.after.day), [addDays(w2!.day, 1), addDays(w3!.day, 1), addDays(w4!.day, 1)]);
+  // A day moved: each later one moves by as many days (one day later, or
+  // one day earlier when the next day is a Saturday: the office is closed).
+  const shift = weekday(addDays(w2!.day, 1)) <= 5 ? 1 : -1;
+  const moved = await rooms.updateFollowing(sql, asMember(camille), w2!.id, { day: addDays(w2!.day, shift) }, zone);
+  assert.deepEqual(moved.changes.map(c => c.after.day), [addDays(w2!.day, shift), addDays(w3!.day, shift), addDays(w4!.day, shift)]);
   await rooms.cancelRoomBooking(sql, asMember(camille), w1!.id, "following", zone);
 });
 
