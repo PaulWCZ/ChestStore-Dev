@@ -121,7 +121,8 @@ minute, in plain words.
   what to follow, *Unsubscribe*: the address is deleted). The form is
   bounded by `@argentic/chest-app` (`publicAction`'s `bound`): a field
   robots fill (answered "done", nothing done), a form token that serves
-  once and lasts two hours (a form sent in under 2 seconds waits the rest),
+  once, for that action only, with a proof of work the browser computes in
+  a fraction of a second (subscribing needs JavaScript), and lasts two hours (a form sent in under 2 seconds waits the rest),
   and budgets a day counted only once the request is good — a **new
   address** 5 per visitor and **1,000 in all** (a table really filling,
   not a robot's afternoon: the form then refuses new addresses until the

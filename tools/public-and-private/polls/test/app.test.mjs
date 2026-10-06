@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { solveWork } from "@argentic/chest-app";
 import { existsSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
@@ -29,13 +30,15 @@ const team = "https://polls-chest.chest.test";
 const url = path => `${team}${path}`;
 const get = (who, path, headers = {}) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
 // An action as call() sends it from an island of the page.
+// A proof of work, as the browser computes it, for a token that asks one.
+const proven = fields => (typeof fields.chest_form === "string" && Number(fields.chest_form.split(".")[3] ?? 0) > 0 && fields.chest_work === undefined ? { ...fields, chest_work: solveWork(fields.chest_form) } : fields);
 const call = (who, name, input, headers = {}) => {
-  const request = new Request(url(`${who ? "/chest" : ""}/actions/${name}`), { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
+  const request = new Request(url(`${who ? "/chest" : ""}/actions/${name}`), { method: "POST", body: JSON.stringify(proven(input)), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
   return app.fetch(who ? withMember(request, who) : request);
 };
 // A form posted without JavaScript.
 const form = (who, path, fields, from, headers = {}) => {
-  const request = new Request(url(path), { method: "POST", body: new URLSearchParams(fields), headers: { "sec-fetch-site": "same-origin", referer: url(from), host: "polls-chest.chest.test", ...headers } });
+  const request = new Request(url(path), { method: "POST", body: new URLSearchParams(proven(fields)), headers: { "sec-fetch-site": "same-origin", referer: url(from), host: "polls-chest.chest.test", ...headers } });
   return app.fetch(who ? withMember(request, who) : request);
 };
 const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";

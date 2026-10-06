@@ -46,7 +46,8 @@ Intercom): there is no chat bubble.
   company's sentence in that language (French falls back on English). Protected without a
   captcha, by the package's `bound` (publicAction): a field only robots
   fill (answered "done", nothing kept); a single-use form token the page
-  carries (two hours; a form sent sooner than 3 s after the page showed
+  carries for that action, with a proof of work the browser computes in a
+  fraction of a second (sending a request needs JavaScript) (two hours; a form sent sooner than 3 s after the page showed
   waits the rest in silence, never refused as "too fast"); then, once the
   call is valid — a refused one is not counted — 10 requests a day per
   visitor and 300 a day in all. A visitor is the address the Chest's

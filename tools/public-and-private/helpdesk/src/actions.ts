@@ -277,7 +277,7 @@ export const actions = {
       await notices.about(sql, "new", t.id, `new:${t.id}`);
     });
     redirect(`/t/${t.secret}?new=1${sent.delivery === "email" ? "&mailed=1" : ""}${embed}`);
-  }, { bound: { perVisitor: tickets.publicLimits.requestsPerVisitor, perDay: tickets.publicLimits.requestsPerDay, formSeconds: tickets.publicLimits.formSeconds } }),
+  }, { bound: { perVisitor: tickets.publicLimits.requestsPerVisitor, perDay: tickets.publicLimits.requestsPerDay, formSeconds: tickets.publicLimits.formSeconds, work: true } }),
   // Writing again from the follow-up link (it reopens a closed request):
   // the link known and the words checked first, then counted for that
   // request.

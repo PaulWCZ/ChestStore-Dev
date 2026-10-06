@@ -401,7 +401,8 @@ Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`, and `@arge
   and its people are remembered (`polls.calendar_missing`), so their page
   offers the .ics file rather than saying "In your calendar".
 - The guest form's guard is `@argentic/chest-app`'s (`publicAction`'s
-  `bound`): a single-use form token that lasts two hours, a form sent
+  `bound`): a single-use form token for this action that lasts two hours,
+  a proof of work the browser computes (answering needs JavaScript), a form sent
   faster than a person waits the seconds left, a field only robots fill,
   answers counted a day per visitor (the address the Chest's front gives —
   a studio proposal — else a cookie) and for everyone (`chest_bounds`).

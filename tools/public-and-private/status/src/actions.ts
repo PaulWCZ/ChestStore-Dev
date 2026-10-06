@@ -325,7 +325,7 @@ export const actions = {
       refuseWith(error, { email: input.email });
     }
     redirect("/subscribe?sent=1");
-  }, { bound: { budgets: formBudgets, formSeconds: 2 } }),
+  }, { bound: { budgets: formBudgets, formSeconds: 2, work: true } }),
 
   confirmSubscription: publicAction({ token: loose(80) }, async ({ token: given }) => {
     const token = tokenOf(given);
@@ -379,7 +379,7 @@ export const actions = {
       refuseWith(error, { kind: /^(slack|teams|generic)$/u.test(input.kind) ? input.kind : "", url: input.url });
     }
     redirect(`/w/${token}?new=1`);
-  }, { bound: { budgets: chatBudgets, formSeconds: 2 } }),
+  }, { bound: { budgets: chatBudgets, formSeconds: 2, work: true } }),
 
   chooseChatFollowed: publicAction({ token: loose(80), scope: loose(10), component: field.list(loose(20), 200) }, async ({ token: given, scope, component }) => {
     const token = tokenOf(given);

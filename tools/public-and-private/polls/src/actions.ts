@@ -197,6 +197,6 @@ export const actions = {
     const done = await guests.answerAsGuest(sql, input.link, { name: input.name, email: input.email, dates: input.dates, locale: localeOf(locale), secret }, new Date());
     cookies.set(guestCookie(done.poll.id), done.secret, { path: guestCookiePath(input.link), maxAge: guestCookieDays * 86_400 });
     redirect(`/p/${input.link}?sent=${done.first ? "1" : "2"}`);
-  }, { bound: { perVisitor: limits.guestsPerVisitorDay, perDay: limits.guestsPerDay, formSeconds: limits.guestSeconds } }),
+  }, { bound: { perVisitor: limits.guestsPerVisitorDay, perDay: limits.guestsPerDay, formSeconds: limits.guestSeconds, work: true } }),
 };
 

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
-import { formToken } from "@argentic/chest-app";
+import { formToken, solveWork } from "@argentic/chest-app";
 import { atLeast, checkPage, settled } from "@argentic/chest-app/testing";
 import { testDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -47,20 +47,22 @@ const send = async request => {
 };
 const get = (who, path, headers = {}) => send(who ? withMember(new Request(team + path, { headers }), who) : new Request((path.startsWith("/chest") ? team : visitor) + path, { headers }));
 // An action as call() sends it from an island of the page.
+// A proof of work, as the browser computes it, for a token that asks one.
+const proven = fields => (typeof fields.chest_form === "string" && Number(fields.chest_form.split(".")[3] ?? 0) > 0 && fields.chest_work === undefined ? { ...fields, chest_work: solveWork(fields.chest_form) } : fields);
 const call = (who, name, input, headers = {}) => {
-  const request = new Request(`${who ? team + "/chest" : visitor}/actions/${name}`, { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
+  const request = new Request(`${who ? team + "/chest" : visitor}/actions/${name}`, { method: "POST", body: JSON.stringify(proven(input)), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
   return send(who ? withMember(request, who) : request);
 };
 // A form posted without JavaScript.
 const form = (who, path, fields, from, headers = {}) => {
   const base = who ? team : visitor;
-  const request = new Request(base + path, { method: "POST", body: new URLSearchParams(fields), headers: { "sec-fetch-site": "same-origin", referer: base + from, host: new URL(base).host, ...headers } });
+  const request = new Request(base + path, { method: "POST", body: new URLSearchParams(proven(fields)), headers: { "sec-fetch-site": "same-origin", referer: base + from, host: new URL(base).host, ...headers } });
   return send(who ? withMember(request, who) : request);
 };
 const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 // The single-use token a public page carries for an action (<Honeypot />, <FormToken />),
 // shown long enough ago that a person could have written the form.
-const token = (action, age = 10_000) => formToken(action, Date.now() - age);
+const token = (action, age = 10_000) => formToken(action, Date.now() - age, ["sendRequest"].includes(action) ? 14 : 0);
 // The browser's own key the package sets at a first public call, when the
 // Chest names no visitor (a real 0.4 Chest names none).
 const browserOf = response => /chest_v=[\w-]+/u.exec(response.headers.get("set-cookie") ?? "")?.[0];

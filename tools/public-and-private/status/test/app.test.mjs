@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
-import { formToken } from "@argentic/chest-app";
+import { formToken, solveWork } from "@argentic/chest-app";
 import { atLeast, checkPage, checkSources, checkWords } from "@argentic/chest-app/testing";
 import { en } from "../src/i18n/en.ts";
 import { fr } from "../src/i18n/fr.ts";
@@ -37,12 +37,14 @@ const teamHost = "https://status-chest.chest.test";
 const publicHost = "https://status.chest.test";
 const get = (who, path, headers = {}) => app.fetch(who ? withMember(new Request(teamHost + path, { headers }), who) : new Request(publicHost + path, { headers }));
 // An action as call() sends it from an island of the page.
+// A proof of work, as the browser computes it, for a token that asks one.
+const proven = fields => (typeof fields.chest_form === "string" && Number(fields.chest_form.split(".")[3] ?? 0) > 0 && fields.chest_work === undefined ? { ...fields, chest_work: solveWork(fields.chest_form) } : fields);
 const call = (who, name, input, headers = {}) => {
-  const request = new Request(`${who ? teamHost + "/chest" : publicHost}/actions/${name}`, { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
+  const request = new Request(`${who ? teamHost + "/chest" : publicHost}/actions/${name}`, { method: "POST", body: JSON.stringify(proven(input)), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
   return app.fetch(who ? withMember(request, who) : request);
 };
 // A public form posted without JavaScript.
-const form = (path, fields, from, headers = {}) => app.fetch(new Request(publicHost + path, { method: "POST", body: new URLSearchParams(fields), headers: { "sec-fetch-site": "same-origin", referer: publicHost + from, host: "status.chest.test", ...headers } }));
+const form = (path, fields, from, headers = {}) => app.fetch(new Request(publicHost + path, { method: "POST", body: new URLSearchParams(proven(fields)), headers: { "sec-fetch-site": "same-origin", referer: publicHost + from, host: "status.chest.test", ...headers } }));
 const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 const page = async (who, path, headers) => {
   const response = await get(who, path, headers);
@@ -100,7 +102,7 @@ test("the public pages render without script and stay apart from the team's: his
 
 // A form's token as a page carries it, old enough not to wait the form's
 // two seconds.
-const token = (action = "subscribe") => formToken(action, Date.now() - 3000);
+const token = (action = "subscribe") => formToken(action, Date.now() - 3000, ["subscribe", "subscribeChat"].includes(action) ? 14 : 0);
 const subscribeForm = (fields, headers = {}) => form("/actions/subscribe", { website: "", scope: "all", chest_form: token(), ...fields }, "/subscribe", headers);
 
 test("subscribing by email without script: the form's token, the same answer whoever, the address never kept by a cache or passed on", async () => {
