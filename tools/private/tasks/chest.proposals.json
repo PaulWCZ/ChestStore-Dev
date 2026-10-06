@@ -3,16 +3,6 @@
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "morning",
-      "cron": "30 7 * * 1-5"
-    },
-    {
-      "name": "mail",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "emits": [
     "tasks.card.done",
     "tasks.card.reopened"

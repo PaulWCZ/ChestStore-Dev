@@ -1,9 +1,14 @@
 import { Toasts, useToast, type ShowToast } from "@argentic/chest-ui/components";
 import type { ToastWords } from "@argentic/chest-ui/components/logic";
 import { createElement, useEffect, type ComponentType } from "react";
-import type { hydrateRoot, Root } from "react-dom/client";
+import type { flushSync } from "react-dom";
+import type { createRoot, hydrateRoot, Root } from "react-dom/client";
 import type { RegisteredActions } from "./register.ts";
 export { fill, plural, type Plural } from "./i18n.ts";
+// For rules a tool shares between its server and its islands (an import
+// read in the browser to show it, then again on the server): they refuse
+// with the same codes on both sides.
+export { AppError, fail } from "./tool.ts";
 import type { Action, Outcome, SentOf } from "./tool.ts";
 
 // The browser's side, for islands: call() an action, refresh() the page in
@@ -13,25 +18,36 @@ import type { Action, Outcome, SentOf } from "./tool.ts";
 
 // ---- Islands: hydrated on load, kept (state, focus) across refreshes.
 let registry: Record<string, ComponentType<object>> = {};
-let hydrate: typeof hydrateRoot;
+export type ReactDom = { hydrateRoot: typeof hydrateRoot; createRoot: typeof createRoot; flushSync: typeof flushSync };
+let dom: ReactDom;
 const roots = new Map<Element, Root>();
 const propsOf = (el: Element): object => JSON.parse(el.getAttribute("data-props") ?? "{}") as object;
 // What the server put directly in <body>: a refresh changes only that;
 // what a script added there (a portal, a live region) stays.
 const served = new WeakSet<Node>();
 
-export function startIslands(islands: Record<string, ComponentType<never>>, hydrateRoot: typeof hydrate): void {
+export function startIslands(islands: Record<string, ComponentType<never>>, reactDom: ReactDom): void {
   registry = islands as typeof registry;
-  hydrate = hydrateRoot;
+  dom = reactDom;
   for (const node of document.body.childNodes) served.add(node);
   for (const el of document.querySelectorAll("[data-island]")) mount(el);
   // Back and Forward between addresses navigate() made: the page follows.
   addEventListener("popstate", () => void refresh());
 }
 // Each island is a root of its own, with the id prefix the server used.
-function mount(el: Element): void {
+// On load its HTML is hydrated. An island a refresh or a navigation brings
+// (a card's panel opened) is rendered at once instead, its effects
+// included, before the browser shows it: a key pressed the moment it
+// appears (Escape) finds its listeners there, and its focus is set.
+function mount(el: Element, now = false): void {
   const component = registry[el.getAttribute("data-island") ?? ""];
-  if (component && !roots.has(el)) roots.set(el, hydrate(el, createElement(component, propsOf(el)), { identifierPrefix: el.getAttribute("data-prefix") ?? "" }));
+  if (!component || roots.has(el)) return;
+  const options = { identifierPrefix: el.getAttribute("data-prefix") ?? "" };
+  const element = createElement(component, propsOf(el));
+  if (!now) return void roots.set(el, dom.hydrateRoot(el, element, options));
+  const root = dom.createRoot(el, options);
+  roots.set(el, root);
+  dom.flushSync(() => root.render(element));
 }
 const islandsIn = (node: Node): Element[] => (node instanceof Element ? [...(node.matches("[data-island]") ? [node] : []), ...node.querySelectorAll("[data-island]")] : []);
 
@@ -43,6 +59,7 @@ const islandsIn = (node: Node): Element[] => (node instanceof Element ? [...(nod
 // 401/403 (signed out, access removed): the page is loaded again, as the
 // Chest shows it. Another error: a toast, the page kept as it is.
 let latest = 0;
+let moves = 0;
 let sending = 0;
 export function refresh(): Promise<boolean> {
   return load(location.href, false);
@@ -50,6 +67,7 @@ export function refresh(): Promise<boolean> {
 
 async function load(href: string, push: false | "push" | "replace"): Promise<boolean> {
   const ticket = ++latest;
+  const move = push ? ++moves : moves;
   // A page read while an action is on its way may predate it: not shown
   // (the action's own refresh follows).
   const settled = sending === 0;
@@ -62,7 +80,7 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     if (ticket === latest) toast({ id: "refresh", text: words.unavailable, tone: "error" });
     return false;
   }
-  if (ticket !== latest || !settled || sending > 0) return false;
+  if (!applies({ navigation: push !== false, ticket, latest, move, moves, settled, sending })) return false;
   if (response.status === 401 || response.status === 403 || html === null) {
     if (push) location.assign(href);
     else location.reload();
@@ -88,12 +106,27 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
 // its HTML put in place as refresh() does, the address in the history,
 // the top of the page in view, the layout's islands (a toast and its
 // Undo) kept. Another part or another site: a plain page load.
+// Whether a page read may be put in place when it arrives. A navigation is
+// the person's own click: shown unless another navigation came after it —
+// never dropped for a refresh or an action on its way. A refresh is shown
+// only if it is the newest read, no navigation came since it started, and
+// no action was or is on its way (its page may predate it).
+export function applies(r: { navigation: boolean; ticket: number; latest: number; move: number; moves: number; settled: boolean; sending: number }): boolean {
+  if (r.move !== r.moves) return false;
+  if (r.navigation) return true;
+  return r.ticket === r.latest && r.settled && r.sending === 0;
+}
+
+// top: false keeps the scroll and the focus where they are (a card opened
+// beside its board, a filter); true (default) shows the new page's top and
+// puts the focus at its start.
 export async function navigate(to: string, { replace = false, top = true }: { replace?: boolean; top?: boolean } = {}): Promise<void> {
   const target = new URL(to, location.href);
   const members = (path: string) => path.split("/")[1]?.toLowerCase() === "chest";
   if (target.origin !== location.origin || members(target.pathname) !== members(location.pathname)) return location.assign(target.href);
   if (!(await load(target.href, replace ? "replace" : "push"))) return;
-  if (top) scrollTo(0, 0);
+  if (!top) return;
+  scrollTo(0, 0);
   document.getElementById("main")?.focus({ preventScroll: true });
 }
 
@@ -133,7 +166,7 @@ function children(parent: Element, next: Element): void {
       const node = document.importNode(incoming, true);
       parent.insertBefore(node, current);
       if (parent === document.body) served.add(node);
-      islandsIn(node).forEach(mount);
+      for (const el of islandsIn(node)) mount(el, true);
     }
   }
   while (current) {

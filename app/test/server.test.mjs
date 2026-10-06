@@ -3,7 +3,8 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { action, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { applies, AppError as BrowserError } from "../dist/client.js";
 import { db } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
@@ -165,4 +166,32 @@ test("layouts receive the look (its logo) and the page's status; a visitor's 404
   assert.match(text, /data-status="404"/u);
   assert.match(text, /Ask whoever sent the link\./u);
   assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
+});
+
+test("after(): a task that throws before its first await is logged, never thrown", async () => {
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    afterAnswer("probe", () => { throw new Error("at once"); });
+    await new Promise(resolve => setTimeout(resolve, 20));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /^error "probe failed"/mu);
+});
+
+test("which page read is put in place: a navigation is never lost to a refresh or an action", () => {
+  const read = { ticket: 3, latest: 3, move: 1, moves: 1, settled: true, sending: 0 };
+  assert.equal(applies({ ...read, navigation: false }), true);
+  assert.equal(applies({ ...read, navigation: false, latest: 4 }), false, "a newer read is on its way");
+  assert.equal(applies({ ...read, navigation: false, moves: 2 }), false, "a navigation came since: this refresh read the old address");
+  assert.equal(applies({ ...read, navigation: false, sending: 1 }), false, "an action is on its way");
+  assert.equal(applies({ ...read, navigation: false, settled: false }), false, "an action was on its way when it started");
+  assert.equal(applies({ ...read, navigation: true, latest: 5, sending: 1, settled: false }), true, "the person's own click");
+  assert.equal(applies({ ...read, navigation: true, moves: 2 }), false, "but not a click followed by another");
+});
+
+test("a rule shared with the browser refuses with the server's own AppError", () => {
+  assert.equal(BrowserError, AppError);
 });

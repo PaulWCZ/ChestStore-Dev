@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
-import { hydrateRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { busyText, refresh, send, startIslands, toast } from "./client.tsx";
 
 // The browser's start, called once by the tool's src/entry.tsx:
@@ -11,7 +12,7 @@ import { busyText, refresh, send, startIslands, toast } from "./client.tsx";
 const actionPath = /\/actions\/[A-Za-z0-9_]+$/u; // /chest/actions/x, /actions/x, /p/abc/actions/x
 
 export function start(islands: Record<string, ComponentType<never>>): void {
-  startIslands(islands, hydrateRoot);
+  startIslands(islands, { hydrateRoot, createRoot, flushSync });
   document.addEventListener("submit", event => {
     const form = event.target;
     if (event.defaultPrevented || !(form instanceof HTMLFormElement)) return;
