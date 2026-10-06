@@ -7,7 +7,7 @@ import { atLeast, checkPage, settled } from "@argentic/chest-app/testing";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 
-atLeast(11);
+atLeast(12);
 
 // The server as built for the tests (npm test: dist/test), asked as the
 // Chest asks it: members signed by a fake Chest, a real PostgreSQL (PGlite,
@@ -222,9 +222,22 @@ test("a big client book still renders in time: 5,000 contacts, 500 deals", async
     // A list page shows one page (100 people), never the whole book.
     if (path.startsWith("/chest/contacts")) assert.ok((html.match(/id="contact-\d+"/gu) ?? []).length <= 100, path);
     assert.ok(html.length < 1_500_000, `${path}: ${html.length} bytes`);
+    // Each island's props stay well under the package's 256 KB warning.
+    for (const m of html.matchAll(/data-props="([^"]*)"/gu)) assert.ok(m[1]!.length < 256_000, `${path}: an island's props of ${m[1]!.length} bytes`);
   }
   const csv = await (await get(hugo, "/chest/export/contacts")).text();
   assert.ok(csv.split("\r\n").length > 5000);
+});
+
+test("a refresh with nothing new is a 304, the page not rendered; any change gives a new version", async () => {
+  const first = await get(hugo, "/chest/deals");
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(await first.text())?.[1];
+  assert.ok(version);
+  const again = await app.fetch(withMember(new Request(url("/chest/deals"), { headers: { accept: "text/html", "x-tool-navigate": "1", "x-tool-version": version } }), hugo));
+  assert.equal(again.status, 304);
+  await call(hugo, "addCompany", { name: "Version Bump SA" });
+  const next = await get(hugo, "/chest/deals");
+  assert.notEqual(/<meta name="chest-version" content="([^"]+)"/u.exec(await next.text())?.[1], version);
 });
 
 test("the static files: under /assets/ only, cached", async () => {

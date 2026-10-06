@@ -1,7 +1,6 @@
-import { refresh } from "@argentic/chest-app/client";
+import { useAutoRefresh } from "@argentic/chest-app/client";
 import { Menu, SearchBox, type MenuItem } from "@argentic/chest-ui/components";
 import type { SearchWords } from "@argentic/chest-ui/components/logic";
-import { useEffect } from "react";
 import { Download, Gear, Upload } from "../components/icons.tsx";
 
 // At the right of the header: the client search ("/" focuses it from
@@ -26,41 +25,12 @@ export function SearchField({ q, labels }: { q: string; labels: SearchWords }) {
   return <SearchBox id="search-q" action="/chest/search" value={q} shortcut={false} autoFocus={!q} maxLength={100} labels={labels} />;
 }
 
-// The Chest has no WebSocket: a page others change reads itself again
-// (refresh(): only what changed) every few seconds — only while it is seen
-// and its reader was active in the last five minutes, so a tab left open
-// overnight never keeps the tool awake (a Chest puts an idle tool to
-// sleep) — and at once when the reader comes back to it.
-const idle = 5 * 60_000;
+// The Chest has no WebSocket: a page others change reads itself again —
+// the package's useAutoRefresh: when the reader comes back to it, and on
+// a timer only while they were active lately (backing off when nothing
+// changed, stopping when idle, so a tab left open lets the Chest put the
+// tool to sleep).
 export function AutoRefresh({ seconds }: { seconds: number }) {
-  useEffect(() => {
-    let last = Date.now();
-    const active = () => { last = Date.now(); };
-    const tick = () => { if (document.visibilityState === "visible" && Date.now() - last < idle) void refresh(); };
-    let away = false;
-    const leave = () => { if (document.visibilityState === "hidden") away = true; };
-    const back = () => {
-      if (document.visibilityState !== "visible" || !away) return;
-      away = false;
-      last = Date.now();
-      void refresh();
-    };
-    const timer = setInterval(tick, seconds * 1000);
-    const options = { passive: true, capture: true } as const;
-    for (const name of ["pointerdown", "keydown", "wheel", "touchstart"] as const) addEventListener(name, active, options);
-    document.addEventListener("visibilitychange", leave);
-    document.addEventListener("visibilitychange", back);
-    addEventListener("focus", back);
-    const blur = () => { away = true; };
-    addEventListener("blur", blur);
-    return () => {
-      clearInterval(timer);
-      for (const name of ["pointerdown", "keydown", "wheel", "touchstart"] as const) removeEventListener(name, active, options);
-      document.removeEventListener("visibilitychange", leave);
-      document.removeEventListener("visibilitychange", back);
-      removeEventListener("focus", back);
-      removeEventListener("blur", blur);
-    };
-  }, [seconds]);
+  useAutoRefresh(seconds);
   return null;
 }

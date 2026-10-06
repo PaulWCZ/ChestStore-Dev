@@ -98,7 +98,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
                 <span className="label-mono">{t.deals.legendLabel}</span>
                 {(["late", "today", "planned", "none"] as const).map(k => <span key={k}><span className={`dot ${k}`} aria-hidden="true" />{t.deals.legend[k]}</span>)}
               </p>
-              <Island name="DealBoard" id="island-deal-board" props={{ stages, deals: cards, people, me: member.id, closedDays: boardClosedDays, currency: cur, locale, t: words.board(t) }} />
+              <Island name="DealBoard" id="deal-board" props={{ stages, deals: cards, people, me: member.id, closedDays: boardClosedDays, currency: cur, locale, t: words.board(t) }} />
             </>
           )}
         </div>
@@ -136,7 +136,7 @@ export async function dealsPage({ member, locale: lang, t, query }: PageContext)
       <div className="page wide">
         {head}
         <Island name="DealFilters" props={{ address, view: "list", owner, stage: String(filter.stage ?? ""), closing: filter.closing ?? "", status: one("status"), team: choices.team, me: member.id, stages: choices.stageChoices, fields: choices.fields.deals, today: now, t: words.dealFilters(t) }} />
-        <Island name="DealList" id="island-deal-list" props={{
+        <Island name="DealList" id="deal-list" props={{
           rows: list, writes, team: choices.team, me: member.id, canAssign: choices.canAssign, locale, labels: t.table, t: words.owner(t),
           words: { caption: t.deals.title, select: t.common.bulk.selectColumn, selectOne: t.common.bulk.select, title: t.deals.listTitle, company: t.deals.listCompany, value: t.deals.listValue, stage: t.deals.listStage, probability: t.deals.listProbability, close: t.deals.listClose, owner: t.deals.listOwner, step: t.deals.listStep },
           summary: { text: `${plural(t.deals.count, total, locale)} · ${money(value, locale, { currency: cur })}`, exportHref: `/chest/export/deals${exportQuery ? "?" + exportQuery : ""}`, exportLabel: t.common.exportCsv },

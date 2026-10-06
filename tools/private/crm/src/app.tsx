@@ -13,6 +13,7 @@ import { fileObject } from "./lib/attachments.ts";
 import { contact } from "./lib/contacts.ts";
 import { db } from "./lib/db.ts";
 import { onEvent, onSchedule } from "./lib/deliveries.ts";
+import { bookVersion } from "./lib/version.ts";
 import { companiesCsv, contactJson, contactsCsv, contactsVcf, dealsCsv, everything, fileName } from "./lib/export.ts";
 import { fieldFilterOf } from "./lib/fields.ts";
 import { shownName } from "./lib/seed-words.ts";
@@ -42,9 +43,11 @@ export const app = createApp({
 });
 
 // A page of Clients: a member whose role gives nothing sees why (the
-// layout says it), and the page reads nothing.
+// layout says it), and the page reads nothing. Its version is the client
+// book's (src/lib/version.ts): a refresh with nothing new is a 304, the
+// page not even rendered.
 const clients = (render: (p: PageContext) => Promise<View | Response> | View | Response) =>
-  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }));
+  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }), { version: p => (roleOf(p.member) ? bookVersion(db()) : null) });
 
 // ---- The members' part (/chest…).
 app.get("/chest", clients(myDayPage));
@@ -99,7 +102,7 @@ app.get("/chest/contacts/:id/data", download(async ({ member, t, locale, param }
 }));
 // A file of a record: for whoever reads the record, a fresh 15-minute link
 // signed by the Chest (never kept in a page). ?download to save it.
-app.get("/chest/files/:id", clients(async ({ member, param, query }) => {
+app.get("/chest/files/:id", page(async ({ member, param, query }) => {
   const f = await fileObject(db(), member, param("id"));
   try {
     const { url } = await files.url(f.object, { download: query("download") !== undefined });

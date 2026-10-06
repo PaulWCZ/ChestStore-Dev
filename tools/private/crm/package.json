@@ -25,7 +25,7 @@
     "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "@argentic/chest-app": "file:vendor/argentic-chest-app-0.1.0-studio.5.tgz"
+    "@argentic/chest-app": "file:vendor/argentic-chest-app-0.1.0-studio.6.tgz"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

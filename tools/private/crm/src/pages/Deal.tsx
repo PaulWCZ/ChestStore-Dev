@@ -51,7 +51,7 @@ export async function dealPage({ member, locale: lang, t, param }: PageContext):
             </p>
           )}
         </div>
-        <Island name="DealControls" id={`island-controls-${key}`} props={{
+        <Island name="DealControls" id={`controls-${key}`} props={{
           deal: { id: d.id, title: d.title, stageId: d.stageId, stage: d.stageId, owner: d.owner, company: d.company, contact: d.contact, value: amountInput(d.value), expectedClose: d.expectedClose ?? "", custom: customForm(d.custom) },
           stages: choices.stages.map(s => ({ id: s.id, name: choices.stageNames[s.id]!, kind: s.kind, probability: s.probability })),
           editable,
@@ -65,10 +65,10 @@ export async function dealPage({ member, locale: lang, t, param }: PageContext):
         {!editable && <p className="notice">{can(member, "deals.create") ? format(t.deal.readOnly, { name: ownerName }) : t.deal.readOnlyViewer}</p>}
         <div className="record-grid">
           <div className="record-main">
-            <Island name="StepBox" id={`island-steps-${key}`} props={{ steps: steps.map(s => ({ ...s, label: dueLabel(s, now, locale, t) })), on: { deal: d.id }, team: choices.team, people, me: member.id, canEdit: editable, canAssign: choices.canAssign, today: now, calendar: inCalendar === true, t: words.step(t) }} />
-            {can(member, "activities.log") ? <Island name="Composer" id={`island-log-${key}`} props={{ on: { deal: d.id }, t: words.log(t) }} /> : <p className="muted">{t.log.readOnly}</p>}
+            <Island name="StepBox" id={`steps-${key}`} props={{ steps: steps.map(s => ({ ...s, label: dueLabel(s, now, locale, t) })), on: { deal: d.id }, team: choices.team, people, me: member.id, canEdit: editable, canAssign: choices.canAssign, today: now, calendar: inCalendar === true, t: words.step(t) }} />
+            {can(member, "activities.log") ? <Island name="Composer" id={`log-${key}`} props={{ on: { deal: d.id }, t: words.log(t) }} /> : <p className="muted">{t.log.readOnly}</p>}
             <h2 className="label-mono section-gap">{t.timeline.title}</h2>
-            <Island name="Timeline" id={`island-timeline-${key}`} props={{ items: withWhen(items, locale, new Date(), member.timeZone), people, stageNames: choices.stageNames, me: member.id, canRemoveAny: can(member, "deals.all"), canLog: can(member, "activities.log"), context: "deal", locale, t: words.timeline(t) }} />
+            <Island name="Timeline" id={`timeline-${key}`} props={{ items: withWhen(items, locale, new Date(), member.timeZone), people, stageNames: choices.stageNames, me: member.id, canRemoveAny: can(member, "deals.all"), canLog: can(member, "activities.log"), context: "deal", locale, t: words.timeline(t) }} />
           </div>
           <aside className="record-side">
             <dl className="facts">
@@ -80,7 +80,7 @@ export async function dealPage({ member, locale: lang, t, param }: PageContext):
               <div><dt>{t.deal.contact}</dt><dd>{d.contact ? <a href={`/chest/contacts/${d.contact.id}`}>{d.contact.name}</a> : <span className="muted">{t.deal.noContact}</span>}</dd></div>
               {shownFields(choices.fields, "deals", d.custom, locale).map(f => <div key={f.label}><dt>{f.label}</dt><dd>{f.value}</dd></div>)}
             </dl>
-            <Island name="FilesBox" id={`island-files-${key}`} props={{ on: { deal: d.id }, files: shownFiles(files, people, member, locale, t), canAdd: can(member, "activities.log"), t: words.files(t) }} />
+            <Island name="FilesBox" id={`files-${key}`} props={{ on: { deal: d.id }, files: shownFiles(files, people, member, locale, t), canAdd: can(member, "activities.log"), t: words.files(t) }} />
           </aside>
         </div>
       </div>

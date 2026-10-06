@@ -82,7 +82,7 @@ export async function companiesPage({ member, locale: lang, t, query }: PageCont
             action={!filtered && can(member, "import") ? <a className="button quiet" href="/chest/import">{t.shell.import}</a> : undefined}
           />
         ) : (
-          <Island name="CompanyList" id="island-company-list" props={{ rows: list, total, filter: { ...kept }, owners, writes, team, me: member.id, canAssign: can(member, "assign"), locale, t: words.companyList(t) }} />
+          <Island name="CompanyList" id="company-list" props={{ rows: list, total, filter: { ...kept }, owners, writes, team, me: member.id, canAssign: can(member, "assign"), locale, t: words.companyList(t) }} />
         )}
         <Pager path="/chest/companies" params={kept} page={page} pageSize={pageSize} total={total} locale={locale} t={t} />
       </div>
@@ -134,7 +134,7 @@ export async function companyPage({ member, locale: lang, t, param }: PageContex
           </p>
           {c.tags.length > 0 && <p className="tags">{c.tags.map(tag => <a key={tag} className="tag" href={`/chest/companies?tag=${encodeURIComponent(tag)}`}>{shownName("tags", tag, t)}</a>)}</p>}
         </div>
-        <Island name="CompanyControls" id={`island-controls-${key}`} props={{
+        <Island name="CompanyControls" id={`controls-${key}`} props={{
           company: { id: c.id, name: c.name, website: c.website, phone: c.phone, email: c.email, address: c.address, postcode: c.postcode, city: c.city, country: c.country, siren: c.siren, vat: c.vat, industry: shownName("industries", c.industry, t), notes: c.notes, tags: c.tags.map(tag => shownName("tags", tag, t)).join(", "), owner: c.owner, custom: customForm(c.custom) },
           ownerName: names[c.owner ?? ""]?.name ?? t.common.unassigned,
           canEdit: can(member, "records.write"),
@@ -144,10 +144,10 @@ export async function companyPage({ member, locale: lang, t, param }: PageContex
         }} />
         <div className="record-grid">
           <div className="record-main">
-            {can(member, "activities.log") && c.phone && <Island name="CallPrompt" id={`island-call-${key}`} props={{ on: { company: c.id }, name: c.name, t: words.log(t) }} />}
-            {can(member, "activities.log") ? <Island name="Composer" id={`island-log-${key}`} props={{ on: { company: c.id }, t: words.log(t) }} /> : <p className="muted">{t.log.readOnly}</p>}
+            {can(member, "activities.log") && c.phone && <Island name="CallPrompt" id={`call-${key}`} props={{ on: { company: c.id }, name: c.name, t: words.log(t) }} />}
+            {can(member, "activities.log") ? <Island name="Composer" id={`log-${key}`} props={{ on: { company: c.id }, t: words.log(t) }} /> : <p className="muted">{t.log.readOnly}</p>}
             <h2 className="label-mono section-gap">{t.timeline.title}</h2>
-            <Island name="Timeline" id={`island-timeline-${key}`} props={{ items: withWhen(items, locale, new Date(), member.timeZone), people: names, stageNames: choices.stageNames, me: member.id, canRemoveAny: can(member, "deals.all"), canLog: can(member, "activities.log"), context: "company", locale, t: words.timeline(t) }} />
+            <Island name="Timeline" id={`timeline-${key}`} props={{ items: withWhen(items, locale, new Date(), member.timeZone), people: names, stageNames: choices.stageNames, me: member.id, canRemoveAny: can(member, "deals.all"), canLog: can(member, "activities.log"), context: "company", locale, t: words.timeline(t) }} />
           </div>
           <aside className="record-side">
             <section className="panel" aria-labelledby="people-title">
@@ -192,7 +192,7 @@ export async function companyPage({ member, locale: lang, t, param }: PageContex
                 <dl className="facts">{details.map(d => <div key={d.label}><dt>{d.label}</dt><dd>{d.value}</dd></div>)}</dl>
               </section>
             )}
-            <Island name="FilesBox" id={`island-files-${key}`} props={{ on: { company: c.id }, files: shownFiles(files, names, member, locale, t), canAdd: can(member, "activities.log"), t: words.files(t) }} />
+            <Island name="FilesBox" id={`files-${key}`} props={{ on: { company: c.id }, files: shownFiles(files, names, member, locale, t), canAdd: can(member, "activities.log"), t: words.files(t) }} />
             {c.notes && (
               <section className="panel">
                 <h2 className="label-mono">{t.common.notes}</h2>
