@@ -39,7 +39,9 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   dates already written by `f`, the path if needed. An island imports only
   React, the kit, `src/components/`, and `call`, `refresh`, `navigate`,
   `onLinkClick`, `toast`, `fill`, `plural`, `fail` (and `send` for a form
-  it posts itself) from `@argentic/chest-app/client`. Islands do not nest. Each island is a
+  it posts itself) from `@argentic/chest-app/client` — with the types an
+  island names (`Outcome`, `SentOf`, `ErrorCode`, `Words`, `Plain`), never
+  from the package's root (server code). Islands do not nest. Each island is a
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
   use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
   `id="toasts"`, so it survives `navigate()`). The island's HTML sits in a
@@ -240,8 +242,13 @@ handler in `events.handle`: on `member.erased`, delete or anonymise, then
 `acknowledgeErasure`.
 **Names of members** — `names(ids, t.people)` from
 `@argentic/chest-app/members` (`members` capability).
-**A download** — a route returning a `Response`, or `stream(c, …)` from
-`hono/streaming` with a cursor; `csvLine([...])` quotes and defuses formulas.
+**A download** — `app.get("/chest/export.csv", download(async ({ member, t }) => {
+if (!can(member)) fail("forbidden"); return { name, type: "text/csv; charset=utf-8",
+body } }))`: sent as an attachment (any name, accents too), never cached; a
+refusal is a page in the reader's words with its status (403, 400 with
+the error's values, 404) — not a bare text. `publicDownload()` for the
+public part. A big one: `body` a stream (a cursor, `zipStream()`);
+`csvLine([...])` quotes and defuses formulas.
 **An archive** (an export with the files) — `zipStream(entries())` from
 `@argentic/chest-app`, given an async generator that yields `{ name,
 data }` one file at a time (`(await files.get(name)).data`, or a stream):

@@ -195,6 +195,50 @@ function contextOf<V extends Viewer>(c: Context, viewer: V): PageContext<V> {
   return { ...viewer, url: new URL(c.req.url), param: name => c.req.param(name) ?? "", query: name => c.req.query(name) };
 }
 
+// download(): a file of the members' part (/chest/…/export.csv) — the
+// handler returns { name, type, body } (a string, bytes or a stream: a
+// csv built line by line, zipStream()), or a Response of its own. Sent as
+// an attachment, never cached. A refusal (fail("forbidden"), "invalid"
+// with its values…) is a page in the reader's words with its status (403,
+// 400, 404) — what the person sees when the link does not give a file.
+// publicDownload(): the same for the public part.
+export type Download = { name: string; type: string; body: BodyInit | ReadableStream<Uint8Array> };
+const attachment = (file: Download) => new Response(file.body, {
+  headers: {
+    "Content-Type": file.type,
+    "Content-Disposition": `attachment; filename="${file.name.replace(/[^\x20-\x7e]|["\\]/gu, "_")}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    "Cache-Control": "no-store",
+  },
+});
+async function served(c: Context, viewer: Viewer, run: () => Promise<Download | Response> | Download | Response): Promise<Response> {
+  try {
+    const file = await run();
+    return file instanceof Response ? file : attachment(file);
+  } catch (error) {
+    if (!(error instanceof AppError) || error.code === "unavailable" || error.code === "unknown") throw error;
+    const status = error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : 400;
+    const t = viewer.t;
+    const title = status === 403 ? t.pages.forbidden.title : status === 404 ? t.pages.notFound.title : t.pages.failed.title;
+    const said = fill(t.errors[error.code as ErrorCode] ?? t.errors.invalid, error.values);
+    return html(c, {
+      title,
+      body: (
+        <div className="ck-empty">
+          <h1 className="ck-empty-title">{title}</h1>
+          <p className="ck-empty-body">{said}</p>
+          {viewer.member !== null && <div className="ck-empty-actions"><a className="ck-button ck-button-quiet" href="/chest">{t.pages.back}</a></div>}
+        </div>
+      ),
+    }, viewer, status);
+  }
+}
+export const download = (render: (p: PageContext<MemberContext>) => Promise<Download | Response> | Download | Response) => async (c: Context<Env>) =>
+  served(c, c.get("viewer"), () => render(contextOf(c, c.get("viewer"))));
+export const publicDownload = (render: (p: PageContext<VisitorContext>) => Promise<Download | Response> | Download | Response) => async (c: Context) => {
+  const viewer = visitor(c);
+  return served(c, viewer, () => render(contextOf(c, viewer)));
+};
+
 // page(): a page of the members' part (under /chest); publicPage(): one of
 // the public part. The handler reads what the page needs and returns its
 // title and body (the layout goes around), or a Response of its own.

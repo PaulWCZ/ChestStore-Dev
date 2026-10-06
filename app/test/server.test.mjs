@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { download, formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { AppError as BrowserError } from "../dist/client.js";
 import { applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
@@ -56,6 +56,11 @@ app.get("/chest/refused", page(() => fail("forbidden")));
 app.get("/chest/missing", page(() => fail("not_found")));
 app.get("/chest/invalid", page(() => fail("invalid")));
 app.get("/chest/own-policy", page(() => new Response("framed", { headers: { "content-security-policy": "frame-ancestors https://partner.example" } })));
+app.get("/chest/export.csv", download(({ query }) => {
+  if (query("who") === "other") fail("forbidden");
+  if (query("year") === "1900") fail("too_long", { max: 5 });
+  return { name: "Absences été 2026.csv", type: "text/csv; charset=utf-8", body: "a,b\r\n" };
+}));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot), h("p", null, "hello")) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
@@ -398,4 +403,18 @@ test("after a change in place, the focus goes to <main> only if nothing new took
   assert.equal(focusMain(gone, panel, body), false, "a panel that arrived focused itself: kept");
   assert.equal(focusMain(panel, panel, body), false, "the focused element stayed");
   assert.equal(focusMain(body, body, body), false);
+});
+
+test("download(): a file as an attachment, never cached; a refusal is a page in the reader's words with its status", async () => {
+  const file = await get("/chest/export.csv");
+  assert.equal(file.status, 200);
+  assert.equal(await file.text(), "a,b\r\n");
+  assert.equal(file.headers.get("content-disposition"), `attachment; filename="Absences _t_ 2026.csv"; filename*=UTF-8''Absences%20%C3%A9t%C3%A9%202026.csv`);
+  assert.equal(file.headers.get("cache-control"), "no-store");
+  const refused = await get("/chest/export.csv?who=other");
+  assert.equal(refused.status, 403);
+  assert.match(await refused.text(), /Forbidden\./u);
+  const invalid = await get("/chest/export.csv?year=1900");
+  assert.equal(invalid.status, 400);
+  assert.match(await invalid.text(), /Too long: 5 at most\./u);
 });

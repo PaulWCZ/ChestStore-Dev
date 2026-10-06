@@ -24,8 +24,10 @@ const quiet = { onnotice: () => {} };
 
 // extensions: what the migrations create (unaccent, pg_trgm…), for
 // PGlite, which loads each from its own contrib module; a server has them.
-// PGlite serves every connection from one session: work after() still
-// does may run between a test's queries — another reason to prefer a server.
+// PGlite serves every connection from one session: db() then keeps one
+// connection (DATABASE_POOL_MAX=1), so after()'s work and a page's queries
+// take turns instead of mixing their transactions — slower, and another
+// reason to prefer a server.
 export async function testDatabase({ migrations = "migrations", extensions = [] }: { migrations?: string; extensions?: string[] } = {}): Promise<TestDatabase> {
   const files = existsSync(migrations) ? readdirSync(migrations).filter(f => /^\d{4}_[a-z0-9_-]+\.sql$/u.test(f)).sort().map(f => readFileSync(join(migrations, f), "utf8")) : [];
   const name = `t_test_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -82,6 +84,7 @@ export async function testDatabase({ migrations = "migrations", extensions = [] 
   await socket.start();
   const port = (socket as unknown as { server: { address(): { port: number } } }).server.address().port;
   process.env["DATABASE_URL"] = `postgres://t_test:test@127.0.0.1:${port}/t_test?sslmode=disable`;
+  process.env["DATABASE_POOL_MAX"] = "1";
   delete process.env["TEST_DATABASE_SCHEMA"];
   for (const text of files) await pg.exec(text);
   const sql = postgres(process.env["DATABASE_URL"], { max: 1, ...quiet });
