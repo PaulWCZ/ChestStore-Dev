@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { defaultWeek, slots, validRanges, type Availability, type Rules } from "../lib/slots.ts";
-import { addDays, instantOf, isDate, isZone, offset, wall } from "../lib/zone.ts";
+import { defaultWeek, slots, validRanges, type Availability, type Rules } from "../src/lib/slots.ts";
+import { addDays, instantOf, isDate, isZone, offset, wall } from "../src/lib/zone.ts";
 
 test("wall clocks and instants, across daylight-saving changes", () => {
   // Paris: summer UTC+2, winter UTC+1; the clock goes back on 25 Oct 2026 at 3:00.

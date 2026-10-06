@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as b from "../lib/booking.ts";
-import { AppError } from "../lib/app-error.ts";
+import * as b from "../src/lib/booking.ts";
+import { AppError } from "../src/lib/app-error.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
@@ -12,7 +12,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -200,8 +200,24 @@ test("the form's guard stops a visitor after a few bookings an hour", async () =
   await b.guard(sql, "198.51.100.4");
 });
 
+test("visitors the front did not name count together, under the hourly ceiling and the daily cap kept in the database", async () => {
+  const { sql } = await ready();
+  // No counter of their own: eight bookings an hour would close the form to all.
+  for (let i = 0; i < b.formLimits.perVisitorHour + 2; i++) await b.guard(sql, "unknown");
+  await sql`update form_counts set count = ${b.formLimits.perHour} where key = 'all'`;
+  await refuses(b.guard(sql, "unknown"), "too_many");
+  // The earlier hours of the last day count too, for everyone…
+  await sql`delete from form_counts`;
+  const now = Date.now();
+  const hour = Math.floor(now / 3600000) * 3600000;
+  await sql`insert into form_counts (key, hour, count) values ('all', ${new Date(hour - 5 * 3600000)}, ${b.formLimits.perDay})`;
+  await refuses(b.guard(sql, "203.0.113.20", now), "too_many");
+  // …and a day later they are forgotten.
+  await b.guard(sql, "203.0.113.21", now + 86400000);
+});
+
 test("the public forms' guard: the Chest counts when it can, the tool's own counters otherwise", async () => {
-  const { admit, checkForm, formToken } = await import("../lib/guard.ts");
+  const { admit, checkForm, formToken } = await import("../src/lib/guard.ts");
   const { sql } = await ready();
   // A form sent within 3 seconds is not refused: the answer waits the rest
   // (a clock that moves as it sleeps).
@@ -213,9 +229,12 @@ test("the public forms' guard: the Chest counts when it can, the tool's own coun
   await checkForm(formToken(clock - 5000), () => clock, async ms => { slept.push(ms); });
   assert.equal(slept.length, 1);
   await assert.rejects(checkForm("nonsense"), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  const h = new Headers({ "x-forwarded-for": "203.0.113.50" });
-  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await admit(sql, h, "book");
+  // The visitor's address is the one the Chest's front saw
+  // (Chest-Visitor-Address, visitors.address()), never X-Forwarded-For,
+  // which the visitor writes: a new one at each request changes nothing.
+  const h = new Headers({ "chest-visitor-address": "203.0.113.50" });
+  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await admit(sql, new Headers({ "chest-visitor-address": "203.0.113.50", "x-forwarded-for": `198.51.100.${i}` }), "book");
   await refuses(admit(sql, h, "book"), "too_many");
   // Another visitor is not held by the first.
-  await admit(sql, new Headers({ "x-forwarded-for": "198.51.100.50" }), "book");
+  await admit(sql, new Headers({ "chest-visitor-address": "198.51.100.50" }), "book");
 });

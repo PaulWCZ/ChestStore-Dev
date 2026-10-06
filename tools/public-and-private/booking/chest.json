@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "booking",
   "title": "Booking",
   "description": "Let customers book a time with your team: a page per person, their hours, no double booking.",
@@ -8,16 +8,20 @@
   "roles": ["admin", "host"],
   "role_labels": { "admin": "Administrator", "host": "Host" },
   "public": true,
-  "csp": "tool",
   "capabilities": ["database", "members", "notifications"],
   "receives": ["member.*"],
   "network": ["calendar.google.com", "outlook.office365.com", "outlook.live.com", "*.icloud.com"],
+  "schedules": [
+    { "name": "reminders", "cron": "5 * * * *" },
+    { "name": "cleanup", "cron": "40 3 * * *" },
+    { "name": "calendars", "cron": "*/15 * * * *" }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": ["/_next/static/"]
+    "static": ["/assets/"]
   }
 }

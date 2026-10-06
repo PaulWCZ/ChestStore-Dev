@@ -3,20 +3,6 @@
     "send": true
   },
   "calendar": true,
-  "schedules": [
-    {
-      "name": "reminders",
-      "cron": "5 * * * *"
-    },
-    {
-      "name": "cleanup",
-      "cron": "40 3 * * *"
-    },
-    {
-      "name": "calendars",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "emits": [
     "booking.busy",
     "booking.confirmed",

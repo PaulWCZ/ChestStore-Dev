@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { provide } from "../../lib/db.ts";
+import { provide } from "../../src/lib/db.ts";
 
 // A fresh database for a test file, with the tool's migrations run as the
 // Chest runs them (in name order, each in its own transaction, recorded in
