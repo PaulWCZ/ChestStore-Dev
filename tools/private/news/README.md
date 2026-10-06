@@ -390,9 +390,16 @@ database) is the studio's package `@argentic/chest-app`, vendored in
 strict policy the Chest gives a public part holds on every page. The text
 editor (Tiptap) is a script of its own, fetched when the composer opens.
 Measured with the studio's bench (`lab/measure`, 6 October 2026, Node
-24.21, the same 15 pages): at rest 72 MiB PSS (125 on Next.js 16), the
-first page 0.47 s after a cold start (0.82), an image of 28 MiB (475), a
-build that fits the Chest's 512 MiB build container in 3.5 s (40 s).
+24.21, the same 15 pages; Next.js 16 in brackets): at rest 67 MiB PSS
+(120), the first page 0.46 s after a cold start (0.82), an image of 28 MiB
+(475). The build, limited to 512 MiB and one CPU, takes 5.1 s with a peak
+of 272 MiB (41 s, peak 508 MiB, just under the limit); unlimited, 3.0 s
+and 340 MiB PSS (17 s and 994 MiB). The Chest's contract gives a build
+1.5 GiB; both fit it. "Download all posts" is written while it is sent:
+with 160 MiB of files, the server's memory rose from 99 to 177 MiB RSS
+(a measured run, the built server in its own process), one file of the
+Chest at a time — the SDK's `files.get` answers a file whole, so the
+largest attachment (25 MB) is what one export holds at once.
 
 ## Develop
 
