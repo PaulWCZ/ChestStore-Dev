@@ -1,0 +1,1027 @@
+{
+ "tool": "tasks",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/tools/private/tasks",
+ "date": "2026-10-06T10:00:40.184Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "6a6d9b6 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 0.54,
+   "five": 1.35,
+   "fifteen": 1.35
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 80,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 39.2,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 18.7,
+    "rssMiB": 2,
+    "command": "rm"
+   },
+   {
+    "cpu": 12.4,
+    "rssMiB": 570,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 80,
+    "command": "environment-man"
+   }
+  ],
+  "atEnd": {
+   "one": 0.13,
+   "five": 0.73,
+   "fifteen": 1.11
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 12.4,
+    "rssMiB": 556,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.1,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 0.9,
+    "rssMiB": 76,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 80,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 144,
+    "command": "postgres"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 11,
+  "apparentMiB": 10.5,
+  "files": 188
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 4822,
+  "peakRssMiB": 561.8,
+  "peakPssMiB": 529.6,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.81,
+   "five": 1.39,
+   "fifteen": 1.37
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 8675,
+  "peakRssMiB": 745.8,
+  "peakPssMiB": 713.6,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1237.8,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.91,
+   "max": 0.91
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 506.7,
+   "apparentMiB": 470.4,
+   "files": 11879
+  },
+  "pruned": {
+   "diskMiB": 445,
+   "apparentMiB": 412,
+   "files": 10782
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 33912,
+   "peakRssMiB": 611.1,
+   "peakPssMiB": 529.1,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 501.5,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.85,
+    "max": 0.93
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 16488,
+   "peakRssMiB": 1153.8,
+   "peakPssMiB": 1073.2,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 1058.8,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 1.9,
+    "max": 2.12
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 4.9,
+  "apparentMiB": 4.2,
+  "files": 176,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 460.9
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/tasks.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?card=1",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?card=17",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?view=list",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?view=calendar",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/boards/2",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/import",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/1?view=timeline",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/boards/2?view=timeline",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/boards/1?card=3",
+    "member": "hugo",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 335.1,
+    "firstMs": 798.8,
+    "statuses": [
+     200
+    ],
+    "load": 2.12
+   },
+   {
+    "portMs": 312,
+    "firstMs": 736.1,
+    "statuses": [
+     200
+    ],
+    "load": 2.15
+   },
+   {
+    "portMs": 410.9,
+    "firstMs": 918,
+    "statuses": [
+     200
+    ],
+    "load": 1.97
+   },
+   {
+    "portMs": 269.8,
+    "firstMs": 631.4,
+    "statuses": [
+     200
+    ],
+    "load": 1.67
+   },
+   {
+    "portMs": 284.5,
+    "firstMs": 638,
+    "statuses": [
+     200
+    ],
+    "load": 1.41
+   },
+   {
+    "portMs": 316.3,
+    "firstMs": 741.6,
+    "statuses": [
+     200
+    ],
+    "load": 1.27
+   },
+   {
+    "portMs": 258.6,
+    "firstMs": 617.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.14
+   },
+   {
+    "portMs": 271.7,
+    "firstMs": 642.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.96
+   },
+   {
+    "portMs": 251.8,
+    "firstMs": 606.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.81
+   },
+   {
+    "portMs": 264,
+    "firstMs": 627,
+    "statuses": [
+     200
+    ],
+    "load": 0.77
+   }
+  ],
+  "port": {
+   "median": 278.1,
+   "min": 251.8,
+   "max": 410.9
+  },
+  "first200": {
+   "median": 640.05,
+   "min": 606.3,
+   "max": 918
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 240,
+     "pss": 163.4
+    },
+    "peakMiB": {
+     "rss": 263.7,
+     "pss": 187,
+     "cgroup": 135.3
+    },
+    "afterRequestsMiB": {
+     "rss": 263.7,
+     "pss": 187
+    },
+    "restMiB": {
+     "rss": 230.5,
+     "pss": 154,
+     "pssAnon": 96.3,
+     "pssFile": 57.7,
+     "cgroupAnon": 96.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 30.6
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.7,
+      "pssMiB": 123.2
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 39146,
+      "ms": 29
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 56658,
+      "ms": 48.3
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88266,
+      "ms": 48.9
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 84937,
+      "ms": 34.1
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 51795,
+      "ms": 20.2
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 57279,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 45586,
+      "ms": 17.7
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 33145,
+      "ms": 15.2
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 52608,
+      "ms": 19.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 28211,
+      "ms": 17.2
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 64534,
+      "ms": 17.1
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 59798,
+      "ms": 14
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83486,
+      "ms": 22.6
+     }
+    ],
+    "load": {
+     "mean": 0.49,
+     "max": 0.6
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 240.2,
+     "pss": 163.7
+    },
+    "peakMiB": {
+     "rss": 263.2,
+     "pss": 186.6,
+     "cgroup": 134.8
+    },
+    "afterRequestsMiB": {
+     "rss": 263.2,
+     "pss": 186.6
+    },
+    "restMiB": {
+     "rss": 230.1,
+     "pss": 153.6,
+     "pssAnon": 96,
+     "pssFile": 57.6,
+     "cgroupAnon": 96,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 30.5
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 161.3,
+      "pssMiB": 122.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 39146,
+      "ms": 28.2
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 56658,
+      "ms": 44.6
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88266,
+      "ms": 52.1
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 84937,
+      "ms": 33
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 51795,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 57279,
+      "ms": 16.9
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 45586,
+      "ms": 17.3
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 33145,
+      "ms": 15.3
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 52608,
+      "ms": 19.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 28211,
+      "ms": 26.6
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 64534,
+      "ms": 18.1
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 59798,
+      "ms": 15
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83486,
+      "ms": 25.7
+     }
+    ],
+    "load": {
+     "mean": 0.33,
+     "max": 0.42
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 238.9,
+     "pss": 151
+    },
+    "peakMiB": {
+     "rss": 266,
+     "pss": 178.1,
+     "cgroup": 137.8
+    },
+    "afterRequestsMiB": {
+     "rss": 266,
+     "pss": 178.1
+    },
+    "restMiB": {
+     "rss": 233,
+     "pss": 156.5,
+     "pssAnon": 98.9,
+     "pssFile": 57.6,
+     "cgroupAnon": 98.9,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.7,
+      "pssMiB": 30.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.4,
+      "pssMiB": 125.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 39146,
+      "ms": 43.3
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 56658,
+      "ms": 45.6
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88266,
+      "ms": 51.7
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 84937,
+      "ms": 40.3
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 51795,
+      "ms": 23.5
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 57279,
+      "ms": 20.2
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 45586,
+      "ms": 23.7
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 33145,
+      "ms": 24.2
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 52608,
+      "ms": 20.4
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 28211,
+      "ms": 16.8
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 64534,
+      "ms": 16.8
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 59798,
+      "ms": 16.7
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83486,
+      "ms": 26.7
+     }
+    ],
+    "load": {
+     "mean": 0.49,
+     "max": 0.59
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 239.1,
+     "pss": 162.5
+    },
+    "peakMiB": {
+     "rss": 261.6,
+     "pss": 184.9,
+     "cgroup": 133.3
+    },
+    "afterRequestsMiB": {
+     "rss": 261.6,
+     "pss": 184.9
+    },
+    "restMiB": {
+     "rss": 229.6,
+     "pss": 153.1,
+     "pssAnon": 95.5,
+     "pssFile": 57.6,
+     "cgroupAnon": 95.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 30.6
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 160.7,
+      "pssMiB": 122.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 39146,
+      "ms": 26.3
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 56658,
+      "ms": 56.2
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88266,
+      "ms": 47.3
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 84937,
+      "ms": 38.9
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 51795,
+      "ms": 22
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 57279,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 45586,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 33145,
+      "ms": 16.3
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 52608,
+      "ms": 28
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 28211,
+      "ms": 17.3
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 64534,
+      "ms": 18.4
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 59798,
+      "ms": 13.7
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83486,
+      "ms": 25
+     }
+    ],
+    "load": {
+     "mean": 0.36,
+     "max": 0.44
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 238.7,
+     "pss": 161.9
+    },
+    "peakMiB": {
+     "rss": 265.2,
+     "pss": 188.5,
+     "cgroup": 136.7
+    },
+    "afterRequestsMiB": {
+     "rss": 265.2,
+     "pss": 188.5
+    },
+    "restMiB": {
+     "rss": 233.7,
+     "pss": 157.1,
+     "pssAnon": 99.5,
+     "pssFile": 57.6,
+     "cgroupAnon": 99.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 30.5
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 164.9,
+      "pssMiB": 126.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 39146,
+      "ms": 38.1
+     },
+     {
+      "path": "/chest/boards/1",
+      "status": 200,
+      "bytes": 56658,
+      "ms": 45.1
+     },
+     {
+      "path": "/chest/boards/1?card=1",
+      "status": 200,
+      "bytes": 88266,
+      "ms": 51.8
+     },
+     {
+      "path": "/chest/boards/1?card=17",
+      "status": 200,
+      "bytes": 84937,
+      "ms": 32.1
+     },
+     {
+      "path": "/chest/boards/1?view=list",
+      "status": 200,
+      "bytes": 51795,
+      "ms": 19.5
+     },
+     {
+      "path": "/chest/boards/1?view=calendar",
+      "status": 200,
+      "bytes": 57279,
+      "ms": 18
+     },
+     {
+      "path": "/chest/boards/1/settings",
+      "status": 200,
+      "bytes": 45586,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/boards",
+      "status": 200,
+      "bytes": 33145,
+      "ms": 15.9
+     },
+     {
+      "path": "/chest/boards/2",
+      "status": 200,
+      "bytes": 52608,
+      "ms": 21.3
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 28211,
+      "ms": 14
+     },
+     {
+      "path": "/chest/boards/1?view=timeline",
+      "status": 200,
+      "bytes": 64534,
+      "ms": 16.6
+     },
+     {
+      "path": "/chest/boards/2?view=timeline",
+      "status": 200,
+      "bytes": 59798,
+      "ms": 14.6
+     },
+     {
+      "path": "/chest/boards/1?card=3",
+      "status": 200,
+      "bytes": 83486,
+      "ms": 23.3
+     }
+    ],
+    "load": {
+     "mean": 0.2,
+     "max": 0.24
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 230.5,
+    "min": 229.6,
+    "max": 233.7
+   },
+   "pss": {
+    "median": 154,
+    "min": 153.1,
+    "max": 157.1
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 263.7,
+    "min": 261.6,
+    "max": 266
+   },
+   "pss": {
+    "median": 186.6,
+    "min": 178.1,
+    "max": 188.5
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 163.6,
+    "min": 162.6,
+    "max": 166.8
+   },
+   "pss": {
+    "median": 123.5,
+    "min": 122.4,
+    "max": 126.6
+   }
+  }
+ }
+}
