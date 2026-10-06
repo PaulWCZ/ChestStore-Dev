@@ -550,6 +550,30 @@ await step("exports: the deals list as CSV, formulas neutralised", async () => {
   expect(csv.includes("Dispensary counter and shelving,Pharmacie Centrale,Aurélie Masson,14800.50"), "row: " + csv.split("\r\n")[1]);
 });
 
+await step("who may download the lists: a viewer may not by default; a manager lets everyone, then takes it back", async () => {
+  // Camille reads French: the page in English for these labels.
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await as(context, origin, "lea");
+  expect((await page.request.get(origin + "/chest/export/companies")).status() === 403, "viewer refused");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/settings");
+  await page.locator("#export-who").selectOption("everyone");
+  await page.getByRole("button", { name: "Save", exact: true }).last().click();
+  await page.waitForLoadState();
+  expect((await page.locator("#export-who").inputValue()) === "everyone", "saved");
+  await as(context, origin, "lea");
+  await page.goto(origin + "/chest/companies");
+  expect(await page.getByRole("link", { name: "Export CSV" }).first().isVisible(), "the viewer's export link");
+  expect((await page.request.get(origin + "/chest/export/companies")).status() === 200, "viewer allowed");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/settings");
+  await page.locator("#export-who").selectOption("sales");
+  await page.getByRole("button", { name: "Save", exact: true }).last().click();
+  await page.waitForLoadState();
+  await context.clearCookies({ name: "dev_locale" });
+  await as(context, origin, "hugo");
+});
+
 await step("GDPR: a person's data is exported, then deleted for good", async () => {
   await page.goto(origin + "/chest/contacts?q=masson");
   await page.locator(".row-link", { hasText: "Aurélie Masson" }).click();

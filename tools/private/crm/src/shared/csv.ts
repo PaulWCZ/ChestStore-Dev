@@ -23,11 +23,11 @@ export function parseCsv(text: string, maxRows = 20000): string[][] {
     }
     if (c === '"' && field === "") quoted = true;
     else if (c === separator) {
-      row.push(field);
+      row.push(unguard(field));
       field = "";
     } else if (c === "\n" || c === "\r") {
       if (c === "\r" && source[i + 1] === "\n") i++;
-      row.push(field);
+      row.push(unguard(field));
       field = "";
       if (row.length > 1 || row[0] !== "") rows.push(row);
       row = [];
@@ -35,26 +35,34 @@ export function parseCsv(text: string, maxRows = 20000): string[][] {
     } else field += c;
   }
   if (field !== "" || row.length > 0) {
-    row.push(field);
+    row.push(unguard(field));
     if (row.length > 1 || row[0] !== "") rows.push(row);
   }
   return rows;
 }
 
-// A cell a spreadsheet would run as a formula (=, +, -, @, tab, return) is
-// written behind a quote: exports never carry an injection.
-function cell(value: unknown): string {
+// A cell a spreadsheet would run as a formula (=, +, -, @, tab, return at
+// its start) is written behind a quote: the lists people open never carry
+// an injection. A plain number or phone ("+33 6 12 34 56 78", "-5") is no
+// formula: kept as it is. raw: the machine export (the whole book's ZIP)
+// keeps every value exactly.
+const plain = /^[+-]?[\d\s().\/-]*\d[\d\s().\/-]*$/u;
+export function cell(value: unknown, raw = false): string {
   let text = value === null || value === undefined ? "" : String(value);
-  if (/^[=+\-@\t\r]/u.test(text)) text = "'" + text;
+  if (!raw && /^[=+\-@\t\r]/u.test(text) && !plain.test(text)) text = "'" + text;
   return /[",;\n\r]/u.test(text) ? '"' + text.replace(/"/gu, '""') + '"' : text;
 }
 
-export function toCsv(rows: unknown[][]): string {
-  return "\uFEFF" + rows.map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+export function toCsv(rows: unknown[][], raw = false): string {
+  return "\uFEFF" + rows.map(r => r.map(c => cell(c, raw)).join(",")).join("\r\n") + "\r\n";
 }
 
 // One line of a CSV written as it goes (an export streamed from a cursor);
 // the first line of a file carries the byte-order mark (bom).
-export function csvRow(cells: readonly unknown[], bom = false): string {
-  return (bom ? "\uFEFF" : "") + cells.map(cell).join(",") + "\r\n";
+export function csvRow(cells: readonly unknown[], bom = false, raw = false): string {
+  return (bom ? "\uFEFF" : "") + cells.map(c => cell(c, raw)).join(",") + "\r\n";
 }
+
+// A cell this tool's own export guarded ("'=…", "'@…"): its value again
+// (a file exported here, then imported back).
+export const unguard = (text: string): string => (/^'[=+\-@]/u.test(text) ? text.slice(1) : text);

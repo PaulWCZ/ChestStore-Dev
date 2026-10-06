@@ -5,7 +5,11 @@ import { limits } from "./model.ts";
 // parseAmount reads money as people and spreadsheets write it — "12500",
 // "12 500,50 €", "€12,500.50", "12.500,50", "12k" — into whole cents.
 // Nothing is a float on the way: the digits are read as text. Empty is 0.
-export function parseAmount(value: unknown): number {
+// decimal: the decimal mark of the file the amount comes from (its other
+// amounts said it: decimalMark()), so that a lone "1,250" is read as that
+// file writes; null when the file does not say: "1,250" is then refused
+// as ambiguous (thousands or cents?). Left out: thousands.
+export function parseAmount(value: unknown, decimal?: "," | "." | null): number {
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value < 0) throw new AppError("bad_amount");
     return bounded(Math.round(value * 100));
@@ -34,12 +38,17 @@ export function parseAmount(value: unknown): number {
     // ("12,5", "12.50"); three digits after it, or seen twice, groups
     // thousands ("12,500", "1.250.000").
     if (text.split(sep).length > 2) return -1;
+    if (after === 3 && decimal !== undefined) {
+      if (decimal === null) throw new AppError("amount_ambiguous");
+      return sep === decimal ? at : -1;
+    }
     return after === 3 ? -1 : at;
   })();
   if (decimalAt >= 0) {
     whole = text.slice(0, decimalAt);
     fraction = text.slice(decimalAt + 1);
-    if (!/^\d{1,2}$/u.test(fraction)) throw new AppError("bad_amount");
+    if (!/^\d{1,3}$/u.test(fraction) || (fraction.length === 3 && !/0$/u.test(fraction))) throw new AppError("bad_amount");
+    fraction = fraction.slice(0, 2);
   }
   // Grouped thousands: one kind of separator, groups of three.
   if (/[.,]/u.test(whole) && !/^\d{1,3}(\.\d{3})+$|^\d{1,3}(,\d{3})+$/u.test(whole)) throw new AppError("bad_amount");
@@ -61,4 +70,21 @@ export function amountInput(cents: number): string {
   const whole = Math.floor(cents / 100);
   const rest = cents % 100;
   return rest === 0 ? String(whole) : `${whole}.${String(rest).padStart(2, "0")}`;
+}
+
+// The decimal mark a file's amounts use, from those that say it: a
+// separator followed by one or two digits at the end ("12,50", "12.5"), or
+// both marks in one amount (the last one is decimal: "1.234,50"); null
+// when none says it, or when the file says both.
+export function decimalMark(values: readonly string[]): "," | "." | null {
+  let comma = 0, dot = 0;
+  for (const raw of values) {
+    const v = raw.normalize("NFKC").replace(/[^\d.,]/gu, "");
+    const last = Math.max(v.lastIndexOf(","), v.lastIndexOf("."));
+    if (last < 0) continue;
+    const mark = v[last] as "," | ".";
+    const both = v.includes(",") && v.includes(".");
+    if (both || /^\d{1,2}$/u.test(v.slice(last + 1))) { if (mark === ",") comma++; else dot++; }
+  }
+  return comma > 0 && dot === 0 ? "," : dot > 0 && comma === 0 ? "." : null;
 }

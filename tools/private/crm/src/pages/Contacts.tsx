@@ -17,6 +17,7 @@ import { maybeSame } from "../lib/leads.ts";
 import { dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen } from "../lib/page-data.ts";
 import { directory } from "../lib/people.ts";
 import { shownName } from "../lib/seed-words.ts";
+import { exportSetting, mayExport } from "../lib/settings.ts";
 import { calendarWorks } from "../lib/step-calendar.ts";
 import { openSteps } from "../lib/steps.ts";
 import { team as teamOf } from "../lib/team.ts";
@@ -49,6 +50,8 @@ export async function contactsPage({ member, locale: lang, t, query }: PageConte
   const exportQuery = new URLSearchParams(Object.entries(kept).filter(([k]) => k !== "sort")).toString();
   const team = people.map(p => ({ id: p.id, name: p.name, photo: p.photo }));
   const writes = can(member, "records.write");
+  // The lists leave only for whom the managers allow it (Settings).
+  const exports = mayExport(member, await exportSetting(sql));
   const list: ContactRow[] = rows.map(c => ({
     id: c.id,
     name: c.name,
@@ -74,7 +77,7 @@ export async function contactsPage({ member, locale: lang, t, query }: PageConte
           <Island name="ListFilters" props={{
             address: { path: "/chest/contacts", query: kept }, label: t.contacts.filter, tags: tags.map(tag => ({ value: tag, label: shownName("tags", tag, t) })), team, me: member.id, stale: true, fields, today: now,
             sorts: [{ value: "name", label: t.contacts.sorts.name }, { value: "last", label: t.contacts.sorts.last }, { value: "created", label: t.contacts.sorts.created }],
-            exports: total > 0 ? [
+            exports: total > 0 && exports ? [
               { href: `/chest/export/contacts${exportQuery ? "?" + exportQuery : ""}`, label: t.common.exportCsv, kind: "csv" as const },
               { href: `/chest/export/vcf${exportQuery ? "?" + exportQuery : ""}`, label: t.contacts.exportVcf, kind: "vcf" as const },
             ] : [],
@@ -164,7 +167,7 @@ export async function contactPage({ member, locale: lang, t, param }: PageContex
             <section className="panel" aria-labelledby="deals-title">
               <div className="panel-head">
                 <h2 id="deals-title" className="label-mono">{t.contact.deals} <span className="count num">{deals.total}</span></h2>
-                {can(member, "deals.create") && <Island name="NewDealButton" props={{ className: "link-button", label: t.company.addDeal, initial: emptyDeal(member.id, choices.openStages[0]?.id ?? "", c.company, { id: c.id, name: c.name }), ...dealFormProps(choices, member.id), t: words.deal(t) }} />}
+                {can(member, "deals.create") && <Island name="NewDealButton" props={{ className: "link-button", label: t.company.addDeal, initial: emptyDeal(member.id, choices.openStages[0]?.id ?? "", c.company, { id: c.id, name: c.name }), ...dealFormProps(choices, member.id, locale), t: words.deal(t) }} />}
               </div>
               {deals.rows.length === 0 ? <p className="muted">{t.contact.noDeals}</p> : (
                 <ul className="mini-list">

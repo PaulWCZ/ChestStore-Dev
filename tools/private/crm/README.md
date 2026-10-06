@@ -25,7 +25,9 @@ that needs the 80 % they use every day. Research:
   team's open pipeline by stage and the latest wins.
 - **Deals**: a board by stage — drag a deal to its next stage with the
   mouse, a finger (long press) or the keyboard (Space, arrows, Space); each
-  column shows its count, its total and its probability. Won and Lost are
+  column shows its count, its total (per currency) and its probability,
+  and its first 100 cards — past that, "N more deals: see the list"
+  opens the list view on that stage. Won and Lost are
   the two end stages: dropping a deal there asks why, in a few words (one
   tap on a usual reason). Closed deals stay on the board 30 days; a legend
   says what the cards' dots mean. A list view (200 a page) filters by owner,
@@ -109,9 +111,11 @@ that needs the 80 % they use every day. Research:
   day, everything it added (its author or a manager). vCard (3.0, 4.0, 2.1
   quoted-printable) import of an address book.
 - **Export**: each list as CSV (headers in the reader's language, the
-  team's fields as columns, formulas neutralised), contacts as vCard 4.0
+  team's fields as columns; a cell that would start a spreadsheet formula
+  gets a leading `'` — phone numbers and amounts stay as they are, and
+  this tool's importer takes the `'` off again), contacts as vCard 4.0
   (one or all), one person's whole file as JSON; and, for a manager, the
-  **whole client book** as one ZIP of CSV files (companies, contacts,
+  **whole client book** as one ZIP of CSV files, values kept exactly (companies, contacts,
   deals, activities, next steps, fields) with stable English column names
   and ids.
 - **The bell**: when someone gives you a deal or a next step; every weekday
@@ -127,7 +131,11 @@ that needs the 80 % they use every day. Research:
 |---|---|
 | `manager` | Everything: every deal, give anything to anyone, the stages and the team's own fields, delete or merge any company or contact, import (and create fields from a file), undo anyone's import, export the whole book |
 | `sales` | Add and edit companies and contacts, log on anything and add files, add deals; change the deals they own (or that nobody owns — they may take them); give things to colleagues; delete or merge the companies and contacts they own; import and undo their own imports for a day |
-| `viewer` | Read everything (their home is the team's pipeline) and export lists |
+| `viewer` | Read everything (their home is the team's pipeline); export lists only if a manager allows it |
+
+Who may download the lists (CSV, vCard) is a manager's choice in
+Settings, *Who may export lists*: managers only, managers and sales (the
+default), or everyone. The whole-book ZIP stays a manager's.
 
 Enforced on the server in `src/lib/access.ts`; tested in `test/access.test.ts`
 and every service test.
@@ -186,7 +194,7 @@ and every service test.
 - Owners are member ids of people who have the tool with the `manager` or
   `sales` role (checked with `members.lookup`); names are resolved when
   rendering.
-- No WebSocket: an open page reads itself again when its reader comes back to it, and every 30–60 s only while they were active lately (the package's `useAutoRefresh`; a tab left open lets the Chest put Clients to sleep); a read with nothing new is answered 304 without rendering (the page's version: `book_version`, migration 0007).
+- No WebSocket: an open page reads itself again when its reader comes back to it, and every 30–60 s only while they were active lately (the package's `useAutoRefresh`; a tab left open lets the Chest put Clients to sleep); each refresh renders the page (the former `book_version` counter was dropped by migration 0008: it could hand a stale 304; the package's change stamp will replace it).
 - Money is whole cents (`bigint`) in the company's currency (`chest.currency`, given to each new deal), read as people write it (the package's `field.money`: "12 500,50", "12,500.50"; "1,250" alone asks *thousands or cents?*), formatted with kept `Intl` objects.
 
 ## GDPR
@@ -461,7 +469,7 @@ gzipped) for the browser, one server file.
 | `src/lib/` | Rules and SQL (services take the connection first) |
 | `src/shared/` | Rules the browser and the server share (amounts, CSV, vCard, import mapping) |
 | `src/i18n/` | Every word (`en.ts` source, `fr.ts`), `format.ts` the kept `Intl` objects |
-| `migrations/` | The schema; `0007_book_version.sql` the pages' version |
+| `migrations/` | The schema; `0008_page_version_off.sql` drops the former page-version counter and adds `settings` |
 
 ## Develop
 
@@ -486,8 +494,10 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/crm --reset --port 4800
 - The "Log this call?" prompt knows a tap on *Call*, not the call itself
   (nor whether it was answered); on a desktop the tap opens whatever app
   handles phone links.
-- One pipeline; no products or line items (quotes live in *Quotes*); one
-  currency, the company's: deals are not converted.
+- One pipeline; no products or line items (quotes live in *Quotes*); new
+  and imported deals take the company's currency; deals are not converted
+  (the board totals each currency apart; Home and Team still add amounts
+  of different currencies together).
 - Fields: four kinds (text, number, date, one choice) — no multi-choice,
   no formula, no required field; 30 per kind of record. Search (`/`) does
   not look inside them (the list filter does).

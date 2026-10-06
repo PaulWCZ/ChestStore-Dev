@@ -56,7 +56,7 @@ export async function dealPage({ member, locale: lang, t, param }: PageContext):
           stages: choices.stages.map(s => ({ id: s.id, name: choices.stageNames[s.id]!, kind: s.kind, probability: s.probability })),
           editable,
           canCreate: can(member, "deals.create"),
-          form: { ...dealFormProps(choices, member.id), t: words.deal(t) },
+          form: { ...dealFormProps(choices, member.id, locale), t: words.deal(t) },
           team: choices.team,
           me: member.id,
           canAssign: choices.canAssign,

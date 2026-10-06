@@ -9,11 +9,11 @@ import { locales } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
+import { checkExport } from "./lib/settings.ts";
 import { fileObject } from "./lib/attachments.ts";
 import { contact } from "./lib/contacts.ts";
 import { db } from "./lib/db.ts";
 import { onEvent, onSchedule } from "./lib/deliveries.ts";
-import { bookVersion } from "./lib/version.ts";
 import { companiesCsv, contactJson, contactsCsv, contactsVcf, dealsCsv, everything, fileName } from "./lib/export.ts";
 import { fieldFilterOf } from "./lib/fields.ts";
 import { shownName } from "./lib/seed-words.ts";
@@ -43,11 +43,11 @@ export const app = createApp({
 });
 
 // A page of Clients: a member whose role gives nothing sees why (the
-// layout says it), and the page reads nothing. Its version is the client
-// book's (src/lib/version.ts): a refresh with nothing new is a 304, the
-// page not even rendered.
+// layout says it), and the page reads nothing. (No page version for now:
+// migrations/0008 took back 0007's counter, which made big imports slow
+// and held every other write; the package's change stamp will replace it.)
 const clients = (render: (p: PageContext) => Promise<View | Response> | View | Response) =>
-  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }), { version: p => (roleOf(p.member) ? bookVersion(db()) : null) });
+  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }));
 
 // ---- The members' part (/chest…).
 app.get("/chest", clients(myDayPage));
@@ -77,6 +77,8 @@ app.get("/chest/export/:kind", download(async ({ member, t, locale, param, query
   const field = fieldFilterOf(get);
   const withField = field ? { field } : {};
   const csv = "text/csv; charset=utf-8";
+  // The lists leave only for whom the managers allow it (Settings).
+  if (param("kind") !== "all") await checkExport(sql, member);
   switch (param("kind")) {
     case "all": return { name: `clients-${stamp}.zip`, type: "application/zip", body: await everything(sql, member, lang, t) };
     case "companies": return { name: `companies-${stamp}.csv`, type: csv, body: textStream(await companiesCsv(sql, member, { q: get("q"), owner: get("owner"), tag: get("tag"), ...withField }, t, lang)) };

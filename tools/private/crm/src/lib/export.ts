@@ -127,7 +127,8 @@ export function fileName(name: string, extension: string): string {
 // tool (or a script) reads them without knowing the reader's language.
 // Team members appear by name and id. For a manager. Written as it is
 // read: each table through a cursor, a file at a time (the package's
-// zipStream), never whole in memory.
+// zipStream), never whole in memory. Values exactly as stored: a machine
+// export (no formula guard; the lists people open have it).
 export async function everything(sql: Sql, actor: Member | null, locale: Locale, t: Catalogue): Promise<ReadableStream<Uint8Array>> {
   if (!can(actor, "export.all")) throw new AppError("forbidden");
   const fields = await listFields(sql);
@@ -142,8 +143,8 @@ export async function everything(sql: Sql, actor: Member | null, locale: Locale,
   const day = (v: unknown) => (v instanceof Date ? v.toISOString() : v === null || v === undefined ? "" : String(v));
   const custom = (r: Record<string, unknown>, object: string) => of(object).map(f => cellOf(((r["custom"] ?? {}) as Record<string, string | number>)[f.id]));
   const table = (header: unknown[], query: () => AsyncIterable<Record<string, unknown>[]>, row: (r: Record<string, unknown>) => unknown[]) => (async function* () {
-    yield encode(csvRow(header, true));
-    for await (const batch of query()) yield encode(batch.map(r => csvRow(row(r))).join(""));
+    yield encode(csvRow(header, true, true));
+    for await (const batch of query()) yield encode(batch.map(r => csvRow(row(r), false, true)).join(""));
   })();
   const batch = 500;
   async function* entries(): AsyncGenerator<ZipEntry> {
@@ -174,7 +175,7 @@ export async function everything(sql: Sql, actor: Member | null, locale: Locale,
       () => sql<Record<string, unknown>[]>`select *, to_char(due_on, 'YYYY-MM-DD') as due from steps order by id`.cursor(batch),
       r => [r["id"], r["text"], r["due"], r["due_time"] ?? "", day(r["done_at"]), r["deal_id"] ?? "", r["contact_id"] ?? "", who(r["owner"]), r["owner"] ?? ""],
     ) };
-    yield { name: "fields.csv", data: toCsv([["id", "object", "label", "kind", "choices"], ...fields.map(f => [f.id, f.object, f.label, f.kind, f.options.join(" | ")])]) };
+    yield { name: "fields.csv", data: toCsv([["id", "object", "label", "kind", "choices"], ...fields.map(f => [f.id, f.object, f.label, f.kind, f.options.join(" | ")])], true) };
   }
   return zipStream(entries());
 }

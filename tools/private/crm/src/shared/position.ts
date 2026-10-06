@@ -32,13 +32,16 @@ export function between(before: string | null, after: string | null): string {
   }
 }
 
-// sequence gives n keys in order after `start` (null: from the beginning).
-export function sequence(n: number, start: string | null = null): string[] {
-  const keys: string[] = [];
-  let last = start;
-  for (let i = 0; i < n; i++) {
-    last = between(last, null);
-    keys.push(last);
-  }
-  return keys;
+// sequence gives n keys in order, short and evenly spread (a stage's keys
+// written again): all of one width — enough base-36 digits for n with
+// room around each — a key ending in "0" closed with "i" (a key never ends
+// with "0", and the order stays).
+export function sequence(n: number): string[] {
+  let width = 1;
+  while (36 ** width < (n + 1) * 36) width++;
+  const step = Math.floor(36 ** width / (n + 1));
+  return Array.from({ length: n }, (_, i) => {
+    const key = ((i + 1) * step).toString(36).padStart(width, "0");
+    return key.endsWith("0") ? key + "i" : key;
+  });
 }
