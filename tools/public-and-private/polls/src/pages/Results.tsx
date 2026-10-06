@@ -1,0 +1,262 @@
+import { Avatar } from "@argentic/chest-ui/components";
+import { Check, Cross, Maybe, Star } from "../components/icons.tsx";
+import { Island } from "../core/island.tsx";
+import { fill as format, type Catalogue, type Format } from "../i18n/index.ts";
+import type { QuestionResult } from "../lib/results.ts";
+import { percentClass } from "./bits.tsx";
+
+// The results of a poll, drawn on the server (the bars grow with CSS; no
+// script). Names are given resolved: a map from member id to how the reader
+// sees them ("You", "Camille Martin (former member)", "Former member").
+export type DateLabel = { month: string; day: string; weekday: string; text: string; hours: string };
+export type Named = Map<string, { name: string; photo: string | null; guest?: boolean }>;
+
+type Props = {
+  results: QuestionResult[];
+  single: boolean;
+  names: Named | null;
+  dateLabels: Map<string, DateLabel>;
+  finalOption: string | null;
+  // A sign-up sheet (places per answer) has no "best" date: each slot
+  // fills up on its own, and its grid says places taken, not "can make it".
+  slots?: number | null;
+  f: Format;
+  t: Pick<Catalogue, "results" | "poll" | "people" | "replies">;
+  // An anonymous survey, closed, for those who manage it: the replies to
+  // each free text, and a box to reply (src/lib/replies.ts).
+  threads?: { pollId: string; map: Map<number, ShownReply[]> } | null;
+};
+
+// A reply under an anonymous text, as an island shows it (null: its author).
+export type ShownReply = { id: string; name: string | null; body: string };
+
+function Voters({ ids, names, t, f }: { ids: string[]; names: Named; t: Props["t"]; f: Format }) {
+  if (ids.length === 0) return null;
+  const shown = ids.slice(0, 6).map(id => names.get(id)?.name ?? t.people.unknown);
+  const more = ids.length - shown.length;
+  return <p className="voters">{shown.join(", ")}{more > 0 ? " " + f.plural(t.people.more, more) : ""}</p>;
+}
+
+const cellIcon = (value: number | undefined) => (value === 2 ? <Check /> : value === 1 ? <Maybe /> : <Cross />);
+
+export function DayBadge({ label }: { label: DateLabel }) {
+  return (
+    <span className="day-badge" aria-hidden="true">
+      <span className="m">{label.month}</span>
+      <span className="d">{label.day}</span>
+      <span className="w">{label.weekday}</span>
+    </span>
+  );
+}
+
+export function Results({ results, single, names, dateLabels, finalOption, slots = null, f, t, threads = null }: Props) {
+  const signup = slots !== null;
+  // A sign-up slot: "2/2 · Full", "1/2 · 1 place left".
+  const places = (yes: number) => ({ taken: format(t.results.placesOf, { taken: yes, slots: slots ?? 0 }), left: yes >= (slots ?? 0) ? t.results.full : f.plural(t.results.placesLeft, (slots ?? 0) - yes) });
+  return (
+    <>
+      {results.map(q => {
+        const heading = single ? null : <h3>{q.text}</h3>;
+        const answered = <p className="hint">{f.plural(t.results.answers, q.answered)}</p>;
+        if (q.kind === "choice") {
+          return (
+            <section key={q.id} className="q">
+              {heading}
+              {!single && answered}
+              <div className="bars">
+                {q.options.map(o => (
+                  <div key={o.id} className={"bar-row" + (o.top ? " top" : "")}>
+                    <div className="bar-label">
+                      <span className="what">{o.label}{o.top && <span className="best-tag"><Star />{t.results.best}</span>}</span>
+                      <span className="num"><strong>{format(t.results.percent, { value: o.percent })}</strong> · {f.plural(t.results.votes, o.count)}</span>
+                    </div>
+                    <div className="bar" role="img" aria-label={format(t.results.percent, { value: o.percent })}><i className={percentClass(o.percent)} /></div>
+                    {names && <Voters ids={o.voters} names={names} t={t} f={f} />}
+                  </div>
+                ))}
+                {q.other && (
+                  <div className="bar-row">
+                    <div className="bar-label">
+                      <span className="what">{t.poll.other}</span>
+                      <span className="num"><strong>{format(t.results.percent, { value: q.other.percent })}</strong> · {f.plural(t.results.votes, q.other.count)}</span>
+                    </div>
+                    <div className="bar" role="img" aria-label={format(t.results.percent, { value: q.other.percent })}><i className={percentClass(q.other.percent)} /></div>
+                    {q.other.texts.length > 0 && (
+                      <ul className="quotes">
+                        {q.other.texts.map((x, i) => <li key={i}>{x.body}{x.member && names && <cite>{names.get(x.member)?.name ?? t.people.unknown}</cite>}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          );
+        }
+        if (q.kind === "date") {
+          const bestId = signup ? null : q.best;
+          const lit = (id: string) => (id === finalOption ? " final" : id === bestId && !finalOption ? " best" : "");
+          // The best date in words, above the grid: on a phone the grid
+          // scrolls sideways, the answer stays in sight.
+          const top = !finalOption && bestId ? q.options.find(o => o.id === bestId) : undefined;
+          const topLabel = top ? dateLabels.get(top.id) : undefined;
+          const bestLine = top && topLabel ? (
+            <p className="best-line"><Star /><span><strong>{format(t.results.bestDate, { date: topLabel.text + (topLabel.hours ? " · " + topLabel.hours : "") })}</strong> · {f.plural(t.results.canMake, top.yes + top.maybe)}</span></p>
+          ) : null;
+          if (names && q.grid.length > 0) {
+            return (
+              <section key={q.id} className="q">
+                {bestLine}
+                <div className="grid-wrap" tabIndex={0} role="region" aria-label={t.results.title}>
+                  <table className="grid-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">{t.results.people}</th>
+                        {q.options.map(o => {
+                          const label = dateLabels.get(o.id)!;
+                          return (
+                            <th key={o.id} scope="col" className={lit(o.id).trim()}>
+                              <span className="col-head">
+                                {o.id === bestId && <span className="best-tag"><Star />{t.results.best}</span>}
+                                <DayBadge label={label} />
+                                <span className="time">{label.hours}</span>
+                                <span className="visually-hidden">{label.text}</span>
+                              </span>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {q.grid.map((row, i) => {
+                        const person = names.get(row.member);
+                        return (
+                          <tr key={i}>
+                            <th scope="row"><span className="person"><Avatar name={person?.name ?? ""} photo={person?.photo ?? null} size="s" /><span className="name">{person?.name ?? t.people.unknown}</span>{person?.guest && <span className="guest-tag">{t.results.guest}</span>}</span></th>
+                            {q.options.map(o => {
+                              const value = row.values[o.id];
+                              const word = value === 2 ? t.poll.yes : value === 1 ? t.poll.maybe : t.poll.no;
+                              return <td key={o.id} className={lit(o.id).trim()}><span className={"cell v" + (value ?? 0)} title={word}>{cellIcon(value)}<span className="visually-hidden">{word}</span></span></td>;
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th scope="row">{signup ? t.results.placesTaken : t.results.total}</th>
+                        {q.options.map(o => (
+                          <td key={o.id} className={lit(o.id).trim() + (signup && o.yes >= slots! ? " full" : "")}>
+                            {signup
+                              ? <span className="tally"><strong>{places(o.yes).taken}</strong><small>{places(o.yes).left}</small></span>
+                              : <span className="tally"><strong>{o.yes + o.maybe}</strong><small>{format(t.results.yesMaybe, { yes: o.yes, maybe: o.maybe })}</small></span>}
+                          </td>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                {q.options.length > 2 && <p className="grid-more" aria-hidden="true">{format(t.results.swipe, { count: q.options.length })}</p>}
+              </section>
+            );
+          }
+          const most = Math.max(1, ...q.options.map(o => o.yes + o.maybe));
+          return (
+            <section key={q.id} className="q">
+              {bestLine}
+              <div className="bars">
+                {q.options.map(o => {
+                  const label = dateLabels.get(o.id)!;
+                  const pct = Math.round(((o.yes + o.maybe) * 100) / Math.max(q.answered, 1));
+                  return (
+                    <div key={o.id} className={"bar-row" + (o.id === bestId ? " top" : "")}>
+                      <div className="bar-label">
+                        <span className="what">{label.text}{label.hours ? " · " + label.hours : ""}{o.id === bestId && <span className="best-tag"><Star />{t.results.best}</span>}</span>
+                        <span className="num">{signup ? <><strong>{places(o.yes).taken}</strong> · {places(o.yes).left}</> : <><strong>{o.yes + o.maybe}</strong> · {format(t.results.yesMaybe, { yes: o.yes, maybe: o.maybe })}</>}</span>
+                      </div>
+                      <div className="bar" role="img" aria-label={format(t.results.percent, { value: pct })}><i className={percentClass(((o.yes + o.maybe) * 100) / most)} /></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        }
+        if (q.kind === "scale") {
+          const most = Math.max(1, ...q.counts.map(c => c.count));
+          return (
+            <section key={q.id} className="q">
+              {heading}
+              {answered}
+              <div className="scale-result">
+                <div className="average" aria-label={q.average === null ? t.results.noAnswers : format(t.results.average, { value: f.number(q.average) })}>
+                  <strong>{q.average === null ? "–" : f.number(q.average)}</strong>
+                  <span>/ 5</span>
+                </div>
+                <div>
+                <div className="columns">
+                  {q.counts.map(c => (
+                    <div key={c.value} className={"col" + (c.count === most && c.count > 0 ? " top" : "")}>
+                      <span className={"stick " + percentClass((c.count * 100) / most)} />
+                      <b>{c.value}</b>
+                      <small>{c.count}</small>
+                    </div>
+                  ))}
+                </div>
+                {(q.low || q.high) && <div className="scale-ends wide"><span>{q.low}</span><span>{q.high}</span></div>}
+                </div>
+              </div>
+            </section>
+          );
+        }
+        if (q.kind === "enps") {
+          const bands = [
+            { key: "detractors", label: t.results.detractors, count: q.bands.detractors, percent: q.percents.detractors },
+            { key: "passives", label: t.results.passives, count: q.bands.passives, percent: q.percents.passives },
+            { key: "promoters", label: t.results.promoters, count: q.bands.promoters, percent: q.percents.promoters },
+          ];
+          return (
+            <section key={q.id} className="q">
+              {heading}
+              {answered}
+              <div className="enps-result">
+                <div className="average enps-score">
+                  <strong>{q.score === null ? "–" : (q.score > 0 ? "+" : "") + f.number(q.score, 0)}</strong>
+                  <span>{t.results.enps}</span>
+                </div>
+                <div className="bars">
+                  {bands.map(b => (
+                    <div key={b.key} className={"bar-row band " + b.key}>
+                      <div className="bar-label">
+                        <span className="what">{b.label}</span>
+                        <span className="num"><strong>{format(t.results.percent, { value: b.percent })}</strong> · {f.plural(t.results.votes, b.count)}</span>
+                      </div>
+                      <div className="bar" role="img" aria-label={format(t.results.percent, { value: b.percent })}><i className={percentClass(b.percent)} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="hint">{t.results.enpsExplain}</p>
+            </section>
+          );
+        }
+        return (
+          <section key={q.id} className="q">
+            {heading}
+            {answered}
+            {q.texts.length === 0 ? <p className="hint">{t.results.noAnswers}</p> : (
+              <ul className="quotes">
+                {q.texts.map((x, i) => (
+                  <li key={i}>
+                    {x.body}{x.member && names && <cite>{names.get(x.member)?.name ?? t.people.unknown}</cite>}
+                    {threads && x.at !== undefined && <Island name="ReplyThread" props={{ pollId: threads.pollId, at: x.at, replies: threads.map.get(x.at) ?? [], t: { replies: t.replies } }} />}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!names && q.texts.length > 1 && <p className="hint">{t.results.shuffled}</p>}
+          </section>
+        );
+      })}
+    </>
+  );
+}

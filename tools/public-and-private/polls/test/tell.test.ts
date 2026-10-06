@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
-import { POST as job } from "../app/chest-jobs/[name]/route.ts";
-import { answer } from "../lib/answers.ts";
-import * as polls from "../lib/polls.ts";
-import * as tell from "../lib/tell.ts";
+import * as schedules from "@argentic/chest-sdk/schedules";
+import { answer } from "../src/lib/answers.ts";
+import * as polls from "../src/lib/polls.ts";
+import { seen } from "../src/lib/lifecycle.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, chestGroups, everyone, groups, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
@@ -21,9 +22,13 @@ beforeEach(async () => {
   await database.sql`truncate polls, tellings restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ members, groups: chestGroups, capabilities: ["members", "notifications"], schedules: [{ name: "pass", cron: "*/15 * * * *" }], chest: { timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, members, groups: chestGroups, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris" } });
   return chest;
 };
+
+// What POST /chest-schedules does (src/app.tsx; the route itself is
+// tested against the built server, test/app.test.mjs).
+const job = async (request: Request) => new Response(null, { status: await schedules.handle(request, { pass: async () => { await tell.pass(database.sql); } }, { seen: seen(database.sql) }) });
 
 const now = new Date("2026-10-05T08:00:00Z");
 const ctx = { zone: "Europe/Paris", now, today: "2026-10-05", known: null };
@@ -136,7 +141,7 @@ test("the pass runs on the Chest's schedule; a call not signed by the Chest is r
     const made = await polls.createPoll(database.sql, asMember(sofia), lunch, ctx);
     assert.equal(await chest.run("pass", job), 204);
     assert.equal(items(tell.askKey(made.id)).length, 5);
-    assert.equal((await job(new Request("http://tool.test/chest-jobs/pass", { method: "POST", body: "{}" }))).status, 401);
+    assert.equal((await job(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}" }))).status, 401);
   } finally {
     await chest.close();
   }

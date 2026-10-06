@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { toCsv } from "../lib/csv.ts";
-import { dates, optionText } from "../lib/dates.ts";
-import { calendar, escape, fold } from "../lib/ics.ts";
-import { checkOpening, clean, readAnswer, readPoll, type QuestionShape } from "../lib/model.ts";
-import { best, fromAnswers, results, type QuestionRow } from "../lib/results.ts";
+import { AppError } from "../src/core/tool.ts";
+import { toCsv } from "../src/lib/csv.ts";
+import { dates, optionText } from "../src/lib/dates.ts";
+import { calendar, escape, fold } from "../src/lib/ics.ts";
+import { checkOpening, clean, readAnswer, readPoll, type QuestionShape } from "../src/lib/model.ts";
+import { best, fromAnswers, results, type QuestionRow } from "../src/lib/results.ts";
 
 const now = new Date("2026-10-05T08:00:00Z");
 const ctx = { zone: "Europe/Paris", now, today: "2026-10-05", known: ["grp_salesaaaaaaaaaaaaaaaaaaaaa"] as string[] | null };
