@@ -1,4 +1,4 @@
-import type { Outcome } from "@argentic/chest-app";
+import type { Outcome } from "@argentic/chest-app/client";
 import { call, toast } from "@argentic/chest-app/client";
 import { Checkbox, StatusBadge, Switch } from "@argentic/chest-ui/components";
 import { useRef, useState } from "react";

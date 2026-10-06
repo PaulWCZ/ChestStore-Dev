@@ -1,4 +1,4 @@
-import type { Outcome } from "@argentic/chest-app";
+import type { Outcome } from "@argentic/chest-app/client";
 import { call, toast } from "@argentic/chest-app/client";
 import { DateField, Segmented } from "@argentic/chest-ui/components";
 import { useEffect, useRef, useState } from "react";

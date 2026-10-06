@@ -42,9 +42,18 @@ after(async () => {
 
 // The two files as src/app.tsx answers them, for the member the Chest
 // asserts (without one, the package answers 401 before: test/app.test.ts).
-const asked = (file: typeof absencesFile) => (request: Request) => {
+// (download() makes the file an attachment and a refusal its page:
+// test/app.test.ts.)
+const asked = (file: typeof absencesFile) => async (request: Request) => {
   const who = member(request);
-  return who ? file(request, who) : Promise.resolve(new Response(null, { status: 401 }));
+  if (!who) return new Response(null, { status: 401 });
+  try {
+    const got = await file(new URL(request.url), who);
+    return new Response(got.body, { headers: { "content-type": got.type, "content-disposition": `attachment; filename="${got.name}"` } });
+  } catch (error) {
+    if (error instanceof AppError) return new Response(null, { status: error.code === "forbidden" ? 403 : 400 });
+    throw error;
+  }
 };
 const GET = asked(absencesFile);
 const balancesCsv = asked(balancesFile);
