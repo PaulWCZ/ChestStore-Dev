@@ -38,8 +38,8 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   function, a Date, a Map — and carry their words (`t.home.remove`…),
   dates already written by `f`, the path if needed. An island imports only
   React, the kit, `src/components/`, and `call`, `refresh`, `navigate`,
-  `onLinkClick`, `toast`, `fill`, `plural` from
-  `@argentic/chest-app/client`. Islands do not nest. Each island is a
+  `onLinkClick`, `toast`, `fill`, `plural`, `fail` (and `send` for a form
+  it posts itself) from `@argentic/chest-app/client`. Islands do not nest. Each island is a
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
   use `toast()`, which reaches the layout's `ToastHost` (outside `<main>`,
   `id="toasts"`, so it survives `navigate()`). The island's HTML sits in a
@@ -79,8 +79,8 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   takes a path of the tool only (no `//`, `\`, `.` or `..` segment:
   anything else throws).
 - **The public part** — only with `"public": true` in `chest.json`, a
-  permission the owner approves (`checkSources` fails when one goes without
-  the other): any path outside `/chest`, served by `publicPage()` and
+  permission the owner approves (`checkSources` fails on a `publicAction`
+  without it, and on it with nothing public served): any path outside `/chest`, served by `publicPage()` and
   `publicAction()`; no member; the visitor's language (`/lang/<code>`
   switch). **Every public write needs a bound**, per visitor and overall:
   the official SDK gives no visitor address (`visitors.address` is a studio
@@ -250,7 +250,8 @@ a server whose user may create roles: a throwaway database; else the
 preview's DATABASE_URL: a throwaway schema; else PGlite in the process:
 1.2–1.3 GiB for the test run, more than the workbench can spare beside
 the dev server), `checkPage(html)`, `checkWords(catalogues)`,
-`checkSources()` (also: every `src/lib/` module is imported by a test;
+`checkSources({ requireTests: true })` (with it, every `src/lib/` module
+is imported by a test;
 class names built at run time — `` `c-${color}` `` — need their family in
 the CSS),
 `atLeast(n)` (a file whose tests were removed fails). Run the tests as the
