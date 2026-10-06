@@ -30,6 +30,15 @@ import { teamOrigin } from "./zone.ts";
 // the announcer is told "the invitation could not be sent" and the
 // visitor's row says it; the address is then not kept.
 
+// Bounds, so that the visitor's field is no way to mail the world (the
+// name typed is in the message): a visit sends at most 4 messages
+// (invitation, cancellation, an Undo's invitation, its cancellation); one
+// address is invited to at most 3 visits a day; one member announces at
+// most 100 invited visitors a day (the reception of an event included).
+// Past a bound the visit stands and the invitation says "not sent": the
+// announcer tells the visitor themself.
+export const mailBounds = { perVisit: 4, perAddressPerDay: 3, perAnnouncerPerDay: 100 } as const;
+
 export type Reach = { ok: boolean; replyTo: string | null };
 
 // Whether an invitation would go now, and where replies land — for the
@@ -53,11 +62,25 @@ type Row = { id: string; email: string | null; language: string; name: string; d
 // sequence): a retry of the same never sends twice, an invitation after a
 // cancellation is a new message.
 export async function send(sql: Sql, visitId: string, kind: "invite" | "cancel", zone: string): Promise<"sent" | "not_sent" | null> {
+  const invite = kind === "invite";
   const [v] = await sql<Row[]>`
-    update visits set mail_sequence = mail_sequence + 1 where id = ${visitId} and email is not null
+    update visits set mail_sequence = mail_sequence + 1
+    where id = ${visitId} and email is not null and mail_sequence < ${mailBounds.perVisit}
+      and (not ${invite} or (
+        (select count(*) from visits o where o.id <> visits.id and o.invitation = 'sent' and o.created_at > now() - interval '1 day'
+          and lower(o.email) = lower(visits.email)) < ${mailBounds.perAddressPerDay}
+        and (select count(*) from visits o where o.id <> visits.id and o.invitation = 'sent' and o.created_at > now() - interval '1 day'
+          and o.created_by = visits.created_by) < ${mailBounds.perAnnouncerPerDay}))
     returning id, email, language, name, to_char(day, 'YYYY-MM-DD') as day, at_minute, host, mail_sequence,
       (select o.name from offices o where o.id = visits.office_id) as office, (select o.address from offices o where o.id = visits.office_id) as address`;
-  if (!v || !v.email) return null;
+  if (!v || !v.email) {
+    const [kept] = await sql`select 1 from visits where id = ${visitId} and email is not null`;
+    if (!kept) return null;
+    // A bound reached: said like any other mail that could not go.
+    log.warn("a visitor's email was not sent: a bound was reached", { visit: visitId, kind });
+    if (invite) await sql`update visits set invitation = 'not_sent', email = null where id = ${visitId}`;
+    return "not_sent";
+  }
   const hostPerson = v.host.startsWith("mbr_") ? (await people([v.host])).get(v.host) : undefined;
   const host = hostPerson && hostPerson.status === "member" ? hostPerson.name : null;
   const origin = teamOrigin();

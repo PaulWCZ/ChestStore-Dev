@@ -596,6 +596,7 @@ export const en = {
     example_used: "Someone has booked in this example: delete its places one by one.",
     not_today: "Only a visitor expected today can arrive.",
     invalid_email: "This email address does not look right.",
+    colleague_email: "This is the address of someone in your company: Rooms emails only visitors from outside.",
     not_empty: "Delete its rooms and desks first.",
     file_missing: "The photo did not arrive. Try again.",
     file_too_large: "The photo is too large: 10 MB at most.",

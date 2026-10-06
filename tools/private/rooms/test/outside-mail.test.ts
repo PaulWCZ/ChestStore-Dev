@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { matchable } from "../src/lib/directory.ts";
 import { weekdayLoad } from "../src/lib/export.ts";
-import { compose, reach, send } from "../src/lib/invitations.ts";
+import { compose, mailBounds, reach, send } from "../src/lib/invitations.ts";
 import { leave } from "../src/lib/lifecycle.ts";
 import * as rooms from "../src/lib/room-bookings.ts";
 import { purge } from "../src/lib/settings.ts";
@@ -115,6 +115,46 @@ test("an address must be one: a member's id or a word is refused", async () => {
   await assert.rejects(announce(hugo, { email: hugo.id }), { code: "invalid_email" });
   await assert.rejects(announce(hugo, { email: 42 }), { code: "invalid_email" });
   assert.equal((await announce(hugo, { email: "   " })).invitation, null);
+});
+
+test("a colleague's address is refused in the visitor's field: Rooms never mails a member", async () => {
+  const before = chest.outbox.length;
+  await assert.rejects(announce(hugo, { email: "INES@atelier.test" }), { code: "colleague_email" });
+  assert.equal(chest.outbox.length, before);
+  // Someone outside the company with the same domain's look is fine.
+  assert.equal((await announce(hugo, { email: "nobody@atelier.test" })).name, "Paul Durand");
+});
+
+test("bounds: a visit sends 4 messages at most (Undo after Undo), an address is invited to 3 visits a day, an announcer invites 100 a day; past them the visit stands, not sent, the address goes", async () => {
+  const { sql } = database;
+  assert.deepEqual(mailBounds, { perVisit: 4, perAddressPerDay: 3, perAnnouncerPerDay: 100 });
+  // Cancel and Undo, again and again: invitation, cancellation, invitation, cancellation — then no more.
+  const v = await announce(lea, { email: "loop@client.test" }, workday(6));
+  const before = chest.outbox.length;
+  assert.equal(await send(sql, v.id, "invite", zone), "sent");
+  assert.equal(await send(sql, v.id, "cancel", zone), "sent");
+  assert.equal(await send(sql, v.id, "invite", zone), "sent");
+  assert.equal(await send(sql, v.id, "cancel", zone), "sent");
+  assert.equal(await send(sql, v.id, "invite", zone), "not_sent");
+  assert.equal(chest.outbox.length - before, 4);
+  assert.deepEqual({ ...(await sql<{ email: string | null; invitation: string }[]>`select email, invitation from visits where id = ${v.id}`)[0] }, { email: null, invitation: "not_sent" });
+  assert.equal(await send(sql, v.id, "cancel", zone), null, "nobody left to write to");
+  // One address, many visits: three invitations a day, whatever its case.
+  const same = [];
+  for (const email of ["same@client.test", "Same@Client.test", "SAME@client.test", "same@client.test"]) {
+    const x = await announce(tom, { email }, workday(6));
+    same.push(await send(sql, x.id, "invite", zone));
+  }
+  assert.deepEqual(same, ["sent", "sent", "sent", "not_sent"]);
+  // A day later the address may be invited again.
+  await sql`update visits set created_at = now() - interval '25 hours' where lower(email) = 'same@client.test'`;
+  assert.equal(await send(sql, (await announce(tom, { email: "same@client.test" }, workday(6))).id, "invite", zone), "sent");
+  // One announcer: a hundred invitations a day.
+  await sql`insert into visits (office_id, day, at_minute, name, company, host, created_by, invitation)
+    select ${o.office}, ${workday(6)}::date, 600, 'Guest ' || n, '', ${camille.id}, ${camille.id}, 'sent' from generate_series(1, 100) n`;
+  const capped = await announce(camille, { email: "one-more@client.test" }, workday(6));
+  assert.equal(await send(sql, capped.id, "invite", zone), "not_sent");
+  await sql`delete from visits where created_by = ${camille.id} and name like 'Guest %'`;
 });
 
 test("a Chest that cannot send: the visit stands, the invitation says not sent, the address is not kept; the form is told", async () => {
