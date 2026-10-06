@@ -125,7 +125,10 @@ fall within 0.5 MiB. Node **v24.21.0**, the Chest's pinned version.
 
 ### Run 4 — the candidates in turn (the figures this report stands on)
 
-Date: 6 October, on the starter as of v3. Script:
+Date: 6 October, on the v3 starter with its own fixes, before the
+pilots' changes to the package were merged in (hashed script names,
+islands rendered at once — they touch the browser, not the server at
+rest). Script:
 `lab/starter-bench/interleaved.mjs`; raw output
 `results/interleaved-run-4.json`. A, A′, B2 and B2 with a plain page run
 one after the other, round after round, so the host's load falls on all
