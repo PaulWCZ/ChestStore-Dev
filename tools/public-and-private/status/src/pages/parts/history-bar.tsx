@@ -1,13 +1,15 @@
 import type { Catalogue } from "../../i18n/index.ts";
 import { day, format, percent, plural } from "../../i18n/format.ts";
 import type { Day } from "../../lib/timeline.ts";
-import { Pulse, StateIcon } from "../../components/icons.tsx";
+import { Pulse, StateIcon, StateUse } from "../../components/icons.tsx";
 import { tone } from "../../components/classes.ts";
 
 // The last 90 days of one component: one tick a day, coloured by its worst
 // state. Pointing at a tick (or focusing one of the days with an incident)
 // shows the day, its state and its incidents. Screen readers get one
 // sentence and a table instead of 90 ticks; a phone shows the last 30.
+// The page that draws bars draws <StateSprite /> once (the tooltips' icons
+// refer to it).
 type Words = { public: Catalogue["public"]; states: Catalogue["states"] };
 
 // since: the first day of a service younger than the bar — the days before
@@ -31,15 +33,18 @@ export function HistoryBar({ id, name, days, uptime, since = null, measured = nu
       <ol className="ticks">
         {days.map((d, i) => {
           const edge = i < 12 ? " left" : i > days.length - 13 ? " right" : "";
+          // A quiet day's tick is hidden from screen readers as a whole; a
+          // linked one is said by its label, its tooltip hidden.
+          const linked = d.incidents.length > 0;
           const tip = (
-            <span className={`tip${edge}`}>
+            <span className={`tip${edge}`} aria-hidden={linked || undefined}>
               <strong>{day(d.date, locale, { weekday: "short", day: "numeric", month: "short" })}</strong>
-              <span className={`tip-state ${tone(d.state)}`}><StateIcon state={d.state} />{d.state === "none" ? w.noData : d.incidents.length === 0 && d.state === "operational" ? w.noIncident : t.states[d.state]}</span>
+              <span className="tip-state"><StateUse state={d.state} />{d.state === "none" ? w.noData : d.incidents.length === 0 && d.state === "operational" ? w.noIncident : t.states[d.state]}</span>
               {d.incidents.slice(0, 3).map(inc => <span key={inc} className="tip-incident">{titles.get(inc) ?? ""}</span>)}
               {d.incidents.length > 3 && <span className="tip-incident">{plural(w.tickMore, d.incidents.length - 3, locale)}</span>}
             </span>
           );
-          if (d.incidents.length === 0) return <li key={d.date} className={`tick ${tone(d.state)}`} aria-hidden="true">{tip}</li>;
+          if (!linked) return <li key={d.date} className={`tick ${tone(d.state)}`} aria-hidden="true">{tip}</li>;
           const label = format(w.tickLabel, { day: day(d.date, locale, { day: "numeric", month: "long" }), state: t.states[d.state], incidents: d.incidents.map(inc => titles.get(inc) ?? "").join(", ") });
           return (
             <li key={d.date} className={`tick ${tone(d.state)}`}>

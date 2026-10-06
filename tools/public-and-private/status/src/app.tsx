@@ -71,15 +71,24 @@ export const app = createApp({
 // ---- Caching of the public part.
 
 // The status page, its history and its incidents are read again and again
-// when something breaks: any cache may keep them 30 seconds, one copy per
-// language (the switch's cookie, the browser's languages). An editor's
-// links carry ?fresh= and always show the page as it is now.
+// when something breaks: any cache may keep them 30 seconds, then serve
+// that copy up to 30 seconds more while it asks again (so a page is at
+// most a minute old), one copy per language (the switch's cookie, the
+// browser's languages). A reload asks with the page's ETag and gets a 304
+// when nothing changed. The Chest's front keeps nothing itself. An
+// editor's links carry ?fresh= and always show the page as it is now.
 app.use(async (c, next) => {
   await next();
   const first = c.req.path.split("/")[1] ?? "";
   if (c.req.method === "GET" && c.res.status === 200 && (first === "" || first === "history" || first === "incidents") && c.req.query("fresh") === undefined) {
-    c.header("Cache-Control", "public, max-age=30, stale-while-revalidate=30");
-    c.header("Vary", "Accept-Language, Cookie");
+    // The page's form token (a fresh one in each answer) and its islands'
+    // id prefixes (a mark of each render) are not the page.
+    let body = (await c.res.clone().text()).replace(/<meta name="chest-form" content="[^"]*"\/?>/u, "");
+    for (const prefix of new Set([...body.matchAll(/data-prefix="([^"]+)"/gu)].map(m => m[1]!))) body = body.replaceAll(prefix, "");
+    const tag = `W/"${createHash("sha256").update(body).digest("base64url").slice(0, 22)}"`;
+    const headers = { "Cache-Control": "public, max-age=30, stale-while-revalidate=30", Vary: "Accept-Language, Cookie", ETag: tag };
+    if (c.req.header("if-none-match")?.split(",").map(v => v.trim()).includes(tag)) c.res = new Response(null, { status: 304, headers });
+    else for (const [name, value] of Object.entries(headers)) c.header(name, value);
   }
   // A subscriber's page holds their address and their link: never kept by
   // a cache (the package's default, no-store), never passed on to another
@@ -128,8 +137,8 @@ app.get("/chest/export/subscribers.csv", async c => {
 app.get("/", publicPage(async ({ locale }) => statusPage(await publicContext(locale))));
 app.get("/history", publicPage(async ({ locale, query }) => publicHistory(await publicContext(locale), query("page"))));
 app.get("/incidents/:id", publicPage(async ({ locale, param }) => publicIncidentPage(await publicContext(locale), param("id"))));
-app.get("/subscribe", publicPage(async ({ locale, query, request }) => subscribePage(await publicContext(locale), publicOrigin(request.headers) ?? "", { sent: query("sent"), error: query("error") })));
-app.get("/subscribe/chat", publicPage(async ({ locale, query }) => chatSubscribePage(await publicContext(locale), { error: query("error"), kind: query("kind") })));
+app.get("/subscribe", publicPage(async ({ locale, query, request }) => subscribePage(await publicContext(locale), publicOrigin(request.headers) ?? "", { sent: query("sent"), error: query("error"), values: query("values") })));
+app.get("/subscribe/chat", publicPage(async ({ locale, query }) => chatSubscribePage(await publicContext(locale), { error: query("error"), kind: query("kind"), values: query("values") })));
 app.get("/s/:token", publicPage(async ({ locale, param, query }) => subscriberPage(await publicContext(locale), param("token"), { done: query("done"), error: query("error") })));
 app.get("/w/:token", publicPage(async ({ locale, param, query }) => chatSubscriptionPage(await publicContext(locale), param("token"), { done: query("done"), error: query("error"), new: query("new") })));
 app.get("/unsubscribed", publicPage(async ({ locale }) => unsubscribedPage(await publicContext(locale))));

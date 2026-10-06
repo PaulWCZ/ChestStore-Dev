@@ -11,13 +11,27 @@ import { componentIds, email, id, limits } from "./model.ts";
 // components followed is kept; unsubscribing deletes the row.
 
 export type Subscriber = { id: string; email: string; language: string; components: string[] | null; token: string; createdAt: Date; confirmedAt: Date | null };
-type Row = { id: string; email: string; language: string; components: string[] | null; token: string; created_at: Date; confirmed_at: Date | null; confirm_sent_at: Date | null };
+type Row = { id: string; email: string; language: string; components: string[] | null; token: string; created_at: Date; confirmed_at: Date | null; confirm_sent_at: Date | null; confirm_day_text?: string | null; confirm_sends: number };
 const shape = (r: Row): Subscriber => ({ id: String(r.id), email: r.email, language: r.language, components: r.components === null ? null : r.components.map(String), token: r.token, createdAt: new Date(r.created_at), confirmedAt: r.confirmed_at ? new Date(r.confirmed_at) : null });
 
 // An unconfirmed address is forgotten after 7 days; a confirmation email
-// is not sent again to the same address within 10 minutes.
+// is not sent again to the same address within 10 minutes, nor more than
+// three times a day (whoever asks: a robot cannot make Status write to an
+// address over and over).
 export const pendingDays = 7;
 export const resendMinutes = 10;
+export const mailsPerAddressDay = 3;
+
+// The form's budgets a day (@argentic/chest-app's bound, src/actions.ts):
+// a new address waiting for its confirmation, and a request about an
+// address already known. The visitor is the address the Chest's front
+// gives, else the browser's cookie; the day's total is what closes the
+// form — a thousand new unconfirmed addresses a day is a table filling,
+// not customers.
+export const formBudgets = {
+  new: { perVisitor: 5, perDay: 1000 },
+  again: { perVisitor: 10, perDay: 5000 },
+} as const;
 
 const tokenPattern = /^[A-Za-z0-9_-]{32}$/u;
 const newToken = () => randomBytes(24).toString("base64url");
@@ -35,30 +49,41 @@ export type Subscribed = { subscriber: Subscriber; state: "new" | "pending" | "c
 
 // subscribe records an address (or finds it again). It says whether an
 // email should go: a confirmation, or — for an address already confirmed —
-// a reminder of its page; never twice within minutes. The visitor is told
-// the same thing whatever the case: nothing reveals who subscribed.
-export async function subscribe(sql: Sql, input: { email: unknown; language: string; components: unknown }, now = new Date()): Promise<Subscribed> {
+// a reminder of its page; never twice within minutes, never more than
+// three a day. The visitor is told the same thing whatever the case:
+// nothing reveals who subscribed. charge(kind) spends the form's budget
+// once the request is known good: "new" for an address not yet kept,
+// "again" for one already known.
+export async function subscribe(sql: Sql, input: { email: unknown; language: string; components: unknown }, now = new Date(), charge: (kind: "new" | "again") => Promise<void> = async () => {}): Promise<Subscribed> {
   const address = email(input.email);
   const language = /^[a-z]{2}$/u.test(input.language) ? input.language : "en";
+  // The budget is spent before the transaction (it is counted on another
+  // connection), from whether the address is known; a refusal after it
+  // gives it back.
+  const known = (await sql`select 1 from subscribers where lower(email) = lower(${address})`).length > 0;
+  await charge(known ? "again" : "new");
   return sql.begin(async tx => {
     await tx`delete from subscribers where confirmed_at is null and created_at < ${new Date(now.getTime() - pendingDays * 86400000)}`;
     const components = await choice(tx, input.components);
-    const [existing] = await tx<Row[]>`select * from subscribers where lower(email) = lower(${address}) for update`;
+    const [existing] = await tx<Row[]>`select *, confirm_day::text as confirm_day_text from subscribers where lower(email) = lower(${address}) for update`;
+    const today = now.toISOString().slice(0, 10);
+    const sendsToday = (r: Row) => (r.confirm_day_text === today ? r.confirm_sends : 0);
     const recently = (r: Row) => r.confirm_sent_at !== null && now.getTime() - new Date(r.confirm_sent_at).getTime() < resendMinutes * 60000;
     if (existing) {
-      const send = !recently(existing);
+      const send = !recently(existing) && sendsToday(existing) < mailsPerAddressDay;
+      const sends = send ? sendsToday(existing) + 1 : sendsToday(existing);
       if (existing.confirmed_at === null) {
-        const [row] = await tx<Row[]>`update subscribers set language = ${language}, components = ${components}::bigint[], confirm_sent_at = ${send ? now : existing.confirm_sent_at} where id = ${existing.id} returning *`;
+        const [row] = await tx<Row[]>`update subscribers set language = ${language}, components = ${components}::bigint[], confirm_sent_at = ${send ? now : existing.confirm_sent_at}, confirm_day = ${today}, confirm_sends = ${sends} where id = ${existing.id} returning *`;
         return { subscriber: shape(row!), state: "pending", send };
       }
-      if (send) await tx`update subscribers set confirm_sent_at = ${now} where id = ${existing.id}`;
+      if (send) await tx`update subscribers set confirm_sent_at = ${now}, confirm_day = ${today}, confirm_sends = ${sends} where id = ${existing.id}`;
       return { subscriber: shape(existing), state: "confirmed", send };
     }
     const [{ count }] = (await tx<{ count: number }[]>`select count(*)::int as count from subscribers`) as unknown as [{ count: number }];
     if (count >= limits.subscribers) throw new AppError("too_many", { max: limits.subscribers });
     const [row] = await tx<Row[]>`
-      insert into subscribers (email, language, components, token, created_at, confirm_sent_at)
-      values (${address}, ${language}, ${components}::bigint[], ${newToken()}, ${now}, ${now}) returning *`;
+      insert into subscribers (email, language, components, token, created_at, confirm_sent_at, confirm_day, confirm_sends)
+      values (${address}, ${language}, ${components}::bigint[], ${newToken()}, ${now}, ${now}, ${today}, 1) returning *`;
     return { subscriber: shape(row!), state: "new", send: true };
   });
 }
@@ -105,28 +130,4 @@ export async function removeSubscriber(sql: Sql, actor: Member | null, subscribe
   if (!can(actor, "subscribers")) throw new AppError("forbidden");
   const rows = await sql`delete from subscribers where id = ${id(subscriberId)} returning id`;
   if (rows.length === 0) throw new AppError("not_found");
-}
-
-// ---- The public form's guard -----------------------------------------------
-
-// 5 requests an hour from one address (a hash of it), 100 an hour from
-// everyone; the form also carries a honeypot field and the signed time it
-// was shown (lib/guard.ts); on a Chest that counts visitors itself
-// (Proposal (studio): visitors.count), these counters are not used.
-export const formLimits = { perVisitorHour: 5, perHour: 100, minimumSeconds: 2 } as const;
-
-export async function guard(sql: Query, visitor: string, now = new Date()): Promise<void> {
-  const hour = new Date(Math.floor(now.getTime() / 3600000) * 3600000);
-  // A visitor the Chest's front did not name ("unknown": no
-  // Chest-Visitor-Address) is everyone at once: only the ceiling for
-  // everyone counts then, or five strangers an hour would close the form.
-  const key = visitor === "unknown" ? "all" : "v:" + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
-  const counts = await sql<{ key: string; count: number }[]>`
-    insert into form_counts (key, hour, count) select k, ${hour}, 1 from unnest(${[...new Set([key, "all"])]}::text[]) as k
-    on conflict (key, hour) do update set count = form_counts.count + 1
-    returning key, count`;
-  const mine = key === "all" ? 0 : counts.find(c => c.key === key)?.count ?? 0;
-  const all = counts.find(c => c.key === "all")?.count ?? 0;
-  if (mine > formLimits.perVisitorHour || all > formLimits.perHour) throw new AppError("too_many", { max: formLimits.perVisitorHour });
-  await sql`delete from form_counts where hour < ${new Date(hour.getTime() - 86400000)}`;
 }

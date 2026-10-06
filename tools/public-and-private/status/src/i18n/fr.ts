@@ -539,6 +539,8 @@ export const fr: Catalogue = {
     too_long: "C’est trop long ({max} caractères au plus).",
     too_large: "C’est trop volumineux pour être envoyé.",
     too_many: "Trop de demandes à la fois. Réessayez dans une heure.",
+    limit: "Trop de demandes aujourd’hui. Réessayez demain.",
+    expired: "Ce formulaire est resté ouvert trop longtemps. Envoyez-le de nouveau.",
     too_fast: "C’était rapide. Attendez deux secondes et renvoyez.",
     no_components: "Choisissez au moins un service.",
     in_use: "Il a un historique : masquez-le plutôt.",

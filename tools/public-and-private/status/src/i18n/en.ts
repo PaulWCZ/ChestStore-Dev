@@ -542,6 +542,8 @@ export const en = {
     too_long: "This is too long ({max} characters at most).",
     too_large: "This is too large to send.",
     too_many: "Too many at once. Try again in an hour.",
+    limit: "Too many requests today. Please try again tomorrow.",
+    expired: "This form was open too long. Send it again.",
     too_fast: "That was fast. Wait two seconds and send again.",
     no_components: "Choose at least one service.",
     in_use: "It has a history: hide it instead.",

@@ -118,11 +118,22 @@ minute, in plain words.
   scanner opening the link confirms nothing) → an email for each update
   of an incident or maintenance that touches what they follow, in their
   language, with the incident's link and their own page's link (choose
-  what to follow, *Unsubscribe*: the address is deleted). The form has a
-  hidden field robots fill, a signed "shown at" time (refused if sent in
-  under 2 seconds) and counters (5 an hour per visitor, 100 an hour for
-  everyone — the Chest's `visitors.count`, else the tool's own). The
-  answer is the same whether the address was known or not. Unconfirmed
+  what to follow, *Unsubscribe*: the address is deleted). The form is
+  bounded by `@argentic/chest-app` (`publicAction`'s `bound`): a field
+  robots fill (answered "done", nothing done), a form token that serves
+  once and lasts two hours (a form sent in under 2 seconds waits the rest),
+  and budgets a day counted only once the request is good — a **new
+  address** 5 per visitor and **1,000 in all** (a table really filling,
+  not a robot's afternoon: the form then refuses new addresses until the
+  next day, and still answers people already known), a **known address**
+  10 per visitor and 5,000 in all. The visitor is the address the Chest's
+  front gives (a proposal, `Chest-Visitor-Address`), else the browser's
+  cookie: a Chest of contract 0.4 gives no address, and a robot that drops
+  its cookie is counted in the day's totals only — never every customer as
+  one visitor. **An address gets three confirmation emails a day at
+  most**, ten minutes apart, whoever asks. Without JavaScript, a refused
+  form comes back filled in with the reason beside it. The answer is the
+  same whether the address was known or not. Unconfirmed
   addresses are forgotten after 7 days. **Without mail on the Chest** the
   form disappears and `/subscribe` gives the RSS address instead.
   **Which emails are transactional** (SDK studio.15: the Chest applies a
@@ -158,8 +169,9 @@ minute, in plain words.
   follows, *Stopped: the address kept failing (http_410)* with *Try
   again* once the Chest stopped it, *Stop the updates* (the Chest forgets
   the address). Same rules as email: never a backfill, never about
-  services for the team only; the same form guard (hidden field, signed
-  time, 5 an hour per visitor). On a Chest without webhooks the link
+  services for the team only; the same form guard (robots' field,
+  single-use token, 5 new subscriptions per visitor and 200 a day in all;
+  the Chest checks each address before anything is kept). On a Chest without webhooks the link
   disappears. Editors see these subscriptions on *Subscribers* (the
   address without its secret part, language, what they follow, stopped
   or not) and remove one on request.
@@ -167,11 +179,22 @@ minute, in plain words.
   short name ("14:05 CEST"), readable without JavaScript, then rewritten
   in the visitor's own zone by the browser.
 - **Fast**: every public page is rendered on the server and works without
-  JavaScript (its only script rewrites the times in the visitor's zone).
-  The status page, its history and its incidents may be kept 30 seconds
-  by any cache, one copy per language (`Cache-Control: public,
-  max-age=30, stale-while-revalidate=30`, `Vary: Accept-Language,
-  Cookie`); an editor's links carry `?fresh=` and always show it as it is.
+  JavaScript (its scripts rewrite the times in the visitor's zone and
+  read the page again every minute while it is open). The 90 days' bars
+  draw each state's shape once per page (`<symbol>`, then `<use>`): the
+  sample shop's page is 133 KB of HTML (7 KB sent, gzipped), was 280 KB;
+  at 60 services 1.1 MB (21 KB gzipped), was 2.2 MB. The status page, its
+  history and its incidents may be kept by any cache 30 seconds, then
+  served while it asks again up to 30 seconds more — **at most a minute
+  old** (`Cache-Control: public, max-age=30, stale-while-revalidate=30`);
+  a reload asks with the page's `ETag` and gets a 304 while nothing
+  changed. One copy per language: `Vary: Accept-Language, Cookie`. **The
+  Chest's front keeps nothing**: these are for the visitor's browser and
+  any cache the company puts in front. A CDN told to "cache everything"
+  may ignore `Vary` and serve one language to everyone: keep the
+  public pages out of such a rule, or key them by the `lang` cookie and
+  `Accept-Language`. An editor's links carry `?fresh=` and always show the
+  page as it is. The pages name their feeds (`<link rel="alternate">`).
 - **For the team** (`/chest`):
   - **Now**: *Post an incident* first; the open incidents with *Add an
     update*; maintenance planned or under way; services a check says are
@@ -229,7 +252,7 @@ minute, in plain words.
     templates; **import from Statuspage**; **download everything**.
   - **Import from Statuspage**: the files of a Statuspage page's public
     API (`incidents.json`, `components.json`, `scheduled-maintenances.json`
-    — several at once) or its manage API. Components are matched by name
+    — up to five files of 2 MB at once, read whole in memory) or its manage API. Components are matched by name
     (created with their groups when missing); resolved incidents come with
     every update, the services each touched and how badly
     (`affected_components`, else the incident's impact), and the
@@ -413,7 +436,7 @@ released 0.4.1; the table lists what is not in it yet.
 |---|---|---|
 | `mail` | Confirmation and update emails; `mail.available()` (studio.16) before the form is offered and on *Subscribers* | The form is hidden; the page offers the feeds |
 | `notifications.broadcast` | The bell of every editor in one call | The tool pages through its members and notifies each language's group |
-| `visitors` | The form's signed time, the Chest's visitor counts, and the visitor's address (`Chest-Visitor-Address`, read by `visitors.address()` — never `X-Forwarded-For`, which the Chest does not set) | The tool's own counters (`form_counts`); a visitor the front does not name counts only under the ceiling for everyone (100 an hour) |
+| `visitors` | The visitor's address (`Chest-Visitor-Address`, which the package's bound reads — never `X-Forwarded-For`, which the Chest does not set) | The browser's cookie names the visitor; one without it is counted in the day's totals only |
 | `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
 | `webhooks` | Updates delivered to Slack, Teams and web addresses (SDK report §4.17); `webhooks.available()` (studio.16) before the chat option is offered and on *Subscribers* ("3 of 200 addresses used", or paused by the Chest's owner) | "Or in Slack, Teams…" is not offered |
 | events between tools | `status.incident` to Support | Support shows no incident; nothing else changes |
@@ -530,5 +553,5 @@ evening, three subscribers.
   are not imported (they must confirm again: GDPR).
 - No Markdown: texts are plain, with paragraphs and links made from web
   addresses.
-- The public pages may be up to 30 seconds old in a cache. An editor's
+- The public pages may be up to a minute old in a cache. An editor's
   links to the public page always show it fresh.

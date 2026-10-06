@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
+import { formToken } from "@argentic/chest-app";
 import { atLeast, checkPage, checkSources, checkWords } from "@argentic/chest-app/testing";
 import { en } from "../src/i18n/en.ts";
 import { fr } from "../src/i18n/fr.ts";
@@ -17,7 +18,7 @@ import { camille, everyone, lea, nora, tom } from "./support/members.ts";
 // are tested on their own in the other files; here, what the server adds:
 // routes, the policy, the look, actions from islands and forms without
 // script, caching, files, the API, the Chest's signed deliveries.
-atLeast(16);
+atLeast(18);
 const domain = "https://status.atelier-martin.fr";
 let chest, database, app;
 before(async () => {
@@ -61,7 +62,18 @@ test("the status page: the company's title, the visitor's language, the policy, 
   assert.match(html, /<title>État des services — Atelier Martin<\/title>/u);
   assert.match(html, /<meta name="robots" content="index, follow"\/>/u);
   assert.match(html, /data-island="LocalTimes"/u, "times in the visitor's zone");
-  assert.doesNotMatch(html, /data-island="(?!LocalTimes|ToastHost)/u, "nothing else runs on the public page");
+  assert.doesNotMatch(html, /data-island="(?!LocalTimes|ToastHost|AutoRefresh)/u, "nothing else runs on the public page");
+  assert.match(html, /<link rel="alternate" type="application\/atom\+xml" href="\/feed\.atom"/u);
+  // The states' shapes once, the 90 days' tooltips by reference.
+  assert.equal((html.match(/id="state-operational"/gu) ?? []).length, 1);
+  assert.ok((html.match(/<use href="#state-/gu) ?? []).length > 500);
+  assert.ok(html.length < 160_000, `the page weighs ${html.length} characters`);
+  // A reload with the page's ETag: 304 while nothing changed.
+  const tag = response.headers.get("etag");
+  assert.match(tag, /^W\/"[\w-]{22}"$/u);
+  const again = await get(null, "/", { "accept-language": "fr-FR,fr;q=0.9", "if-none-match": tag });
+  assert.equal(again.status, 304);
+  assert.equal(again.headers.get("etag"), tag);
   const v = /href="\/look\.css\?v=([\w-]{16})"/u.exec(html)?.[1];
   assert.ok(v, "the look is linked by its hash");
   const sheet = await get(null, `/look.css?v=${v}`);
@@ -86,24 +98,36 @@ test("the public pages render without script and stay apart from the team's: his
   assert.equal((await get(null, "/nowhere")).status, 404);
 });
 
-test("subscribing by email without script: the guard, the same answer whoever, the address never kept by a cache or passed on", async () => {
+// A form's token as a page carries it, old enough not to wait the form's
+// two seconds.
+const token = () => formToken(Date.now() - 3000);
+const subscribeForm = (fields, headers = {}) => form("/actions/subscribe", { website: "", scope: "all", chest_form: token(), ...fields }, "/subscribe", headers);
+
+test("subscribing by email without script: the form's token, the same answer whoever, the address never kept by a cache or passed on", async () => {
   const shown = await get(null, "/subscribe");
   assert.equal(shown.headers.get("cache-control"), "no-store");
   assert.equal(shown.headers.get("referrer-policy"), "no-referrer");
   const html = checkPage(await shown.text());
   assert.match(html, /<form [^>]*action="\/actions\/subscribe" method="post"/u);
-  const started = /name="started" value="([^"]+)"/u.exec(html)[1];
-  // Sent faster than a person types: refused, said beside the form.
-  const fast = await form("/actions/subscribe", { started, website: "", email: "ana@example.com", scope: "all" }, "/subscribe");
-  assert.equal(fast.status, 303);
-  assert.equal(fast.headers.get("location"), "/subscribe?error=too_fast");
-  assert.match(checkPage(await (await get(null, "/subscribe?error=too_fast")).text()), /role="alert">That was fast/u);
-  // The field only robots fill.
-  const robot = await form("/actions/subscribe", { started, website: "spam", email: "ana@example.com", scope: "all" }, "/subscribe");
-  assert.equal(robot.headers.get("location"), "/subscribe?error=invalid");
-  await new Promise(resolve => setTimeout(resolve, 2100));
-  const sent = await form("/actions/subscribe", { started, website: "", email: "ana@example.com", scope: "all" }, "/subscribe", { "chest-visitor-address": "203.0.113.7" });
+  const pageToken = /name="chest_form" value="([^"]+)"/u.exec(html)[1];
+  // A refused address comes back to the form, typed, with the reason.
+  const wrong = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example" }, "/subscribe");
+  assert.equal(wrong.status, 303);
+  const back = wrong.headers.get("location");
+  assert.match(back, /^\/subscribe\?error=invalid_email&values=/u);
+  const refilled = checkPage(await (await get(null, back)).text());
+  assert.match(refilled, /role="alert">This email address does not look right/u);
+  assert.match(refilled, /name="email"[^>]*value="ana@example"|value="ana@example"[^>]*name="email"/u, "what was typed is kept");
+  // The token was given back with the refusal: the page's one still serves.
+  const sent = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example.com" }, "/subscribe");
   assert.equal(sent.headers.get("location"), "/subscribe?sent=1");
+  // Served once: the same token again is refused.
+  const again = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example.com" }, "/subscribe");
+  assert.match(again.headers.get("location"), /^\/subscribe\?error=expired/u);
+  // The field only robots fill: "done", and nothing done.
+  const robot = await subscribeForm({ website: "spam", email: "robot@example.com" });
+  assert.equal(robot.status, 303);
+  assert.equal((await database.sql`select 1 from subscribers where email = 'robot@example.com'`).length, 0);
   const mail = chest.outbox.find(m => m.to.includes("ana@example.com"));
   assert.ok(mail, "a confirmation email");
   assert.match(mail.text, new RegExp(`${domain.replace(/\./gu, "\\.")}/s/[A-Za-z0-9_-]+`, "u"), "its link is on the company's own domain");
@@ -117,6 +141,38 @@ test("subscribing by email without script: the guard, the same answer whoever, t
   const gone = await form("/actions/unsubscribe", { token }, `/s/${token}`);
   assert.equal(gone.headers.get("location"), "/unsubscribed");
   assert.match(checkPage(await (await get(null, `/s/${token}`)).text()), /This link does not work/u);
+});
+
+test("a robot with no visitor address cannot close the form for customers, nor mail an address over and over", async () => {
+  // One token, a hundred and five times: one goes, the rest are refused.
+  const one = token();
+  const answers = [];
+  for (let k = 0; k < 105; k++) answers.push((await form("/actions/subscribe", { website: "", scope: "all", chest_form: one, email: `bot${k}@example.com` }, "/subscribe")).headers.get("location"));
+  assert.equal(answers.filter(a => a === "/subscribe?sent=1").length, 1);
+  assert.equal(answers.filter(a => a.startsWith("/subscribe?error=expired")).length, 104);
+  // Fresh tokens, no cookie, no address: the same victim's address 60
+  // times — one confirmation email (ten minutes apart, three a day at most).
+  const before = chest.outbox.filter(m => m.to.includes("victim@example.com")).length;
+  for (let k = 0; k < 60; k++) await subscribeForm({ email: "victim@example.com" });
+  assert.equal(chest.outbox.filter(m => m.to.includes("victim@example.com")).length - before, 1);
+  // And 150 new addresses: still far from the day's thousand.
+  for (let k = 0; k < 150; k++) await subscribeForm({ email: `flood${k}@example.com` });
+  // A customer, with no address the Chest gives either, subscribes.
+  assert.equal((await subscribeForm({ email: "lucie@example.com" })).headers.get("location"), "/subscribe?sent=1");
+});
+
+test("the form's day: five new addresses per browser, a thousand in all, then it closes for new ones only", async () => {
+  const cookie = { cookie: "chest_v=browser-of-a-person-123" };
+  for (let k = 0; k < 5; k++) assert.equal((await subscribeForm({ email: `person${k}@example.com` }, cookie)).headers.get("location"), "/subscribe?sent=1");
+  assert.match((await subscribeForm({ email: "person5@example.com" }, cookie)).headers.get("location"), /^\/subscribe\?error=limit/u);
+  // The day's thousand new addresses reached: new ones wait for tomorrow…
+  await database.sql`insert into chest_bounds (scope, visitor, day, count) values ('subscribe:new', '*', current_date, 1000) on conflict (scope, visitor, day) do update set count = 1000`;
+  const closed = await subscribeForm({ email: "late@example.com" });
+  assert.match(closed.headers.get("location"), /^\/subscribe\?error=limit/u);
+  assert.match(checkPage(await (await get(null, closed.headers.get("location"))).text()), /Too many requests today/u);
+  // …someone already known still gets the link to their page.
+  assert.equal((await subscribeForm({ email: "lucie@example.com" })).headers.get("location"), "/subscribe?sent=1");
+  await database.sql`delete from chest_bounds where scope = 'subscribe:new'`;
 });
 
 test("public actions refuse another site, and a form sent with JavaScript gets JSON", async () => {

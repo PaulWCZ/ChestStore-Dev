@@ -135,7 +135,7 @@ export function SettingsView({ origin, settings, look, subscribers, templates, t
         <h2 id="import-title">{w.importTitle}</h2>
         <p className="hint">{w.importHint}</p>
         <form className="stack" onSubmit={upload}>
-          <FilePicker label={w.importFile!} files={files} onChange={setFiles} accept={[".json", "application/json"]} maxFiles={5} maxSize={10 << 20} labels={t.files} />
+          <FilePicker label={w.importFile!} files={files} onChange={setFiles} accept={[".json", "application/json"]} maxFiles={5} maxSize={2 << 20} labels={t.files} />
           <div><button type="submit" className="button quiet" disabled={importing}>{importing ? w.importing : w.importButton}</button></div>
         </form>
       </section>

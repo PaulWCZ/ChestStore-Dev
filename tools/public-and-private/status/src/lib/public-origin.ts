@@ -1,5 +1,4 @@
 import { chest } from "@argentic/chest-sdk/chest";
-import * as visitors from "@argentic/chest-sdk/visitors";
 
 // The public part's address, for every link that leaves the tool — the
 // public page in an email, a feed, the API's shortlinks, the banner, the
@@ -29,14 +28,4 @@ export function publicOrigin(headers: Headers | null, tool = process.env["CHEST_
   const proto = headers.get("x-forwarded-proto") === "http" ? "http" : "https";
   const team = tool + "-chest.";
   return `${proto}://${host.startsWith(team) ? tool + "." + host.slice(team.length) : host}`;
-}
-
-// visitorKey is what the forms' own counters know of a visitor: the
-// address the Chest's front saw (Proposal (studio): Chest-Visitor-Address,
-// read by visitors.address()), else "unknown" — then every visitor counts
-// together, under the counters' ceiling for everyone (lib/subscribers.ts,
-// formLimits.perHour). Never X-Forwarded-For: the Chest's front adds none,
-// so it is whatever the visitor wrote.
-export function visitorKey(headers: Headers): string {
-  return visitors.address(headers)?.slice(0, 64) ?? "unknown";
 }
