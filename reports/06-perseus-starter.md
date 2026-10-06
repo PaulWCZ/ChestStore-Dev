@@ -1,14 +1,16 @@
 # A better starter for Perseus Code
 
-_Version 2, 6 October 2026. It follows an independent review of version 1
-and the first two tools moved onto the starter (Polls and Tasks). The
+_Version 3, 6 October 2026. It follows two independent reviews (of
+versions 1 and 2) and the first three tools moved onto the package
+(Polls, Tasks, News). The
 reference snapshot is the one of 5 October (`reference/perseus-starter/`,
 Chest `0c2bcfd`; `@argentic/chest-sdk` 0.4.1)._
 
 _Where things are:_
 - _the template: [`starter/`](../starter/);_
 - _its machinery, now a package: [`app/`](../app/) (`@argentic/chest-app`
-  0.1.0-studio.1);_
+  0.1.0-studio.2; the three migrated tools vendor 0.1.0-studio.1 and pass
+  their tests on studio.2 — §7);_
 - _the measuring tools: [`lab/starter-bench/`](../lab/starter-bench/), with
   their raw output in `lab/starter-bench/results/`._
 
@@ -34,20 +36,25 @@ such._
   copied into each tool. It is a versioned package, `@argentic/chest-app`,
   vendored the way the UI kit is, so a fix reaches every tool when the
   tool re-vendors it. The lead decided this; §7 compares both options.
-- **What it costs, measured with the candidates run in turn (§4):**
-  - **At rest**, the starter's server takes **74.5 MiB RSS**. The
-    reference takes **70.4 MiB with the same V8 flag** (A′) and 75.3 MiB as
-    shipped (A).
-  - **Where the extra 4 MiB over A′ goes:** the example page's database
-    connection, kit components and Intl formats. The same server with a
-    plain page rests at 67 MiB, below A′.
-  - **Cold start:** 15 to 20 ms slower (median 193 ms against 174–179 ms,
-    started without npm; the host was noisy).
-  - **In the Perseus workbench:** with a real PostgreSQL, `npm test` peaks
-    at 331 MiB RSS (237 MiB PSS) and the dev server rests at 427 MiB RSS
-    (251 MiB PSS). Together they stay under the workbench's 1 GiB.
-  - **With PGlite**, the last-resort database, `npm test` alone takes
-    1.3 GiB. So the tests use the preview's database whenever there is one.
+- **What it costs, measured with the candidates run in turn (§4, run 4):**
+  - **At rest**, the starter's server holds **22.6 MiB of private memory
+    (USS)**, against **18.7 MiB for the reference with the same V8 flag
+    (A′)** and 23.6 MiB for the reference as shipped (A): **about 4 MiB
+    more private memory than A′** (RSS 74.4 against 70.5; PSS 29.1 against
+    23.7). The reviewer measured the same gap (USS 22.2 against 18.3).
+  - **Where it goes:** the same server with a plain page — no database
+    read, no kit component — still holds 1.8 MiB more private memory than
+    A′ (20.5 against 18.7): that is the machinery's own cost. The rest
+    (~2 MiB) is the example page's database connection, kit components and
+    date formats.
+  - **Cold start:** about 20 ms slower than A′ and 40 ms slower than A
+    (medians 155, 136, 118 ms, started without npm); with a plain page,
+    137 ms, as A′. The difference is mostly the first database connection.
+  - **In the Perseus workbench** (`NODE_ENV=development`): with a real
+    PostgreSQL, `npm test` peaks at 331 MiB RSS (236 MiB PSS) and the dev
+    server rests at 426 MiB RSS (251 MiB PSS) — together under the
+    workbench's 1 GiB. With PGlite, the last resort, `npm test` alone takes
+    1.2 GiB, so the tests use the preview's database whenever there is one.
 - **No `"csp": "tool"` permission is needed for a public part.** The pages
   have no inline script, no inline `<style>` and no `style=""` attribute,
   so they are exactly what the Chest's default public policy accepts.
@@ -116,11 +123,14 @@ Both were ruled out because the kit's components are React.
 maximum was 2 to 4 times its minimum. Memory figures are stable: 5 runs
 fall within 0.5 MiB. Node **v24.21.0**, the Chest's pinned version.
 
-### Run 3 — the candidates in turn
+### Run 4 — the candidates in turn (the figures this report stands on)
 
-Date: 6 October. Script: `lab/starter-bench/interleaved.mjs`. A, A′ and B2
-run one after the other, round after round, so the host's load falls on
-all of them alike.
+Date: 6 October, on the starter as of v3. Script:
+`lab/starter-bench/interleaved.mjs`; raw output
+`results/interleaved-run-4.json`. A, A′, B2 and B2 with a plain page run
+one after the other, round after round, so the host's load falls on all
+of them alike. **The headline is private memory (USS) and PSS**: RSS
+counts the Node binary's shared pages, the same in every candidate.
 
 - **Cold start:** from spawn to the first 200 on `/chest` as a signed
   member. 15 rounds, started both with the start script's `node …`
@@ -131,38 +141,34 @@ all of them alike.
 - B's page reads its database: a PostgreSQL 16 on the host, a fresh
   database for each start. A's page has no database.
 
-| | A reference | A′ ref. + flag | **B2 starter v2** |
-|---|---|---|---|
-| **At rest, server RSS** (median of 5) | 75.3 MiB | **70.4 MiB** | **74.5 MiB** |
-| At rest, server USS / PSS | 23.8 / 27.1 MiB | 18.4 / 21.9 MiB | 22.7 / 26.9 MiB |
-| Cold start, `node …` (median, min–max of 15) | 174 ms (109–392) | 179 ms (125–536) | 193 ms (137–481) |
-| Cold start, `npm start` | 339 ms (200–634) | 357 ms (228–745) | 396 ms (228–858) |
-| `npm start` process beside the server | 68 MiB RSS / 18 MiB USS | same | same |
+| | A reference | A′ ref. + flag | **B2 starter** | B2, plain page |
+|---|---|---|---|---|
+| **At rest, server USS (private)** (median of 5) | 23.6 MiB | **18.7 MiB** | **22.6 MiB** | 20.5 MiB |
+| At rest, server PSS | 28.5 MiB | 23.7 MiB | 29.1 MiB | 25.2 MiB |
+| At rest, server RSS | 75.1 MiB | 70.5 MiB | 74.4 MiB | 67.2 MiB |
+| Cold start, `node …` (median, min–max of 15) | 118 ms (99–250) | 136 ms (124–159) | 155 ms (136–201) | 137 ms (114–171) |
+| Cold start, `npm start` | 204 ms (175–328) | 237 ms (204–311) | 243 ms (217–320) | 212 ms (189–317) |
+| `npm start` process beside the server | 68 MiB RSS / 18 MiB USS | same | same | same |
 
-**The reviewer's numbers agree.** On another run on the same machine they
-measured:
-- at rest: A 69.2 MiB, A′ 65.0 MiB, B 74.4 MiB;
-- cold start, interleaved, 15 starts each: A 134 ms (90–188), B 173 ms
-  (150–223).
+"Plain page": B2 with its `/chest` page reduced to a `<p>` (no database
+read, no kit component); the layout, the machinery and the bundling stay.
 
-So **B costs about 4 to 9 MiB and 15 to 40 ms more than A′.**
+**The reviewer's numbers agree** (5 interleaved rounds, their run): RSS
+A 69.4 / A′ 64.9 / B2 74.1 MiB; USS 23.2 / 18.3 / 22.2; PSS 26.3 / 21.9 /
+26.3; plain-page B2 USS 20.4 against A′ 18.1; cold start A 122 / A′ 136 /
+B2 163 ms.
 
-**Where the extra memory goes.** Same harness, 3 runs each, `node
---optimize-for-size`, all in the same session:
+So **B2 costs about 4 MiB of private memory and 20 ms of cold start more
+than A′; its machinery alone about 2 MiB** — the rest is what the example
+page does (a database connection, kit components, date formats), which
+any tool that reads a database and uses the kit pays whatever its starter.
+Version 2 of this report said the machinery cost nothing and rested below
+A′: that compared RSS across runs; by USS it is ~2 MiB above. Most of the
+extra cold-start time is the first database connection; A connects to
+nothing.
 
-| B2's server with… | At rest |
-|---|---|
-| its `/chest` page reduced to a plain `<p>` | **67.2 MiB** |
-| that plain page and a plain layout too | 66.9 MiB |
-| A′, for comparison | 70.4 MiB |
-
-- The machinery itself (actions, refresh, i18n, the policy, bundling)
-  costs nothing at rest.
-- The example page's PostgreSQL connection, the kit's shell and components,
-  and the ICU date formats cost about 7 MiB. Any tool that reads a database
-  and uses the kit pays that, whatever its starter.
-- Most of the extra cold-start time is the first database connection; A
-  connects to nothing.
+Run 3 (6 October, before the v3 fixes, `results/interleaved-run-3.json`)
+gave the same at-rest figures within 0.4 MiB.
 
 ### Run 2 — the earlier, one-at-a-time run
 
@@ -182,16 +188,27 @@ Run 3 did not repeat these figures; B2's were checked again on 6 October.
 
 ### In the workbench
 
-Date: 6 October. Script: `lab/starter-bench/workbench.mjs`. The process
-tree is sampled every 50 ms. The dev server is measured after its first
-build and 20 s idle. `npm test` is measured alone, then again beside the
-running dev server.
+Date: 6 October (run 4, `results/workbench-run-4.jsonl`). Script:
+`lab/starter-bench/workbench.mjs`. `npm test` runs with
+`NODE_ENV=development`, as in the workbench. The process tree is sampled
+every 50 ms. The dev server is measured after its first build and 20 s
+idle. `npm test` is measured alone, then again beside the running dev
+server.
 
 | | A | B2, tests on PGlite | **B2, tests on a PostgreSQL server** |
 |---|---|---|---|
-| `npm test` peak, RSS / PSS | 194 / 122 MiB, 0.9 s | **1,298 / 1,164 MiB**, 5.6 s | **331 / 237 MiB**, 1.9 s |
-| `npm run dev` at rest, RSS / PSS | 389 / 210 MiB | 424 / 247 MiB | 427 / 251 MiB |
-| Both at once (sum of the peaks, an upper bound) | 586 / 332 MiB | 1,722 / 1,411 MiB | **758 / 488 MiB** |
+| `npm test` peak, RSS / PSS | 194 / 138 MiB, 1.0 s | **1,172 / 1,041 MiB**, 3.3 s | **331 / 236 MiB**, 2.4 s |
+| `npm run dev` at rest, RSS / PSS | 375 / 196 MiB | 433 / 255 MiB | 426 / 251 MiB |
+| Both at once (sum of the peaks, an upper bound) | 569 / 334 MiB | 1,605 / 1,296 MiB | **757 / 487 MiB** |
+
+**Version 2's `npm test` failed in the workbench.** With
+`NODE_ENV=development` in the shell, 6 of its 15 tests failed
+(`jsxDEV is not a function`): the build compiled JSX for development
+while bundling React's production build. Version 3 makes the JSX
+runtime and React's build follow the Vite mode only; the tests pass with
+and without `NODE_ENV=development`, and the bench now runs them so. (The
+review found it; version 2's §10 listed `npm test` as verified, but it had
+been run without that variable.)
 
 - **B2 fits the 1 GiB workbench only when its tests use a real
   PostgreSQL.** `testDatabase()` picks one by itself:
@@ -199,8 +216,8 @@ running dev server.
     schema;
   - in the studio, `TEST_DATABASE_URL`, with a throwaway role and
     database;
-  - PGlite only as a last resort: `PGlite.create()` alone takes about
-    500 MiB. The package's AGENTS page says so.
+  - PGlite only as a last resort: the test run then takes 1.2–1.3 GiB.
+    The package's own tests use the local server when one answers.
 - **B's `npm test` peak comes from its server build,** which bundles the
   packages as the production build does.
 - **Its dev server is lighter than version 1's** (499 MiB): `npm run dev`
@@ -230,13 +247,13 @@ running dev server.
 
 ## 5. Judgement, criterion by criterion
 
-**Memory at rest.** A′ 70.4 MiB, B2 74.5, A 75.3, C 140.9. B2 is about
-4 MiB above A′ because its example reads a database and uses the kit; its
-machinery alone is lighter than A′. Every candidate also keeps a 68 MiB
-`npm start` process beside its server (§9.1).
+**Memory at rest** (private memory, USS). A′ 18.7 MiB, B2 22.6, A 23.6;
+C 84.8 (run 2). B2 is about 4 MiB above A′: ~2 MiB for its machinery,
+~2 MiB for what its example page does. Every candidate also keeps a
+68 MiB `npm start` process beside its server (§9.1).
 
-**Cold start.** A and A′ about 175 ms, B2 about 195 ms (started without
-npm; medians on a noisy host), C about 820 ms. All are well under the 2 s
+**Cold start.** A 118 ms, A′ 136, B2 155 (started without npm; medians of
+15 on a noisy host), C about 820 ms (run 2). All are well under the 2 s
 before the browser shows "Waking up…".
 
 **Install, build, workbench.**
@@ -261,7 +278,13 @@ before the browser shows "Waking up…".
 test of the package or was checked by breaking the starter once.
 - A prop given to an island that is a function or a Date.
 - `call()` with a wrong input or an unknown action. The tool registers its
-  actions, words and islands once, in `src/register.ts`.
+  actions, words and islands once, in `src/register.ts`. What `call()`
+  sends is each field's wire type (`money` and `int` take what the person
+  typed, `"12,50"`), what `run()` gets the read type (cents).
+- An integer typed `""`, `"0x5"` or `"1e1"`, a day that does not exist
+  (2026-02-31), an amount written ambiguously (`"12.345"`): refused with a
+  code, never a silent 0 or a database error.
+- A day given to `f.date` (it takes a `Date` only; `f.day` takes a day).
 - A key missing from `fr.ts`.
 - A `{placeholder}` that differs between languages.
 - French text without its narrow no-break space before `: ; ? !`.
@@ -276,7 +299,11 @@ test of the package or was checked by breaking the starter once.
 - A rendered page with an inline script, a `<style>` or a `style=""`
   (checked on every page the tests fetch).
 - A cross-site POST.
-- A test file left with fewer tests than it promised (`atLeast(n)`).
+- A test file left with fewer tests than it promised (`atLeast(n)`), and
+  (with `requireTests`, which the starter sets) a `src/lib/` module no
+  test imports.
+- A public action without `"public": true` (dead in production), and
+  `"public": true` with nothing public served.
 
 Not caught: business rules, that is, who may do what. The example shows
 where they go: `src/lib/`, decided from `member`.
@@ -327,16 +354,21 @@ Checked in Chromium only.
 
 **Tests.** B2 has:
 - 15 tests in the starter: 11 against the built server, with the SDK's
-  fakeChest and a real PostgreSQL, and 4 on the sources;
-- 13 tests in the package: its fields, redirects, formats and checks, and
-  a small tool built on the packaged code;
+  fakeChest and a real PostgreSQL, and 4 on the sources — passing with and
+  without `NODE_ENV=development`;
+- 21 tests in the package: its fields, redirects, formats and checks, and
+  a small tool built on the packaged code (with the pilots' own: page
+  reads put in place, `after()`, hashed script names);
 - 10 Chromium tests (`lab/starter-bench/browser.test.mjs`). They check
   hydration under the policy, forms sent in place, and a refresh that
   keeps typed text, scroll, an island's state and a moved row's island.
   They also check Undo, a refusal shown as a toast, a refresh that meets a
-  502 (the page is kept) or a 403 (the page reloads), and Delete and the
-  forms without JavaScript. Finally, a second submit, the public page
-  under both policies, and the cache headers on `/assets/`.
+  502 (an HTML page or not: the page and what is typed are kept) or a 403
+  (the page reloads), `call()` meeting the Chest's 403 (reload), Delete
+  and the forms without JavaScript, a second submit, and the cache headers.
+  The public part under the Chest's own policy was checked in Chromium in
+  versions 1 and 2; version 3's starter has no public part (the package's
+  tests cover it on the server).
 
 **Security.**
 - Identity only from `member()`.
@@ -347,13 +379,23 @@ Checked in Chromium only.
   is accepted only with a header a cross-site page cannot send without a
   preflight.
 - A body limit per action.
-- **Redirects only to a path of the tool.** Version 1 let `/\evil` and
-  `/<tab>/evil` through `redirect()` and the language switch — an open
-  redirect the review found. `toolPath()` now resolves the target and
-  refuses any other origin. The tests cover `//`, `/\`, `/%5C`, `/%09/` and
-  `https:`.
-- A public write is bounded (the example allows 50 a day, counted in the
-  database) and has a honeypot field.
+- **Redirects only to a path of the tool.** Both reviews found an open
+  redirect: version 1 let `/\evil` and `/<tab>/evil` through; version 2
+  let `/..//evil.com` through (resolved to `//evil.com`), with `/.//`,
+  `/%2e%2e//`, `/./\` and `/chest/..//` alike. `toolPath()` now refuses
+  backslashes, control characters, any `.` or `..` segment raw or encoded,
+  and any result starting with `//`; `redirect()`, the language switch and
+  the form-back redirect all use it. The tests cover each of those inputs.
+- A public write must be bounded per visitor and overall (the package's
+  AGENTS.md: the official SDK gives no visitor address — `visitors.address`
+  is a studio proposal — so a cookie keys a visitor, and a daily ceiling
+  in the database keeps one bot from closing the form for everyone). The
+  starter itself has no public part: a public part is a permission, and an
+  agent that forgets to prune would leave a form open on the Internet.
+- A body that is neither a form nor JSON is a 415, logged as a request,
+  not as an error (anyone may post to a public action).
+- A refusal shown on a page without JavaScript takes its values from the
+  address only when they are numbers.
 - **The request log names the route's pattern** (`/p/:link/actions/:name`),
   never the path or the query. Otherwise a guest's link or a token in an
   address would sit in the log for 7 days.
@@ -393,10 +435,11 @@ that React's `style={}` is blocked on a public part.
 
 | | Copied core (B1) | Package (B2) |
 |---|---|---|
-| A fix (an open redirect, a caching bug) | Reaches no existing tool: each copy must be patched by hand. The two pilots diverged from the starter, and from each other, within a day | Re-vendored with `scripts/add-app.mjs`, like the kit; the version number says which tool has it |
+| A fix (an open redirect, a caching bug) | Reaches no existing tool: each copy must be patched by hand. The two pilots diverged from the starter, and from each other, within a day | Re-vendored with `scripts/add-app.mjs`, like the kit; the version number says which tool has it. Today Polls, Tasks and News vendor 0.1.0-studio.1 (Booking and Status are moving): v3's fixes reach them when they re-vendor 0.1.0-studio.2 — I checked that all three type-check and pass their tests on it |
 | What the agent reads | All of it, every turn (579 lines) — and it may "improve" it | The tool's code and the package's `AGENTS.md`; the machinery stays out of its way |
 | What the agent can change | Everything, for one tool | Nothing in the package. A need it does not meet becomes a request to the package, not a fork |
 | Runtime cost | — | None measured (both are bundled the same way) |
+| Keeping the API | — | Every change is checked against the tools that vendor it: the pilots' tests found a type cycle v3 had introduced (a typed `locale`) and a function v3 had unexported (`send`), both reverted before release |
 | Typing | Direct imports of the tool's actions | One `src/register.ts` (module augmentation) |
 | Who ships it | The starter | **The Chest must ship it** for Perseus, as it ships the SDK tarball. A tool's `vendor/` holds the copy it was built with |
 
@@ -428,7 +471,7 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
    builds an `Intl.DateTimeFormat` on every read (`client/src/chest.ts`,
    `knownZone`).
 3. **`fakeChest` has no database,** yet every tool's tests need one.
-   - PGlite costs about 500 MiB per test file, too much for the workbench.
+   - PGlite costs 1.2–1.3 GiB for a test run, too much for the workbench.
    - `pglite-socket` accepts a single connection unless told otherwise.
    - An official `fakeChest({ database })` would serve every tool: a schema
      in the preview's database, with the migrations played as the Chest
@@ -445,10 +488,13 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
    Version 1 of this report wrongly said they live 5 s. A local browser
    test still needs a front that signs each request
    (`lab/starter-bench/chest.mjs`).
-8. **Logs are kept 7 days and agents can read them.** A framework that
+8. **The Chest relays `/chest` paths whatever their case** (`/CHEST/x`),
+   while Hono's routes are case-sensitive: such a request gets a harmless
+   404. Worth a line in the contract.
+9. **Logs are kept 7 days and agents can read them.** A framework that
    logs raw paths leaks whatever an address carries. This deserves a line
    in the contract's "Logs" section.
-9. **The reference starter itself:**
+10. **The reference starter itself:**
    - its policy carries a nonce nothing uses;
    - `/assets/` has no cache headers;
    - `SIGTERM` hangs once a database pool is open;
@@ -459,14 +505,19 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
 ## 10. What I verified, and what I did not
 
 **Verified:**
-- In `starter/`: `npm ci && npm run build && npm test` (15 tests), run
-  against three databases — PGlite; a PostgreSQL server through
-  `TEST_DATABASE_URL`; and a `pb_…` preview-shaped database through
-  `DATABASE_URL`. Each run cleans up after itself.
+- In `starter/`: `npm ci && npm run build && npm test` (15 tests), with
+  and without `NODE_ENV=development` (the workbench's), on PGlite and on a
+  PostgreSQL server through `TEST_DATABASE_URL`; in version 2 also on a
+  `pb_…` preview-shaped database through `DATABASE_URL` (a throwaway
+  schema). Each run cleans up after itself.
 - `node scripts/chest-check.mjs starter`: OK for contract 0.4; the tool
   asks for database, members and receives.
-- `npm run dev` and `npm start` serve the tool.
-- In `app/`: `npm test` (13 tests).
+- `npm run dev` (run by the workbench bench) and `npm start` serve the tool.
+- In `app/`: `npm test` (21 tests; its peak 277 MiB RSS on the local
+  server, against 1.2 GiB on PGlite).
+- Polls, Tasks and News, copied with `@argentic/chest-app` 0.1.0-studio.2
+  in place of studio.1: `tsc` and their tests pass (103, 123 and 109 tests)
+  under `NODE_ENV=development` with `TEST_DATABASE_URL`.
 - The 10 Chromium tests and the axe audits.
 - Every number in §4, by the method stated there.
 
