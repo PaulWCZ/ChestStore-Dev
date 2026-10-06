@@ -12,14 +12,16 @@ import { withNames, type Version } from "../shared/model.ts";
 import { nameOf, people } from "./people.ts";
 import { seen } from "./posts.ts";
 import { local } from "./time.ts";
-import { readZip, writeZip } from "./zip.ts";
+import { readZip, ZipWriter } from "./zip.ts";
 
 // Moving posts in and out of News.
 //
 // Out: "Download all posts" — every post the publisher sees, as one ZIP:
 // posts.json (everything, names written out) and one Markdown file per
 // post (its text as written, its other languages, its comments), with its
-// files as far as 200 MB go (a list says which were left out).
+// files as far as 200 MB go (a list says which were left out). Written as
+// it goes (src/lib/zip.ts, ZipWriter): one file of the Chest at a time in
+// memory, never the archive.
 //
 // In: a Slack export (the ZIP a workspace owner downloads: channels.json,
 // users.json, one folder per channel with a JSON file per day — format as
@@ -32,6 +34,10 @@ import { readZip, writeZip } from "./zip.ts";
 // ── Out ────────────────────────────────────────────────────────────────
 const exportFiles = 200 << 20;
 
+// Text compresses; pictures, videos, archives and the like are compressed
+// already.
+const compressible = (type: string) => /^text\/|[/+](json|xml|csv)$|^application\/(rtf|x-yaml)$|^image\/svg\+xml$/u.test(type);
+
 const slug = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "").slice(0, 60) || "post";
 const fileSafe = (text: string) => text.replace(/[/\\:*?"<>|\p{Cc}]/gu, "_").slice(0, 120);
 
@@ -41,7 +47,10 @@ type ExportRow = {
   groups: string[]; people: string[]; confirmed: number;
 };
 
-export async function exportAll(sql: Sql, actor: Member | null, zone: string): Promise<Uint8Array<ArrayBuffer>> {
+// exportAll checks who asks and reads the posts, then answers what writes
+// the archive, chunk by chunk, to `write` (a response being streamed).
+export type Writer = (chunk: Uint8Array) => Promise<void> | void;
+export async function exportAll(sql: Sql, actor: Member | null, zone: string): Promise<(write: Writer) => Promise<void>> {
   if (!actor || !can(actor, "publish")) throw new AppError("forbidden");
   const rows = await sql<ExportRow[]>`
     select p.id, p.kind, p.title, p.body, p.locale, p.author, p.important, p.publish_at, p.edited_at, p.deleted_at,
@@ -63,7 +72,8 @@ export async function exportAll(sql: Sql, actor: Member | null, zone: string): P
   const t = catalogue(localeOf(actor.language));
   const when = (d: Date) => { const l = local(d, zone); return `${l.day} ${l.time}`; };
 
-  const entries: { name: string; data: Uint8Array | string }[] = [];
+  return async write => {
+  const zip = new ZipWriter(write);
   const left: string[] = [];
   let size = 0;
   const posts = [];
@@ -79,7 +89,7 @@ export async function exportAll(sql: Sql, actor: Member | null, zone: string): P
         try {
           const data = await files.get(f.object);
           if (data) {
-            entries.push({ name: path, data: data.data });
+            await zip.add(path, data.data, { stored: !compressible(f.type) });
             size += data.size;
             kept = path;
           }
@@ -101,7 +111,7 @@ export async function exportAll(sql: Sql, actor: Member | null, zone: string): P
       ...(thread.length ? ["", "---", "", `## ${t.comments.title.other.replace("{count}", String(thread.length))}`, "", ...thread.map(c => `${c.replyTo ? "  - " : "- "}**${c.author}** (${c.at.slice(0, 16).replace("T", " ")}): ${c.text.replace(/\n/gu, " ")}`)] : []),
       "",
     ].join("\n");
-    entries.push({ name: base + ".md", data: md });
+    await zip.add(base + ".md", md);
     posts.push({
       id: String(r.id), kind: r.kind, title: r.title, text: r.body, language: r.locale, versions: r.versions, author: name(r.author), important: r.important,
       published: r.publish_at.toISOString(), edited: r.edited_at?.toISOString() ?? null,
@@ -112,9 +122,10 @@ export async function exportAll(sql: Sql, actor: Member | null, zone: string): P
       comments: thread, files: saved,
     });
   }
-  entries.unshift({ name: "posts.json", data: JSON.stringify({ exported: new Date().toISOString(), posts }, null, 2) });
-  if (left.length) entries.push({ name: "files-left-out.txt", data: [t.transfer.leftOut, "", ...left].join("\n") });
-  return writeZip(entries);
+  await zip.add("posts.json", JSON.stringify({ exported: new Date().toISOString(), posts }, null, 2));
+  if (left.length) await zip.add("files-left-out.txt", [t.transfer.leftOut, "", ...left].join("\n"));
+  await zip.finish();
+  };
 }
 
 // ── In: a Slack channel ─────────────────────────────────────────────────

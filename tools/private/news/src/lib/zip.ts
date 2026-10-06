@@ -2,17 +2,19 @@ import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
 // Copied from the studio's Wiki tool (same licence, MIT, © 2026 Argentic).
 import { AppError } from "@argentic/chest-app";
 
-// A small ZIP reader and writer, in memory (the Chest gives no disk), for
-// the imports (a Notion export is a zip) and the exports (a space as
-// Markdown files). Only what those need: stored and deflated entries, UTF-8
+// A small ZIP reader (in memory: the Chest gives no disk) and a streaming
+// writer, for the Slack import and "Download all posts". Only what those need: stored and deflated entries, UTF-8
 // names, no encryption, no ZIP64. The reader is bounded against hostile
 // archives: entries, sizes and the total are capped before anything is
 // inflated, names are only names (no "..", no absolute paths).
 
+// What an archive may hold, inflated: a Slack export is JSON text (a
+// channel's year is a few MiB). Read in a tool's 256 MiB, beside the
+// archive itself (50 MiB at most).
 export const zipLimits = {
   entries: 5000,
   entry: 32 << 20,
-  total: 256 << 20,
+  total: 64 << 20,
 } as const;
 
 export type ZipEntry = { name: string; data: Uint8Array };
@@ -86,25 +88,40 @@ function dosTime(date: Date): { time: number; day: number } {
   };
 }
 
-export function writeZip(entries: { name: string; data: Uint8Array | string }[], now = new Date()): Uint8Array<ArrayBuffer> {
-  const locals: Buffer[] = [];
-  const centrals: Buffer[] = [];
-  let offset = 0;
-  const { time, day } = dosTime(now);
-  for (const entry of entries) {
-    const name = Buffer.from(entry.name, "utf8");
-    const data = typeof entry.data === "string" ? Buffer.from(entry.data, "utf8") : Buffer.from(entry.data);
-    const packed = deflateRawSync(data);
-    const store = packed.length >= data.length;
+// A ZIP written as it goes: each entry is compressed and handed to
+// `write` at once, only the central directory (a few dozen bytes an entry)
+// is kept until finish(). An export of hundreds of MiB of files passes
+// through one file at a time, never held whole (a tool has 256 MiB).
+export class ZipWriter {
+  private readonly centrals: Buffer[] = [];
+  private offset = 0;
+  private count = 0;
+  private readonly time: number;
+  private readonly day: number;
+  private readonly write: (chunk: Uint8Array) => Promise<void> | void;
+  constructor(write: (chunk: Uint8Array) => Promise<void> | void, now = new Date()) {
+    this.write = write;
+    ({ time: this.time, day: this.day } = dosTime(now));
+  }
+
+  // stored: kept as it is, not compressed — a picture, a video, a PDF is
+  // compressed already (compressing it again costs a copy of it in memory
+  // and time, for nothing).
+  async add(entryName: string, content: Uint8Array | string, { stored = false }: { stored?: boolean } = {}): Promise<void> {
+    const name = Buffer.from(entryName, "utf8");
+    const data = typeof content === "string" ? Buffer.from(content, "utf8") : Buffer.from(content.buffer, content.byteOffset, content.byteLength);
+    const packed = stored ? data : deflateRawSync(data);
+    const store = stored || packed.length >= data.length;
     const body = store ? data : packed;
     const sum = crc32(data);
+    if (this.offset + 30 + name.length + body.length > 0xffffffff || this.count >= 0xffff) throw new AppError("file_too_large");
     const head = Buffer.alloc(30);
     head.writeUInt32LE(0x04034b50, 0);
     head.writeUInt16LE(20, 4);
     head.writeUInt16LE(0x800, 6);
     head.writeUInt16LE(store ? 0 : 8, 8);
-    head.writeUInt16LE(time, 10);
-    head.writeUInt16LE(day, 12);
+    head.writeUInt16LE(this.time, 10);
+    head.writeUInt16LE(this.day, 12);
     head.writeUInt32LE(sum, 14);
     head.writeUInt32LE(body.length, 18);
     head.writeUInt32LE(data.length, 22);
@@ -116,24 +133,40 @@ export function writeZip(entries: { name: string; data: Uint8Array | string }[],
     central.writeUInt16LE(20, 6);
     central.writeUInt16LE(0x800, 8);
     central.writeUInt16LE(store ? 0 : 8, 10);
-    central.writeUInt16LE(time, 12);
-    central.writeUInt16LE(day, 14);
+    central.writeUInt16LE(this.time, 12);
+    central.writeUInt16LE(this.day, 14);
     central.writeUInt32LE(sum, 16);
     central.writeUInt32LE(body.length, 20);
     central.writeUInt32LE(data.length, 24);
     central.writeUInt16LE(name.length, 28);
-    central.writeUInt32LE(offset, 42);
-    locals.push(head, name, body);
-    centrals.push(central, name);
-    offset += head.length + name.length + body.length;
+    central.writeUInt32LE(this.offset, 42);
+    this.centrals.push(central, name);
+    this.count++;
+    this.offset += head.length + name.length + body.length;
+    await this.write(head);
+    await this.write(name);
+    await this.write(body);
   }
-  const directory = Buffer.concat(centrals);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(entries.length, 8);
-  end.writeUInt16LE(entries.length, 10);
-  end.writeUInt32LE(directory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  const all = Buffer.concat([...locals, directory, end]);
+
+  async finish(): Promise<void> {
+    const directory = Buffer.concat(this.centrals);
+    const end = Buffer.alloc(22);
+    end.writeUInt32LE(0x06054b50, 0);
+    end.writeUInt16LE(this.count, 8);
+    end.writeUInt16LE(this.count, 10);
+    end.writeUInt32LE(directory.length, 12);
+    end.writeUInt32LE(this.offset, 16);
+    await this.write(directory);
+    await this.write(end);
+  }
+}
+
+// The same, whole, in memory: for small archives (tests).
+export async function zipped(entries: { name: string; data: Uint8Array | string }[], now = new Date()): Promise<Uint8Array<ArrayBuffer>> {
+  const chunks: Uint8Array[] = [];
+  const zip = new ZipWriter(chunk => { chunks.push(chunk); }, now);
+  for (const e of entries) await zip.add(e.name, e.data);
+  await zip.finish();
+  const all = Buffer.concat(chunks);
   return new Uint8Array(all.buffer.slice(all.byteOffset, all.byteOffset + all.byteLength) as ArrayBuffer);
 }

@@ -75,11 +75,13 @@ export function relative(value: Date | string, locale: string, now = new Date())
   return rtf.format(Math.round(amount), "year");
 }
 
-// orList writes "Sofia Rossi, Camille Martin or another publisher" in that
-// language.
-export function orList(items: string[], locale: string): string {
+// orList writes "Sofia Rossi, Camille Martin or another publisher",
+// andList "Sales, Tech and 2 people", in that language.
+function listIn(locale: string, type: "conjunction" | "disjunction"): Intl.ListFormat {
   const tag = intl(locale);
-  let list = listFormats.get(tag);
-  if (!list) listFormats.set(tag, (list = new Intl.ListFormat(tag, { type: "disjunction" })));
-  return list.format(items);
+  let list = listFormats.get(`${tag}|${type}`);
+  if (!list) listFormats.set(`${tag}|${type}`, (list = new Intl.ListFormat(tag, { type })));
+  return list;
 }
+export const orList = (items: string[], locale: string): string => listIn(locale, "disjunction").format(items);
+export const andList = (items: string[], locale: string): string => listIn(locale, "conjunction").format(items);
