@@ -97,9 +97,10 @@ test("a public form's copy: only when the visitor asks, only the form's own word
   await sql`insert into answers (id, form_id, version, data, created_at, month, language, email, sent)
     select lpad(to_hex(g + 800000), 16, '0'), ${f.id}, 1, '{}', now(), date_trunc('month', now())::date, 'en', 'x' || g || '@example.com', '{copy}' from generate_series(1, ${copyLimits.perHour}) g`;
   assert.equal(await copyAllowed(sql, f.id, "new@example.com", "0000000000000000"), false);
-  // The team's copy goes to the member, whose words are theirs.
-  const text = copyText(form([message]), { [message.id]: "My own words" }, "en", "Atelier Martin").text;
-  assert.match(text, /My own words/u);
+  // Whoever asks for it, a copy by email never carries what was typed.
+  const text = copyText(form([message]), { [message.id]: "Visit https://evil.test now" }, "en", "Atelier Martin").text;
+  assert.doesNotMatch(text, /evil\.test/u);
+  assert.match(text, /Your written answer is not repeated in this email\./u);
 });
 
 test("a form takes 10,000 answers at most, whatever its own limit says", async () => {

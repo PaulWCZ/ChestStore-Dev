@@ -479,8 +479,10 @@ team form gets their copy, everyone hears of a team form that opens.
 Sent through the Chest's mail connector (studio proposal, not built yet).
 Replies reach the company's usual inbox, never Forms. When the connector
 is absent or paused, nothing is lost: the answer is kept and told to the
-team, the thank-you page says nothing about a copy, and Settings says
-why copies do not go.
+team, the thank-you page says "We could not email you a copy this time.
+Your answer was received." (also when the copy is held back: one an
+address a day, 20 a form an hour), and Settings says why copies do not
+go.
 
 **Changed on 6 October 2026** (the owner's mail decisions): *Also send
 them each batch by email* is gone (the people told get the bell, and the
@@ -488,7 +490,11 @@ Chest mails it to them by their own choice); a member's copy of a team
 form is a notification opening *What you sent*, no longer an email; the
 team's *New form to answer* is one broadcast with its French
 translation. The `forms.notify_email` and `forms.mailed_at` columns are no
-longer read and stay for the previous version during an update.
+longer read or written (`notify_email` is `not null default false`, so
+new forms need nothing from this version); they stay so that the
+previous version keeps working during a rolling update, and a later
+version drops them (`alter table forms drop column notify_email, drop
+column mailed_at`) once no instance runs the previous one.
 
 ## Needs from the SDK
 

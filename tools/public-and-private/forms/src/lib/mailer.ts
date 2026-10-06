@@ -1,4 +1,4 @@
-import { ChestError } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import { log } from "@argentic/chest-app";
 import * as notifications from "@argentic/chest-sdk/notifications";
@@ -18,37 +18,35 @@ import type { Definition } from "../shared/model.ts";
 // connector not connected, or a message refused, nothing is sent and the
 // thank-you page says nothing about a copy. A member's copy of a team
 // form is a notification (copyNotice), never a mail.
-export type Delivery = "email" | "none";
+export type Delivery = "email" | "none" | "off";
 
 // The kinds whose answer is made of the form's own words (options, yes or
 // no, a number of stars…): what a copy to a typed address may repeat.
 const ownWords = new Set(["choice", "choices", "dropdown", "picture", "yesno", "rating", "scale", "matrix", "ranking", "date", "number"]);
 
-// copyText: the email's words (tested alone). ownWordsOnly (a public
-// form's copy): the questions answered with the form's own words, an
-// option's "Other" without what was typed, and a line saying the written
-// answers are not repeated — no text a visitor typed, so no link and no
-// message of theirs goes out in the company's name.
-export function copyText(def: Definition, answers: Answers, language: string, company: string, options: { ownWordsOnly?: boolean } = {}): { subject: string; text: string } {
+// copyText: the email's words (tested alone). It goes to an address a
+// visitor typed, so it repeats only the form's own words: the questions
+// answered with them (options, yes or no, a number of stars…), an
+// option's "Other" without what was typed, a title that repeats an answer
+// ({name}) without it, and a line saying the written answers are not
+// repeated — no text a visitor typed, so no link and no message of theirs
+// goes out in the company's name to whoever they named.
+export function copyText(def: Definition, answers: Answers, language: string, company: string): { subject: string; text: string } {
   const t = catalogue(isLocale(language) ? language : "en");
   const words = { yes: t.respond.yes, no: t.respond.no, other: t.respond.other };
   const lines: string[] = [];
   let left = 0;
   for (const q of def.pages.flatMap(p => p.questions)) {
     if (q.kind === "statement" || answers[q.id] === undefined) continue;
-    let value = answers[q.id];
-    if (options.ownWordsOnly) {
-      if (!ownWords.has(q.kind)) {
-        left++;
-        continue;
-      }
-      if (isPick(value) && value.other) value = { ids: value.ids, other: "…" };
+    if (!ownWords.has(q.kind)) {
+      left++;
+      continue;
     }
-    // A title that repeats an answer ({name}): the team's copy says it,
-    // a public one leaves it out (what was typed stays out).
-    lines.push(recall(q.title, def, options.ownWordsOnly ? {} : answers, words), "  " + answerText(q, value, words).replace(/\n/gu, "\n  "), "");
+    let value = answers[q.id];
+    if (isPick(value) && value.other) value = { ids: value.ids, other: "…" };
+    lines.push(recall(q.title, def, {}, words), "  " + answerText(q, value, words).replace(/\n/gu, "\n  "), "");
   }
-  if (options.ownWordsOnly && left > 0) lines.push(plural(t.mail.copyWritten, left, isLocale(language) ? language : "en"), "");
+  if (left > 0) lines.push(plural(t.mail.copyWritten, left, isLocale(language) ? language : "en"), "");
   const values = { form: def.title, company: company || t.mail.team };
   return { subject: format(t.mail.copySubject, values), text: [format(t.mail.copyIntro, values), "", ...lines, format(t.mail.copyFoot, values)].join("\n") };
 }
@@ -69,12 +67,16 @@ export async function copyAllowed(sql: Query, formId: string, to: string, answer
   return false;
 }
 
-export async function sendCopy(to: string, def: Definition, answers: Answers, language: string, company: string, answerId: string, options: { ownWordsOnly?: boolean } = {}): Promise<Delivery> {
-  const { subject, text } = copyText(def, answers, language, company, options);
+export async function sendCopy(to: string, def: Definition, answers: Answers, language: string, company: string, answerId: string): Promise<Delivery> {
+  const { subject, text } = copyText(def, answers, language, company);
   try {
     await mail.send({ to, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}:${to}` });
     return "email";
   } catch (error) {
+    // "off": a Chest without mail (what the pages remember); "none": not
+    // sent this time (not connected, paused, the day's quota, an address
+    // that bounced) — nothing to remember from one address.
+    if (error instanceof CapabilityNotGranted) return "off";
     if (error instanceof ChestError) return "none";
     throw error;
   }
