@@ -40,7 +40,11 @@ test("the hourly run emails tomorrow's guests once, in the language they booked 
   assert.equal(await chest.run("reminders", POST), 204);
   const sent = chest.outbox.filter(m => m.to.includes("alex@example.com"));
   assert.equal(sent.length, 1);
-  assert.match(sent[0]!.subject, /^Demain\u202f: Meeting avec Inès Moreau/u);
+  // "Demain" when the meeting is tomorrow in the guest's zone (Paris), else
+  // "Aujourd’hui": never "tomorrow" for a meeting of the day.
+  const paris = (t: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(t);
+  const word = paris(Date.parse(start)) === paris(Date.now()) ? "Aujourd’hui" : "Demain";
+  assert.match(sent[0]!.subject, new RegExp(`^${word}\u202f: Meeting avec Inès Moreau`, "u"));
   assert.ok(sent[0]!.text.includes(`/b/${secret}`));
 });
 

@@ -120,6 +120,9 @@ routes.get("/api/slots", async c => {
   if (!place) return c.json({ error: "not_found" }, 404);
   try {
     const slots = await freeTimes(sql, place.host, place.type, from, to);
+    // Kept a few seconds by the browser (moving between months and back
+    // asks once); never by a shared cache.
+    c.header("Cache-Control", "private, max-age=15");
     return c.json({ slots: slots.map(s => s.start) });
   } catch {
     return c.json({ error: "invalid" }, 400);
@@ -151,7 +154,7 @@ routes.get("/feed/:token", async c => {
   if (!found) return c.body(null, 404);
   const text = calendar(
     found.bookings.map(x => ({
-      uid: `booking-${x.id}@chest`,
+      uid: x.uid,
       sequence: x.moves + (x.status === "cancelled" ? 1 : 0),
       start: x.startsAt,
       end: x.endsAt,

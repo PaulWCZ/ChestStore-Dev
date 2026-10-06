@@ -2,7 +2,7 @@ import { action, fail, field, publicAction, redirect, type Field } from "@argent
 import * as b from "./lib/booking.ts";
 import * as calendars from "./lib/calendars.ts";
 import { db } from "./lib/db.ts";
-import { admit, checkForm } from "./lib/guard.ts";
+import { admit, checkForm, claimForm } from "./lib/guard.ts";
 import { email } from "./lib/guests.ts";
 import { importCalendly as importFile } from "./lib/import.ts";
 import { publicOrigin } from "./lib/public-origin.ts";
@@ -203,15 +203,25 @@ export const actions = {
     started: text(100), website: text(100),
     // The answers to the host's questions, sent as q_<question id>.
     answers: field.keyed(/^q_([a-z0-9]{4,12})$/u, text(2000), 10),
-  }, async (input, { locale, request }) => {
+  }, async (input, { locale, request, cookies }) => {
+    // Refused without being counted: what could never book anything.
     // A field people never see: only robots fill it.
     if (input.website !== "") fail("invalid");
     await checkForm(input.started);
     const sql = db();
-    await admit(sql, request.headers, "book");
     const { host, type } = (await b.publicType(sql, input.host, input.type)) ?? fail("not_found");
-    const s = await b.settings(sql);
-    const made = await b.book(sql, host, type, { start: input.start, name: input.name, email: input.email, phone: input.phone, note: input.note, answers: input.answers, zone: input.zone, language: locale }, Date.now(), { company: s.companyName });
+    if (!b.wellFormedStart(input.start)) fail("invalid");
+    // One booking per form shown; counted once valid.
+    const release = await claimForm(sql, input.started);
+    let made: Awaited<ReturnType<typeof b.book>>;
+    try {
+      await admit(sql, request.headers, cookies, "new", input.started);
+      const s = await b.settings(sql);
+      made = await b.book(sql, host, type, { start: input.start, name: input.name, email: input.email, phone: input.phone, note: input.note, answers: input.answers, zone: input.zone, language: locale }, Date.now(), { company: s.companyName });
+    } catch (error) {
+      await release();
+      throw error;
+    }
     const origin = publicOrigin(request.headers);
     await b.rememberPublicOrigin(sql, origin);
     const mailed = (await email(sql, "confirmed", made.booking, origin)) === "email";
@@ -225,9 +235,11 @@ export const actions = {
   }),
 
   // The guest cancels their booking, with an optional word for the host.
-  cancelMine: publicAction({ secret: text(100), reason: text(500) }, async ({ secret, reason }, { request }) => {
+  cancelMine: publicAction({ secret: text(100), reason: text(500) }, async ({ secret, reason }, { request, cookies }) => {
     const sql = db();
-    await admit(sql, request.headers, "change");
+    // Counted only once the link opens a booking still to come.
+    await b.changeAllowed(sql, secret, null);
+    await admit(sql, request.headers, cookies, "change", secret);
     const done = await b.cancelByGuest(sql, secret, reason);
     const host = await b.hostOf(sql, done.memberId);
     await email(sql, "cancelled", done, publicOrigin(request.headers));
@@ -238,9 +250,10 @@ export const actions = {
   }),
 
   // The guest moves their booking to another free time of its type.
-  moveMine: publicAction({ secret: text(100), start: text(40) }, async ({ secret, start }, { request }) => {
+  moveMine: publicAction({ secret: text(100), start: text(40) }, async ({ secret, start }, { request, cookies }) => {
     const sql = db();
-    await admit(sql, request.headers, "change");
+    await b.changeAllowed(sql, secret, { start });
+    await admit(sql, request.headers, cookies, "change", secret);
     const { booking, from } = await b.moveByGuest(sql, secret, start);
     const host = await b.hostOf(sql, booking.memberId);
     await email(sql, "moved", booking, publicOrigin(request.headers));
