@@ -69,8 +69,9 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
   // An admin may book for someone else.
   bookFor: boolean;
   initial: string | null;
-  // How guests hear of a booking: the bell; the calendar; email too.
-  told: "bell" | "calendar" | "mail";
+  // How guests hear of a booking: the bell (the Chest mails it to those
+  // who chose so); their calendar too.
+  told: "bell" | "calendar";
   // The Chest's page of the member's calendar feed, when it keeps one.
   calendarPage: string | null;
   locale: string;
@@ -463,7 +464,7 @@ function Detail({ b, room, day, over, calendarPage, locale, t, onEdit, onCancel,
 }
 
 function BookingForm({ initial, isNew, series = false, days, today, rooms, bookable, open, close, maxWeeks, people, bookFor, told, locale, t, onDirty, onSubmit }: {
-  initial: Draft; isNew: boolean; days: { value: string; label: string }[]; today: string; rooms: GridRoom[]; bookable: (r: GridRoom) => boolean; open: number; close: number; maxWeeks: number; people: Person[]; bookFor: boolean; told: "bell" | "calendar" | "mail"; locale: string; t: Words;
+  initial: Draft; isNew: boolean; days: { value: string; label: string }[]; today: string; rooms: GridRoom[]; bookable: (r: GridRoom) => boolean; open: number; close: number; maxWeeks: number; people: Person[]; bookFor: boolean; told: "bell" | "calendar"; locale: string; t: Words;
   onDirty: (dirty: boolean) => void;
   // A weekly booking's occurrence: saved alone, or with the next ones.
   series?: boolean;

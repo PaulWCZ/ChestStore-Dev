@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as desks from "../src/lib/desk-bookings.ts";
 import * as places from "../src/lib/places.ts";
 import { setPresence } from "../src/lib/presence.ts";
@@ -107,8 +107,8 @@ test("when a desk's holder says office again, whoever borrowed it that day is to
   await tell.holderBack(asMember(sofia), d, back.borrowed);
   assert.equal(chest.notifications.length, 1);
   assert.equal(chest.notifications[0]!.member, lea.id);
-  assert.match(chest.notifications[0]!.title, /^Sofia Rossi vient au bureau le /u);
-  assert.match(chest.notifications[0]!.body ?? "", /^D-03 est son poste/u);
+  assert.match(shownTo(chest.notifications[0]!, "fr").title, /^Sofia Rossi vient au bureau le /u);
+  assert.match(shownTo(chest.notifications[0]!, "fr").body ?? "", /^D-03 est son poste/u);
   assert.equal((await desks.deskDay(sql, asMember(lea), o.office, d)).filter(b => b.id === lent.id).length, 1, "the booking stays Léa's");
   await places.updateDesk(sql, asMember(camille), o.desks[2], { name: "D-03", assignedTo: null });
 });

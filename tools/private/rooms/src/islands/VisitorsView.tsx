@@ -12,12 +12,13 @@ import { step } from "../shared/model.ts";
 export type VisitorWords = { visitors: Catalogue["visitors"]; dialog: Catalogue["kit"]["dialog"]; peoplePicker: Catalogue["kit"]["peoplePicker"] };
 type Words = VisitorWords;
 type Person = { id: string; name: string; photo: string | null };
-export type VisitRow = { id: string; at: number; time: string; name: string; company: string; host: string; hostId: string; arrivedAt: string | null; mayArrive: boolean };
+export type VisitRow = { id: string; at: number; time: string; name: string; company: string; host: string; hostId: string; arrivedAt: string | null; mayArrive: boolean; invitation: "sent" | "not_sent" | null };
+type Mail = { ok: boolean; replyTo: string | null };
 
 // The day's visitors, by time: who, from which company, to see whom, and —
 // on their day — "Mark arrived", which tells the host. One obvious action:
 // announce a visitor.
-export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, past, defaultAt, reception, me, visits, people, locale, t }: {
+export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, past, defaultAt, reception, mail, me, visits, people, locale, t }: {
   head: { title: string; intro: string; offices: OfficePickerProps | null };
   strip: DayPickerProps;
   officeId: string;
@@ -27,6 +28,7 @@ export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, pa
   past: boolean;
   defaultAt: number;
   reception: boolean;
+  mail: Mail;
   me: Person;
   visits: VisitRow[];
   people: Person[];
@@ -53,7 +55,7 @@ export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, pa
     if (!r.ok) return;
     toast({
       id: "visit-" + v.id,
-      text: format(w.cancelled, { name: v.name }),
+      text: format(v.invitation === "sent" ? w.cancelledMailed : w.cancelled, { name: v.name }),
       undo: async () => undone(await call("restoreVisit", { visitId: v.id }, { quiet: true })),
     });
   }
@@ -77,7 +79,7 @@ export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, pa
                 <span className="mono visit-time">{v.time}</span>
                 <span className="grow">
                   <strong>{v.name}</strong>{v.company && <span className="muted"> · {v.company}</span>}
-                  <span className="muted small sub-line">{format(w.toSee, { name: v.host })}</span>
+                  <span className="muted small sub-line">{format(w.toSee, { name: v.host })}{v.invitation && <> · {v.invitation === "sent" ? w.invitationSent : w.invitationNotSent}</>}</span>
                 </span>
                 <span className="visit-actions">
                   {v.arrivedAt && <span className="tag"><Check />{format(w.arrivedAt, { time: v.arrivedAt })}</span>}
@@ -91,12 +93,13 @@ export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, pa
       )}
       <Dialog open={open} title={format(w.formTitle, { day: dayLabel })} dirty={dirty} labels={t.dialog} onClose={() => { setOpen(false); setDirty(false); }}>
         {open && (
-          <VisitForm officeId={officeId} day={day} defaultAt={defaultAt} reception={reception} me={me} people={people} locale={locale} t={t}
+          <VisitForm officeId={officeId} day={day} defaultAt={defaultAt} reception={reception} mail={mail} me={me} people={people} locale={locale} t={t}
             onDirty={() => setDirty(true)}
-            onDone={(name, at) => {
+            onDone={(name, at, invitation) => {
               setOpen(false);
               setDirty(false);
-              toast({ id: "visit-new", text: format(w.announced, { name, day: dayLabel, time: formatTime(at, locale) }) });
+              const said = invitation === "sent" ? w.announcedSent : invitation === "not_sent" ? w.announcedNotSent : w.announced;
+              toast({ id: "visit-new", text: format(said, { name, day: dayLabel, time: formatTime(at, locale) }) });
             }} />
         )}
       </Dialog>
@@ -106,13 +109,14 @@ export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, pa
 
 // Who comes, from where, at what time, to see whom (the reception chooses
 // the host; a member is the host).
-function VisitForm({ officeId, day, defaultAt, reception, me, people, locale, t, onDirty, onDone }: {
-  officeId: string; day: string; defaultAt: number; reception: boolean; me: Person; people: Person[]; locale: string; t: Words;
-  onDirty: () => void; onDone: (name: string, at: number) => void;
+function VisitForm({ officeId, day, defaultAt, reception, mail, me, people, locale, t, onDirty, onDone }: {
+  officeId: string; day: string; defaultAt: number; reception: boolean; mail: Mail; me: Person; people: Person[]; locale: string; t: Words;
+  onDirty: () => void; onDone: (name: string, at: number, invitation: "sent" | "not_sent" | null) => void;
 }) {
   const w = t.visitors;
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
+  const [email, setEmail] = useState("");
   const [at, setAt] = useState(defaultAt);
   const [host, setHost] = useState<Person>(me);
   const [error, setError] = useState<string | null>(null);
@@ -123,10 +127,10 @@ function VisitForm({ officeId, day, defaultAt, reception, me, people, locale, t,
     e.preventDefault();
     setBusy(true);
     setError(null);
-    void call("announceVisit", { officeId, day, at, name, company, host: host.id }, { quiet: true }).then(r => {
+    void call("announceVisit", { officeId, day, at, name, company, host: host.id, ...(mail.ok && email.trim() ? { email: email.trim() } : {}) }, { quiet: true }).then(r => {
       setBusy(false);
       if (!r.ok) return setError(r.message);
-      onDone(r.value.name, r.value.at);
+      onDone(r.value.name, r.value.at, r.value.invitation);
     });
   }
   return (
@@ -145,6 +149,17 @@ function VisitForm({ officeId, day, defaultAt, reception, me, people, locale, t,
           <TimeSelect value={at} min={0} max={1440 - step} step={step} onChange={change(setAt)} />
         </label>
       </div>
+      {/* The visitor's invitation by email: offered only when the Chest can
+          send now; otherwise the form says so and the visit still stands. */}
+      {mail.ok ? (
+        <label>
+          <span className="label">{w.email}</span>
+          <input className="field" type="email" maxLength={254} autoComplete="off" spellCheck={false} aria-describedby="visit-email-hint" value={email} onChange={e => change(setEmail)(e.target.value)} />
+          <span id="visit-email-hint" className="hint">{mail.replyTo ? format(w.emailHintReply, { address: mail.replyTo }) : w.emailHint}</span>
+        </label>
+      ) : (
+        <p className="hint">{w.noMail}</p>
+      )}
       {reception && (
         <PeoplePicker label={w.host} value={[host]} search={find} labels={t.peoplePicker} lang={locale}
           onChange={v => change(setHost)(v[0] ?? me)} />

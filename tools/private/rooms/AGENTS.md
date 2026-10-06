@@ -11,12 +11,13 @@ read it first. Here, what is Rooms' own.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `admin`, `manager` (office manager), `member`; `database`, `files`, `members`, `members.email`, `notifications`; `receives`; the `quarter` schedule; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Studio proposals: `calendar`, `groups: "read"`, `mail.send`, `receives` Leave's events and `group.*`, `translations` |
+| `chest.json` | Manifest (contract 0.4): roles `admin`, `manager` (office manager), `member`; `database`, `files`, `members`, `notifications`; `receives`; the `quarter` schedule; `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Studio proposals: `calendar`, `capabilities: ["members.groups"]`, `mail.send` (visitors' invitations only), `receives` Leave's events and `group.*`, `translations` |
 | `migrations/0001_rooms.sql` | Schema. **The exclusion constraints** (`desk_taken`, `desk_already`, `room_taken`) are what prevents double booking; `btree_gist` is required. Never edit a shipped file; add the next one |
 | `migrations/0003_…` – `0007_…` | Calendar queue, usual week, lent desks, groups, check-in, presets, example, import, visitors, Leave's words |
 | `migrations/0008_calendar_uids.sql` | `room_bookings.uid_salt` (a booking's calendar key `room:<id>:<salt>`; null: a booking made before, key `room:<id>`), `calendar_sent.published` (the key the Chest holds) |
 | `migrations/0009_change_stamp.sql`, `0011_chest_changes.sql` | The pages' version: 0009's sequence, replaced by 0011's package change log (`chest_watch` a new table there) |
+| `migrations/0012_visitor_invitations.sql` | `settings.mail` dropped (members are never mailed); a visit's optional `email`, `language`, `invitation` (sent / not_sent) and `mail_sequence` |
 | `src/app.tsx` | **Every route**: the pages, the files (`download()`), the room photo link, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every change**, by name (`call()` from the islands); the bell and the calendars go `after()` the answer; imports are `parallel` |
 | `src/pages/` | `Week`, `Desks`, `Rooms`, `People`, `Visitors`, `Places` (offices, rules, export), `PublicHome` |
@@ -30,7 +31,7 @@ read it first. Here, what is Rooms' own.
 | `src/lib/booking-rules.ts` | What every booking is held to, the time range built by PostgreSQL in the Chest's zone, constraint errors → codes |
 | `src/lib/context.ts`, `src/lib/zone.ts`, `src/lib/stamp.ts` | What every page starts from; the Chest's time zone; a page's version |
 | `src/lib/places.ts`, `desk-bookings.ts`, `room-bookings.ts`, `presence.ts`, `visits.ts`, `usual.ts`, `check-in.ts`, `settings.ts` | The office and its bookings, presence, visitors, the usual week, check-in, the rules |
-| `src/lib/calendar.ts`, `mail.ts`, `tell.ts`, `notify.ts` | The calendar feeds (`enqueue` in the changing transaction, `flush` from the database's state), guests' emails, the bell |
+| `src/lib/calendar.ts`, `invitations.ts`, `tell.ts`, `notify.ts` | The calendar feeds (`enqueue` in the changing transaction, `flush` from the database's state), visitors' invitations by email (outside people only), the bell (one notice with its translations) |
 | `src/lib/groups.ts`, `people.ts`, `directory.ts`, `match.ts` | The Chest's groups (kept a minute, forgotten on events), names, the pickers' people, matching imported names and addresses |
 | `src/lib/lifecycle.ts`, `away.ts` | Leaving and erasure; Leave's events; the deliveries kept (`seen`, forgotten after 30 days) |
 | `src/lib/import.ts`, `calendar-import.ts`, `ical.ts`, `wall-clock.ts`, `windows-zones.ts` | Moving in: resources and desk CSVs, a room calendar's `.ics` |
@@ -57,13 +58,20 @@ NODE_ENV=development npm test            # as the workbench runs them
 
 - **Visitors are third parties**: never show a visit to a member who is not
   its host or announcer, unless `can(actor, "visitors.all")`; keep only a
-  name and a company.
-- **Addresses** (`members.email`) are read by `matchable()` for importers
-  only; never pass them to a client component (`directory()` has none).
+  name and a company, and an invitation's address until the visit's day
+  is over (never shown in a page).
+- **Never mail a member**: tell them with `notify` (lib/notify.ts); the
+  Chest mails notifications by each member's choice. `mail.send` is for
+  visitors only.
+- **Addresses**: Rooms never reads the members' addresses; `matchable(text)`
+  sends the addresses an imported file carries to `members.matchEmails`,
+  for importers only; never pass them to a client component (`directory()`
+  has none).
 - **Identity only from `member()`** (the page's or action's `member`); store `mbr_…` ids.
 - **A member's groups come from `lib/groups.ts`** (`groupsOf` for one,
-  `membership` for many), never from `member.groups`, which lists only the
-  groups that give Rooms (none when it is open to everyone). Ask them
+  `membership` for many, through `members.get` and `members.list({ group
+  })` with `members.groups`), never from the request's `member.groups`,
+  which an older assertion may leave short. Ask them
   before a transaction, not inside it.
 - **Never check availability in code and then insert**: insert, and let the
   constraint refuse (`conflict()` turns SQLSTATE 23P01 into `taken` /

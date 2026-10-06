@@ -56,7 +56,7 @@ export async function setRules(sql: Sql, actor: Member | null, input: Record<str
 // What is older than the rules keep goes: past bookings and presence, and
 // cancelled bookings a day after (their undo is long over); visitors (third
 // parties: a name and a company) a shorter time, visitorDays after their
-// visit. Run by the quarter's schedule (src/app.tsx).
+// visit — their email address (an invitation's) the day after it. Run by the quarter's schedule (src/app.tsx).
 export async function purge(sql: Sql, zone: string): Promise<void> {
   const { keepMonths, visitorDays } = await rules(sql);
   const cutoff = sql`((now() at time zone ${zone})::date - make_interval(months => ${keepMonths}))::date`;
@@ -64,6 +64,8 @@ export async function purge(sql: Sql, zone: string): Promise<void> {
   await sql`delete from desk_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from room_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from visits where day < (now() at time zone ${zone})::date - ${visitorDays}::int or cancelled_at < now() - interval '1 day'`;
+  // A visitor's address served their invitation: once their day is over, it goes.
+  await sql`update visits set email = null where email is not null and day < (now() at time zone ${zone})::date`;
   await sql`delete from usual_applied where day < (now() at time zone ${zone})::date`;
   // Leave's words (lib/away.ts), while they can still matter: a
   // cancellation a week (an approval delivered that late cannot bring it

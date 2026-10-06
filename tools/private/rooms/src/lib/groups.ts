@@ -3,9 +3,10 @@ import * as members from "@argentic/chest-sdk/members";
 
 // The Chest's groups — Sales, Tech, the workshop — by name: the teams of
 // "Who's where" and the groups a room or an area may be kept for. With the
-// "groups" permission (Proposal (studio): "groups": "read") Rooms sees every
-// group of the Chest; without it, only the groups that give Rooms (none
-// when Rooms is open to everyone). Empty when the Chest could not be asked:
+// "members.groups" capability (Proposal (studio), announced for the
+// official 0.5: chest.proposals.json "capabilities": ["members.groups"])
+// Rooms sees every group of the Chest; without it, only the groups that
+// give Rooms (none when Rooms is open to everyone). Empty when the Chest could not be asked:
 // the pages work without teams.
 export type Group = { id: string; name: string };
 
@@ -22,11 +23,12 @@ export function forgetGroups(): void {
   memberGroups.clear();
 }
 
-// Every group one member is in — not only the groups that give Rooms,
-// which is all that member(request).groups and the members API say (SDK
-// 0.4.1: at most 16, none when Rooms is open to everyone). With "groups":
-// "read", the Chest answers members.groups.of(id); without it, or when it
-// cannot be asked, the groups it gave with the member (given). It decides
+// Every group one member is in. With "members.groups", the members API
+// answers every group of the Chest the member is in (members.get);
+// without it, the groups that give Rooms (none when Rooms is open to
+// everyone); when the Chest cannot be asked, the groups it gave with the
+// member (given). (The official 0.4.1 parser refuses a member listed in
+// more than 16 groups: such a member then falls back to given.) It decides
 // who may book a place kept for a group, and every page asks it: kept a
 // minute per member (pages refresh themselves every 20 s, within the
 // members' 600 calls a minute), forgotten on the events above; a stale
@@ -39,7 +41,7 @@ export async function groupsOf(member: { id: string; groups: readonly string[] }
   const usable = kept && kept.api === api ? kept : undefined;
   if (usable && Date.now() - usable.at < 60_000) return usable.groups;
   try {
-    const groups = (await members.groups.of(member.id)) ?? [];
+    const groups = (await members.get(member.id))?.groups ?? [...member.groups];
     if (memberGroups.size >= 5000) memberGroups.clear();
     memberGroups.set(member.id, { at: Date.now(), api, groups });
     return groups;
@@ -51,8 +53,8 @@ export async function groupsOf(member: { id: string; groups: readonly string[] }
 
 // Who is in which group, for pages that show many people ("Who's where",
 // the teams): member id → every group they are in, among the members who
-// have Rooms. From members.groups.members of each group (every group of
-// the Chest, with "groups": "read"), else the groups that give Rooms with
+// have Rooms. From members.list({ group }) of each group (every group of
+// the Chest, with "members.groups"), else the groups that give Rooms with
 // their members. Kept a minute; empty when the Chest could not be asked.
 export async function membership(): Promise<Map<string, string[]>> {
   if (inGroups && inGroups.api === process.env["CHEST_API"] && Date.now() - inGroups.at < 60_000) return inGroups.of;
@@ -63,9 +65,8 @@ export async function membership(): Promise<Map<string, string[]>> {
       for (const g of await members.groups.all()) {
         let after: string | undefined;
         do {
-          const page = await members.groups.members(g.id, { limit: 1000, ...(after ? { after } : {}) });
-          if (!page) break;
-          for (const id of page.members) add(id, g.id);
+          const page = await members.list({ group: g.id, limit: 500, ...(after ? { after } : {}) });
+          for (const m of page.members) add(m.id, g.id);
           after = page.next ?? undefined;
         } while (after);
       }
