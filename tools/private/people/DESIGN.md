@@ -8,7 +8,7 @@ gallery on a cream wall, not an HR database.
 ## A theme, and every other look
 
 People's identity is a **theme of the UI kit** (`@argentic/chest-ui`):
-`defineTheme` in `lib/theme.ts`, value for value the catalogue's
+`identityOf("people")` in `src/theme.ts`, the catalogue's
 **"Portrait gallery"** (`gallery`; `test/theme.test.ts` holds the two equal
 and checks every contrast pair of `ui/tokens/CONTRACT.md`, WCAG AA, light
 and dark). It is the tool's own look by default; a company may instead give
@@ -18,10 +18,11 @@ alone. The features and the layout are the same in every look.
 
 ## Tokens
 
-Colours, fonts, sizes, corners and motion: `lib/theme.ts` (the contract's
-names: `--bg`, `--surface`, `--ink`, `--accent`, `--cat-N-soft`…). Written
-into the page by `<ThemeStyle>` (app/layout.tsx, with the page's nonce).
-The CSS names only contract tokens and the tool's own, in `app/tokens.css`,
+Colours, fonts, sizes, corners and motion: the theme (`src/theme.ts`; the
+contract's names: `--bg`, `--surface`, `--ink`, `--accent`,
+`--cat-N-soft`…), served as the page's own stylesheet `/chest/look.css`
+(never inline: the policy refuses inline styles). The CSS names only
+contract tokens and the tool's own, in `src/tokens.css`,
 each defined from contract tokens — never a colour:
 
 | Tool token | From | Use |
@@ -32,7 +33,7 @@ each defined from contract tokens — never a colour:
 | `--bar-in` / `--bar-out` | `--accent` / `--ink` | arrivals and departures on the numbers page |
 
 The arches behind portraits are the **categorical palette's soft grounds**
-(`lib/tint.ts`: slots 3 terracotta, 7 ochre, 2 sage, 4 plum, 5 rose, 6 teal —
+(`src/shared/tint.ts`: slots 3 terracotta, 7 ochre, 2 sage, 4 plum, 5 rose, 6 teal —
 exactly the old six tints in the gallery, and the same families in any
 theme). Field borders are `--line-strong` (3:1 on the page; the old
 `#d9c7b3` was 1.6:1 and is gone).
@@ -44,7 +45,7 @@ theme). Field borders are `--line-strong` (3:1 on the page; the old
 | terracotta `--accent` | `#b4472a` / `#f08e6a` |
 | blush `--accent-soft` | `#f7e3d6` / `#432a2b` |
 
-**Type**: *Outfit* (variable, OFL-1.1, self-hosted in `public/fonts/`; the
+**Type**: *Outfit* (variable, OFL-1.1, self-hosted in `public/assets/fonts/`; the
 kit writes its `@font-face`) for everything: geometric and friendly;
 headings at the theme's display weight (600) with tight tracking, 17 px
 body. Eyebrows are uppercase with wide tracking in `--accent-text`.
@@ -63,7 +64,7 @@ chose. The shell, actions, toasts and upload fields are not printed.
 ## Components
 
 From the kit (`@argentic/chest-ui/components`, dressed in the gallery by
-`app/globals.css`): the **AppShell** (labelled tabs — rounded, the current
+`src/styles.css`): the **AppShell** (labelled tabs — rounded, the current
 one in plum on a wide screen; on a phone the kit's one rule, a row of
 labelled tabs under the header, where People had its own bottom bar), the
 member chip (a link to one's profile), **Toasts** with a truthful Undo
@@ -87,7 +88,7 @@ the register needs); stat tiles and thin bars with their figures.
 
 ## Icon
 
-`chest/icon.svg` (= `app/icon.svg`, `components/mark.tsx`): two cream
+`chest/icon.svg` (= `public/assets/icon.svg`, `src/components/mark.tsx`): two cream
 portraits in a terracotta arch on a deep plum tile. No text; readable at
 24 px on light and dark tiles (the plum tile carries its own contrast).
 
@@ -114,8 +115,8 @@ grid.
     { "name": "Ochre", "value": "#f1e2b8" }
   ],
   "fonts": {
-    "display": { "family": "Outfit", "file": "public/fonts/outfit-latin-wght-normal.woff2", "weight": 600 },
-    "body": { "family": "Outfit", "file": "public/fonts/outfit-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Outfit", "file": "public/assets/fonts/outfit-latin-wght-normal.woff2", "weight": 600 },
+    "body": { "family": "Outfit", "file": "public/assets/fonts/outfit-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Say hello to Nora — she started on Monday"
 }
