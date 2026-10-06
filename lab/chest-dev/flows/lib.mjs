@@ -4,6 +4,13 @@ import { existsSync } from "node:fs";
 import { chromium } from "playwright-core";
 
 const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
+// The tool's database as dev.mjs names it on that port (t_<tool> on 4000,
+// t_<tool>_<port> elsewhere): a flow never touches another harness's data.
+export const toolDatabase = (tool, port) => {
+  const role = "t_" + tool.replace(/-/gu, "_") + (Number(port) === 4000 ? "" : `_${port}`);
+  return `postgres://${role}:dev@127.0.0.1:5432/${role}`;
+};
+
 export const id = key => "mbr_" + key + "a".repeat(26 - key.length);
 
 // The harness's hosts are https with a self-signed certificate

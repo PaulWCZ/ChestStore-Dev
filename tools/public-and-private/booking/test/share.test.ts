@@ -2,17 +2,17 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as b from "../lib/booking.ts";
-import { busyFingerprint, busyLimits, busySnapshot, readBusy } from "../lib/busy-snapshot.ts";
-import * as calendars from "../lib/calendars.ts";
-import { catalogue, startsWithVowel, zoneName } from "../lib/i18n/index.ts";
-import * as lifecycle from "../lib/lifecycle.ts";
-import * as share from "../lib/share.ts";
-import { openParts } from "../lib/slots.ts";
-import { zoneGroups } from "../lib/zones.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as b from "../src/lib/booking.ts";
+import { busyFingerprint, busyLimits, busySnapshot, readBusy } from "../src/lib/busy-snapshot.ts";
+import * as calendars from "../src/lib/calendars.ts";
+import { catalogue, startsWithVowel, zoneName } from "../src/i18n/index.ts";
+import * as lifecycle from "../src/lib/lifecycle.ts";
+import * as share from "../src/lib/share.ts";
+import { openParts } from "../src/lib/slots.ts";
+import { zoneGroups } from "../src/lib/zones.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { builtServer, type Handler } from "./support/server.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -30,12 +30,15 @@ const wire = (key: string): string => mail.idempotencyKey(key)!;
 
 let database: TestDatabase;
 let chest: FakeChest;
+// The built server's routes (/chest-schedules, /chest-events).
+let POST: Handler;
 // The declared calendar hosts, as the Chest's egress reaches them (fakeChest
 // network, SDK studio.15); a test says what they answer.
 let calendarAnswer: (request: Request) => Response = () => new Response("no", { status: 404 });
 const network = { "*.icloud.com": (request: Request) => calendarAnswer(request) };
 before(async () => {
   database = await testDatabase();
+  POST = await builtServer();
   process.env["CHEST_TOOL"] = "booking";
   chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2, network });
 });
@@ -211,7 +214,7 @@ test("Leave tells Booking a host is off: no time is offered those days, the agen
 
 test("without events between tools, bookings stand and nothing breaks", async () => {
   await chest.close();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   const { sql, host, type } = await inesReady();
   const made = await b.book(sql, host, type, { ...guest, start: "2026-10-06T08:00:00.000Z" }, monday);
   await share.changed(sql, "booked", made.booking, { now: monday });

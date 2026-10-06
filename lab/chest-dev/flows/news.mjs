@@ -6,7 +6,7 @@
 // one proposal by Léa waits for a publisher).
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4500);
 const { browser, context, page, origin, problems } = await open(port, "camille", { language: "en" });
@@ -667,8 +667,9 @@ await step("pass 4: a post published 19 days ago, made Important now, is told to
 
 await step("round 3: an empty front page: no empty band, one import link; a reader is told whom to ask and may share something", async () => {
   // Every post out of sight for this step (the screenshots, taken after the flows, get them back).
-  const sql = postgres("postgres://t_news:dev@127.0.0.1:5432/t_news", { max: 1, onnotice: () => {} });
+  const sql = postgres(toolDatabase("news", port), { max: 1, onnotice: () => {} });
   const hidden = (await sql`update posts set deleted_at = now() where deleted_at is null returning id`).map(r => r.id);
+  try {
   await as(context, origin, "hugo");
   await speak("en");
   await page.goto(origin + "/chest");
@@ -680,8 +681,10 @@ await step("round 3: an empty front page: no empty band, one import link; a read
   await as(context, origin, "sofia");
   await page.goto(origin + "/chest");
   expect(await page.getByRole("link", { name: /Import/u }).count() === 1, "one Slack import link");
-  await sql`update posts set deleted_at = null where id in ${sql(hidden)}`;
-  await sql.end();
+  } finally {
+    await sql`update posts set deleted_at = null where id in ${sql(hidden)}`;
+    await sql.end();
+  }
 });
 
 await browser.close();
