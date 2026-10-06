@@ -1,6 +1,6 @@
 import type { Catalogue } from "../i18n/index.ts";
 
-// The public page, /: a visitor writes to the team (no sign-in). Served
+// EXAMPLE (Notes). The public page, /: a visitor writes to the team. Served
 // only when chest.json says "public": true; otherwise the Chest never
 // routes here.
 export function Contact({ t, sent }: { t: Catalogue; sent: boolean }) {
