@@ -14,6 +14,7 @@ import { followUpLink } from "./lib/public-origin.ts";
 import * as rules from "./lib/rules.ts";
 import * as tell from "./lib/tell.ts";
 import { tellLinkedTools } from "./lib/ticket-events.ts";
+import { robotAddress } from "./shared/text.ts";
 import * as tickets from "./lib/tickets.ts";
 import * as views from "./lib/views.ts";
 
@@ -87,6 +88,21 @@ export const actions = {
   }),
   note: action({ number, body: given, files: any }, async ({ number: n, body, files: list }, { member }) => {
     await tickets.note(db(), member, n, body, memberFiles(list));
+    return null;
+  }),
+  // The customer answered by email (it reached the company's inbox, not
+  // Support): an agent adds it to the ticket as the customer's message.
+  // The assignee hears of it when someone else added it; a solved request
+  // reopens (the linked tools told).
+  theirEmail: action({ number, body: given, files: any }, async ({ number: n, body, files: list }, { member }) => {
+    const sql = db();
+    const t = await tickets.theirEmail(sql, member, n, body, memberFiles(list));
+    after("telling", async () => {
+      if (t.assignee && t.assignee !== member?.id) await tell.customerWrote(t, body.trim());
+      await tell.refreshBadges(sql);
+      await notices.about(sql, "replied", t.id, await notices.lastMessageKey(sql, t.id));
+      await tellLinkedTools(sql);
+    });
     return null;
   }),
   // One file to the Chest, for a reply or a note (the bytes go from the
@@ -270,8 +286,15 @@ export const actions = {
     // Sent twice: the team is not told twice, the customer not emailed twice.
     if (t.repeated) redirect(`/t/${t.secret}?new=1&again=1${embed}`);
     const s = await tickets.settings(sql);
-    const ticket = { number: t.number, subject: input.subject.trim(), customerEmail: input.email.trim(), customerName: input.name.trim(), language };
-    const sent = await mailer.confirm(ticket, followUpLink(t.secret), s.companyName);
+    // The words as the ticket keeps them (one line, bounded): a subject the
+    // Chest would refuse in a header never costs the customer their link.
+    const ticket = { number: t.number, subject: clean(input.subject, limits.subject), customerEmail: input.email.trim(), customerName: clean(input.name, limits.name, { optional: true }), language };
+    // A stranger's form can name any address: never a robot's, three an
+    // hour to one address at most (as for Forms' requests) — past them the
+    // request is filed and its page opens, without an email.
+    const sent: mailer.Delivery = !robotAddress(ticket.customerEmail) && (await tickets.confirmations(sql, ticket.customerEmail)) < mailer.confirmationsPerHour
+      ? await mailer.confirm(ticket, followUpLink(t.secret), s.companyName)
+      : { delivery: "page" };
     if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
     after("telling", async () => {
       await tell.newTicket({ id: t.id, number: t.number, subject: ticket.subject, customerName: ticket.customerName, customerEmail: ticket.customerEmail }, input.message, t.assignee);

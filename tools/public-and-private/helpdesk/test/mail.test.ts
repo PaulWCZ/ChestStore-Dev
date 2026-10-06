@@ -6,7 +6,7 @@ import * as mailer from "../src/lib/mailer.ts";
 import * as tickets from "../src/lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, lea } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 
 // Email to customers — people outside the company — as the Chest would
 // carry it (Proposal (studio): mail, sending only): what the tool sends read
@@ -159,4 +159,27 @@ test("mail goes to customers' addresses only, never to a member: a colleague's r
   assert.ok(t);
   assert.equal(chest.outbox.length, before);
   for (const m of chest.outbox) assert.ok(!m.to.some(a => a.startsWith("mbr_")));
+});
+
+test("a customer's answer by email (it reached the company's inbox): an agent adds it, it is the customer's message — on their page, reopening the request, waiting on the team", async () => {
+  const { sql } = database;
+  const t = await request(address());
+  await answer(t.number, "Could you send a photo?", true);
+  assert.equal((await ticketOf(t.number)).status, "closed");
+  await tickets.theirEmail(sql, asMember(ines), t.number, "  Here it is, the crack is on the left.  ");
+  const after = await ticketOf(t.number);
+  assert.equal(after.status, "open", "a solved request reopens");
+  assert.ok(after.waitingSince, "the wait for an answer starts");
+  const last = after.messages.at(-1)!;
+  assert.equal(last.kind, "customer");
+  assert.equal(last.author, ines.id, "who copied it is recorded");
+  assert.equal(last.body, "Here it is, the crack is on the left.");
+  // The customer sees it on their request page as their own message.
+  const page = await tickets.byLink(sql, t.secret);
+  assert.equal(page!.messages.at(-1)!.body, "Here it is, the crack is on the left.");
+  // Never on a colleague's request, a spam, nor by someone who only reads.
+  const colleague = await tickets.fromForms(sql, { event: "evt_theiremailaaaaaaaaaaaaaaaa", source: { form: { id: "f1", title: "IT" }, answer: { id: "a2", path: null } }, subject: "Laptop", body: "Broken screen", email: null, name: "", member: camille.id, language: "fr" });
+  await assert.rejects(tickets.theirEmail(sql, asMember(hugo), colleague.number, "x"), { code: "forbidden" });
+  await assert.rejects(tickets.theirEmail(sql, asMember(lea), t.number, "x"), { code: "forbidden" });
+  await assert.rejects(tickets.theirEmail(sql, asMember(hugo), t.number, "   "), { code: "empty" });
 });

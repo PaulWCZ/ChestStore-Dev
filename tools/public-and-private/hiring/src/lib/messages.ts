@@ -245,6 +245,18 @@ export async function fileOf(sql: Sql, actor: Member | null, messageId: unknown,
   return { object: found.file, name: found.name, type: found.type };
 }
 
+// confirmationsTo counts the confirmations queued for an address in the
+// last hour, whichever application: a stranger's form can name any address,
+// and past a few (confirmationsPerHour) none more — Hiring never floods an
+// inbox, whoever fills its careers page.
+export const confirmationsPerHour = 3;
+export async function confirmationsTo(sql: Query, address: string): Promise<number> {
+  const [row] = await sql<{ n: number }[]>`
+    select count(*)::int as n from messages m join candidates c on c.id = m.candidate_id
+    where m.kind = 'confirmation' and lower(c.email) = lower(${address}) and m.created_at > now() - interval '1 hour'`;
+  return row?.n ?? 0;
+}
+
 // confirmation: the email that tells a candidate their application
 // arrived, queued by the careers page (no member wrote it).
 export async function queueConfirmation(sql: Query, candidateId: string, subject: string, text: string): Promise<string> {

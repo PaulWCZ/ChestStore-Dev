@@ -376,6 +376,21 @@ await step("an answer by email carries the request page's link; the customer wri
   expect((await page.locator(".thread").innerText()).includes("I will take two"), "the customer's answer is on the ticket");
 });
 
+await step("the customer answered by email instead (it reached the company's inbox): the agent pastes it under Their email; it is the customer's message, on their page too", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + `/chest/tickets/${gift}`);
+  await page.getByRole("tab", { name: "Their email" }).click();
+  expect((await page.locator("#answer").getAttribute("placeholder")).includes("Paste their words here"), "the box says what to do");
+  await page.locator("#answer").fill("Also one for my sister, please.");
+  await page.getByRole("button", { name: "Add their message" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Their message is on the ticket.')");
+  const last = page.locator(".thread > li").last();
+  expect((await last.innerText()).includes("Also one for my sister"), "on the ticket");
+  expect((await last.innerText()).includes("Written by you for the customer"), "who copied it is said");
+  expect(!(await last.getAttribute("class")).includes("team"), "on the customer's side of the conversation");
+  expect(await page.getByRole("tab", { name: "Reply" }).getAttribute("aria-selected") === "true", "the box is back on Reply");
+});
+
 await step("email: a bounce shows on the reply and the ticket; fixing the address clears it", async () => {
   const dev = await devPage();
   const sent = [...dev.matchAll(/<li><b>([^<]*)<\/b>(?:(?!<li>)[\s\S])*?name="message" value="(msg_[a-z2-7]{26})"/gu)].find(m => m[1].includes("Gift card") && m[1].startsWith("Re:"));

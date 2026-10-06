@@ -266,7 +266,7 @@ a token bound to its action, and for `apply` a proof of work:
 | `/chest/jobs/<id>/import` | recruiter | Import candidates |
 | `/chest/export` | recruiter | Everything, as a ZIP |
 | `/chest/candidates/<id>/data` | recruiter | A candidate's own data (ZIP) |
-| `/chest/messages/<id>/files/<n\|original>` | recruiter | A file an email brought (always downloaded) |
+| `/chest/messages/<id>/files/<n>` | recruiter | A file of an email the team sent (always downloaded) |
 | `/chest/interviews/<id>/ics` | who sees the candidate | An interview's `.ics` (a Chest without calendars) |
 | `/chest/settings/images/<name>` | recruiter | The careers page's logo and photos, for Settings' preview (they are public files: the Chest serves them on the public host only) |
 | `/chest/jobs/new`, `/chest/jobs/<id>/edit` | recruiter | Write a job |
@@ -349,7 +349,7 @@ into Hiring.
 
 | Recipient | Purpose | When | Content | Attachments | Reply-To |
 |---|---|---|---|---|---|
-| A candidate who applied on the careers page | Confirm the application arrived | Right after the form (the thank-you page says whether it left) | The job, the company, "we read every one and will write to you", the careers page's link | None | The company's reply address (the connector's default) |
+| A candidate who applied on the careers page | Confirm the application arrived | Right after the form (the thank-you page says whether it left; three an hour to one address at most, whatever the application — a stranger's form never floods an inbox) | The job, the company, "we read every one and will write to you", the careers page's link | None | The company's reply address (the connector's default) |
 | A candidate | A recruiter's message (ask availability, news, an offer — from a template or not) | When the recruiter presses *Send* | The recruiter's words; from "Camille — Atelier Martin" | The files the recruiter added or the template carries (an offer letter, a contract: 5 at most, 9 MB together; the Chest reads the tool's stored files) | The company's reply address |
 | A candidate | The link to choose their interview time | When a recruiter sends it | Who they meet, between which days, how long, the link `/interview/<secret>?lang=…` | None | The company's reply address |
 | A candidate | An interview's time (chosen by them or by the recruiter) | When it is set | Day, time and zone, place or video link, the note | `invitation.ics` (`text/calendar; method=PUBLISH`, the same UID for every version) | The company's reply address |

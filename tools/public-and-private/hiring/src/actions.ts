@@ -518,9 +518,14 @@ export const actions = {
     // The confirmation leaves from the company's address; an answer to it
     // reaches the company's usual inbox (its last line says so).
     const s = await jobs.settings(sql);
-    const words2 = mailer.confirmation(candidate, job, s.companyName, publicOrigin());
-    const message = await messages.queueConfirmation(sql, candidate.id, words2.subject, words2.text);
-    const mailed = (await outbox.sendNow(sql, message)) === "sent";
+    // Three an hour to one address at most: past them the application is
+    // filed, and the thank-you page does not say an email is on its way.
+    let mailed = false;
+    if ((await messages.confirmationsTo(sql, candidate.email)) < messages.confirmationsPerHour) {
+      const words2 = mailer.confirmation(candidate, job, s.companyName, publicOrigin());
+      const message = await messages.queueConfirmation(sql, candidate.id, words2.subject, words2.text);
+      mailed = (await outbox.sendNow(sql, message)) === "sent";
+    }
     after("applied told", async () => {
       await tell.applied(candidate, job);
       await tell.refreshBadges(db());

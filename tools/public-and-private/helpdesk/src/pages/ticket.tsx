@@ -92,7 +92,7 @@ export async function ticketPage({ sql, member, lang: locale, t, f }: TeamContex
                   <Avatar name={author} photo={m.author ? who.get(m.author)?.photo ?? null : null} />
                   <div className="bubble">
                     <div className="who">{author}{m.kind === "note" && <span className="chip note-chip">{w.noteTag}</span>}<time dateTime={m.at} title={longDate(m.at)}>{relative(m.at, locale, now)}</time></div>
-                    {m.kind === "customer" && m.author && <p className="small muted">{format(w.typedBy, { name: name(m.author) })}</p>}
+                    {m.kind === "customer" && m.author && <p className="small muted">{m.author === member.id ? w.typedByYou : format(w.typedBy, { name: name(m.author) })}</p>}
                     <Body text={m.body} contacts />
                     {m.attachments.some(a => thumbnailTypes.includes(a.type)) && (
                       <div className="thumbs">
@@ -114,9 +114,12 @@ export async function ticketPage({ sql, member, lang: locale, t, f }: TeamContex
           {canAnswer ? (
             <Island name="Composer" props={{
               number: ticket.number,
+              // A colleague's request is answered in My requests, never by email.
+              theirs: !ticket.requester && ticket.status !== "spam",
               replies: [...incidentAnswers.map(r => ({ id: r.id, title: r.title, filled: r.filled })), ...replies.map(r => ({ id: r.id, title: r.title, filled: fillReply(r.body, filled) }))],
               t: {
                 answerAs: w.answerAs, reply: w.reply, note: w.note, replyPlaceholder: w.replyPlaceholder, notePlaceholder: w.notePlaceholder, files: w.files, send: w.send, sendClose: w.sendClose, addNote: w.addNote,
+                theirEmail: w.theirEmail, theirEmailPlaceholder: w.theirEmailPlaceholder, addTheirEmail: w.addTheirEmail, theirEmailToast: w.theirEmailToast,
                 saved: w.saved, noSaved: w.noSaved, noteToast: w.noteToast, sentColleagueToast: w.sentColleagueToast, sentClosedToast: w.sentClosedToast, viaPage: w.viaPage, sentToast: w.sentToast, closedToast: w.closedToast,
                 typesPlain: t.public.typesPlain, wait: t.kit.files.wait, fileWords: t.kit.files, errors: t.errors,
               },

@@ -34,5 +34,7 @@
   {"name": "mine", "path": "/chest/mine", "member": "nora", "language": "fr"},
   {"name": "mine-request", "path": "/chest/mine/1008", "member": "nora", "language": "fr"},
   {"name": "mine-request-en", "path": "/chest/mine/1008", "member": "nora", "language": "en", "dark": true, "only": ["phone"]},
-  {"name": "settings-notices", "path": "/chest/settings", "member": "camille", "language": "en", "actions": [{"click": "#notice-label"}, {"wait": 300}], "only": ["desktop", "phone"]}
+  {"name": "settings-notices", "path": "/chest/settings", "member": "camille", "language": "en", "actions": [{"click": "#notice-label"}, {"wait": 300}], "only": ["desktop", "phone"]},
+  {"name": "ticket-their-email", "path": "/chest/tickets/1003", "member": "hugo", "language": "en", "actions": [{"click": "[role=tab]:has-text('Their email')"}, {"fill": ["#answer", "Thanks! The new address is 12 rue des Lilas, Lyon. Can you deliver on Friday?"]}, {"wait": 300}], "only": ["desktop", "phone"]},
+  {"name": "ticket-their-email-fr", "path": "/chest/tickets/1003", "member": "ines", "language": "fr", "actions": [{"click": "[role=tab]:has-text('Son e-mail')"}, {"wait": 300}], "only": ["phone"]}
 ]
