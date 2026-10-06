@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as visitors from "@argentic/chest-sdk/visitors";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import type { Query } from "./db.ts";
 import { limits } from "./model.ts";
 import { visitorKey } from "./public-origin.ts";

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { isAddress } from "@argentic/chest-sdk/mail";
 import { manages, sees } from "./access.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { wantedPlaces, writeNamed } from "./answers.ts";
 import type { Query, Sql } from "./db.ts";
 import { isLocale, type Locale } from "../i18n/index.ts";

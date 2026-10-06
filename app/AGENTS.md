@@ -153,7 +153,10 @@ must cache its answer a minute (600 members calls a minute per tool).
 **A look chosen at run time** (a theme the company picks) —
 `createApp({ look: viewer => ({ css, colors }) })`: pages link
 `/chest/look.css?v=<hash>` or `/look.css?v=<hash>`, served by the package;
-`chestConfig()` without `theme`. **The head** (an icon, robots) —
+`chestConfig()` without `theme`. The layouts receive `look` (its `logo` in brand mode) and the page's
+`status` (an error page's public layout may draw its frame); a visitor's
+404 reads `pages.notFound.publicBody` when the catalogue has one.
+**The head** (an icon, robots) —
 `createApp({ head: viewer => <><link rel="icon" href="/assets/icon.svg" /></> })`.
 **Static files** — `public/assets/…`, served at `/assets/…`; the
 catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.

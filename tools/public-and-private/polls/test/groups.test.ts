@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { all, everyone as everyoneWithPolls, inAudience } from "../src/lib/audience.ts";
 import { forgetGroups, withAllGroups } from "../src/lib/groups.ts";
 import * as polls from "../src/lib/polls.ts";

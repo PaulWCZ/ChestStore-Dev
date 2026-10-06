@@ -2,7 +2,7 @@ import { Calendar, Checkbox, DateField, PeoplePicker, TimeSelect } from "@argent
 import { endOfDay, moveEnd, moveStart, timeText, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Back, Cross, Down, KindIcon, Mask, Plus, Repeat as RepeatIcon, Send, Trash, Up } from "../components/icons.tsx";
-import { call, navigate, refresh, toast } from "../core/client.tsx";
+import { call, navigate, refresh, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import type { ComposerValue, Slot, SurveyQuestion } from "../lib/composer-value.ts";
 import { fill as format } from "./words.ts";

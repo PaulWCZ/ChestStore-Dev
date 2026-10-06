@@ -539,6 +539,7 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 .side .button { white-space: normal; text-align: left; line-height: 1.25; height: auto; min-height: 44px; }
 
 /* The guest page of a date poll (src/pages/Guest.tsx): the public host, one column. */
+.guest-form { scroll-margin-top: var(--space-5); }
 .honey { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .public:has(> .guest) { max-width: 720px; padding-top: var(--space-5); }
 .guest { display: grid; gap: var(--space-5); }
@@ -575,6 +576,9 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 .my-replies blockquote { margin: 0; padding: var(--space-3) var(--space-4); border-left: 4px solid var(--line-strong); background: var(--surface-2); border-radius: var(--radius-m); white-space: pre-line; overflow-wrap: anywhere; }
 /* A guest's row: the tag under the name when the column is narrow. */
 .grid-table .person:has(.guest-tag) { flex-wrap: wrap; row-gap: 2px; }
+
+/* A refusal of a form sent without script (the layouts' notice). */
+.notice { margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); border: var(--edge) solid var(--danger); border-radius: var(--radius-m); background: var(--danger-soft); color: var(--danger-ink); font-weight: var(--weight-strong); }
 
 /* Lengths from data (bars, meters, columns): a class per percent, as the
    policy refuses style="" (src/pages/bits.tsx, percentClass). */

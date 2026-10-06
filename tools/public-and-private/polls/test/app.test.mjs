@@ -67,12 +67,13 @@ test("the look: a stylesheet with its hash, kept a year when linked by it, 304 w
   assert.equal(sheet.status, 200);
   assert.equal(sheet.headers.get("content-type"), "text/css; charset=utf-8");
   assert.equal(sheet.headers.get("cache-control"), "private, max-age=31536000, immutable");
-  assert.equal(sheet.headers.get("etag"), `"${v}"`);
+  const etag = sheet.headers.get("etag");
+  assert.ok(etag.startsWith(`"${v}`), "the ETag begins with the link's hash");
   const css = await sheet.text();
   assert.match(css, /--accent:\s*#ff7a63/u, "Polls' own identity: Confetti");
   assert.match(css, /url\(\/assets\/fonts\/fredoka-latin-wght-normal\.woff2\)/u);
-  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": `"${v}"` })).status, 304);
-  assert.equal((await get(hugo, "/chest/look.css")).headers.get("cache-control"), "no-cache");
+  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": etag })).status, 304);
+  assert.equal((await get(hugo, "/chest/look.css")).headers.get("cache-control"), "private, no-cache");
   assert.equal((await get(null, "/chest/look.css")).status, 401, "the team's look is the team's");
   // The company chooses another look for all its tools: a new sheet, a new link.
   chest.theme.all = { mode: "catalogue", theme: "newsprint" };
@@ -206,7 +207,7 @@ test("the guest page: a visitor's words, no member, an answer by a form without 
   } finally {
     console.log = write;
   }
-  assert.ok(lines.some(l => /^info request method=GET path=\/p\/:link status=200/u.test(l)), lines.join("\n"));
+  assert.ok(lines.some(l => /^info request method=GET route=\/p\/:link status=200/u.test(l)), lines.join("\n"));
   assert.ok(lines.every(l => !l.includes(link) && !l.includes("nolinkatall")), lines.join("\n"));
 });
 

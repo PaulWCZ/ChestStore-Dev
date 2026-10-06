@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { toCsv } from "../src/lib/csv.ts";
 import { dates, optionText } from "../src/lib/dates.ts";
 import { calendar, escape, fold } from "../src/lib/ics.ts";

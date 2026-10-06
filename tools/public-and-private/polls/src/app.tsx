@@ -1,10 +1,13 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import * as events from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import type { Context } from "hono";
-import { createApp, page, publicActionsAt, publicPage } from "./core/http.tsx";
-import { log } from "./core/log.ts";
-import { AppError } from "./core/tool.ts";
+import { createApp, page, publicActionsAt, publicPage } from "@argentic/chest-app";
+import { actions } from "./actions.ts";
+import { localeOf, locales, words } from "./i18n/index.ts";
+import { islands } from "./islands/index.ts";
+import { MembersLayout, PublicLayout } from "./layout.tsx";
+import { log } from "@argentic/chest-app";
+import { AppError } from "@argentic/chest-app";
 import { can, settles, surveys } from "./lib/access.ts";
 import { everyone, inAudience } from "./lib/audience.ts";
 import { db } from "./lib/db.ts";
@@ -24,15 +27,26 @@ import { guestPage } from "./pages/Guest.tsx";
 import { Home } from "./pages/Home.tsx";
 import { pollPage } from "./pages/Poll.tsx";
 import { PublicHome } from "./pages/PublicHome.tsx";
-import { sheetOf } from "./theme.ts";
+import { lookOf, sheetOf } from "./theme.ts";
 
 // Polls' routes. createApp() already serves /assets/, the actions
-// (src/actions.ts), the member of every /chest request — with every group
-// they are in, asked of the Chest once per request (src/lib/groups.ts: the
-// assertion names only the groups that give Polls) —, /lang/<code>, the
+// (src/actions.ts), the look (/chest/look.css, /look.css), the member of
+// every /chest request — with every group they are in (src/lib/groups.ts,
+// kept a minute: the assertion names only the groups that give Polls) —,
+// /lang/<code>, the
 // error pages, and answers 404 to anything else.
-// The look's stylesheet needs no groups: it skips the question.
-export const app = createApp({ complete: (who, path) => (path === "/chest/look.css" ? Promise.resolve(who) : withAllGroups(who)) });
+// The look is the company's choice, a stylesheet of its own (src/theme.ts);
+// the head carries Polls' icon and keeps search engines away.
+export const app = createApp({
+  actions,
+  islands,
+  locales,
+  words,
+  layouts: { members: MembersLayout, public: PublicLayout },
+  complete: withAllGroups,
+  look: viewer => lookOf(viewer.member !== null ? "team" : "public"),
+  head: () => <><meta name="robots" content="noindex, nofollow" /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
+});
 
 // ---- The members' part (/chest…).
 
@@ -55,7 +69,7 @@ app.get("/chest", page(async ({ member, t, f }) => {
     body: <Home
       data={data}
       member={member}
-      organisers={new Map(cards.map(c => [c.organiser, nameOf(who.get(c.organiser), f.locale)]))}
+      organisers={new Map(cards.map(c => [c.organiser, nameOf(who.get(c.organiser), localeOf(f.locale))]))}
       totals={new Map(sent.map(c => [c.id, team.filter(p => inAudience(p, c)).length]))}
       rules={rules}
       creates={can(member, "create", rules)}
@@ -70,11 +84,11 @@ app.get("/chest", page(async ({ member, t, f }) => {
 
 // The composer: a new poll (?kind=choice|date|survey, &preset=pulse), a
 // draft to finish, an open poll's words and closing time.
-app.get("/chest/new", page(({ member, locale, t, query }) => newPoll({ sql: db(), member, locale, t }, query("kind"), query("preset"))));
-app.get("/chest/polls/:id/edit", page(({ member, locale, t, param }) => editPoll({ sql: db(), member, locale, t }, param("id"))));
+app.get("/chest/new", page(({ member, locale, t, query }) => newPoll({ sql: db(), member, locale: localeOf(locale), t }, query("kind"), query("preset"))));
+app.get("/chest/polls/:id/edit", page(({ member, locale, t, param }) => editPoll({ sql: db(), member, locale: localeOf(locale), t }, param("id"))));
 
 // A poll: answer, results, participation, organise.
-app.get("/chest/polls/:id", page(({ member, locale, t, f, request, param }) => pollPage({ sql: db(), member, locale, t, f, request }, param("id"))));
+app.get("/chest/polls/:id", page(({ member, locale, t, f, request, param }) => pollPage({ sql: db(), member, locale: localeOf(locale), t, f, request }, param("id"))));
 
 // The answers as a spreadsheet (those who manage the poll).
 app.get("/chest/polls/:id/export", async c => {
@@ -103,13 +117,11 @@ app.get("/chest/polls/:id/calendar", async c => {
   }
 });
 
-// The look of the team's pages: the company's choice (src/theme.ts).
-app.get("/chest/look.css", c => look(c, "team"));
 
 // ---- The public part ("public": true in chest.json): the guest page of a
 // date poll opened to guests, and the host's root.
-app.get("/", publicPage(async ({ locale, t }) => ({ title: t.tool.name, body: <PublicHome look={(await sheetOf("public")).look} locale={locale} t={t} /> })));
-app.get("/p/:link", publicPage(({ locale, t, cookies, param, query }) => guestPage({ sql: db(), locale, t, cookies }, param("link"), query("sent"))));
+app.get("/", publicPage(async ({ locale, t }) => ({ title: t.tool.name, body: <PublicHome look={(await sheetOf("public")).look} locale={localeOf(locale)} t={t} /> })));
+app.get("/p/:link", publicPage(({ locale, t, cookies, param, query }) => guestPage({ sql: db(), locale: localeOf(locale), t, cookies }, param("link"), query("sent"))));
 app.get("/p/:link/calendar", async c => {
   try {
     const link = c.req.param("link");
@@ -124,9 +136,7 @@ app.get("/p/:link/calendar", async c => {
 // The guest page's answer (src/actions.ts, answerGuest) is also taken
 // under the page's own path: the guest's secret is a cookie for that path
 // alone, and reaches the action there.
-app.post("/p/:link/actions/:name", ...publicActionsAt());
-// The look of the public pages: the company's brand, else Polls' own.
-app.get("/look.css", c => look(c, "public"));
+app.post("/p/:link/actions/:name", publicActionsAt());
 
 // ---- What the Chest sends by itself, signed (never under /chest, never
 // read the body before handle()): the members' lifecycle and the groups'
@@ -182,18 +192,4 @@ function finalFile(poll: Poll, url: string | null): Response | null {
   return download(text, "text/calendar; charset=utf-8", `poll-${poll.id}.ics`);
 }
 
-// The look as a stylesheet: kept a year when its link names this very
-// sheet (?v=<hash>), else asked again each time; a 304 when the browser
-// has it already.
-async function look(c: Context, surface: "team" | "public"): Promise<Response> {
-  const sheet = await sheetOf(surface);
-  const etag = `"${sheet.etag}"`;
-  const headers = {
-    "Content-Type": "text/css; charset=utf-8",
-    ETag: etag,
-    "Cache-Control": c.req.query("v") === sheet.etag ? `${surface === "team" ? "private" : "public"}, max-age=31536000, immutable` : "no-cache",
-  };
-  if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers });
-  return new Response(sheet.css, { headers });
-}
 

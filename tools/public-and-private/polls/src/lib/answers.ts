@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { asked, can, sees } from "./access.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import type { Query, Sql } from "./db.ts";
 import { readAnswer, type Given } from "./model.ts";
 import { chestGroups } from "./groups.ts";

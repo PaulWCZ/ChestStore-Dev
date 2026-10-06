@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { chest } from "@argentic/chest-sdk/chest";
 import { defineTheme } from "@argentic/chest-ui";
 import { lookColors, lookCss, resolveTheme, type Look } from "@argentic/chest-ui/runtime";
-import { log } from "./core/log.ts";
+import { log } from "@argentic/chest-app";
 
 // The tool's own identity (DESIGN.md), "Confetti": playful and quick —
 // coral, deep navy and mint on warm paper, chunky rounded shapes that press
@@ -66,4 +66,11 @@ export async function sheetOf(surface: Surface): Promise<Sheet> {
   const sheet: Sheet = { look, css, etag: createHash("sha256").update(css).digest("base64url").slice(0, 16), colors: lookColors(look) };
   written.set(choice, { ...kept, [surface]: sheet });
   return sheet;
+}
+
+// The look as createApp serves it: the sheet, the browser bar's colours,
+// the company's logo (brand mode) for the layouts.
+export async function lookOf(surface: Surface): Promise<{ css: string; colors: { media: string; color: string }[]; logo: Look["logo"] }> {
+  const sheet = await sheetOf(surface);
+  return { css: sheet.css, colors: sheet.colors, logo: sheet.look.logo };
 }

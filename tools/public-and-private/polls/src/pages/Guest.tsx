@@ -1,8 +1,8 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { CalendarPlus, Clock, Info, Party } from "../components/icons.tsx";
-import type { View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { AppError, notFound, type Cookies } from "../core/tool.ts";
+import type { View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { AppError, notFound, type Cookies } from "@argentic/chest-app";
 import { fill as format, type Catalogue, type Locale } from "../i18n/index.ts";
 import { guestMailOffered } from "../lib/agenda.ts";
 import { dates, optionText } from "../lib/dates.ts";
@@ -54,7 +54,7 @@ export async function guestPage({ sql, t, locale, cookies }: { sql: Sql; t: Cata
   return { title: poll.title, body: (
     <div className="guest">
       {/* A company's logo already says its name: the name only beside Polls' mark. */}
-      <PublicTop look={look} name={company || t.tool.name} locale={locale} back={back} t={t} />
+      <PublicTop logo={look.logo} name={company || t.tool.name} locale={locale} back={back} t={t} />
       <header className="poll-head">
         <h1>{poll.title}</h1>
         {poll.details && <p className="details">{poll.details}</p>}
