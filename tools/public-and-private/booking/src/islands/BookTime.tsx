@@ -4,8 +4,8 @@ import type { ZoneGroup } from "../shared/zones.ts";
 
 // A visitor books one kind of meeting: the free days and times (in their
 // time zone), then their few fields and the host's questions
-// (src/components/picker.tsx). started: the form's signed "shown at" time.
-export function BookTime(props: { hostSlug: string; typeSlug: string; hostName: string; hostZone: string; first: string | null; locale: string; zones: ZoneGroup[]; phone: boolean; company: string; started: string; questions: Question[]; mailing: boolean; t: PickerWords }) {
+// (src/components/picker.tsx).
+export function BookTime(props: { hostSlug: string; typeSlug: string; hostName: string; hostZone: string; first: string | null; locale: string; zones: ZoneGroup[]; phone: boolean; company: string; questions: Question[]; mailing: boolean; t: PickerWords }) {
   return <Picker {...props} />;
 }
 
