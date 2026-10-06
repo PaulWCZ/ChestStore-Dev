@@ -54,7 +54,7 @@ export async function personPage({ member, locale: language, t, param }: PageCon
           </p>
         </div>
       </div>
-      <Island id={`i-person-${id}`} name="PersonView" props={{
+      <Island id={`person-${id}`} name="PersonView" props={{
         holder: id,
         name,
         present,

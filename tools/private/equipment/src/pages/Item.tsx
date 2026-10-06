@@ -148,10 +148,10 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
               <p className="muted">{t.item.mineHint}</p>
               <div className="row">
                 {holder.kind === "member" && !detail.receipt?.confirmedAt && (
-                  <Island id={`i-receive-${item.id}`} name="ReceiveButton" props={{ id: item.id, name: item.name, label: t.item.received, charter: charter ? { id: charter.id, body: charterText(charter, t) } : null,
+                  <Island id={`receive-${item.id}`} name="ReceiveButton" props={{ id: item.id, name: item.name, label: t.item.received, charter: charter ? { id: charter.id, body: charterText(charter, t) } : null,
                     given: givenText(detail.receipt), condition: detail.receipt?.condition ?? null, t: { receive: t.receive, common: t.common, dialog: t.dialog } }} />
                 )}
-                <Island id={`i-report-${item.id}`} name="ReportButton" props={{ id: item.id, name: item.name, label: t.item.report, t: words, primary: holder.kind !== "member" || Boolean(detail.receipt?.confirmedAt) }} />
+                <Island id={`report-${item.id}`} name="ReportButton" props={{ id: item.id, name: item.name, label: t.item.report, t: words, primary: holder.kind !== "member" || Boolean(detail.receipt?.confirmedAt) }} />
               </div>
             </>
           )}
@@ -233,7 +233,7 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
       <div className="item-grid">
         <div className="item-main">
           {head}
-          <Island id={`i-item-${item.id}`} name="ItemControls" props={{
+          <Island id={`item-${item.id}`} name="ItemControls" props={{
             item: { id: item.id, name: item.name, tag: item.tag, status: item.status, kind: full.category.kind, seats: full.seats ?? 0, heldSince: day(item.heldSince), placeName: item.place, quantity: full.quantity, minQuantity: full.minQuantity },
             holder,
             holderText,
@@ -262,11 +262,11 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
                       <span className="small muted">{format(t.item.problemBy, { name: who(p.reportedBy, names, t, locale), when: relative(p.createdAt, locale, now) })}</span>
                       <span className="row">
                         {warranty?.claimable && (
-                          <Island id={`i-claim-${full.id}-${p.id}`} name="ClaimButton" props={{ item: { id: full.id, name: full.name }, problem: p.body, facts: warranty.facts, today,
+                          <Island id={`claim-${full.id}-${p.id}`} name="ClaimButton" props={{ item: { id: full.id, name: full.name }, problem: p.body, facts: warranty.facts, today,
                             holderName: holder.kind === "member" && !holder.you ? holder.name : null,
                             t: { claim: t.claim, repair: t.repair, common: t.common, dialog: t.dialog, date: t.date } }} />
                         )}
-                        <Island id={`i-solve-${p.id}`} name="SolveButton" props={{ id: p.id, label: t.overview.solved, done: t.overview.solvedDone }} />
+                        <Island id={`solve-${p.id}`} name="SolveButton" props={{ id: p.id, label: t.overview.solved, done: t.overview.solvedDone }} />
                       </span>
                     </div>
                   </li>
@@ -286,8 +286,8 @@ export async function itemPage({ member, locale: language, t, f, param, query, r
             {full.notes && <div className="notes"><h3>{t.item.notes}</h3><p>{full.notes}</p></div>}
             <p className="small muted">{format(t.item.added, { date: formatDate(full.createdAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) })}</p>
           </section>
-          <Island id={`i-photo-${item.id}`} name="PhotoControl" props={{ id: item.id, name: item.name, has: item.photo !== null, t: { item: t.item, errors: { file_too_large: t.errors.file_too_large, file_missing: t.errors.file_missing, unavailable: t.errors.unavailable }, common: t.common } }} />
-          <Island id={`i-invoice-${item.id}`} name="InvoiceControl" props={{ id: item.id, name: item.name, has: full.invoice !== null, t: { item: t.item, errors: { file_too_large: t.errors.file_too_large, file_missing: t.errors.file_missing, unavailable: t.errors.unavailable }, common: t.common } }} />
+          <Island id={`photo-${item.id}`} name="PhotoControl" props={{ id: item.id, name: item.name, has: item.photo !== null, t: { item: t.item, errors: { file_too_large: t.errors.file_too_large, file_missing: t.errors.file_missing, unavailable: t.errors.unavailable }, common: t.common } }} />
+          <Island id={`invoice-${item.id}`} name="InvoiceControl" props={{ id: item.id, name: item.name, has: full.invoice !== null, t: { item: t.item, errors: { file_too_large: t.errors.file_too_large, file_missing: t.errors.file_missing, unavailable: t.errors.unavailable }, common: t.common } }} />
         </div>
         <aside className="item-side">
           <section className="panel" aria-labelledby="label">

@@ -844,7 +844,7 @@ export const fr: Catalogue = {
     back: "Retour à l’inventaire",
     open: "Inventaire en cours",
     find: "Chercher dans ce qui n’est pas encore vu",
-    noMatch: "Rien de ce qui n’est pas encore vu ne correspond à « {q} ».",
+    noMatch: "Rien de ce qui n’est pas encore vu ne correspond à « {q} ».",
     range: "{from}–{to} sur {total}",
     latest: "Les {count} derniers vus, du plus récent au plus ancien.",
     missingShown: "Les {shown} premiers sur {count}, par étiquette.",

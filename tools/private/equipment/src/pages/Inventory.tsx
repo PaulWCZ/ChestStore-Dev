@@ -21,7 +21,7 @@ export async function inventoryPage({ member, locale: language, t, f, query }: P
   return { title: t.inventory.title, body: (
     <div className="wide">
       <PageHeader size="m" title={t.inventory.title} intro={now ? format(t.inventory.started, { date: date(now.inventory.startedAt), name: nameOf(names.get(now.inventory.startedBy), locale) }) : undefined} />
-      <Island id="i-inventory" name="InventoryView" props={{
+      <Island id="inventory" name="InventoryView" props={{
         open: now !== null,
         counts: now ? { total: now.total, seen: now.seenCount, notSeen: now.notSeenCount, page: now.page, pages: now.pages, size: shown.notSeen, q: (query("q") ?? "").trim().slice(0, 100) } : { total: 0, seen: 0, notSeen: 0, page: 1, pages: 1, size: shown.notSeen, q: "" },
         seen: (now?.seen ?? []).map(i => rowOf(i, names, t, locale, today, member.id)),

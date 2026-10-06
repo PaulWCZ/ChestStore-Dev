@@ -99,12 +99,19 @@ test("20,000 items: the overview, the list, a person holding 700, the inventory 
   await sql`insert into inventories (started_by) values (${camille.id})`;
   await sql`insert into sightings (inventory_id, item_id, seen_by) select (select id from inventories where closed_at is null), id, ${camille.id} from items where tag like 'S-%' and substring(tag from 3)::int <= 3000`;
   const sizes: Record<string, number> = {};
+  const props: Record<string, number> = {};
   for (const path of ["/chest", "/chest/items", "/chest/inventory", "/chest/inventory?q=Scale&page=40", `/chest/people/${hugo.id}`]) {
     const started = performance.now();
     const response = await get(path);
     const body = await response.text();
     assert.equal(response.status, 200, path);
     sizes[path] = body.length;
+    // Each island's props (what the browser parses again): under the
+    // package's 256 KB warning.
+    const islands = [...body.matchAll(/data-island="(\w+)"[^>]*data-props="([^"]*)"/gu)];
+    assert.ok(islands.length >= 2, `${path}: islands read`);
+    for (const m of islands) assert.ok(m[2]!.length < 256_000, `${path}: ${m[1]} props ${m[2]!.length} bytes`);
+    props[path] = Math.max(...islands.map(m => m[2]!.length));
     assert.ok(body.length < 700_000, `${path}: ${body.length} bytes`);
     assert.ok(performance.now() - started < 5_000, `${path}: ${Math.round(performance.now() - started)} ms`);
   }
@@ -113,7 +120,7 @@ test("20,000 items: the overview, the list, a person holding 700, the inventory 
   assert.ok(labels.length < 1_500_000, `labels: ${labels.length} bytes`);
   const inventory = await (await get("/chest/inventory")).text();
   assert.match(inventory, /3[ ,. ]?000 of 20[ ,. ]?000 seen/u);
-  console.log(`scale: pages ${JSON.stringify(sizes)}, peak ${(peak() / 2 ** 20).toFixed(1)} MiB`);
+  console.log(`scale: pages ${JSON.stringify(sizes)}, largest island props ${JSON.stringify(props)}, peak ${(peak() / 2 ** 20).toFixed(1)} MiB`);
   assert.ok(peak() < memoryLimit, `peak ${(peak() / 2 ** 20).toFixed(1)} MiB; pages ${JSON.stringify(sizes)}`);
 });
 

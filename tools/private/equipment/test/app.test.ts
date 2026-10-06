@@ -58,9 +58,11 @@ test("a manager's first page: their language, the policy, no inline script or st
   const sheet = await get(camille, /href="(\/chest\/look\.css\?v=[^"]+)"/u.exec(page)![1]!);
   assert.equal(sheet.status, 200);
   assert.match(await sheet.text(), /\/assets\/fonts\/ibm-plex-sans-latin-wght-normal\.woff2/u);
-  // The files it names are the tool's own, under /assets/ (served from
-  // the browser's build: npm run build; the flow loads them).
-  assert.ok(existsSync("public/assets/icon.svg") && existsSync("public/assets/fonts/ibm-plex-sans-latin-wght-normal.woff2"));
+  // The files it names are the tool's own, under /assets/ (npm test
+  // builds the browser's files too).
+  assert.ok(existsSync("public/assets/icon.svg"));
+  assert.equal((await get(null, "/assets/icon.svg")).status, 200);
+  assert.equal((await get(null, "/assets/fonts/ibm-plex-sans-latin-wght-normal.woff2")).status, 200);
 });
 
 test("items made by an action; refusals are a code and the reader's words", async () => {
@@ -100,7 +102,7 @@ test("give and take back from the item's page: the island's actions, the history
   assert.equal((await call(sofia, "giveItem", { id: mac, to: { member: hugo.id }, from: { member: ines.id }, note: "Like new" })).ok, true);
   const page = await html(sofia, `/chest/items/${mac}`);
   assert.match(page, /data-island="ItemControls"/u);
-  assert.match(page, new RegExp(`id="i-item-${mac}"`, "u"));
+  assert.match(page, new RegExp(`id="island-item-${mac}"`, "u"));
   assert.match(page, /Hugo Bernard/u);
   assert.match(page, /Like new/u);
   // The label's QR code opens the item's page on the Chest's team host.

@@ -459,17 +459,20 @@ browser — the studio's starter, its machinery the vendored package
   the inventory page 473 KB, a person's 541 KB, the import's preview
   answer 81 KB.
 
-Measured with `lab/measure` (2026-10-06, Node 24.21, this machine; method in
-its README; before = Next.js 16.3.6):
+Measured with `lab/measure` (2026-10-06 06:54 UTC, Node 24.21, this
+machine, 4 CPUs; method in its README; before = Next.js 16.3.6, measured
+2026-10-05). Other agents' builds ran beside it: load average 6.6 (1 min)
+at the start, 1.3 at the end — at rest, the tool's numbers moved by about
+3 MiB between the five rests:
 
 | | Next.js | Hono + islands |
 |---|--:|--:|
-| PSS at rest (MiB) | 126.2 | 66.8 |
-| Peak PSS (MiB) | 162.4 | 75.4 |
-| First 200 after start (ms) | 942 | 584 |
+| PSS at rest (MiB, median of 5 rests of 30 s) | 126.2 | 69.4 (67.6–70.4) |
+| Peak PSS (MiB) | 162.4 | 76.9 |
+| First 200 after start (ms, median of 10) | 942 | 434 |
 | Image (MiB) | 459 | 30 |
-| Build peak PSS (MiB) | 1011 | 314 |
-| `npm ci` in 512 MiB, 1 CPU | killed | 4.0 s |
+| Build peak PSS (MiB) | 1011 | 274 |
+| `npm ci` in 512 MiB, 1 CPU | killed | fits |
 
 ## Develop
 
