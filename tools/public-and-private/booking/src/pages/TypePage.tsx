@@ -7,7 +7,6 @@ import { format, listFormat, plural, localeOf } from "../i18n/index.ts";
 import { firstFree, publicType, settings, teamOf } from "../lib/booking.ts";
 import { calendarLimits, refreshDue } from "../lib/calendars.ts";
 import { db } from "../lib/db.ts";
-import { formToken } from "../lib/guard.ts";
 import { mailState } from "../lib/mailer.ts";
 import { people } from "../lib/people.ts";
 import { hostWords } from "../lib/session.ts";
@@ -58,7 +57,7 @@ export async function typePage({ locale: wanted, param }: PageContext<VisitorCon
           </aside>
           <section className="sheet-when" aria-labelledby="when">
             <h2 id="when">{t.public.pickTime}</h2>
-            <Island name="BookTime" props={{ hostSlug: host.slug, typeSlug: type.slug, hostName: person.firstName || person.name, hostZone: host.zone, first, locale, zones: zoneGroups(t.zones, Date.now(), [host.zone]), phone: type.locationKind === "phone", company: s.companyName, started: formToken(), questions: type.questions, mailing: mailing === "ready", t: { public: t.public, days: t.days, errors: t.errors, answers: t.answers } }} />
+            <Island name="BookTime" props={{ hostSlug: host.slug, typeSlug: type.slug, hostName: person.firstName || person.name, hostZone: host.zone, first, locale, zones: zoneGroups(t.zones, Date.now(), [host.zone]), phone: type.locationKind === "phone", company: s.companyName, questions: type.questions, mailing: mailing === "ready", t: { public: t.public, days: t.days, errors: t.errors, answers: t.answers } }} />
           </section>
         </div>
       </PublicShell>

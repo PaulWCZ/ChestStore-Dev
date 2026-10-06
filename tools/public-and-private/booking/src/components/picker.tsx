@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
-import { call, send } from "@argentic/chest-app/client";
+import { call, Honeypot, send } from "@argentic/chest-app/client";
 import type { ErrorCode } from "@argentic/chest-app";
 import { clock as clockIn, dayWords, firstUpper, format } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
@@ -28,7 +28,6 @@ type Props = {
   typeSlug?: string;
   phone?: boolean;
   company?: string;
-  started?: string;
   // The host's own questions on the form.
   questions?: Question[];
   // Whether the Chest would email the confirmation now (mail.available):
@@ -50,7 +49,7 @@ const mondayOf = (date: string) => addDays(date, -((weekdayOf(date) + 6) % 7));
 // Picking a time: the coming weeks with the days that have free times, the
 // day's times in the visitor's time zone (they can change it), then the few
 // fields of the booking — or, when moving a booking, one button.
-export function Picker({ hostSlug = "", typeSlug = "", hostName, hostZone, first, locale, zones, phone = false, company = "", started = "", questions = [], mailing = true, t, move, source, chosen }: Props) {
+export function Picker({ hostSlug = "", typeSlug = "", hostName, hostZone, first, locale, zones, phone = false, company = "", questions = [], mailing = true, t, move, source, chosen }: Props) {
   const p = t.public;
   const [zone, setZone] = useState(move?.zone ?? hostZone);
   useEffect(() => {
@@ -210,7 +209,7 @@ export function Picker({ hostSlug = "", typeSlug = "", hostName, hostZone, first
       ) : null}
       {notice && <p className="error" role="alert"><Alert />{notice}</p>}
       {time && chosen && chosen(time, when, zone, () => { setTime(null); void load(from, true); })}
-      {time && !move && !chosen && <GuestForm hostSlug={hostSlug} typeSlug={typeSlug} start={time} zone={zone} when={when} hostName={hostName} phone={phone} company={company} started={started} questions={questions} mailing={mailing} t={t} onChange={() => setTime(null)} onError={retake} />}
+      {time && !move && !chosen && <GuestForm hostSlug={hostSlug} typeSlug={typeSlug} start={time} zone={zone} when={when} hostName={hostName} phone={phone} company={company} questions={questions} mailing={mailing} t={t} onChange={() => setTime(null)} onError={retake} />}
       {time && move && <MoveButton secret={move.secret} start={time} when={when} t={t} onError={retake} />}
     </div>
   );
@@ -223,8 +222,8 @@ export const When = ({ when }: { when: string }) => <span className="tag free wh
 // action bookTime (src/actions.ts) as the form's fields; once booked, the
 // guest's page opens (the action answers its address). What was typed
 // stays when a refusal comes back.
-function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, company, started, questions, mailing, t, onChange, onError }: {
-  hostSlug: string; typeSlug: string; start: string; zone: string; when: string; hostName: string; phone: boolean; company: string; started: string; questions: Question[]; mailing: boolean; t: PickerWords; onChange: () => void; onError: (code: ErrorCode | null) => void;
+function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, company, questions, mailing, t, onChange, onError }: {
+  hostSlug: string; typeSlug: string; start: string; zone: string; when: string; hostName: string; phone: boolean; company: string; questions: Question[]; mailing: boolean; t: PickerWords; onChange: () => void; onError: (code: ErrorCode | null) => void;
 }) {
   const p = t.public;
   const [pending, setPending] = useState(false);
@@ -249,8 +248,8 @@ function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, com
       <input type="hidden" name="type" value={typeSlug} />
       <input type="hidden" name="start" value={start} />
       <input type="hidden" name="zone" value={zone} />
-      <input type="hidden" name="started" value={started} />
-      <div className="honey" aria-hidden="true"><label htmlFor="website">{p.website}</label><input id="website" name="website" tabIndex={-1} autoComplete="off" /></div>
+      {/* The package's form token and the field only robots fill. */}
+      <Honeypot />
       <div><label className="label" htmlFor="name">{p.name}</label><input id="name" name="name" className="field" autoComplete="name" maxLength={120} required autoFocus /></div>
       <div><label className="label" htmlFor="email">{p.email}</label><input id="email" name="email" type="email" className="field" autoComplete="email" maxLength={254} required aria-describedby="email-hint" /><p id="email-hint" className="hint">{mailing ? p.emailHint : p.emailHintNoMail}</p></div>
       {phone && <div><label className="label" htmlFor="phone">{p.phone}</label><input id="phone" name="phone" type="tel" className="field" autoComplete="tel" maxLength={40} required aria-describedby="phone-hint" /><p id="phone-hint" className="hint">{format(p.phoneHint, { name: hostName })}</p></div>}
