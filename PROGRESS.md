@@ -28,7 +28,7 @@ builds, checks and measurements (the shell default stays Node 22).
 | 1b | The studio starter `starter/` + `reports/06-perseus-starter.md` with measurements | v2 merged: machinery is now the package `app/` (`@argentic/chest-app` 0.1.0-studio.1, `scripts/add-app.mjs`), tests on a real PostgreSQL (PGlite 1.2 GiB is a last resort). Review 1 and 2 done; **v3 under way** (review 2 blockers: redirect via `/..//`, `npm test` under `NODE_ENV=development`) |
 | 1c | `lab/measure/` bench; `before-next16` numbers for the 18 tools; `lab/chest-dev` on contract 0.4 (two hosts, routing, schedules, sleep, logs) | agent running (`wt/bench`) |
 | 2 | Pilot migrations onto the starter (Polls, Tasks), critical review, starter v2 | **Polls done**: on the package, reviewed (good, fixed: groups cache, no secret links in logs); 103 tests PGlite + PG, chest check OK, flow + audit 0; PSS at rest 131.9 → 64.7 MiB, first 200 764 → 375 ms, image 458 → 29 MiB, `npm ci` now fits 512 MiB. Tasks pilot running |
-| 3 | The 16 other tools, 3 at a time, each reviewed until excellent | running: News, Booking, Status |
+| 3 | The 16 other tools, 3 at a time, each reviewed until excellent | merged: News (review: good, fixes running), Tasks (review: good, fixes running — drag blank-out, panel state, quick-add order), Booking (review running), Support (review running); migrating: Status, Wiki, Leave. Package studio.3 under way (compression, link navigation, DB in the Chest's zone, money/text, recipes, streaming, per-response CSP) |
 | 4 | Before/after measured together in a quiet window; reports; critique verdicts (custom domains) | — |
 
 Findings so far (for the SDK report): `chest check` archives the whole Git
