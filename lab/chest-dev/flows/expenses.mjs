@@ -286,6 +286,19 @@ await step("Tom's account is British: his postal address, then the company's, ar
   expect((await page.locator("#bank").innerText()).includes("8 rue de la Roquette, 75011 Paris, France"), "the company's address kept: " + (await page.locator("#bank").innerText()));
 });
 
+await step("Tom's account, entered by Camille, waits for his word before a file pays into it; he confirms it", async () => {
+  await page.goto(origin + "/chest/pay");
+  const tom = await page.locator("section.paper", { hasText: "Tom Walker" }).innerText();
+  expect(/Saisies par Camille Martin .*hors du fichier de virement tant que Tom Walker ne les a pas confirmées/u.test(tom), "held, and why: " + tom);
+  expect(await page.locator("section.by-file").getByRole("button", { name: /^Créer le fichier/u }).count() === 0, "nobody payable by file yet");
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/settings");
+  expect(/Camille Martin entered these bank details/u.test(await page.locator("#bank").innerText()), "Tom is asked");
+  await page.getByRole("button", { name: "These are mine" }).click();
+  await page.waitForSelector("text=Confirmed: the next transfer file pays you here.");
+  await as(context, origin, "camille");
+});
+
 await step("Camille pays the others by one transfer file (SEPA), then enters Léa's bank details", async () => {
   await page.goto(origin + "/chest/pay");
   const panel = page.locator("section.by-file");
