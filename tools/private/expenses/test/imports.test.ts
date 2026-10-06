@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError, type ErrorCode } from "../lib/app-error.ts";
-import { detectSeparator, guessDateOrder, guessMapping, importFields, parseCsv, readDate } from "../lib/csv-read.ts";
-import * as expenses from "../lib/expenses.ts";
-import { importExpenses } from "../lib/imports.ts";
+import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
+import { detectSeparator, guessDateOrder, guessMapping, importFields, parseCsv, readDate } from "../src/shared/csv-read.ts";
+import * as expenses from "../src/lib/expenses.ts";
+import { importExpenses } from "../src/lib/imports.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
@@ -20,7 +20,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
 });
 after(async () => {
   await chest.close();

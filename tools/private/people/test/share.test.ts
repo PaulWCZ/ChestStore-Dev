@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as j from "../lib/journeys.ts";
-import * as share from "../lib/share.ts";
+import * as j from "../src/lib/journeys.ts";
+import * as share from "../src/lib/share.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, lea } from "./support/members.ts";
@@ -14,7 +14,7 @@ let chest: FakeChest;
 before(async () => {
   process.env["CHEST_TOOL"] = "people";
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, emits: ["people.leaving", "people.leaving_cancelled"], receivers: 1 });
+  chest = await fakeChest({ network: {}, members: everyone, emits: ["people.leaving", "people.leaving_cancelled"], receivers: 1 });
 });
 after(async () => {
   await chest.close();
@@ -60,7 +60,7 @@ test("a welcome checklist tells nothing; without events between tools, nothing b
   const count = chest.published.length;
   await start(lea.id, t.id, "2026-10-12");
   assert.equal(chest.published.length, count);
-  const bare = await fakeChest({ members: everyone });
+  const bare = await fakeChest({ network: {}, members: everyone });
   try {
     const off = await j.createTemplate(sql, hr, { kind: "offboarding", name: "Leaving 2" });
     await j.addTemplateItem(sql, hr, off.id, { text: "Badge", role: "hr", offset: 0 });
