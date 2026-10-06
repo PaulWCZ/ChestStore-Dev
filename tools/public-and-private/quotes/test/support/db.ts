@@ -17,9 +17,16 @@ export type TestDatabase = { sql: Sql; url: string; close(): Promise<void> };
 
 let opened = 0;
 export async function testDatabase(): Promise<TestDatabase> {
+  const first = opened++ === 0;
+  // A second database on PGlite: the first one's address has the shape of
+  // a preview's (t_test), which the package would take for one and fill
+  // with a schema; it is set aside while the second is made, then given
+  // back (db() stays on the first).
+  const previous = process.env["DATABASE_URL"];
+  if (!first) delete process.env["DATABASE_URL"];
   const made = await packageDatabase();
   const url = process.env["DATABASE_URL"] ?? "";
-  const first = opened++ === 0;
+  if (!first && previous) process.env["DATABASE_URL"] = previous;
   const zone = process.env["CHEST_TIME_ZONE"];
   const sql = first ? db() : (postgres(url, { max: 1, ...connectionOptions, ...(zone ? { connection: { TimeZone: zone } } : {}) }) as unknown as Sql);
   return {

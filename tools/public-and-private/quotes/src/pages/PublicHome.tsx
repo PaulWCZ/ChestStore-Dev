@@ -12,7 +12,6 @@ export async function publicHome({ t }: PageContext<VisitorContext>): Promise<Vi
   return {
     title: name,
     exactTitle: true,
-    head: <meta name="robots" content="noindex, nofollow" />,
     layout: { company: name },
     body: (
       <div className="answer-state off">

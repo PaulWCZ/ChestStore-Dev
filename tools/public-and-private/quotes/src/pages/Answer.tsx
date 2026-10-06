@@ -29,9 +29,9 @@ export async function answerPage(ctx: PageContext<VisitorContext>): Promise<View
   const opened = await openLink(sql, secret, today);
   const companyName = opened?.full.seller ? opened.full.seller.tradeName || opened.full.seller.legalName : goesBy(await company(sql));
   const o = t.online;
-  // No search engine, and no referrer to another site (the address holds
-  // the secret).
-  const head = <><meta name="robots" content="noindex, nofollow" /><meta name="referrer" content="same-origin" /></>;
+  // No referrer to another site (the address holds the secret; no search
+  // engine indexes any page: createApp's head).
+  const head = <meta name="referrer" content="same-origin" />;
   const view = (title: string, body: ReactNode): View => ({ title, body, head, layout: { company: companyName } });
   const notice = (title: string, body: string, more?: ReactNode) => view(title, (
     <div className="answer-state off">
