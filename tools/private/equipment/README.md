@@ -122,7 +122,7 @@ people. French name: **Matériel**.
 - **QR labels**: an A4 sheet of 3 × 7 labels (63.5 × 38.1 mm, the common
   sticker sheets), printed from the browser, each with the company's name,
   the tag, the item's name and a QR code of the item's page. The QR codes
-  are drawn by the tool's own encoder (`lib/qr.ts`), no network.
+  are drawn by the tool's own encoder (`src/shared/qr.ts`), no network.
 - **The overview on a phone**: each long section of "Needs your attention"
   shows its first three lines and *See 6 more* (the browser's own
   disclosure: no script); the stock tiles and the page's buttons are
@@ -248,7 +248,7 @@ tools"; its `lib/returns.ts` reads it):
   transaction commits, writes the word in the same transaction as the
   take-back — several things at once make one word, a change undone in the
   same transaction none. It is published right after the manager's action
-  (`lib/returned.ts`), and again by the `returns` schedule (every quarter
+  (`src/lib/returned.ts`), and again by the `returns` schedule (every quarter
   of an hour) while the Chest cannot take it; checked again as it leaves
   (something given back since, a departure cancelled in People or an
   erasure: dropped). Told a day ago, it is forgotten; refused for a week,
@@ -310,12 +310,12 @@ the first role, `manager`.
 | `/chest/items` (`?q=&category=&status=&holder=&sort=`) | everyone with a role | the list |
 | `/chest/items/new`, `/chest/items/<id>/edit` | managers | the form |
 | `/chest/items/<id>` | everyone with a role | full page (managers) or short view (members) |
-| `/chest/items/<id>/photo` | GET: who sees the item; POST/PUT/DELETE: managers | the photo (a signed link; upload grant and record) |
+| `/chest/items/<id>/photo` | who sees the item | the photo: a fresh link signed by the Chest (uploads: the actions `uploadPhoto`, `savePhoto`, `removePhoto`, managers) |
 | `/chest/people`, `/chest/people/<id or erased>` | managers | who holds what; a person's equipment |
 | `/chest/people/<id>/handover` (`?items=`) | managers, and the person themself | the printable handover sheet |
 | `/chest/people/<id>/return` | managers | the printable return sheet |
 | `/chest/inventory`, `/chest/inventory/<id>` | managers | the inventory under way (or start one); a closed one's missing items |
-| `/chest/items/<id>/invoice` | managers | the purchase invoice (a signed link; upload grant and record) |
+| `/chest/items/<id>/invoice` | managers | the purchase invoice: a fresh signed link (uploads: `uploadInvoice`, `saveInvoice`, `removeInvoice`) |
 | `/chest/labels` (`?ids=` or the list's filters) | managers | printable A4 sheets |
 | `/chest/import`, `/chest/export` | managers | CSV in and out |
 | `/chest/settings` | managers | categories, their fields, the rules for company equipment |
@@ -325,8 +325,8 @@ Every managers' page asked by a member answers **403** with the kit's
 the same on each (`test/refusals.test.ts`, the browser flow); something a
 member may not see at all (someone else's item or sheet) is "not found".
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-jobs/weekly` | the Chest only (signed, proposal) | Monday's word to managers |
-| `/chest-jobs/returns` | the Chest only (signed, proposal) | `equipment.returned` told again while the Chest could not take it |
+| `/chest/actions/<name>` | members (the service checks the role) | every change, by name (`src/actions.ts`) |
+| `/chest-schedules` | the Chest only (signed, `Chest-Schedule`) | the runs of `weekly` (Monday's word to managers), `intune` (the nightly read), `returns` (`equipment.returned` told again while the Chest could not take it) |
 | `/` | anyone | "This tool lives in your Chest" |
 
 ## On a Chest
@@ -359,13 +359,14 @@ member may not see at all (someone else's item or sheet) is "not found".
 ## Needs from the SDK
 
 All in `vendor/` (the studio's working copy: SDK 0.3.0 + studio proposals
-(0.3.1-studio.1)):
+(0.4.1-studio.3)):
 
 - `member.language` (0.3.0) — the interface and the bell in each member's
   language.
 - `schedules` — the Monday "ending soon" word, the nightly Intune read,
   and `returns` (People told again what the Chest could not take yet)
-  (`chest.proposals.json`, `app/chest-jobs/[name]/route.ts`). Without it,
+  (official since 0.4: `chest.json` `schedules`, run on `POST /chest-schedules`,
+  `src/lib/deliveries.ts`). Without it,
   the overview shows the same list at any time, and Intune is read when a
   manager asks.
 - `network` and `env` (real contract) — Microsoft's two hosts and the
@@ -380,8 +381,8 @@ All in `vendor/` (the studio's working copy: SDK 0.3.0 + studio proposals
   60 days" and every day the tool writes; the database's `current_date`
   (the seed's too) is the same day, since the Chest puts the sessions in
   its zone. `chest.organization.name` (0.3.0) on the labels and sheets;
-  `chest.currency` for prices and `chest.teamUrl` for the QR codes' links
-  (studio proposals; without the latter, the host the request came to).
+  `chest.currency` for prices and `chest.tool.teamUrl` for the QR codes' links
+  (0.4; outside a Chest, the host the request came to).
 - `translations` in `chest.proposals.json` — the tile's French title.
 - **Events between tools** — receives `people.leaving`,
   `people.leaving_cancelled`; emits `equipment.returned` (see "With the
@@ -393,7 +394,7 @@ All in `vendor/` (the studio's working copy: SDK 0.3.0 + studio proposals
 - `mail` (**Proposal (studio)**, `chest.proposals.json`) — *Remind them*
   also emails the holder, through the Chest, to their address the tool
   never knows. On a Chest without mail the bell alone reminds them, and
-  nothing fails (`lib/tell.ts`, `remindReceipt`). Its key carries the
+  nothing fails (`src/lib/tell.ts`, `remindReceipt`). Its key carries the
   holder (studio.16): after a restore from a backup, an item's id can name
   another thing given to someone else.
 
@@ -405,7 +406,7 @@ department** on the handover sheet (`members` gives names only).
 ## Looks
 
 Equipment wears its own identity, **Tool crib** (steel shelves, utility
-orange tags, printed labels: `lib/theme.ts`, DESIGN.md) — or any look the
+orange tags, printed labels: `src/theme.ts`, DESIGN.md) — or any look the
 company chooses in its Chest, for all its tools or for this one: a theme
 of the store's catalogue (the seventeen tools' identities, "Chest", "High
 contrast") or **the company's own brand** (its colours, fonts, corners and
@@ -424,12 +425,48 @@ truth, dialogs that never lose what was typed, the people picker, date
 fields in the reader's language, filter chips, the file picker of the
 importer, empty states.
 
+## How it is made
+
+A Hono server that renders React pages, with a few islands in the
+browser — the studio's starter, its machinery the vendored package
+`@argentic/chest-app` (`node_modules/@argentic/chest-app/AGENTS.md`):
+
+- `src/app.tsx`: every route (pages, the photo and invoice links, the CSV
+  export, `/chest-events`, `/chest-schedules`); a managers' page asked by
+  a member answers 403 with the kit's NoAccess.
+- `src/actions.ts`: every change, by name, called from an island with
+  `call()`; the services in `src/lib/` check the role and the input.
+- `src/pages/`: the pages, rendered on the server; `src/islands/`: the 22
+  components that run in the browser (dialogs, the list's ticks, the
+  importer, the inventory's scan box…); `src/components/`: shared by both.
+- `src/i18n/`: every word (`en.ts`, `fr.ts`) and the formats (dates,
+  numbers, money, plurals) with kept `Intl` objects (`format.ts`).
+- The look is resolved per request (`src/theme.ts`) and served as a
+  stylesheet, `/chest/look.css`; no inline script or style anywhere.
+- The CSV export is written as it is read (500 items at a time); an import
+  sends the file's text (5 MB at most) to an action.
+
+Measured with `lab/measure` (2026-10-06, Node 24.21, this machine; method in
+its README; before = Next.js 16.3.6):
+
+| | Next.js | Hono + islands |
+|---|--:|--:|
+| PSS at rest (MiB) | 126.2 | 66.8 |
+| Peak PSS (MiB) | 162.4 | 75.4 |
+| First 200 after start (ms) | 942 | 584 |
+| Image (MiB) | 459 | 30 |
+| Build peak PSS (MiB) | 1011 | 314 |
+| `npm ci` in 512 MiB, 1 CPU | killed | 4.0 s |
+
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run build     # the type check, the browser's files, the server (dist/)
+npm test          # the type check, the server built into dist/test, the tests
+                  # (TEST_DATABASE_URL: a real PostgreSQL; PGlite otherwise)
+npm start         # the built server, as the Chest runs it
+npm run dev       # rebuilds on every change, restarts the server
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/equipment --reset
@@ -440,7 +477,8 @@ the harness with `INTUNE_TENANT_ID`, `INTUNE_CLIENT_ID` and
 `INTUNE_CLIENT_ID` set, to walk *Read Intune*'s failure path — the harness
 does not reach Microsoft),
 `node lab/chest-dev/screens.mjs tools/private/equipment --port 5400`,
-`node lab/chest-dev/audit.mjs tools/private/equipment --port 5400`.
+`node lab/chest-dev/audit.mjs tools/private/equipment --port 5400` (each on
+a fresh `--reset`: the flow changes the sample).
 
 ## What it does not do (yet)
 

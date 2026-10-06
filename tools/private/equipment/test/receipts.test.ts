@@ -4,18 +4,18 @@ import { chest as chestSettings } from "@argentic/chest-sdk/chest";
 import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { initials } from "@argentic/chest-ui/components/logic";
-import { AppError } from "../lib/app-error.ts";
-import { listCategories } from "../lib/categories.ts";
-import * as items from "../lib/items.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { confirm, currentCharter, handoverSheet, leftOnOf, remind, returnSheet, setCharter } from "../lib/receipts.ts";
-import { remindReceipt } from "../lib/tell.ts";
-import { unconfirmedReceipts } from "../lib/items.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { charterText } from "../lib/words.ts";
-import { plainName } from "../lib/people.ts";
-import { POST } from "../app/chest-events/route.ts";
-import { addField } from "../lib/fields.ts";
+import { AppError } from "@argentic/chest-app";
+import { listCategories } from "../src/lib/categories.ts";
+import * as items from "../src/lib/items.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { confirm, currentCharter, handoverSheet, leftOnOf, remind, returnSheet, setCharter } from "../src/lib/receipts.ts";
+import { remindReceipt } from "../src/lib/tell.ts";
+import { unconfirmedReceipts } from "../src/lib/items.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { charterText } from "../src/shared/words.ts";
+import { plainName } from "../src/lib/people.ts";
+import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
+import { addField } from "../src/lib/fields.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, sofia } from "./support/members.ts";
@@ -25,7 +25,7 @@ let chest: FakeChest;
 let laptops: string, phones: string;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
   const cats = await listCategories(database.sql, asMember(camille));
   laptops = cats.find(c => c.key === "laptop")!.id;
   phones = cats.find(c => c.key === "phone")!.id;
@@ -192,7 +192,7 @@ test("a reminder by email carries its recipient in its key (studio.16): an item'
   await items.give(sql, M, phone.id, { to: { member: hugo.id } });
   const r = await remind(sql, M, phone.id);
   await chest.close();
-  chest = await fakeChest({ members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: [] }, chest: { timeZone: "Pacific/Kiritimati" } });
+  chest = await fakeChest({ network: {}, members: everyone.map(m => ({ ...m, email: `${m.firstName.toLowerCase()}@atelier.test` })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: [] }, chest: { timeZone: "Pacific/Kiritimati" } });
   // The key's day is the Chest's (UTC+14 here), not UTC's.
   const chestDay = (): string => chestSettings.today();
   try {
@@ -202,7 +202,7 @@ test("a reminder by email carries its recipient in its key (studio.16): an item'
     assert.equal(sent.key, mail.idempotencyKey(`remind:${phone.id}:${hugo.id}:${r.givenOn}:${chestDay()}`));
   } finally {
     await chest.close();
-    chest = await fakeChest({ members: everyone });
+    chest = await fakeChest({ network: {}, members: everyone });
   }
 });
 
@@ -211,7 +211,7 @@ test("a sheet writes a person who left by their name, with the day they left apa
   const key = await items.createItem(sql, M, { categoryId: laptops, name: "Spare laptop" });
   await items.give(sql, M, key.id, { to: { member: sofia.id } });
   assert.equal(await leftOnOf(sql, M, sofia.id), null);
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
+  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, onEvent), 204);
   const left = await leftOnOf(sql, M, sofia.id);
   assert.ok(left instanceof Date);
   await refused(leftOnOf(sql, H, sofia.id), "not_found");
