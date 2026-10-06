@@ -595,7 +595,7 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
   | Status | 105 | no: passes as it is | — |
   | Expenses | 105 | no: passes as it is | — |
   | People | 113 | no: passes as it is | — |
-  | Booking | 113 / 116 | no | three tests to change, all from studio.4's intended rules: a refused booking no longer gives its token back (its answer brings the next), refusals are counted (`bookTime:refused`), and `checkSources` now reads a template's `${…}`: the class `past` of `picker.tsx` is in no stylesheet |
+  | Booking | 116 | yes (studio.5) | its tests follow studio.4's rules (a refusal spends the token and brings the next; refusals counted apart); its per-link cap is the package's `perSubject` (20 changes a day per guest's link) in place of its own hourly counter; the class `past` that `checkSources` found unstyled now has a style (a day gone by: normal weight, quieter than a closed day ahead). Its browser flow passes without `--visitor-address` |
 
   "Passes as it is": a copy of the tool with the studio.4 pack in place
   of its own, nothing else changed; re-vendoring is `node
