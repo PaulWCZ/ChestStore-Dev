@@ -379,7 +379,7 @@ before opening a pull request.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the guide of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.6**: 0.4.1 unchanged,
+0.4.1, word for word. This package is **0.4.1-studio.7**: 0.4.1 unchanged,
 plus the studio's proposals — primitives the store's tools need that no
 Chest gives yet, in files of their own (`client/studio/`). `README.md`,
 "Studio proposals", is their reference; this is the short path.
@@ -442,8 +442,12 @@ uploads served by the fake on its own origin, `FileObject.sha256`.
 - **A member's `groups` are those that give the tool** (0.4.1) — every
   group they are in with the capability `members.groups` (the 0.5 name;
   `chest.proposals.json` `"capabilities": ["members.groups"]` until then).
-  No fixed cap on members or groups; 0.4.1's `member()` still reads 16
-  groups at most (lifted by 0.5).
+  No fixed cap on members or groups (studio.7): the studio's `member()` and
+  `members.*` read a member in any number of groups and a group of any
+  size (0.4.1's refused 17 groups and 129 members), bounded only by size —
+  an assertion of `maxAssertionLength` (16,384) characters, about 300
+  groups; an answer of 4 MiB. Import `member` from
+  `@argentic/chest-sdk/member` (or the root), never from a copy of 0.4.1.
 - **Idempotency keys are whole.** Give `mail.send`, `events.publish` and
   `webhooks.send` the whole key (up to 512 characters), with the recipient
   in it; never cut one — the SDK sends a long key as its SHA-256.
@@ -469,6 +473,7 @@ uploads served by the fake on its own origin, `FileObject.sha256`.
 | An event told late is counted on the wrong day by its receiver | Publish it with `events.publish(type, data, { key, occurredAt })`: the time it happened, stored with what waits, within the last 24 hours. |
 | A fetch() to a declared host fails in a test | Give it a handler: `fakeChest({ network: { "graph.microsoft.com": request => Response.json(…) } })`; in a Chest, Node 24.5+ follows the proxy (`NODE_USE_ENV_PROXY=1`), and only `fetch`/`node:http(s)` do. |
 | An upload in a test answers 400 `type_mismatch` | 0.4.1's fake checks the first bytes of JPEG, PNG, GIF, WebP and PDF uploads: send real ones (`%PDF-…`, `\x89PNG…`). |
+| `member(request)` is `null` for a member in many groups (the tool shows "Sign in"), or `members.*` throws `Unavailable` for a big group | An SDK older than studio.7 (0.4.1's counts: 16 groups a member, 128 members a group): re-vendor (`node scripts/add-sdk.mjs <tool>`, `npm install`). Beyond about 300 groups the assertion exceeds `maxAssertionLength` and is refused by size: SDK report. |
 | A member is in a group but `who.groups` does not have it | The group does not give the tool: declare `"capabilities": ["members.groups"]` in `chest.proposals.json` (`groups.of` and `"groups": "read"` are gone since studio.5). |
 | `ChestError` `invalid_recipient` from `mail.send` | A member (`{member}` or `mbr_…`) as a recipient: tell them with `notifications.notify` instead. |
 | `ChestError` `invalid_message` "unknown field" from `mail.send` | `mailbox`, `thread`, `inReplyTo`, `references` or `transactional`: gone since studio.5 (the Chest receives no mail; members get notifications). |

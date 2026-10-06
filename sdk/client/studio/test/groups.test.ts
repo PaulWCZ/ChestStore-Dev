@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CapabilityNotGranted } from "../../src/errors.js";
 import * as events from "../events.js";
+import { member as officialMember } from "../../src/member.js";
 import { member, type Member } from "../member.js";
 import * as members from "../members.js";
 import { fakeChest, withMember } from "../testing.js";
@@ -60,7 +61,7 @@ test("with \"members.groups\" (the 0.5 names): member.groups and members.*.group
   }
 });
 
-test("no fixed cap on groups: groups.all() lists 600 groups; 0.4.1's member() still reads 16 groups at most (official code, lifted in 0.5)", async () => {
+test("no fixed cap on groups: groups.all() lists 600 groups, and member() reads a member in 17 of them (0.4.1's refuses more than 16)", async () => {
   const letters = "abcdefghijklmnopqrstuvwxyz";
   const many = Array.from({ length: 600 }, (_, i) => ({ id: gid("m" + letters[i % 26]! + letters[Math.floor(i / 26) % 26]!), name: `Team ${String(i).padStart(3, "0")}`, members: [ines.id], grants: false }));
   const chest = await fakeChest({ members: [ines], groups: many, capabilities: ["members", "members.groups"] });
@@ -70,7 +71,8 @@ test("no fixed cap on groups: groups.all() lists 600 groups; 0.4.1's member() st
     assert.equal(all[0]?.name, "Team 000");
     const groupsOf = (n: number) => many.slice(0, n).map(g => g.id);
     assert.equal(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(16))))?.groups.length, 16);
-    assert.equal(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(17)))), null, "0.4.1's member() refuses more than 16 groups: reported in the SDK report");
+    assert.deepEqual(member(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(17))))?.groups, groupsOf(17), "studio.7: no count of groups");
+    assert.equal(officialMember(withMember(new Request("http://tool.test/chest"), person("many", groupsOf(17)))), null, "0.4.1's own member() refuses more than 16 groups (official code, lifted in 0.5)");
   } finally {
     await chest.close();
   }

@@ -18,14 +18,18 @@ import { fakeChest } from "../testing.js";
 
 // How the studio's modules sit on 0.4.1's: every official name is the
 // official value, and what the studio defines again (events.handle,
-// members.groups, notifications.notify) hands 0.4.1's part to 0.4.1's code.
+// notifications.notify) hands 0.4.1's part to 0.4.1's code; member() and
+// members.list/get/lookup/groups.list read as 0.4.1's without a count of
+// groups (studio.7).
 
 const camille: Member = { id: "mbr_" + "camille".padEnd(26, "a"), firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "Europe/Paris" };
 
 test("every name of 0.4.1's modules is, through the studio's, the very same value", () => {
   const pairs: [string, Record<string, unknown>, Record<string, unknown>, string[]][] = [
     ["files", officialFiles, files, []],
-    ["members", officialMembers, members, ["groups"]],
+    // studio.7: list, get, lookup, forget and groups read any number of
+    // groups (member-groups.test.ts checks they read the rest as 0.4.1's).
+    ["members", officialMembers, members, ["groups", "list", "get", "lookup", "forget"]],
     ["notifications", officialNotifications, notifications, ["notify"]],
     ["events", officialEvents, events, ["handle"]],
   ];
@@ -35,7 +39,7 @@ test("every name of 0.4.1's modules is, through the studio's, the very same valu
       assert.equal(studio[key], value, `${name}.${key}`);
     }
   }
-  assert.equal(members.groups.list, officialMembers.groups.list, "members.groups.list is 0.4.1's");
+  assert.deepEqual(Object.keys(members).filter(k => k in officialMembers).sort(), Object.keys(officialMembers).sort(), "every name of 0.4.1's members is there");
 });
 
 test("events.handle hands a member event to 0.4.1's handle: its status, its seen, from a Web or a Node request", async () => {

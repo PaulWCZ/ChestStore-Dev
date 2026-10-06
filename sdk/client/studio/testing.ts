@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { isIP, type AddressInfo } from "node:net";
 import { groupIdPattern, member as memberOf, memberIdPattern, type Member } from "../src/member.js";
-import { forget } from "../src/members.js";
+import { forget } from "./members.js";
 import { eventChannel, sign } from "../src/signed.js";
 import { fakeChest as officialFakeChest, signAssertion as officialSignAssertion, withMember as officialWithMember, type AssertionOptions, type FakeChest as OfficialFakeChest, type FakeChestOptions as OfficialFakeChestOptions, type FakeEvent as OfficialFakeEvent, type FakeNotification as OfficialFakeNotification } from "../src/testing.js";
 import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calendarKeyPattern, limits as calendarLimits, type CalendarEvent, type KeptEvent } from "./calendar-rules.js";
@@ -70,7 +70,10 @@ export type StudioMember = Member;
 // "members.groups" — then every group of the Chest (and members.groups.all
 // lists them). As in 0.4.1's fake, a member's groups are their own
 // member.groups: name a membership there and in the group's members. No
-// fixed cap on members or groups.
+// fixed cap on members or groups: member(request) and members.* read a
+// member in any number of groups and a group of any size (studio.7); an
+// assertion longer than maxAssertionLength (about 300 groups) is signed as
+// given and refused by member(), as a tool's Node server would refuse it.
 export type FakeGroup = { id: string; name: string; members: string[]; grants?: boolean };
 // Someone the tool had who no longer has it: 0.4.1's, and when they left
 // the Chest (members.leftAt), for "former" and "erased".
@@ -227,7 +230,7 @@ export type FakeChest = Omit<OfficialFakeChest, "members" | "groups" | "emit" | 
   // uploadUrl's or a publicUploadUrl's answer: a PUT of data, of that type.
   upload(url: string, data: Uint8Array | string, type: string): Promise<Response>;
   // Forgets what this process keeps of the Chest's answers — lookup's
-  // minute (0.4.1's forget) and the theme — after a test changed
+  // minute (the studio's forget, 0.4.1's with it) and the theme — after a test changed
   // chest.members, chest.former or chest.theme by hand.
   clearCaches(): void;
   // Events between tools: the events the tool published (occurredAt: the
@@ -1423,6 +1426,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     writeTools();
   };
   writeTools();
+  forget();
   forgetTheme();
   chest.clearCaches = () => {
     forget();
@@ -1484,6 +1488,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
+    forget();
     forgetTheme();
   };
   return chest;

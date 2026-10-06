@@ -13,7 +13,10 @@ const base = { firstName: "Léa", lastName: "Roy", name: "Léa Roy", photo: null
 test("the studio's member module is 0.4.1's: the same values, and the assertion its claims only", async () => {
   const official = await import("../../src/member.js");
   const studio = await import("../member.js");
-  for (const [name, value] of Object.entries(official)) assert.equal((studio as Record<string, unknown>)[name], value, name);
+  // member() is the studio's (studio.7: any number of groups,
+  // member-groups.test.ts); every other name is 0.4.1's value.
+  for (const [name, value] of Object.entries(official)) if (name !== "member") assert.equal((studio as Record<string, unknown>)[name], value, name);
+  assert.notEqual(studio.member, official.member);
   const lea = { ...base, id: "mbr_" + "lea".padEnd(26, "a") };
   const fake = await fakeChest({ members: [lea], capabilities: ["members"] });
   try {

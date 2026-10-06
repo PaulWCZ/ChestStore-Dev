@@ -39,7 +39,7 @@ const official = {
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
 const studio = {
-  member: ["localeOf", "locales"],
+  member: ["localeOf", "locales", "maxAssertionLength"],
   chest: ["forgetTheme", "readThemeChoice", "readToolUrls", "themeIdPattern", "toolNamePattern"],
   files: ["claim", "publicLimits", "publicPath", "publicUploadUrl"],
   members: ["leftAt", "matchEmails", "matchLimits"],

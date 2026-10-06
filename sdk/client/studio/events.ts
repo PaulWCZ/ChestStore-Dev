@@ -3,7 +3,7 @@ import { ask, json as readJson, refusal } from "../src/api.js";
 import { CapabilityNotGranted, ChestError, Unavailable } from "../src/errors.js";
 import { handle as officialHandle, type Handlers as OfficialHandlers } from "../src/events.js";
 import { groupIdPattern } from "../src/member.js";
-import { forget } from "../src/members.js";
+import { forget } from "./members.js";
 import { delivery, eventChannel, headerValue, instant, json, memorySeen, object, type Seen } from "../src/signed.js";
 import { idempotencyKey } from "./keys.js";
 
@@ -102,7 +102,9 @@ export async function handle(request: IncomingMessage | Request, handlers: Handl
   const seen = options.seen ?? remembered;
   if (got.kind === "official") {
     // The body is read: 0.4.1's handle receives the same delivery again,
-    // its signature and body as they came.
+    // its signature and body as they came. It forgets what 0.4.1's lookup
+    // kept; the studio's lookup (members.ts) keeps its own: forgotten too.
+    forget();
     const again = new Request("http://tool.invalid/chest-events", { method: "POST", headers: { "Content-Type": "application/json", "Chest-Event": got.signature }, body: new Uint8Array(got.body) });
     return officialHandle(again, handlers, { seen });
   }

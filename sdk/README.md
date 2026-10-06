@@ -909,7 +909,7 @@ MIT (`LICENSE`), © 2026 Argentic.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the README of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.6**: that release,
+0.4.1, word for word. This package is **0.4.1-studio.7**: that release,
 unchanged, plus the studio's proposals — what the store's tools needed that
 0.4.1 does not give. Each is designed as it would ship: a module or an
 export, its route on the Chest's API, a fake in `testing`, its tests. On a
@@ -918,7 +918,15 @@ real Chest these routes do not exist yet: a call throws
 the tool's own look), and the tool stays useful without them. Nothing here
 is published.
 
-Studio versions: **studio.6** — studio.5 with its refusals tightened, no
+Studio versions: **studio.7** — a member in any number of groups signs
+in: the studio's `member(request)` and `members.list`/`get`/`lookup`/
+`groups.list` read the Chest's assertion and answers as 0.4.1's do, without
+0.4.1's counts (16 groups a member, 16 groups in `groups.list()`, 128
+members a group), which locked out of every tool with `members.groups` a
+member in 17 groups; an assertion is bounded by size instead
+(`maxAssertionLength`, 16,384 characters, about 300 groups), an answer by
+the SDK's 4 MiB (see "`members.groups`"). No other name or signature
+changed; tools re-vendor. **studio.6** — studio.5 with its refusals tightened, no
 name or signature changed: `mail.send` refuses any control character (not
 only CR/LF) in a subject, `fromName` and an attachment's name and type,
 malformed attachments, and `MBR_…` in any case as a member; the fake Chest
@@ -959,8 +967,9 @@ proposals on 0.4.1.
   name is the official value (a test checks it) **except** these, defined
   again: `chest` (a new object whose `organization`, `timeZone`,
   `language`, `currency`, `tool` and `today` are getters of 0.4.1's own,
-  read at every access); `members.groups` (a new object; its `list` is
-  0.4.1's function); `notifications.notify` and the type
+  read at every access); `member` and `members.list`, `get`, `lookup`,
+  `forget` and `groups` (studio.7: 0.4.1's code without its counts of
+  groups — below; `forget` empties 0.4.1's cache too); `notifications.notify` and the type
   `notifications.Notice` (a notice's `translations`; without them, 0.4.1's
   `notify` itself is called); `events.handle` and the type `events.Handlers`;
   `testing`'s `fakeChest`, `signAssertion`, `withMember` and the types
@@ -979,8 +988,11 @@ proposals on 0.4.1.
   `events.handle` (a member event goes to 0.4.1's `handle`, unchanged; an
   event of another tool or of the Chest's groups to the studio's handlers;
   its type `events.Handlers` is 0.4.1's with the group events added) and
-  `members.groups` (its `list` is 0.4.1's function; `all` is the
-  proposal's). `chest` is a new object whose official members
+  `members.groups` (`all` is the proposal's). `member()` and
+  `members.list`/`get`/`lookup`/`groups.list` are 0.4.1's code read without
+  its counts of groups (studio.7): every assertion and answer 0.4.1 reads
+  reads the same (a test compares them on the Chest's own vector and on
+  malformed ones). `chest` is a new object whose official members
   are getters of 0.4.1's (`chest.currency === official chest.currency` at
   every read) beside the studio's.
 - **The fake Chest is 0.4.1's, with the studio's in front.** `fakeChest`
@@ -1141,12 +1153,30 @@ await members.groups.list();                       // 0.4.1's: the groups that g
 - **Who is in a group** is said among the members who **have the tool**: a
   member without access stays unknown, as everywhere (`size` counts them
   the same way).
-- **No fixed cap on members or groups**: the server's capacity is the only
-  limit. 0.4.1's own code still reads at most 16 groups in a member's
-  assertion and its members API (`member()` refuses more) and 128 members
-  in a group of `groups.list()`: official code the studio does not change,
-  lifted by 0.5 (SDK report). A tool that must not fail on a member of 17
-  groups waits for 0.5 or uses `members.list({group})`.
+- **No fixed cap on members or groups** (studio.7): the server's capacity
+  is the only limit. 0.4.1's parsers refuse a member in more than 16
+  groups (`member()` answers `null`: the tool shows "Sign in" to a member
+  the Chest signed in; `members.*` throw `Unavailable`), more than 16
+  groups in `groups.list()` and a group of more than 128 members — with
+  `members.groups`, whose groups are every group a member is in, an
+  ordinary company hits them. So the studio's `member()` and
+  `members.list`/`get`/`lookup`/`groups.list` are 0.4.1's code without
+  these counts; everything else is read and refused exactly as 0.4.1 does
+  (the key, the signature, `aud`, the times, every claim's shape, each
+  group a `grp_` identifier, each member an `mbr_` one, 500 members a
+  page). What bounds them is size: an assertion of
+  **`maxAssertionLength`** (16,384) characters at most — the default size
+  of *all* a request's headers on a Node server (`http.maxHeaderSize`; a
+  longer one is answered 431 before the tool sees it) — which holds about
+  300 groups (fewer with long names); an answer of 4 MiB, as for every
+  call (about 130,000 member identifiers in `groups.list()`). Beyond, the
+  member is `null` and the call `Unavailable`, as for anything that is not
+  the Chest's. This holds for every tool, with `members.groups` or not: a
+  tool's process does not know what it was approved, and need not — what
+  0.4.1 accepts reads the same, and what it accepts besides is signed by
+  the Chest (a request cannot add a group). How the Chest carries a member
+  of more than ~300 groups in the assertion is a question for 0.5 (SDK
+  report).
 - Without `members.groups`: 0.4.1's meaning — the groups that give the
   tool; `members.list({group})` of another group lists nobody;
   `groups.all()` throws `CapabilityNotGranted`.
@@ -1171,7 +1201,8 @@ a minute). In tests: `fakeChest({groups: [{id, name, members, grants:
 false}], capabilities: ["members", "members.groups"]})` — `grants: false`
 is a group that does not give the tool; as in 0.4.1's fake, a member's
 groups are their own `groups` (name a membership there and in the group's
-`members`); `chest.emit({type: "group.changed", data: {id, changed:
+`members`) — any number, a group of any size (`members.list({group})`
+pages through it, 500 at most a page); `chest.emit({type: "group.changed", data: {id, changed:
 ["members"]}}, to)`. The harness's `/_dev` lists the groups and moves a
 member in or out (and tells the tool).
 
@@ -1956,10 +1987,10 @@ reads `options.former` once). `chest.api` is the studio's server, and
 |---|---|
 | `fakeChest({tool})` | The tool's name (`chest.json` `name`) as `CHEST_TOOL` while the fake runs — what `events.publish`, `member()` and the signatures read. Without it, the environment's `CHEST_TOOL`, or `"tool"` (0.4.1's rule) |
 | members' `language`, `timeZone` | `fakeChest` members, `signAssertion` and `withMember` take a member whose `language` and `timeZone` may be left out (type `FakeMember`): the Chest's (`chest: {language, timeZone}`), as a real Chest gives its default. The assertion carries exactly 0.4.1's claims |
-| `fakeChest({groups: [{…, grants: false}], capabilities: [..., "members.groups"]})`, `chest.groups` | Groups that do not give the tool. Without `members.groups`, 0.4.1's `groups.list`, a member's `groups` (assertion and members API) and `members.list({group})` show only those that do; with it, every group (and `groups.all`). No fixed cap on members or groups. `emit` delivers `group.changed` and `group.removed` |
+| `fakeChest({groups: [{…, grants: false}], capabilities: [..., "members.groups"]})`, `chest.groups` | Groups that do not give the tool. Without `members.groups`, 0.4.1's `groups.list`, a member's `groups` (assertion and members API) and `members.list({group})` show only those that do; with it, every group (and `groups.all`). No fixed cap on members or groups: a member in 40 groups signs in, a group of 1,000 pages; an assertion longer than `maxAssertionLength` is signed as given and `member()` refuses it. `emit` delivers `group.changed` and `group.removed` |
 | `chest.notifications`, `shownTo(notification, language)` | Each item kept with its `translations` (`notify` and `broadcast`; type `FakeNotification`); what a member of that language sees (English when there is no translation in it) |
 | `chest.former` | Those the tool had who no longer have it (`{id, name?, status?, leftAt?}`): lookup answers them as 0.4.1's fake would, `leftAt` answers when. A test that removes a member from `chest.members` moves them here, as a real Chest would, then calls `clearCaches()` |
-| `chest.clearCaches()` | Forgets what the process keeps of the Chest's answers — lookup's minute (0.4.1's `forget`), the theme — after a test changed `chest.members`, `chest.former` or `chest.theme` by hand |
+| `chest.clearCaches()` | Forgets what the process keeps of the Chest's answers — lookup's minute (the studio's `forget`, which empties 0.4.1's too), the theme — after a test changed `chest.members`, `chest.former` or `chest.theme` by hand |
 | `chest.upload(url, data, type)` | Plays a browser sending a file to an `uploadUrl` or a `publicUploadUrl` answer (a PUT of `data` of that type; 0.4.1's front sniffs the content); a path is sent to `chest.publicApi` |
 | `fakeChest({tools})`, `chest.tools`, `chest.installTool(name, {teamUrl?, publicUrl?})`, `chest.removeTool(name)` | The tools installed beside this one (`chest.tools.get`), by name: `true` for a team host at `https://<name>-chest.chest.test`, or its addresses. This tool is always there, at `chest: {teamUrl, publicUrl}`. `installTool` and `removeTool` rewrite `CHEST_TOOL_URLS` as the Chest does |
 | `fakeChest({theme, themeFiles})`, `chest.theme`, `chest.themeFiles` | The company's look at its two levels (`{all, tools}`), which `chest.theme()` answers resolved for the tool with `max-age=0`; the files its front serves under `/_chest/theme/` |
