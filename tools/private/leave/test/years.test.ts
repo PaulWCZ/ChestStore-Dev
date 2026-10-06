@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compute, type Kind } from "../lib/balances.ts";
-import { afterRequest, daysLeft, leftIfApproved } from "../lib/left.ts";
+import { compute, type Kind } from "../src/lib/balances.ts";
+import { afterRequest, daysLeft, leftIfApproved } from "../src/shared/left.ts";
 
 // Paid leave as French pay slips show it: earned during a reference period
 // (1 June to 31 May) as "being earned" (CP N), taken from the next one as
