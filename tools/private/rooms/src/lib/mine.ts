@@ -1,11 +1,11 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { dayKey, eventOf, icsFile, roomEvents, type Event } from "./calendar.ts";
 import { toCsv } from "./csv.ts";
 import type { Sql } from "./db.ts";
 import { formatTime, type Catalogue, type Locale } from "../i18n/index.ts";
-import { id, today } from "./model.ts";
+import { id, today } from "../shared/model.ts";
 import { nameOf, people } from "./people.ts";
 
 // A member's own downloads: one booking, or all their coming bookings and

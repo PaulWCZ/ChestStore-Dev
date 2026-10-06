@@ -8,7 +8,7 @@ import { Building, Pencil, Plus, Seat, Trash, Upload } from "../components/icons
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatDay, formatSpan, plural } from "../i18n/format.ts";
 import type { CalendarImport as ImportResult, ImportItem } from "../lib/calendar-import.ts";
-import { equipment as equipmentKeys, features as featureKeys, limits, type Equipment, type Feature } from "../lib/model.ts";
+import { equipment as equipmentKeys, features as featureKeys, limits, type Equipment, type Feature } from "../shared/model.ts";
 import type { OfficeView, RoomView, DeskView } from "../lib/places.ts";
 
 export type PlacesWords = {

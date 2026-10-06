@@ -8,7 +8,7 @@ import { context } from "../lib/context.ts";
 import { deskBookingsOf, deskBookingsOn, usualDesk } from "../lib/desk-bookings.ts";
 import { groupsOf } from "../lib/groups.ts";
 import { told } from "../lib/mail.ts";
-import { addDays, minutesNow, mondayOf, overlaps, placeName, twoWeeks } from "../lib/model.ts";
+import { addDays, minutesNow, mondayOf, overlaps, placeName, twoWeeks } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { atOffice, presenceOf } from "../lib/presence.ts";
 import { myRoomBookings } from "../lib/room-bookings.ts";

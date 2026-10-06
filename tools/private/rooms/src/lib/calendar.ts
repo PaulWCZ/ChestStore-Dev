@@ -2,7 +2,7 @@ import * as calendar from "@argentic/chest-sdk/calendar";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, locales, type Catalogue, type Locale } from "../i18n/index.ts";
-import { addDays, today } from "./model.ts";
+import { addDays, today } from "../shared/model.ts";
 
 // The members' calendars (Proposal (studio): "calendar": true). Every room
 // booking is an event in the Chest calendar feed of its organiser and its

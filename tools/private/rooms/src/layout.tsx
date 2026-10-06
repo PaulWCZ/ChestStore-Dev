@@ -27,7 +27,7 @@ export function MembersLayout({ viewer: { member, t }, look, path, notice, child
   return (
     <>
       <AppShell
-        brand={<a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark><span className="brand-name">{t.tool.name}</span></a>}
+        brand={<a href="/chest"><BrandMark logo={look?.logo ?? null}><Mark /></BrandMark>{t.tool.name}</a>}
         nav={nav}
         path={path}
         member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}

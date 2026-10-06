@@ -4,7 +4,7 @@ import { bookableDays, context, shownDay } from "../lib/context.ts";
 import { deskBookingsOf, type DeskBooking } from "../lib/desk-bookings.ts";
 import { directory } from "../lib/directory.ts";
 import { chestGroups, groupsOf } from "../lib/groups.ts";
-import { limits, nextWorkingDay, placeName, twoWeeks, type Status } from "../lib/model.ts";
+import { limits, nextWorkingDay, placeName, twoWeeks, type Status } from "../shared/model.ts";
 import { inMeetings, presenceOf } from "../lib/presence.ts";
 import { format, formatDay, plural } from "../i18n/index.ts";
 
@@ -52,7 +52,7 @@ export async function peoplePage(p: PageContext): Promise<View> {
         <div className="who-find">
           <Island name="Search" props={{ action: "/chest/people", value: q, keep: { day, team: team?.id }, labels: t.kit.search }} />
           {teams.length > 0 && (
-            <div className="team-chips">
+            <div>
               <Filters path="/chest/people" params={{ day, q: q || undefined, team: team?.id }} labels={t.kit.filters}
                 groups={[{ key: "team", label: t.who.teams, all: true, options: teams.slice(0, 16).map(g => ({ value: g.id, label: mine.includes(g.id) ? format(t.who.myTeamName, { team: g.name }) : g.name })) }]} />
             </div>
@@ -81,7 +81,7 @@ export async function peoplePage(p: PageContext): Promise<View> {
                         <ol className="mini-week" aria-label={t.who.week}>
                           {coming.map(d => {
                             const s = statusOf(x.id, d);
-                            return <li key={d} className={"is-" + s} title={formatDay(d, locale) + " · " + t.status[s]}><span className="dow">{formatDay(d, locale, { weekday: "narrow" })}</span><span className="visually-hidden">{formatDay(d, locale)}: {t.status[s]}</span></li>;
+                            return <li key={d} className={"is-" + s} title={formatDay(d, locale) + " · " + t.status[s]}><span>{formatDay(d, locale, { weekday: "narrow" })}</span><span className="visually-hidden">{formatDay(d, locale)}: {t.status[s]}</span></li>;
                           })}
                         </ol>
                       )}

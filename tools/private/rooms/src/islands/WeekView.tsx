@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent } f
 import { Badge, CalendarAdd, Check, Desk, Door, Download, Laptop, Moon, Plan, Repeat } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatDay, plural } from "../i18n/format.ts";
-import type { Part, Status } from "../lib/model.ts";
+import type { Part, Status } from "../shared/model.ts";
 
 export type WeekDay = {
   day: string;
@@ -257,7 +257,7 @@ function Choice({ day, me, label, t, onSay }: { day: WeekDay; me: Status | null;
         const Icon = icons[s];
         return (
           <button key={s} ref={el => { refs.current[i] = el; }} type="button" role="radio" aria-checked={me === s} tabIndex={i === focusAt ? 0 : -1}
-            className={"seg seg-" + s} disabled={day.past} onClick={() => onSay(s)}>
+            className="seg" disabled={day.past} onClick={() => onSay(s)}>
             <Icon /><span>{t.status[s]}</span>
           </button>
         );

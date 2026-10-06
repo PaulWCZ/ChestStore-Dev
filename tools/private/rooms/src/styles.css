@@ -455,6 +455,8 @@ a.booking-text:hover { text-decoration: underline; }
 .who-find { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
 .who-find .ck-search { max-width: none; }
 .places-body { padding-top: var(--space-5); }
+/* A form sent without JavaScript and refused: the reason, above the page. */
+.notice { margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); border: var(--border-width) solid var(--danger); border-radius: var(--radius-m); background: var(--surface); color: var(--danger); }
 .book-for { min-width: 16rem; }
 
 /* "This is an example": said above the example office on Places. */

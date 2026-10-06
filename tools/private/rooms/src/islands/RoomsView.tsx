@@ -9,7 +9,7 @@ import { CalendarAdd, Check, Lock, Plus, Repeat, Seat } from "../components/icon
 import { OfficePicker, type OfficePickerProps } from "../components/office-picker.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatDay, formatNumber, formatSpan, formatTime, plural } from "../i18n/format.ts";
-import { addDays, equipment as equipmentKeys, freeSlots, limits, step, tapStart, type Equipment } from "../lib/model.ts";
+import { addDays, equipment as equipmentKeys, freeSlots, limits, step, tapStart, type Equipment } from "../shared/model.ts";
 
 export type GridRoom = { id: string; name: string; capacity: number; equipment: Equipment[]; note: string; photo: boolean; floor: string; group: { name: string; mine: boolean } | null };
 type Person = { id: string; name: string; photo: string | null };
@@ -403,7 +403,7 @@ function Detail({ b, room, day, over, calendarPage, locale, t, onEdit, onCancel,
     <div className="stack">
       <RoomHead room={room} locale={locale} t={t} />
       <p className="detail-when"><strong>{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}</strong> <span className="mono">{formatSpan(b.start, b.end, locale)}</span>{b.series && <span className="tag"><Repeat />{t.booking.weekly}</span>}{b.checkedIn && <span className="tag quiet"><Check />{t.booking.checkedIn}</span>}</p>
-      {b.checkable && <button type="button" className="button check-in" onClick={onCheckIn}><Check />{t.booking.checkIn}</button>}
+      {b.checkable && <button type="button" className="button" onClick={onCheckIn}><Check />{t.booking.checkIn}</button>}
       {room.note && <p className="hint">{room.note}</p>}
       <dl className="facts">
         <dt>{t.booking.organiser}</dt>
@@ -478,7 +478,7 @@ function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close
   }
 
   return (
-    <form className="stack booking-form" onSubmit={submit}>
+    <form className="stack" onSubmit={submit}>
       <div className="form-grid">
         <label className="span-2">
           <span className="label">{t.booking.room}</span>

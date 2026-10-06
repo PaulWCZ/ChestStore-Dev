@@ -20,7 +20,7 @@ export function RulesForm({ rules, locale, t }: { rules: Rules; locale: string; 
     });
   }
   return (
-    <form className="panel stack rules" onSubmit={save}>
+    <form className="panel stack" onSubmit={save}>
       <div className="form-grid">
         <label className="span-4 inline-label">
           <span>{t.rules.daysAhead}</span>

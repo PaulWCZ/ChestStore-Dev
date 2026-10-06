@@ -1,12 +1,12 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, mayChange } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { checkWhen, conflict, moment, span } from "./booking-rules.ts";
 import { enqueue, roomKey } from "./calendar.ts";
 import { bookedFor } from "./desk-bookings.ts";
 import { groupsOf } from "./groups.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
-import { addDays, clean, day, id, int, limits, memberIds, minutes } from "./model.ts";
+import { addDays, clean, day, id, int, limits, memberIds, minutes } from "../shared/model.ts";
 
 // Meeting rooms booked by the quarter hour. PostgreSQL refuses two live
 // bookings of a room that overlap (constraint room_taken): whoever comes

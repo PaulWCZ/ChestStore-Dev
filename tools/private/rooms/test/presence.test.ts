@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as desks from "../src/lib/desk-bookings.ts";
-import { addDays, today } from "../src/lib/model.ts";
+import { addDays, today } from "../src/shared/model.ts";
 import { setMyOffice } from "../src/lib/places.ts";
 import { atOffice, inMeetings, presenceOf, setPresence } from "../src/lib/presence.ts";
 import * as rooms from "../src/lib/room-bookings.ts";

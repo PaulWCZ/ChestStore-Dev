@@ -1,10 +1,10 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { dayKey, enqueue } from "./calendar.ts";
 import { cancelDeskBookings } from "./places.ts";
-import { day, daysBetween, id, isStatus, today, type Status } from "./model.ts";
+import { day, daysBetween, id, isStatus, today, type Status } from "../shared/model.ts";
 
 // Where each member works on a day: at the office, remote, or off. Said by
 // the member, for themselves, from today on. Saying "remote" or "off" frees

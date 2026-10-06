@@ -1,6 +1,6 @@
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Query, Sql } from "./db.ts";
-import { addDays, daysBetween, today } from "./model.ts";
+import { addDays, daysBetween, today } from "../shared/model.ts";
 import { dayKey, enqueue } from "./calendar.ts";
 import { cancelDeskBookings } from "./places.ts";
 import { presenceHorizon } from "./presence.ts";

@@ -1,10 +1,10 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { toCsv } from "./csv.ts";
 import type { Sql } from "./db.ts";
 import { formatTime, type Catalogue, type Locale } from "../i18n/index.ts";
-import { day, daysBetween, limits } from "./model.ts";
+import { day, daysBetween, limits } from "../shared/model.ts";
 import { nameOf, people } from "./people.ts";
 
 // The admin's downloads, in their language: every booking of a period, and

@@ -8,7 +8,7 @@ import * as desks from "../src/lib/desk-bookings.ts";
 import { erase, leave } from "../src/lib/lifecycle.ts";
 import { bookingIcs, myCsv, myIcs } from "../src/lib/mine.ts";
 import { catalogue } from "../src/i18n/index.ts";
-import { addDays, today } from "../src/lib/model.ts";
+import { addDays, today } from "../src/shared/model.ts";
 import { setPresence } from "../src/lib/presence.ts";
 import * as rooms from "../src/lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";

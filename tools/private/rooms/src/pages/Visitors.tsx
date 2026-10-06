@@ -4,7 +4,7 @@ import { Badge } from "../components/icons.tsx";
 import { can } from "../lib/access.ts";
 import { bookableDays, context, shownDay } from "../lib/context.ts";
 import { directory } from "../lib/directory.ts";
-import { minutesNow, step } from "../lib/model.ts";
+import { minutesNow, step } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { visitsOn } from "../lib/visits.ts";
 import { formatDay, formatTime } from "../i18n/index.ts";

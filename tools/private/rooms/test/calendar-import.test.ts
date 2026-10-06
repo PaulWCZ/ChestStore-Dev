@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { importRoomCalendar, undoCalendarImport } from "../src/lib/calendar-import.ts";
 import { readEvents } from "../src/lib/ical.ts";
-import { addDays, weekday } from "../src/lib/model.ts";
+import { addDays, weekday } from "../src/shared/model.ts";
 import * as rooms from "../src/lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";

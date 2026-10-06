@@ -1,12 +1,12 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { can, mayChange, roleOf } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { checkWhen, conflict, moment, span } from "./booking-rules.ts";
 import { dayKey, enqueue } from "./calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { groupsOf } from "./groups.ts";
-import { addDays, day, id, isPart, memberId, mondayOf, partMinutes, type Part } from "./model.ts";
+import { addDays, day, id, isPart, memberId, mondayOf, partMinutes, type Part } from "../shared/model.ts";
 
 // Desks booked for a day or half a day. PostgreSQL refuses two live
 // bookings of a desk that overlap (desk_taken), and two desks for one

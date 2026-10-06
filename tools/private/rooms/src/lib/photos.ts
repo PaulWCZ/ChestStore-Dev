@@ -1,9 +1,9 @@
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Sql } from "./db.ts";
-import { id as readId, limits } from "./model.ts";
+import { id as readId, limits } from "../shared/model.ts";
 import { roomPhoto, setRoomPhoto } from "./places.ts";
 
 // Room photos, around the browser's own upload to the Chest: an admin is

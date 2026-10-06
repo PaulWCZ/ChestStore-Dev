@@ -1,8 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { int } from "./model.ts";
+import { int } from "../shared/model.ts";
 
 // The rules of the office (one row, set by an admin).
 export type Rules = {

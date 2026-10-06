@@ -1,9 +1,9 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { flush } from "./calendar.ts";
 import type { Sql } from "./db.ts";
-import { id } from "./model.ts";
+import { id } from "../shared/model.ts";
 import { byIds, cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
 
 // Check-in, as Robin does it against "ghost meetings": a quarter of an hour

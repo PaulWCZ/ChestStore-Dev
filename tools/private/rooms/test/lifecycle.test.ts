@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { builtServer, type Handler } from "./support/server.ts";
 import * as desks from "../src/lib/desk-bookings.ts";
-import { addDays, today } from "../src/lib/model.ts";
+import { addDays, today } from "../src/shared/model.ts";
 import * as places from "../src/lib/places.ts";
 import { presenceOf, setPresence } from "../src/lib/presence.ts";
 import * as rooms from "../src/lib/room-bookings.ts";

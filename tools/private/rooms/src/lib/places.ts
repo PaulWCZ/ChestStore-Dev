@@ -1,8 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
-import { clean, equipment as equipmentKeys, features as featureKeys, id, int, keysOf, limits, memberId, nextNames, placeName, type Equipment, type Feature } from "./model.ts";
+import { clean, equipment as equipmentKeys, features as featureKeys, id, int, keysOf, limits, memberId, nextNames, placeName, type Equipment, type Feature } from "../shared/model.ts";
 import { dayKeys, enqueue } from "./calendar.ts";
 import { cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
 

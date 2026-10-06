@@ -1,8 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query } from "./db.ts";
-import { daysBetween, minutesNow, today, weekday } from "./model.ts";
+import { daysBetween, minutesNow, today, weekday } from "../shared/model.ts";
 import { rules, type Rules } from "./settings.ts";
 
 // What every booking is held to, checked on the server in the same

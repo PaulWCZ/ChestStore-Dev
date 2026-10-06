@@ -7,7 +7,7 @@ import { Badge, Check, Plus } from "../components/icons.tsx";
 import { OfficePicker, type OfficePickerProps } from "../components/office-picker.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatTime, plural } from "../i18n/format.ts";
-import { step } from "../lib/model.ts";
+import { step } from "../shared/model.ts";
 
 export type VisitorWords = { visitors: Catalogue["visitors"]; dialog: Catalogue["kit"]["dialog"]; peoplePicker: Catalogue["kit"]["peoplePicker"] };
 type Words = VisitorWords;
@@ -71,7 +71,7 @@ export function VisitorsView({ head, strip, officeId, day, dayLabel, isToday, pa
           <h2 id="visits-title" className="annotation">
             {plural(w.expected, visits.length, locale)}{here > 0 && <span className="count"> · {plural(w.here, here, locale)}</span>}
           </h2>
-          <ul className="rows visits">
+          <ul className="rows">
             {visits.map(v => (
               <li key={v.id} className={"row-item visit-row" + (v.arrivedAt ? " is-here" : "")}>
                 <span className="mono visit-time">{v.time}</span>

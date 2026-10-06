@@ -1,9 +1,9 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { parseCsv } from "./csv.ts";
 import type { Sql } from "./db.ts";
-import { equipment as equipmentKeys, id, limits, type Equipment } from "./model.ts";
+import { equipment as equipmentKeys, id, limits, type Equipment } from "../shared/model.ts";
 import { matcher, type Matchable } from "./match.ts";
 import { cancelDeskBookings, type CancelledDesk } from "./places.ts";
 

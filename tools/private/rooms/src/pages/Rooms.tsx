@@ -8,7 +8,7 @@ import { bookableDays, context, formDays, lockOf, shownDay } from "../lib/contex
 import { directory } from "../lib/directory.ts";
 import { chestGroups, groupsOf } from "../lib/groups.ts";
 import { told } from "../lib/mail.ts";
-import { addDays, minutesNow } from "../lib/model.ts";
+import { addDays, minutesNow } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { roomDay } from "../lib/room-bookings.ts";
 import { format, formatDay, formatTime } from "../i18n/index.ts";

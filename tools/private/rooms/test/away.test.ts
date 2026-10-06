@@ -7,7 +7,7 @@ import * as desks from "../src/lib/desk-bookings.ts";
 import { presenceOf, setPresence } from "../src/lib/presence.ts";
 import { erase } from "../src/lib/lifecycle.ts";
 import { purge } from "../src/lib/settings.ts";
-import { addDays, today } from "../src/lib/model.ts";
+import { addDays, today } from "../src/shared/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines } from "./support/members.ts";

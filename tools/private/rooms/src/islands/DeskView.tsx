@@ -5,7 +5,7 @@ import { Check, Lock, Plus } from "../components/icons.tsx";
 import { StayLink } from "../components/stay-link.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatDay, plural } from "../i18n/format.ts";
-import { features as featureKeys, overlaps, type Feature, type Part } from "../lib/model.ts";
+import { features as featureKeys, overlaps, type Feature, type Part } from "../shared/model.ts";
 
 export type DeskTile = {
   id: string;
@@ -106,7 +106,7 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
   }
 
   return (
-    <div className="stack desk-page">
+    <div className="stack">
       {/* Two rows, each fitting a phone: when (the kit's Segmented) and
           the plan or the list (the kit's Tabs); then what a desk offers —
           several at once (the kit's Filters, a multiple group: f=screen,dock). */}
@@ -134,7 +134,7 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
                     const dim = !matches(d);
                     const clickable = !locked && (s.state === "free" || (s.state === "mine" && s.myBooking !== "pending"));
                     return (
-                      <li key={d.id} className={"tile is-" + (locked && s.state === "free" ? "locked" : s.state) + (dim ? " is-dim" : "")}>
+                      <li key={d.id} className={"tile " + (locked && s.state === "free" ? "is-locked" : "is-" + s.state) + (dim ? " is-dim" : "")}>
                         <button type="button" disabled={!clickable} aria-label={label(d, s)} onClick={() => (s.state === "free" ? void book(d) : s.myBooking && s.myBooking !== "pending" ? void free(d, s.myBooking) : undefined)}>
                           <span className="tile-name">{d.name}</span>
                           <span className="tile-state">

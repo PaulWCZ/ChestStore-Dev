@@ -6,7 +6,7 @@ import { bookableDays, context, lockOf, shownDay } from "../lib/context.ts";
 import { deskDay, lentDesks, type DeskBooking } from "../lib/desk-bookings.ts";
 import { directory } from "../lib/directory.ts";
 import { chestGroups, groupsOf } from "../lib/groups.ts";
-import { features as featureKeys, isPart, memberPattern, type Feature, type Part } from "../lib/model.ts";
+import { features as featureKeys, isPart, memberPattern, type Feature, type Part } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { format, formatDay } from "../i18n/index.ts";
 import type { DeskTile } from "../islands/DeskView.tsx";

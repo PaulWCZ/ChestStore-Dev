@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { erase, leave } from "../src/lib/lifecycle.ts";
 import { myCsv } from "../src/lib/mine.ts";
 import { catalogue } from "../src/i18n/index.ts";
-import { addDays, today } from "../src/lib/model.ts";
+import { addDays, today } from "../src/shared/model.ts";
 import { purge } from "../src/lib/settings.ts";
 import * as tell from "../src/lib/tell.ts";
 import * as visits from "../src/lib/visits.ts";

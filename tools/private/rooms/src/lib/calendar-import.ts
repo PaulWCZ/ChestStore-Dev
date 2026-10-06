@@ -1,12 +1,12 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import { conflict, span } from "./booking-rules.ts";
 import { enqueue, roomKey } from "./calendar.ts";
 import type { Sql } from "./db.ts";
 import { NotACalendar, readEvents, type EventPerson } from "./ical.ts";
 import { matcher, type Matchable } from "./match.ts";
-import { addDays, id, limits, minutesNow, step, today, weekday } from "./model.ts";
+import { addDays, id, limits, minutesNow, step, today, weekday } from "../shared/model.ts";
 import { rules } from "./settings.ts";
 import { wall } from "./wall-clock.ts";
 

@@ -1,5 +1,5 @@
 import type { Sql } from "../../src/lib/db.ts";
-import { addDays, nextWorkingDay, today, weekday } from "../../src/lib/model.ts";
+import { addDays, nextWorkingDay, today, weekday } from "../../src/shared/model.ts";
 import * as places from "../../src/lib/places.ts";
 import { asMember } from "./member.ts";
 import { camille } from "./members.ts";

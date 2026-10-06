@@ -7,7 +7,7 @@ import { context, type Context } from "../lib/context.ts";
 import { directory } from "../lib/directory.ts";
 import { weekdayLoad } from "../lib/export.ts";
 import { chestGroups } from "../lib/groups.ts";
-import { addDays } from "../lib/model.ts";
+import { addDays } from "../shared/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { format, formatDay, plural, type Catalogue } from "../i18n/index.ts";
 
@@ -16,7 +16,7 @@ import { format, formatDay, plural, type Catalogue } from "../i18n/index.ts";
 type Tab = "places" | "rules" | "export";
 function frame(t: Catalogue, current: Tab, children: ReactNode): ReactNode {
   return (
-    <div className="narrow places">
+    <div className="narrow">
       <PageHeader title={t.places.title} />
       <Tabs label={t.places.title} current={current}
         items={[

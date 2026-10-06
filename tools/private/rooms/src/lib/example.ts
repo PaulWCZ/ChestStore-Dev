@@ -1,13 +1,13 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Sql } from "./db.ts";
-import { limits, type Equipment, type Feature, type Preset } from "./model.ts";
+import { limits, type Equipment, type Feature, type Preset } from "../shared/model.ts";
 
 // "Start with an example": an office in one click, for a company that
 // wants to see Rooms working before it describes its own — two floors,
 // three meeting rooms, twelve desks. It says it is an example (Places),
-// its floors and areas are keys (each reader's language, lib/model.ts
+// its floors and areas are keys (each reader's language, shared/model.ts
 // placeName), and it goes whole in one step while nobody booked anything
 // in it (Undo, or "Delete the example" on Places).
 

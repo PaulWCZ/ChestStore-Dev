@@ -5,7 +5,7 @@ import { flush } from "./calendar.ts";
 import { db, type Sql } from "./db.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import { localeOf } from "../i18n/index.ts";
-import { addDays, day as readDay, daysBetween, nextWorkingDay, today } from "./model.ts";
+import { addDays, day as readDay, daysBetween, nextWorkingDay, today } from "../shared/model.ts";
 import { chooseOffice, offices, type OfficeView } from "./places.ts";
 import { rules, type Rules } from "./settings.ts";
 import { applyUsual } from "./usual.ts";

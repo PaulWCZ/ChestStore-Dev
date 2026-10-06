@@ -1,9 +1,9 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { can, roleOf } from "./access.ts";
-import { AppError } from "./app-error.ts";
+import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { clean, day, daysBetween, id, int, memberId, step, today } from "./model.ts";
+import { clean, day, daysBetween, id, int, memberId, step, today } from "../shared/model.ts";
 import { presenceHorizon } from "./presence.ts";
 
 // Visitors: someone without a Chest account — a client, a candidate, a
