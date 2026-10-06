@@ -1221,9 +1221,9 @@ migrators is kept with the lead, not in the repository):
   171–183 MiB. The owner's own measure of 5 October (brief/08: Tasks
   ~132 MiB against the Perseus starter's ~76 MiB, RSS on macOS) pointed
   the same way. Of the 65–79 MiB, `npm` is about 20 (§4.17). Cold start to
-  the first members' page (median of 10): 639–949 ms → 375–987 ms, on a
-  machine shared with other agents' builds (Expenses' 987 ms was taken at
-  load average 6–11, `16d1c4b`; the others are 375–661 ms); the bench's README says to re-run before and after
+  the first members' page (median of 10): 639–949 ms → 369–979 ms, on a
+  machine shared with other agents' builds (Expenses' 979 ms was taken at
+  load average 6–11, `16d1c4b`; the others are 369–649 ms); the bench's README says to re-run before and after
   together in a quiet window for final figures.
 - The CSP and inline styles (`style-src-attr 'unsafe-inline'`), the
   extensions a migration may create (`pg_trgm`, `unaccent`, `btree_gist`
