@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as b from "../lib/booking.ts";
-import * as mailer from "../lib/mailer.ts";
+import * as b from "../src/lib/booking.ts";
+import * as mailer from "../src/lib/mailer.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
@@ -20,6 +20,7 @@ let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
   chest = await fakeChest({
+    network: {},
     chest: { timeZone: "Europe/Paris" },
     tool: "booking",
     members: [
@@ -97,7 +98,7 @@ test("whether mail goes out, as the Chest says it: ready, not connected, suspend
       chest.delivery.mail = "ready";
     }
   }
-  const plain = await fakeChest({ chest: { timeZone: "Europe/Paris" }, tool: "booking", members: [camille], capabilities: ["database", "members", "notifications"] });
+  const plain = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, tool: "booking", members: [camille], capabilities: ["database", "members", "notifications"] });
   try {
     assert.equal(await mailer.mailState(), "not_granted");
   } finally {

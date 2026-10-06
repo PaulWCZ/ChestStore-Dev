@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as b from "../lib/booking.ts";
+import * as b from "../src/lib/booking.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { builtServer, type Handler } from "./support/server.ts";
 import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// The built server's routes (/chest-schedules, /chest-events).
+let POST: Handler;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {} });
+  POST = await builtServer();
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {} });
 });
 after(async () => {
   await chest.close();

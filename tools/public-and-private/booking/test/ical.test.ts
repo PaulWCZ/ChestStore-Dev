@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { busyTimes, NotACalendar } from "../lib/ical.ts";
+import { busyTimes, NotACalendar } from "../src/lib/ical.ts";
 
 // Calendars as Google, Outlook and Apple write their secret iCal addresses
 // (shapes from their own feeds: Google's "PRODID:-//Google Inc//Google
