@@ -81,6 +81,32 @@ same-origin and the tool's `img-src 'self'` holds; the team host relays
 `dev_locale`) are the team host's; screens and audits set the public part's
 `lang` on the public host too.
 
+## Accessibility audit (`audit.mjs`)
+
+With a tool running in the harness, `audit.mjs` runs axe-core
+(`axe-core` 4.10.3, `package.json`) on every screen of the tool's
+`docs/screens.json` — each shot's actions replayed, so a dialog or a form
+behind a click is checked too — at desktop and phone width (or the sizes a
+shot's `only` names), light and dark, in the look the shot names. It prints
+each rule broken and where, and exits 1 when one is.
+
+```sh
+node lab/chest-dev/audit.mjs tools/private/tasks --port 4000            # WCAG 2.0 and 2.1, A and AA (the default)
+node lab/chest-dev/audit.mjs tools/private/tasks --port 4000 --wcag22   # the same, plus WCAG 2.2 AA
+```
+
+- **The default** runs axe's rules tagged `wcag2a`, `wcag2aa`, `wcag21a`,
+  `wcag21aa`: what every tool's audit in `PROGRESS.md` and the tools'
+  READMEs means by "axe: 0".
+- **`--wcag22`** adds the tag `wcag22aa`. In axe-core 4.10.3 one rule
+  carries it: `target-size` (WCAG 2.2 success criterion 2.5.8, *Target
+  Size (Minimum)*: a pointer target at least 24 by 24 CSS pixels, or spaced
+  so that a 24 px circle around it touches no other). axe leaves that rule
+  off unless asked; asking by its tag runs it (checked on 6 October 2026
+  with two 10 px buttons: a violation). axe does not test every WCAG 2.2
+  criterion — focus not obscured, dragging movements, consistent help,
+  redundant entry and accessible authentication are for a person to check.
+
 ## The tool's process
 
 - **Its environment is the Chest's, and nothing of the shell's**: `PORT`,
