@@ -27,7 +27,7 @@ before(async () => {
   chest = await fakeChest({
     tool: "hiring", network: {}, members: [camille, sofia, ines, hugo, lea, nora],
     capabilities: ["members", "files", "notifications", "mail", "calendar"],
-    mail: { domain: "atelier.test", mailboxes: ["jobs"] },
+    mail: { domain: "atelier.test" },
     storage: { publicUploads: true, publicFiles: true },
     chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en", publicUrl: "https://careers.atelier-martin.fr" },
   });
@@ -228,7 +228,7 @@ test("the team's pages: the member's language, the policy, the look; no role, no
   assert.equal((await get(lea, "/chest/jobs/1")).status, 404, "a job they are not on does not exist for them");
   assert.equal((await get(ines, "/chest/settings")).status, 404);
   assert.equal((await get(ines, "/chest/jobs/1/edit")).status, 404);
-  for (const path of ["/chest/search?q=lu", "/chest/pool", "/chest/reports", "/chest/reports?job=1", "/chest/mail", "/chest/settings", "/chest/jobs/new", "/chest/jobs/new?template=sales", "/chest/jobs/1/edit", "/chest/jobs/1/settings", "/chest/jobs/1/add", "/chest/jobs/1/import", "/chest/candidates/1", "/chest/candidates/7"]) {
+  for (const path of ["/chest/search?q=lu", "/chest/pool", "/chest/reports", "/chest/reports?job=1", "/chest/settings", "/chest/jobs/new", "/chest/jobs/new?template=sales", "/chest/jobs/1/edit", "/chest/jobs/1/settings", "/chest/jobs/1/add", "/chest/jobs/1/import", "/chest/candidates/1", "/chest/candidates/7"]) {
     assert.equal((await get(sofia, path)).status, 200, path);
   }
   assert.equal((await get(ines, "/chest/candidates/7")).status, 200);
@@ -282,7 +282,7 @@ test("a CV is served to the job's people only; an email's files to recruiters on
   assert.equal(cv.headers.get("content-security-policy"), "sandbox; default-src 'none'; frame-ancestors 'self'");
   assert.equal(await cv.text(), "%PDF-1.4\n%%EOF\n");
   assert.equal((await get(lea, "/chest/candidates/1/cv")).status, 404);
-  const [m] = await database.sql`insert into messages (candidate_id, direction, kind, subject, body, status, attachments) values (1, 'in', 'message', 'CV', 'here', 'received', ${database.sql.json([{ file: "cv/0123456789abcdef0123.pdf", name: "x.pdf", type: "application/pdf", size: 15 }])}) returning id`;
+  const [m] = await database.sql`insert into messages (candidate_id, direction, kind, subject, body, status, attachments) values (1, 'out', 'message', 'CV', 'here', 'sent', ${database.sql.json([{ file: "cv/0123456789abcdef0123.pdf", name: "x.pdf", type: "application/pdf", size: 15 }])}) returning id`;
   assert.equal((await get(ines, `/chest/messages/${m.id}/files/0`)).status, 403);
   assert.equal((await get(sofia, `/chest/messages/${m.id}/files/0`)).status, 200);
   const page = await (await get(sofia, "/chest/candidates/1")).text();

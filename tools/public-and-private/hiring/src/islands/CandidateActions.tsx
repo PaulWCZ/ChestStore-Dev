@@ -35,7 +35,7 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
   draft: string;
   languageName: string;
   locale: string;
-  write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> };
+  write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string>; repliesGo: string };
   interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string };
   jobs: { id: string; title: string }[];
   // Whether an email to them would leave (lib/mail-state.ts): the forms
@@ -267,10 +267,11 @@ function RejectForm({ candidate, mailing, draft, languageName, t, onDone, onType
 // Writing to a candidate: a template (in their language first), the
 // subject and the text filled with their name, the job, the company, and
 // files (an offer letter: the template's, or added here). It leaves from
-// the jobs mailbox; their answer comes back to their page, and the files
-// stay in the conversation. Without email on this Chest, the recruiter's
-// own mail app opens with the text (the files are kept here).
-function WriteForm({ candidate, mailing, write, t, onDone, onTyped }: { candidate: { id: string; name: string; email: string; language: Language }; mailing: MailState; write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> }; t: ActionWords; onDone: () => void; onTyped: () => void }) {
+// the company's address; their answer goes to the company's usual inbox
+// (the Chest receives no mail: never this page, and the form says so), and
+// the files stay in the conversation. Without email on this Chest, the
+// recruiter's own mail app opens with the text (the files are kept here).
+function WriteForm({ candidate, mailing, write, t, onDone, onTyped }: { candidate: { id: string; name: string; email: string; language: Language }; mailing: MailState; write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string>; repliesGo: string }; t: ActionWords; onDone: () => void; onTyped: () => void }) {
   const [pending, start] = useWork();
   const [chosen, setChosen] = useState("");
   const [subject, setSubject] = useState("");
@@ -332,7 +333,7 @@ function WriteForm({ candidate, mailing, write, t, onDone, onTyped }: { candidat
       <div className="field-block">
         <label className="label" htmlFor="write-text">{w.text}</label>
         <textarea id="write-text" className="field" rows={10} required maxLength={limits.emailText} value={text} onChange={e => setText(e.target.value)} aria-describedby="write-hint" />
-        <p className="hint" id="write-hint" {...(mailing === "off" ? { "data-mail": "off" } : {})}>{mailing === "off" ? w.noMail : format(w.hint, { email: candidate.email })}{mailing === "later" && <> {w.mailLater}</>}</p>
+        <p className="hint" id="write-hint" {...(mailing === "off" ? { "data-mail": "off" } : {})}>{mailing === "off" ? w.noMail : <>{format(w.hint, { email: candidate.email })} {write.repliesGo}</>}{mailing === "later" && <> {w.mailLater}</>}</p>
       </div>
       <div className="field-block">
         <span className="label">{w.files} <span className="optional">{t.apply.optional}</span></span>
@@ -367,7 +368,7 @@ function InterviewForm({ candidate, mailing, interview, t, onDone, onTyped }: { 
   const [minutes, setMinutes] = useState(60);
   const [people, setPeople] = useState<Set<string>>(new Set(interview.preselected.filter(p => interview.people.some(x => x.id === p))));
   // Busy times as the Chest's clock reads them ("09:30"), from the server.
-  const [busy, setBusy] = useState<{ member: string; from: string; to: string; source: string | null }[]>([]);
+  const [busy, setBusy] = useState<{ from: string; to: string; source: string | null; member: string }[]>([]);
   const off = mailing === "off";
   const [tell, setTell] = useState(!off);
   const [skipLunch, setSkipLunch] = useState(true);

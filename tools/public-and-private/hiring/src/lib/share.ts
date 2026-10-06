@@ -125,12 +125,12 @@ export async function takeBusy(sql: Sql, event: events.ToolEvent): Promise<boole
 }
 
 // toldBusy: what other tools said of these members between two instants.
-export async function toldBusy(sql: Query, memberIds: string[], from: Date, to: Date): Promise<{ member: string; start: Date; end: Date; source: string }[]> {
+export async function toldBusy(sql: Query, memberIds: string[], from: Date, to: Date): Promise<{ start: Date; end: Date; source: string; member: string }[]> {
   if (memberIds.length === 0) return [];
   const rows = await sql<{ member_id: string; lo: Date; hi: Date; source: string }[]>`
     select member_id, lower(span) as lo, upper(span) as hi, source from told_spans
     where member_id in ${sql(memberIds)} and span && tstzrange(${from}, ${to}) order by lower(span)`;
-  return rows.map(r => ({ member: r.member_id, start: r.lo, end: r.hi, source: r.source }));
+  return rows.map(r => ({ start: r.lo, end: r.hi, source: r.source, member: r.member_id }));
 }
 
 // A member who leaves or is erased: what was told of them, and what

@@ -35,7 +35,7 @@ before(async () => {
   chest = await fakeChest({
     members: everyone,
     capabilities: ["members", "files", "notifications", "mail", "calendar"],
-    mail: { domain: "atelier.test", mailboxes: ["jobs"] },
+    mail: { domain: "atelier.test" },
     calendar: { domain: "atelier.test", toolTitle: "Hiring", company: "Atelier Martin" },
     chest: { organization: "Atelier Martin", timeZone: "Europe/Paris" },
     emits: ["hiring.hired", "hiring.hire_cancelled", "hiring.busy"],

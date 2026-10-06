@@ -297,23 +297,20 @@ await step("reach: the job page carries JobPosting data (a data block: no script
   expect((await (await page.request.get(origin + "/robots.txt")).text()).includes("Disallow: /chest"), "robots");
 });
 
-await step("write to a candidate from a template; her answer lands on her page", async () => {
+await step("write to a candidate from a template; the email and the page say her answer goes to the company's inbox", async () => {
   await page.goto(origin + "/chest/candidates/7");
+  expect((await page.locator("#emails ~ .hint").first().innerText()).includes("Candidates’ replies go to contact@atelier-martin.test, your company’s usual inbox — not to this page."), "the page says where answers go");
   await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#write-template").selectOption({ label: "Ask when they are free" });
   expect((await page.locator("#write-text").inputValue()).startsWith("Hello Emma,"), "template filled");
+  expect((await page.locator("#write-hint").innerText()).includes("not to this page"), "the form says it too");
   await page.locator("dialog[open]").getByRole("button", { name: "Send" }).click();
   await page.waitForSelector(".ck-toast");
   expect((await page.locator(".ck-toast").innerText()).includes("Sent to Emma Lefort"), "sent");
   const log = await dev();
-  expect(log.includes("jobs+tc7-"), "reply address is the candidate's thread");
-  const id = /<option value="(msg_[a-z2-7]+)">Reply to “Your application — Senior furniture designer” \(emma\.lefort@example\.com\)/u.exec(log)?.[1];
-  expect(id, "the message in the outbox");
-  const r = await page.request.post(origin + "/_dev/receive", { form: { mailbox: "jobs", reply: id, from: "emma.lefort@example.com", fromName: "Emma Lefort", subject: "x", text: "Thursday at 10 works for me. Emma", back: "/_dev" }, maxRedirects: 0 });
-  expect(r.status() === 303, "delivered");
-  await page.reload();
-  expect((await page.locator(".mails").innerText()).includes("Thursday at 10 works for me"), "her answer in the conversation");
-  expect((await page.locator(".timeline").innerText()).includes("They answered by email"), "in the history");
+  const item = log.split("<li>").find(x => x.includes("<b>Your application — Senior furniture designer</b>") && x.includes("emma.lefort@example.com"));
+  expect(item && item.includes("replies to <code>contact@atelier-martin.test</code>"), "Reply-To: the company's address");
+  expect(item.includes("To answer, reply to this email: it goes to Atelier Martin."), "the email's last line says where a reply goes");
 });
 
 await step("invite to an interview: busy times shown, .ics emailed, interviewers' calendars have it", async () => {
@@ -720,23 +717,17 @@ await step("a candidate's own data carries the files sent to her (the offer lett
   expect(/emails\/\d+\/Offer letter\.pdf/u.test(all) && /emails\/\d+\/Contract\.pdf/u.test(all), "and in the full export");
 });
 
-await step("the morning schedule: each interviewer gets the day's interviews by email, in their language (their email choice applied by the Chest)", async () => {
+await step("the morning schedule: each interviewer finds the day's interviews in the bell, in their language — no email from Hiring", async () => {
   // The sample has Karim Haddad's interview at 09:00 this morning, Paris
   // time, with Hugo and Inès — seeded relative to Paris's day, so this
   // step holds at any hour.
   const r = await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
   expect(r.status() === 303, "schedule: " + r.status());
   const log = await dev();
-  const mail = log.split("<li>").find(item => item.includes("<b>Your interviews today</b>"));
-  expect(Boolean(mail) && mail.includes("hugo@example.test") && mail.includes("09:00 — Karim Haddad") && mail.includes("/chest/candidates/8"), "Hugo's morning email, with the time, the name and the link");
-  // Run again (a retry): still one email for him today.
-  await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" }, maxRedirects: 0 });
-  const again = await dev();
-  expect(again.split("<b>Your interviews today</b>").length - 1 === 1, "one a day");
-  // Every interviewer on it gets theirs in their own language: Inès reads French.
-  const ines = again.split("<li>").find(item => item.includes("<b>Vos entretiens aujourd’hui</b>"));
-  expect(Boolean(ines) && ines.includes("ines@example.test") && ines.includes("Bonjour Inès") && ines.includes("09:00 — Karim Haddad"), "Inès's, in French");
-  expect(again.split("<b>Vos entretiens aujourd’hui</b>").length - 1 === 1, "one for her too");
+  const bell = log.split("<li>").filter(item => item.includes("Interview at 09:00: Karim Haddad"));
+  expect(bell.some(item => item.includes("Hugo") && item.includes("/chest/candidates/8")), "Hugo's item, opening Karim's page");
+  expect(bell.some(item => item.includes("Inès") && item.includes('lang="fr"')), "Inès's, with its French words");
+  expect(!log.includes("Your interviews today") && !log.includes("Vos entretiens aujourd’hui"), "no morning email");
 });
 
 await step("a candidate applies from a phone with a photo of her CV; the team sees it on her page", async () => {

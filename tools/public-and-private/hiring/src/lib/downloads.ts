@@ -105,8 +105,7 @@ export async function cvFile(sql: Sql, actor: Member, candidateId: string, downl
   });
 }
 
-// A file an email brought, or the email as received ("original"), for a
-// recruiter: always saved.
+// A file the team sent with an email, for a recruiter: always saved.
 export async function messageFile(sql: Sql, actor: Member, messageId: string, which: string): Promise<Response> {
   if (!can(actor, "candidates.manage")) return none(403);
   let found: Awaited<ReturnType<typeof fileOf>>;

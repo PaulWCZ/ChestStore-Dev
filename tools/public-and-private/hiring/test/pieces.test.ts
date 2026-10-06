@@ -12,7 +12,6 @@ import { countryNames } from "../src/lib/countries.ts";
 import { db } from "../src/lib/db.ts";
 import { brandImage, cvFile, downloadLimits, downloadsInFlight, messageFile } from "../src/lib/downloads.ts";
 import * as jobs from "../src/lib/jobs.ts";
-import { received } from "../src/lib/mail-in.ts";
 import { confirmation, greeted } from "../src/lib/mailer.ts";
 import * as cvs from "../src/lib/cv.ts";
 import { cut } from "../src/lib/notify.ts";
@@ -124,7 +123,7 @@ test("a CV is served to whoever sees the candidate, two at a time at most, inlin
   // Nobody else: an interviewer not on the job, or a file of an email for
   // an interviewer (recruiters only).
   assert.equal((await cvFile(sql, asMember(lea), c.id, false)).status, 404);
-  const [m] = await sql<{ id: string }[]>`insert into messages (candidate_id, direction, kind, subject, body, status, attachments) values (${c.id}, 'in', 'message', 'CV', 'here', 'received', ${sql.json([{ file: "cv/0123456789abcdef0123.pdf", name: "x.pdf", type: "application/pdf", size: 1 }] as never)}) returning id`;
+  const [m] = await sql<{ id: string }[]>`insert into messages (candidate_id, direction, kind, subject, body, status, attachments) values (${c.id}, 'out', 'message', 'CV', 'here', 'sent', ${sql.json([{ file: "cv/0123456789abcdef0123.pdf", name: "x.pdf", type: "application/pdf", size: 1 }] as never)}) returning id`;
   assert.equal((await messageFile(sql, asMember(ines), m!.id, "0")).status, 403);
   const file = await messageFile(sql, recruiter(), m!.id, "0");
   assert.equal(file.headers.get("content-type"), "application/octet-stream");
@@ -140,16 +139,6 @@ test("a careers image on the team's Settings: a link the Chest signs, for an ima
   assert.match(shown.headers.get("location") ?? "", /\/_chest\/files\//u);
   assert.equal((await brandImage(recruiter(), "public/brand/ffffffffffffffffffff.png", ["public/brand/0123456789abcdef0123.png"])).status, 404);
   assert.equal((await brandImage(asMember(ines), "public/brand/0123456789abcdef0123.png", ["public/brand/0123456789abcdef0123.png"])).status, 404);
-});
-
-test("a received email lands with its candidate by its thread, once", async () => {
-  const sql = db();
-  const job = await openJob(sql, recruiter(), "Mail in");
-  const { candidate: c } = await candidates.apply(sql, application(job.slug, { email: "zoe@example.com" }));
-  const message = { id: "rcv_" + "z".repeat(26), mailbox: "jobs", thread: "c" + c.id, from: { address: "zoe@example.com", name: "Zoé" }, to: "jobs@atelier.test", subject: "Re", text: "Thanks", html: null, messageId: "<m1@example.com>", inReplyTo: null, references: [], attachments: [], original: null, authenticated: true, auto: false, receivedAt: new Date().toISOString() };
-  assert.deepEqual(await received(sql, message as never), { candidate: c.id, created: true });
-  assert.deepEqual(await received(sql, message as never), { candidate: c.id, created: false });
-  assert.deepEqual(await received(sql, { ...message, id: "rcv_" + "y".repeat(26), mailbox: "other" } as never), { candidate: null, created: false });
 });
 
 test("the confirmation greets with a first name only, never a link or an address someone typed as their name", () => {

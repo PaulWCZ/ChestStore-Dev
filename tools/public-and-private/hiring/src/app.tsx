@@ -1,6 +1,5 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import * as events from "@argentic/chest-sdk/events";
-import * as mail from "@argentic/chest-sdk/mail";
 import * as schedules from "@argentic/chest-sdk/schedules";
 import { after, createApp, download, page, publicPage, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { seen } from "@argentic/chest-app/db";
@@ -17,7 +16,6 @@ import { everything, theirData } from "./lib/export-all.ts";
 import { icsForMember, today } from "./lib/interviews.ts";
 import { introFor, settings } from "./lib/jobs.ts";
 import { handlers } from "./lib/lifecycle.ts";
-import { bounced, received } from "./lib/mail-in.ts";
 import { sweepTemplateFiles } from "./lib/messages.ts";
 import * as outbox from "./lib/outbox.ts";
 import { feedData, salaryWords, xml } from "./lib/public-feed.ts";
@@ -31,13 +29,13 @@ import { applyPage, careersPage, jobPage, thanksPage } from "./pages/careers.tsx
 import { interviewPage } from "./pages/interview.tsx";
 import { addPage, boardPage, boardVersion, editJobPage, importPage, jobSettingsPage, newJobPage } from "./pages/job.tsx";
 import { jobsPage, jobsVersion } from "./pages/jobs.tsx";
-import { mailPage, poolPage, reportsPage, searchPage } from "./pages/lists.tsx";
+import { poolPage, reportsPage, searchPage } from "./pages/lists.tsx";
 import { settingsPage } from "./pages/settings.tsx";
 import { csvLine, textStream } from "@argentic/chest-app";
 import { stageLabel } from "./shared/stages.ts";
 import { slugify } from "./shared/model.ts";
 import { format } from "./shared/format.ts";
-import { dayOf, timeOf } from "./shared/time.ts";
+import { timeOf } from "./shared/time.ts";
 import { sheetOf } from "./theme.ts";
 
 // Hiring's routes. createApp() already serves /assets/, the actions
@@ -83,7 +81,6 @@ routes.get("/chest", team(jobsPage, { version: jobsVersion }));
 routes.get("/chest/search", team(searchPage));
 routes.get("/chest/pool", team(poolPage));
 routes.get("/chest/reports", team(reportsPage));
-routes.get("/chest/mail", team(mailPage));
 routes.get("/chest/settings", team(settingsPage));
 // The careers page's logo and photos, shown on Settings (team host).
 routes.get("/chest/settings/images/:name{[0-9a-f]{20}\\.(?:png|jpg|webp)}", async c => {
@@ -187,10 +184,12 @@ routes.post("/chest-events", async c => {
 //   retention go, with their CVs and their emails' files (CNIL: two years
 //   at most by default); files sent but never kept go too;
 // - outbox, every 15 minutes: emails that are due (a rejection after its
-//   Undo) leave even when nobody has the tool open; interviews reach the
+//   Undo) leave even when nobody has the tool open; the Chest is asked
+//   whether the emails sent lately arrived (bounces); interviews reach the
 //   interviewers' calendars, and their times the tools linked to Hiring;
-// - morning, on weekdays: each interviewer hears of the day's interviews,
-//   in the bell and in one email (which honours their email choice).
+// - morning, on weekdays: each interviewer hears of the day's interviews
+//   in the bell (the Chest mails members their notifications, by each
+//   one's choice: Hiring sends members no email).
 routes.post("/chest-schedules", async c => new Response(null, {
   status: await schedules.handle(c.req.raw, {
     cleanup: async run => {
@@ -209,32 +208,18 @@ routes.post("/chest-schedules", async c => new Response(null, {
     },
     outbox: async () => {
       await outbox.flush(db(), 100);
+      await outbox.checkSent(db());
       await shareDueBusy(db());
     },
     morning: async run => {
       const zone = chest.timeZone;
       const at = new Date(run.scheduledAt);
       // The day is the run's: a retry after midnight still says that day,
-      // under the same keys (one email per person and day).
-      await interviewsToday(await today(db(), at), start => timeOf(start, zone), dayOf(at, zone));
+      // under the same keys (one item per interview).
+      await interviewsToday(await today(db(), at), start => timeOf(start, zone));
     },
   }, { seen }),
 }));
-// Emails sent to the jobs mailbox — a candidate's answer — and the bounces
-// of what the tool sent (Proposal (studio): mail).
-routes.post("/chest-mail", async c => {
-  const sql = db();
-  return new Response(null, {
-    status: await mail.handle(c.req.raw, {
-      message: async message => {
-        await received(sql, message);
-        await refreshBadges(sql);
-      },
-      bounce: bounce => bounced(sql, bounce),
-    }, { seen }),
-  });
-});
-
 // ---- Headers a few answers add: the team's part and a candidate's link
 // are never indexed; a candidate's link (its address is the secret) is
 // never kept by a cache nor sent as a referrer.

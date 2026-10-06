@@ -7,7 +7,7 @@ import { toCsv } from "../shared/csv.ts";
 import type { Sql } from "./db.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { ofCandidate } from "./interviews.ts";
-import { conversation, type Attachment } from "./messages.ts";
+import { type Attachment } from "./messages.ts";
 import { cvTypes, isCvType, slugify } from "../shared/model.ts";
 import { stageLabel } from "../shared/stages.ts";
 import type { Entry } from "./zip.ts";
@@ -91,7 +91,12 @@ export async function theirData(sql: Sql, actor: Member | null, candidateId: unk
   if (!can(actor, "export")) throw new AppError("forbidden");
   const { cvObject } = await manageable(sql, actor, candidateId);
   const d = await readCandidate(sql, actor, candidateId);
-  const mails = await conversation(sql, actor, candidateId);
+  // Every email about them, received ones an earlier version kept included
+  // (their data: the Chest receives no mail now, but what was kept is
+  // theirs to have).
+  const mails = (await sql<{ id: string; direction: string; subject: string; body: string; created_at: Date; status: string }[]>`
+    select id, direction, subject, body, created_at, status from messages where candidate_id = ${(await manageable(sql, actor, candidateId)).candidate.id} order by created_at, id`)
+    .map(m => ({ id: String(m.id), direction: m.direction, subject: m.subject, body: m.body, createdAt: m.created_at.toISOString(), status: m.status }));
   const interviews = await ofCandidate(sql, actor, candidateId);
   const c = d.candidate;
   // The files of their emails, both ways (the offer letter sent, what they

@@ -7,7 +7,7 @@ import { candidate as readCandidate, type Activity, type Feedback } from "../lib
 import { db } from "../lib/db.ts";
 import { ofCandidate } from "../lib/interviews.ts";
 import { interviewersOf, settings } from "../lib/jobs.ts";
-import { mailState } from "../lib/mail-state.ts";
+import { mailInfo } from "../lib/mail-state.ts";
 import { rejectionDraft, values as mailValues } from "../lib/mailer.ts";
 import { conversation, templates as companyTemplates, type Message } from "../lib/messages.ts";
 import { nameOf, people } from "../lib/people.ts";
@@ -61,7 +61,9 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
   const onJob = await interviewersOf(sql, c.jobId);
   // Whether an email to the candidate would leave: the forms say so
   // before a recruiter counts on one.
-  const mailing = manage ? await mailState() : "unknown";
+  const { state: mailing, replyTo } = manage ? await mailInfo() : { state: "unknown" as const, replyTo: null };
+  // Where a candidate's answer goes, said where the team writes to them.
+  const repliesGo = replyTo ? format(t.write.repliesTo, { address: replyTo }) : t.write.repliesToSender;
   const [mails, meetings, own, requests] = await Promise.all([
     manage ? conversation(sql, member, c.id) : Promise.resolve([]),
     ofCandidate(sql, member, c.id),
@@ -132,7 +134,7 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
               stages: d.stages.map(x => ({ id: x.id, name: stageLabel(x, defaults), hired: x.hired })),
               next: c.status === "active" && next ? { id: next.id, name: stageLabel(next, defaults) } : null,
               askable, draft: draft.text, languageName: languageNames[c.language] ?? c.language, locale,
-              write: { templates: [...builtIn, ...own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body, attachments: x.attachments.map(a => ({ file: a.file, name: a.name, type: a.type, size: a.size })) }))], values, languageNames },
+              write: { templates: [...builtIn, ...own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body, attachments: x.attachments.map(a => ({ file: a.file, name: a.name, type: a.type, size: a.size })) }))], values, languageNames, repliesGo },
               // Ticked at first: the job's own interviewers — never the
               // recruiter silently (the button then names who is on it).
               interview: { people: eligible.map(m => ({ id: m.id, name: m.name })), preselected: eligible.filter(m => onJob.includes(m.id)).map(m => m.id), today: dayOf(new Date(), chestZone), zone: zoneName(chestZone) },
@@ -188,6 +190,7 @@ export async function candidatePage(ctx: PageContext<MemberContext>): Promise<Vi
             {manage && (
               <section className="panel" aria-labelledby="emails">
                 <h2 id="emails">{t.write.emails}</h2>
+                <p className="hint">{repliesGo}</p>
                 <Conversation messages={mails.map(m => ({ ...m, authorName: m.author ? name(m.author) : m.kind === "confirmation" ? t.write.automatic : "", when: when(m.createdAt) }))} candidate={{ name: c.name }} locale={locale} t={t} />
               </section>
             )}
@@ -277,8 +280,7 @@ type ShownMessage = Message & { authorName: string; when: string };
 function Conversation({ messages, candidate, locale, t }: { messages: ShownMessage[]; candidate: { name: string }; locale: Locale; t: Catalogue }) {
   const w = t.write;
   if (messages.length === 0) return <p className="muted">{format(w.none, { name: candidate.name })}</p>;
-  const state = (m: ShownMessage) => m.direction === "in" ? null
-    : m.status === "waiting" ? <StatusBadge tone="wait" size="s" label={w.status.waiting} />
+  const state = (m: ShownMessage) => m.status === "waiting" ? <StatusBadge tone="wait" size="s" label={w.status.waiting} />
     : m.status === "sent" ? null
     : m.status === "none" ? <StatusBadge size="s" label={w.status.none} />
     : m.status === "cancelled" ? <StatusBadge size="s" label={w.status.cancelled} />
@@ -287,22 +289,20 @@ function Conversation({ messages, candidate, locale, t }: { messages: ShownMessa
   return (
     <ol className="mails">
       {messages.map((m, i) => (
-        <li key={m.id} id={`mail-${m.id}`} className={`mail ${m.direction}`}>
+        <li key={m.id} id={`mail-${m.id}`} className="mail out">
           <details open={i === messages.length - 1}>
             <summary>
-              <span className="mail-who">{m.direction === "in" ? (m.fromName || m.fromAddress || candidate.name) : m.authorName}</span>
+              <span className="mail-who">{m.authorName}</span>
               <span className="mail-subject">{m.subject || w.noSubject}</span>
               <span className="muted small">{m.when}</span>
               {state(m)}
             </summary>
             <p className="pre mail-body">{m.body}</p>
-            {(m.attachments.length > 0 || (m.direction === "in" && m.hasOriginal)) && (
+            {m.attachments.length > 0 && (
               <ul className="mail-files">
                 {m.attachments.map((a, k) => <li key={k}><a href={`/chest/messages/${m.id}/files/${k}`} download><Download />{a.name}</a> <span className="muted small">{fileSize(a.size, locale)}</span></li>)}
-                {m.direction === "in" && m.hasOriginal && <li><a href={`/chest/messages/${m.id}/files/original`} download><Download />{w.original}</a></li>}
               </ul>
             )}
-            {m.direction === "in" && m.authenticated === false && <p className="hint">{w.unverified}</p>}
             {m.hasCalendar && <p className="hint">{w.withInvite}</p>}
           </details>
         </li>
