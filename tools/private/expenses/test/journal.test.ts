@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET as csvRoute } from "../app/chest/export/csv/route.ts";
-import { GET as journalRoute } from "../app/chest/export/journal/route.ts";
-import * as expenses from "../lib/expenses.ts";
-import { fecAmount, fecColumns } from "../lib/journal.ts";
-import * as settings from "../lib/settings.ts";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { atLeast } from "@argentic/chest-app/testing";
+import * as expenses from "../src/lib/expenses.ts";
+import { fecAmount, fecColumns } from "../src/lib/journal.ts";
+import * as settings from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
+import { get as fetchAs } from "./support/server.ts";
+
+atLeast(3);
 
 // The accounting entries (FEC layout), the flat rates and hotel nights in
 // the exports, and the export by the month of payment.
@@ -19,7 +21,7 @@ const ids: Record<string, string> = {};
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
   const { sql } = database;
   for (const r of await sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
   const [night] = await sql<{ id: string }[]>`select id from allowances where key = 'night_other'`;
@@ -44,10 +46,10 @@ after(async () => {
   await database.close();
 });
 
-const get = (route: typeof csvRoute, path: string, who: typeof camille) => route(withMember(new Request("http://tool.test" + path), who));
+const get = (_route: "csv" | "journal", path: string, who: typeof camille) => fetchAs(who, path);
 
 test("the entries: 18 FEC columns, one balanced entry per expense, each person's account", async () => {
-  const response = await get(journalRoute, "/chest/export/journal?month=2026-09", camille);
+  const response = await get("journal", "/chest/export/journal?month=2026-09", camille);
   assert.equal(response.status, 200);
   assert.match(response.headers.get("Content-Disposition") ?? "", /Notes-de-frais_2026-09_ecritures\.txt/u);
   const rows = (await response.text()).replace(/\r\n$/u, "").split("\r\n").map(l => l.split("\t"));
@@ -77,18 +79,18 @@ test("the entries: 18 FEC columns, one balanced entry per expense, each person's
     const lines = entry(id);
     assert.equal(lines.reduce((sum, r) => sum + cents(r[11]!), 0), lines.reduce((sum, r) => sum + cents(r[12]!), 0), "balanced " + id);
   }
-  assert.equal((await get(journalRoute, "/chest/export/journal?month=2026-09", ines)).status, 403);
+  assert.equal((await get("journal", "/chest/export/journal?month=2026-09", ines)).status, 403);
 });
 
 test("the spreadsheet says the flat rate, the nights, the rate and the guests; by the month of payment", async () => {
-  const text = await (await get(csvRoute, "/chest/export/csv?month=2026-09", { ...camille, language: "en" })).text();
+  const text = await (await get("csv", "/chest/export/csv?month=2026-09", { ...camille, language: "en" })).text();
   assert.match(text, /"Night and breakfast, elsewhere in France \(URSSAF\), 3 nights × 56\.80 EUR, Chantier Nantes"/u);
   assert.match(text, /,2 nights,/u);
   assert.match(text, /,12\.50,GBP,1\.1653,14\.57,/u);
   assert.match(text, /,4000,JPY,,,/u);
   assert.match(text, /,M\. Garnier \(Garnier & Fils\)\r?$/mu);
   // Paid back in September: the lunch, and August's newspaper.
-  const paid = (await (await get(csvRoute, "/chest/export/csv?month=2026-09&by=paid", camille)).text()).trim().split("\r\n");
+  const paid = (await (await get("csv", "/chest/export/csv?month=2026-09&by=paid", camille)).text()).trim().split("\r\n");
   assert.deepEqual(paid.slice(1).map(l => l.split(";")[0]), ["30/08/2026", "10/09/2026"]);
   assert.equal((await expenses.exportMonths(database.sql, asMember(camille), "paid")).map(m => m.month).join(), "2026-09");
   assert.equal(await expenses.exportWithoutRate(database.sql, asMember(camille), { from: "2026-09-01", to: "2026-10-01" }), 1);

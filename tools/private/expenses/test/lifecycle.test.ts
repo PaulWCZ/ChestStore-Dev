@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as bank from "../lib/bank.ts";
-import * as expenses from "../lib/expenses.ts";
-import * as settings from "../lib/settings.ts";
+import { atLeast } from "@argentic/chest-app/testing";
+import * as bank from "../src/lib/bank.ts";
+import * as expenses from "../src/lib/expenses.ts";
+import * as settings from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 import { upload } from "./support/receipts.ts";
+import { deliver, server } from "./support/server.ts";
+
+atLeast(4);
+const POST = deliver;
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -16,7 +20,8 @@ let meals = "";
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
+  await server();
   meals = String((await database.sql`select id from categories where key = 'meals'`)[0]!["id"]);
 });
 after(async () => {
@@ -85,6 +90,6 @@ test("an erasure keeps the accounting records under 'erased', deletes notes, dra
 });
 
 test("an event not signed by the Chest is refused", async () => {
-  const response = await POST(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
+  const response = await POST(new Request("https://expenses-chest.chest.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
   assert.equal(response.status, 401);
 });
