@@ -16,7 +16,7 @@ read it first. Here, what is Rooms' own.
 | `migrations/0001_rooms.sql` | Schema. **The exclusion constraints** (`desk_taken`, `desk_already`, `room_taken`) are what prevents double booking; `btree_gist` is required. Never edit a shipped file; add the next one |
 | `migrations/0003_…` – `0007_…` | Calendar queue, usual week, lent desks, groups, check-in, presets, example, import, visitors, Leave's words |
 | `migrations/0008_calendar_uids.sql` | `room_bookings.uid_salt` (a booking's calendar key `room:<id>:<salt>`; null: a booking made before, key `room:<id>`), `calendar_sent.published` (the key the Chest holds) |
-| `migrations/0009_change_stamp.sql` | `change_stamp`, a sequence every write to the pages' tables takes (triggers): the pages' version |
+| `migrations/0009_change_stamp.sql`, `0011_chest_changes.sql` | The pages' version: 0009's sequence, replaced by 0011's package change log (`chest_watch` a new table there) |
 | `src/app.tsx` | **Every route**: the pages, the files (`download()`), the room photo link, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every change**, by name (`call()` from the islands); the bell and the calendars go `after()` the answer; imports are `parallel` |
 | `src/pages/` | `Week`, `Desks`, `Rooms`, `People`, `Visitors`, `Places` (offices, rules, export), `PublicHome` |

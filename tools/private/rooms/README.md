@@ -253,9 +253,10 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
   so the events calendars already hold are still updated.
 - **Pages others change** read themselves again while open (the package's
   `useAutoRefresh`: on focus, and while the reader was active in the last
-  ten minutes) and answer 304 when nothing changed: a page's version is a
-  sequence every write takes (`migrations/0009`), the day and the quarter
-  hour (`src/lib/stamp.ts`).
+  ten minutes) and answer 304 when nothing changed: a page's version is
+  the package's change stamp (`migrations/0011`: one log row per
+  transaction that changed rows, seen at its commit), the day and the
+  quarter hour (`src/lib/stamp.ts`).
 - **Calendar, email, groups** (**Proposals (studio)**): `"calendar": true`,
   `"mail": {"send": true}`, `"groups": "read"`. Each change writes the keys
   it touched in `calendar_queue` in its own transaction; the tool then puts
