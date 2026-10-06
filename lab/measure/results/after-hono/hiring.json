@@ -1,0 +1,1146 @@
+{
+ "tool": "hiring",
+ "label": "after-hono",
+ "source": "/home/user/wt/hiring/tools/public-and-private/hiring",
+ "date": "2026-10-06T07:35:03.188Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "0a5e943 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 2.65,
+   "five": 3.54,
+   "fifteen": 3.91
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 35,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 29.9,
+    "rssMiB": 239,
+    "command": "chrome"
+   },
+   {
+    "cpu": 21.8,
+    "rssMiB": 301,
+    "command": "chrome"
+   },
+   {
+    "cpu": 18.3,
+    "rssMiB": 181,
+    "command": "chrome"
+   },
+   {
+    "cpu": 16.1,
+    "rssMiB": 105,
+    "command": "MainThread"
+   }
+  ],
+  "atEnd": {
+   "one": 6.21,
+   "five": 4.74,
+   "fifteen": 4.38
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 164,
+    "rssMiB": 1031,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 100,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 44.2,
+    "rssMiB": 176,
+    "command": "chrome"
+   },
+   {
+    "cpu": 40,
+    "rssMiB": 143,
+    "command": "chrome"
+   },
+   {
+    "cpu": 29.4,
+    "rssMiB": 95,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 12,
+  "apparentMiB": 11.4,
+  "files": 218
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 3332,
+  "peakRssMiB": 218.6,
+  "peakPssMiB": 169.1,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 284.9,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 2.76,
+   "five": 3.55,
+   "fifteen": 3.91
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 113.5,
+   "apparentMiB": 104.6,
+   "files": 2727
+  },
+  "pruned": {
+   "diskMiB": 18.6,
+   "apparentMiB": 13.7,
+   "files": 1369
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 5825,
+   "peakRssMiB": 364.9,
+   "peakPssMiB": 295.9,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 282.8,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 3.1,
+    "max": 3.1
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 4351,
+   "peakRssMiB": 414.8,
+   "peakPssMiB": 318.5,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 303.8,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 3.89,
+    "five": 3.77,
+    "fifteen": 3.98
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 2.5,
+  "apparentMiB": 2.5,
+  "files": 19,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 33.1
+ },
+ "sdk": "0.4.1-studio.4",
+ "pages": {
+  "source": "lab/measure/pages/hiring.json",
+  "list": [
+   {
+    "path": "/",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/senior-furniture-designer",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/senior-furniture-designer/apply",
+    "public": true,
+    "language": "fr"
+   },
+   {
+    "path": "/sales-associate-lyon-showroom/apply",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/chest",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/jobs/1",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/candidates/1",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/candidates/7",
+    "member": "ines",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/jobs/3",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/jobs/2",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=lu",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pool",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/reports?job=1",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/mail",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/jobs/new",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/jobs/new?template=officeManager",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 653.4,
+    "firstMs": 930.6,
+    "statuses": [
+     200
+    ],
+    "load": 4.46
+   },
+   {
+    "portMs": 365,
+    "firstMs": 541.7,
+    "statuses": [
+     200
+    ],
+    "load": 5.6
+   },
+   {
+    "portMs": 416.7,
+    "firstMs": 571.5,
+    "statuses": [
+     200
+    ],
+    "load": 6.39
+   },
+   {
+    "portMs": 379,
+    "firstMs": 562.9,
+    "statuses": [
+     200
+    ],
+    "load": 7.5
+   },
+   {
+    "portMs": 411.1,
+    "firstMs": 513.4,
+    "statuses": [
+     200
+    ],
+    "load": 7.71
+   },
+   {
+    "portMs": 553.4,
+    "firstMs": 672,
+    "statuses": [
+     200
+    ],
+    "load": 8.69
+   },
+   {
+    "portMs": 367.5,
+    "firstMs": 479.9,
+    "statuses": [
+     200
+    ],
+    "load": 8.04
+   },
+   {
+    "portMs": 312,
+    "firstMs": 407.3,
+    "statuses": [
+     200
+    ],
+    "load": 7.03
+   },
+   {
+    "portMs": 390.4,
+    "firstMs": 492.1,
+    "statuses": [
+     200
+    ],
+    "load": 6.02
+   },
+   {
+    "portMs": 302.7,
+    "firstMs": 398.2,
+    "statuses": [
+     200
+    ],
+    "load": 5.41
+   }
+  ],
+  "port": {
+   "median": 384.7,
+   "min": 302.7,
+   "max": 653.4
+  },
+  "first200": {
+   "median": 527.55,
+   "min": 398.2,
+   "max": 930.6
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 158.5,
+     "pss": 54.3
+    },
+    "peakMiB": {
+     "rss": 178.8,
+     "pss": 71.7,
+     "cgroup": 73
+    },
+    "afterRequestsMiB": {
+     "rss": 178.8,
+     "pss": 71.7
+    },
+    "restMiB": {
+     "rss": 174.4,
+     "pss": 66.9,
+     "pssAnon": 61.2,
+     "pssFile": 5.7,
+     "cgroupAnon": 61.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 19.7
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 105.5,
+      "pssMiB": 47.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 5035,
+      "ms": 21.7
+     },
+     {
+      "path": "/senior-furniture-designer",
+      "status": 200,
+      "bytes": 8528,
+      "ms": 10.9
+     },
+     {
+      "path": "/senior-furniture-designer/apply",
+      "status": 200,
+      "bytes": 10698,
+      "ms": 15.6
+     },
+     {
+      "path": "/sales-associate-lyon-showroom/apply",
+      "status": 200,
+      "bytes": 11583,
+      "ms": 11.9
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11296,
+      "ms": 16.2
+     },
+     {
+      "path": "/chest/jobs/1",
+      "status": 200,
+      "bytes": 39764,
+      "ms": 52.3
+     },
+     {
+      "path": "/chest/candidates/1",
+      "status": 200,
+      "bytes": 79746,
+      "ms": 52.6
+     },
+     {
+      "path": "/chest/candidates/7",
+      "status": 200,
+      "bytes": 26073,
+      "ms": 15.1
+     },
+     {
+      "path": "/chest/jobs/3",
+      "status": 200,
+      "bytes": 36128,
+      "ms": 15.4
+     },
+     {
+      "path": "/chest/jobs/2",
+      "status": 200,
+      "bytes": 36083,
+      "ms": 10.3
+     },
+     {
+      "path": "/chest/search?q=lu",
+      "status": 200,
+      "bytes": 7731,
+      "ms": 7
+     },
+     {
+      "path": "/chest/pool",
+      "status": 200,
+      "bytes": 9887,
+      "ms": 5.6
+     },
+     {
+      "path": "/chest/reports?job=1",
+      "status": 200,
+      "bytes": 8524,
+      "ms": 11.1
+     },
+     {
+      "path": "/chest/mail",
+      "status": 200,
+      "bytes": 8264,
+      "ms": 7.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 28794,
+      "ms": 13.5
+     },
+     {
+      "path": "/chest/jobs/new",
+      "status": 200,
+      "bytes": 22953,
+      "ms": 7.2
+     },
+     {
+      "path": "/chest/jobs/new?template=officeManager",
+      "status": 200,
+      "bytes": 23724,
+      "ms": 5.8
+     }
+    ],
+    "load": {
+     "mean": 5.09,
+     "max": 5.91
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 157.7,
+     "pss": 52.9
+    },
+    "peakMiB": {
+     "rss": 178.1,
+     "pss": 72.7,
+     "cgroup": 74.1
+    },
+    "afterRequestsMiB": {
+     "rss": 178.1,
+     "pss": 70.1
+    },
+    "restMiB": {
+     "rss": 174.4,
+     "pss": 66.7,
+     "pssAnon": 61,
+     "pssFile": 5.7,
+     "cgroupAnon": 61,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 19.6
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 105.5,
+      "pssMiB": 47
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 5035,
+      "ms": 38.2
+     },
+     {
+      "path": "/senior-furniture-designer",
+      "status": 200,
+      "bytes": 8528,
+      "ms": 25.9
+     },
+     {
+      "path": "/senior-furniture-designer/apply",
+      "status": 200,
+      "bytes": 10698,
+      "ms": 13.5
+     },
+     {
+      "path": "/sales-associate-lyon-showroom/apply",
+      "status": 200,
+      "bytes": 11583,
+      "ms": 14.6
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11296,
+      "ms": 20
+     },
+     {
+      "path": "/chest/jobs/1",
+      "status": 200,
+      "bytes": 39764,
+      "ms": 50.8
+     },
+     {
+      "path": "/chest/candidates/1",
+      "status": 200,
+      "bytes": 79746,
+      "ms": 100.5
+     },
+     {
+      "path": "/chest/candidates/7",
+      "status": 200,
+      "bytes": 26073,
+      "ms": 39.9
+     },
+     {
+      "path": "/chest/jobs/3",
+      "status": 200,
+      "bytes": 36128,
+      "ms": 29
+     },
+     {
+      "path": "/chest/jobs/2",
+      "status": 200,
+      "bytes": 36083,
+      "ms": 39.1
+     },
+     {
+      "path": "/chest/search?q=lu",
+      "status": 200,
+      "bytes": 7731,
+      "ms": 17.5
+     },
+     {
+      "path": "/chest/pool",
+      "status": 200,
+      "bytes": 9887,
+      "ms": 8.1
+     },
+     {
+      "path": "/chest/reports?job=1",
+      "status": 200,
+      "bytes": 8524,
+      "ms": 32.5
+     },
+     {
+      "path": "/chest/mail",
+      "status": 200,
+      "bytes": 8264,
+      "ms": 7.8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 28794,
+      "ms": 31.5
+     },
+     {
+      "path": "/chest/jobs/new",
+      "status": 200,
+      "bytes": 22953,
+      "ms": 15.1
+     },
+     {
+      "path": "/chest/jobs/new?template=officeManager",
+      "status": 200,
+      "bytes": 23724,
+      "ms": 21.1
+     }
+    ],
+    "load": {
+     "mean": 4.61,
+     "max": 5.02
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 158,
+     "pss": 53
+    },
+    "peakMiB": {
+     "rss": 178.9,
+     "pss": 70.8,
+     "cgroup": 72.1
+    },
+    "afterRequestsMiB": {
+     "rss": 178.9,
+     "pss": 70.8
+    },
+    "restMiB": {
+     "rss": 174.8,
+     "pss": 66.6,
+     "pssAnon": 61.4,
+     "pssFile": 5.2,
+     "cgroupAnon": 61.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.4,
+      "pssMiB": 19.8
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 105.5,
+      "pssMiB": 46.7
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 5035,
+      "ms": 12
+     },
+     {
+      "path": "/senior-furniture-designer",
+      "status": 200,
+      "bytes": 8528,
+      "ms": 10.2
+     },
+     {
+      "path": "/senior-furniture-designer/apply",
+      "status": 200,
+      "bytes": 10698,
+      "ms": 8.6
+     },
+     {
+      "path": "/sales-associate-lyon-showroom/apply",
+      "status": 200,
+      "bytes": 11583,
+      "ms": 7.3
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11296,
+      "ms": 13.2
+     },
+     {
+      "path": "/chest/jobs/1",
+      "status": 200,
+      "bytes": 39764,
+      "ms": 23.4
+     },
+     {
+      "path": "/chest/candidates/1",
+      "status": 200,
+      "bytes": 79746,
+      "ms": 34.2
+     },
+     {
+      "path": "/chest/candidates/7",
+      "status": 200,
+      "bytes": 26073,
+      "ms": 14.6
+     },
+     {
+      "path": "/chest/jobs/3",
+      "status": 200,
+      "bytes": 36128,
+      "ms": 14.4
+     },
+     {
+      "path": "/chest/jobs/2",
+      "status": 200,
+      "bytes": 36083,
+      "ms": 40.8
+     },
+     {
+      "path": "/chest/search?q=lu",
+      "status": 200,
+      "bytes": 7731,
+      "ms": 11.1
+     },
+     {
+      "path": "/chest/pool",
+      "status": 200,
+      "bytes": 9887,
+      "ms": 5.9
+     },
+     {
+      "path": "/chest/reports?job=1",
+      "status": 200,
+      "bytes": 8524,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/mail",
+      "status": 200,
+      "bytes": 8264,
+      "ms": 6.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 28794,
+      "ms": 12.3
+     },
+     {
+      "path": "/chest/jobs/new",
+      "status": 200,
+      "bytes": 22953,
+      "ms": 7.6
+     },
+     {
+      "path": "/chest/jobs/new?template=officeManager",
+      "status": 200,
+      "bytes": 23724,
+      "ms": 6.2
+     }
+    ],
+    "load": {
+     "mean": 3.27,
+     "max": 3.44
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 157.9,
+     "pss": 52.5
+    },
+    "peakMiB": {
+     "rss": 176.5,
+     "pss": 68.1,
+     "cgroup": 72
+    },
+    "afterRequestsMiB": {
+     "rss": 176.5,
+     "pss": 68.1
+    },
+    "restMiB": {
+     "rss": 173.1,
+     "pss": 64.8,
+     "pssAnon": 59.7,
+     "pssFile": 5.1,
+     "cgroupAnon": 59.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 19.4
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 104.2,
+      "pssMiB": 45.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 5035,
+      "ms": 109.6
+     },
+     {
+      "path": "/senior-furniture-designer",
+      "status": 200,
+      "bytes": 8528,
+      "ms": 38.6
+     },
+     {
+      "path": "/senior-furniture-designer/apply",
+      "status": 200,
+      "bytes": 10698,
+      "ms": 17.2
+     },
+     {
+      "path": "/sales-associate-lyon-showroom/apply",
+      "status": 200,
+      "bytes": 11583,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11296,
+      "ms": 22.1
+     },
+     {
+      "path": "/chest/jobs/1",
+      "status": 200,
+      "bytes": 39764,
+      "ms": 62.5
+     },
+     {
+      "path": "/chest/candidates/1",
+      "status": 200,
+      "bytes": 79746,
+      "ms": 70.1
+     },
+     {
+      "path": "/chest/candidates/7",
+      "status": 200,
+      "bytes": 26073,
+      "ms": 21.7
+     },
+     {
+      "path": "/chest/jobs/3",
+      "status": 200,
+      "bytes": 36128,
+      "ms": 64
+     },
+     {
+      "path": "/chest/jobs/2",
+      "status": 200,
+      "bytes": 36083,
+      "ms": 56.7
+     },
+     {
+      "path": "/chest/search?q=lu",
+      "status": 200,
+      "bytes": 7731,
+      "ms": 8.3
+     },
+     {
+      "path": "/chest/pool",
+      "status": 200,
+      "bytes": 9887,
+      "ms": 12.7
+     },
+     {
+      "path": "/chest/reports?job=1",
+      "status": 200,
+      "bytes": 8524,
+      "ms": 30.1
+     },
+     {
+      "path": "/chest/mail",
+      "status": 200,
+      "bytes": 8264,
+      "ms": 9.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 28794,
+      "ms": 15.4
+     },
+     {
+      "path": "/chest/jobs/new",
+      "status": 200,
+      "bytes": 22953,
+      "ms": 7.2
+     },
+     {
+      "path": "/chest/jobs/new?template=officeManager",
+      "status": 200,
+      "bytes": 23724,
+      "ms": 25.7
+     }
+    ],
+    "load": {
+     "mean": 3.24,
+     "max": 3.44
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 158.7,
+     "pss": 53.6
+    },
+    "peakMiB": {
+     "rss": 177.3,
+     "pss": 69.1,
+     "cgroup": 72.1
+    },
+    "afterRequestsMiB": {
+     "rss": 177.3,
+     "pss": 69.1
+    },
+    "restMiB": {
+     "rss": 173.6,
+     "pss": 65.3,
+     "pssAnon": 60.3,
+     "pssFile": 5.1,
+     "cgroupAnon": 60.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 19.4
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 104.8,
+      "pssMiB": 45.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 5035,
+      "ms": 12.9
+     },
+     {
+      "path": "/senior-furniture-designer",
+      "status": 200,
+      "bytes": 8528,
+      "ms": 12.6
+     },
+     {
+      "path": "/senior-furniture-designer/apply",
+      "status": 200,
+      "bytes": 10698,
+      "ms": 10.5
+     },
+     {
+      "path": "/sales-associate-lyon-showroom/apply",
+      "status": 200,
+      "bytes": 11583,
+      "ms": 10.5
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11296,
+      "ms": 32.6
+     },
+     {
+      "path": "/chest/jobs/1",
+      "status": 200,
+      "bytes": 39764,
+      "ms": 46.8
+     },
+     {
+      "path": "/chest/candidates/1",
+      "status": 200,
+      "bytes": 79746,
+      "ms": 44.7
+     },
+     {
+      "path": "/chest/candidates/7",
+      "status": 200,
+      "bytes": 26073,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/jobs/3",
+      "status": 200,
+      "bytes": 36128,
+      "ms": 14.3
+     },
+     {
+      "path": "/chest/jobs/2",
+      "status": 200,
+      "bytes": 36083,
+      "ms": 20.4
+     },
+     {
+      "path": "/chest/search?q=lu",
+      "status": 200,
+      "bytes": 7731,
+      "ms": 21
+     },
+     {
+      "path": "/chest/pool",
+      "status": 200,
+      "bytes": 9887,
+      "ms": 9.1
+     },
+     {
+      "path": "/chest/reports?job=1",
+      "status": 200,
+      "bytes": 8524,
+      "ms": 19.7
+     },
+     {
+      "path": "/chest/mail",
+      "status": 200,
+      "bytes": 8264,
+      "ms": 7.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 28794,
+      "ms": 18.6
+     },
+     {
+      "path": "/chest/jobs/new",
+      "status": 200,
+      "bytes": 22953,
+      "ms": 11.8
+     },
+     {
+      "path": "/chest/jobs/new?template=officeManager",
+      "status": 200,
+      "bytes": 23724,
+      "ms": 7.7
+     }
+    ],
+    "load": {
+     "mean": 3.94,
+     "max": 4.4
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 174.4,
+    "min": 173.1,
+    "max": 174.8
+   },
+   "pss": {
+    "median": 66.6,
+    "min": 64.8,
+    "max": 66.9
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 178.1,
+    "min": 176.5,
+    "max": 178.9
+   },
+   "pss": {
+    "median": 70.8,
+    "min": 68.1,
+    "max": 72.7
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 107.4,
+    "min": 106.1,
+    "max": 107.4
+   },
+   "pss": {
+    "median": 46.8,
+    "min": 45.4,
+    "max": 47.2
+   }
+  }
+ }
+}

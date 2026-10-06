@@ -18,7 +18,8 @@ decides together.
   and dark; the company's brand from its Chest wins — see *Looks*), a link to its website. English/French switch, remembered in a
   cookie.
 - **Reach, without calling anyone**: each open job's page carries
-  `JobPosting` structured data (JSON-LD, with the page's CSP nonce) that
+  `JobPosting` structured data (JSON-LD: a data block, no script runs; the
+  policy stays `script-src 'self'`) that
   Google for Jobs reads — title, description, datePosted,
   hiringOrganization, jobLocation (street, postal code, country; a fully
   remote job says TELECOMMUTE and who may apply), validThrough (the job's
@@ -27,7 +28,7 @@ decides together.
   (`robots.txt`, `X-Robots-Tag`). `/jobs.xml` is a feed in Indeed's XML
   format to give Indeed or an aggregator once, `/feed.xml` an RSS 2.0
   feed, `/sitemap.xml` the sitemap. *Share on LinkedIn / X / by email*
-  links in the job's menu. Sources and dates: `lib/reach.ts`,
+  links in the job's menu. Sources and dates: `src/lib/reach.ts`,
   `THIRD_PARTY.md`.
 - **A page per job** (`/<job>`): what, where, how much (the salary range is
   shown by default — EU pay transparency), a description with headings,
@@ -35,7 +36,7 @@ decides together.
   editor** (*Heading*, *Bold*, *List*, Ctrl/⌘+B; what they see is what
   candidates read — nobody types a mark); it is stored as a few plain
   marks and rendered as React elements, never as HTML, and a paste brings
-  its text only (`components/description-editor.tsx`, `lib/rich-text.ts`).
+  its text only (`src/components/description-editor.tsx`, `src/shared/rich-text.ts`).
 - **The application form** (`/<job>/apply`): name, email, phone and a
   LinkedIn or portfolio link (optional), **the CV** (PDF or Word, 10 MB at
   most) — **or a photo of it** (JPEG, PNG, HEIC: what a phone takes; shown
@@ -166,7 +167,7 @@ decides together.
   message and recipient, one morning email per person and day, whatever
   the retries.
 - **No email promised that cannot leave** (SDK studio.16,
-  `mail.available()`, `lib/mail-state.ts`): the reject form (one or
+  `mail.available()`, `src/lib/mail-state.ts`): the reject form (one or
   several), *Write*, the interview invitation (a time or a link) and its
   cancellation ask the Chest first. Mail not connected or absent: no email
   is offered — each form says so in one line ("tell {name} yourself"; the
@@ -181,17 +182,18 @@ decides together.
 
 Hiring wears any look the company chooses in its Chest, with the same
 features: its own identity (*Magazine*: cream paper, cobalt, tomato —
-`lib/theme.ts`), any theme of the store's catalogue (the other tools'
+`src/theme.ts`), any theme of the store's catalogue (the other tools'
 identities, *Chest*, *High contrast*), or the company's own brand (its
 colours, fonts, corners and logo), for all its tools or for Hiring alone.
 The look is resolved on the server from `chest.theme()` (SDK Proposal
-*theme*) and written as one `<style>` with the page's nonce; nothing runs in
-the browser for it. Every stylesheet names only the UI kit's contract
+*theme*) and served as a stylesheet of its own (`/chest/look.css` for the
+team, `/look.css` for the public pages, versioned and cached; no inline
+style); nothing runs in the browser for it. Every stylesheet names only the UI kit's contract
 tokens, so every text stays readable (WCAG AA) in every look.
 
 **The public pages (careers, a job, the form, a candidate's link) wear the
 company's brand, or Hiring's own look — never a catalogue theme** chosen
-for the team's tools (kit 0.2.3, `lookOf("public")` in `lib/theme.ts`): a
+for the team's tools (kit 0.2.3, `lookOf("public")` in `src/theme.ts`): a
 company that likes *Confetti* for its team does not get a confetti
 careers site. **One place for the careers brand**: when the company has a
 brand in its Chest, the page takes its colours and its logo (with its
@@ -232,13 +234,20 @@ A member with no role sees why, not an error.
 
 ## Routes
 
+Every route is in `src/app.tsx`; every action in `src/actions.ts`, posted
+by the pages' islands (or a plain form without JavaScript) to
+`/chest/actions/<name>` (members) or `/actions/<name>` (visitors:
+`publicCvUpload`, `apply`, `chooseTime`, each bounded per visitor and per
+day, a form older than 3 s, a honeypot).
+
 | Route | Who | What |
 |---|---|---|
 | `/`, `/<job>`, `/<job>/apply`, `/<job>/thanks` | anyone | The careers page |
-| `POST /api/cv` | anyone (form token, counters) | Authorise one CV upload (public) |
+| `POST /actions/publicCvUpload` | anyone (bounded) | Ask for one CV upload: the Chest's upload address; the file is claimed when the application is sent |
 | `/lang/<code>` | anyone | The language switch |
-| `/interview/<secret>` | the candidate who got the link | Choose an interview time (never indexed, `no-store`) |
+| `/interview/<secret>` | the candidate who got the link | Choose an interview time (never indexed, `no-store`, no referrer) |
 | `/jobs.xml`, `/feed.xml`, `/sitemap.xml`, `/robots.txt` | anyone | Indeed's feed, RSS, sitemap, robots |
+| `/look.css`, `/chest/look.css`, `/assets/…` | anyone; members | The look (public, team); fonts, icon, scripts and styles |
 | `/chest` | members | Jobs, what waits for me, my next interviews |
 | `/chest/search?q=` | members | Search candidates |
 | `/chest/pool`, `/chest/reports`, `/chest/mail` | recruiter | Talent pool, reports, emails to file |
@@ -247,29 +256,28 @@ A member with no role sees why, not an error.
 | `/chest/candidates/<id>/data` | recruiter | A candidate's own data (ZIP) |
 | `/chest/messages/<id>/files/<n\|original>` | recruiter | A file an email brought (always downloaded) |
 | `/chest/interviews/<id>/ics` | who sees the candidate | An interview's `.ics` (a Chest without calendars) |
-| `POST /chest/api/image` | recruiter | Authorise a logo or photo upload |
+| `/chest/settings/images/<name>` | recruiter | The careers page's logo and photos, for Settings' preview (they are public files: the Chest serves them on the public host only) |
 | `/chest/jobs/new`, `/chest/jobs/<id>/edit` | recruiter | Write a job |
-| `/chest/jobs/<id>` | recruiter, its interviewers | The board |
+| `/chest/jobs/<id>` | recruiter, its interviewers | The board (`?more=<stage>`: all of a stage; `?rejected=1`: the rejected) |
 | `/chest/jobs/<id>/settings` | recruiter | Stages, interviewers, delete an unused job |
 | `/chest/jobs/<id>/add` | recruiter | Add a candidate |
 | `/chest/jobs/<id>/export` | recruiter | CSV |
-| `/chest/candidates/<id>`, `…/cv` | recruiter, the job's interviewers | A candidate, their CV (served by the tool, named after its file, framed only by the tool's pages) |
-| `POST /chest/api/cv` | recruiter | Authorise one CV upload (team) |
+| `/chest/candidates/<id>`, `…/cv` | recruiter, the job's interviewers | A candidate, their CV (served by the tool, two at a time per server, named after its file, framed only by the tool's pages, in a sandbox) |
 | `/chest/settings` | recruiter | Careers page settings, retention |
-| `POST /chest-events` | the Chest | Members' lifecycle |
-| `POST /chest-jobs/cleanup`, `…/outbox`, `…/morning` | the Chest | Nightly retention; due emails and calendars every 15 min; the interviewers' morning reminder (Proposal) |
+| `POST /chest-events` | the Chest | Members' lifecycle; `booking.busy`, `leave.busy` |
+| `POST /chest-schedules` | the Chest | `cleanup` (nightly retention), `outbox` (due emails and calendars, every 15 min), `morning` (the interviewers' morning email) |
 | `POST /chest-mail` | the Chest | Emails to the jobs mailbox, bounces (Proposal) |
 
 ## On a Chest
 
-Capabilities: `database`, `files`, `members`, `notifications`; receives
-`member.*`. Proposals (in `chest.proposals.json` until a Chest accepts
-them): `mail.send` and the `jobs` mailbox (receiving), `calendar`,
-`files.publicUploads` and `files.publicFiles` (logo, photos),
-`schedules` (`cleanup` 03:25, `outbox` every 15 minutes, `morning` 07:40
-on weekdays), `emits` (`hiring.hired`, `hiring.hire_cancelled`,
-`hiring.busy`), `receives` (`booking.busy`, `leave.busy`) and the tile's
-French words. When a member loses access or leaves, they are
+Contract 0.4 (`chest.json`): capabilities `database`, `files`,
+`members`, `notifications`; receives `member.*`; schedules `cleanup`
+(03:25), `outbox` (every 15 minutes) and `morning` (07:40 on weekdays), in
+the Chest's zone. Proposals (in `chest.proposals.json` until a Chest
+accepts them): `mail.send` and the `jobs` mailbox (receiving), `calendar`,
+`files.publicUploads` and `files.publicFiles` (visitors' CVs, logo,
+photos), `emits` (`hiring.hired`, `hiring.hire_cancelled`, `hiring.busy`),
+`receives` (`booking.busy`, `leave.busy`) and the tile's French words. When a member loses access or leaves, they are
 taken off their jobs and no longer asked for feedback; what they wrote stays
 under "(former member)". On erasure, their id goes from notes, feedback,
 history (including "asked X for feedback" and interviews' people), jobs,
@@ -293,7 +301,7 @@ decision, never the tool's:
 Booking's snapshot of a host's busy times, and Leave's of the days a
 member is off (approved leave, whole days or halves in the Chest's time
 zone — never the kind of leave, which Leave never sends), in the same
-shape (`lib/busy-snapshot.ts`, the same file in each tool). Both go to
+shape (`src/lib/busy-snapshot.ts`, the same file in each tool). Both go to
 one handler (`takeBusy`), kept per tool and member, the latest by `at`
 only (`told_busy`, `told_spans`); a candidate choosing their time is never
 offered those times, and in *I choose the time* the recruiter sees them
@@ -321,14 +329,17 @@ explicit to its admin.
 
 ## Needs from the SDK
 
-The tool is built on SDK 0.3.0 + studio proposals (0.3.1-studio.1). The
+The tool is built on SDK 0.4.1 + studio proposals (0.4.1-studio.4). The
 needs below are proposals of the studio's working copy; the tool calls
 them as if shipped and keeps working without them:
 
-- **Public uploads and public files** (`files.uploadUrl(name, { public: true })`,
-  `files.publicUrl`): without public uploads the form asks for a link to
-  the CV instead; without public files the careers page shows the
-  company's name, no logo or photos.
+- **Public uploads and public files** (`files.publicUploadUrl`,
+  `files.claim`, `files.publicPath`): a visitor's CV goes straight to the
+  Chest, which answers the browser with a claim; the application claims it
+  (type, size and first bytes checked before it is kept), and an unclaimed
+  upload is dropped by the Chest after a day. Without public uploads the
+  form asks for a link to the CV instead; without public files the careers
+  page shows the company's name, no logo or photos.
 - **Mail, sending and receiving** (`mail.send` with `{mailbox: "jobs",
   thread}`, `mail.handle`): without it, a written email is kept as "not
   sent" and the recruiter's own mail app opens with it (the history says
@@ -341,13 +352,16 @@ them as if shipped and keeps working without them:
 - **Schedules** (`cleanup`, `outbox`, `morning`): without them the
   retention does not run by itself, a rejection email leaves at the next
   page a recruiter opens after its Undo, and there is no morning reminder.
-- **Visitors** (`visitors.formToken/checkForm/count/language`): without the
-  Chest's counting, the tool counts in its own table.
+- **Visitors**: a contract-0.4 Chest names no visitor. The public
+  actions are bounded by the package's `bound` in the tool's own table
+  (`chest_bounds`): per visitor (a cookie key), per day, per interview
+  link, a form at least 3 s old and a honeypot; never a call to the Chest
+  per public request (the mail state and the look are kept a minute).
 - **Events between tools** (`events.publish`, `receives`): without them,
   People is not told of hires, Booking does not see interviews, and free
   times come from Hiring's interviews only (no Booking, no days off).
-- **Chest settings** (`chest.publicUrl`, `chest.teamUrl`; official in
-  0.3.0: `chest.organization.name`, `chest.timeZone`, `chest.language`):
+- **Chest settings** (`chest.tool.publicUrl`, `chest.tool.teamUrl`;
+  official since 0.3.0: `chest.organization.name`, `chest.timeZone`, `chest.language`):
   the company name by default, the careers page's address, the zone of
   interview times and of the day (the database's `current_date` is the
   Chest's too), the language the intro of before was written in.
@@ -359,11 +373,19 @@ calendars; an outbound-network grant for paid multiposting.
 
 ## Develop
 
+The stack is the studio's starter: Hono, React rendered on the server, a
+few islands in the browser (the board, the forms), built by Vite; the
+machinery (pages, actions, islands, refresh, looks, bounds, tests) is the
+package `@argentic/chest-app`, vendored in `vendor/` with the SDK and the
+UI kit. No Next.js.
+
 ```sh
 npm ci
 npm test                                   # PGlite; TEST_DATABASE_URL=… for PostgreSQL
-npm run build
+npm run build                              # dist/server/main.js, dist/client/
+npm run dev                                # rebuilds and restarts on change
 node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 5300   # from the studio: harness with seed data
+node ../../../lab/chest-dev/flows/hiring.mjs 5300                  # the browser flow
 ```
 
 `seed/sample.sql` fills Atelier Martin's careers page: three open jobs (one
@@ -397,6 +419,11 @@ upload one.
 - **The board on a phone** shows one stage at a time (tabs); moving a
   card is done from the candidate's page there (no drag across hidden
   stages).
+- **A big board is paged**: 40 cards per stage, *Show N more* opens up to
+  400 more of one stage, and the rejected show the latest 100; search
+  finds the rest. The counts are always whole.
+- **CVs are served two at a time** by each server (a third waits a few
+  seconds and is asked again), so a slow download never holds the tool.
 - **Templates are plain text** (their files aside); no e-signature of
   the offer letter. On a Chest without email, the recruiter's own mail
   app opens with the text: the files are kept on the page, to attach

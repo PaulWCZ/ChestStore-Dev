@@ -3,7 +3,7 @@
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5300);
-const { browser, context, page, origin, problems } = await open(port, "camille", { allow404: /\/chest\/(settings|jobs\/2)$|\/no-such-job$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "camille", { allow404: /\/chest\/(settings|jobs\/2)$|\/no-such-job$/u });
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 page.on("pageerror", e => console.log("  [pageerror at " + page.url() + "] " + e.message.slice(0, 40)));
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
@@ -58,11 +58,11 @@ await step("the careers page lists the open jobs, in English and in French", asy
   const titles = await page.locator(".job-row-title").allTextContents();
   expect(titles.length === 3 && titles.includes("Senior furniture designer") && !titles.includes("Summer workshop intern"), "jobs: " + titles.join("|"));
   await page.getByRole("link", { name: "Français" }).click();
-  await page.waitForURL(origin + "/");
+  await page.waitForURL(publicOrigin + "/");
   expect((await page.locator("h1").innerText()).includes("Rejoignez Atelier Martin"), "French title");
   expect((await page.locator(".lede").innerText()).startsWith("Nous dessinons"), "French intro on the French page");
   await page.getByRole("link", { name: "English" }).click();
-  await page.waitForURL(origin + "/");
+  await page.waitForURL(publicOrigin + "/");
 });
 
 await step("a candidate applies with a PDF CV and lands on the thank-you page; a confirmation email leaves", async () => {
@@ -281,11 +281,11 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   expect(log.includes("hiring.hire_cancelled"), "cancel published");
 });
 
-await step("reach: the job page carries JobPosting data (with the nonce), the feeds and sitemap list the open jobs", async () => {
+await step("reach: the job page carries JobPosting data (a data block: no script runs), the feeds and sitemap list the open jobs", async () => {
   const html = await (await page.request.get(origin + "/senior-furniture-designer")).text();
-  const m = /<script type="application\/ld\+json" nonce="([^"]+)">([^<]+)<\/script>/u.exec(html);
-  expect(m, "JSON-LD with a nonce");
-  const data = JSON.parse(m[2]);
+  const m = /<script type="application\/ld\+json">([^<]+)<\/script>/u.exec(html);
+  expect(m, "JSON-LD");
+  const data = JSON.parse(m[1]);
   for (const key of ["title", "description", "datePosted", "hiringOrganization", "jobLocation"]) expect(data[key], "JobPosting " + key);
   expect(/index, follow/u.test(html), "indexable");
   const indeed = await (await page.request.get(origin + "/jobs.xml")).text();
@@ -398,11 +398,11 @@ await step("one place for the careers brand: with the Chest's brand, Hiring's co
   try {
     await context.clearCookies();
     await page.goto(origin + "/?fresh=theme");
-    expect((await page.locator("html").getAttribute("data-look")) === "own", "candidates see Hiring's own look");
+    expect((await page.locator("[data-look]").first().getAttribute("data-look")) === "own", "candidates see Hiring's own look");
     await as(context, origin, "camille");
     await english();
     await page.goto(origin + "/chest/settings");
-    expect((await page.locator("html").getAttribute("data-look")) === "catalogue", "the team wears the company's theme");
+    expect((await page.locator("[data-look]").first().getAttribute("data-look")) === "catalogue", "the team wears the company's theme");
     expect((await page.locator("main").innerText()).includes("Colour"), "without a brand, Hiring's colour is the careers page's");
   } finally {
     await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
