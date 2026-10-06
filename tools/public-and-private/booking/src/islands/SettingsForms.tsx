@@ -190,7 +190,7 @@ export function CompanySettings({ admin, settings, zones, locale, t }: { admin: 
       <form className="stack" onSubmit={e => {
         e.preventDefault();
         const d = new FormData(e.currentTarget);
-        void run(() => call("saveSettings", { companyName: String(d.get("company") ?? ""), retentionMonths: Number(d.get("retention") ?? 24), defaultZone: String(d.get("zone") ?? "") }, { quiet: true }), () => s.saved);
+        void run(() => call("saveSettings", { companyName: String(d.get("company") ?? ""), retentionMonths: String(d.get("retention") ?? ""), defaultZone: String(d.get("zone") ?? "") }, { quiet: true }), () => s.saved);
       }}>
         <fieldset disabled={!admin} className="stack bare">
           <div><label className="label" htmlFor="company">{s.companyName}</label><input id="company" name="company" className="field" maxLength={120} defaultValue={settings.companyName} /></div>
