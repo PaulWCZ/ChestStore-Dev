@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import { checkIn } from "../lib/key-results.ts";
-import { refreshBadges } from "../lib/tell.ts";
+import { checkIn } from "../src/lib/key-results.ts";
+import { refreshBadges } from "../src/lib/tell.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines } from "./support/members.ts";
+import { server, type Server } from "./support/server.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";
 
 let w: World;
-before(async () => { w = await world({ schedules: [{ name: "reminder", cron: "45 8 * * 5" }, { name: "week", cron: "50 6 * * 1" }] }); });
+let POST: Server;
+before(async () => { w = await world(); POST = await server(); });
 after(async () => { await w.close(); });
 
 test("Friday's reminder: one bell item per owner still waiting, in their language, replaced not repeated; the tile says how many", async () => {
@@ -37,6 +38,6 @@ test("Friday's reminder: one bell item per owner still waiting, in their languag
 test("Monday's run sets every tile for the new week; a run not signed by the Chest is refused", async () => {
   assert.equal(await w.chest.run("week", POST), 204);
   assert.equal(w.chest.badges.get(hugo.id), 1);
-  const response = await POST(new Request("http://tool.test/chest-jobs/week", { method: "POST" }));
+  const response = await POST(new Request("http://tool.test/chest-schedules", { method: "POST", body: JSON.stringify({ id: "run_x", name: "week", scheduledAt: new Date().toISOString(), attempt: 1 }) }));
   assert.equal(response.status, 401);
 });
