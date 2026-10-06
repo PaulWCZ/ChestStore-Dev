@@ -7,11 +7,11 @@ import type { Catalogue } from "../i18n/index.ts";
 import { format, plural } from "../shared/format.ts";
 
 type TeamRow = { id: string; name: string; group: boolean; archived: boolean; members: number | null };
-type Orphans = { owner: string; name: string; items: { kind: "objective" | "key_result"; id: string; title: string; objectiveTitle: string; objectiveId: string; cycle: string }[] }[];
+type Orphans = { owner: string; name: string; more: number; items: { kind: "objective" | "key_result"; id: string; title: string; objectiveTitle: string; objectiveId: string; cycle: string }[] }[];
 type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; teams: Catalogue["teams"]; peoplePicker: PeoplePickerWords };
 type Person = { id: string; name: string; photo: string | null };
 
-export function SettingsView({ personal, teams, groups, orphans, owners, locale, t }: { personal: boolean; teams: TeamRow[]; groups: { id: string; name: string }[]; orphans: Orphans; owners: Person[]; locale: string; t: Words }) {
+export function SettingsView({ personal, teams, groups, orphans, morePeople, owners, locale, t }: { personal: boolean; teams: TeamRow[]; groups: { id: string; name: string }[]; orphans: Orphans; morePeople: number; owners: Person[]; locale: string; t: Words }) {
   const s = t.settings;
   const [pending, setPending] = useState(false);
   const [on, setOn] = useState(personal);
@@ -110,6 +110,7 @@ export function SettingsView({ personal, teams, groups, orphans, owners, locale,
           <>
             <p className="muted">{s.ownersBody}</p>
             {orphans.map(g => <OrphanGroup key={g.owner} group={g} owners={owners} pending={pending} locale={locale} onGive={(input, n) => act(() => call("reassign", input, quiet), () => plural(s.given, n, locale))} t={t} />)}
+            {morePeople > 0 && <p className="hint">{plural(s.morePeople, morePeople, locale)}</p>}
           </>
         )}
       </section>
@@ -149,6 +150,7 @@ function OrphanGroup({ group, owners, pending, locale, onGive, t }: { group: Orp
           );
         })}
       </ul>
+      {group.more > 0 && <p className="hint">{plural(s.moreItems, group.more, locale)}</p>}
     </div>
   );
 }

@@ -115,6 +115,14 @@ export async function insertKeyResult(sql: Query, actor: Member, objectiveId: st
   return String(row!.id);
 }
 
+// A cycle takes at most limits.objectivesPerCycle objectives. Counted with
+// the cycle's row locked: two people adding at once never pass it together.
+export async function roomIn(tx: Query, cycleId: string, adding: number): Promise<void> {
+  await tx`select id from cycles where id = ${cycleId} for update`;
+  const [row] = await tx<{ n: number }[]>`select count(*)::int as n from objectives where cycle_id = ${cycleId} and archived_at is null`;
+  if ((row?.n ?? 0) + adding > limits.objectivesPerCycle) throw new AppError("too_many", { max: limits.objectivesPerCycle });
+}
+
 export type NewObjective = { cycleId?: unknown; level?: unknown; teamId?: unknown; parentId?: unknown; owner?: unknown; title?: unknown; why?: unknown; keyResults?: unknown; visibility?: unknown; viewers?: unknown };
 
 // Who sees it: everyone (the default); its team, when the team is a group
@@ -160,8 +168,7 @@ export async function createObjective(sql: Sql, actor: Member | null, input: New
   const krs: CheckedKeyResult[] = [];
   for (const k of list) krs.push(await checkKeyResult((k ?? {}) as KeyResultInput, owner));
   return sql.begin(async tx => {
-    const [{ n }] = (await tx<{ n: string }[]>`select count(*) as n from objectives where cycle_id = ${cycle.id} and archived_at is null`) as unknown as [{ n: string }];
-    if (Number(n) >= limits.objectivesPerCycle) throw new AppError("too_many", { max: limits.objectivesPerCycle });
+    await roomIn(tx, cycle.id, 1);
     const [row] = await tx<{ id: string }[]>`
       insert into objectives (cycle_id, level, team_id, parent_id, owner, title, why, visibility, position, created_by)
       values (${cycle.id}, ${level}, ${theTeam?.id ?? null}, ${parentId}, ${owner}, ${title}, ${why}, ${seen.visibility},
@@ -255,6 +262,7 @@ export async function carryOver(sql: Sql, actor: Member | null, objectiveId: unk
   const [already] = await sql<{ id: string }[]>`select id from objectives where carried_from = ${o.id} and cycle_id = ${target.id} and archived_at is null`;
   if (already) return String(already.id);
   return sql.begin(async tx => {
+    await roomIn(tx, target.id, 1);
     const [row] = await tx<{ id: string }[]>`
       insert into objectives (cycle_id, level, team_id, owner, title, why, visibility, position, carried_from, created_by)
       select ${target.id}, level, team_id, owner, title, why, visibility, (select coalesce(max(position), 0) + 1 from objectives where cycle_id = ${target.id} and level = o.level), id, ${actor!.id}

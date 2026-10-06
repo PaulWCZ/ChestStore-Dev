@@ -8,7 +8,7 @@ import type { Query, Sql } from "./db.ts";
 import { en } from "../i18n/en.ts";
 import { fr } from "../i18n/fr.ts";
 import { limits, type Confidence, type Kind, type Level } from "./model.ts";
-import { unitLocaleOf } from "./objectives.ts";
+import { roomIn, unitLocaleOf } from "./objectives.ts";
 import { everyone } from "./people.ts";
 import { settings, teams as readTeams, type Team } from "./teams.ts";
 
@@ -381,8 +381,7 @@ export async function runImport(sql: Sql, actor: Member | null, input: { text?: 
   if (todo.length === 0) throw new AppError("import_nothing");
   const currency = ctx.currency;
   return sql.begin(async tx => {
-    const [{ n }] = (await tx<{ n: string }[]>`select count(*) as n from objectives where cycle_id = ${cycle.id} and archived_at is null`) as unknown as [{ n: string }];
-    if (Number(n) + todo.length > limits.objectivesPerCycle) throw new AppError("too_many", { max: limits.objectivesPerCycle });
+    await roomIn(tx, cycle.id, todo.length);
     // Teams named in the file that do not exist yet.
     const teamIds = new Map((await tx<{ id: string; name: string; group_id: string | null }[]>`select id, name, group_id from teams where archived_at is null`).map(r => [norm(r.name), String(r.id)]));
     for (const t of ctx.teams) if (!t.archived) teamIds.set(norm(t.name), t.id);

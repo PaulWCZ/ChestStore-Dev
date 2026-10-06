@@ -6,6 +6,7 @@ import { format, plural } from "../i18n/index.ts";
 import { email } from "./mail.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { orphans } from "./orphans.ts";
+import { people as lookup } from "./people.ts";
 import { waitingCounts, waitingTitles } from "./read.ts";
 import { today, weekStart } from "./time.ts";
 
@@ -32,6 +33,10 @@ export async function refreshBadges(sql: Query, owners: string[] | null, now: Da
       where k.archived_at is null and o.archived_at is null and y.closed_at is null and k.owner like 'mbr\\_%' limit 5000`).map(r => r.owner);
   }
   people = [...new Set(people)].filter(p => p.startsWith("mbr_"));
+  if (people.length === 0) return new Map();
+  // Only people here have a tile: someone who left is told nothing.
+  const found = await lookup(people);
+  people = people.filter(p => found.get(p)?.status === "member");
   if (people.length === 0) return new Map();
   const counts = await waitingCounts(sql, people, clock);
   await badges(counts);

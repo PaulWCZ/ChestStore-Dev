@@ -465,6 +465,8 @@ export const fr: Catalogue = {
     giveAll: "Confier tout ce qu’avait {name} à",
     giveOne: "Confier « {title} » à",
     given: { one: "{count} objectif transmis.", other: "{count} objectifs transmis." },
+    moreItems: { one: "Et {count} autre, confié avec tout le reste ci-dessus.", other: "Et {count} autres, confiés avec tout le reste ci-dessus." },
+    morePeople: { one: "Et {count} autre personne : ses objectifs s’affichent une fois ceux-ci transmis.", other: "Et {count} autres personnes : leurs objectifs s’affichent une fois ceux-ci transmis." },
     objectiveTag: "Objectif",
     keyResultTag: "Résultat clé",
     in: "dans {objective}",

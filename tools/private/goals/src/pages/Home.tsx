@@ -64,14 +64,15 @@ export async function homePage({ member, t, locale: language }: PageContext): Pr
   const byId = new Map(ctx.cycles.map(c => [c.id, c]));
   const views = owned.map(o => objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: clock.now, closed: byId.get(o.cycleId)?.closed ?? true, teams: ctx.teams }));
   // Waiting: mine, in a cycle running today, not reached, older than this
-  // week, not updated since Monday.
+  // week, not updated since Monday; not a value another tool feeds (its
+  // owner updates it on the objective's page, for the confidence alone).
   const waiting: WaitingItem[] = [];
   for (const [index, o] of owned.entries()) {
     const cycle = byId.get(o.cycleId);
     if (!cycle || cycle.closed || !runsOn(cycle, clock.today)) continue;
     const view = views[index]!;
     for (const [i, k] of o.keyResults.entries()) {
-      if (k.owner !== member.id || k.done || k.thisWeek || Date.parse(k.createdAt) >= clock.weekStart.getTime()) continue;
+      if (k.owner !== member.id || k.done || k.thisWeek || k.source !== null || Date.parse(k.createdAt) >= clock.weekStart.getTime()) continue;
       const kv = view.keyResults[i]!;
       waiting.push({ id: kv.id, title: kv.title, kind: kv.kind, currentInput: kv.currentInput, current: kv.current, target: kv.target, unit: kv.unit, confidence: kv.confidence, done: kv.done, source: kv.source, objectiveId: o.id, objectiveTitle: o.title, percent: kv.percent, percentText: kv.percentText, stale: kv.stale, lastCheckIn: kv.lastCheckIn });
     }
