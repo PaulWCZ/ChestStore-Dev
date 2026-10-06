@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { download, formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { download, formToken, solveWork, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { AppError as BrowserError } from "../dist/client.js";
 import { applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
@@ -37,11 +37,12 @@ const actions = {
   guarded: publicAction({ ok: field.bool() }, async ({ ok }, { flooded }) => (ok ? { flooded } : fail("forbidden")), { bound: { perVisitor: 1, perDay: 1 } }),
   rsvp: publicAction({ link: field.text({ max: 20 }) }, async ({ link }, { charge }) => { await charge("change", { subject: link }); return null; }, { bound: { budgets: { change: { perVisitor: 50, perDay: 50, perSubject: 2 } } } }),
   chat: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 2 } }),
+  hard: publicAction({ text: field.text({ max: 20 }) }, async () => { worked++; return null; }, { bound: { perVisitor: 100, perDay: 100, work: 8 } }),
   patient: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 5, formSeconds: 1 } }),
   forgot: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 1 } } } }),
 };
 let completed = 0;
-let written = 0;
+let written = 0, worked = 0;
 const layout = ({ notice, look, status, data, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "", "data-trash": String(data.trash ?? "none") }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en", "fr"], words: locale => (locale === "fr" ? { ...words, tool: { name: "Sonde" } } : words), layouts: { members: layout, public: layout },
@@ -387,7 +388,7 @@ test("a public action's bound: a form token served once, then counted per visito
   const once = formToken("write");
   const first = await send("write", { text: "a" }, { form: once });
   assert.equal(first.status, 200);
-  assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.write\.[\w-]+$/u);
+  assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.write\.0\.[\w-]+$/u);
   assert.equal((await (await send("write", { text: "a" }, { form: once })).json()).error, "expired");
   const cookie = /chest_v=[\w-]+/u.exec(first.headers.get("set-cookie") ?? "")?.[0];
   assert.ok(cookie, "a visitor cookie, for the next calls");
@@ -528,4 +529,18 @@ test("an island with more than 256 KB of props is warned about in development", 
   }
   if (process.env.NODE_ENV === "development") assert.match(said.join("\n"), /island Labelled receives 30\d KB of props/u);
   else assert.deepEqual(said, []);
+});
+
+test("bound.work: a token asks a proof of work; a flood that does not compute it is refused before anything, a browser's answer passes", async () => {
+  const send = (form, work) => app.fetch(new Request(url("/actions/hard"), { method: "POST", body: JSON.stringify({ text: "hi", chest_form: form, ...(work !== undefined ? { chest_work: work } : {}) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  const before = worked;
+  const flood = await Promise.all(Array.from({ length: 60 }, () => send(formToken("hard", Date.now(), 8))));
+  assert.ok(flood.every(r => r.status === 400), "60 at once without the proof: refused");
+  assert.equal((await send(formToken("hard", Date.now(), 8), "12345")).status, 400, "a wrong proof");
+  assert.equal((await send(formToken("hard", Date.now(), 0))).status, 400, "a token asking less than the action's work");
+  const token = formToken("hard", Date.now(), 8);
+  const done = await send(token, solveWork(token));
+  assert.equal(done.status, 200);
+  assert.match((await done.json()).form, /^\d{13}\.[\w-]+\.hard\.(8|10|12)\.[\w-]+$/u, "the next token asks a proof too");
+  assert.equal(worked, before + 1);
 });

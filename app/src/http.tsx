@@ -149,9 +149,12 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   // A public page issues a token per bounded action it shows a form for
   // (<Honeypot action="…" />).
   const form = viewer.member === null && hasBounds(options);
+  // The proof of work each action's tokens ask today (bound.work).
+  const bits = new Map<string, number>();
+  if (form) for (const [name, a] of Object.entries(options.actions)) if (a.access === "public" && a.bound && baseBits(a.bound) > 0) bits.set(name, await workBits(name, a.bound));
   // The actions call() sends at once (beside the queue): this part's.
   const parallel = Object.entries(options.actions).filter(([, a]) => a.parallel && a.access === (viewer.member !== null ? "member" : "public")).map(([name]) => name);
-  startForms(form ? formToken : null);
+  startForms(form ? action => formToken(action, Date.now(), bits.get(action) ?? 0) : null);
   const page = renderToString(
     <html lang={viewer.locale}>
       <head>
@@ -345,7 +348,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const bound = definition.access === "public" ? definition.bound ?? false : false;
   // A bounded action's answer brings the next form token (the one sent
   // served once).
-  const next = bound ? { form: formToken(name) } : {};
+  const next = bound ? { form: formToken(name, Date.now(), await workBits(name, bound)) } : {};
   renew = next;
   const ok = (value: unknown) => (fetched ? c.json({ ok: true, value: value ?? null, ...next }) : c.redirect(back(c, members), 303));
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
@@ -372,7 +375,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
           }
           // The token is spent whatever follows (a refusal's answer, or the
           // page it goes back to, brings the next one).
-          await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], name, bound.formMinutes ?? 120, Math.min(bound.formSeconds ?? 0, 30));
+          await takeForm(c.req.header("x-chest-form") ?? raw?.["chest_form"], c.req.header("x-chest-work") ?? raw?.["chest_work"], name, bound, Math.min(bound.formSeconds ?? 0, 30));
           who = visitorKey(c);
           ({ flooded } = await refusals(name, who, bound));
         }
@@ -429,21 +432,51 @@ const formSignature = (value: string) => createHmac("sha256", formKey()).update(
 // formToken(action): a fresh token for one public action, as a page's
 // <Honeypot action="…" /> carries it (a test that calls a bounded action
 // sends one: { chest_form: formToken("bookTime") }). Signed with the
-// action: it serves no other.
-export function formToken(action: string, now = Date.now()): string {
+// action: it serves no other. bits: the proof of work it asks (bound.work:
+// the browser finds n such that SHA-256(token + ":" + n) starts with that
+// many zero bits; 0, none).
+export function formToken(action: string, now = Date.now(), bits = 0): string {
   if (!/^[A-Za-z0-9_]{1,64}$/u.test(action)) throw new TypeError(`formToken: an action's name, not ${JSON.stringify(action)}`);
-  const value = `${Math.floor(now)}.${randomBytes(12).toString("base64url")}.${action}`;
+  const value = `${Math.floor(now)}.${randomBytes(12).toString("base64url")}.${action}.${Math.max(0, Math.min(30, Math.floor(bits)))}`;
   return `${value}.${formSignature(value)}`;
 }
-// A token ours, for this action, younger than its minutes and never served:
-// taken (in chest_seen) — a refusal spends it too. Otherwise "expired",
-// found without the database (a forged or old one costs a signature).
-async function takeForm(token: unknown, action: string, minutes: number, seconds: number): Promise<void> {
+// solveWork(token): the proof a token asks, found as the browser finds it
+// (for tests; the browser runs /assets/chest-work.js in a Worker).
+export function solveWork(token: string): string {
+  const bits = Number(token.split(".")[3] ?? 0);
+  for (let n = 0; ; n++) if (leadingZeros(createHash("sha256").update(`${token}:${n}`).digest(), bits)) return String(n);
+}
+function leadingZeros(bytes: Uint8Array, bits: number): boolean {
+  let i = 0;
+  for (; bits >= 8; bits -= 8, i++) if (bytes[i] !== 0) return false;
+  return bits === 0 || bytes[i]! >> (8 - bits) === 0;
+}
+// The proof of work an action's next token asks: its base (work: true is
+// 16 bits — about half a second on a mid-range phone), two bits more once
+// half of the day's budget is spent, two more past four fifths.
+const baseBits = (bound: Bound) => (bound.work === true ? 16 : typeof bound.work === "number" ? bound.work : 0);
+async function workBits(name: string, bound: Bound): Promise<number> {
+  const base = baseBits(bound);
+  if (base === 0) return 0;
+  const { db } = await import("./db.ts");
+  // The day's count unread (no chest_bounds yet): the base.
+  const [row] = await db()<{ used: number }[]>`select coalesce(sum(count), 0)::int as used from chest_bounds where visitor = '*' and day = current_date and (scope = ${name} or scope like ${name + ":%"}) and scope <> ${name + ":refused"}`.catch(() => [{ used: 0 }]);
+  const perDay = budgetOf(bound).perDay;
+  const used = row?.used ?? 0;
+  return base + (used > perDay / 2 ? 2 : 0) + (used > (perDay * 4) / 5 ? 2 : 0);
+}
+// A token ours, for this action, younger than its minutes, with its proof
+// of work when it asks one, and never served: taken (in chest_seen) — a
+// refusal spends it too. Otherwise "expired", found without the database
+// (a forged or old token, a proof missing: a signature and a hash).
+async function takeForm(token: unknown, work: unknown, action: string, bound: Bound, seconds: number): Promise<void> {
   const parts = typeof token === "string" && token.length <= 200 ? token.split(".") : [];
-  const [time = "", nonce = "", scope = "", signature = ""] = parts;
-  const expected = parts.length === 4 && /^\d{13}$/u.test(time) && scope === action ? formSignature(`${time}.${nonce}.${scope}`) : "";
+  const [time = "", nonce = "", scope = "", bitsText = "", signature = ""] = parts;
+  const expected = parts.length === 5 && /^\d{13}$/u.test(time) && scope === action && /^\d{1,2}$/u.test(bitsText) ? formSignature(`${time}.${nonce}.${scope}.${bitsText}`) : "";
   const age = Date.now() - Number(time);
-  if (!expected || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) || age < -60_000 || age > minutes * 60_000) fail("expired" as ErrorCode);
+  if (!expected || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) || age < -60_000 || age > (bound.formMinutes ?? 120) * 60_000) fail("expired" as ErrorCode);
+  const bits = Number(bitsText);
+  if (bits < baseBits(bound) || (bits > 0 && !(typeof work === "string" && /^\d{1,12}$/u.test(work) && leadingZeros(createHash("sha256").update(`${token as string}:${work}`).digest(), bits)))) fail("expired" as ErrorCode);
   // Sent sooner than a person fills it: the seconds left, waited.
   if (age < seconds * 1000) await new Promise(resolve => setTimeout(resolve, seconds * 1000 - Math.max(0, age)));
   const { db } = await import("./db.ts");

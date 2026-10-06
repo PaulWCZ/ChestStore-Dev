@@ -3,7 +3,7 @@
 import { serve as listen } from "@hono/node-server";
 import { log } from "./log.ts";
 
-export { createApp, page, publicPage, type PageOptions, download, publicDownload, type Download, publicActionsAt, rawRoute, sameOrigin, policy, formToken, type AppOptions, type LayoutProps, type Look, type PageContext, type View, type Viewer } from "./http.tsx";
+export { createApp, page, publicPage, type PageOptions, download, publicDownload, type Download, publicActionsAt, rawRoute, sameOrigin, policy, formToken, solveWork, type AppOptions, type LayoutProps, type Look, type PageContext, type View, type Viewer } from "./http.tsx";
 export { Island, type Plain } from "./island.tsx";
 export { FormToken, Honeypot } from "./form.tsx";
 export { action, publicAction, field, fail, notFound, forbidden, redirect, after, toolPath, cutText, readMoney, AppError, HttpStatus, type Bound, type Budget, type PublicContext, type Action, type Cookies, type Field, type Fields, type InputOf, type SentOf, type MemberContext, type VisitorContext, type Outcome } from "./tool.ts";

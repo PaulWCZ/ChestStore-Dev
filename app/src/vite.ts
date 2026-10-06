@@ -54,6 +54,9 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     name: "chest-base",
     apply: "build",
     generateBundle(_, bundle) {
+      // The proof of work's worker (bound.work), a file of its own: the
+      // strict policy runs a worker only from the tool's own address.
+      this.emitFile({ type: "asset", fileName: "assets/chest-work.js", source: readFileSync(new URL("../worker/chest-work.js", import.meta.url)) });
       const css = Object.values(bundle).find(file => file.type === "asset" && file.fileName === "assets/client.css");
       if (css?.type === "asset") css.source = `${baseCss}\n${typeof css.source === "string" ? css.source : new TextDecoder().decode(css.source)}`;
       else this.emitFile({ type: "asset", fileName: "assets/client.css", source: baseCss });

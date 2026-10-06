@@ -357,7 +357,9 @@ async function request<T>(url: string, headers: Record<string, string>, body: Bo
     // A public page's form token (a bounded action requires it).
     const action = actionOf(url);
     const form = action ? currentForm(action) : "";
-    const response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1", ...(form ? { "x-chest-form": form } : {}) }, body });
+    // A form that asks a proof of work (bound.work): found first.
+    const work = form ? await proof(form) : "";
+    const response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1", ...(form ? { "x-chest-form": form } : {}), ...(work ? { "x-chest-work": work } : {}) }, body });
     if (response.headers.get("content-type")?.startsWith("application/json")) {
       outcome = await response.json() as typeof outcome;
       // The token served once: the answer brings the next one.
@@ -380,6 +382,28 @@ async function request<T>(url: string, headers: Record<string, string>, body: Bo
   }
   return outcome;
 }
+// The proof of work a token asks (its 4th part, in bits; 0: none), found
+// in a Worker (/assets/chest-work.js, the tool's own file: the policy runs
+// no other) so the page stays responsive; a short "checking" status if it
+// takes a while. "" when the browser cannot run one (the server refuses,
+// as it refuses a robot).
+async function proof(token: string): Promise<string> {
+  const bits = Number(token.split(".")[3] ?? 0);
+  if (!(bits > 0) || typeof Worker === "undefined") return "";
+  const worker = new Worker("/assets/chest-work.js");
+  const slow = setTimeout(() => toast({ id: "work", text: words.checking ?? words.busy }), 400);
+  try {
+    return await new Promise<string>(resolve => {
+      worker.onmessage = event => resolve(String((event.data as { n: number }).n));
+      worker.onerror = () => resolve("");
+      worker.postMessage({ challenge: token, bits });
+    });
+  } finally {
+    clearTimeout(slow);
+    worker.terminate();
+  }
+}
+
 async function answered<T>(outcome: Outcome<T> & { redirect?: string }, options: { refresh?: boolean; quiet?: boolean }): Promise<Outcome<T> & { redirect?: string }> {
   if (outcome.ok && outcome.redirect) await navigate(outcome.redirect);
   else if (outcome.ok && options.refresh !== false) await refresh();
@@ -468,7 +492,7 @@ let show: ShowToast | null = null;
 const waiting: Parameters<ShowToast>[0][] = [];
 // tooLarge, limit: what a refusal of the Chest's front (413, 429, not the
 // tool's JSON) says; the layout passes t.errors.too_large (and limit).
-let words: { unavailable: string; busy: string; tooLarge?: string; limit?: string } = { unavailable: "The Chest did not answer. Try again in a moment.", busy: "Still sending…" };
+let words: { unavailable: string; busy: string; tooLarge?: string; limit?: string; checking?: string } = { unavailable: "The Chest did not answer. Try again in a moment.", busy: "Still sending…" };
 export const busyText = () => words.busy;
 export function toast(input: Parameters<ShowToast>[0]): void {
   if (show) show(input);
@@ -483,7 +507,7 @@ function Bridge() {
   return null;
 }
 // labels: t.kit.toast; words: { unavailable: t.errors.unavailable, busy: t.pages.busy }.
-export function ToastHost({ labels, words: said }: { labels: ToastWords; words: { unavailable: string; busy: string; tooLarge?: string; limit?: string } }) {
+export function ToastHost({ labels, words: said }: { labels: ToastWords; words: { unavailable: string; busy: string; tooLarge?: string; limit?: string; checking?: string } }) {
   words = said;
   return <Toasts labels={labels}><Bridge /></Toasts>;
 }
