@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { pdfOf } from "../lib/archive.ts";
-import { company as readCompany } from "../lib/company.ts";
-import { finalise, getDocument, upcomingNumber } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { draftMessage, markReminded, markSent, sendDocument, sendReminder } from "../lib/sending.ts";
+import { pdfOf } from "../src/lib/archive.ts";
+import { company as readCompany } from "../src/lib/company.ts";
+import { finalise, getDocument, upcomingNumber } from "../src/lib/documents.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { draftMessage, markReminded, markSent, sendDocument, sendReminder } from "../src/lib/sending.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -16,8 +16,8 @@ import { pdfText } from "./support/pdf.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test", suppressed: ["bounced@client.test"] } });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

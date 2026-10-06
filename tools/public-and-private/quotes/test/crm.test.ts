@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { addClient, getClient } from "../lib/clients.ts";
-import { crmKey, readWon } from "../lib/crm.ts";
-import { getDocument, saveDraft, sendQuote } from "../lib/documents.ts";
+import { chestEvents as POST } from "../src/lib/deliveries.ts";
+import { addClient, getClient } from "../src/lib/clients.ts";
+import { crmKey, readWon } from "../src/lib/crm.ts";
+import { getDocument, saveDraft, sendQuote } from "../src/lib/documents.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { company, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -15,8 +15,8 @@ import { everyone, hugo, ines, lea } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, chest: { organization: "Atelier Martin", currency: "EUR", language: "fr" } });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

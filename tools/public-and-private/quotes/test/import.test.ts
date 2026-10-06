@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { listClients } from "../lib/clients.ts";
-import { AppError } from "../lib/errors.ts";
-import { clientsCsv, itemsCsv } from "../lib/export.ts";
-import { importTable } from "../lib/importers.ts";
-import { listItems } from "../lib/items.ts";
-import { countryOf, goodsOf, guessMapping, readTable, vatRateOf } from "../lib/parse-import.ts";
+import { listClients } from "../src/lib/clients.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { clientsCsv, itemsCsv } from "../src/lib/export.ts";
+import { importTable } from "../src/lib/importers.ts";
+import { listItems } from "../src/lib/items.ts";
+import { countryOf, goodsOf, guessMapping, readTable, vatRateOf } from "../src/shared/parse-import.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -25,8 +25,8 @@ import { camille, everyone, hugo, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {
@@ -162,8 +162,6 @@ test("what leaves comes back: the clients and catalogue exports import as they a
       assert.deepEqual([twin.unitPrice, twin.vatRate, twin.goods, twin.unit], [i.unitPrice, i.vatRate, i.goods, i.unit], i.name);
     }
     await other.close();
-    // testDatabase took over db(): give it back.
-    (await import("../lib/db.ts")).provide(sql);
   }
   await assert.rejects(clientsCsv(sql, asMember(hugo), "fr"), refused("forbidden"));
 });

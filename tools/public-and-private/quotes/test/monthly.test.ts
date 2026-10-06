@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { finalise } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { archiveDue, listArchives, makeArchive, monthsDue, openArchive, waitingArchives } from "../lib/monthly.ts";
+import { finalise } from "../src/lib/documents.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { archiveDue, listArchives, makeArchive, monthsDue, openArchive, waitingArchives } from "../src/lib/monthly.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -19,8 +19,8 @@ import { everyone, ines, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {

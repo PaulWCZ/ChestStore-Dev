@@ -9,13 +9,13 @@ a quote on the paper it will print on.
 
 ## Tokens
 
-The identity is a **theme of the store's UI kit**: `lib/theme.ts`
+The identity is a **theme of the store's UI kit**: `src/theme.ts`
 (`defineTheme`, the very same source as the kit catalogue's "letterpress"
 theme — `test/theme.test.ts` holds the two equal and checks every contrast
 pair of the contract, light and dark). The company may give the tool
 another look (a catalogue theme, its brand): the stylesheets name only the
 contract's tokens (`@argentic/chest-ui`, `tokens/CONTRACT.md`) and two of
-the tool's own, in `app/tokens.css`, defined from them (`--page-width`,
+the tool's own, in `src/tokens.css`, defined from them (`--page-width`,
 `--shadow-paper` = the look's raised shadow). No colour is written in any
 stylesheet (tested).
 
