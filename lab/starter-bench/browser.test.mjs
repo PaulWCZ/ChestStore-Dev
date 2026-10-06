@@ -116,3 +116,47 @@ test("the public part under the Chest's own policy too: a visitor writes, enhanc
   assert.deepEqual(problems, []);
   await context.close();
 });
+
+test("a refresh that meets an error keeps the page and says so; 403 loads the page again", async () => {
+  const { page, close } = await open();
+  await page.fill("#body", "Kept through an error");
+  await page.click("form.composer button");
+  await page.waitForSelector("li.note >> text=Kept through an error");
+  await page.evaluate(() => { window.samePage = true; });
+  tool.fail(502);
+  await page.locator("li.note", { hasText: "Kept through an error" }).getByRole("button", { name: /^(Pin|Unpin)$/u }).click();
+  await page.waitForSelector(".ck-toast-error >> text=The Chest did not answer. Try again in a moment.");
+  assert.equal(await page.locator("li.note >> text=Kept through an error").count(), 1, "the page is kept");
+  assert.equal(await page.locator("[data-island='DeleteNote'] button").count() > 0, true, "its islands too");
+  tool.fail(403);
+  await page.locator("li.note", { hasText: "Kept through an error" }).getByRole("button", { name: /^(Pin|Unpin)$/u }).click();
+  await page.waitForFunction(() => window.samePage !== true);
+  await close();
+});
+
+test("Delete works without JavaScript too", async () => {
+  const { page, close } = await open({ javaScriptEnabled: false });
+  await page.fill("#body", "Deleted without script");
+  await page.click("form.composer button");
+  await page.locator("li.note", { hasText: "Deleted without script" }).getByRole("button", { name: "Delete" }).click();
+  await page.waitForURL(/\/chest$/u);
+  assert.equal(await page.locator("li.note >> text=Deleted without script").count(), 0);
+  await close();
+});
+
+test("a second send while the first is on its way says so", async () => {
+  const { page, close } = await open();
+  await page.route("**/chest/actions/addNote", async route => { await new Promise(r => setTimeout(r, 400)); await route.continue(); });
+  await page.fill("#body", "Sent once");
+  await page.click("form.composer button");
+  await page.click("form.composer button");
+  await page.waitForSelector(".ck-toast >> text=Still sending…");
+  await page.waitForSelector("li.note >> text=Sent once");
+  assert.equal(await page.locator("li.note >> text=Sent once").count(), 1);
+  await close();
+});
+
+test("the browser's files are cached: for ever with ?v=, an hour without", async () => {
+  assert.equal((await fetch(`${tool.origin}/assets/client.js?v=x`)).headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal((await fetch(`${tool.origin}/assets/client.js`)).headers.get("cache-control"), "public, max-age=3600");
+});

@@ -1,11 +1,12 @@
 import type { Member } from "@argentic/chest-sdk/member";
+import { Island } from "@argentic/chest-app";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
-import { Island } from "../core/island.tsx";
 import { fill, type Catalogue, type Format } from "../i18n/index.ts";
 import { maxLength, mayChange, type Note } from "../lib/notes.ts";
 
-// The members' page, /chest: post a note, read the team's. Rendered on the
-// server; the forms work without JavaScript; Delete is an island (Undo).
+// EXAMPLE (Notes). The members' page, /chest: post a note, read the
+// team's. Rendered on the server; the forms work without JavaScript;
+// Delete is an island (its Undo).
 export function Home({ notes, names, member, t, f }: { notes: Note[]; names: Map<string, string>; member: Member; t: Catalogue; f: Format }) {
   return (
     <>
@@ -24,14 +25,14 @@ export function Home({ notes, names, member, t, f }: { notes: Note[]; names: Map
                 <span>{note.author === null ? fill(t.home.fromVisitor, { date: f.dateTime(note.createdAt) }) : fill(t.home.by, { name: names.get(note.author) ?? t.people.unknown, date: f.dateTime(note.createdAt) })}</span>
                 {note.pinned && <span className="ck-badge">{t.home.pinned}</span>}
                 {mayChange(member, note) && (
-                  <span className="actions">
+                  <div className="actions">
                     <form method="post" action="/chest/actions/pinNote">
                       <input type="hidden" name="id" value={note.id} />
                       <input type="hidden" name="pinned" value={note.pinned ? "" : "1"} />
                       <button className="ck-button ck-button-quiet ck-button-small" aria-describedby={`note-${note.id}-text`}>{note.pinned ? t.home.unpin : t.home.pin}</button>
                     </form>
                     <Island name="DeleteNote" props={{ id: note.id, words: { remove: t.home.remove, removed: t.home.removed } }} />
-                  </span>
+                  </div>
                 )}
               </div>
             </li>
