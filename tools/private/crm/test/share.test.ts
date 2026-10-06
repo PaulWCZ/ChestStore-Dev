@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as companies from "../lib/companies.ts";
-import * as contacts from "../lib/contacts.ts";
-import * as deals from "../lib/deals.ts";
-import * as share from "../lib/share.ts";
-import { listStages } from "../lib/stages.ts";
+import * as companies from "../src/lib/companies.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import * as deals from "../src/lib/deals.ts";
+import * as share from "../src/lib/share.ts";
+import { listStages } from "../src/lib/stages.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo } from "./support/members.ts";
@@ -15,9 +15,9 @@ import { everyone, hugo } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   process.env["CHEST_TOOL"] = "crm";
-  chest = await fakeChest({ members: everyone, emits: ["crm.deal.won", "crm.deal.reopened"], receivers: 1 });
+  chest = await fakeChest({ network: {}, members: everyone, emits: ["crm.deal.won", "crm.deal.reopened"], receivers: 1 });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -38,7 +38,7 @@ test("a deal moved to Won is told with its amount, company (address, SIREN, VAT)
   const lost = stages.find(s => s.kind === "lost")!;
   const co = await companies.addCompany(sql, asMember(hugo), { name: "Garage Petit", address: "7 route de Vannes", postcode: "44100", city: "Nantes", country: "France", siren: "732 829 320 00074", vat: "FR 12 732829320" });
   const p = await contacts.addContact(sql, asMember(hugo), { name: "Pierre Petit", email: "pierre@garage-petit.fr", company: co.id });
-  const d = await deals.addDeal(sql, asMember(hugo), { title: "Workshop lockers", contact: p.id, value: "6 400,50" });
+  const d = await deals.addDeal(sql, asMember(hugo), { title: "Workshop lockers", contact: p.id, value: 640050 });
   await move(d.id, qualified!.id);
   assert.equal(chest.published.length, 0, "an open move tells nothing");
   await move(d.id, won.id, "Best price");
@@ -72,7 +72,7 @@ test("a deal without company nor contact sends null; without events between tool
   assert.equal(e.type, "crm.deal.won");
   assert.equal((e.data as { company: unknown }).company, null);
   assert.equal((e.data as { contact: unknown }).contact, null);
-  const bare = await fakeChest({ members: everyone });
+  const bare = await fakeChest({ network: {}, members: everyone });
   try {
     const other = await deals.addDeal(sql, asMember(hugo), { title: "Unlinked" });
     const done = await move(other.id, won.id);

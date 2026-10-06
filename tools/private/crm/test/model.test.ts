@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { amountInput, parseAmount } from "../lib/amount.ts";
-import { AppError } from "../lib/app-error.ts";
-import { fold, key } from "../lib/fold.ts";
-import { addDays, clean, day, domainOf, dueState, email, monthOf, nextWorkday, owner, phone, phoneHref, tags, website, websiteHref } from "../lib/model.ts";
+import { amountInput, parseAmount } from "../src/shared/amount.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { fold, key } from "../src/shared/fold.ts";
+import { addDays, clean, day, domainOf, dueState, email, monthOf, nextWorkday, owner, phone, phoneHref, tags, website, websiteHref } from "../src/shared/model.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
