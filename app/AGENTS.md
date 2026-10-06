@@ -202,6 +202,14 @@ was written in) — return `{ title, body, locale }` from `publicPage()`:
 `<html lang>` and the layout's words follow it (a language the tool speaks).
 **The head** (an icon, robots) —
 `createApp({ head: viewer => <><link rel="icon" href="/assets/icon.svg" /></> })`.
+**A page's own head or title** — `{ title, body, head: <meta name="robots"
+content="index, follow" />, exactTitle: true }`: `head` goes in that page's
+`<head>`; `exactTitle` keeps the title as given (no " · <tool>").
+**A route with its own policy** (a banner other sites frame, a picture) —
+answer a `Response` with its own `Content-Security-Policy` (and
+`Referrer-Policy`): the package keeps them; a page or an action gets the
+strict one. A middleware may set `Referrer-Policy` (`no-referrer` for a
+page whose address holds a secret).
 **Static files** — `public/assets/…`, served at `/assets/…`; the
 catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
 **A package the server needs** — `npm install it`; add it to `bundle` in

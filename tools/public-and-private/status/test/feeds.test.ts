@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { atom, rss, xml } from "../lib/feed.ts";
-import { calendar, escape, fold } from "../lib/ics.ts";
+import { atom, rss, xml } from "../src/lib/feed.ts";
+import { calendar, escape, fold } from "../src/lib/ics.ts";
 
 const feed = {
   title: "Atelier Martin status — incidents",

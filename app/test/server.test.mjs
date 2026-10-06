@@ -45,6 +45,10 @@ app.get("/chest/missing", page(() => fail("not_found")));
 app.get("/chest/invalid", page(() => fail("invalid")));
 app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
+app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
+app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
+app.use("/secret/*", async (c, next) => { await next(); c.header("Referrer-Policy", "no-referrer"); });
+app.get("/secret/:token", publicPage(() => ({ title: "Secret", body: h("p", null, "yours") })));
 
 const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
 let chest, database;
@@ -179,6 +183,19 @@ test("a public page in a language of its own: <html lang> and the layout's words
   const unknown = await (await get("/in/xx", null)).text();
   assert.match(unknown, /<html lang="en">/u);
   assert.match(unknown, /<title>Public · Probe<\/title>/u);
+});
+
+test("a page's own head and exact title; a route's own policy and referrer policy are kept", async () => {
+  const company = await (await get("/company", null)).text();
+  assert.match(company, /<title>Atelier status<\/title>/u);
+  assert.match(company, /<meta name="robots" content="index, follow"\/>/u);
+  assert.match(await (await get("/", null)).text(), /<title>Public · Probe<\/title>/u);
+  const framed = await get("/framed", null);
+  assert.equal(framed.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors https://shop.test");
+  const secret = await get("/secret/abc", null);
+  assert.equal(secret.headers.get("referrer-policy"), "no-referrer");
+  assert.match(secret.headers.get("content-security-policy"), /frame-ancestors 'none'/u);
+  assert.equal((await get("/", null)).headers.get("referrer-policy"), "same-origin");
 });
 
 test("after(): a task that throws before its first await is logged, never thrown", async () => {
