@@ -100,7 +100,7 @@ export const actions = {
   // One cell of HR's table: a job field ("title", "team", "office",
   // "managerId", "startDate", "phone") or an extra field ("x:<id>").
   // An empty manager or start date is none (null); an empty text, "".
-  saveCell: act({ "member": person(), key: cellKey(), value: field.nullable(words(limits.fieldValue)) }, async ({ "member": who, key, value }, { member }): Promise<null> => {
+  saveCell: act({ member: person(), key: cellKey(), value: field.nullable(words(limits.fieldValue)) }, async ({ member: who, key, value }, { member }): Promise<null> => {
     const sql = db();
     if (key.startsWith("x:")) await fields.setValue(sql, member, who, key.slice(2), value ?? "");
     else await profiles.updateJob(sql, member, who, { [key]: key === "managerId" || key === "startDate" ? value ?? null : value ?? "" });

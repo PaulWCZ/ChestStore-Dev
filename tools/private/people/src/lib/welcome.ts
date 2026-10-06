@@ -25,17 +25,42 @@ import { today } from "./zone.ts";
 //   (the newcomer has none yet); Reply-To the HR person who started it,
 //   else the company's reply address. Hiring's personal address is never
 //   kept: an arrival told by Hiring without a work address gets nothing.
+//   The address is first matched with the Chest's members
+//   (members.matchEmails): when it is already a member's (they joined the
+//   Chest before HR linked the arrival), they get the notification, never
+//   an email, and HR is told to link the arrival. When the Chest cannot
+//   say, nothing is sent: a member is never mailed by mistake.
 //
 // Not for a first day more than two weeks past (HR catching up on a
 // checklist is not a welcome). The key names the checklist and the
 // recipient (after a restore, a checklist id may name someone else's): a
 // retry never sends it twice. A Chest without the connector, or a refusal
-// (the day's quota, an address that bounced): nothing fails, the
-// checklist stands, and the page says no email left.
+// (the day's quota, an address suppressed): nothing fails, the checklist
+// stands, and the toast says no email left. An email that leaves keeps its
+// message id on the checklist; what the Chest later says of it
+// (mail.status: bounced, complained, failed — the only signal, there is no
+// inbound mail) is asked when HR opens the checklist and every morning for
+// two weeks, and a bounce is shown on the checklist.
 
 export { welcomeLateDays };
 
-type Newcomer = { name: string; anchor: string; managerId: string | null } & ({ kind: "member"; id: string } | { kind: "arrival"; address: string; locale: Locale });
+// matched: an arrival whose work address is already a member's (not
+// linked yet). unchecked: the Chest could not say whether it is.
+type Newcomer = { name: string; anchor: string; managerId: string | null } & ({ kind: "member"; id: string; matched: boolean } | { kind: "arrival"; address: string; locale: Locale } | { kind: "unchecked" });
+
+// The members these work addresses are already (members.matchEmails: only
+// members who have People; the answer is ids, never addresses), or null
+// when the Chest does not answer.
+export async function membersByAddress(addresses: Iterable<string>): Promise<Record<string, string> | null> {
+  const asked = [...new Set([...addresses].filter(a => mail.isAddress(a)))];
+  if (asked.length === 0) return {};
+  try {
+    return await members.matchEmails(asked);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return null;
+  }
+}
 
 // Whom this checklist would welcome, or null: a welcome checklist, for a
 // member who has the tool or an expected arrival with a work address, whose
@@ -55,9 +80,22 @@ export async function newcomer(sql: Query, journeyId: string): Promise<Newcomer 
       if (!(error instanceof ChestError)) throw error;
     }
     if (!found) return null;
-    return { kind: "member", id: found.id, name: found.firstName || found.name, anchor: j.anchor, managerId: j.profile_manager };
+    return { kind: "member", id: found.id, matched: false, name: found.firstName || found.name, anchor: j.anchor, managerId: j.profile_manager };
   }
   if (j.status !== "expected" || !j.work_email || !mail.isAddress(j.work_email)) return null;
+  const matched = await membersByAddress([j.work_email]);
+  if (matched === null) return { kind: "unchecked", name: "", anchor: j.anchor, managerId: null };
+  const memberId = matched[j.work_email];
+  if (memberId) {
+    let found: Member | undefined;
+    try {
+      found = (await members.lookup([memberId])).members[0];
+    } catch (error) {
+      if (!(error instanceof ChestError)) throw error;
+    }
+    const name = found ? found.firstName || found.name : (j.arrival_name ?? "").split(/\s+/u)[0] || (j.arrival_name ?? "");
+    return { kind: "member", id: memberId, matched: true, name, anchor: j.anchor, managerId: j.arrival_manager };
+  }
   return { kind: "arrival", address: j.work_email, name: (j.arrival_name ?? "").split(/\s+/u)[0] || (j.arrival_name ?? ""), locale: localeOf(chest.language), anchor: j.anchor, managerId: j.arrival_manager };
 }
 
@@ -96,13 +134,17 @@ export function welcomeNotice(input: LetterInput): { title: string; body: string
   return { title, body };
 }
 
-// How the newcomer was welcomed: in their notifications, by email, or not.
-export type Welcomed = "notice" | "email" | null;
+// How the newcomer was welcomed: in their notifications (matched: an
+// arrival already a member by their work address, to link), by email (to
+// which address), or not (unchecked: the Chest could not say whether the
+// address is a member's, so nothing left).
+export type Welcomed = { by: "notice"; matched: boolean } | { by: "email"; to: string } | { by: "unchecked" } | null;
 
 // welcome sends it for a checklist just started, and says how it went.
 export async function welcome(sql: Query, actor: Member, journeyId: string): Promise<Welcomed> {
   const who = await newcomer(sql, journeyId);
   if (!who) return null;
+  if (who.kind === "unchecked") return { by: "unchecked" };
   let manager: string | null = null;
   if (who.managerId) {
     try {
@@ -115,18 +157,61 @@ export async function welcome(sql: Query, actor: Member, journeyId: string): Pro
   if (who.kind === "member") {
     const told = await notify([who.id], (_t, locale) => welcomeNotice({ locale, name: who.name, company, anchor: who.anchor, manager, sender: actor.name }),
       { path: "/chest/todo", key: `welcome:${journeyId}` });
-    return told.includes(who.id) ? "notice" : null;
+    return told.includes(who.id) ? { by: "notice", matched: who.matched } : null;
   }
   const letter = welcomeLetter({ locale: who.locale, name: who.name, company, anchor: who.anchor, manager, sender: actor.name });
   try {
-    await mail.send({
+    const sent = await mail.send({
       to: who.address, subject: letter.subject, text: letter.text, fromName: actor.name,
       ...(actor.email && mail.isAddress(actor.email) ? { replyTo: actor.email } : {}),
       key: `people:welcome:${journeyId}:${who.address}`,
     });
-    return "email";
+    await sql`update journeys set welcome_mail = ${sent.id}, welcome_mail_status = 'queued' where id = ${journeyId}`;
+    return { by: "email", to: who.address };
   } catch (error) {
     if (error instanceof ChestError) return null;
     throw error;
   }
+}
+
+// What the Chest last said of a welcome email: a delivery that failed is
+// final; queued, sent (and nothing yet) are asked again. Two weeks after
+// the checklist started, it is not asked any more.
+const failed = new Set(["bounced", "complained", "failed"]);
+export type WelcomeMail = { status: string; address: string | null } | null;
+
+async function ask(sql: Query, row: { id: string; welcome_mail: string }): Promise<string | null> {
+  let answer: mail.Status | null;
+  try {
+    answer = await mail.status(row.welcome_mail);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return null;
+  }
+  if (!answer) return null;
+  await sql`update journeys set welcome_mail_status = ${answer.status} where id = ${row.id}`;
+  return answer.status;
+}
+
+// welcomeMail says, for one checklist, whether its welcome email failed
+// (asking the Chest when it may still change), and to which address (the
+// arrival's, while it is not linked).
+export async function welcomeMail(sql: Query, journeyId: string): Promise<WelcomeMail> {
+  const [row] = await sql<{ id: string; welcome_mail: string | null; welcome_mail_status: string | null; fresh: boolean; work_email: string | null }[]>`
+    select j.id::text, j.welcome_mail, j.welcome_mail_status, j.created_at > now() - interval '14 days' as fresh, a.work_email
+    from journeys j left join arrivals a on a.id = j.arrival_id where j.id = ${journeyId}`;
+  if (!row?.welcome_mail) return null;
+  let status = row.welcome_mail_status;
+  if (row.fresh && (status === null || status === "queued" || status === "sent")) status = (await ask(sql, { id: row.id, welcome_mail: row.welcome_mail })) ?? status;
+  return status && failed.has(status) ? { status, address: row.work_email || null } : null;
+}
+
+// The morning: every welcome email of the last two weeks whose fate is not
+// known yet is asked again (200 at most a morning).
+export async function checkWelcomeMails(sql: Query): Promise<void> {
+  const rows = await sql<{ id: string; welcome_mail: string }[]>`
+    select id::text, welcome_mail from journeys
+    where welcome_mail is not null and (welcome_mail_status is null or welcome_mail_status in ('queued', 'sent')) and created_at > now() - interval '14 days'
+    order by id limit 200`;
+  for (const row of rows) await ask(sql, row);
 }

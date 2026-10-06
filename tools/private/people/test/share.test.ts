@@ -36,20 +36,20 @@ test("a leaving checklist tells who leaves and their last day — nothing else; 
   const t = await j.createTemplate(sql, hr, { kind: "offboarding", name: "Leaving" });
   await j.addTemplateItem(sql, hr, t.id, { text: "Return the laptop", role: "person", offset: -1 });
   const started = await start(hugo.id, t.id, "2026-10-12");
-  assert.deepEqual(chest.published.map(e => [e.type, e.data]), [["people.leaving", { "member": hugo.id, lastDay: "2026-10-12" }]]);
+  assert.deepEqual(chest.published.map(e => [e.type, e.data]), [["people.leaving", { member: hugo.id, lastDay: "2026-10-12" }]]);
   assert.match(chest.published[0]!.key!, /^people:mbr_[a-z2-7]{26}:leaving:\d+$/u);
   await stop(started.id, true);
-  assert.deepEqual(chest.published.at(-1)!.data, { "member": hugo.id });
+  assert.deepEqual(chest.published.at(-1)!.data, { member: hugo.id });
   assert.equal(chest.published.at(-1)!.type, "people.leaving_cancelled");
   await stop(started.id, false);
-  assert.deepEqual(chest.published.at(-1)!.data, { "member": hugo.id, lastDay: "2026-10-12" });
+  assert.deepEqual(chest.published.at(-1)!.data, { member: hugo.id, lastDay: "2026-10-12" });
   assert.equal(chest.published.length, 3);
   // A second leaving checklist with a later day: the day moves; stopping
   // it brings back the first one's day — never "cancelled" while one runs.
   const later = await start(hugo.id, t.id, "2026-10-16");
-  assert.deepEqual(chest.published.at(-1)!.data, { "member": hugo.id, lastDay: "2026-10-16" });
+  assert.deepEqual(chest.published.at(-1)!.data, { member: hugo.id, lastDay: "2026-10-16" });
   await stop(later.id, true);
-  assert.deepEqual([chest.published.at(-1)!.type, chest.published.at(-1)!.data], ["people.leaving", { "member": hugo.id, lastDay: "2026-10-12" }]);
+  assert.deepEqual([chest.published.at(-1)!.type, chest.published.at(-1)!.data], ["people.leaving", { member: hugo.id, lastDay: "2026-10-12" }]);
   assert.equal(chest.published.length, 5);
 });
 

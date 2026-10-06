@@ -12,8 +12,9 @@ import * as mail from "@argentic/chest-sdk/mail";
 //   company's mail: the form says no welcome email will leave;
 // - "unknown": the Chest did not answer: the form promises nothing.
 //
-// A snapshot: the send can still fail, and the person's own email choice
-// may hold it back; the toast after starting says what really happened.
+// A snapshot: the send can still fail (and an address already a member's
+// gets a notification instead, lib/welcome.ts); the toast after starting
+// says what really happened.
 export type MailState = "ready" | "later" | "off" | "unknown";
 
 export function stateOf(answer: mail.MailAvailability): MailState {

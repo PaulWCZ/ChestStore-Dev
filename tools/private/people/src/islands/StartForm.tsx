@@ -14,7 +14,7 @@ type MailState = "ready" | "later" | "off" | "unknown";
 // Someone a checklist can be for: a member, or an expected arrival.
 type Pickable = { id: string; name: string; startDate: string | null; managerId?: string | null; detail?: string };
 type Words = {
-  start: { person: string; template: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; welcome: string; welcomed: string; welcomeNotice: string; welcomedNotice: string; noMail: string; mailPaused: string; noAddress: string; manager: string; weekend: string };
+  start: { person: string; template: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; welcome: string; welcomed: string; welcomeNotice: string; welcomedNotice: string; welcomeMatched: string; welcomedMatched: string; welcomedUnchecked: string; noMail: string; mailPaused: string; noAddress: string; manager: string; weekend: string };
   // "Arriving (not in the Chest yet)": said beside an expected arrival.
   group: string;
   date: DateWords;
@@ -28,8 +28,10 @@ type Words = {
 // here.
 export function StartForm({ people, arrivals, templates, initial, today, weekdays, lang, mailing, t }: {
   people: { id: string; name: string; startDate: string | null }[];
-  // mailable: HR gave the arrival a work email (the welcome's only address).
-  arrivals: { id: string; name: string; startDate: string | null; managerId: string | null; mailable: boolean }[];
+  // mailable: HR gave the arrival a work email (the welcome's only address);
+  // inChest: that address is already a member's (welcomed in their
+  // notifications, never mailed), null when the Chest could not say.
+  arrivals: { id: string; name: string; startDate: string | null; managerId: string | null; mailable: boolean; inChest: boolean | null }[];
   templates: { id: string; name: string; kind: Kind; steps: number }[];
   initial: { person: string; kind: Kind; template: string };
   today: string;
@@ -61,17 +63,20 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
   const dates = useDateProblems();
   // What the form says of the welcome, before starting: only for a welcome
   // checklist whose first day is not long past (lib/welcome.ts). A member
-  // finds it in their notifications; an arrival not in the Chest yet gets
-  // an email, when the Chest can send one.
+  // finds it in their notifications — so does an arrival whose work address
+  // is already a member's (HR is asked to link them); an arrival not in the
+  // Chest yet gets an email, when the Chest can send one.
   const named = picked[0]?.name ?? "";
   const welcomeLine = chosen.kind !== "onboarding" || !person || !anchor || daysBetween(anchor, today) > welcomeLateDays ? null
     : !arrival ? format(t.start.welcomeNotice, { name: named })
     : !arrival.mailable ? format(t.start.noAddress, { name: named })
+    : arrival.inChest === null ? null
+    : arrival.inChest ? format(t.start.welcomeMatched, { name: named })
     : mailing === "unknown" ? null
     : mailing === "off" ? format(t.start.noMail, { name: named })
     : mailing === "later" ? format(t.start.mailPaused, { name: named })
     : format(t.start.welcome, { name: named });
-  const welcomes = !arrival || (arrival.mailable && mailing === "ready");
+  const welcomes = !arrival || (arrival.mailable && (arrival.inChest === true || (arrival.inChest === false && mailing === "ready")));
   const weekend = anchor && isWeekend(anchor) ? weekdays[new Date(anchor + "T00:00:00Z").getUTCDay()]! : null;
   const suggest = (p: string, tid: string) => {
     if (touched) return;
@@ -90,7 +95,11 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
         return;
       }
       const name = picked[0]?.name ?? "";
-      toast({ id: "started", text: result.value.welcomed === "notice" ? format(t.start.welcomedNotice, { name }) : result.value.welcomed === "email" ? format(t.start.welcomed, { name }) : t.start.told });
+      const how = result.value.welcomed;
+      toast({ id: "started", text: how?.by === "notice" ? format(how.matched ? t.start.welcomedMatched : t.start.welcomedNotice, { name })
+        : how?.by === "email" ? format(t.start.welcomed, { address: how.to })
+        : how?.by === "unchecked" ? format(t.start.welcomedUnchecked, { name })
+        : t.start.told });
       await navigate(`/chest/checklists/${result.value.id}`);
     });
   };

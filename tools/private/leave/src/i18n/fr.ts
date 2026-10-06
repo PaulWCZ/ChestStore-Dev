@@ -290,6 +290,7 @@ export const fr: Catalogue = {
     allDay: "toute la journée",
     cell: "{name} : {what}, {when}",
     caption: "Absences de {month}",
+    groupUnreadable: "Impossible de lire qui fait partie de {group} pour le moment. Réessayez dans un instant.",
     unreachable: "Le Chest n’a pas répondu : seules les personnes absentes ce mois-ci sont affichées.",
     weekOf: "Semaine du {day}",
     remote: "Télétravail",

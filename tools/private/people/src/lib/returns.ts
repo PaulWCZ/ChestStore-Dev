@@ -10,7 +10,7 @@ import { memberPattern } from "../shared/model.ts";
 // itself — marked as ticked by Equipment. The contract, v1, which
 // Equipment must publish (People's README, "With the other tools"):
 //
-//   equipment.returned  { "member": "mbr_…" }   — everything this person held is back
+//   equipment.returned  { member: "mbr_…" }   — everything this person held is back
 //
 // Only the example step does (its words' key, `offboarding.equipment`, is
 // kept until HR rewords it): a step HR wrote itself is HR's to tick. An
@@ -20,7 +20,7 @@ import { memberPattern } from "../shared/model.ts";
 export const returnPhrase = "offboarding.equipment";
 export const tickedByEquipment = "equipment";
 
-export function readReturned(data: Record<string, unknown>): { "member": string } | null {
+export function readReturned(data: Record<string, unknown>): { member: string } | null {
   const member = data["member"];
   return typeof member === "string" && memberPattern.test(member) ? { member } : null;
 }

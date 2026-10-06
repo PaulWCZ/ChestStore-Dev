@@ -563,7 +563,7 @@ await step("payroll's balances file on the last day of next month: a projection,
 });
 
 await step("People tells Leave of Tom's record: his number and working week follow it, and HR sees where they come from", async () => {
-  await deliver("people.record", { "member": id("tom"), employeeNumber: "T-0019", startDate: "2025-11-03", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
+  await deliver("people.record", { member: id("tom"), employeeNumber: "T-0019", startDate: "2025-11-03", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
   await page.goto(origin + "/chest/people/" + id("tom"));
   expect((await page.locator("main").innerText()).includes("Kept up to date from their HR record in People"), "said where it comes from");
   expect((await page.getByLabel("Employee number").inputValue()) === "T-0019", "number from People");
@@ -571,11 +571,11 @@ await step("People tells Leave of Tom's record: his number and working week foll
 
 await step("People tells Leave that Hugo leaves: his last day is set, the leave after it cancelled, HR told; stopped in People, the day goes", async () => {
   const last = day(plus(monday, 30));
-  await deliver("people.leaving", { "member": id("hugo"), lastDay: last });
+  await deliver("people.leaving", { member: id("hugo"), lastDay: last });
   await page.goto(origin + "/chest/people/" + id("hugo"));
   expect((await page.locator("main").innerText()).includes("Last day:"), "last day shown");
   expect(await page.locator(".ledger tr", { hasText: "After their last day" }).count() >= 1, "the leave after it came back");
-  await deliver("people.leaving_cancelled", { "member": id("hugo") });
+  await deliver("people.leaving_cancelled", { member: id("hugo") });
   await page.goto(origin + "/chest/people/" + id("hugo"));
   expect(!(await page.locator("main").innerText()).includes("Last day:"), "cleared");
 });
@@ -596,11 +596,11 @@ await step("a last day People sets in the middle of Nora's approved week: told a
   expect(week, "Nora's approved week");
   noraWeek = week.id;
   const last = day(plus(new Date(week.start + "T00:00:00Z"), 2));
-  await deliver("people.leaving", { "member": id("nora"), lastDay: last });
+  await deliver("people.leaving", { member: id("nora"), lastDay: last });
   const told = await toldOf(week.id, t => t.length >= 2 && t[0].type === "leave.approved" && t[0].data.to === last);
   expect(told[0]?.type === "leave.approved" && told[0].data.from === week.start && told[0].data.to === last && told[0].data.toHalf === "pm", "approved up to the last day: " + JSON.stringify(told[0]));
   expect(told[1]?.type === "leave.cancelled" && told[1].data.to === week.end, "the whole week taken back first: " + JSON.stringify(told[1]));
-  await deliver("people.leaving_cancelled", { "member": id("nora") });
+  await deliver("people.leaving_cancelled", { member: id("nora") });
 });
 
 await step("the shortened week's approval is told with the time of the change, strictly after its cancellation (occurredAt, SDK studio.16)", async () => {

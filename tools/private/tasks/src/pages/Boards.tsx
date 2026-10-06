@@ -5,7 +5,7 @@ import { Download, Grid, Upload } from "../components/icons.tsx";
 import type { PageContext, View } from "@argentic/chest-app";
 import { Island } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
-import { askWho, sharingFor } from "../lib/audience.ts";
+import { askWho, noSharing, sharingFor } from "../lib/audience.ts";
 import { listBoards } from "../lib/boards.ts";
 import { db } from "../lib/db.ts";
 import { newBoardWords } from "./MyTasks.tsx";
@@ -15,7 +15,7 @@ export async function boardsPage({ member, locale: language, t, query }: PageCon
   const locale = localeOf(language);
   const archived = query("archived") === "1";
   const creates = !archived && can(member, "boards.create");
-  const [boards, sharing] = await Promise.all([listBoards(db(), member, { archived }), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] })]);
+  const [boards, sharing] = await Promise.all([listBoards(db(), member, { archived }), creates ? sharingFor(member.id) : Promise.resolve(noSharing)]);
   const newBoard = (look: { primary?: boolean; tile?: boolean }) => ({ t: newBoardWords(t), label: t.boards.new, sharing, locale, ...look });
   const words = { open: t.boards.open, mine: t.boards.mine, late: t.boards.late, private: t.boards.private };
   return {

@@ -22,6 +22,9 @@ export async function boardPage({ member, locale: language, t, param, query, url
   const sql = db();
   const b = await readBoard(sql, member, param("id")).catch((error: unknown) => (error instanceof AppError && error.code === "not_found" ? notFound() : Promise.reject(error)));
   const [cols, labs, own, cards, audience] = await Promise.all([readColumns(sql, b.id, { words: t.templates.columns }), readLabels(sql, b.id), readFields(sql, b.id), boardCards(sql, b.id), boardAudience(b)]);
+  // Who the cards may be given to; unreadable when the Chest did not answer.
+  const unreadable = audience === null;
+  const everyone = audience ?? [];
   const asked = query("card");
   let detail: Awaited<ReturnType<typeof cardDetail>> | null = null;
   let cardGone = false;
@@ -88,6 +91,7 @@ export async function boardPage({ member, locale: language, t, param, query, url
       <div className={`board-page c-${b.color}`}>
         <Island name="AutoRefresh" props={{ seconds: 15 }} />
         {cardGone && <p className="notice card-gone" role="status">{t.board.cardGone}</p>}
+        {unreadable && <p className="notice" role="status">{t.peoplePicker.unreadable}</p>}
         <Island name="BoardView" props={{
           board: { id: b.id, name: b.name, color: b.color, access: b.access, archived: b.archived, privacy },
           path,
@@ -96,7 +100,7 @@ export async function boardPage({ member, locale: language, t, param, query, url
           fields: own,
           cards,
           people: names,
-          audience: audience.map(p => ({ ...p, name: p.id === member.id ? t.people.you : p.name })),
+          audience: everyone.map(p => ({ ...p, name: p.id === member.id ? t.people.you : p.name })),
           me: member.id,
           today: day,
           locale,
@@ -121,7 +125,8 @@ export async function boardPage({ member, locale: language, t, param, query, url
             targets,
             linkable,
             people: names,
-            audience,
+            audience: everyone,
+            audienceUnreadable: unreadable,
             repeat: repeatView(detail!, cols, b.id, day, locale, t),
             me: member.id,
             locale,

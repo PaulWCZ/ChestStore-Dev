@@ -472,7 +472,18 @@ still reach approvers through the bell and the tile.
   (`chest.proposals.json` `"capabilities": ["members.groups"]`): *Who's
   away* filtered by any group of the Chest (`members.groups.all()`, who is
   in it with `members.list({ group })`). Without it, only the groups that
-  give Leave (none when it is open to everyone).
+  give Leave (none when it is open to everyone). When the Chest does not
+  say who is in a group, the page says "Could not read who is in Sales
+  right now" and lists no one under that chip (never everyone). Limit of
+  the official 0.4.1 parsers, hit with this capability (a member then
+  carries every group of the Chest they are in): a member in more than 16
+  groups has no identity — `member(request)` drops their assertion, so
+  every page of Leave answers them 401 "Sign in…" and they cannot ask for
+  leave at all; and a page of `members.list` that holds them is refused
+  (`Unavailable`): *Who's away* shows only those with leave this month,
+  and a group they are in cannot be read. The SDK fix lifts the cap
+  (studio working copy; 0.5 announces no fixed cap on groups); Leave needs
+  no change for it.
 - **Events between tools** — **Proposal (studio)**: `leave.approved` /
   `leave.cancelled` to Rooms and People (payload unchanged: member, from,
   to, halves, request — never the kind, the note or the family event;

@@ -66,9 +66,9 @@ test("People tells Leave what it needs of a linked record — number, first and 
   chest.published.length = 0;
   const { id } = await createRecord(sql, hr, { memberId: tom.id });
   // Created with nothing Leave needs but the member: told once.
-  assert.deepEqual(chest.published.map(e => [e.type, e.data]), [["people.record", { "member": tom.id, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null }]]);
+  assert.deepEqual(chest.published.map(e => [e.type, e.data]), [["people.record", { member: tom.id, employeeNumber: null, startDate: null, lastDay: null, workDays: null, weeklyHours: null }]]);
   await updateRecord(sql, hr, id, { employeeNumber: "0019", startDate: "2024-03-04", workingTime: "part", hours: "28", workDays: "1,2,3,4" });
-  assert.deepEqual(chest.published.at(-1)?.data, { "member": tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
+  assert.deepEqual(chest.published.at(-1)?.data, { member: tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
   // A change Leave does not need tells nothing.
   const before = chest.published.length;
   await updateRecord(sql, hr, id, { address: "1 rue de la Paix", nationality: "Britannique" });
@@ -83,7 +83,7 @@ test("People tells Leave what it needs of a linked record — number, first and 
   assert.equal(chest.published.length, n);
   // Linked to Hugo later: told for Hugo then.
   await linkRecord(sql, hr, other.id, hugo.id);
-  assert.deepEqual(chest.published.at(-1)?.data, { "member": hugo.id, employeeNumber: "0026", startDate: "2026-08-20", lastDay: null, workDays: null, weeklyHours: null });
+  assert.deepEqual(chest.published.at(-1)?.data, { member: hugo.id, employeeNumber: "0026", startDate: "2026-08-20", lastDay: null, workDays: null, weeklyHours: null });
 });
 
 test("a change asked by the person: address and emergency contact only; HR accepts (the record changes) or declines; one waits at a time", async () => {

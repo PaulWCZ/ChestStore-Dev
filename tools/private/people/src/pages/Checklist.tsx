@@ -8,6 +8,7 @@ import { listName, stepText } from "../lib/examples.ts";
 import { journey as loadJourney } from "../lib/journeys.ts";
 import { everyone, nameOf, people, subjectOf } from "../lib/people.ts";
 import { tickedByEquipment } from "../lib/returns.ts";
+import { welcomeMail } from "../lib/welcome.ts";
 import { today, zoneOf } from "../lib/zone.ts";
 import { dueState } from "../shared/model.ts";
 import type { StepView } from "../islands/JourneyView.tsx";
@@ -45,6 +46,8 @@ export async function checklistPage({ member, locale, t, param }: PageContext): 
     mine: ticks(member, i),
   }));
   const pickable = hr ? (await everyone()).people.map(p => ({ id: p.id, name: p.name, photo: p.photo })) : [];
+  // HR sees when the welcome email to an arrival could not be delivered.
+  const bounced = hr && journey.kind === "onboarding" ? await welcomeMail(db(), journey.id) : null;
   const done = steps.filter(s => s.done).length;
   const title = format(journey.kind === "onboarding" ? t.journey.onboarding : t.journey.offboarding, { name: personName });
   return {
@@ -68,6 +71,7 @@ export async function checklistPage({ member, locale, t, param }: PageContext): 
             </div>
           </div>
         </header>
+        {bounced && <p className="banner warn" role="status">{bounced.address ? format(t.journey.welcomeBounced, { address: bounced.address }) : t.journey.welcomeBouncedNoAddress}</p>}
         <Island
           id={`journey-${journey.id}`}
           name="JourneyView"

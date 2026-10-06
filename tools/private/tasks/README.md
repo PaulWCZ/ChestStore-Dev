@@ -301,8 +301,15 @@ with `@argentic/chest-app` (the studio's server and browser machinery) and
   they are in (`member.groups`): who sees a board is read from the member,
   never kept. The list of groups is kept a minute, forgotten on `group.*`.
   Without the capability: the groups that give Tasks, as before. Limit of
-  the official 0.4.1 parser: a member in more than 16 groups is refused
-  (`Unavailable`) — the page then answers "unavailable"; 0.5 lifts it.
+  the official 0.4.1 parsers, hit with this capability (a member then
+  carries every group of the Chest they are in): a member in more than 16
+  groups has no identity — `member(request)` drops their assertion, so
+  every page of Tasks answers them 401 "Sign in…" and they cannot use
+  Tasks at all; and a page of `members.list` / `lookup` that holds them is
+  refused (`Unavailable`), so the pickers say "The list of people could
+  not be read right now" for everyone. The SDK fix lifts the cap (studio
+  working copy; 0.5 announces no fixed cap on groups); Tasks needs no
+  change for it.
 - `schedules` (0.4.1, official): the morning run (reminders, the repeats'
   safety net, the tiles' numbers) and the `retry` run; each run's id is kept
   in the database (`chest_events`, 30 days), so a run delivered twice is
@@ -415,6 +422,12 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
   needs the `calendar` proposal on the Chest). Calendar apps fetch a feed
   every few hours (Google: 6 to 24): a date changed now shows there later.
   A card with a due date but nobody on it is in no one's calendar.
+- **When the Chest does not say who is in the company** (unreachable, or a
+  page of members it refuses), cards cannot be given or boards shared for
+  that moment: the board, its settings, the card and the new-board dialog
+  say "The list of people could not be read right now. Try again in a
+  moment." rather than showing an empty picker. The pickers read every
+  page of members (500 a call), with no cap of the tool's own.
 - **List view**: no inline editing (a title opens the card); sort and
   grouping are not remembered.
 - **Import**: attachments uploaded to Trello are not brought (they are

@@ -45,7 +45,7 @@ test("a hire told by Hiring becomes an arrival; HR is told in their language; th
   assert.deepEqual(list.map(a => [a.name, a.job, a.team, a.place, a.startDate, a.status, a.hiredBy]), [["Lucie Garnier", "Sales associate", "Sales", "Lyon", "2026-11-02", "expected", ines.id]]);
   const told = chest.notifications.filter(n => n.key === `arrival:${list[0]!.id}`).map(seen);
   assert.deepEqual(told.map(n => [n.member, n.title]).sort(), [
-    [camille.id, "Recrutement : Lucie Garnier arrive le 2 novembre comme Sales associate"],
+    [camille.id, "Recrutement : Lucie Garnier arrive le 2 novembre comme Sales associate"],
     [sofia.id, "Hiring: Lucie Garnier joins on 2 November as Sales associate"],
   ]);
   const columns = (await sql`select column_name from information_schema.columns where table_name = 'arrivals'`).map(c => c["column_name"]);

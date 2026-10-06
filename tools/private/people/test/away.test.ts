@@ -57,7 +57,7 @@ test("the badge's words, in both languages", () => {
 });
 
 test("every field of Leave's event is checked", () => {
-  const good = { "member": hugo.id, from: "2026-10-05", to: "2026-10-07", fromHalf: "am", toHalf: "pm", request: "42" };
+  const good = { member: hugo.id, from: "2026-10-05", to: "2026-10-07", fromHalf: "am", toHalf: "pm", request: "42" };
   assert.deepEqual(readLeave(good), { ...good });
   assert.deepEqual(readLeave({ ...good, fromHalf: undefined, toHalf: null }), { ...good, fromHalf: "day", toHalf: "day" });
   for (const bad of [
@@ -74,7 +74,7 @@ test("every field of Leave's event is checked", () => {
 test("a leave approved in Leave shows the person away; cancelled, it goes — and a late approval cannot bring it back", async () => {
   const { sql } = database;
   const now = today();
-  const leave = { "member": hugo.id, from: addDays(now, -1), to: addDays(now, 2), fromHalf: "am", toHalf: "pm", request: "42" };
+  const leave = { member: hugo.id, from: addDays(now, -1), to: addDays(now, 2), fromHalf: "am", toHalf: "pm", request: "42" };
   assert.equal(await told("leave.approved", leave, { occurredAt: new Date(Date.now() - 60_000).toISOString() }), 204);
   assert.deepEqual([...(await awayOf(sql, [hugo.id, ines.id], now)).keys()], [hugo.id]);
   // Only the dates: never the kind of leave nor a note.
@@ -98,22 +98,22 @@ test("only members of the Chest, only Leave, only well-formed events; past leave
   const now = today();
   const count = async () => Number((await sql`select count(*)::int as n from away`)[0]!["n"]);
   const before = await count();
-  assert.equal(await told("leave.approved", { "member": id("stranger"), from: now, to: now, request: "70" }), 204);
-  assert.equal(await told("leave.approved", { "member": tom.id, from: "x", to: now, request: "71" }), 204);
-  assert.equal(await told("leave.approved", { "member": tom.id, from: addDays(now, -9), to: addDays(now, -2), request: "72" }), 204);
+  assert.equal(await told("leave.approved", { member: id("stranger"), from: now, to: now, request: "70" }), 204);
+  assert.equal(await told("leave.approved", { member: tom.id, from: "x", to: now, request: "71" }), 204);
+  assert.equal(await told("leave.approved", { member: tom.id, from: addDays(now, -9), to: addDays(now, -2), request: "72" }), 204);
   // A "leave." event another tool would send is refused by the SDK.
-  assert.equal(await told("leave.approved", { "member": tom.id, from: now, to: now, request: "73" }, { source: "rooms" }), 401);
+  assert.equal(await told("leave.approved", { member: tom.id, from: now, to: now, request: "73" }, { source: "rooms" }), 401);
   assert.equal(await count(), before);
   // Léa is away until tomorrow; the day after, it is forgotten.
-  assert.equal(await told("leave.approved", { "member": lea.id, from: now, to: addDays(now, 1), request: "80" }), 204);
+  assert.equal(await told("leave.approved", { member: lea.id, from: now, to: addDays(now, 1), request: "80" }), 204);
   assert.equal(await purgeAway(sql, now), 0);
   assert.equal(await purgeAway(sql, addDays(now, 2)), 1);
   // Tom is away; then he leaves the Chest: forgotten.
-  assert.equal(await told("leave.approved", { "member": tom.id, from: now, to: addDays(now, 3), request: "81" }), 204);
+  assert.equal(await told("leave.approved", { member: tom.id, from: now, to: addDays(now, 3), request: "81" }), 204);
   assert.equal(await chest.emit({ type: "member.removed", data: { id: tom.id } }, POST), 204);
   assert.equal((await sql`select 1 from away where member_id = ${tom.id}`).length, 0);
   // Inès is away; then her data is erased: forgotten too.
-  assert.equal(await told("leave.approved", { "member": ines.id, from: now, to: addDays(now, 3), request: "82" }), 204);
+  assert.equal(await told("leave.approved", { member: ines.id, from: now, to: addDays(now, 3), request: "82" }), 204);
   const erasure = "era_" + "b".repeat(26);
   assert.equal(await chest.emit({ type: "member.erased", data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } }, POST), 204);
   assert.equal((await sql`select 1 from away where member_id = ${ines.id}`).length, 0);
@@ -122,7 +122,7 @@ test("only members of the Chest, only Leave, only well-formed events; past leave
 test("a shortened leave (cancelled, then approved for fewer days): the approval stands in either delivery order, at the same time or later", async () => {
   const { sql } = database;
   const now = today();
-  const whole = { "member": hugo.id, from: now, to: addDays(now, 4), fromHalf: "am", toHalf: "pm" };
+  const whole = { member: hugo.id, from: now, to: addDays(now, 4), fromHalf: "am", toHalf: "pm" };
   const short = { ...whole, to: addDays(now, 1) };
   const kept = async (request: string) => (await sql<{ d: string | null; cancelled: boolean }[]>`select to_char(to_day, 'YYYY-MM-DD') as d, cancelled from away where request = ${request}`)[0];
   const cases = [

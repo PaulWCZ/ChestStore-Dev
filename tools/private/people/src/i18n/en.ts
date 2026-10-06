@@ -326,16 +326,24 @@ const words = {
     starting: "Starting…",
     told: "Everyone with a step is told in their bell.",
     welcome: "{name} gets a short welcome email.",
-    welcomed: "Started. {name} gets a short welcome email.",
+    welcomed: "Started. A short welcome email is on its way to {address}.",
     // A member: the welcome is a notification (the Chest mails it if they chose so).
     welcomeNotice: "{name} finds a short welcome in their Chest notifications.",
     welcomedNotice: "Started. {name} finds a short welcome in their notifications.",
+    // An arrival whose work address is already a member's: a notification, never an email.
+    welcomeMatched: "{name} is already in the Chest: they will find a short welcome in their notifications. Link their arrival to them under Arriving, in Checklists.",
+    welcomedMatched: "Started. {name} is already in the Chest: they find a short welcome in their notifications. Link their arrival to them under Arriving.",
+    // The Chest could not say whether the address is a member's: nothing sent.
+    welcomedUnchecked: "Started. No welcome email left: the Chest could not say whether {name} is already in it.",
     noTemplates: "Create a template first.",
     newTemplate: "Create a template",
     manager: "Their manager",
     weekend: "That is a {day}: is it right?",
   },
   journey: {
+    // HR, on the checklist: the welcome email to an arrival bounced (mail.status).
+    welcomeBounced: "The welcome email to {address} could not be delivered. Check their work email under Arriving, in Checklists.",
+    welcomeBouncedNoAddress: "The welcome email could not be delivered.",
     onboarding: "Welcome {name}",
     offboarding: "{name}’s departure",
     firstDay: "First day {date}",

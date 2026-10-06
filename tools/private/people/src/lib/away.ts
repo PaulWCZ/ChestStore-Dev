@@ -26,7 +26,7 @@ import { present } from "./people.ts";
 
 export type Half = "am" | "pm";
 export type Span = { from: string; to: string; fromHalf: Half | "day"; toHalf: Half | "day" };
-type Told = Span & { "member": string; request: string };
+type Told = Span & { member: string; request: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/u;
 const refPattern = /^[A-Za-z0-9._:-]{1,60}$/u;

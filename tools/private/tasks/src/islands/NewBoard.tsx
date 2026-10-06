@@ -8,7 +8,7 @@ import type { Catalogue } from "../i18n/index.ts";
 
 export type NewBoardWords = { create: Catalogue["create"]; templates: Pick<Catalogue["templates"], "simple" | "project" | "onboarding" | "empty">; dialog: Catalogue["dialog"]; peoplePicker: Catalogue["peoplePicker"] };
 type Words = NewBoardWords;
-export type Sharing = { people: { id: string; name: string; photo: string | null }[]; groups: { id: string; name: string }[] };
+export type Sharing = { people: { id: string; name: string; photo: string | null }[]; groups: { id: string; name: string }[]; unreadable: boolean };
 const templateKeys = ["simple", "project", "onboarding", "empty"] as const;
 
 // "New board": a name, how to start, who sees it — and, for a private
@@ -82,6 +82,7 @@ export function NewBoard({ t, label, sharing, locale, primary = false, tile = fa
           </fieldset>
           {visibility === "private" && (
             <section className="stack share-box" aria-label={w.shareWith}>
+              {sharing.unreadable && <p className="hint" role="status">{t.peoplePicker.unreadable}</p>}
               <PeoplePicker label={w.shareWith} multiple value={chosen} onChange={setChosen} search={search} suggestions={choices.slice(0, 12)} labels={t.peoplePicker} lang={locale} />
               <p className="hint" role="status">{format(w.seenBy, { who })}</p>
             </section>

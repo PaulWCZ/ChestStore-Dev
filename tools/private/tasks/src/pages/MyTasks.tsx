@@ -8,7 +8,7 @@ import { dayText, plural, localeOf } from "../i18n/index.ts";
 import type { NewBoardWords } from "../islands/NewBoard.tsx";
 import type { TaskRow } from "../islands/TaskGroups.tsx";
 import { can } from "../lib/access.ts";
-import { askWho, sharingFor } from "../lib/audience.ts";
+import { askWho, noSharing, sharingFor } from "../lib/audience.ts";
 import { columnName, listBoards } from "../lib/boards.ts";
 import { mySteps, myTasks } from "../lib/cards.ts";
 import { chestToday } from "../lib/clock.ts";
@@ -24,7 +24,7 @@ export async function myTasksPage({ member, locale: language, t }: PageContext):
   const locale = localeOf(language);
   const sql = db();
   const creates = can(member, "boards.create");
-  const [boards, tasks, steps, reminder, sharing, feed] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] }), calendarWorks(sql)]);
+  const [boards, tasks, steps, reminder, sharing, feed] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve(noSharing), calendarWorks(sql)]);
   // The tile's number may have gone stale overnight (nothing runs in the
   // background but the schedules): set it right whenever its owner comes
   // home.

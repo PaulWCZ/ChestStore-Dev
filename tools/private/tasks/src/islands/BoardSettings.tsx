@@ -18,11 +18,13 @@ const offered = (current: Color) => (palette.includes(current) ? palette : [...p
 // The colour a form sent, or the one it had.
 const colorOf = (value: FormDataEntryValue | null, current: Color): Color => (isColor(value) ? value : current);
 
-export function BoardSettings({ board, members, everyone, groups, labels, fields, archivedColumns, archivedCards, locale, t }: {
+export function BoardSettings({ board, members, everyone, groups, unreadable = false, labels, fields, archivedColumns, archivedCards, locale, t }: {
   board: { id: string; name: string; color: Color; visibility: "team" | "private"; archived: boolean; own: boolean; writable: boolean; groups: string[] };
   members: (Person & { owner: boolean })[];
   everyone: Person[];
   groups: { id: string; name: string }[];
+  // The Chest did not answer who is in the company: said, not an empty list.
+  unreadable?: boolean;
   labels: Label[];
   fields: Field[];
   archivedColumns: (Column & { cards: number })[];
@@ -104,12 +106,13 @@ export function BoardSettings({ board, members, everyone, groups, labels, fields
           ))}
         </ul>
         {/* Chosen, added: one step. In a team board, whom one adds owns it. */}
+        {!readOnly && unreadable && <p className="hint" role="status">{t.peoplePicker.unreadable}</p>}
         {!readOnly && addable.length > 0 && (
           <PeoplePicker key={people.length} id="add-person" label={visibility === "private" ? s.addPerson : s.addOwner} value={[]} search={search} suggestions={addable.slice(0, 12)} labels={t.peoplePicker} lang={locale}
             onChange={([p]) => { if (p) savePeople([...people, { id: p.id, name: p.name, photo: p.photo ?? null, owner: visibility === "team" }]); }} />
         )}
         {visibility === "private" && <h3>{s.groups}</h3>}
-        {visibility !== "private" ? null : groups.length === 0 ? <p className="hint">{s.noGroups}</p> : (
+        {visibility !== "private" || (unreadable && groups.length === 0) ? null : groups.length === 0 ? <p className="hint">{s.noGroups}</p> : (
           <div className="row">
             {groups.map(g => (
               <label key={g.id} className="choice small-choice">

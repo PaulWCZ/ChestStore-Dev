@@ -191,3 +191,17 @@ test("errors: the reader's page and the right status, outside /chest too", async
   assert.equal((await get(null, "/assets/nothing.js")).status, 404);
   assert.match(await (await get(null, "/", { "accept-language": "fr" })).text(), /Tâches se trouve dans votre Chest/u);
 });
+
+test("the Chest does not answer who is in the company: the board and the new-board dialog say the list could not be read", async () => {
+  await chest.close();
+  chest = await fakeChest({ network: {}, tool: "tasks", members: everyone, capabilities: ["database", "files", "notifications"] });
+  const board = await (await get(camille, `/chest/boards/${boardId}`)).text();
+  assert.match(board, /La liste des personnes n’a pas pu être lue pour le moment/u);
+  checkPage(board);
+  const settings = await (await get(hugo, `/chest/boards/${boardId}/settings`)).text();
+  assert.match(settings, /The list of people could not be read right now/u, "its owner, who adds people");
+  checkPage(settings);
+  await chest.close();
+  chest = await fakeChest({ network: {}, tool: "tasks", members: everyone, capabilities: ["database", "members", "files", "notifications"] });
+  assert.doesNotMatch(await (await get(camille, `/chest/boards/${boardId}`)).text(), /n’a pas pu être lue/u);
+});
