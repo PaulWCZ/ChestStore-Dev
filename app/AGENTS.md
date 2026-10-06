@@ -400,6 +400,8 @@ The SDK's `fakeChest`, `withMember` sign the member.
 | Symptom | Cause |
 |---|---|
 | An island shows a new thing with the old one's state (a draft, an open menu) after a refresh or a navigation | Same island, same place, other subject: give it an id, `<Island id={"card-" + card.id} …/>` (in development the browser warns when a prop `id` changes under an island without one) |
+| An island's `id` and an element inside it share an id (two `report-12` on the page: a label points at the wrong one, the morph mixes them) | The island's `id` is its wrapper's DOM id: name it apart from what its content uses — `<Island id={"island-report-" + id} …/>`, the content keeping `report-<id>` |
+| A unit test calls `chest.clearCaches()` (or changes the fake's members) and the built server still answers from its cache | The server built into `dist/test` bundles its own copy of the SDK: its caches are not the test's. Call the tool's own functions (the delivery, the rule in `src/lib/`) directly in a unit test, and keep server tests to what a request shows |
 | Two quick actions reorder rows | Calls with `parallel: true`, or two people at once: serialise in SQL (a transaction with a lock) |
 | Pasted HTML loses its bold and italics, the console reports a refused style | A `DOMParser` document inherits the page's policy: its `style=""` attributes are refused. Rename them in the text before parsing and read them by hand (Wiki's `src/islands/editor/paste.ts`, `unstyled()` and `inlineStyles()`) |
 | TS7022/TS7024: `actions` "implicitly has type any" | A cycle through `Register`: an action's inferred type depends on `t` or on `fail()` in an expression. Annotate its run's return type (`async (…): Promise<{ id: string }> => …`) |
