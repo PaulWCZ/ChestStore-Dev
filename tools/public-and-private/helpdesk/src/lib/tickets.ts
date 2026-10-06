@@ -582,6 +582,27 @@ export async function note(sql: Sql, actor: Member | null, number: unknown, body
   return t;
 }
 
+// theirEmail adds what the customer wrote by email, copied by an agent from
+// the company's inbox: the Chest receives no mail (owner's decision, 6
+// October 2026), so an answer sent to the reply address comes onto the
+// ticket this way. It is the customer's message — on their request page,
+// marked "Written by … for the customer" for the team; it reopens the
+// request and starts the wait for an answer, as their own would. Not on a
+// colleague's request (they write in My requests), a spam or a merged one.
+export async function theirEmail(sql: Sql, actor: Member | null, number: unknown, body: unknown, files: Files = noFiles): Promise<Ticket> {
+  if (!actor || !can(actor, "tickets.answer")) throw new AppError("forbidden");
+  const text = clean(body, limits.body, { multiline: true });
+  const t = await byNumber(sql, number);
+  if (t.status === "spam" || t.requester !== null) throw new AppError("forbidden");
+  if (t.mergedInto !== null) throw new AppError("merged", { number: t.mergedInto });
+  await withFiles(files.take, stored => sql.begin(async tx => {
+    await insertMessage(tx, t.id, { kind: "customer", author: actor.id, body: text, files: stored });
+    await tx`update tickets set status = 'open', closed_at = null, updated_at = now() where id = ${t.id}`;
+    await refreshSearch(tx, t.id);
+  }), files.drop);
+  return { ...t, status: "open" };
+}
+
 // assign gives the ticket to someone who answers tickets (the page offers
 // only them; the action checks their role with the Chest), or to nobody.
 export async function assign(sql: Sql, actor: Member | null, number: unknown, assignee: string | null, answers: (memberId: string) => Promise<boolean>): Promise<{ ticket: Ticket; previous: string | null }> {

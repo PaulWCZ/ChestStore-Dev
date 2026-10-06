@@ -187,6 +187,20 @@ test("a form posted without JavaScript: the same request, a refusal said under i
   assert.equal((await form(null, "/actions/sendRequest", { email: "x@example.com" }, "/", { "sec-fetch-site": "cross-site" })).status, 403);
 });
 
+test("a stranger's form never makes Support a relay: three confirmations an hour to one address, none to a robot's; the request is still filed", async () => {
+  await database.sql`delete from chest_bounds`;
+  const send = (email, i) => call(null, "sendRequest", { name: "Buy pills", email, subject: `Cheap pills ${i}`, message: "Visit our shop.", lang: "en", website: "", chest_form: token("sendRequest") }, { cookie: `chest_v=relay-browser-${i}-aaaaaaaaaaaa` });
+  const before = chest.outbox.length;
+  const answers = [];
+  for (let i = 0; i < 5; i++) answers.push(await (await send("target@example.com", i)).json());
+  assert.ok(answers.every(a => a.ok), "every request is filed");
+  assert.equal(chest.outbox.slice(before).filter(m => m.to.includes("target@example.com")).length, 3, "three emails to that address this hour");
+  assert.deepEqual(answers.map(a => a.redirect.includes("mailed=1")), [true, true, true, false, false], "past them, the page says the link was not emailed");
+  const robot = await (await send("no-reply@example.com", 9)).json();
+  assert.ok(robot.ok && !robot.redirect.includes("mailed=1"));
+  assert.equal(chest.outbox.filter(m => m.to.includes("no-reply@example.com")).length, 0);
+});
+
 test("with no visitor address (a real 0.4 Chest): junk is never counted, a browser's limit is its own, a real customer gets through", async () => {
   await database.sql`delete from chest_bounds`;
   const fields = i => ({ name: "", email: `v${i}@example.com`, subject: `Visitor ${i}`, message: "Hello there.", lang: "en", website: "" });

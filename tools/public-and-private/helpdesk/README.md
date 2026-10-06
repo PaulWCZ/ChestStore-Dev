@@ -155,8 +155,12 @@ see "Mail to people outside the company"):
   are the same tag (`src/lib/seed-words.ts`).
 - **Keyboard**: `j`/`k` move, `Enter` opens, `x` ticks, `r` reply, `n`
   note, `e` close, `c` new ticket, `/` search, `?` the list.
-- A **ticket**: the conversation, a composer with *Reply* or *Internal note*
-  (notes never reach the customer), *Send* or *Send and close*, **saved
+- A **ticket**: the conversation, a composer with *Reply*, *Internal note*
+  (notes never reach the customer) or *Their email* (the customer answered
+  by email and it reached the company's inbox: the agent pastes it, and it
+  becomes the customer's message — on their request page, marked "Written
+  by Hugo for the customer" for the team, reopening a solved request and
+  starting the wait), *Send* or *Send and close*, **saved
   replies** with `{customer}` and `{agent}`, **files** on a reply (sent
   with the email) or a note, priority and tags, assign (or *Take it*), close
   with *Undo*, spam, the customer's other requests, and "Hugo is on this
@@ -423,7 +427,7 @@ from the company's own address; nothing comes back into Support.
 
 | Recipient | Purpose | When | Content | Attachments | Reply-To |
 |---|---|---|---|---|---|
-| The customer who wrote (the public form, Forms' public form, or a ticket the team opened for them) | Confirm the request arrived and give the way back to it | Right after it arrived (never to a robot's address; three an hour to one address at most; not again for a request sent twice) | The request's subject and number (`[#1042]` in the subject), the link of their request page, "it is where you write to us again", "keep this email"; in the request's language; from the company's name | None | The company's reply address (the connector's default) |
+| The customer who wrote (the public form, Forms' public form, or a ticket the team opened for them) | Confirm the request arrived and give the way back to it | Right after it arrived (from a public form: never to a robot's address, three an hour to one address at most — past them the request is filed and its page says the link was not emailed; not again for a request sent twice) | The request's subject and number (`[#1042]` in the subject), the link of their request page, "it is where you write to us again", "keep this email"; in the request's language; from the company's name | None | The company's reply address (the connector's default) |
 | The customer of a ticket | An agent's answer | When the agent sends it (*Send* or *Send and close*) | The answer, the agent's first name and the company, a fresh link to the request page, "Please answer on your request page … (A reply to this email goes to {company}'s usual inbox, not to this conversation.)"; `Re: <subject> [#1042]`; from "Hugo — Atelier Martin" | The files the agent added (the Chest's stored files; 10 MiB a message in all, else the answer stays on the page) | The company's reply address |
 
 Not emailed: a colleague's request (from a team form of Forms: they read
@@ -550,10 +554,10 @@ CPU (they did not on Next.js).
 - **Receiving email** (owner's decision, 6 October 2026: the Chest
   receives no mail): no support address that opens tickets, no replies
   by email filed onto a ticket. A customer who answers by email reaches
-  the company's usual inbox; an agent who finds such a reply there adds
-  it to the ticket by hand (an internal note, or *New ticket* for a new
-  matter). Every email and the request page ask customers to write on
-  the page instead.
+  the company's usual inbox; an agent who finds such a reply there copies
+  it into the ticket with *Their email* (or *New ticket* for a new
+  matter) — by hand, not by itself. Every email and the request page ask
+  customers to write on the page instead.
 - **The form inside the company's website** on a real Chest (above,
   "Needs from the SDK"): link to the form's address instead.
 - **Live chat** (Crisp, Intercom): no chat bubble; a chat would need a
