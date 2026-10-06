@@ -1,4 +1,4 @@
-import type { DateWords } from "@argentic/chest-ui/components/logic";
+import { localeIn } from "@argentic/chest-app";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -10,10 +10,9 @@ export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
 // A catalogue has the shape of the English one, every leaf a string — but
-// the kit's date words, which also say the order of a date's parts and the
-// first day of the week (DateWords).
-type Shape<T> = { readonly [K in keyof T]: K extends "dates" ? DateWords : T[K] extends string ? string : Shape<T[K]> };
-export type Catalogue = Shape<typeof en>;
+// the kit's words (their own types: a date's parts, plurals).
+type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
+export type Catalogue = Shape<Omit<typeof en, "kit">> & { readonly kit: typeof en.kit };
 
 const catalogues: Record<Locale, Catalogue> = { en, fr };
 
@@ -24,6 +23,11 @@ export function isLocale(value: unknown): value is Locale {
 export function catalogue(locale: Locale): Catalogue {
   return catalogues[locale] ?? catalogues[defaultLocale];
 }
+
+// The words of a language tag (the package's words(locale)): the tool's
+// language when it speaks it, else English.
+export const words = (locale: string): Catalogue => catalogues[localeIn(locales, locale)];
+export const localeOf = (locale: string): Locale => localeIn(locales, locale);
 
 // publicLocale is the language of a page of the public part, where there is
 // no member: the visitor's choice (a cookie set by the switch), otherwise the
@@ -46,4 +50,4 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
   return ranked.map(r => r.language).find(isLocale) ?? fallback;
 }
 
-export { fileSize, format, formatDate, intl, plural, relative, timeZone } from "./format.ts";
+export { fileSize, format, formatDate, intl, languageIn, languageNames, number, plural, relative } from "../lib/format.ts";

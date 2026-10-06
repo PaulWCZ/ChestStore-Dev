@@ -4,7 +4,7 @@
 // catalogues' seed section) until someone renames them; a tag typed in any
 // language that names a seeded one is that tag.
 import type { Member } from "@argentic/chest-sdk/member";
-import { catalogue, isLocale, locales, type Catalogue } from "./i18n/index.ts";
+import { catalogue, isLocale, locales, type Catalogue } from "../i18n/index.ts";
 
 const keyed = /^@([a-z][a-zA-Z]{0,29})$/u;
 const words = (t: Catalogue) => t.seed.tags as Readonly<Record<string, string>>;

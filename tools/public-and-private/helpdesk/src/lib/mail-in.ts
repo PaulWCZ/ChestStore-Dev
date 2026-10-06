@@ -6,7 +6,7 @@ import * as notices from "./notices.ts";
 import { publicBase } from "./public-origin.ts";
 import * as tell from "./tell.ts";
 import * as tickets from "./tickets.ts";
-import { robotAddress } from "./text.ts";
+import { robotAddress } from "../shared/text.ts";
 
 // What the Chest posts to /chest-mail (Proposal (studio): mail): emails
 // received on the support mailbox, and the bounces of what we sent.

@@ -1,9 +1,10 @@
 import type { ToolEvent } from "@argentic/chest-sdk/events";
+import { log } from "@argentic/chest-app";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { catalogue, format, isLocale, locales, type Locale } from "./i18n/index.ts";
+import { catalogue, format, isLocale, locales, type Locale } from "../i18n/index.ts";
 import { fillReply } from "./model.ts";
 
 // What Status tells Support (Proposal (studio): events between tools, once
@@ -117,7 +118,7 @@ export function readIncident(event: Pick<ToolEvent, "data"> & { occurredAt?: str
 export async function received(sql: Sql, event: Pick<ToolEvent, "data" | "occurredAt">): Promise<void> {
   const news = readIncident(event);
   if (!news) {
-    console.warn("status.incident ignored: not an incident of version 1");
+    log.warn("status.incident ignored: not an incident of version 1");
     return;
   }
   const status = news.action === "removed" ? "removed" : news.action === "resolved" ? "resolved" : news.status;

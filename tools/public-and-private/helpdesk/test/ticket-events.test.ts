@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { forgetTicketEvents, occurredAtFor, publishTicketEvents, ticketEventTypes } from "../lib/ticket-events.ts";
-import * as tickets from "../lib/tickets.ts";
+import { chestSchedules as JOB } from "../src/lib/deliveries.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { forgetTicketEvents, occurredAtFor, publishTicketEvents, ticketEventTypes } from "../src/lib/ticket-events.ts";
+import * as tickets from "../src/lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -20,9 +20,8 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
-const chestWith = (emits: string[]) => fakeChest({
+const chestWith = (emits: string[]) => fakeChest({ network: {},
   tool: "helpdesk", members: everyone, emits, capabilities: ["members", "files", "notifications"],
-  schedules: [{ name: "cleanup", cron: "15 3 * * *" }, { name: "late", cron: "*/15 * * * *" }],
   chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" },
 });
 before(async () => {

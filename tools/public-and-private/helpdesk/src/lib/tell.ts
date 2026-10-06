@@ -3,7 +3,7 @@ import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { answering } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { format, type Catalogue } from "./i18n/index.ts";
+import { format, type Catalogue } from "../i18n/index.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { nameOf, people, type Person } from "./people.ts";
 import { waitingCounts, type Ticket } from "./tickets.ts";

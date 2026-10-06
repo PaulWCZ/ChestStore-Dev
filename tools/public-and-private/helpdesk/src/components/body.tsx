@@ -1,4 +1,4 @@
-import { linkify, splitQuoted } from "../lib/text.ts";
+import { linkify, splitQuoted } from "../shared/text.ts";
 
 // What someone wrote: line breaks kept, web addresses as links (a new
 // tab, no referrer), and — for an email — the quoted conversation below it

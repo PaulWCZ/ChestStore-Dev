@@ -1,16 +1,4 @@
-// Safe in the browser: no SDK here.
-// What a service refuses, as a code: the pages put it in words
-// (lib/i18n, errors.<code>). Services never return sentences.
-export const errorCodes = ["forbidden", "not_found", "invalid", "invalid_email", "too_long", "empty", "too_many", "too_fast", "closed_form", "file_type", "file_too_large", "too_many_files", "file_missing", "files_unavailable", "invalid_rule", "rule_empty", "invalid_origin", "invalid_url", "merged", "merge_same", "merge_other_customer", "not_closed", "notice_events", "webhook_slack", "webhook_teams", "webhook_address", "webhook_no_answer", "webhooks_unavailable", "webhooks_suspended", "too_many_targets", "unavailable", "unknown"] as const;
-export type ErrorCode = (typeof errorCodes)[number];
-
-export class AppError extends Error {
-  readonly code: ErrorCode;
-  readonly values: Record<string, number | string>;
-  constructor(code: ErrorCode, values: Record<string, number | string> = {}) {
-    super(code);
-    this.name = "AppError";
-    this.code = code;
-    this.values = values;
-  }
-}
+// What a rule refuses, as a code (the catalogues' errors.<code> say it in
+// the reader's words): the package's AppError, which an action answers
+// with the code and its sentence. Rules never return sentences.
+export { AppError, fail, type ErrorCode } from "@argentic/chest-app";

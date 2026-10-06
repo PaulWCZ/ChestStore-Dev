@@ -1,5 +1,6 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
+import { log } from "@argentic/chest-app";
 import type { Query } from "./db.ts";
 
 // Support → the tools an admin linked to it (Goals counts "Tickets
@@ -63,10 +64,10 @@ export async function publishTicketEvents(sql: Query): Promise<number> {
       // A key the Chest already holds for something else would be refused
       // for ever: a bug, said, and not retried.
       if (error.code !== "key_conflict") {
-        console.warn(`${row.type} not published yet: ${error.code}`);
+        log.warn("ticket event not published yet", { type: row.type, code: error.code });
         return told;
       }
-      console.error(`${row.type} refused: key_conflict`);
+      log.warn("ticket event refused", { type: row.type, code: "key_conflict" });
     }
     await sql`update ticket_events set published_at = now() where id = ${row.id}`;
     told++;
@@ -85,7 +86,7 @@ export async function tellLinkedTools(sql: Query): Promise<void> {
   try {
     await publishTicketEvents(sql);
   } catch (error) {
-    console.error("ticket events not published", error instanceof Error ? error.name : "error");
+    log.error("ticket events not published", error);
   }
 }
 

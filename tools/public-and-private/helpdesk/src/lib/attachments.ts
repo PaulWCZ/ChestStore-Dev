@@ -16,7 +16,7 @@ import { checkFile, fileName, fileTypes, isFileType, limits, type FileType } fro
 //    follow-up link, a member who answers), the Chest gives a one-time
 //    upload address for one file of that type and size;
 // 2. the browser sends the file there. A visitor's upload (Proposal
-//    (studio): public uploads) answers a claim, never the object's name; a
+//    (studio): files.publicUploadUrl, on the public host) answers a claim, never the object's name; a
 //    member's upload answers its name, under uploads/team/;
 // 3. take: with the message, the claims (or names) come back; the tool
 //    trades each claim once (so a visitor can only attach what they sent
@@ -34,12 +34,10 @@ export async function grant(kind: Kind, type: unknown, size: unknown): Promise<{
   const refused = checkFile(type, size);
   if (refused) throw new AppError(refused, { max: limits.fileSize >> 20 });
   try {
-    const up = await files.uploadUrl(folder[kind], {
-      types: [type as string],
-      maxSize: limits.fileSize,
-      expiresIn: 900,
-      ...(kind === "public" ? { public: true, expiresUnclaimedAfter: 86400 } : {}),
-    });
+    // A visitor's upload is on the public host and answers a claim
+    // (Proposal (studio): files.publicUploadUrl); a member's, 0.4.1's.
+    const options = { types: [type as string], maxSize: limits.fileSize, expiresIn: 900 };
+    const up = kind === "public" ? await files.publicUploadUrl(folder.public, { ...options, expiresUnclaimedAfter: 86400 }) : await files.uploadUrl(folder.team, options);
     return { url: up.url, expiresIn: up.expiresIn };
   } catch (error) {
     if (error instanceof TooLarge) throw new AppError("file_too_large", { max: limits.fileSize >> 20 });

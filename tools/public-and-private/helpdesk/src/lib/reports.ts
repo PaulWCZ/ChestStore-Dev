@@ -3,7 +3,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Sql } from "./db.ts";
-import { localDay, weekday, workMinutes, type Hours } from "./hours.ts";
+import { localDay, weekday, workMinutes, type Hours } from "../shared/hours.ts";
 
 // What a support lead is asked every week: how many requests came and
 // were closed, how fast the team first answered (in working hours), who

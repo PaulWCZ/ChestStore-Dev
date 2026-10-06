@@ -1,5 +1,5 @@
-import type { Catalogue } from "../lib/i18n/index.ts";
-import { format } from "../lib/i18n/format.ts";
+import { fill as format } from "@argentic/chest-app/client";
+import type { Catalogue } from "../i18n/index.ts";
 import { Alert } from "./icons.tsx";
 
 // The incidents in progress that Status told Support about (lib/incidents-in.ts):

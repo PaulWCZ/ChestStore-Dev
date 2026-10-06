@@ -1,8 +1,8 @@
 /* Support's own tokens. The contract's (colours, fonts, sizes, spacing,
    corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
-   look of the page — Support's identity "Calm counter" in lib/theme.ts, or
-   the theme or brand the company chose in its Chest — in a <style> of
-   app/layout.tsx. Here only what is Support's alone, always defined from
+   look of the page — Support's identity "Calm counter" in src/theme.ts, or
+   the theme or brand the company chose in its Chest — in a stylesheet the
+   tool serves (/chest/look.css, /look.css). Here only what is Support's alone, always defined from
    contract tokens, never from a colour, so it follows every theme. */
 :root {
   /* The customer's coral: categorical slot 3 (the orange family in every

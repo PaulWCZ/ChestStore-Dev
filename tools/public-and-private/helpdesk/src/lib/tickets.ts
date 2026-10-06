@@ -5,11 +5,11 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import type { Stored } from "./attachments.ts";
-import { defaultHours, parseHours, readHours, type Hours } from "./hours.ts";
+import { defaultHours, parseHours, readHours, type Hours } from "../shared/hours.ts";
 import { clean, defaultLateHours, defaultSort, email, mergedEvent, readMerged, fillReply, id, isFolder, isPriority, isSort, isStatus, lateChoices, limits, numberInSubject, tagName, ticketNumber, type Folder, type Priority, type Sort, type Status } from "./model.ts";
-import { catalogue, isLocale, locales } from "./i18n/index.ts";
+import { catalogue, isLocale, locales } from "../i18n/index.ts";
 import { allRules, decide } from "./rules.ts";
-import { baseSubject } from "./text.ts";
+import { baseSubject } from "../shared/text.ts";
 import { readerWords, shownTag, storedTag } from "./seed-words.ts";
 
 // Tickets and their messages. Team functions take (sql, actor, …) and check
@@ -361,7 +361,7 @@ export async function fromForms(sql: Sql, r: FormsRequest): Promise<FromForms> {
 }
 
 // fromEmail files an email received on the support mailbox (the Chest
-// posts it, lib/mail-in via app/chest-mail). Where it belongs, most
+// posts it to /chest-mail: src/lib/deliveries.ts, lib/mail-in.ts). Where it belongs, most
 // certain first:
 //
 // 1. its thread address (support+t1042-…@): the tag only this tool makes,

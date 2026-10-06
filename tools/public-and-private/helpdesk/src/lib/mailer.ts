@@ -1,7 +1,7 @@
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
-import { catalogue, format, isLocale } from "./i18n/index.ts";
+import { catalogue, format, isLocale } from "../i18n/index.ts";
 import { subjectTag } from "./model.ts";
 import type { Bounce, Threading, Ticket } from "./tickets.ts";
 

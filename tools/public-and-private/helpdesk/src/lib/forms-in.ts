@@ -1,14 +1,15 @@
 import { chest } from "@argentic/chest-sdk/chest";
+import { log } from "@argentic/chest-app";
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
-import { catalogue, format, isLocale, type Locale } from "./i18n/index.ts";
+import { catalogue, format, isLocale, type Locale } from "../i18n/index.ts";
 import { confirmationsPerHour } from "./mail-in.ts";
 import * as mailer from "./mailer.ts";
 import * as notices from "./notices.ts";
 import { email, limits } from "./model.ts";
 import { publicBase } from "./public-origin.ts";
 import * as tell from "./tell.ts";
-import { robotAddress } from "./text.ts";
+import { robotAddress } from "../shared/text.ts";
 import * as tickets from "./tickets.ts";
 
 // What Forms tells Support (Proposal (studio): events between tools, once
@@ -171,7 +172,7 @@ export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">):
   const request = readRequest(event, isLocale(fallback) ? fallback : "en");
   if (!request) {
     // Never the event's content in the log: it is a person's answer.
-    console.warn("forms.request ignored: nobody to answer or not a request");
+    log.warn("forms.request ignored: nobody to answer or not a request");
     return;
   }
   const t = await tickets.fromForms(sql, request);
@@ -189,9 +190,20 @@ export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">):
 // formsLink is the address of the answer in Forms, for the link back on
 // the ticket: made when the page is shown, from the path the ticket keeps
 // (never an address: Forms' changes with a custom domain) and the
-// addresses the Chest gives (Proposal (studio): chest.toolLink). null when
-// Forms is not installed on this Chest or the path is not an answer's page
-// — the ticket then names the form without a link.
+// addresses the Chest gives (Proposal (studio): chest.tools.link). null
+// when Forms is not installed on this Chest, outside a Chest, or when the
+// path is not an answer's page — the ticket then names the form without a
+// link.
 export function formsLink(path: string | null): string | null {
-  return path && pathPattern.test(path) ? chest.toolLink("forms", path) : null;
+  return path && pathPattern.test(path) ? toolLink("forms", path) : null;
+}
+
+// A page of another tool on this Chest (its team host), or null when that
+// tool is not installed — or outside a Chest, where chest.tools throws.
+export function toolLink(tool: string, path: string): string | null {
+  try {
+    return chest.tools.link(tool, path);
+  } catch {
+    return null;
+  }
 }

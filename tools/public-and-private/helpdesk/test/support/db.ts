@@ -1,16 +1,17 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
-import { provide } from "../../lib/db.ts";
+import { provide } from "../../src/lib/db.ts";
 
 // A fresh database for a test file, with the tool's migrations run as the
 // Chest runs them (in name order, each in its own transaction, recorded in
 // chest_migrations). With TEST_DATABASE_URL (a PostgreSQL server whose user
-// may create databases), a new database on it, dropped at the end;
-// otherwise PGlite, PostgreSQL in the test's process (a dev dependency
-// only). DATABASE_URL is set in the shape the Chest gives, so databaseUrl()
-// and lib/db.ts work unchanged; db()
-// answers this very connection (PGlite takes one at a time).
+// may create roles and databases), a role and a database of the Chest's
+// shape (t_…), dropped at the end; otherwise PGlite, PostgreSQL in the
+// test's process (a dev dependency only). DATABASE_URL is set in the shape
+// the Chest gives, so databaseUrl() and src/lib/db.ts work unchanged — and
+// the built server of test/app.test.mjs, which opens its own pool; db()
+// answers this very connection.
 export type TestDatabase = { sql: postgres.Sql; url: string; close(): Promise<void> };
 
 const migrationsDir = join(import.meta.dirname, "..", "..", "migrations");
@@ -35,9 +36,10 @@ export async function testDatabase(options: { upTo?: string } = {}): Promise<Tes
   if (server) {
     const name = "t_test_" + Math.random().toString(36).slice(2, 10);
     const admin = postgres(server, { max: 1, onnotice: () => {} });
-    await admin.unsafe(`create database ${name}`);
+    await admin.unsafe(`create role ${name} login password 'test'`);
+    await admin.unsafe(`create database ${name} owner ${name}`);
     const base = new URL(server);
-    const url = `postgres://${base.username}:${base.password}@127.0.0.1:${base.port || 5432}/${name}`;
+    const url = `postgres://${name}:test@127.0.0.1:${base.port || 5432}/${name}?sslmode=disable`;
     const sql = postgres(url, { max: 4, onnotice: () => {} });
     await migrate(sql, options.upTo);
     process.env["DATABASE_URL"] = url;
@@ -46,28 +48,28 @@ export async function testDatabase(options: { upTo?: string } = {}): Promise<Tes
       sql,
       url,
       async close() {
-      provide(undefined);
+        provide(undefined);
         await sql.end();
         await admin.unsafe(`drop database if exists ${name} with (force)`);
+        await admin.unsafe(`drop role if exists ${name}`);
         await admin.end();
       },
     };
   }
   const { PGlite } = await import("@electric-sql/pglite");
-  const { pg_trgm } = await import("@electric-sql/pglite/contrib/pg_trgm");
-  const { unaccent } = await import("@electric-sql/pglite/contrib/unaccent");
   const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
-  const pg = await PGlite.create({ extensions: { pg_trgm, unaccent } });
-  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1" });
+  const pg = await PGlite.create();
+  // Several connections: the built server (test/app.test.mjs) opens its own pool.
+  const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1", maxConnections: 8 });
   await socket.start();
   const address = (socket as unknown as { server?: { address(): { port: number } } }).server?.address();
   const port = address?.port ?? 0;
-  // The shape of the Chest's address (lib/db.ts checks it through the SDK).
+  // The shape of the Chest's address (src/lib/db.ts checks it through the SDK).
   const url = `postgres://t_test:test@127.0.0.1:${port}/t_test?sslmode=disable`;
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   await migrate(sql, options.upTo);
   process.env["DATABASE_URL"] = url;
-    provide(sql);
+  provide(sql);
   return {
     sql,
     url,

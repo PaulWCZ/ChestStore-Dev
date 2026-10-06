@@ -1,6 +1,6 @@
 import { StatusBadge, type Tone } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
-import type { Priority, Status } from "../lib/model.ts";
+import type { Priority, Status } from "../shared/model.ts";
 import { Clock, Down, Flag, Up } from "./icons.tsx";
 
 // A ticket's priority, in the kit's badge: its word with its sign (never

@@ -1,14 +1,16 @@
 import { chest } from "@argentic/chest-sdk/chest";
+import { log } from "@argentic/chest-app";
 import { CapabilityNotGranted, ChestError, QuotaExceeded } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { workMinutes } from "./hours.ts";
-import { catalogue, format, isLocale, type Catalogue, type Locale } from "./i18n/index.ts";
+import { workMinutes } from "../shared/hours.ts";
+import { catalogue, format, isLocale, type Catalogue, type Locale } from "../i18n/index.ts";
 import { clean, lateAfter } from "./model.ts";
 import { nameOf, people } from "./people.ts";
+import { teamOrigin } from "./public-origin.ts";
 import { settings } from "./tickets.ts";
 
 // Notices to the team's chat (Proposal (studio): webhooks, sdk/README.md):
@@ -212,7 +214,7 @@ async function whoAsked(t: NoticeTicket, words: Catalogue, locale: Locale): Prom
 }
 
 const link = (number: number): string | null => {
-  const team = chest.teamUrl;
+  const team = teamOrigin();
   return team ? `${team}/chest/tickets/${number}` : null;
 };
 
@@ -248,7 +250,7 @@ export async function notice(sql: Query, event: NoticeEvent, t: NoticeTicket, ke
     return sent.deliveries.length;
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
-    console.warn(`notice ${event} not sent: ${error.code}`);
+    log.warn("notice not sent", { event, code: error.code });
     return 0;
   }
 }
