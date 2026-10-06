@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Check, Cross, Maybe, Mask, Party } from "../components/icons.tsx";
-import { call } from "../core/client.tsx";
+import { call } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import { hashOf, keep, newKey } from "./reply-keys.ts";
 import { plural, type Plural } from "./words.ts";

@@ -1,11 +1,11 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { Avatar, StatusBadge } from "@argentic/chest-ui/components";
 import { Back, CalendarPlus, Clock, Eye, Info, KindIcon, Mask, Pencil, People, Repeat } from "../components/icons.tsx";
-import type { View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { log } from "../core/log.ts";
-import { AppError, notFound, redirect } from "../core/tool.ts";
-import { fill as format, type Catalogue, type Format, type Locale } from "../i18n/index.ts";
+import type { View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { log } from "@argentic/chest-app";
+import { AppError, notFound, redirect } from "@argentic/chest-app";
+import { fill as format, listOf, type Catalogue, type Format, type Locale } from "../i18n/index.ts";
 import { calendarPage, inCalendar, learned, notInCalendar } from "../lib/agenda.ts";
 import { all, groups as chestGroups } from "../lib/audience.ts";
 import { canComment, list as listComments } from "../lib/comments.ts";
@@ -123,7 +123,7 @@ export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sq
   // Groups by name, then people picked by name (the first five, then "N more").
   const picked = poll.people.slice(0, 5).map(p => names.get(p)?.name ?? t.people.unknown);
   const audienceWords = [...groupNames, ...picked, ...(poll.people.length > 5 ? [f.plural(t.people.more, poll.people.length - 5)] : [])];
-  const to = poll.everyone || audienceWords.length === 0 ? t.poll.toEveryone : f.list(audienceWords);
+  const to = poll.everyone || audienceWords.length === 0 ? t.poll.toEveryone : listOf(locale, audienceWords);
   const final = poll.finalOption ? poll.questions[0]?.options.find(o => o.id === poll.finalOption) : undefined;
   const dateResult = pv.results?.find(q => q.kind === "date");
   const canAnswer = poll.status === "open" && pv.asked;

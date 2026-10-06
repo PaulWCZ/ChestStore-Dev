@@ -1,6 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { manages, resultsState } from "./access.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import type { Query, Sql } from "./db.ts";
 import { limits, type Repeat } from "./model.ts";
 import { closeDue, insertQuestions, load, rights, type Poll } from "./polls.ts";

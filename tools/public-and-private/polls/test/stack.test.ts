@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { AppError, field } from "../src/core/tool.ts";
-import { formatter, publicLocale } from "../src/i18n/index.ts";
+import { AppError, field } from "@argentic/chest-app";
+import { formatter } from "@argentic/chest-app";
+import { checkSources, checkWords } from "@argentic/chest-app/testing";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { listOf, publicLocale } from "../src/i18n/index.ts";
 
 // The stack's rules, checked on the sources without a server (Node runs
 // .ts as is): what an action's fields read, how dates and numbers are
@@ -37,8 +41,8 @@ test("dates, numbers, lists and plurals in the reader's language and zone", () =
   const at = new Date("2026-10-05T22:30:00Z");
   assert.equal(fr.date(at), "6 oct. 2026"); // already the 6th in Paris
   assert.equal(en.date(at), "5 Oct 2026");
-  assert.equal(fr.number(3.75), "3,8");
-  assert.equal(en.list(["Sales", "Tech", "Léa"]), "Sales, Tech and Léa");
+  assert.equal(fr.number(3.8), "3,8");
+  assert.equal(listOf("en", ["Sales", "Tech", "Léa"]), "Sales, Tech and Léa");
   assert.equal(fr.plural({ one: "{count} réponse", other: "{count} réponses" }, 0), "0 réponse");
   assert.equal(en.plural({ zero: "None", one: "{count} answer", other: "{count} answers" }, 0), "None");
   assert.equal(publicLocale(undefined, "de-DE, fr;q=0.8, en;q=0.5"), "fr");
@@ -50,13 +54,19 @@ test("pages carry no style attribute; the browser never gets the SDK or the serv
     const text = readFileSync(file, "utf8");
     assert.doesNotMatch(text, /\sstyle=\{/u, `${file}: style={} is refused by the policy (use a class)`);
     assert.doesNotMatch(text, /dangerouslySetInnerHTML/u, `${file}: no HTML written as text`);
-    if (file.startsWith("src/islands/") || file === "src/core/client.tsx" || file === "src/core/entry.tsx" || file.startsWith("src/components/")) {
+    if (file.startsWith("src/islands/") || file === "src/entry.tsx" || file.startsWith("src/components/")) {
       assert.doesNotMatch(text, /^import (?!type)[^;]*from "@argentic\/chest-sdk/mu, `${file}: the SDK is for the server only`);
       assert.doesNotMatch(text, /^import (?!type)[^;]*from "\.\.\/(lib|actions|pages|theme|app)/mu, `${file}: server code in the browser`);
+      assert.doesNotMatch(text, /^import (?!type)[^;]*from "@argentic\/chest-app(\/(db|members|testing|vite))?"/mu, `${file}: the package's server side in the browser`);
     }
   }
 });
 
 test("the look is a stylesheet: no <style> element anywhere in the pages", () => {
   for (const file of sources("src").filter(f => f.endsWith(".tsx"))) assert.doesNotMatch(readFileSync(file, "utf8").replace(/^\s*\/\/.*$/gmu, ""), /<style[\s>]/u, file);
+});
+
+test("the package's rules of the sources and the words hold", () => {
+  checkSources();
+  checkWords({ en, fr });
 });

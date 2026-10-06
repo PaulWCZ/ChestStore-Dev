@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { erase } from "../src/lib/lifecycle.ts";
 import { limits } from "../src/lib/model.ts";
 import * as polls from "../src/lib/polls.ts";

@@ -9,7 +9,7 @@ import type { TeamResult } from "../lib/teams.ts";
 type Props = { teams: TeamResult[]; hidden: number; f: Format; t: Pick<Catalogue, "results"> };
 
 export function TeamsCard({ teams, hidden, f, t }: Props) {
-  const n = (v: number, digits = 1) => f.number(v, digits);
+  const n = (v: number) => f.number(v);
   const columns = teams[0]?.results ?? [];
   return (
     <section className="card teams-card" aria-labelledby="by-team">
@@ -30,7 +30,7 @@ export function TeamsCard({ teams, hidden, f, t }: Props) {
                   <th scope="row">{team.name}</th>
                   {team.results.map(q => {
                     if (q.kind === "scale") return <td key={q.id} className="num">{q.average === null ? "—" : n(q.average)}</td>;
-                    if (q.kind === "enps") return <td key={q.id} className="num">{q.score === null ? "—" : (q.score > 0 ? "+" : "") + n(q.score, 0)}</td>;
+                    if (q.kind === "enps") return <td key={q.id} className="num">{q.score === null ? "—" : (q.score > 0 ? "+" : "") + n(q.score)}</td>;
                     if (q.kind === "choice") {
                       const top = [...q.options].sort((a, b) => b.count - a.count)[0];
                       return <td key={q.id}>{top && top.count > 0 ? format(t.results.topAnswer, { answer: top.label, value: top.percent }) : "—"}</td>;

@@ -11,7 +11,7 @@ import { checkPage, testDatabase } from "../dist/testing.js";
 const words = {
   kit,
   tool: { name: "Probe" },
-  pages: { notFound: { title: "Nothing here", body: "." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language", back: "Back" },
+  pages: { notFound: { title: "Nothing here", body: ".", publicBody: "Ask whoever sent the link." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language", back: "Back" },
   errors: { invalid: "Invalid.", empty: "Empty.", too_long: "Too long: {max} at most.", too_large: "Too large.", forbidden: "Forbidden.", not_found: "Not found.", unavailable: "Unavailable.", unknown: "Unknown." },
 };
 function Labelled({ label }) {
@@ -26,10 +26,10 @@ const actions = {
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null),
 };
 let completed = 0;
-const layout = ({ notice, children }) => h("main", { id: "main" }, notice && h("p", { role: "alert" }, notice), children);
+const layout = ({ notice, look, status, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "" }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
-  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }] }),
+  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: { url: "/_chest/theme/brand/logo.svg", alt: "Brand" } }),
   complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
 app.post("/p/:link/actions/:name", publicActionsAt());
@@ -130,4 +130,15 @@ test("the log names the route, never the path or the query", async () => {
   assert.match(text, /route=\/p\/:link\/actions\/:name action=shout status=200/u);
   assert.match(text, /route=\/chest\/day status=200/u);
   assert.match(text, /route=\(none\) status=404/u);
+});
+
+test("layouts receive the look (its logo) and the page's status; a visitor's 404 says its own words", async () => {
+  const home = await (await get("/chest")).text();
+  assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg"/u);
+  const missing = await get("/nothing", null);
+  assert.equal(missing.status, 404);
+  const text = await missing.text();
+  assert.match(text, /data-status="404"/u);
+  assert.match(text, /Ask whoever sent the link\./u);
+  assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
 });

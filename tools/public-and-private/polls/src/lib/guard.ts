@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as visitors from "@argentic/chest-sdk/visitors";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import type { Query } from "./db.ts";
 import { limits } from "./model.ts";
 import { visitorKey } from "./public-origin.ts";
@@ -11,7 +11,7 @@ import { visitorKey } from "./public-origin.ts";
 // the Chest's counting of what a visitor does — per visitor, for everyone,
 // and across the Chest's tools. On a Chest without it, Polls counts in its
 // own table (guest_counts). A field only robots fill is checked by the
-// action (app/p/[link]/actions.ts).
+// action (src/actions.ts, answerGuest).
 
 export const formToken = (now?: number) => visitors.formToken(now);
 

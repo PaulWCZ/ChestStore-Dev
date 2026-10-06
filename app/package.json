@@ -52,7 +52,7 @@
     "prepack": "npm run build"
   },
   "peerDependencies": {
-    "@argentic/chest-sdk": ">=0.4.1",
+    "@argentic/chest-sdk": ">=0.4.1-0",
     "@argentic/chest-ui": ">=0.2.6-studio.1",
     "@hono/node-server": ">=2.1",
     "hono": ">=4.13",

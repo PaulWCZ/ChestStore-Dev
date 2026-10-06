@@ -10,7 +10,6 @@ export const fr: Catalogue = {
   public: {
     title: "Sondages se trouve dans votre Chest",
     body: "Ouvrez-le depuis l’accueil de votre Chest, connecté avec votre compte de travail.",
-    language: "Langue",
   },
   guest: {
     title: "Votre réponse",
@@ -34,12 +33,14 @@ export const fr: Catalogue = {
     notFound: {
       title: "Rien ici",
       body: "Ce sondage n’existe pas, ou il ne vous est pas destiné.",
-      back: "Retour aux sondages",
       publicBody: "Ce lien n’ouvre aucun sondage : il a peut-être été désactivé. Demandez-le à la personne qui vous l’a envoyé.",
     },
     forbidden: { title: "Non autorisé", body: "Votre rôle ne le permet pas. Demandez à qui gère Sondages." },
     failed: { title: "Un problème est survenu", body: "Réessayez dans un instant. Si cela continue, prévenez qui gère Sondages." },
     signIn: "Connectez-vous à votre Chest pour ouvrir cette page.",
+    busy: "Envoi en cours : patientez un instant.",
+    language: "Langue",
+    back: "Retour aux sondages",
   },
   roles: {
     organiser: "Organisateur",
@@ -431,6 +432,7 @@ export const fr: Catalogue = {
     guestEmail: "E-mail (invités)",
   },
   errors: {
+    too_large: "Trop volumineux pour être envoyé.",
     forbidden: "Votre rôle ne le permet pas.",
     not_found: "Ce sondage n’existe plus.",
     invalid: "Vérifiez ce que vous avez saisi.",

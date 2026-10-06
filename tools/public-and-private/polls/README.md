@@ -418,7 +418,7 @@ Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`, contract 0
 
 ## Develop
 
-Made like the studio's starter (`starter/` in the studio): TypeScript,
+Made like the studio's starter, on its package `@argentic/chest-app` (`vendor/`): TypeScript,
 Hono, React rendered on the server with a few islands, Vite. No Next.js.
 
 ```sh

@@ -14,7 +14,7 @@ export function PublicHome({ look, locale, t }: { look: Look; locale: Locale; t:
       <div className="brand"><BrandMark logo={look.logo}><Mark /></BrandMark>{t.tool.name}</div>
       <h1>{t.public.title}</h1>
       <p>{t.public.body}</p>
-      <LanguageSwitch languages={storeLanguages.filter(l => (locales as readonly string[]).includes(l.code))} current={locale} label={t.public.language} back="/" />
+      <LanguageSwitch languages={storeLanguages.filter(l => (locales as readonly string[]).includes(l.code))} current={locale} label={t.pages.language} back="/" />
     </>
   );
 }

@@ -15,7 +15,8 @@ export type Catalogue = Shape<Omit<typeof en, "kit">> & { readonly kit: KitWords
 const catalogues: Record<Locale, Catalogue> = { en, fr };
 
 export const isLocale = (value: unknown): value is Locale => typeof value === "string" && (locales as readonly string[]).includes(value);
-export const words = (locale: Locale): Catalogue => catalogues[locale];
+// A reader's catalogue: their language if the tool speaks it, else English.
+export const words = (locale: string): Catalogue => catalogues[localeOf(locale)];
 // The same, by the name Polls' services use.
 export const catalogue = words;
 
@@ -88,31 +89,7 @@ export function relative(value: Date | string, locale: string, now = new Date())
   return rtf.format(Math.round(amount), "year");
 }
 
-// How a reader writes dates, times, numbers, amounts and plurals: their
-// language, their time zone (a member's own; the Chest's for a visitor),
-// the Chest's currency. Made on the server for each request: a page is
-// sent already written, never formatted again in the browser. (Polls
-// writes the days and times of its polls on the Chest's clock, by
-// src/lib/dates.ts.)
-export type Format = ReturnType<typeof formatter>;
-export function formatter(locale: Locale, timeZone: string, currency = "EUR") {
-  const tag = intl(locale);
-  const instant = (value: Date | string) => (typeof value === "string" ? new Date(value) : value);
-  return {
-    locale,
-    timeZone,
-    // An instant (a timestamptz): in the reader's zone.
-    date: (value: Date | string) => dateFormat(tag, timeZone, { day: "numeric", month: "short", year: "numeric" }).format(instant(value)),
-    time: (value: Date | string) => dateFormat(tag, timeZone, { hour: "2-digit", minute: "2-digit" }).format(instant(value)),
-    dateTime: (value: Date | string) => dateFormat(tag, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(instant(value)),
-    // A calendar day ("2026-10-05", a date column): the same day everywhere.
-    day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso}T00:00:00Z`)),
-    // A number, with at most `digits` decimals (an average: 3.7).
-    number: (n: number, digits = 1) => numberFormat(tag, { maximumFractionDigits: digits }).format(n),
-    money: (amount: number) => numberFormat(tag, { style: "currency", currency }).format(amount),
-    // "Sales, Tech and Léa Dubois".
-    list: (items: string[]) => listFormat(tag).format(items),
-    // The form of n in this language (French says "0 note", English "0 notes").
-    plural: (forms: Plural, n: number, values: Record<string, string | number> = {}) => plural(forms, n, locale, values),
-  };
-}
+// How a reader writes dates and numbers: the package's formatter (f of a
+// page); a list of names in their language with listOf.
+export type { Format } from "@argentic/chest-app";
+export const listOf = (locale: string, items: string[]): string => listFormat(intl(locale)).format(items);
