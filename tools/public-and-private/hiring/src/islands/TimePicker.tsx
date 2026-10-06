@@ -33,7 +33,7 @@ export function TimePicker({ token, days, zoneNote, t }: { token: string; days: 
   }
   return (
     <form className="stack" aria-label={t.legend} method="post" action="/actions/chooseTime" onSubmit={event => void submit(event)}>
-      <Honeypot />
+      <Honeypot action="chooseTime" />
       <input type="hidden" name="token" value={token} />
       <p className="hint">{zoneNote}</p>
       {days.map((d, i) => (

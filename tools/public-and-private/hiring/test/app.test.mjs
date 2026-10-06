@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
-import { formToken } from "@argentic/chest-app";
+import { formToken, solveWork } from "@argentic/chest-app";
 import { atLeast, checkPage, settled, testDatabase } from "@argentic/chest-app/testing";
 
 // The server as built for the tests (npm test: dist/test), asked as the
@@ -57,18 +57,21 @@ const send = async request => {
 const get = (who, path, headers = {}) => send(who ? withMember(new Request(team + path, { headers }), who) : new Request((path.startsWith("/chest") ? team : visitor) + path, { headers }));
 // An action as call() sends it from an island of the page.
 const call = (who, name, input, headers = {}) => {
-  const request = new Request(`${who ? team + "/chest" : visitor}/actions/${name}`, { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
+  const request = new Request(`${who ? team + "/chest" : visitor}/actions/${name}`, { method: "POST", body: JSON.stringify(proven(input)), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
   return send(who ? withMember(request, who) : request);
 };
 // A form posted without JavaScript.
 const form = (who, path, fields, from, headers = {}) => {
   const base = who ? team : visitor;
-  const request = new Request(base + path, { method: "POST", body: new URLSearchParams(fields), headers: { "sec-fetch-site": "same-origin", referer: base + from, host: new URL(base).host, ...headers } });
+  const request = new Request(base + path, { method: "POST", body: new URLSearchParams(proven(fields)), headers: { "sec-fetch-site": "same-origin", referer: base + from, host: new URL(base).host, ...headers } });
   return send(who ? withMember(request, who) : request);
 };
 // The single-use token a public page carries, shown long enough ago that
 // a person could have written the form.
-const token = (age = 10_000) => formToken(Date.now() - age);
+// apply asks a proof of work (bound.work: 14 bits): call() and form() find
+// it as the browser does.
+const token = (action, age = 10_000) => formToken(action, Date.now() - age, action === "apply" ? 14 : 0);
+const proven = input => (input.chest_form && input.chest_form.includes(".apply.") && input.chest_work === undefined ? { ...input, chest_work: solveWork(input.chest_form) } : input);
 const browser = response => /chest_v=[\w-]+/u.exec(response.headers.get("set-cookie") ?? "")?.[0];
 
 test("the careers page: indexed, in the visitor's language, the company's look as a stylesheet, the open jobs", async () => {
@@ -115,20 +118,20 @@ test("the feeds and robots name the company's own domain; the team's part and th
 test("the application form: a robot's field, a single-use token, no index", async () => {
   const response = await get(null, "/senior-furniture-designer/apply");
   const html = await response.text();
-  assert.match(html, /<meta name="chest-form" content="[\w.-]+"\/>/u);
+  assert.match(html, /data-action="apply" name="chest_form" value="[\w.-]+"/u);
   assert.match(html, /name="website"/u);
   assert.match(html, /<meta name="robots" content="noindex, nofollow"\/>/u);
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
-const applying = (extra = {}) => ({ slug: "senior-furniture-designer", name: "Zoé Martin", email: "zoe@example.com", phone: "", link: "", coverLetter: "Hello", lang: "fr", chest_form: token(), ...extra });
+const applying = (extra = {}) => ({ slug: "senior-furniture-designer", name: "Zoé Martin", email: "zoe@example.com", phone: "", link: "", coverLetter: "Hello", lang: "fr", chest_form: token("apply"), ...extra });
 
 test("applying: refused without a token, a CV or a link; then a thank-you page with nothing of the candidate", async () => {
   const expired = await call(null, "apply", applying({ chest_form: "x" }));
   assert.equal((await expired.json()).error, "expired");
   const missing = await call(null, "apply", applying());
   assert.equal((await missing.json()).error, "cv_missing");
-  const done = await call(null, "apply", applying({ link: "zoe.design", chest_form: token() }));
+  const done = await call(null, "apply", applying({ link: "zoe.design", chest_form: token("apply") }));
   const answer = await done.json();
   assert.equal(answer.ok, true);
   assert.match(answer.redirect, /^\/senior-furniture-designer\/thanks(\?mailed=1)?$/u);
@@ -136,43 +139,43 @@ test("applying: refused without a token, a CV or a link; then a thank-you page w
   assert.deepEqual({ ...row }, { name: "Zoé Martin", language: "fr", link: "https://zoe.design/", source: "careers" });
   assert.match(await (await get(null, answer.redirect)).text(), /Thank you!/u);
   // A robot that fills the field people never see: "done", nothing written.
-  const robot = await call(null, "apply", applying({ email: "robot@example.com", link: "x.example", website: "spam", chest_form: token() }));
+  const robot = await call(null, "apply", applying({ email: "robot@example.com", link: "x.example", website: "spam", chest_form: token("apply") }));
   assert.equal((await robot.json()).ok, true);
   assert.equal((await database.sql`select 1 from candidates where email = 'robot@example.com'`).length, 0);
 });
 
 test("a visitor's CV: a path on the page's own host, a claim, checked and kept with the application", async () => {
-  const grant = await call(null, "publicCvUpload", { slug: "senior-furniture-designer", type: "application/pdf", size: 15, chest_form: token() });
+  const grant = await call(null, "publicCvUpload", { slug: "senior-furniture-designer", type: "application/pdf", size: 15, chest_form: token("publicCvUpload") });
   const { value } = await grant.json();
   assert.match(value.url, /^\/_chest\/upload\/[^/]+$/u, "a path: the company's own domain works too");
   const put = await chest.upload(value.url, "%PDF-1.4\n%%EOF\n", "application/pdf");
   const { claim } = await put.json();
-  const done = await (await call(null, "apply", applying({ email: "cv@example.com", cv: claim, cvName: "My CV.pdf", chest_form: token() }))).json();
+  const done = await (await call(null, "apply", applying({ email: "cv@example.com", cv: claim, cvName: "My CV.pdf", chest_form: token("apply") }))).json();
   assert.equal(done.ok, true);
   const [row] = await database.sql`select cv_object, cv_name from candidates where email = 'cv@example.com'`;
   assert.match(row.cv_object, /^cv\/[0-9a-f]{20}\.pdf$/u);
   assert.equal(row.cv_name, "My CV.pdf");
   // The claim served once.
-  const again = await (await call(null, "apply", applying({ email: "cv2@example.com", cv: claim, chest_form: token() }))).json();
+  const again = await (await call(null, "apply", applying({ email: "cv2@example.com", cv: claim, chest_form: token("apply") }))).json();
   assert.equal(again.error, "cv_missing");
   // A closed job takes no CV.
-  const closed = await call(null, "publicCvUpload", { slug: "summer-workshop-intern", type: "application/pdf", size: 15, chest_form: token() });
+  const closed = await call(null, "publicCvUpload", { slug: "summer-workshop-intern", type: "application/pdf", size: 15, chest_form: token("publicCvUpload") });
   assert.equal((await closed.json()).error, "closed");
 });
 
 test("applications are bounded per browser when the Chest names no visitor: a cookie, never one shared bucket", async () => {
-  const first = await call(null, "apply", applying({ email: "b0@example.com", link: "b.example", chest_form: token() }));
+  const first = await call(null, "apply", applying({ email: "b0@example.com", link: "b.example", chest_form: token("apply") }));
   const cookie = browser(first);
   assert.ok(cookie, "the browser gets its own key");
   let refused = null;
   for (let i = 1; i < 25 && !refused; i++) {
-    const r = await call(null, "apply", applying({ email: `b${i}@example.com`, link: "b.example", chest_form: token() }), { cookie });
+    const r = await call(null, "apply", applying({ email: `b${i}@example.com`, link: "b.example", chest_form: token("apply") }), { cookie });
     if (r.status === 429) refused = r;
   }
   assert.ok(refused, "past twenty a day, limit");
   assert.equal((await refused.json()).error, "limit");
   // Another browser still applies.
-  assert.equal((await (await call(null, "apply", applying({ email: "other@example.com", link: "b.example", chest_form: token() }))).json()).ok, true);
+  assert.equal((await (await call(null, "apply", applying({ email: "other@example.com", link: "b.example", chest_form: token("apply") }))).json()).ok, true);
 });
 
 test("a flood of applications without cookies closes that job's form for the day, never the others'; the page says so plainly", async () => {
@@ -180,17 +183,17 @@ test("a flood of applications without cookies closes that job's form for the day
   let refused = null, sent = 0;
   for (let i = 0; i < 80 && !refused; i++) {
     // A robot that never keeps a cookie: a new visitor each time.
-    const r = await call(null, "apply", applying({ email: `flood${i}@example.com`, link: "flood.example", chest_form: token() }));
+    const r = await call(null, "apply", applying({ email: `flood${i}@example.com`, link: "flood.example", chest_form: token("apply") }));
     if (r.status === 429) refused = r; else sent++;
   }
   assert.ok(refused, "the job's day is bounded");
   assert.equal((await refused.json()).error, "limit");
   assert.ok(sent > 0 && (await today("senior-furniture-designer")) <= 60 + 5, "at most sixty a day for one job (and the seed's)");
   // Another job of the company still takes applications.
-  const other = await (await call(null, "apply", applying({ slug: "office-manager", email: "real@example.com", link: "real.example", chest_form: token() }))).json();
+  const other = await (await call(null, "apply", applying({ slug: "office-manager", email: "real@example.com", link: "real.example", chest_form: token("apply") }))).json();
   assert.equal(other.ok, true, JSON.stringify(other));
   // And a CV can still be sent for it.
-  assert.equal((await (await call(null, "publicCvUpload", { slug: "office-manager", type: "application/pdf", size: 15, chest_form: token() })).json()).ok, true);
+  assert.equal((await (await call(null, "publicCvUpload", { slug: "office-manager", type: "application/pdf", size: 15, chest_form: token("publicCvUpload") })).json()).ok, true);
   // The form says it in plain words, with the company's website.
   const page = await (await get(null, "/senior-furniture-designer/apply")).text();
   assert.match(page, /This job has received all the applications it can take today\. Try again tomorrow, or contact the company: https:\/\/atelier-martin\.example\//u);
@@ -198,17 +201,17 @@ test("a flood of applications without cookies closes that job's form for the day
 
 test("guessed interview links never close a real one: a secret that names nothing spends its own budget, no refusal", async () => {
   for (let i = 0; i < 40; i++) {
-    const r = await (await call(null, "chooseTime", { token: String(i).padStart(43, "x"), slot: "2026-01-01 10:00", chest_form: token() })).json();
+    const r = await (await call(null, "chooseTime", { token: String(i).padStart(43, "x"), slot: "2026-01-01 10:00", chest_form: token("chooseTime") })).json();
     if (i < 30) assert.deepEqual([r.ok, r.value], [true, { gone: true }]);
   }
   const refused = async () => (await database.sql`select coalesce(sum(count), 0)::int as n from chest_bounds where scope = 'chooseTime:refused' and day = current_date`)[0].n;
   const before = await refused();
-  for (let i = 0; i < 5; i++) await call(null, "chooseTime", { token: "y".repeat(43), slot: "2026-01-01 10:00", chest_form: token() });
+  for (let i = 0; i < 5; i++) await call(null, "chooseTime", { token: "y".repeat(43), slot: "2026-01-01 10:00", chest_form: token("chooseTime") });
   assert.equal(await refused(), before, "a guessed secret is no refusal: the package's ceiling is never spent on it");
   const sent = await (await call(sofia, "sendInterviewLink", { id: "8", link: { people: [hugo.id], minutes: 30, firstDay: day(2), lastDay: day(12), dayStart: 540, dayEnd: 1080, place: "", note: "", skipLunch: false } })).json();
   const path = new URL(sent.value.link).pathname;
   const slot = /name="slot" value="([^"]+)"/u.exec(await (await get(null, path)).text())?.[1];
-  assert.equal((await (await call(null, "chooseTime", { token: path.split("/").pop(), slot, chest_form: token() })).json()).ok, true, "the real link still books");
+  assert.equal((await (await call(null, "chooseTime", { token: path.split("/").pop(), slot, chest_form: token("chooseTime") })).json()).ok, true, "the real link still books");
 });
 
 test("the team's pages: the member's language, the policy, the look; no role, no tool; an interviewer sees only their jobs", async () => {
@@ -313,11 +316,11 @@ test("a candidate chooses their interview time from their link: no index, no cac
   const slot = /name="slot" value="([^"]+)"/u.exec(html)?.[1];
   assert.ok(slot, "free times are offered");
   const tokenOf = path.split("/").pop();
-  const done = await (await call(null, "chooseTime", { token: tokenOf, slot, chest_form: token() })).json();
+  const done = await (await call(null, "chooseTime", { token: tokenOf, slot, chest_form: token("chooseTime") })).json();
   assert.equal(done.ok, true);
-  const again = await (await call(null, "chooseTime", { token: tokenOf, slot, chest_form: token() })).json();
+  const again = await (await call(null, "chooseTime", { token: tokenOf, slot, chest_form: token("chooseTime") })).json();
   assert.equal(again.error, "gone");
-  assert.deepEqual((await (await call(null, "chooseTime", { token: "x".repeat(43), slot, chest_form: token() })).json()).value, { gone: true });
+  assert.deepEqual((await (await call(null, "chooseTime", { token: "x".repeat(43), slot, chest_form: token("chooseTime") })).json()).value, { gone: true });
 });
 
 test("a booked candidate may choose another time, or call the interview off, until it starts; the team hears it", async () => {
@@ -326,13 +329,13 @@ test("a booked candidate may choose another time, or call the interview off, unt
   const secret = path.split("/").pop();
   const slotOf = async () => /name="slot" value="([^"]+)"/u.exec(await (await get(null, path)).text())?.[1];
   const first = await slotOf();
-  assert.equal((await (await call(null, "chooseTime", { token: secret, slot: first, chest_form: token() })).json()).ok, true);
+  assert.equal((await (await call(null, "chooseTime", { token: secret, slot: first, chest_form: token("chooseTime") })).json()).ok, true);
   const booked = await (await get(null, path)).text();
   assert.match(booked, /Your interview is booked/u);
   assert.match(booked, /action="\/actions\/releaseTime"/u, "a plain form: no JavaScript needed");
   assert.match(booked, new RegExp(`href="${path}\\?off=1"`, "u"));
   // Another time: the interview is called off, the link opens again.
-  const another = await form(null, "/actions/releaseTime", { token: secret, what: "another", chest_form: token() }, path);
+  const another = await form(null, "/actions/releaseTime", { token: secret, what: "another", chest_form: token("releaseTime") }, path);
   assert.equal(another.status, 303);
   assert.equal(another.headers.get("location"), path, "back to the link's page");
   const [first_] = await database.sql`select cancelled_at is not null as gone from interviews where candidate_id = 3 order by id desc limit 1`;
@@ -340,20 +343,20 @@ test("a booked candidate may choose another time, or call the interview off, unt
   assert.ok(chest.notifications.some(n => n.member === hugo.id && /gave back their interview time/u.test(n.title)), "Hugo hears it");
   const second = await slotOf();
   assert.ok(second, "times offered again");
-  assert.equal((await (await call(null, "chooseTime", { token: secret, slot: second, chest_form: token() })).json()).ok, true);
+  assert.equal((await (await call(null, "chooseTime", { token: secret, slot: second, chest_form: token("chooseTime") })).json()).ok, true);
   // Called off: asked once more, then done.
   assert.match(await (await get(null, path + "?off=1")).text(), /Call off your interview of/u);
-  assert.equal((await form(null, "/actions/releaseTime", { token: secret, what: "off", chest_form: token() }, path + "?off=1")).status, 303);
+  assert.equal((await form(null, "/actions/releaseTime", { token: secret, what: "off", chest_form: token("releaseTime") }, path + "?off=1")).status, 303);
   assert.match(await (await get(null, path)).text(), /Your interview is called off/u);
   assert.ok(chest.notifications.some(n => n.member === hugo.id && /called off their interview/u.test(n.title)));
   const kinds = (await database.sql`select kind from activity where candidate_id = 3 and kind like 'interview_%' order by id`).map(r => r.kind);
   assert.deepEqual(kinds.slice(-4), ["interview_chosen", "interview_rechosen", "interview_chosen", "interview_declined"]);
   // Nothing more to give back.
-  assert.equal((await (await call(null, "releaseTime", { token: secret, what: "off", chest_form: token() })).json()).error, "gone");
+  assert.equal((await (await call(null, "releaseTime", { token: secret, what: "off", chest_form: token("releaseTime") })).json()).error, "gone");
 });
 
 test("a public form sent without JavaScript and refused: the refusal is said on the careers page", async () => {
-  const refused = await form(null, "/actions/apply", { ...applying({ email: "nojs@example.com", slug: "office-manager" }), chest_form: token() }, "/office-manager/apply");
+  const refused = await form(null, "/actions/apply", { ...applying({ email: "nojs@example.com", slug: "office-manager" }), chest_form: token("apply") }, "/office-manager/apply");
   assert.equal(refused.status, 303);
   const back = refused.headers.get("location");
   assert.match(back, /^\/office-manager\/apply\?error=cv_missing/u);

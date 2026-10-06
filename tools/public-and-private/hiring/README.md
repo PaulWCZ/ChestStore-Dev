@@ -47,7 +47,9 @@ decides together.
   (the talent pool).
   The CV goes from the browser to the Chest (Proposal *public uploads*); the
   tool checks its type, size and first bytes before keeping it. No captcha:
-  a honeypot, a signed "shown at" time and counters (Proposal *visitors*).
+  a honeypot, a single-use token bound to the action, a proof of work the
+  browser computes in a fraction of a second (the package's `bound.work`:
+  sending an application needs JavaScript), and counters.
   A thank-you page; a confirmation email in the candidate's language
   (Proposal *mail*) — no candidate account: the email says the team will
   write.
@@ -242,7 +244,8 @@ Every route is in `src/app.tsx`; every action in `src/actions.ts`, posted
 by the pages' islands (or a plain form without JavaScript) to
 `/chest/actions/<name>` (members) or `/actions/<name>` (visitors:
 `publicCvUpload`, `apply`, `chooseTime`, `releaseTime`, each bounded per
-visitor, per job or link and per day, a form older than 3 s, a honeypot:
+visitor, per job or link and per day, a form older than 3 s, a honeypot,
+a token bound to its action, and for `apply` a proof of work:
 "Visitors" below).
 
 | Route | Who | What |

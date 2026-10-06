@@ -50,7 +50,7 @@ export async function interviewPage(ctx: PageContext<VisitorContext>): Promise<V
               <p className="lede">{w.callOffBody}</p>
               <div className="form-actions">
                 <form method="post" action="/actions/releaseTime">
-                  <Honeypot />
+                  <Honeypot action="releaseTime" />
                   <input type="hidden" name="token" value={token} />
                   <input type="hidden" name="what" value="off" />
                   <button type="submit" className="button danger">{w.callOffYes}</button>
@@ -71,7 +71,7 @@ export async function interviewPage(ctx: PageContext<VisitorContext>): Promise<V
                   <div className="form-actions">
                     {reopenable && (
                       <form method="post" action="/actions/releaseTime">
-                        <Honeypot />
+                        <Honeypot action="releaseTime" />
                         <input type="hidden" name="token" value={token} />
                         <input type="hidden" name="what" value="another" />
                         <button type="submit" className="button quiet">{w.another}</button>

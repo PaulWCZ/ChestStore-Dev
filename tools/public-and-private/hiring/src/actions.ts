@@ -535,7 +535,7 @@ export const actions = {
       await tell.refreshBadges(db());
     });
     redirect(`/${job.slug}/thanks${mailed ? "?mailed=1" : ""}`);
-  }, { bound: { budgets: { apply: publicBounds.apply }, formSeconds: 3 } }),
+  }, { bound: { budgets: { apply: publicBounds.apply }, formSeconds: 3, work: true } }),
 
   // A candidate chooses their interview time, from the link they received
   // (/interview/<secret>): the secret is the only key; counted per link

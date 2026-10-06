@@ -1,6 +1,6 @@
 import { FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import type { FileWords } from "@argentic/chest-ui/components/logic";
-import { Honeypot, send } from "@argentic/chest-app/client";
+import { FormToken, Honeypot, send } from "@argentic/chest-app/client";
 import { useState, type FormEvent } from "react";
 import type { Catalogue } from "../i18n/index.ts";
 import type { Question } from "../shared/model.ts";
@@ -55,7 +55,9 @@ export function ApplyForm({ slug, locale, kept, pool, questions, t }: { slug: st
 
   return (
     <form className="stack" method="post" action="/actions/apply" onSubmit={event => void submit(event)}>
-      <Honeypot />
+      <Honeypot action="apply" />
+      {/* The token a CV upload asks with (call("publicCvUpload")). */}
+      <FormToken action="publicCvUpload" />
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="lang" value={locale} />
       <div className="two">
