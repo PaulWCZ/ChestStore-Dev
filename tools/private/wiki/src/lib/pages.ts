@@ -47,6 +47,43 @@ export async function tree(sql: Query, actor: Member | null, spaceIds?: string[]
   return found.map(r => ({ id: String(r.id), spaceId: String(r.space_id), parentId: r.parent_id === null ? null : String(r.parent_id), title: r.title, position: r.position }));
 }
 
+// The tree as a sidebar shows it: the top pages of each space and the
+// branch of the page being read (its ancestors' pages, its own), each node
+// saying whether it holds more (`more`: its pages come when it is opened,
+// branchOf). A wiki of thousands of pages is not sent on every page.
+export type ShownNode = { id: string; spaceId: string; parentId: string | null; title: string; more: boolean };
+export function shownTree(nodes: TreeNode[], current: string | null, all = false): ShownNode[] {
+  const parents = new Set(nodes.map(n => n.parentId).filter((p): p is string => p !== null));
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const open = new Set<string>();
+  for (let n = current ? byId.get(current) : undefined; n; n = n.parentId ? byId.get(n.parentId) : undefined) open.add(n.id);
+  return nodes.filter(n => all || n.parentId === null || open.has(n.parentId)).map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title, more: parents.has(n.id) }));
+}
+
+// branchOf: the pages right inside a page the actor reads, as shownTree
+// writes them.
+export async function branchOf(sql: Query, actor: Member | null, pageId: unknown): Promise<ShownNode[]> {
+  const p = await page(sql, actor, pageId);
+  const nodes = await tree(sql, actor, [p.spaceId]);
+  const parents = new Set(nodes.map(n => n.parentId).filter((x): x is string => x !== null));
+  return nodes.filter(n => n.parentId === p.id).map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title, more: parents.has(n.id) }));
+}
+
+// pageStamp: a short mark of what a reader of the page sees changing — its
+// version, title, pins and flags, its comments, its lock, the reader's own
+// draft and confirmation: the page re-reads itself only when it changed.
+export async function pageStamp(sql: Query, actor: Member | null, pageId: unknown): Promise<string> {
+  const p = await page(sql, actor, pageId);
+  const [row] = await sql<{ stamp: string }[]>`
+    select md5(concat_ws('|', p.version, p.title, p.updated_at, p.pinned_at, p.template, p.reviewed_at, p.review_months, p.read_asked_at, p.parent_id, p.space_id,
+      (select concat(count(*), ':', max(greatest(created_at, edited_at, removed_at, resolved_at))) from page_comments where page_id = p.id),
+      (select concat(member_id, ':', since) from page_locks where page_id = p.id),
+      (select updated_at from drafts where page_id = p.id and member_id = ${actor!.id}),
+      (select concat(version, ':', read_at) from page_reads where page_id = p.id and member_id = ${actor!.id}))) as stamp
+    from pages p where p.id = ${p.id}`;
+  return row?.stamp ?? "";
+}
+
 // page reads one page as the actor may see it. A page in the trash is only
 // read by who may restore it.
 export async function page(sql: Query, actor: Member | null, pageId: unknown, needed: "read" | "write" = "read", options: { deleted?: boolean } = {}): Promise<Page> {

@@ -46,7 +46,8 @@ test("a pasted picture: the wiki's own stays (even with its full address), the w
   assert.deepEqual(pictureOf("https://lh7-rt.googleusercontent.com/docsz/AD_4nX?key=abc", origin), { kind: "web", href: "https://lh7-rt.googleusercontent.com/docsz/AD_4nX?key=abc" });
   // Nothing to link to: a note without a link.
   assert.deepEqual(pictureOf("javascript:alert(1)", origin), { kind: "web", href: null });
-  assert.deepEqual(pictureOf("file:///C:/Users/x.png", origin), { kind: "web", href: null });
+  // A file of the computer (Word desktop): the clipboard carries it beside the HTML.
+  assert.deepEqual(pictureOf("file:///C:/Users/x.png", origin), { kind: "local" });
   const inside = pictureOf("data:image/png;base64,iVBORw0KGgo=", origin);
   assert.equal(inside.kind, "inside");
   // Only pictures travel inside the clipboard; anything else is from the web.
@@ -192,4 +193,5 @@ test("“My pages”: everyone's own, readers included; nobody else sees it — 
 
 test("pasted HTML: style attributes renamed before any parsing in the page (its policy refuses them)", () => {
   assert.equal(unstyled(`<b style="font-weight:normal"><span style='font-weight:700'>Budget</span> style="kept as text"</b>`), `<b data-pasted-style="font-weight:normal"><span data-pasted-style='font-weight:700'>Budget</span> style="kept as text"</b>`);
+  assert.equal(unstyled(`<head><style>p.MsoNormal { margin: 0 }</style></head><p>Kept</p>`), `<head></head><p>Kept</p>`, "a style element out");
 });

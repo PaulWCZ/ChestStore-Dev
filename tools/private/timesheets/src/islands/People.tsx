@@ -3,7 +3,7 @@ import { useStep } from "../components/step.ts";
 import { Avatar, Confirm, DateField } from "@argentic/chest-ui/components";
 import { useEffect, useState } from "react";
 import { Close, Pencil } from "../components/icons.tsx";
-import { amountText, hoursText, parseAmount, parseHours } from "../shared/amounts.ts";
+import { amountProblem, amountText, hoursText, parseAmount, parseHours } from "../shared/amounts.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { format } from "../i18n/format.ts";
 import { rateDayProblem, type RateLock } from "../shared/rate-day.ts";
@@ -50,7 +50,9 @@ function PersonRow({ person, today, lock, companyWeek, currency, comma, t }: { p
     const b = bill.trim() === "" ? null : parseAmount(bill);
     const c = cost.trim() === "" ? null : parseAmount(cost);
     const h = week.trim() === "" ? null : parseHours(week);
-    if ((bill.trim() !== "" && b === null) || (cost.trim() !== "" && c === null) || (week.trim() !== "" && h === null)) return setError(t.errors.invalid);
+    // What the server would refuse, said here first (an ambiguous amount: how to write it).
+    const refused = [bill, cost].map(x => (x.trim() === "" ? null : amountProblem(x))).find(x => x !== null) ?? (week.trim() !== "" && h === null ? "invalid" : null);
+    if (refused) return setError(t.errors[refused]);
     // A changed rate needs its first day, after the locked period.
     if ((b !== person.bill || c !== person.cost) && dayProblem) return void document.getElementById(`from-${person.id}`)?.focus();
     const problem = b !== person.bill || c !== person.cost ? rateDayProblem(from, lock, { missing: t.errors.rate_day_missing }) : null;

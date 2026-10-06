@@ -7,7 +7,8 @@ import { note } from "./journal.ts";
 import { clean, id } from "../shared/model.ts";
 import { cut, notify, withdraw } from "./notify.ts";
 import { everyone, people } from "./people.ts";
-import { read, updateRecord, type Fields } from "./records.ts";
+import { numberTaken, read, writeRecord, type Fields } from "./records.ts";
+import { tellRecords } from "./share.ts";
 
 // "Request a change" on My HR record: the person asks HR to change their
 // home address or emergency contact (a move, a new phone), HR accepts it
@@ -101,17 +102,22 @@ export async function decideChange(sql: Sql, actor: Member | null, requestId: un
   if (!actor || !can(actor, "records.manage")) throw new AppError("forbidden");
   if (typeof accept !== "boolean") throw new AppError("invalid");
   const text = clean(answer ?? "", noteMax, { optional: true, multiline: true });
-  const [row] = await sql<Row[]>`select id, record_id, member_id, changes, note, created_at from record_requests where id = ${id(requestId)} and status = 'waiting'`;
-  if (!row) throw new AppError("not_found");
-  const request = toRequest(row);
-  let changed: string[] = [];
-  if (accept) changed = (await updateRecord(sql, actor, request.recordId, request.changes)).changed;
-  const settled = await sql`
-    update record_requests set status = ${accept ? "accepted" : "declined"}, answer = ${text}, changes = to_jsonb(array(select jsonb_object_keys(changes))),
-      decided_by = ${actor.id}, decided_at = now()
-    where id = ${request.id} and status = 'waiting'`;
-  if (settled.count === 0) throw new AppError("not_found");
-  await note(sql, actor, accept ? "change_accepted" : "change_declined", { recordId: request.recordId, fields: Object.keys(request.changes) });
+  const asked = id(requestId);
+  // One transaction: the request locked (two HR answering at once: the
+  // second finds it answered), the record written under its own lock.
+  const { request, changed } = await sql.begin(async tx => {
+    const [row] = await tx<Row[]>`select id, record_id, member_id, changes, note, created_at from record_requests where id = ${asked} and status = 'waiting' for update`;
+    if (!row) throw new AppError("not_found");
+    const request = toRequest(row);
+    const changed: string[] = accept ? (await writeRecord(tx, actor, request.recordId, read(request.changes), "changed")).changed : [];
+    await tx`
+      update record_requests set status = ${accept ? "accepted" : "declined"}, answer = ${text}, changes = to_jsonb(array(select jsonb_object_keys(changes))),
+        decided_by = ${actor.id}, decided_at = now()
+      where id = ${request.id}`;
+    await note(tx, actor, accept ? "change_accepted" : "change_declined", { recordId: request.recordId, fields: Object.keys(request.changes) });
+    return { request, changed };
+  }).catch(error => { throw numberTaken(error); });
+  if (changed.length > 0) await tellRecords(sql, [request.recordId]);
   await withdraw(key(request.id));
   if (request.memberId !== actor.id && (await people([request.memberId])).get(request.memberId)?.status === "member") {
     await notify([request.memberId], t => ({

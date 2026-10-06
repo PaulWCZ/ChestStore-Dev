@@ -487,6 +487,13 @@ test("search: shop, note, amount, reference, person, category — only among wha
   assert.deepEqual(ids(await search(sql, asMember(camille), "187,60")), [hugoLunch.id]);
   assert.deepEqual(ids(await search(sql, asMember(camille), "187.6")), [hugoLunch.id]);
   assert.deepEqual(ids(await search(sql, asMember(camille), "187")), [hugoLunch.id]);
+  // An amount in yen has no decimals, one in dinars three: each is found by
+  // what its owner typed, in its own currency's units.
+  const yen = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ merchant: "Ramen Tokyo", amount: "4000", currency: "JPY", rate: "0,0061", categoryId: cat["other"] }))).expense;
+  const dinars = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ merchant: "Souk Tunis", amount: "12,5", currency: "TND", rate: "0,29", categoryId: cat["other"] }))).expense;
+  assert.deepEqual(ids(await search(sql, asMember(hugo), "4000")), [yen.id]);
+  assert.deepEqual(ids(await search(sql, asMember(hugo), "12,500")), [dinars.id]);
+  assert.deepEqual(ids(await search(sql, asMember(hugo), "12,5")), [dinars.id]);
   // By reference, a word of the note, a person (the page turns names into ids).
   assert.deepEqual(ids(await search(sql, asMember(camille), `E${leaSent.id}`)), [leaSent.id]);
   assert.deepEqual(ids(await search(sql, asMember(camille), "acme")), [hugoLunch.id]);
@@ -497,4 +504,26 @@ test("search: shop, note, amount, reference, person, category — only among wha
   assert.deepEqual(await search(sql, asMember(camille), "%%"), []);
   assert.deepEqual(await search(sql, asMember(camille), "b"), []);
   await assert.rejects(search(sql, asMember(nora), "mamma"), refuses("forbidden"));
+});
+
+test("a limit is in the company's money: an expense in pounds over it is warned, by its amount in euros", async () => {
+  const { sql } = database;
+  await settings.updateCategory(sql, asMember(camille), cat["meals"], { cap: "50" });
+  try {
+    const pounds = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "45", currency: "GBP", rate: "1,20" }))).expense;
+    const small = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "40", currency: "GBP", rate: "1,20", merchant: "Pret" }))).expense;
+    const noRate = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "400", currency: "CHF", merchant: "Kronenhalle" }))).expense;
+    const found = await expenses.warnings(sql, [pounds, small, noRate]);
+    assert.deepEqual(found.get(pounds.id)?.filter(w => w.code === "over_cap"), [{ code: "over_cap", cap: 5000 }], "£45 = €54 > €50");
+    assert.equal(found.get(small.id)?.some(w => w.code === "over_cap") ?? false, false, "£40 = €48");
+    assert.deepEqual(found.get(noRate.id)?.map(w => w.code).filter(c => c.startsWith("over")), [], "no rate: said apart");
+    // The bound of one expense is in euros too: ten million dong is €360.
+    const dong = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "10000000", currency: "VND", rate: "0,000036" }))).expense;
+    assert.equal(dong.base, 36000);
+    await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "1000001", currency: "EUR" })), refuses("amount_invalid"));
+    await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "1,234" })), refuses("amount_ambiguous"));
+    await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "1O,50" })), refuses("amount_invalid"));
+  } finally {
+    await settings.updateCategory(sql, asMember(camille), cat["meals"], { cap: null });
+  }
 });

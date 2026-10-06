@@ -3,7 +3,6 @@ import { EmptyState } from "@argentic/chest-ui/components";
 import { commentView } from "../actions.ts";
 import { Prose } from "../components/prose.tsx";
 import { Check, Clock, Lock, Pen } from "../components/icons.tsx";
-import type { MovePlace } from "../islands/PageActions.tsx";
 import { format, localeOf, moment, newPageWords, plural, relative } from "../i18n/index.ts";
 import { can, spaceAccess } from "../lib/access.ts";
 import { comments as commentsOf } from "../lib/comments.ts";
@@ -62,23 +61,16 @@ export async function readPage({ member, locale: language, t, param, query: q }:
     : query["example"] ? t.home.exampleAdded : null;
   const toc = headings.filter(h => h.level <= 2);
   const owner = p.review?.owner ?? null;
-  // Where the page may move: the spaces the editor writes in, and their pages.
   // Whom a comment may name with "@": the people who read this page.
   const mentionable = (await membersOfTool()).filter(m => m.id !== member.id && spaceAccess(m, p.space) !== "none").map(m => ({ id: m.id, name: m.name }));
-  let places: MovePlace | undefined;
-  let groups: { id: string; name: string }[] = [];
-  if (writer) {
-    groups = read.asked ? [] : await companyGroups();
-    // A shared page never moves into "My pages" (lib/pages.ts, movePage).
-    const writable = (await listSpaces(sql, member)).filter(s => s.access === "write" && (s.visibility !== "private" || p.space.visibility === "private"));
-    const all = await tree(sql, member, writable.map(s => s.id));
-    places = { spaces: writable.map(s => ({ id: s.id, name: s.name })), nodes: all.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title })) };
-  }
+  // Where the page may move is asked when its "Move" dialog opens
+  // (the movePlaces action), not sent with every page.
+  const groups: { id: string; name: string }[] = writer && !read.asked ? await companyGroups() : [];
   const mail = writer ? await mailNow() : true;
   return { title: p.title, body: (
     <div className={`page reading color-${p.space.color}`}>
       <Island name="Flash" props={{ text: flash }} />
-      <Island name="AutoRefresh" props={{ seconds: 60 }} />
+      <Island id={`refresh-${p.id}`} name="AutoRefresh" props={{ seconds: 60 }} />
       <nav className="crumbs" aria-label={t.page.breadcrumb}>
         <a href={`/chest/spaces/${p.spaceId}`} className="kicker">{p.space.name}</a>
         {path.map(a => <span key={a.id}><span aria-hidden="true">/</span><a href={`/chest/pages/${a.id}`}>{a.title}</a></span>)}
@@ -100,7 +92,6 @@ export async function readPage({ member, locale: language, t, param, query: q }:
                 t: { ...newPageWords(t), page: t.page, move: t.move, shell: t.shell, watch: t.watch, review: t.review, reads: t.reads, marks: { tag: t.templates.tag, mark: t.templates.mark, unmark: t.templates.unmark, marked: t.templates.marked, unmarked: t.templates.unmarked }, spaceName: p.space.name, locale },
                 state: { watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id }, readAsked: read.asked !== null, pinned: pin, private: p.space.visibility === "private", mail },
                 groups,
-                ...(places ? { places } : {}),
               }} />
             </div>
           </header>

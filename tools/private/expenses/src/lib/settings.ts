@@ -6,7 +6,7 @@ import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, id, limits, memberId, percent } from "../shared/model.ts";
 import { today } from "./today.ts";
-import { convert, defaultCurrency, isCurrency, parseAmount, parseRate } from "../shared/money.ts";
+import { amountRefusal, convert, defaultCurrency, isCurrency, parseAmount, parseRate } from "../shared/money.ts";
 import { ruleWords, type CardRule } from "./card-guess.ts";
 import { checkScale, isVehicleKind, powers, type Scale, type VehicleKind } from "../shared/scale.ts";
 
@@ -130,7 +130,8 @@ function categoryFields(input: CategoryInput, currency: string) {
     if (input.cap === null || input.cap === "") out.cap = null;
     else {
       const cap = parseAmount(input.cap, currency);
-      if (cap === null || cap <= 0 || cap > limits.amount) throw new AppError("amount_invalid");
+      if (cap === null) throw new AppError(amountRefusal(input.cap, currency));
+      if (cap <= 0 || cap > limits.amount) throw new AppError("amount_invalid");
       out.cap = cap;
     }
   }
@@ -391,7 +392,8 @@ export async function saveAllowanceRate(sql: Sql, actor: Member | null, allowanc
   let amount = current ? Number(current.amount_cents) : null;
   if (input.amount !== undefined) {
     amount = parseAmount(input.amount, currency);
-    if (amount === null || amount <= 0 || amount > 10_000_000) throw new AppError("amount_invalid");
+    if (amount === null) throw new AppError(amountRefusal(input.amount, currency));
+    if (amount <= 0 || amount > 10_000_000) throw new AppError("amount_invalid");
   }
   if (amount === null) throw new AppError("amount_invalid");
   const unit = input.unit === undefined ? current?.unit : input.unit;

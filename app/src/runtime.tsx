@@ -64,6 +64,28 @@ let sending = 0;
 export function refresh(): Promise<boolean> {
   return load(location.href, false);
 }
+// Whether the last refresh found the page as it was (a 304 of a page's
+// version, or the same HTML but for the render's mark): useAutoRefresh
+// then waits longer.
+let unchanged = false;
+let lastRead: string | null = null;
+const metaOf = (doc: Document, name: string) => doc.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? "";
+function setMeta(name: string, value: string): void {
+  let meta = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+  if (!value) return meta?.remove();
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = name;
+    document.head.append(meta);
+  }
+  meta.content = value;
+}
+// A page's HTML as two reads compare it: without its render's mark and
+// its form token (both new at every read).
+function comparable(html: string, doc: Document): string {
+  const mark = metaOf(doc, "chest-render");
+  return (mark ? html.replaceAll(mark, "") : html).replace(/<meta name="chest-form" content="[^"]*"\/?>/u, "");
+}
 
 async function load(href: string, push: false | "push" | "replace"): Promise<boolean> {
   const ticket = ++latest;
@@ -76,13 +98,20 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
   try {
     // x-tool-navigate: the server answers a file with 204 (its body never
     // made), and it is then loaded plainly — once.
-    response = await fetch(href, { headers: { accept: "text/html", "x-tool-navigate": "1" } });
+    // A refresh says the version it shows (a page with one): 304 when the
+    // page has not changed since.
+    const version = push === false ? metaOf(document, "chest-version") : "";
+    response = await fetch(href, { headers: { accept: "text/html", "x-tool-navigate": "1", ...(version ? { "x-tool-version": version } : {}) } });
     if (response.headers.get("content-type")?.startsWith("text/html")) html = await response.text();
   } catch {
     if (ticket === latest) toast({ id: "refresh", text: words.unavailable, tone: "error" });
     return false;
   }
   if (!applies({ navigation: push !== false, ticket, latest, move, moves, settled, sending })) return false;
+  if (response.status === 304 && push === false) {
+    unchanged = true;
+    return true;
+  }
   // Signed out (401), access removed (403): the page loaded again, as the
   // Chest shows it.
   if (response.status === 401 || response.status === 403) {
@@ -111,6 +140,12 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     return false;
   }
   const next = new DOMParser().parseFromString(html, "text/html");
+  const read = comparable(html, next);
+  unchanged = push === false && read === lastRead;
+  lastRead = read;
+  setMeta("chest-version", metaOf(next, "chest-version"));
+  setMeta("chest-render", metaOf(next, "chest-render"));
+  if (unchanged) return true;
   // The page left keeps its scroll in its history entry (Back finds it).
   if (push === "push") {
     history.replaceState({ scroll: scrollY }, "");
@@ -361,6 +396,81 @@ async function answered<T>(outcome: Outcome<T> & { redirect?: string }, options:
   else if (outcome.ok && options.refresh !== false) await refresh();
   if (!outcome.ok && !options.quiet) toast({ text: outcome.message, tone: "error" });
   return outcome;
+}
+
+// ---- useAutoRefresh(seconds): a page that others change (a board, a
+// queue, a timesheet) read again while someone looks at it — never all day
+// long: the Chest puts an idle tool to sleep, and a tab left open must let
+// it. Read again:
+// - when the tab comes back into view, or the window gets the focus;
+// - every `seconds` while the tab is visible and the person did something
+//   (a key, a click, a scroll) in the last `idleMinutes` (10) — then it
+//   stops, until they act again;
+// - less often while nothing changes (twice the wait each time, up to
+//   eight times), as often again once something did, or they act.
+// A page served with page(render, { version }) answers 304 when nothing
+// changed: nothing rendered, nothing sent. One timer for the page, however
+// many islands ask (the shortest wait wins).
+const wanted = new Map<symbol, { seconds: number; idleMinutes: number }>();
+let timer: ReturnType<typeof setTimeout> | null = null;
+let lastInput = Date.now();
+let lastRefresh = Date.now();
+let factor = 1;
+let listening = false;
+const settings = () => {
+  const all = [...wanted.values()];
+  return { seconds: Math.min(...all.map(w => w.seconds)), idleMinutes: Math.max(...all.map(w => w.idleMinutes)) };
+};
+async function tick(): Promise<void> {
+  timer = null;
+  if (wanted.size === 0 || document.visibilityState !== "visible") return;
+  const { seconds, idleMinutes } = settings();
+  if (Date.now() - lastInput > idleMinutes * 60_000) return; // idle: stop until the next input
+  await readAgain();
+  schedule(seconds * 1000 * factor);
+}
+async function readAgain(): Promise<void> {
+  lastRefresh = Date.now();
+  if (sending > 0) return;
+  const applied = await refresh();
+  factor = applied && unchanged ? Math.min(factor * 2, 8) : 1;
+}
+function schedule(ms?: number): void {
+  if (timer !== null) clearTimeout(timer);
+  timer = wanted.size === 0 ? null : setTimeout(() => void tick(), ms ?? settings().seconds * 1000 * factor);
+}
+function listen(): void {
+  if (listening) return;
+  listening = true;
+  const input = () => {
+    const wasIdle = Date.now() - lastInput > settings().idleMinutes * 60_000;
+    lastInput = Date.now();
+    factor = 1;
+    if (wasIdle || timer === null) schedule();
+  };
+  for (const name of ["pointerdown", "keydown", "wheel", "touchstart", "scroll"]) addEventListener(name, input, { passive: true, capture: true });
+  const back = () => {
+    if (wanted.size === 0 || document.visibilityState !== "visible") return;
+    lastInput = Date.now();
+    factor = 1;
+    // Back after a while: read now (not twice within a few seconds).
+    if (Date.now() - lastRefresh > 5_000) void readAgain().then(() => schedule());
+    else schedule();
+  };
+  document.addEventListener("visibilitychange", back);
+  addEventListener("focus", back);
+}
+export function useAutoRefresh(seconds = 60, { idleMinutes = 10 }: { idleMinutes?: number } = {}): void {
+  useEffect(() => {
+    const key = Symbol("auto-refresh");
+    wanted.set(key, { seconds: Math.max(5, seconds), idleMinutes: Math.max(1, idleMinutes) });
+    listen();
+    schedule();
+    return () => {
+      wanted.delete(key);
+      schedule();
+    };
+  }, [seconds, idleMinutes]);
 }
 
 // ---- toast(): the kit's toasts (Undo, errors) from anywhere in the

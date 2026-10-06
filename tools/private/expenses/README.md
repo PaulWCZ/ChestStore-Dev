@@ -56,7 +56,9 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   then it shows *Fix it* and the server refuses to send it
   (`refused_unchanged`).
   They go to the approver the accountant named for you, or to the
-  accountants. After saving, the toast also offers *Send it now*.
+  accountants. After saving, the toast also offers *Send it now*. While
+  nobody has decided, its owner may **take it back** (*Take it back* on
+  the expense): a draft again.
 - **Approve or refuse.** The approver sees what waits, by person, oldest
   first, with warnings and the receipt's thumbnail (a photo opens large, a
   PDF in a tab); *Approve all* approves only the lines **without a
@@ -79,11 +81,18 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   someone else changes a person's details, that person hears it; when a
   person changes their own, the accountants do, and *To pay back* flags
   details changed in the last 30 days (the usual payment-diversion fraud).
+  Details **someone else entered** (an accountant, from *To pay back*) are
+  **kept out of the transfer file until their owner says "These are mine"**
+  in *Settings → Me* (or enters them themselves): an accountant alone cannot
+  send someone's reimbursement to an account of their choosing.
   *To pay back* then makes **one SEPA credit transfer file** for the bank
   (ISO 20022 `pain.001.001.03`, the XML French banks take for grouped
   transfers): one transfer per person with an account in the SEPA zone, in
   euros, on the day chosen; they are marked paid on that day (*Undo*, or
-  later *Cancel this file*: back to "to pay back"). The file can be
+  later *Cancel this file*: back to "to pay back" — always after a
+  confirmation naming the file's day and amount, and once that day has come
+  only with *My bank did not pay these transfers* ticked: otherwise people
+  would be paid twice). The file can be
   downloaded again, identical (same message id, which banks use to refuse a
   duplicate). People without bank details are named and paid by hand with
   *Mark paid* as before. The text on each person's bank statement
@@ -163,6 +172,10 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   (a manager, the owner), which the Chest's admin gives. Claims approved by
   their own owner before this rule are marked "Approved by its own owner"
   in *To pay back* and "(own expense)" in the export's *Approved by*.
+- **Approving and paying may be the same person** (a small company's
+  accountant often does both): *To pay back* marks each line the person
+  paying approved themselves ("You approved it: have someone else check it
+  before paying"); the tool does not forbid it.
 - **Someone who left**: their claim still waits in *To approve*, which says
   they left and when ("Left the company on 30 September: approving still
   means paying them back — on their final pay slip, not by the transfer
@@ -302,7 +315,8 @@ in `src/lib/access.ts` and tested per role.
 - **Reading receipts** needs no network and no service: the phone runs
   tesseract.js on the files `npm run build` copies into `dist/ocr/`
   (`scripts/ocr-assets.mjs`: worker 111 KB, core 3.9 MB, French model
-  0.7 MB). The tool answers them at `/chest/ocr/<file>` (members only) with
+  0.7 MB). The tool answers them at `/chest/ocr/<version>/<file>` (members
+  only; the version in the address, so a browser keeps them a year) with
   a policy of their own, `script-src 'self' 'wasm-unsafe-eval'`: a worker
   obeys the policy its own script comes with, and this one compiles
   WebAssembly — the pages keep the strict policy (no inline script or
@@ -459,9 +473,10 @@ browser flows, 32 steps), `node lab/chest-dev/screens.mjs
 tools/private/expenses --port 4920` (run the flows first: they add the
 photo receipt the screenshots show), `node lab/chest-dev/audit.mjs
 tools/private/expenses --port 4920` (axe: 0 violations on 27 screens).
-`SEPA_XSD=<path to pain.001.001.03.xsd> npm test` (and the same variable
-for the flow) also validates the transfer files against the ISO 20022
-schema with `xmllint`; the schema is not shipped.
+The tests and the flow validate every transfer file against the ISO 20022
+schema `test/fixtures/pain.001.001.03.xsd` (THIRD_PARTY.md) with
+`xmllint`, which they need (`libxml2-utils`; a test run without it says
+so); `SEPA_XSD` names another copy.
 
 **Measured** (`lab/measure`, 6 October 2026, Node 24.21, this machine
 under other builds — load average 6 to 11 on 4 CPUs —, results in

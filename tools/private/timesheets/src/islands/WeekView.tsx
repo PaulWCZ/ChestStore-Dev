@@ -202,7 +202,7 @@ export function WeekView(props: {
                 <tr>
                   <th scope="col" className="row-head">{t.week.project}</th>
                   {days.map(d => (
-                    <th key={d.day} scope="col" className={`day-head${d.today ? " today" : ""}${d.day === props.selected ? " chosen" : ""}${d.locked ? " locked" : ""}`}>
+                    <th key={d.day} scope="col" className={`day-head${d.today ? " today" : ""}${d.day === props.selected ? " chosen" : ""}`}>
                       <a href={link(monday, d.day)} aria-label={d.long} aria-current={d.day === props.selected ? "date" : undefined}>
                         <span className="wd">{d.weekday}</span><span className="dn num">{d.date}</span>
                       </a>

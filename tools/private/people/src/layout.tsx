@@ -5,11 +5,6 @@ import { Mark } from "./components/mark.tsx";
 import { languageNames, locales } from "./i18n/index.ts";
 import { can, roleOf } from "./lib/access.ts";
 
-// The number on "My to-dos", read by the page's handler (src/app.tsx,
-// people()) before the page renders — rendering is synchronous —, kept
-// for that request only.
-export const todoCounts = new WeakMap<Request, number>();
-
 // What goes around every page of the members' part: the kit's shell (skip
 // link, the People mark — or, in brand mode, the company's logo —, the
 // sections as labelled tabs, the member chip linking to one's own
@@ -17,9 +12,12 @@ export const todoCounts = new WeakMap<Request, number>();
 // outlive a page changed in place); a refusal of a form sent without
 // JavaScript (notice). A member whose role gives nothing sees why, not an
 // error.
-export function MembersLayout({ viewer: { member, t, request }, look, path, notice, children }: LayoutProps<MemberContext>) {
+// The number on "My to-dos" comes from the page (src/app.tsx, people():
+// rendering is synchronous, a layout reads nothing itself); an error page
+// gives none.
+export function MembersLayout({ viewer: { member, t }, look, path, notice, data, children }: LayoutProps<MemberContext>) {
   const role = roleOf(member);
-  const todo = todoCounts.get(request) ?? 0;
+  const todo = data.todo ?? 0;
   // A section is also current on the pages below it that live elsewhere (a
   // profile is the directory's; the numbers are the records').
   const nav: NavItem[] = role

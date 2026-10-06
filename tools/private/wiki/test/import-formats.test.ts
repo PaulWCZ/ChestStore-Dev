@@ -8,7 +8,7 @@ import { fileOf } from "../src/lib/files.ts";
 import { importFiles } from "../src/lib/importer.ts";
 import * as pages from "../src/lib/pages.ts";
 import { search } from "../src/lib/search.ts";
-import { writeZip } from "../src/lib/zip.ts";
+import { writeZip } from "./support/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines } from "./support/members.ts";
@@ -177,4 +177,17 @@ test("Word in French: headings are found by their style's inner name (Titre 1 is
   assert.deepEqual(page.doc.content.map(n => n.type), ["heading", "paragraph"]);
   assert.equal(texts(page.doc), "# Mots de passe\nJamais partagés");
   assert.deepEqual(page.doc.content[1]!.content!.map(n => n.marks ?? []), [[], [{ type: "bold" }]]);
+});
+
+// An export whose index.html is malformed (its tree loose at the top of the
+// document, no element around it): the import goes on with its tree,
+// rather than failing whole. (Reviewer's case: confluenceTree climbed to
+// the document root.)
+test("a Confluence export with a malformed index.html still imports, with its tree", async () => {
+  const { sql } = database;
+  const result = await importFiles(sql, asMember(ines), { spaceName: "Broken", files: [{ name: "export.zip", data: zipOf("confluence-broken") }], words });
+  assert.equal(result.pages, 2);
+  const nodes = await pages.tree(sql, asMember(ines), [result.spaceId]);
+  const by = new Map(nodes.map(n => [n.title, n]));
+  assert.equal(by.get("Child")?.parentId, by.get("Parent")?.id);
 });

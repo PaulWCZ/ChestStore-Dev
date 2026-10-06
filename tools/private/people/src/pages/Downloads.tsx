@@ -1,10 +1,11 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import { AppError, type PageContext } from "@argentic/chest-app";
+import { AppError, notFound, type Download, type PageContext } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
 import { db } from "../lib/db.ts";
 import { directory } from "../lib/directory.ts";
 import { directoryCsv as writeDirectory } from "../lib/export.ts";
 import { listFields } from "../lib/fields.ts";
+import { note } from "../lib/journal.ts";
 import { everyone, people, plainName } from "../lib/people.ts";
 import { openDocument } from "../lib/records.ts";
 import { register, registerCsv as writeRegister, registerGaps } from "../lib/register.ts";
@@ -16,24 +17,26 @@ import { today } from "../lib/zone.ts";
 // memory: a few thousand rows at most (the Chest lists 5,000 members at
 // most; the register holds a company's staff of the last five years).
 
-const csv = (body: string, name: string) => new Response(body, {
-  headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" },
-});
+const csv = (body: string, name: string): Download => ({ name, type: "text/csv; charset=utf-8", body });
 const nothing = (status: 404 | 503) => new Response(null, { status, headers: { "Cache-Control": "no-store" } });
 
-// The directory as a CSV file, for HR, headers in their language.
-export async function directoryCsv({ member, t }: PageContext): Promise<Response> {
-  if (!can(member, "directory.export")) return nothing(404);
+// The directory as a CSV file, for HR, headers in their language. It
+// carries HR's private extra fields: each download is written in the
+// journal (the private fields it held, by name — never a value).
+export async function directoryCsv({ member, t }: PageContext): Promise<Download | Response> {
+  if (!can(member, "directory.export")) return notFound();
   const { ok, entries } = await directory(db(), member);
   if (!ok) return new Response(t.errors.unavailable, { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
-  return csv(writeDirectory(entries, t.exportColumns, await listFields(db(), member)), `${t.exportColumns.file}-${today()}.csv`);
+  const fields = await listFields(db(), member);
+  await note(db(), member, "directory_exported", { fields: fields.filter(f => f.seen === "private").map(f => f.label) });
+  return csv(writeDirectory(entries, t.exportColumns, fields), `${t.exportColumns.file}-${today()}.csv`);
 }
 
 // The staff register as a CSV file, for HR, headers in their language;
 // people it cannot list are named at its end; each download is written in
 // the journal.
-export async function registerCsv({ member, locale, t }: PageContext): Promise<Response> {
-  if (!can(member, "records.manage")) return nothing(404);
+export async function registerCsv({ member, locale, t }: PageContext): Promise<Download> {
+  if (!can(member, "records.manage")) return notFound();
   const r = await register(db(), member, "register_exported");
   const [tutors, listed] = await Promise.all([people(r.interns.flatMap(l => (l.tutorId ? [l.tutorId] : []))), everyone()]);
   const gaps = await registerGaps(db(), member, r, listed.people, today());

@@ -4,6 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { Holder } from "../actions.ts";
 import * as I from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
+import { heartbeatSeconds } from "../shared/model.ts";
 
 // Editing a page: the lock first (one person edits at a time), then the
 // page as it is — or the member's own unsaved draft, which comes back.
@@ -20,7 +21,9 @@ export type PickPage = { id: string; title: string; space: string };
 // it was kept, in their zone; older: the page changed since).
 export type Start = { title: string; doc: unknown; base: number; restored: string | null; older: boolean };
 
-const Writing = lazy(() => import("./editor/Writing.tsx"));
+// Never in the server's build: the server renders only the frame (the
+// editor opens in the browser, after the lock).
+const Writing = import.meta.env.SSR ? ((() => null) as unknown as ReturnType<typeof lazy<typeof import("./editor/Writing.tsx").default>>) : lazy(() => import("./editor/Writing.tsx"));
 
 type Phase = { kind: "opening" } | ({ kind: "editing" } & Start) | { kind: "locked"; holder: Holder };
 
@@ -38,6 +41,15 @@ export function Editor({ page, pages, fresh = false, locale, t }: { page: PageIn
       : { kind: "editing", title: page.title, doc: JSON.parse(page.doc) as unknown, base: o.version, restored: null, older: false });
   }, [page]);
   useEffect(() => { void open(); }, [open]);
+  // Waiting behind someone else's lock: asked again every 30 seconds — the
+  // editor opens by itself once the page is free, and the holder's line
+  // stays current.
+  const waiting = phase.kind === "locked";
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => void open(), heartbeatSeconds * 1000);
+    return () => clearInterval(timer);
+  }, [waiting, open]);
 
   if (phase.kind === "opening") {
     return <div className="opening" role="status">{error ? <p className="error" role="alert">{error}</p> : <p className="muted">{t.editor.opening}</p>}</div>;

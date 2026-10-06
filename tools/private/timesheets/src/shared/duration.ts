@@ -14,18 +14,19 @@ export const maxMinutes = 24 * 60;
 
 const hourUnit = "(?:h|hr|hrs|hour|hours|heure|heures)";
 const minuteUnit = "(?:m|mn|min|mins|minute|minutes)";
-const number = "(\\d+(?:[.,]\\d*)?|[.,]\\d+)";
+// A number: two decimals at most ("1.234" hours would be a guess).
+const number = "(\\d+(?:[.,]\\d{0,2})?|[.,]\\d{1,2})";
 
 const patterns: { re: RegExp; read: (m: RegExpMatchArray) => number | null }[] = [
-  // 1:30, :45, 12:05
-  { re: /^(\d{0,2}):([0-5]?\d)$/u, read: m => Number(m[1] || 0) * 60 + Number(m[2]) },
+  // 1:30, :45, 12:05, 120:30 (a budget)
+  { re: /^(\d{0,6}):([0-5]?\d)$/u, read: m => Number(m[1] || 0) * 60 + Number(m[2]) },
   // 1.5, 1,5, 2, .25 (hours)
   { re: new RegExp(`^${number}$`, "u"), read: m => decimal(m[1]!) * 60 },
   // 1.5h, 2 hrs
   { re: new RegExp(`^${number}${hourUnit}$`, "u"), read: m => decimal(m[1]!) * 60 },
   // 90m, 90 min
   { re: new RegExp(`^${number}${minuteUnit}$`, "u"), read: m => decimal(m[1]!) },
-  // 1h30, 1h30m, 1h 30 min
+  // 1h30, 1h30m, 1h 30 min, 7h30
   { re: new RegExp(`^(\\d+)${hourUnit}(\\d{1,2})(?:${minuteUnit})?$`, "u"), read: m => (Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : null) },
 ];
 
@@ -33,9 +34,11 @@ function decimal(text: string): number {
   return Number(text.replace(",", "."));
 }
 
-// parseDuration reads what someone typed as minutes: 0 for nothing, null
-// when it cannot be read or is more than a day.
-export function parseDuration(input: string): number | null {
+// readDuration reads what someone typed as minutes, up to max: 0 for
+// nothing, null when it cannot be read or is more than max. One grammar
+// for every time the tool asks — a cell of the grid (a day at most), a
+// usual week, a budget in hours (src/shared/amounts.ts, parseHours).
+export function readDuration(input: string, max: number): number | null {
   const text = input.trim().toLowerCase().replace(/\s+/gu, "");
   if (text === "") return 0;
   if (text.length > 20) return null;
@@ -45,9 +48,15 @@ export function parseDuration(input: string): number | null {
     const value = read(m);
     if (value === null || !Number.isFinite(value) || value < 0) return null;
     const minutes = Math.round(value);
-    return minutes <= maxMinutes ? minutes : null;
+    return minutes <= max ? minutes : null;
   }
   return null;
+}
+
+// parseDuration reads what someone typed as minutes: 0 for nothing, null
+// when it cannot be read or is more than a day.
+export function parseDuration(input: string): number | null {
+  return readDuration(input, maxMinutes);
 }
 
 // formatDuration writes minutes as hours:minutes, "1:30"; zero is "0:00".

@@ -289,3 +289,24 @@ test("a comment naming someone with @ tells them on their own — once, only if 
   await tell.forget(sql, ids);
   assert.equal(itemsOf(hugo.id, `mention:${p.id}`).length, 0);
 });
+
+// The page re-reads itself only when its stamp changed (src/islands/Page.tsx,
+// AutoRefresh): a comment, an edit, a lock change it; nothing else does.
+test("a page's stamp changes with what its reader sees, not otherwise; the tree's branches come on demand", async () => {
+  const { sql } = database;
+  const s = await spaces.createSpace(sql, asMember(tom), { name: "Stamps " + Math.random() });
+  const p = await pages.createPage(sql, asMember(tom), { spaceId: s.id, title: "Stamped" });
+  const child = await pages.createPage(sql, asMember(tom), { spaceId: s.id, parentId: p.id, title: "Inside" });
+  const first = await pages.pageStamp(sql, asMember(hugo), p.id);
+  assert.equal(await pages.pageStamp(sql, asMember(hugo), p.id), first, "nothing changed");
+  await comments.addComment(sql, asMember(lea), p.id, "A question");
+  const second = await pages.pageStamp(sql, asMember(hugo), p.id);
+  assert.notEqual(second, first, "a comment");
+  await editing.startEditing(sql, asMember(tom), p.id);
+  assert.notEqual(await pages.pageStamp(sql, asMember(hugo), p.id), second, "someone edits it");
+  await assert.rejects(pages.pageStamp(sql, asMember(nora), p.id), /not_found/u);
+  const nodes = await pages.tree(sql, asMember(hugo), [s.id]);
+  assert.deepEqual(pages.shownTree(nodes, null).map(n => [n.title, n.more]), [["Stamped", true]], "the top, saying it holds more");
+  assert.deepEqual(pages.shownTree(nodes, p.id).map(n => n.title), ["Stamped", "Inside"], "the current page's branch");
+  assert.deepEqual((await pages.branchOf(sql, asMember(hugo), p.id)).map(n => [n.id, n.more]), [[child.id, false]]);
+});

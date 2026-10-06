@@ -1,6 +1,6 @@
 import { parseDocument } from "htmlparser2";
 import type { Doc, DocNode, Mark } from "./doc.ts";
-import { readZip, type ZipEntry } from "./zip.ts";
+import { readZip, zipBudget, type ZipBudget, type ZipEntry } from "./zip.ts";
 
 // Word documents in (.docx, Office Open XML — ECMA-376): a handbook kept
 // in Word, or a Google Docs document downloaded as .docx, becomes a page.
@@ -32,8 +32,9 @@ const on = (x: X | undefined): boolean => x !== undefined && !["0", "false", "no
 
 export type DocxPage = { title: string | null; doc: Doc; media: ZipEntry[] };
 
-export function fromDocx(name: string, bytes: Uint8Array): DocxPage {
-  const entries = readZip(bytes, n => n === "word/document.xml" || n === "word/styles.xml" || n === "word/numbering.xml" || n === "word/_rels/document.xml.rels" || n === "docProps/core.xml" || n.startsWith("word/media/"));
+// budget: the import's (a .docx inside an import's zip shares it).
+export function fromDocx(name: string, bytes: Uint8Array, budget: ZipBudget = zipBudget()): DocxPage {
+  const entries = readZip(bytes, n => n === "word/document.xml" || n === "word/styles.xml" || n === "word/numbering.xml" || n === "word/_rels/document.xml.rels" || n === "docProps/core.xml" || n.startsWith("word/media/"), budget);
   const byName = new Map(entries.map(e => [e.name, e]));
   const document = xml(byName.get("word/document.xml")?.data);
   const body = kid(kid(document, "w:document"), "w:body");
@@ -228,6 +229,10 @@ export function fromDocx(name: string, bytes: Uint8Array): DocxPage {
   return {
     title,
     doc: { type: "doc", content: content.length > 0 ? content : [{ type: "paragraph" }] },
-    media: [...media].map(([local, path]) => ({ name: name.split("/").slice(0, -1).concat(local).join("/"), data: byName.get(path)!.data })),
+    // The pictures, read only when they are sent to the Chest.
+    media: [...media].flatMap(([local, path]) => {
+      const entry = byName.get(path);
+      return entry ? [{ name: name.split("/").slice(0, -1).concat(local).join("/"), size: entry.size, get data() { return entry.data; } }] : [];
+    }),
   };
 }

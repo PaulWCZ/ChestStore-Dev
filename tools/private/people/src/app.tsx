@@ -1,9 +1,9 @@
-import { createApp, page, publicPage, type PageContext, type View } from "@argentic/chest-app";
+import { createApp, download, page, publicPage, type PageContext, type View } from "@argentic/chest-app";
 import { NoAccess } from "@argentic/chest-ui/components";
 import { actions } from "./actions.ts";
 import { locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
-import { MembersLayout, PublicLayout, todoCounts } from "./layout.tsx";
+import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
 import { onEvent, onSchedule } from "./lib/deliveries.ts";
@@ -48,8 +48,7 @@ export const app = createApp({
 const people = (render: (p: PageContext) => Promise<View | Response>) => page(async p => {
   if (!roleOf(p.member)) return { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> };
   const [view, open] = await Promise.all([render(p), openCounts(db(), [p.member.id])]);
-  todoCounts.set(p.request, open.get(p.member.id) ?? 0);
-  return view;
+  return view instanceof Response ? view : { ...view, layout: { ...view.layout, todo: open.get(p.member.id) ?? 0 } };
 });
 
 // ---- The members' part (/chest…).
@@ -73,8 +72,8 @@ app.get("/chest/records/:id/letters/:letter", people(letterPage));
 app.get("/chest/numbers", people(numbersPage));
 
 // Downloads and a document's signed link (src/pages/Downloads.tsx).
-app.get("/chest/export", page(directoryCsv));
-app.get("/chest/records/register/csv", page(registerCsv));
+app.get("/chest/export", download(directoryCsv));
+app.get("/chest/records/register/csv", download(registerCsv));
 app.get("/chest/records/:id/documents/:doc", page(documentLink));
 
 // ---- Outside /chest. People has no public part ("public" is not in

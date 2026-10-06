@@ -5,7 +5,7 @@ import { atLeast, checkPage } from "@argentic/chest-app/testing";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, lea, nora, paul, tom } from "./support/members.ts";
 
-atLeast(16);
+atLeast(18);
 
 // The server as built for the tests (npm test: dist/test), asked as the
 // Chest asks it: members signed by a fake Chest, a real PostgreSQL
@@ -118,6 +118,29 @@ test("a profile is saved from its form, then shown; the newcomer's 'fill in your
   assert.equal((await page(hugo, "/chest/people/nobody")).status, 404);
 });
 
+test("a profile's parts are checked before any is written: a member's own part with a job part they may not send saves nothing", async () => {
+  const before = await page(ines, `/chest/people/${ines.id}`);
+  const refused = await call(ines, "saveProfile", { id: ines.id, own: { bio: "Written anyway?" }, job: { title: "Boss" } });
+  assert.deepEqual([refused.status, refused.error], [403, "forbidden"]);
+  const after = await page(ines, `/chest/people/${ines.id}`);
+  assert.doesNotMatch(after.html, /Written anyway\?/u);
+  assert.equal(before.status, 200);
+  // A wrong value in one part: the other parts are not written either.
+  const wrong = await call(ines, "saveProfile", { id: ines.id, own: { bio: "Kept?", phone: "call me" } });
+  assert.equal(wrong.error, "invalid");
+  assert.doesNotMatch((await page(ines, `/chest/people/${ines.id}`)).html, /Kept\?/u);
+});
+
+test("the fields at the door: a row's id, a member's id, a choice, a day — anything else refused before a service runs", async () => {
+  assert.equal((await call(camille, "tickItem", { id: "abc", done: true })).error, "invalid");
+  assert.equal((await call(camille, "linkArrival", { id: "1", memberId: "someone" })).error, "invalid");
+  assert.equal((await call(camille, "createTemplate", { kind: "holiday", name: "x" })).error, "invalid");
+  assert.equal((await call(camille, "addChecklistItem", { id: "1", text: "x", due: "2026-02-31" })).error, "invalid");
+  assert.equal((await call(camille, "saveCell", { member: hugo.id, key: "salary", value: "1" })).error, "invalid");
+  const long = await call(camille, "createTemplate", { kind: "onboarding", name: "x".repeat(81) });
+  assert.deepEqual([long.error, long.message], ["too_long", "Trop long\u202f: 80 caractères au plus."]);
+});
+
 test("HR's job fields: a loop of managers is refused in plain words; the chart draws the tree", async () => {
   assert.equal((await call(camille, "saveProfile", { id: hugo.id, job: { title: "Sales lead", team: "Sales", office: "Lyon", managerId: lea.id, startDate: "2021-09-15" } })).ok, true);
   assert.equal((await call(camille, "saveCell", { member: lea.id, key: "team", value: "Sales" })).ok, true);
@@ -214,11 +237,15 @@ test("downloads: the directory and the register as CSV for HR, nothing for anyon
   const csv = await get(camille, "/chest/export");
   assert.equal(csv.status, 200);
   assert.equal(csv.headers.get("content-type"), "text/csv; charset=utf-8");
-  assert.match(csv.headers.get("content-disposition") ?? "", /^attachment; filename="[\w-]+-\d{4}-\d{2}-\d{2}\.csv"$/u);
+  assert.match(csv.headers.get("content-disposition") ?? "", /^attachment; filename="[\w-]+-\d{4}-\d{2}-\d{2}\.csv"/u);
   const text = await csv.text();
   assert.match(text, /Hugo Bernard/u);
   assert.match(text, /\+33 6 12 34 56 78/u, "a phone written as it is");
   assert.equal((await get(hugo, "/chest/export")).status, 404);
+  // It carries HR's private fields: each download is in the journal.
+  const [exported] = await database.sql<{ count: number }[]>`select count(*)::int from journal where action = 'directory_exported' and actor = ${camille.id}`;
+  assert.equal(exported?.count, 1);
+  assert.match((await page(camille, "/chest/records/register")).html, /A téléchargé l’annuaire/u);
   const register = await get(camille, "/chest/records/register/csv");
   assert.equal(register.status, 200);
   assert.match(await register.text(), /Walker Tom/u);

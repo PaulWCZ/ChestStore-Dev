@@ -69,6 +69,10 @@ let pulled = 0;
 app.get("/chest/archive.zip", download(() => ({ name: "archive.zip", type: "application/zip", body: new ReadableStream({ pull(controller) { pulled++; controller.enqueue(new Uint8Array(4096)); if (pulled > 50) controller.close(); } }) })));
 app.get("/chest/short", page(() => ({ title: "Short", body: "x" })));
 app.get("/chest/long", page(() => ({ title: "Long", body: h("p", null, "word ".repeat(2000)) })));
+let versionOfPage = "v1", rendered = 0;
+app.get("/chest/own-island", page(() => ({ title: "Own", body: h(Island, { name: "Labelled", id: "report-7", props: { label: "R" } }) })));
+app.get("/chest/big-island", page(() => ({ title: "Big", body: h(Island, { name: "Labelled", props: { label: "x".repeat(300 * 1024) } }) })));
+app.get("/chest/versioned", page(() => { rendered++; return { title: "Versioned", body: h("p", null, versionOfPage) }; }, { version: () => versionOfPage }));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot), h("p", null, "hello")) })));
 app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
@@ -312,6 +316,10 @@ test("rawRoute: the body counted while read, 413 past the cap (chunked too), 403
   assert.equal(request.headers.get("content-length"), null);
   assert.equal((await app.fetch(request)).status, 413);
   assert.equal((await post("/chest/import", "x", { "sec-fetch-site": "cross-site" })).status, 403);
+  // A Content-Length is the buffer's size: a body longer than it is refused.
+  const longer = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode("x".repeat(30))); controller.close(); } });
+  const lying = withMember(new Request(url("/chest/import"), { method: "POST", body: longer, duplex: "half", headers: { "sec-fetch-site": "same-origin", "content-length": "10" } }), member);
+  assert.equal((await app.fetch(lying)).status, 400);
 });
 
 test("zipStream: a zip any reader opens, written as it is read", async () => {
@@ -480,4 +488,35 @@ test("compression measured (a short page as it is, a long one gzipped), the look
   assert.equal(whole.headers.get("content-disposition"), `attachment; filename="archive.zip"; filename*=UTF-8''archive.zip`);
   assert.ok((await whole.arrayBuffer()).byteLength > 4096, "followed plainly, the file comes whole");
   assert.match(await (await at("/chest")).text(), /<meta name="chest-parallel" content="summarise"\/>/u);
+});
+
+test("a page's version: a refresh that has it is a 304, the page not rendered; an island's wrapper id is island-<id>", async () => {
+  const first = await (await get("/chest/versioned")).text();
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(first)?.[1];
+  assert.ok(version);
+  const before = rendered;
+  const same = await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), member));
+  assert.equal(same.status, 304);
+  assert.equal(rendered, before, "not rendered");
+  versionOfPage = "v2";
+  const changed = await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), member));
+  assert.equal(changed.status, 200);
+  assert.notEqual(/<meta name="chest-version" content="([^"]+)"/u.exec(await changed.text())?.[1], version);
+  const other = { ...member, id: "mbr_" + "o".repeat(26) };
+  const another = await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), other));
+  assert.equal(another.status, 200, "keyed by the reader");
+  assert.match(await (await get("/chest/own-island")).text(), /<div class="island" id="island-report-7" data-island="Labelled"/u);
+});
+
+test("an island with more than 256 KB of props is warned about in development", async () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = line => said.push(String(line));
+  try {
+    assert.equal((await get("/chest/big-island")).status, 200);
+  } finally {
+    console.warn = warn;
+  }
+  if (process.env.NODE_ENV === "development") assert.match(said.join("\n"), /island Labelled receives 30\d KB of props/u);
+  else assert.deepEqual(said, []);
 });

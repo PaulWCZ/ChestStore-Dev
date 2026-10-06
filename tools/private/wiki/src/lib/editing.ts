@@ -59,9 +59,21 @@ export async function startEditing(sql: Sql, actor: Member | null, pageId: unkno
   return { status: "editing", draft: await draftOf(sql, p.id, me), version: p.version };
 }
 
+// Who holds a page's lock when the actor's is gone: someone else (their
+// lock), or nobody (null). Only startEditing takes a lock: a draft or a
+// heartbeat that arrives after "Save" or "Stop editing" (still on its way,
+// or a timer the closing editor had not cleared yet) must not take back
+// the lock the save gave away — the page would stay "being edited".
+async function otherLock(sql: Query, pageId: string, me: string): Promise<Lock | null> {
+  const lock = await lockOf(sql, pageId);
+  return lock && lock.memberId !== me ? lock : null;
+}
+
 // saveDraft keeps what the actor typed (theirs only) and, while the lock is
-// theirs, keeps it. It says who holds the lock when it is someone else.
-export async function saveDraft(sql: Sql, actor: Member | null, pageId: unknown, input: { title: unknown; doc: unknown; baseVersion: unknown }): Promise<{ lock: Lock | null }> {
+// theirs, keeps it — never takes it (held: false; the editor asks for it
+// again with startEditing). It says who holds the lock when it is someone
+// else.
+export async function saveDraft(sql: Sql, actor: Member | null, pageId: unknown, input: { title: unknown; doc: unknown; baseVersion: unknown }): Promise<{ lock: Lock | null; held: boolean }> {
   const p = await page(sql, actor, pageId, "write");
   const me = actor!.id;
   const title = typeof input.title === "string" ? input.title.replace(/\p{Cc}/gu, " ").slice(0, limits.title) : "";
@@ -71,21 +83,18 @@ export async function saveDraft(sql: Sql, actor: Member | null, pageId: unknown,
     insert into drafts (page_id, member_id, title, doc, base_version) values (${p.id}, ${me}, ${title}, ${sql.json(json(doc))}, ${base})
     on conflict (page_id, member_id) do update set title = excluded.title, doc = excluded.doc, base_version = excluded.base_version, updated_at = now()`;
   const kept = await sql`update page_locks set active_at = now(), seen_at = now() where page_id = ${p.id} and member_id = ${me} returning 1`;
-  if (kept.length > 0) return { lock: null };
-  // The lock was given back (a save elsewhere) or never held: take it if free.
-  const again = await startEditing(sql, actor, p.id);
-  return { lock: again.status === "locked" ? again.lock : null };
+  if (kept.length > 0) return { lock: null, held: true };
+  return { lock: await otherLock(sql, p.id, me), held: false };
 }
 
 // heartbeat: the actor's editor is still open. It keeps their lock (without
-// counting as typing), takes it again if it lapsed and nobody took it, and
-// says who holds it when it is someone else.
-export async function heartbeat(sql: Sql, actor: Member | null, pageId: unknown): Promise<{ lock: Lock | null }> {
+// counting as typing) — never takes one (held: false when theirs is gone)
+// — and says who holds it when it is someone else.
+export async function heartbeat(sql: Sql, actor: Member | null, pageId: unknown): Promise<{ lock: Lock | null; held: boolean }> {
   const p = await page(sql, actor, pageId, "write");
   const kept = await sql`update page_locks set seen_at = now() where page_id = ${p.id} and member_id = ${actor!.id} returning 1`;
-  if (kept.length > 0) return { lock: null };
-  const again = await startEditing(sql, actor, p.id);
-  return { lock: again.status === "locked" ? again.lock : null };
+  if (kept.length > 0) return { lock: null, held: true };
+  return { lock: await otherLock(sql, p.id, actor!.id), held: false };
 }
 
 // leave: the actor's editor closed without saving (a closed tab, the back

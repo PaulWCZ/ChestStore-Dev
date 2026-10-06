@@ -9,6 +9,7 @@ import { lines } from "../src/lib/doc.ts";
 import { fromDocx } from "../src/lib/docx.ts";
 import { AppError } from "../src/lib/errors.ts";
 import { leave, seen } from "../src/lib/lifecycle.ts";
+import { boundaryOf, parseMultipart } from "../src/lib/multipart.ts";
 import { cut } from "../src/lib/notify.ts";
 import { origin } from "../src/lib/origin.ts";
 import { page } from "../src/lib/pages.ts";
@@ -95,4 +96,20 @@ test("the example handbook, in the editor's language; the events handled once; a
   await sql`insert into page_locks (page_id, member_id) values (${made.pageId}, ${hugo.id})`;
   await leave(sql, hugo.id);
   assert.equal((await sql`select 1 from page_locks where member_id = ${hugo.id}`).length, 0);
+});
+
+test("the import's form is read from its bytes, each file a view of them (no copy)", async () => {
+  const form = new FormData();
+  form.append("files", new Blob([new Uint8Array([1, 2, 3, 13, 10, 45, 45])]), "été.zip");
+  form.append("files", new Blob(["# Hi"]), "a.md");
+  form.append("name", "Handbook");
+  const request = new Request("http://x/", { method: "POST", body: form });
+  const type = request.headers.get("content-type");
+  const body = new Uint8Array(await request.arrayBuffer());
+  const parts = parseMultipart(body, boundaryOf(type)!)!;
+  assert.deepEqual(parts.map(p => [p.name, p.fileName, p.data.byteLength]), [["files", "été.zip", 7], ["files", "a.md", 4], ["name", null, 8]]);
+  assert.equal(parts[0]!.data.buffer, body.buffer, "a view of the body");
+  assert.deepEqual([...parts[0]!.data], [1, 2, 3, 13, 10, 45, 45], "line ends and dashes inside a file kept");
+  assert.equal(boundaryOf("application/json"), null);
+  assert.equal(parseMultipart(new TextEncoder().encode("junk"), "x"), null);
 });

@@ -3,8 +3,9 @@
 //   node lab/starter-bench/sizes.mjs            the figures
 //   node lab/starter-bench/sizes.mjs --check    the report's §5 against them
 //                                               (exit 1 on a mismatch; app's npm test runs it)
+//   node lab/starter-bench/sizes.mjs --write    the report's §5 figures set to the files'
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,7 +23,7 @@ const figures = {
   "reference/perseus-starter: files": tracked("reference/perseus-starter").length,
   "reference/perseus-starter: lines": lines(tracked("reference/perseus-starter")),
 };
-if (!process.argv.includes("--check")) {
+if (!process.argv.includes("--check") && !process.argv.includes("--write")) {
   for (const [name, value] of Object.entries(figures)) console.log(`${name.padEnd(40)} ${value}`);
   process.exit(0);
 }
@@ -47,6 +48,22 @@ const said = {
   "reference/perseus-starter: files": /reference starter: ([\d,]+) files/u,
   "reference/perseus-starter: lines": /reference starter: [\d,]+ files, ([\d,]+) lines/u,
 };
+// --write: the report's figures set to the files' (then --check passes).
+if (process.argv.includes("--write")) {
+  let text = report;
+  const fmt = n => n.toLocaleString("en-US");
+  for (const [name, pattern] of Object.entries(said)) {
+    const body = text.slice(start, text.indexOf("\n\n**", start));
+    const flat = new RegExp(pattern.source.replace(/ /gu, "\\s+"), "u");
+    const m = flat.exec(body);
+    if (!m) continue;
+    const at = start + m.index + m[0].lastIndexOf(m[1]);
+    text = text.slice(0, at) + fmt(figures[name]) + text.slice(at + m[1].length);
+  }
+  writeFileSync(join(root, "reports/06-perseus-starter.md"), text);
+  console.log("sizes --write: the report's figures set.");
+  process.exit(0);
+}
 const wrong = [];
 for (const [name, pattern] of Object.entries(said)) {
   const found = pattern.exec(block)?.[1];
