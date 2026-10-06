@@ -32,3 +32,12 @@ test("no <style> element and no HTML written as text anywhere in the pages", () 
     assert.doesNotMatch(text, /dangerouslySetInnerHTML/u, file);
   }
 });
+
+// An Intl object lives outside V8's heap: one made per call (per post of a
+// page) piles up. They are made once, in src/i18n/index.ts (or the
+// package's dateFormat/numberFormat), and kept.
+test("Intl objects are made in one place only, and kept", () => {
+  for (const file of sources("src").filter(f => /\.tsx?$/u.test(f) && f !== "src/i18n/index.ts")) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /new Intl\./u, `${file}: use src/i18n/index.ts (cached) or the package's dateFormat`);
+  }
+});

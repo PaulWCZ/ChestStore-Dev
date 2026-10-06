@@ -2,7 +2,7 @@
 // Days and times on the Chest's clock. People type a day and a time as they
 // read them on the office wall (the Chest's time zone, chest.timeZone); the database keeps instants (UTC). Pure, tested
 // across daylight-saving changes.
-import { AppError } from "@argentic/chest-app";
+import { AppError, dateFormat } from "@argentic/chest-app";
 
 const dayPattern = /^(\d{4})-(\d{2})-(\d{2})$/u;
 const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/u;
@@ -26,7 +26,8 @@ export function time(value: unknown): string {
 // The wall-clock parts of an instant in a time zone.
 function parts(instant: Date, zone: string): { year: number; month: number; day: number; hour: number; minute: number } {
   const found: Record<string, number> = {};
-  for (const p of new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(instant)) {
+  // One format per zone, made once (the package's dateFormat keeps it).
+  for (const p of dateFormat("en-US", zone, { hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(instant)) {
     if (p.type !== "literal") found[p.type] = Number(p.value);
   }
   return { year: found["year"]!, month: found["month"]!, day: found["day"]!, hour: found["hour"]! % 24, minute: found["minute"]! };

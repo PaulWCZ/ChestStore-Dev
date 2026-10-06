@@ -15,7 +15,7 @@ import { can, roleOf } from "./lib/access.ts";
 // member whose role gives nothing sees why, not an error.
 //
 // The toasts sit outside the page's main region, under an id: a page met
-// by navigate() (src/core/client.tsx) keeps them, and a toast's Undo with
+// by navigate() (@argentic/chest-app/client) keeps them, and a toast's Undo with
 // them — the Undo of an Important post follows its author from the
 // composer to the article.
 

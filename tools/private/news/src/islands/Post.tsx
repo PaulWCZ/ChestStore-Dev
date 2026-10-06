@@ -1,8 +1,7 @@
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Check, Clock, Pen, Pin, Trash } from "../components/icons.tsx";
-import { call, navigate, refresh, toast } from "@argentic/chest-app/client";
+import { call, fill, navigate, plural, refresh, toast } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
-import { fill, plural } from "@argentic/chest-app/client";
 
 // The parts of a post a person acts on. Each changes the screen at once
 // (optimistic), then the server confirms; a refusal puts it back and says
@@ -45,15 +44,23 @@ export function PostTools({ id, pinned, t }: { id: string; pinned: boolean; t: C
 export function ConfirmBox({ id, own, confirmed, again, when, t }: { id: string; own: boolean; confirmed: boolean; again: boolean; when: string | null; t: Catalogue["important"] }) {
   const [, start] = useTransition();
   const [done, setDone] = useOptimistic(confirmed);
+  // The button goes once clicked: the focus goes to what replaces it (it
+  // would fall to the page's top otherwise).
+  const said = useRef<HTMLParagraphElement>(null);
+  const clicked = useRef(false);
+  useEffect(() => {
+    if (done && clicked.current) said.current?.focus();
+  }, [done]);
   if (own) return <p className="confirm-box own">{t.own}</p>;
   return (
     <div className={"confirm-box" + (done ? " done" : "")} role="region" aria-label={t.confirm}>
       {done ? (
-        <p><Check />{when ?? t.thanks}</p>
+        <p ref={said} tabIndex={-1}><Check />{when ?? t.thanks}</p>
       ) : (
         <>
           <p>{again ? t.again : t.ask}</p>
           <button type="button" className="button" onClick={() => start(async () => {
+            clicked.current = true;
             setDone(true);
             const r = await call("confirmRead", { postId: id });
             if (r.ok) toast({ id: `confirm-${id}`, text: t.thanks });

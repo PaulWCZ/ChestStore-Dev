@@ -83,13 +83,7 @@ channel where announcements drown.
   them alone. Nobody approves their own proposal; a reader approves
   nothing. The author sees their proposals under the form and may take
   one back (*Undo*). Five may wait per person. Publishers can also write
-  shout-outs themselves (a fifth kind, *Shout-outs* on the front page); **posts from everyone without approval** (a
-company setting to publish them at once: every proposal waits for a
-publisher today), a proposal for some groups only (it is for everyone;
-the publisher may narrow it after publishing), several pictures or a
-video in a proposal, editing a proposal before it is published (the
-publisher edits the post after); answering an event from the **bell
-itself** (see "Needs from the SDK").
+  shout-outs themselves (a fifth kind, *Shout-outs* on the front page).
 - **Reactions** (👍 ❤️ 🎉 👏 😄), **comments** and one level of
   **replies**; **@mentions** (type @ and a name: the people who see the
   post are proposed) tell the person mentioned. The author of a post hears
@@ -158,7 +152,11 @@ itself** (see "Needs from the SDK").
 | (none) | — | sees "You can't read News yet" |
 
 The owner, the admins and the tool's builders come in with the first role,
-`publisher`. A scheduled or deleted post does not exist for a reader (404).
+`publisher`. A page or a download a reader has no use for (the composer, *To
+approve*, *Move posts in and out*, who confirmed, *Download all posts*)
+answers as if it did not exist (404, "Nothing here"), as a post kept from
+them does; a change they may not make, asked of an action, is refused in
+words ("Your role does not allow this.", 403). A scheduled or deleted post does not exist for a reader (404).
 A post kept to groups does not exist for anyone outside them — publishers
 included — except its author and the Chest's admins (the same rule as the
 Wiki's spaces kept to groups).
