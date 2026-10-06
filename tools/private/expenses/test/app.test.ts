@@ -15,6 +15,7 @@ import { cleanup } from "../src/lib/jobs.ts";
 import { letterText } from "../src/lib/mail.ts";
 import { cut } from "../src/lib/notify.ts";
 import { rowView } from "../src/lib/rows.ts";
+import { ocrBase } from "../src/shared/ocr-files.ts";
 import { categories } from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -93,18 +94,20 @@ test("the look: the company's choice as a stylesheet, its address the hash of it
 });
 
 test("the receipt reader's files: members only, a policy that lets its worker compile WebAssembly", async () => {
-  const worker = await get(hugo, "/chest/ocr/worker.min.js");
+  const worker = await get(hugo, `${ocrBase}/worker.min.js`);
   assert.equal(worker.status, 200);
   assert.match(worker.headers.get("content-type") ?? "", /^text\/javascript/u);
   assert.equal(worker.headers.get("content-security-policy"), "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'");
   assert.ok(Number(worker.headers.get("content-length")) > 50_000);
+  assert.equal(worker.headers.get("cache-control"), "private, max-age=31536000, immutable");
   await worker.body?.cancel();
-  const model = await get(hugo, "/chest/ocr/fra.traineddata.gz");
+  assert.equal((await get(hugo, "/chest/ocr/6.0.0-1.0.0/worker.min.js")).status, 404, "another version");
+  const model = await get(hugo, `${ocrBase}/fra.traineddata.gz`);
   assert.equal(model.status, 200);
   await model.body?.cancel();
-  assert.equal((await get(hugo, "/chest/ocr/LICENSE-tesseract.js.txt")).status, 404);
-  assert.equal((await get(hugo, "/chest/ocr/..%2Fserver%2Fapp.js")).status, 404);
-  assert.equal((await get(null, "/chest/ocr/worker.min.js")).status, 401);
+  assert.equal((await get(hugo, `${ocrBase}/LICENSE-tesseract.js.txt`)).status, 404);
+  assert.equal((await get(hugo, `${ocrBase}/..%2Fserver%2Fapp.js`)).status, 404);
+  assert.equal((await get(null, `${ocrBase}/worker.min.js`)).status, 401);
 });
 
 test("no public part: the host's root says where Expenses lives, in the visitor's language", async () => {
@@ -167,7 +170,10 @@ test("an amount is read as the person typed it, in their currency; an ambiguous 
   const en = await save("1,234.50");
   assert.equal((await expense(database.sql, asMember(lea), en.value.id)).expense.amount, 123450);
   const ambiguous = await save("1,234");
-  assert.deepEqual([ambiguous.status, ambiguous.error, ambiguous.message], [400, "amount_invalid", "Saisissez un montant, par exemple 12,50."]);
+  assert.deepEqual([ambiguous.status, ambiguous.error], [400, "amount_ambiguous"]);
+  assert.equal(ambiguous.message, catalogue("fr").errors.amount_ambiguous);
+  const letter = await save("1O,50");
+  assert.deepEqual([letter.error, letter.message], ["amount_invalid", "Saisissez un montant, par exemple 12,50."]);
   const yen = await save("1,234", "JPY");
   assert.equal((await expense(database.sql, asMember(lea), yen.value.id)).expense.amount, 1234);
 });
@@ -203,4 +209,21 @@ test("the small rules of the pages: rows, words, files, letters", async () => {
   assert.equal(cut("abcdef", 4), "abc…");
   assert.match(letterText(t, { subject: "S", lines: ["Line"] }, "/chest/approve", "https://acme.example"), /^Line\n\nOpen it: https:\/\/acme\.example\/chest\/approve\n\n—\n/u);
   assert.deepEqual(await cleanup(database.sql), { uploads: 0, drafts: 0 });
+});
+
+test("a sent expense nobody decided on is taken back by its owner, and only then", async () => {
+  const back = await call(hugo, "retractExpense", { id: "8" });
+  assert.equal(back.ok, true);
+  assert.equal((await database.sql`select status from expenses where id = 8`)[0]!["status"], "draft");
+  assert.equal((await call(hugo, "retractExpense", { id: "8" })).error, "not_submitted");
+  assert.equal((await call(lea, "retractExpense", { id: "7" })).status, 404, "not hers");
+  assert.equal((await call(hugo, "retractExpense", { id: "5" })).error, "not_submitted", "approved: too late");
+  assert.match(await (await get(hugo, "/chest/expenses/7")).text(), /&quot;retract&quot;:true/u);
+  assert.match(await (await get(hugo, "/chest/expenses/8")).text(), /&quot;retract&quot;:false/u);
+});
+
+test("To pay back: what the accountant approved themselves is said; a file is cancelled only after a confirmation", async () => {
+  const html = await (await get({ ...camille, language: "en" }, "/chest/pay")).text();
+  assert.match(html, /You approved it: have someone else check it before paying/u);
+  assert.match(html, /Cancel the file of|Pay back by transfer file/u);
 });

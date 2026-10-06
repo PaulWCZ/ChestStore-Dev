@@ -35,7 +35,8 @@ export function minorDigits(currency: string): number {
 // - a "." or "," followed by exactly three digits and nothing else
 //   ("1,234", "0,500", "12.345") is a thousand for one reader and a decimal
 //   for another: refused — also for a currency of three decimals (KWD
-//   "1,000"); only a currency without decimals (JPY) reads it as thousands.
+//   "1,000"); only a currency without decimals (JPY) reads it as thousands;
+//   several groups ("1,234,567", "1.000.000") are thousands.
 // The same rules as the package's field.money for a currency of two
 // decimals (test/money.test.ts holds them equal), plus the currency's own
 // number of decimals.
@@ -65,10 +66,11 @@ export function parseAmount(text: unknown, currency = defaultCurrency): number |
     if (fraction.length === 3) return null;
   } else if ((m = /^(\d{1,3}(?:([.,])\d{3})+)(?:([.,])(\d+))?$/u.exec(s))) {
     // Grouped by "." or ",": with a decimal part of the other mark
-    // ("1.234,56", "1,234.56"); without one, only for a currency without
-    // decimals ("1,234" yen; "1,234,567" yen).
+    // ("1.234,56", "1,234.56"); without one, two groups at least
+    // ("1,234,567": a decimal mark is never repeated), or one for a
+    // currency without decimals ("1,234" yen).
     const [, grouped = "", group = "", mark, part = ""] = m;
-    if (mark !== undefined ? mark === group || part.length > digits || /^0[.,]/u.test(s) : digits > 0) return null;
+    if (mark !== undefined ? mark === group || part.length > digits || /^0[.,]/u.test(s) : digits > 0 && grouped.split(group).length < 3) return null;
     whole = grouped.replace(/[.,]/gu, "");
     fraction = part;
   } else return null;
@@ -83,7 +85,7 @@ export function parseAmount(text: unknown, currency = defaultCurrency): number |
 export function ambiguousAmount(text: unknown, currency = defaultCurrency): boolean {
   if (typeof text !== "string" || minorDigits(currency) === 0) return false;
   const s = text.replace(anySpace, "").replace(/^\p{Sc}|\p{Sc}$/u, "").replace(/^[A-Za-z]{3}|[A-Za-z]{3}$/u, "");
-  return /^\d+[.,]\d{3}$/u.test(s) || /^\d{1,3}(?:([.,])\d{3})(?:\1\d{3})*$/u.test(s);
+  return /^\d+[.,]\d{3}$/u.test(s);
 }
 
 // The code an amount that is no amount is refused with.

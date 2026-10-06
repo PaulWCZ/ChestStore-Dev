@@ -11,7 +11,9 @@ test("amounts are read as people type them, in cents", () => {
     ["", null], ["abc", null], ["12.345.67", null], ["1,2,3", null], ["12,505,1", null], [",5", null], ["12,", null],
     // A lone separator followed by three digits: thousands for an English
     // reader, decimals for a French one — refused, never guessed.
-    ["1,234", null], ["12,555", null], ["0,500", null], ["12.345", null], ["1.234", null], ["1,234,567", null],
+    ["1,234", null], ["12,555", null], ["0,500", null], ["12.345", null], ["1.234", null],
+    // Two groups or more: a decimal mark is never repeated — thousands.
+    ["1,234,567", 123456700], ["1.000.000", 100000000],
     // Anything else than digits, groups and one mark is refused, never
     // stripped: a letter O, an x, an exponent, a minus of any kind, groups
     // that are not of three digits, an unknown code.
@@ -38,7 +40,7 @@ test("amounts are read as people type them, in cents", () => {
 test("for a two-decimal currency, the same answers as the package's field.money", () => {
   const server = field.money({ min: 0, max: 1e15 });
   const read = (s: string) => { try { return server.read(s); } catch { return null; } };
-  for (const s of ["12", "12,5", "12.50", "0,99", "1 234,56", "1\u202f234,56", "1.234,56", "1,234.56", "1,234", "0,500", "12.345", "1.234.567,89", "1,234,567", "-5", "−5", "1O,50", "12x5", "1e3", "1,2.34", ",5", "", "abc", "00,50", "1,234.567"]) {
+  for (const s of ["12", "12,5", "12.50", "0,99", "1 234,56", "1\u202f234,56", "1.234,56", "1,234.56", "1,234", "0,500", "12.345", "1.234.567,89", "1,234,567", "1.000.000", "12 50", "-5", "−5", "1O,50", "12x5", "1e3", "1,2.34", ",5", "", "abc", "00,50", "1,234.567"]) {
     assert.equal(parseAmount(s), read(s), JSON.stringify(s));
   }
 });

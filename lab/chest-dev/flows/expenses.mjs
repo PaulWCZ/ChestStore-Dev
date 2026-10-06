@@ -300,9 +300,11 @@ await step("Camille pays the others by one transfer file (SEPA), then enters Lé
   expect(xml.includes("<Cdtr><Nm>Tom Walker</Nm><PstlAdr><StrtNm>12 King's Road</StrtNm><PstCd>SW3 4RP</PstCd><TwnNm>London</TwnNm><Ctry>GB</Ctry></PstlAdr></Cdtr>"), "Tom's address in the file");
   expect(xml.includes("<PstlAdr><StrtNm>8 rue de la Roquette</StrtNm><PstCd>75011</PstCd><TwnNm>Paris</TwnNm><Ctry>FR</Ctry></PstlAdr></Dbtr>"), "the company's address in the file");
   expect(/<Ustrd>Notes de frais E\d+ E\d+<\/Ustrd>/u.test(xml), "the bank text in French");
-  if (process.env.SEPA_XSD) {
+  // Against the ISO 20022 schema the tool's tests keep (xmllint needed).
+  {
     const { execFileSync } = await import("node:child_process");
-    execFileSync("xmllint", ["--noout", "--schema", process.env.SEPA_XSD, await download.path()], { stdio: "pipe" });
+    const xsd = process.env.SEPA_XSD ?? new URL("../../../tools/private/expenses/test/fixtures/pain.001.001.03.xsd", import.meta.url).pathname;
+    execFileSync("xmllint", ["--noout", "--schema", xsd, await download.path()], { stdio: "pipe" });
   }
   await page.waitForSelector("text=1 personne est laissée de côté");
   await page.waitForTimeout(800);

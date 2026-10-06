@@ -19,3 +19,4 @@ export const removeCardRule = (id: string) => call("removeCardRule", { id }, qui
 export const saveAllowanceRate = (id: string | null, input: { name?: string; amount?: string; unit?: string; account?: string; archived?: boolean }) => call("saveAllowanceRate", { id, input }, quiet);
 export const setRate = (currency: string, rate: string) => call("setRate", { currency, rate }, quiet);
 export const saveScale = (year: number, data: unknown, source: string) => call("saveScale", { year, data, source }, quiet);
+export const confirmBank = () => call("confirmBank", {}, quiet);

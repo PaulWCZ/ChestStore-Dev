@@ -10,9 +10,9 @@ export const errorCodes = [
   "amount_invalid", "amount_ambiguous", "rate_invalid", "date_invalid", "date_future", "vat_too_high", "currency_invalid",
   "distance_invalid", "no_vehicle", "no_scale", "scale_invalid",
   "not_draft", "refused_unchanged", "not_submitted", "not_approved", "self_approval", "reason_needed", "nothing_selected",
-  "approver_invalid", "category_invalid", "allowance_invalid", "count_invalid", "account_invalid", "iban_invalid", "iban_checksum", "bank_sealed", "bic_invalid", "no_company_bank", "no_bank_details", "sepa_currency", "nothing_to_pay", "file_gone", "address_needed",
+  "approver_invalid", "category_invalid", "allowance_invalid", "count_invalid", "account_invalid", "iban_invalid", "iban_checksum", "bank_sealed", "bank_unconfirmed", "bic_invalid", "no_company_bank", "no_bank_details", "sepa_currency", "nothing_to_pay", "file_gone", "file_due", "address_needed",
   "statement_empty", "statement_touched",
   "file_missing", "file_too_large", "file_type", "receipt_locked",
-  "export_too_large", "unavailable", "unknown",
+  "export_too_large", "export_too_heavy", "unavailable", "unknown",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];

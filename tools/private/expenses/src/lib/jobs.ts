@@ -9,7 +9,8 @@ import { cleanUploads, forget } from "./receipts.ts";
 import { settings } from "./settings.ts";
 import { totalText } from "./tell.ts";
 
-// The tool's scheduled work (Proposal (studio): chest.proposals.json).
+// The tool's scheduled work ("schedules" of chest.json, contract 0.4: run
+// on POST /chest-schedules, src/app.tsx).
 
 // "reminder", on the 25th: everyone with drafts not sent yet finds one item
 // in their bell, in their language — "Send your expenses before the end of
