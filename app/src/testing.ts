@@ -320,6 +320,17 @@ function classLiterals(expression: string): string[] {
   return names.filter(Boolean);
 }
 
+// ---- settled(): every after() task under way finished (those they start
+// too) — then a test reads what they did (a notification, a badge):
+//   await call(…); await settled(); assert.equal(chest.notifications.length, 1);
+export async function settled(): Promise<void> {
+  const pending = (globalThis as Record<symbol, unknown>)[Symbol.for("@argentic/chest-app after")] as Set<Promise<unknown>> | undefined;
+  // A task queued by setImmediate is in the set already; one it starts
+  // joins while the first are awaited.
+  await new Promise(resolve => setImmediate(resolve));
+  while (pending && pending.size > 0) await Promise.all([...pending]);
+}
+
 // ---- atLeast(n): the test file fails when fewer than n of its tests ran
 // (an example's tests removed must not leave a file that passes empty).
 export function atLeast(n: number): void {

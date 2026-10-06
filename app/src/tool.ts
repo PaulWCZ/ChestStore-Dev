@@ -68,10 +68,19 @@ export const redirect = (to: string): never => {
 // done once it is sent. A failure is logged, never thrown: an unhandled
 // rejection would stop the server. Nothing here may take minutes (that is
 // a schedule's work): the tool may sleep.
+// The tasks under way, for settled() of ./testing: kept on globalThis, so
+// a test sees those of a server built with its own copy of the package.
+export const pendingAfter = ((globalThis as Record<symbol, unknown>)[Symbol.for("@argentic/chest-app after")] ??= new Set<Promise<unknown>>()) as Set<Promise<unknown>>;
 export function after(name: string, task: () => Promise<unknown>): void {
   // Started in a promise: a task that throws before its first await is
   // logged too (an uncaught throw would stop the server).
-  setImmediate(() => void Promise.resolve().then(task).catch(error => log.error(`${name} failed`, error)));
+  let done: () => void = () => {};
+  const tracked = new Promise<void>(resolve => { done = resolve; });
+  pendingAfter.add(tracked);
+  setImmediate(() => void Promise.resolve().then(task).catch(error => log.error(`${name} failed`, error)).finally(() => {
+    pendingAfter.delete(tracked);
+    done();
+  }));
 }
 
 // cutText(text, max): text cut to at most max characters as the SDK
@@ -104,27 +113,41 @@ const text = (value: unknown) => (typeof value === "string" ? value : typeof val
 const spaces = /[\s\u00a0\u202f]/gu;
 
 // An amount as people write it, to cents: "1234.5", "12,50", "1 234,50"
-// (any space), "1,234.50", "1.234,50". A group mark (thousands) counts only
-// beside a decimal mark of the other kind; a lone "," or "." followed by
-// three digits ("1,250", "0,500", "1.234") is refused: an English reader
-// means 1250, a French one 1.25. At most two decimals, numbers included
-// (12.345 and 1.005 refused, never rounded).
+// (spaces only between groups of three), "1,234.50", "1.234,50",
+// "1,000,000" and "1.000.000" (two group marks or more: whole). A group
+// mark counts beside a decimal mark of the other kind; a lone "," or "."
+// followed by three digits ("1,250", "0,500", "1.234") is refused with
+// "amount_ambiguous": an English reader means 1250, a French one 1.25. At
+// most two decimals, numbers included (12.345 and 1.005 refused, never
+// rounded).
 function cents(value: unknown): number | null {
   if (typeof value === "number") {
     if (!Number.isFinite(value) || Math.abs(value) >= 1e13) return null;
     const n = Math.round(value * 100);
     return Math.abs(n / 100 - value) < 1e-9 ? n : null;
   }
-  const s = text(value).replace(spaces, "");
+  let s = text(value).trim();
+  // Spaces (any kind) only as group separators: "1 234,50", never "12 50".
+  if (/[\s\u00a0\u202f]/u.test(s)) {
+    if (!/^-?\d{1,3}(?:[\s\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?$/u.test(s)) return null;
+    s = s.replace(spaces, "");
+  }
   const plain = /^(-?)(\d{1,13})(?:[.,](\d{1,2}))?$/u.exec(s);
-  const grouped = /^(-?)(\d{1,3}(?:([.,])\d{3})+)([.,])(\d{1,2})$/u.exec(s);
+  // Groups of three with one and the same mark.
+  const grouped = /^(-?)(\d{1,3}([.,])\d{3}(?:\3\d{3})*)([.,])(\d{1,2})$/u.exec(s);
+  const whole3 = /^(-?)(\d{1,3}([.,])\d{3}(?:\3\d{3})+)$/u.exec(s);
   let sign: string, whole: string, decimals: string;
   if (plain) [, sign = "", whole = "", decimals = ""] = plain;
   else if (grouped && grouped[3] !== grouped[4] && !/^-?0[.,]/u.test(s)) {
     sign = grouped[1] ?? "";
     whole = (grouped[2] ?? "").replace(/[.,]/gu, "");
     decimals = grouped[5] ?? "";
-  } else return null;
+  } else if (whole3 && !/^-?0[.,]/u.test(s)) {
+    sign = whole3[1] ?? "";
+    whole = (whole3[2] ?? "").replace(/[.,]/gu, "");
+    decimals = "";
+  } else if (/^-?[1-9]\d{0,2}[.,]\d{3}$/u.test(s)) return fail("amount_ambiguous" as ErrorCode);
+  else return null;
   if (whole.length > 13) return null;
   const n = Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
   return sign ? -n : n;
@@ -133,16 +156,25 @@ function cents(value: unknown): number | null {
 // A visitor's text: no control character but tab and line breaks (a NUL
 // would reach PostgreSQL as an error).
 const controls = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
+// Bidirectional overrides and isolates (a name that reads backwards, a
+// file name that hides its extension): removed. Zero-width characters
+// alone are no text (empty).
+const bidi = /[\u202a-\u202e\u2066-\u2069]/gu;
+const invisible = /[\u200b-\u200d\u2060\ufeff]/gu;
 
 export const field = {
-  // Trimmed text, from min (1: required) to max characters.
+  // Trimmed text, from min (1: required) to max characters (code points,
+  // not UTF-16 units); bidirectional overrides removed; only invisible
+  // characters is empty.
   text: ({ min = 1, max }: { min?: number; max: number }): Field<string> => ({
     read(value) {
-      const s = value === undefined || value === null ? "" : text(value).trim();
+      const s = value === undefined || value === null ? "" : text(value).replace(bidi, "").trim();
       if (controls.test(s)) fail("invalid");
-      if (s.length === 0 && min > 0) fail("empty");
-      if (s.length < min) fail("invalid");
-      return s.length > max ? fail("too_long", { max }) : s;
+      // Code points (an accented letter or a simple emoji counts one).
+      const length = [...s].length;
+      if ((length === 0 || s.replace(invisible, "").trim() === "") && min > 0) fail("empty");
+      if (length < min) fail("invalid");
+      return length > max ? fail("too_long", { max }) : s;
     },
   }),
   // A whole number between min and max, written in digits ("", "0x5",

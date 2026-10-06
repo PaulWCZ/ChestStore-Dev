@@ -17,13 +17,13 @@ node scripts/add-app.mjs starter                 # or tools/private/<name>
 
 | Import | Gives |
 |---|---|
-| `@argentic/chest-app` | `createApp`, `serve`, `page`, `publicPage`, `download`, `publicDownload`, `publicActionsAt`, `rawRoute`, `sameOrigin`, `policy`, `formToken`, `zipStream`, `Island`, `Honeypot`, `action`, `publicAction`, `field`, `fail`, `notFound`, `forbidden`, `redirect`, `after`, `toolPath`, `cutText`, `fill`, `formatter`, `localeIn`, `publicLocale`, `csvLine`, `log`, types (`Bound`, `Budget`, `PublicContext`, `Register`, `CoreWords`, `MemberContext`, `VisitorContext`, `LayoutProps`, `Format`…) |
+| `@argentic/chest-app` | `createApp`, `serve`, `page`, `publicPage`, `download`, `publicDownload`, `publicActionsAt`, `rawRoute`, `sameOrigin`, `policy`, `formToken`, `zipStream`, `Island`, `Honeypot`, `action`, `publicAction`, `field`, `fail`, `notFound`, `forbidden`, `redirect`, `after`, `toolPath`, `cutText`, `fill`, `formatter`, `localeIn`, `publicLocale`, `csvLine`, `textStream`, `log`, types (`Bound`, `Budget`, `Download`, `LayoutData`, `PublicContext`, `Register`, `CoreWords`, `MemberContext`, `VisitorContext`, `LayoutProps`, `Format`…) |
 | `@argentic/chest-app/client` | `call`, `refresh`, `navigate`, `onLinkClick`, `toast`, `ToastHost`, `Honeypot`, `fill`, `plural`, `send`, `AppError`, `fail`; types `Outcome`, `SentOf`, `ErrorCode`, `Words`, `Plain` (for islands) |
 | `@argentic/chest-app/browser` | `start(islands)` (the tool's `src/entry.tsx`) |
 | `@argentic/chest-app/db` | `db`, `seen`, `seenIn` |
 | `@argentic/chest-app/members` | `names` |
 | `@argentic/chest-app/vite` | `chestConfig({ theme, bundle? })`, `baseCss` (what every `client.css` starts with) |
-| `@argentic/chest-app/testing` | `testDatabase`, `checkPage`, `checkWords`, `checkSources`, `atLeast` |
+| `@argentic/chest-app/testing` | `testDatabase`, `checkPage`, `checkWords`, `checkSources`, `settled`, `atLeast` |
 
 Peers: `hono`, `@hono/node-server`, `react`, `react-dom`,
 `@argentic/chest-sdk` (≥ 0.4.1), `@argentic/chest-ui`; `postgres` for
@@ -33,7 +33,9 @@ are not peers, so `npm prune --omit=dev` drops them from the image.
 
 `npm test` builds it, type-checks the tests and runs them (unit tests of
 the sources, and a small tool on the built package with the SDK's
-fakeChest and a database: `TEST_DATABASE_URL` or PGlite).
+fakeChest and a database: `TEST_DATABASE_URL` or PGlite). In the studio
+it also checks the report's size figures (`lab/starter-bench/sizes.mjs
+--check`).
 
 Versions: `0.1.0-studio.N`, raised at every change a tool must re-vendor.
 MIT.

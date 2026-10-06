@@ -7,7 +7,7 @@ import { download, formToken, Honeypot, rawRoute, zipStream, action, after as af
 import { AppError as BrowserError } from "../dist/client.js";
 import { applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
-import { checkPage, testDatabase } from "../dist/testing.js";
+import { checkPage, settled, testDatabase } from "../dist/testing.js";
 
 // A tool of a few lines on the built package, asked as the Chest asks.
 const words = {
@@ -236,6 +236,17 @@ test("after(): a task that throws before its first await is logged, never thrown
     console.error = write;
   }
   assert.match(lines.join("\n"), /^error "probe failed"/mu);
+});
+
+test("settled(): waits for after()'s tasks, and those they start", async () => {
+  const done = [];
+  afterAnswer("first", async () => {
+    await new Promise(resolve => setTimeout(resolve, 30));
+    done.push("first");
+    afterAnswer("second", async () => { await new Promise(resolve => setTimeout(resolve, 30)); done.push("second"); });
+  });
+  await settled();
+  assert.deepEqual(done, ["first", "second"]);
 });
 
 test("which page read is put in place: a navigation is never lost to a refresh or an action", () => {

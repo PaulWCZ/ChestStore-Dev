@@ -3,8 +3,8 @@
 A tool made from the starter is a Hono server that renders React pages,
 with a few islands in the browser. This package is that machinery; the
 tool's own code is routes, pages, islands, actions, rules and SQL, words.
-The SDK (`@argentic/chest-sdk`, its `AGENTS.md`) is the Chest's side; the UI
-kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
+The SDK (`@argentic/chest-sdk`, its `README.md` in `node_modules`) is the
+Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
 
 ## Where things are in a tool
 
@@ -84,8 +84,12 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   ancestor (the opt-out: a page that must start afresh).
 - **Actions run one at a time**, in the order asked, from `call()` and
   from forms (as Next.js's server actions did): two that read then write
-  (a position, a count) never interleave. `call(name, input, { parallel:
-  true })` for one that touches nothing in common (a search, a preview).
+  (a position, a count) never interleave; the next goes once the one
+  before is answered (30 seconds at most). **A slow action (AI, an
+  import, an upload) is parallel**: `action(fields, run, { parallel:
+  true })` — `call()` and forms then send it at once, and it holds
+  nothing else; `data-parallel` on a form, or `call(name, input, {
+  parallel: true })`, for one call (a search, a preview).
   Rules that compute from existing rows must still be safe in SQL: two
   people act at once too (`db().begin(…)` with a lock, or a unique
   constraint).
@@ -121,33 +125,55 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   The package then: requires the page's **form token** (`<Honeypot />`
   carries it, `call()` sends it; 120 minutes, `formMinutes` to change;
   `formSeconds: 2` makes a form sent sooner than a person fills it wait
-  the seconds left;
-  serves once, the answer brings the next; else the code `expired`);
-  answers "done" without running to a robot that fills the honeypot;
-  counts the call **only once it is valid** (token, fields, and in your
-  run, what you check before `charge()`; a run that throws gives its count
-  and token back) per visitor and for everyone a day, in `chest_bounds`;
-  past it, the code `limit`. The visitor is the address the Chest's front
-  gives (`Chest-Visitor-Address`, a studio proposal: none today), else
-  the browser's cookie; one with neither counts in `perDay` only. Words:
-  `t.errors.limit` and `t.errors.expired` ("This form expired: send it
-  again."). A test sends `{ chest_form: formToken() }`. `bound: false`
-  only for an action that writes nothing (`checkSources` fails on a
-  `publicAction` without `bound`, and on budgets without `charge(`).
-  A page with a bounded form is never cached by a shared cache (its
-  token would be everyone's).
+  the seconds left; it serves once whatever the answer, and the answer —
+  or the page a plain form goes back to — brings the next; else the code
+  `expired`); answers "done" without running to a robot that fills the
+  honeypot; counts a call **only once it is valid** (token, fields, and in
+  your run what you check before `charge()`; a run that throws gives its
+  counts back) per visitor and for everyone a day, in `chest_bounds`;
+  past it, the code `limit`. `perSubject` (budgets by kind only, with
+  `charge(kind, { subject: link })`) bounds one thing written to — a
+  guest link, a booking — whoever writes. Refusals have their own
+  ceiling, ten times `perDay`, then `limit` before the run.
+  **What it does not do:** the visitor is the address the Chest's front
+  gives (`Chest-Visitor-Address`, a studio proposal — no Chest gives it
+  yet), else the browser's cookie; a robot that clears its cookie and
+  loads the page for each fresh token can spend `perDay` with calls that
+  pass your checks, and the people after it meet `limit` until tomorrow
+  (those who wrote earlier today keep a reserve of a tenth). Choose
+  `perDay` as the most the tool can take in a day, not the most people
+  send. A kiosk, or one office behind one address, is one visitor:
+  `perVisitor` must allow it.
+  **Never call the Chest per public request** (`members.get`,
+  `members.list`, `groups`…): a flood of visitors would spend the tool's
+  limits at the Chest, and the members' own pages would fail. Cache a
+  minute, or read the tool's own table. **Never list the members on a
+  public page** (it publishes the staff directory): offer one role's
+  members only, or a search on the server that answers a few names.
+  Words: `t.errors.limit` and `t.errors.expired` ("This form expired:
+  send it again.") — `checkSources` asks them in every catalogue when a
+  bounded action exists. A test sends `{ chest_form: formToken() }`.
+  `bound: false` only for an action that writes nothing (`checkSources`
+  fails on a `publicAction` without `bound`, on budgets without
+  `charge(`, on `perSubject` without a subject). A page with a bounded
+  form is never cached by a shared cache (its token would be everyone's).
 
 ## Fields of an action
 
 Each field has two types: what `run()` receives (read) and what `call()`
 may send (the wire): `money()` receives cents, a `number`, and accepts
-`"12,50"`, `"1 234,50"`, `"1,234.50"` or `12.5` on the wire — send what
+`"12,50"`, `"1 234,50"`, `"1,234.50"`, `"1.000.000"` or `12.5` on the wire — send what
 the person typed, never `Number(…)` or `parseFloat(…)` of it.
 
-`text({ min?, max })` (trimmed; `min` 1 by default: `empty`, `too_long`),
+`text({ min?, max })` (trimmed; `min` 1 by default: `empty`, `too_long`;
+`max` in code points; control characters `invalid`, bidirectional
+overrides removed, only invisible characters `empty`),
 `int({ min, max })` (digits only: `""` is `empty`, `"0x5"`, `"1e1"`,
 `"1.0"` are `invalid`), `money({ min?, max })` (in cents, min and max too;
-store `bigint` cents; write `f.money(cents, { cents: true })`), `id()` (a
+store `bigint` cents; write `f.money(cents, { cents: true })`; spaces
+only between groups of three; `"1,250"` or `"1.234"` alone is
+`amount_ambiguous` — say it in the catalogue, "Write 1250 or 1,25", else
+it reads as `invalid`), `id()` (a
 bigint id as text), `bool()` (a checkbox), `choice([...])`, `day()` (a day
 that exists, YYYY-MM-DD: 2026-02-31 is `invalid`), `optional(f)` (absent/""/null → undefined),
 `nullable(f)` (absent → undefined, ""/null → null: "clear it"), `sent(f)`
@@ -163,7 +189,9 @@ fail("invalid") } }`. Who may do what is checked in `src/lib/` from
 `f.plural(t.x, n)` picks `{ zero?, one, other }`. `f.date`, `f.time`,
 `f.dateTime` take a `Date` (an instant, a `timestamptz`) and write it in
 the reader's zone; `f.day` takes a `"YYYY-MM-DD"` (a `date` column, which
-`db()` returns as text) and writes that day wherever the reader is;
+`db()` returns as text) and writes that day wherever the reader is (a
+day that does not exist, `""` or `"2026-02-31"`, is `fail("invalid")`:
+read a day from an address with `field.day()` first);
 `f.today()` is the reader's own day (a member's personal deadline);
 the company's day is `chest.today()` (SDK), and in SQL `current_date`,
 `now()::date` and `date_trunc` run in the Chest's zone (the database
@@ -220,9 +248,11 @@ Who may do what is one function in `src/lib/` (`can(member, "x")`), used
 by pages (to show the button) and actions (to refuse with `forbidden`).
 **Writing to another member** (a notification, a digest), outside their
 request: their language and zone from `members.get(id)` or
-`members.lookup(ids)` (`members` capability), then `words(member.language)`
-(the tool's `src/i18n/index.ts`) and `formatter(language, member.timeZone,
-chest.currency)` from `@argentic/chest-app`. A notification's title is 80
+`members.lookup(ids)` (`members` capability), then `const locale =
+localeIn(locales, member.language)` (a language the tool speaks, else
+its first), `words(locale)` (the tool's `src/i18n/index.ts`) and
+`formatter(locale, member.timeZone, chest.currency)` from
+`@argentic/chest-app`. A notification's title is 80
 characters at most and its body 280 (the SDK refuses longer, and a
 schedule that sends one fails at every run): `cutText(title, 80)`. Send
 it in `after("notify", () => notifications.notify(…))` from an action: a
@@ -247,8 +277,13 @@ if (!can(member)) fail("forbidden"); return { name, type: "text/csv; charset=utf
 body } }))`: sent as an attachment (any name, accents too), never cached; a
 refusal is a page in the reader's words with its status (403, 400 with
 the error's values, 404) — not a bare text. `publicDownload()` for the
-public part. A big one: `body` a stream (a cursor, `zipStream()`);
-`csvLine([...])` quotes and defuses formulas.
+public part. A big one: `body: textStream(lines())` — an async generator
+yielding `csvLine([...])` (quotes and defuses formulas) per row of a
+cursor — or `zipStream()`. **A link to a file carries `download`**
+(`<a href="/chest/export.csv" download>`): the browser fetches it once.
+(A link to an address ending with an extension — `.csv`, `.zip`, `.ics`
+— is never followed in place either; any other that answers a file is
+answered 204 to the in-place fetch, the file unmade, then loaded.)
 **An archive** (an export with the files) — `zipStream(entries())` from
 `@argentic/chest-app`, given an async generator that yields `{ name,
 data }` one file at a time (`(await files.get(name)).data`, or a stream):
@@ -344,11 +379,14 @@ their components — use the components.
 ## Tests
 
 `npm test`: tsc, the server built into `dist/test`, then `test/*.test.*`.
-From `@argentic/chest-app/testing`: `testDatabase()` (TEST_DATABASE_URL —
+From `@argentic/chest-app/testing`: `testDatabase()` (start `fakeChest()`
+first: the returned `sql` seeds in the Chest's zone, as `db()` reads;
+TEST_DATABASE_URL —
 a server whose user may create roles: a throwaway database; else the
 preview's DATABASE_URL: a throwaway schema; else PGlite in the process:
 1.2–1.3 GiB for the test run, more than the workbench can spare beside
 the dev server), `checkPage(html)`, `checkWords(catalogues)`,
+`settled()` (every `after()` task done — then read what it sent),
 `checkSources({ requireTests: true })` (with it, every `src/lib/` module
 is imported by a test;
 class names built at run time — `` `c-${color}` `` — need their family in

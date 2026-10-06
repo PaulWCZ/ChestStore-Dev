@@ -39,7 +39,11 @@ test("fields read forms and JSON alike, and refuse with a code", () => {
   assert.equal(field.money({ max: 1e9 }).read("1.234,50"), 123450);
   assert.equal(field.money({ max: 1e9 }).read("12,5"), 1250);
   assert.equal(field.money({ max: 1e9 }).read("0,50"), 50);
-  for (const odd of ["1,234", "0,500", "1,250", "1.234", "12.345", "0.500,00", "1.234.567", "1,234,567", "1.2345"]) refused(() => field.money({ max: 1e12 }).read(odd), "invalid");
+  for (const odd of ["1,234", "1,250", "1.234", "12.345"]) refused(() => field.money({ max: 1e12 }).read(odd), "amount_ambiguous");
+  for (const odd of ["0,500", "0.500,00", "1.2345", "12 50", "1 2 3", "1,000.000,5"]) refused(() => field.money({ max: 1e12 }).read(odd), "invalid");
+  assert.equal(field.money({ max: 1e12 }).read("1,234,567"), 123456700, "two group marks: whole");
+  assert.equal(field.money({ max: 1e12 }).read("1.000.000"), 100000000);
+  assert.equal(field.money({ max: 1e12 }).read("12 345 678,90"), 1234567890);
   for (const odd of [12.345, 1.005, Infinity]) refused(() => field.money({ max: 1e12 }).read(odd), "invalid");
   refused(() => field.money({ max: 1e9 }).read(undefined), "empty");
   refused(() => field.int({ min: 0, max: 9 }).read(undefined), "empty");
@@ -54,7 +58,7 @@ test("fields read forms and JSON alike, and refuse with a code", () => {
   assert.ok([...cut].length <= 80 && cut.endsWith("…") && !cut.includes("\u200d…"));
   assert.equal(field.money({ max: 1e9 }).read("12.5"), 1250);
   assert.equal(field.money({ max: 1e9 }).read(12.5), 1250);
-  refused(() => field.money({ max: 1e9 }).read("12.345"), "invalid");
+  refused(() => field.money({ max: 1e9 }).read("12.345"), "amount_ambiguous");
   refused(() => field.money({ max: 100 }).read("2"), "invalid");
 });
 
@@ -80,6 +84,7 @@ test("dates, days, numbers, amounts and plurals in the reader's language and zon
   assert.equal(fr.today(new Date("2026-10-05T22:30:00Z")), "2026-10-06");
   assert.equal(fr.money(1234.5), "1 234,50 €");
   assert.equal(fr.money(123450, { cents: true }), "1 234,50 €");
+  for (const wrong of ["2026-02-31", "", "31/12/2026"]) assert.throws(() => fr.day(wrong), (e: unknown) => e instanceof AppError && e.code === "invalid", wrong);
   assert.equal(fr.plural({ one: "{count} note", other: "{count} notes" }, 0), "0 note");
   assert.equal(en.plural({ one: "{count} note", other: "{count} notes" }, 0), "0 notes");
   assert.equal(publicLocale(["en", "fr"], undefined, "de-DE, fr;q=0.8, en;q=0.5"), "fr");
@@ -168,4 +173,13 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   mkdirSync(join(dir, "test"));
   write("test/units.test.ts", 'import { x } from "../src/lib/rules.ts";');
   checkSources({ root: dir, requireTests: true });
+});
+
+test("text: code points, bidirectional overrides removed, only invisible characters is empty", () => {
+  const refusedAs = (run: () => unknown, code: string) => assert.throws(run, (e: unknown) => e instanceof AppError && e.code === code);
+  assert.equal(field.text({ max: 3 }).read("é😀a"), "é😀a", "three characters, five UTF-16 units");
+  refusedAs(() => field.text({ max: 3 }).read("abcd"), "too_long");
+  assert.equal(field.text({ max: 40 }).read("invoice\u202Efdp.exe"), "invoicefdp.exe");
+  refusedAs(() => field.text({ max: 5 }).read("\u200b"), "empty");
+  refusedAs(() => field.text({ max: 5 }).read("\u200b \ufeff"), "empty");
 });

@@ -130,7 +130,7 @@ function noticeOf(c: Context, t: Words): string | null {
     // Numbers only: a value in the address is anyone's to write.
     if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && typeof v === "number" && Number.isFinite(v)));
   } catch { /* no values */ }
-  const said = fill(t.errors[code as ErrorCode] ?? t.errors.unavailable, values);
+  const said = fill(sayError(t, code), values);
   // A value missing (an address written by hand): the plain refusal.
   return /\{\w+\}/u.test(said) ? t.errors.invalid : said;
 }
@@ -222,7 +222,7 @@ async function served(c: Context, viewer: Viewer, run: () => Promise<Download | 
     const status = error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : 400;
     const t = viewer.t;
     const title = status === 403 ? t.pages.forbidden.title : status === 404 ? t.pages.notFound.title : t.pages.failed.title;
-    const said = fill(t.errors[error.code as ErrorCode] ?? t.errors.invalid, error.values);
+    const said = fill(sayError(t, error.code), error.values);
     return html(c, {
       title,
       body: (
@@ -305,7 +305,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const fetched = c.req.header("x-tool-action") === "1";
   let renew: Record<string, string> = {};
   const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
-    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code] ?? viewer.t.errors.unavailable, values), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
+    fetched ? c.json({ ok: false, error: code, message: fill(sayError(viewer.t, code), values), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
   const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -493,6 +493,13 @@ function formFields(data: FormData): Record<string, unknown> {
 
 // The look's stylesheet: linked with ?v=<its hash> it never changes (a
 // new look is a new address); without, revalidated by its ETag.
+// A refusal's sentence: the catalogue's; an optional code it does not say
+// falls back to the nearest it must say ("amount_ambiguous" → "invalid").
+function sayError(t: Words, code: string): string {
+  const errors = t.errors as Record<string, string | undefined>;
+  return errors[code] ?? (code === "amount_ambiguous" ? t.errors.invalid : t.errors.unavailable);
+}
+
 // If-None-Match against a tag, weakly (W/"x" and "x" are the same).
 function weakMatch(header: string | undefined, tag: string): boolean {
   if (!header) return false;
