@@ -73,6 +73,7 @@ app.get("/chest/long", page(() => ({ title: "Long", body: h("p", null, "word ".r
 let versionOfPage = "v1", rendered = 0;
 app.get("/chest/own-island", page(() => ({ title: "Own", body: h(Island, { name: "Labelled", id: "report-7", props: { label: "R" } }) })));
 app.get("/chest/big-island", page(() => ({ title: "Big", body: h(Island, { name: "Labelled", props: { label: "x".repeat(300 * 1024) } }) })));
+app.get("/chest/sent", page(({ sent }) => ({ title: "Sent", body: h("p", { id: "sent" }, String(sent("text") ?? "nothing")) })));
 app.get("/chest/versioned", page(() => { rendered++; return { title: "Versioned", body: h("p", null, versionOfPage) }; }, { version: () => versionOfPage }));
 app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot, { action: "write" }), h("p", null, "hello")) })));
@@ -88,7 +89,7 @@ before(async () => { chest = await fakeChest({ members: [member], chest: { timeZ
 after(async () => { await database.close(); await chest.close(); });
 
 const url = path => `https://tool.test${path}`;
-const get = (path, who = member) => app.fetch(who ? withMember(new Request(url(path)), who) : new Request(url(path)));
+const get = (path, who = member, headers = {}) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
 const post = (path, body, headers = {}, who = member) => { const request = new Request(url(path), { method: "POST", body, headers: { "sec-fetch-site": "same-origin", host: "tool.test", ...headers } }); return app.fetch(who ? withMember(request, who) : request); };
 const json = (path, input, who) => post(path, JSON.stringify(input), { "content-type": "application/json", "x-tool-action": "1" }, who);
 
@@ -543,4 +544,15 @@ test("bound.work: a token asks a proof of work; a flood that does not compute it
   assert.equal(done.status, 200);
   assert.match((await done.json()).form, /^\d{13}\.[\w-]+\.hard\.(8|10|12)\.[\w-]+$/u, "the next token asks a proof too");
   assert.equal(worked, before + 1);
+});
+
+test("a form sent without JavaScript and refused: the page it goes back to has what it held, once", async () => {
+  const refused = await post("/chest/actions/echo", new URLSearchParams({ text: "far too long" }), { referer: url("/chest/sent") });
+  assert.equal(refused.status, 303);
+  const cookie = /chest_sent=[^;]+/u.exec(refused.headers.get("set-cookie") ?? "")?.[0];
+  assert.ok(cookie, "kept a minute in a cookie, not in the address");
+  assert.doesNotMatch(refused.headers.get("location"), /far/u);
+  const back = await get("/chest/sent", member, { cookie });
+  assert.match(await back.text(), /<p id="sent">far too long<\/p>/u);
+  assert.match(back.headers.get("set-cookie") ?? "", /chest_sent=;/u, "taken once");
 });

@@ -23,10 +23,10 @@ export const app = createApp({ actions, islands, locales, words, layouts: { memb
 // page shows in a few characters — a refresh with nothing new is a 304,
 // the page not even rendered.
 // EXAMPLE (Notes)
-app.get("/chest", page(async ({ member, t, f }) => {
+app.get("/chest", page(async ({ member, t, f, sent }) => {
   const notes = await listNotes();
   const people = await names(notes.map(n => n.author), t.people);
-  return { title: t.home.title, body: <Home notes={notes} names={people} member={member} t={t} f={f} /> };
+  return { title: t.home.title, body: <Home notes={notes} names={people} member={member} t={t} f={f} draft={sent("body") ?? ""} /> };
 }, { version: () => changeStamp() }));
 
 // A page of one note: param() reads the address; fail("not_found")

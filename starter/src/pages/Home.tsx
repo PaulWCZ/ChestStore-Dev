@@ -7,14 +7,15 @@ import { maxLength, mayChange, type Note } from "../lib/notes.ts";
 // EXAMPLE (Notes). The members' page, /chest: post a note, read the
 // team's. Rendered on the server; the forms work without JavaScript;
 // Delete is an island (its Undo).
-export function Home({ notes, names, member, t, f }: { notes: Note[]; names: Map<string, string>; member: Member; t: Catalogue; f: Format }) {
+// draft: what a refused form sent without JavaScript held (nothing lost).
+export function Home({ notes, names, member, t, f, draft }: { notes: Note[]; names: Map<string, string>; member: Member; t: Catalogue; f: Format; draft: string }) {
   return (
     <>
       <Island name="AutoRefresh" props={{ seconds: 60 }} />
       <PageHeader title={t.home.title} intro={f.plural(t.home.count, notes.length)} secondary={notes.length > 0 && <a className="ck-button ck-button-quiet" href="/chest/notes.csv" download>{t.home.export}</a>} />
       <form method="post" action="/chest/actions/addNote" className="composer">
         <label className="ck-label" htmlFor="body">{t.home.label}</label>
-        <textarea id="body" name="body" className="ck-field" required maxLength={maxLength} rows={3} placeholder={t.home.placeholder} />
+        <textarea id="body" name="body" className="ck-field" required maxLength={maxLength} rows={3} placeholder={t.home.placeholder} defaultValue={draft} />
         <button className="ck-button">{t.home.post}</button>
       </form>
       {notes.length === 0 ? <EmptyState title={t.home.empty.title} body={t.home.empty.body} /> : (

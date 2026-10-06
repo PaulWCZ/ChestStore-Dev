@@ -108,6 +108,13 @@ test("without JavaScript the same form posts and comes back", async () => {
   await page.click("form.composer button");
   await page.waitForSelector("li.note >> text=Sent without script");
   assert.equal(new URL(page.url()).pathname, "/chest");
+  // Refused (too long, past what the field allows): back with the notice,
+  // and what was typed is still there.
+  const long = "x".repeat(2001);
+  await page.$eval("#body", (el, text) => { el.removeAttribute("maxlength"); el.value = text; }, long);
+  await page.click("form.composer button");
+  await page.waitForSelector("[role=alert]");
+  assert.equal((await page.inputValue("#body")).length, 2001, "the text came back");
   await close();
 });
 

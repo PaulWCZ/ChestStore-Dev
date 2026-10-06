@@ -30,7 +30,10 @@ export const policy = "default-src 'self'; script-src 'self'; style-src 'self'; 
 // Who reads a page: a member (on /chest) or a visitor.
 export type Viewer = MemberContext | VisitorContext;
 // What a page handler gets, and gives back (or a Response of its own).
-export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; param(name: string): string; query(name: string): string | undefined };
+// sent(name): what a form sent without JavaScript held, when the action
+// refused it and the page shows the form again (defaultValue={sent("body")}):
+// nothing typed is lost.
+export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; param(name: string): string; query(name: string): string | undefined; sent(name: string): string | undefined };
 // locale: a public page in a language of its own, one of the tool's (a
 // request's page in the request's language): <html lang> and the layout's
 // words follow it. A member's page is in the member's language.
@@ -210,7 +213,32 @@ function errorView(viewer: Viewer, status: 403 | 404 | 500): View {
 }
 
 function contextOf<V extends Viewer>(c: Context, viewer: V): PageContext<V> {
-  return { ...viewer, url: new URL(c.req.url), param: name => c.req.param(name) ?? "", query: name => c.req.query(name) };
+  let sent: Record<string, string> | null = null;
+  const read = (name: string) => {
+    if (sent === null) {
+      try {
+        sent = JSON.parse(getCookie(c, "chest_sent") ?? "{}") as Record<string, string>;
+      } catch {
+        sent = {};
+      }
+      // Shown once: the page that shows the form again takes it.
+      if (getCookie(c, "chest_sent") !== undefined) setCookie(c, "chest_sent", "", { path: "/", maxAge: 0, secure: true, httpOnly: true, sameSite: "Lax" });
+    }
+    const value = sent[name];
+    return typeof value === "string" ? value : undefined;
+  };
+  return { ...viewer, url: new URL(c.req.url), param: name => c.req.param(name) ?? "", query: name => c.req.query(name), sent: read };
+}
+// A form sent without JavaScript and refused: what it held, kept a minute
+// in a cookie of the tool's (never in the address: the log and the
+// history keep addresses), for the page it goes back to. Text fields only;
+// not the token, the proof, the honeypot; 3,000 bytes at most.
+function keepSent(c: Context, raw: Record<string, unknown> | null): void {
+  if (!raw) return;
+  const kept: Record<string, string> = {};
+  for (const [name, value] of Object.entries(raw)) if (typeof value === "string" && !["chest_form", "chest_work", "website"].includes(name)) kept[name] = value;
+  const text = JSON.stringify(kept);
+  if (text.length > 2 && encodeURIComponent(text).length <= 3000) setCookie(c, "chest_sent", text, { path: "/", maxAge: 60, secure: true, httpOnly: true, sameSite: "Lax" });
 }
 
 // download(): a file of the members' part (/chest/…/export.csv) — the
@@ -343,8 +371,9 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
   let renew: Record<string, string> = {};
+  let sentRaw: Record<string, unknown> | null = null;
   const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>, field?: string) =>
-    fetched ? c.json({ ok: false, error: code, message: fill(sayError(viewer.t, code), values), ...(field ? { field } : {}), ...renew }, status) : c.redirect(back(c, members, code, values), 303);
+    fetched ? c.json({ ok: false, error: code, message: fill(sayError(viewer.t, code), values), ...(field ? { field } : {}), ...renew }, status) : (keepSent(c, sentRaw), c.redirect(back(c, members, code, values), 303));
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
   const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -363,6 +392,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
     try {
       const raw = json ? await c.req.json<Record<string, unknown>>() : formFields(await c.req.formData());
+      if (!json) sentRaw = raw;
       let spent: Spent | null = null;
       let charged = false;
       let who: string | null = null;

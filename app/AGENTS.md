@@ -195,6 +195,9 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
 
 ## Fields of an action
 
+A form sent without JavaScript and refused goes back to its page with what
+it held: `sent("body")` in the page's context (kept a minute in a cookie,
+never in the address) — `defaultValue={sent("body") ?? ""}`.
 A field's refusal names its field (`{ ok: false, error, message, field }`):
 a form sent in place shows the sentence under that field (`.ck-error`,
 `aria-invalid`, the focus there) instead of a toast; an island reads

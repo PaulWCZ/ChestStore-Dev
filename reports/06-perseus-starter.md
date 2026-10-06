@@ -342,13 +342,13 @@ reviews found hand-copied figures stale four times: app's `npm test` now
 runs `sizes.mjs --check` against this paragraph):
 - The project's `AGENTS.md` is 39 lines: what Perseus rewrites
   (purpose, data model, decisions, what to delete from the example).
-- The reference page is the package's `AGENTS.md`, 508 lines, read from
+- The reference page is the package's `AGENTS.md`, 511 lines, read from
   `node_modules/@argentic/chest-app/`. It covers how the package works,
   fields, words, the database, recipes (roles, writing to another member,
   paging, imports and archives, a schedule's test…), rules, the kit's
   classes, tests and pitfalls.
-- The template is 29 files and 904 lines. The package is 2,938 lines of
-  source and 874 of tests. (The reference starter: 16 files, 311 lines.)
+- The template is 29 files and 905 lines. The package is 2,968 lines of
+  source and 886 of tests. (The reference starter: 16 files, 311 lines.)
 
 **UI quality with the kit.**
 - A: unstyled HTML.
@@ -440,7 +440,7 @@ Checked in Chromium only.
   then meet `limit` until tomorrow; only those who wrote earlier that day
   keep a reserve (a tenth). Junk that fails the checks never writes, but
   fair public writes need the visitor's address from the Chest's front
-  (§9, item 11: a blocker). Verified by the package's server tests, and
+  (§9, item 12: a blocker). Verified by the package's server tests, and
   in Chromium on Polls' guest form (the island sends the page's token,
   the answer renews it). The
   starter itself has no public part: a public part is a permission, and an
@@ -552,14 +552,20 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
 10. **Logs are kept 7 days and agents can read them.** A framework that
    logs raw paths leaks whatever an address carries. This deserves a line
    in the contract's "Logs" section.
-11. **No visitor address: a blocker for fair public writes.** The
+11. **No bot protection on public forms.** A cookieless robot that loads
+    the page for each token filled a 60-place form in 2.4 s (Forms
+    review). The package's `bound.work` (a proof of work in a Worker) is
+    a stand-in; the platform should give one primitive — its front
+    could ask the proof once per visitor and vouch for it, with the
+    visitor's address below.
+12. **No visitor address: a blocker for fair public writes.** The
    front sets no `Chest-Visitor-Address` (or any address a tool can
    trust), so a tool can key a visitor only by a cookie the visitor
    drops at will. Every public tool's budgets then fall back to one
    ceiling for everyone, which one robot can spend (§5). The studio SDK
    proposes the header (`visitors.address()`), and the package already
    reads it.
-12. **The reference starter itself:**
+13. **The reference starter itself:**
    - its policy carries a nonce nothing uses;
    - `/assets/` has no cache headers;
    - `SIGTERM` hangs once a database pool is open;
@@ -623,6 +629,24 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
     refused calls, then a valid call goes through). Polls, Booking,
     Support and Status were changed for it (each form's or island's
     action named; a `FormToken` where a form opens after load).
+  - `bound.work`: a proof of work each token asks (16 bits by default —
+    about half a second on a mid-range phone — two bits more past half
+    the day's budget, two more past four fifths), computed in a Worker
+    (`/assets/chest-work.js`, emitted by `chestConfig`: the strict policy
+    runs only the tool's own files), checked from one hash before
+    anything is counted; tested: 60 unsolved calls at once refused, a
+    solved one goes; in a real browser through Booking's flow (its
+    `bookTime` uses it). A stand-in for a platform primitive (§9);
+  - per-page island code: `virtual:chest-islands` + `start(islands,
+    lazy)` — each `src/islands/*.tsx` a chunk, preloaded by the pages
+    that show it, alive before the page's load event. Measured: Forms'
+    answer page 411 → 293 KB of JavaScript (105 → 83 KB brotli; the
+    builder and the answers table no longer sent); Tasks' My tasks
+    444 → 223 KB (114 → 61 KB brotli), a board 320 KB, with a card open
+    383 KB. The styles stay one file;
+  - a form sent without JavaScript and refused comes back with what it
+    held (`sent(name)` in the page's context; a one-minute cookie, never
+    the address).
   Expenses and Timesheets use the change log (their first sequence-based
   stamp never shipped); the starter's notes page too.
 - **studio.6** (6 October; breaking). The changes:
