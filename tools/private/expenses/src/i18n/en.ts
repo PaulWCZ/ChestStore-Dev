@@ -696,7 +696,7 @@ export const en = {
     company: {
       title: "For the whole company",
       currency: "Company currency",
-      reminder: "On the 25th, remind people who have drafts to send them",
+      reminder: "On the 25th, remind everyone of their drafts, and approvers of what waits for them",
       saved: "Saved.",
     },
     cardWords: {
@@ -782,6 +782,8 @@ export const en = {
     paid: "Paid back: {total}, on {date}",
     reminder: "Send your expenses before the end of the month",
     reminderBody: { one: "1 draft · {total}", other: "{count} drafts · {total}" },
+    waiting: { one: "1 expense waits for your approval", other: "{count} expenses wait for your approval" },
+    waitingBody: "Open “To approve” to approve or refuse them.",
     bankByOther: "{name} changed your bank details (account ending {last4})",
     bankOwn: "{name} changed their bank details (account ending {last4})",
     cardReceipts: { one: "A company card payment needs its receipt", other: "{count} company card payments need their receipt" },

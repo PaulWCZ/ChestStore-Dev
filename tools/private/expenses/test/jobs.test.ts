@@ -28,20 +28,30 @@ after(async () => {
   await database.close();
 });
 
-test("on the 25th, everyone with drafts is reminded, in every language, once — and nothing is mailed by the tool", async () => {
+test("on the 25th, everyone with drafts and every approver with expenses waiting is reminded, in every language, once — and nothing is mailed by the tool", async () => {
   const { sql } = database;
   await expenses.saveExpense(sql, asMember(hugo), null, { spentOn: "2026-09-10", amount: "12", categoryId: meals });
   await expenses.saveExpense(sql, asMember(hugo), null, { spentOn: "2026-09-11", amount: "8,50", categoryId: meals });
   const sent = (await expenses.saveExpense(sql, asMember(lea), null, { spentOn: "2026-09-11", amount: "3", categoryId: meals })).expense;
   await expenses.submit(sql, asMember(lea), [sent.id], async () => true);
   assert.equal(await chest.run("reminder", deliver), 204);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body, n.key]), [[hugo.id, "Send your expenses before the end of the month", "2 drafts · €20.50", "reminder"]]);
-  assert.deepEqual(shownTo(chest.notifications[0]!, "fr"), { title: "Envoyez vos notes de frais avant la fin du mois", body: "2 brouillons · 20,50 €" });
-  // Approvers get no reminder of their own: Léa's expense waits in
-  // Camille's inbox since it was sent, and on the tile.
+  assert.deepEqual(chest.notifications.filter(n => n.key === "reminder").map(n => [n.member, n.title, n.body, n.key]), [[hugo.id, "Send your expenses before the end of the month", "2 drafts · €20.50", "reminder"]]);
+  assert.deepEqual(shownTo(chest.notifications.find(n => n.key === "reminder")!, "fr"), { title: "Envoyez vos notes de frais avant la fin du mois", body: "2 brouillons · 20,50\u00a0€" }, "the amount's no-break space kept");
+  // Léa's expense waits for Camille (the accountant: Léa has no approver
+  // named): she is nudged too, the same day, in every language.
+  const nudge = chest.notifications.filter(n => n.key === "approve-reminder");
+  assert.deepEqual(nudge.map(n => [n.member, n.title, n.path]), [[camille.id, "1 expense waits for your approval", "/chest/approve"]]);
+  assert.deepEqual(shownTo(nudge[0]!, "fr"), { title: "1 dépense attend votre validation", body: "Ouvrez «\u202fÀ valider\u202f» pour les valider ou les refuser." });
+  assert.equal(chest.notifications.filter(n => n.key === "reminder").length, 1);
   assert.equal(chest.outbox.length, 0);
+  // Delivered twice: the same items, not more of them.
+  const before = chest.notifications.length;
   assert.equal(await chest.run("reminder", deliver), 204);
-  assert.equal(chest.notifications.length, 1);
+  assert.equal(chest.notifications.length, before);
+  // Once Camille decided, her nudge goes.
+  const decisions = await expenses.decide(sql, asMember(camille), [sent.id], "approve");
+  await tell.decided(sql, asMember(camille), decisions, "approve");
+  assert.equal(chest.notifications.filter(n => n.key === "approve-reminder").length, 0);
   // Turned off by the accountant: nothing.
   await settings.updateSettings(sql, asMember(camille), { reminder: false });
   chest.notifications.length = 0;
@@ -89,6 +99,6 @@ test("expenses sent to approve and a card payment's receipt: one notice each, in
   const toHugo = chest.notifications.filter(n => n.member === hugo.id && n.key === `card:${hugo.id}`);
   assert.equal(toHugo.length, 1);
   assert.equal(toHugo[0]!.title, "A company card payment needs its receipt");
-  assert.match(toHugo[0]!.body!, /UBER \*TRIP · €23\.40/u);
+  assert.match(toHugo[0]!.body!, /UBER \*TRIP · €23\.40\n/u, "one payment a line: the Chest keeps a body's line breaks");
   assert.equal(chest.outbox.length, 0);
 });

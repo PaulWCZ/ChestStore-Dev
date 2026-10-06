@@ -715,10 +715,9 @@ export async function unmarkPaid(sql: Sql, actor: Member | null, selection: unkn
   });
 }
 
-// What waits for each of these members: expenses to decide (for an
-// accountant, those sent to the accountants, never their own), and their
-// own refused drafts. The number on the tool's tile.
-export async function waitingCounts(sql: Query, memberIds: string[], accountantIds: string[]): Promise<Map<string, number>> {
+// The expenses each of these members has to decide: sent to them, or (for
+// an accountant) sent to the accountants — never their own.
+export async function decideCounts(sql: Query, memberIds: string[], accountantIds: string[]): Promise<Map<string, number>> {
   const counts = new Map(memberIds.map(m => [m, 0]));
   if (memberIds.length === 0) return counts;
   const accountants = accountantIds.filter(a => memberIds.includes(a));
@@ -729,7 +728,16 @@ export async function waitingCounts(sql: Query, memberIds: string[], accountantI
       (e.approver_id = m.member and e.member_id <> m.member)
       or (m.member = any(${accountants}::text[]) and e.approver_id is null and e.member_id <> m.member))
     group by m.member`;
-  for (const r of approvals) counts.set(r.member, (counts.get(r.member) ?? 0) + r.n);
+  for (const r of approvals) counts.set(r.member, r.n);
+  return counts;
+}
+
+// What waits for each of these members: expenses to decide (for an
+// accountant, those sent to the accountants, never their own), and their
+// own refused drafts. The number on the tool's tile.
+export async function waitingCounts(sql: Query, memberIds: string[], accountantIds: string[], decide?: Map<string, number>): Promise<Map<string, number>> {
+  const counts = new Map(decide ?? await decideCounts(sql, memberIds, accountantIds));
+  if (memberIds.length === 0) return counts;
   const refused = await sql<{ member: string; n: number }[]>`
     select member_id as member, count(*)::int as n from expenses
     where member_id = any(${memberIds}::text[]) and status = 'draft' and refused_reason is not null and deleted_at is null group by member_id`;
