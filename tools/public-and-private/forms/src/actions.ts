@@ -297,7 +297,7 @@ export const actions = {
     // The language the visitor read the form in; a copy only when the
     // visitor asked for one (and the form offers it).
     return take(sql, form, input, null, languageFor(definition, localeOf(locale)), { copyAsked: input.copy === true });
-  }, { maxBody: 256 * 1024, bound: { formSeconds: publicLimits.formSeconds, budgets: { answer: publicLimits.answers, reaching: publicLimits.reaching } } }),
+  }, { maxBody: 256 * 1024, bound: { formSeconds: publicLimits.formSeconds, work: true, budgets: { answer: publicLimits.answers, reaching: publicLimits.reaching } } }),
   // One file for a public form's file question: an upload address on the
   // host the visitor is on (Proposal (studio): files.publicUploadUrl), which
   // answers the visitor's browser a claim only it holds.

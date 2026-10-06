@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
-import { formToken } from "@argentic/chest-app";
+import { formToken, solveWork } from "@argentic/chest-app";
 import { atLeast, checkPage, settled, testDatabase } from "@argentic/chest-app/testing";
 import { camille, everyone, hugo, ines, lea, nora, tom } from "./support/members.ts";
 
@@ -55,7 +55,8 @@ const send = async request => {
 const get = (who, path, headers = {}) => send(who ? withMember(new Request(team + path, { headers }), who) : new Request((path.startsWith("/chest") ? team : visitor) + path, { headers }));
 // An action as call() sends it from an island of the page.
 const call = (who, name, input, headers = {}) => {
-  const request = new Request(`${who ? team + "/chest" : visitor}/actions/${name}`, { method: "POST", body: JSON.stringify(input), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
+  const proven = input.chest_form && input.chest_form.includes(".answerPublic.") && input.chest_work === undefined ? { ...input, chest_work: solveWork(input.chest_form) } : input;
+  const request = new Request(`${who ? team + "/chest" : visitor}/actions/${name}`, { method: "POST", body: JSON.stringify(proven), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...headers } });
   return send(who ? withMember(request, who) : request);
 };
 // A form posted without JavaScript.
@@ -66,7 +67,9 @@ const form = (who, path, fields, from) => {
 const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 // A public page's single-use token, shown long enough ago that a person
 // could have written the form.
-const token = (age = 10_000) => formToken(Date.now() - age);
+// answerPublic asks a proof of work (bound.work: 14 bits): call() finds it
+// as the browser does.
+const token = (action, age = 10_000) => formToken(action, Date.now() - age, action === "answerPublic" ? 14 : 0);
 const islandProps = (html, name) => {
   const m = new RegExp(`data-island="${name}"[^>]*data-props="([^"]*)"`, "u").exec(html);
   return m ? JSON.parse(m[1].replaceAll("&quot;", '"').replaceAll("&amp;", "&").replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">")) : null;
@@ -147,7 +150,7 @@ test("a public form: the visitor's page in the form's language, the runner, a fo
   assert.match(response.headers.get("content-security-policy"), /frame-ancestors 'none'/u);
   const html = await response.text();
   assert.match(html, /<html lang="fr">/u);
-  assert.match(html, /<meta name="chest-form" content="[\w.-]+"/u);
+  assert.match(html, /data-action="answerPublic" name="chest_form" value="[\w.-]+"/u);
   assert.match(html, /<link rel="stylesheet" href="\/look\.css\?v=/u);
   assert.match(html, /Atelier Martin/u);
   const props = islandProps(html, "Runner");
@@ -165,24 +168,24 @@ test("answering a public form: the token required, the answers checked first, a 
   const before = await count();
   const input = { slug: "k7m2fq9d", version: 1, answers: { q1xxxxxx: 4, q2xxxxxx: 9 } };
   assert.equal((await (await call(null, "answerPublic", input)).json()).error, "expired");
-  const wrong = await call(null, "answerPublic", { ...input, answers: { q1xxxxxx: 9 }, chest_form: token() });
+  const wrong = await call(null, "answerPublic", { ...input, answers: { q1xxxxxx: 9 }, chest_form: token("answerPublic") });
   assert.equal((await wrong.json()).error, "answers");
-  const sent = await call(null, "answerPublic", { ...input, chest_form: token() });
+  const sent = await call(null, "answerPublic", { ...input, chest_form: token("answerPublic") });
   assert.equal(sent.status, 200);
   const body = await sent.json();
   assert.deepEqual(body.value, { copy: false });
   assert.ok(body.form, "the next token comes with the answer");
   assert.equal(await count(), before + 1);
-  const robot = await call(null, "answerPublic", { ...input, website: "http://spam.example", chest_form: token() });
+  const robot = await call(null, "answerPublic", { ...input, website: "http://spam.example", chest_form: token("answerPublic") });
   assert.equal((await robot.json()).ok, true);
   assert.equal(await count(), before + 1, "nothing kept");
   // A token serves once.
-  const once = token();
+  const once = token("answerPublic");
   await call(null, "answerPublic", { ...input, chest_form: once });
   assert.equal((await (await call(null, "answerPublic", { ...input, chest_form: once })).json()).error, "expired");
   // A closed form, a team form: refused.
-  assert.equal((await (await call(null, "answerPublic", { slug: "s8f4ku7m", version: 1, answers: {}, chest_form: token() })).json()).error, "closed");
-  assert.equal((await (await call(null, "answerPublic", { slug: "t9r3hw6b", version: 1, answers: {}, chest_form: token() })).json()).error, "not_found");
+  assert.equal((await (await call(null, "answerPublic", { slug: "s8f4ku7m", version: 1, answers: {}, chest_form: token("answerPublic") })).json()).error, "closed");
+  assert.equal((await (await call(null, "answerPublic", { slug: "t9r3hw6b", version: 1, answers: {}, chest_form: token("answerPublic") })).json()).error, "not_found");
 });
 
 test("a public form whose answers go further (a copy by email, a web address) spends its own, tighter budget a day; past it, refused, and the plain budget is untouched", async () => {
@@ -194,13 +197,13 @@ test("a public form whose answers go further (a copy by email, a web address) sp
   await sql`insert into chest_bounds (scope, visitor, day, count) values ('answerPublic:reaching', ${subject}, current_date, 199)
     on conflict (scope, visitor, day) do update set count = 199`;
   const input = { slug: "k7m2fq9d", version: 1, answers: { q1xxxxxx: 4, q2xxxxxx: 9 } };
-  const last = await (await call(null, "answerPublic", { ...input, chest_form: token() })).json();
+  const last = await (await call(null, "answerPublic", { ...input, chest_form: token("answerPublic") })).json();
   assert.equal(last.ok, true, JSON.stringify(last));
-  assert.equal((await (await call(null, "answerPublic", { ...input, chest_form: token() })).json()).error, "limit", "the 201st: refused");
+  assert.equal((await (await call(null, "answerPublic", { ...input, chest_form: token("answerPublic") })).json()).error, "limit", "the 201st: refused");
   // Copies off, its web address stopped: the form spends the plain budget again.
   await sql`update forms set send_copy = false where id = 1`;
   await sql`update form_hooks set disabled_at = now() where id = any(${hooks})`;
-  const plain = await (await call(null, "answerPublic", { ...input, chest_form: token() })).json();
+  const plain = await (await call(null, "answerPublic", { ...input, chest_form: token("answerPublic") })).json();
   assert.equal(plain.ok, true, JSON.stringify(plain));
   await sql`update form_hooks set disabled_at = null where id = any(${hooks})`;
 });
@@ -212,10 +215,10 @@ test("a visitor's file: an upload path on the host they are on, for a file quest
   await call(ines, "saveDraft", { id: "5", text: JSON.stringify(draft), revision: builder.revision });
   const published = await call(ines, "publishForm", { id: "5" });
   assert.equal(published.status, 200, await published.clone().text());
-  const grant = await call(null, "visitorUpload", { slug: "c2n6yd8u", question: "qfilexxx", type: "application/pdf", size: 1000, chest_form: token() });
+  const grant = await call(null, "visitorUpload", { slug: "c2n6yd8u", question: "qfilexxx", type: "application/pdf", size: 1000, chest_form: token("visitorUpload") });
   const { value } = await grant.json();
   assert.match(value.url, /^\/_chest\/upload\//u, "a path: the visitor's own host");
-  const refused = await call(null, "visitorUpload", { slug: "c2n6yd8u", question: "qfilexxx", type: "image/svg+xml", size: 10, chest_form: token() });
+  const refused = await call(null, "visitorUpload", { slug: "c2n6yd8u", question: "qfilexxx", type: "image/svg+xml", size: 10, chest_form: token("visitorUpload") });
   assert.equal((await refused.json()).error, "file_invalid");
 });
 

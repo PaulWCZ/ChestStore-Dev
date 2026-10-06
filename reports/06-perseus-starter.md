@@ -342,12 +342,12 @@ reviews found hand-copied figures stale four times: app's `npm test` now
 runs `sizes.mjs --check` against this paragraph):
 - The project's `AGENTS.md` is 39 lines: what Perseus rewrites
   (purpose, data model, decisions, what to delete from the example).
-- The reference page is the package's `AGENTS.md`, 511 lines, read from
+- The reference page is the package's `AGENTS.md`, 513 lines, read from
   `node_modules/@argentic/chest-app/`. It covers how the package works,
   fields, words, the database, recipes (roles, writing to another member,
   paging, imports and archives, a schedule's test…), rules, the kit's
   classes, tests and pitfalls.
-- The template is 29 files and 905 lines. The package is 2,968 lines of
+- The template is 29 files and 905 lines. The package is 2,970 lines of
   source and 886 of tests. (The reference starter: 16 files, 311 lines.)
 
 **UI quality with the kit.**
@@ -629,9 +629,11 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
     refused calls, then a valid call goes through). Polls, Booking,
     Support and Status were changed for it (each form's or island's
     action named; a `FormToken` where a form opens after load).
-  - `bound.work`: a proof of work each token asks (16 bits by default —
-    about half a second on a mid-range phone — two bits more past half
-    the day's budget, two more past four fifths), computed in a Worker
+  - `bound.work`: a proof of work each token asks (14 bits by default —
+    measured in Chromium on this machine: 8–94 ms at 12 bits, 16–152 ms
+    at 14, 27–695 ms at 16, 33 ms–4.1 s at 18; a phone several times
+    slower — one bit more past half the day's budget, one more past four
+    fifths), computed in a Worker
     (`/assets/chest-work.js`, emitted by `chestConfig`: the strict policy
     runs only the tool's own files), checked from one hash before
     anything is counted; tested: 60 unsolved calls at once refused, a

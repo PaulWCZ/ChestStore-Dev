@@ -491,9 +491,10 @@ function leadingZeros(bytes: Uint8Array, bits: number): boolean {
   return bits === 0 || bytes[i]! >> (8 - bits) === 0;
 }
 // The proof of work an action's next token asks: its base (work: true is
-// 16 bits — about half a second on a mid-range phone), two bits more once
-// half of the day's budget is spent, two more past four fifths.
-const baseBits = (bound: Bound) => (bound.work === true ? 16 : typeof bound.work === "number" ? bound.work : 0);
+// 14 bits — measured in Chromium on a laptop: about 60 ms on average, 0.5 s
+// at worst; a mid-range phone four or five times that), one bit more (twice
+// the work) once half of the day's budget is spent, two past four fifths.
+const baseBits = (bound: Bound) => (bound.work === true ? 14 : typeof bound.work === "number" ? bound.work : 0);
 async function workBits(name: string, bound: Bound): Promise<number> {
   const base = baseBits(bound);
   if (base === 0) return 0;
@@ -502,7 +503,7 @@ async function workBits(name: string, bound: Bound): Promise<number> {
   const [row] = await db()<{ used: number }[]>`select coalesce(sum(count), 0)::int as used from chest_bounds where visitor = '*' and day = current_date and (scope = ${name} or scope like ${name + ":%"}) and scope <> ${name + ":refused"}`.catch(() => [{ used: 0 }]);
   const perDay = budgetOf(bound).perDay;
   const used = row?.used ?? 0;
-  return base + (used > perDay / 2 ? 2 : 0) + (used > (perDay * 4) / 5 ? 2 : 0);
+  return base + (used > perDay / 2 ? 1 : 0) + (used > (perDay * 4) / 5 ? 1 : 0);
 }
 // A token ours, for this action, younger than its minutes, with its proof
 // of work when it asks one, and never served: taken (in chest_seen) — a

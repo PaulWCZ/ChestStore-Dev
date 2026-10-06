@@ -362,9 +362,10 @@ export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, c
 // checkSources() fails on a publicAction without bound; bound: false says
 // the action writes nothing anyone could fill (or guards itself).
 export type Budget = { perVisitor: number; perDay: number; perSubject?: number };
-// work: a proof of work the browser computes before it sends (a Worker,
-// about half a second on a mid-range phone for true = 16 bits; harder as
-// the day's budget runs low) — a robot pays it for every call. The form
+// work: a proof of work the browser computes before it sends (a Worker;
+// true = 14 bits, a fraction of a second on a laptop, about a second at
+// worst on a mid-range phone; twice, then four times harder as the day's
+// budget runs low) — a robot pays it for every call. The form
 // then needs JavaScript.
 export type Bound = (Budget | { budgets: Readonly<Record<string, Budget>> }) & { formMinutes?: number; formSeconds?: number; work?: boolean | number };
 // What a public action's run gets: the visitor, and charge(kind, { subject }),

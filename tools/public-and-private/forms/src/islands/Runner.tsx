@@ -1,6 +1,6 @@
 import { DateField, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import type { DateWords, FileWords } from "@argentic/chest-ui/components/logic";
-import { call, Honeypot, type ErrorCode } from "@argentic/chest-app/client";
+import { call, FormToken, Honeypot, type ErrorCode } from "@argentic/chest-app/client";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Arrow, Back, Check, Down, StarIcon, Up } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
@@ -462,7 +462,7 @@ export function Runner(props: RunnerProps) {
   const shell = (children: ReactNode, progress: number | null) => (
     <div ref={root} className={`runner layout-${props.layout}`} data-accent={props.accent}>
       {/* The field only robots fill, and the page's form token. */}
-      {mode === "public" && <Honeypot />}
+      {mode === "public" && <><Honeypot action="answerPublic" /><FormToken action="visitorUpload" /></>}
       {progress !== null && (
         <div className="runner-progress" role="progressbar" aria-label={w.progressLabel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
           <Fill fraction={progress} />

@@ -542,7 +542,7 @@ test("bound.work: a token asks a proof of work; a flood that does not compute it
   const token = formToken("hard", Date.now(), 8);
   const done = await send(token, solveWork(token));
   assert.equal(done.status, 200);
-  assert.match((await done.json()).form, /^\d{13}\.[\w-]+\.hard\.(8|10|12)\.[\w-]+$/u, "the next token asks a proof too");
+  assert.match((await done.json()).form, /^\d{13}\.[\w-]+\.hard\.(8|9|10)\.[\w-]+$/u, "the next token asks a proof too");
   assert.equal(worked, before + 1);
 });
 

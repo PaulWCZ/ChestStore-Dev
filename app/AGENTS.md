@@ -161,15 +161,17 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   (`{ flooded }` in its context) to keep its checks cheap. A forged or
   old token is refused from its signature alone, before any query.
   **A proof of work** against a robot that loads the page for each fresh
-  token (a form of few places, a booking): `bound: { …, work: true }` —
-  each token asks one (16 bits: about half a second on a mid-range phone,
-  in a Worker, `/assets/chest-work.js`, while the page says it is
-  checking; two bits more once half the day's budget is spent, two more
-  past four fifths). Checked from a hash before anything is counted: a
-  flood that does not compute it costs a signature and a hash. No puzzle,
-  nothing to see or hear, no third party; the form then needs
-  JavaScript. A test sends `{ chest_form: token, chest_work:
-  solveWork(token) }` (`formToken(action, Date.now(), 16)`).
+  token (a form of few places, a booking, an application):
+  `bound: { …, work: true }` — each token asks one (14 bits, found in a
+  Worker, `/assets/chest-work.js`, while the page says it is checking:
+  measured in Chromium on a laptop, about 60 ms on average and 0.5 s at
+  worst; a mid-range phone four or five times that; one bit more — twice
+  the work — once half the day's budget is spent, another past four
+  fifths). Checked from a hash before anything is counted: a flood that
+  does not compute it costs a signature and a hash. No puzzle, nothing to
+  see or hear, no third party; the form then needs JavaScript. A test
+  sends `{ chest_form: token, chest_work: solveWork(token) }`
+  (`formToken(action, Date.now(), 14)`).
   **What it does not do:** the visitor is the address the Chest's front
   gives (`Chest-Visitor-Address`, a studio proposal — no Chest gives it
   yet), else the browser's cookie; a robot that clears its cookie and

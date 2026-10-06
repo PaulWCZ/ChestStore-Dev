@@ -454,7 +454,9 @@ visitor, 20,000 for all forms); a form whose answers go further — a
 contact in Clients, a ticket in Support, a web address, a copy by email —
 200 (20 a visitor, 2,000 for all); 200 files a form (30 a visitor, 1,000
 for all, 10 MiB each). Each answer waits for the page's single-use token
-and three seconds, and a robot that fills the hidden field is answered
+(bound to this action), its proof of work (the package's `bound.work`: a
+fraction of a second in a Worker, harder as the day's budget runs low;
+the form then needs JavaScript) and three seconds, and a robot that fills the hidden field is answered
 "sent" with nothing kept. The tool's log says when a form's day is half,
 four fifths and fully spent (counts and the form's id only). Answers to
 questions a form does not ask, and link values it does not name, are
@@ -574,8 +576,8 @@ seeded (files are the Chest's): the flow uploads one.
   device, 12 hours at most) — a privacy decision to take first.
 - A robot can still fill a public form up to its day's budget (above):
   without a visitor's identity, the budgets bound the harm but do not stop
-  it. A proof of work in the page (the package's next `bound` option) is
-  the next step.
+  it. The proof of work makes each answer cost it real computing time; the
+  Chest's own bot protection (the SDK report) would do better.
 - **Not shown in another website yet** (the Chest's frame policy, above);
   the button code works. Web addresses get each answer (webhooks), but
   there is **no two-way spreadsheet sync** and no Google Sheets
