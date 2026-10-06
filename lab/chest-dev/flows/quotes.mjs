@@ -84,6 +84,8 @@ await step("Hugo sends it: numbered, emailed in French with the PDF", async () =
   const found = /Lisez le devis D-\d{4}-0007 et acceptez-le en ligne\s:\s\S*?(\/q\/[A-Za-z0-9_-]{32})/u.exec(await dev());
   expect(found, "the answer link in the email");
   answerPath = found[1];
+  // To the client only; replies reach the company's address, not the tool.
+  expect(/compta@garage-rossi\.test<br>replies to <code>[^<@]+@[^<]+<\/code>/u.test(await dev()), "Reply-To the company's address");
   expect((await page.locator(".card.online").innerText()).includes("Copy the link"), "the margin gives the link to copy");
 });
 
@@ -616,6 +618,18 @@ await step("the Chest pauses email: Settings says the reminders wait, and nothin
   await page.goto(origin + "/chest/settings");
   await page.getByText("Envoyer un e-mail au client, avec la facture").waitFor();
   expect(await page.locator("section[aria-labelledby=s-reminders] .callout").count() === 0, "sending again: no warning left");
+});
+
+await step("the company's mail not connected: Settings says the reminders only tell the bell, and why", async () => {
+  await control(page, origin, "delivery", { mail: "not_connected" });
+  try {
+    await page.goto(origin + "/chest/settings");
+    const warning = page.locator("section[aria-labelledby=s-reminders] .callout");
+    await warning.waitFor();
+    expect((await warning.innerText()).includes("n’est pas encore connecté"), "not connected, said in French: " + await warning.innerText());
+  } finally {
+    await control(page, origin, "delivery", { mail: "ready" });
+  }
 });
 
 await step("round 3: a new client from its SIREN — the public directory, or an honest word when it cannot be reached", async () => {

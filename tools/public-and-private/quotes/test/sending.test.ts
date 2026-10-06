@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
+import * as mail from "@argentic/chest-sdk/mail";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { pdfOf } from "../src/lib/archive.ts";
 import { company as readCompany } from "../src/lib/company.ts";
 import { finalise, getDocument, upcomingNumber } from "../src/lib/documents.ts";
 import { AppError } from "../src/shared/app-error.ts";
+import { mailState } from "../src/lib/mailing.ts";
 import { draftMessage, markReminded, markSent, sendDocument, sendReminder } from "../src/lib/sending.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
@@ -55,24 +57,37 @@ test("a quote goes by email in the client's language, its PDF attached, and is n
   assert.equal(chest.outbox.length, 1);
 });
 
-test("a document sent by hand is transactional: it reaches an addressee who chose no email from the tools", async () => {
+test("a document goes to the client's address, replies to the company's address of Settings (else the Chest's reply address)", async () => {
   const { sql } = database;
-  // The client's contact is also a member of this Chest who said "none".
-  const member = chest.members.find(m => m.id === nora.id)!;
-  member.mailPreference = "none";
-  chest.clearCaches();
+  const c = await client(sql, { name: "Petit Conseil", email: "contact@petit-conseil.test" });
+  const q = await draft(sql, "quote", c.id, [line("Audit", 1000, 90000)], ines);
+  const message = draftMessage(await getDocument(sql, asMember(ines), q.id, today), "send", context);
+  assert.equal((await sendDocument(sql, asMember(ines), q.id, message, today)).delivery, "email");
+  const sent = chest.outbox.at(-1)!;
+  assert.deepEqual(sent.to, ["contact@petit-conseil.test"]);
+  assert.equal(sent.replyTo, (await readCompany(sql)).email || "contact@atelier-martin.test");
+  assert.equal(sent.attachments[0]?.type, "application/pdf");
+});
+
+test("a member is never a mail recipient: the Chest refuses an mbr_ address", async () => {
+  await assert.rejects(mail.send({ to: nora.id, subject: "x", text: "x" }), (e: Error & { code?: string }) => e.code === "invalid_recipient");
+});
+
+test("the company's mail not connected: nothing goes, the quote stays as it was, and the dialog says send it yourself", async () => {
+  const { sql } = database;
+  const c = await client(sql, { name: "Sans Mail", email: "hello@sans-mail.test" });
+  const q = await draft(sql, "quote", c.id, [line("Audit", 1000, 90000)], ines);
+  const message = draftMessage(await getDocument(sql, asMember(ines), q.id, today), "send", context);
+  const before = chest.outbox.length;
+  chest.delivery.mail = "not_connected";
   try {
-    const c = await client(sql, { name: "Petit Conseil", email: nora.email! });
-    const q = await draft(sql, "quote", c.id, [line("Audit", 1000, 90000)], ines);
-    const message = draftMessage(await getDocument(sql, asMember(ines), q.id, today), "send", context);
-    const held = chest.held.length;
-    assert.equal((await sendDocument(sql, asMember(ines), q.id, message, today)).delivery, "email");
-    assert.deepEqual(chest.outbox.at(-1)?.to, [nora.email]);
-    assert.equal(chest.held.length, held, "nothing held back");
+    assert.deepEqual((await mailState(sql)).reason, "not_connected");
+    assert.equal((await sendDocument(sql, asMember(ines), q.id, message, today)).delivery, "no_mail");
   } finally {
-    delete member.mailPreference;
-    chest.clearCaches();
+    chest.delivery.mail = "ready";
   }
+  assert.equal(chest.outbox.length, before);
+  assert.equal((await getDocument(sql, asMember(ines), q.id, today)).status, "draft");
 });
 
 test("an English client gets an English email; a message is checked", async () => {

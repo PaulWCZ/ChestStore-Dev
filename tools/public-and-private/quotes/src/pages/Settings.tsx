@@ -49,7 +49,7 @@ export async function settingsPage(ctx: PageContext<MemberContext>): Promise<Vie
           logo: c.logo ? `/chest/logo?v=${encodeURIComponent(c.logo)}` : null,
           terms: c.terms ? { name: c.terms.name, size: formatSize(c.terms.size, locale) } : null,
           rates: vatRates.filter(r => r > 0).map(r => ({ rate: String(r), text: formatRate(r, locale) })),
-          mailReason: (await mailState(sql)).reason,
+          ...(({ reason, replyTo }) => ({ mailReason: reason, replyTo }))(await mailState(sql)),
         }} />
         <Island name="NumberingPanel" props={{
           t: { settings: { numbering: s.numbering, sections: s.sections }, kit: t.kit, common: t.common },

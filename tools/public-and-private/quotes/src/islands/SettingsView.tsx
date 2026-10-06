@@ -22,7 +22,7 @@ const fieldOf: Record<string, keyof Fields> = {
 };
 const forms = ["SARL", "SAS", "SASU", "EURL", "EI", "SA", "SCOP", "SNC", "SCI"];
 
-export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, terms, rates, mailReason }: { mailReason: MailState["reason"]; t: SettingsWords; locale: Locale; company: Company; missing: readonly string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; terms: { name: string; size: string } | null; rates: readonly { rate: string; text: string }[] }) {
+export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, terms, rates, mailReason, replyTo }: { mailReason: MailState["reason"]; replyTo: string | null; t: SettingsWords; locale: Locale; company: Company; missing: readonly string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; terms: { name: string; size: string } | null; rates: readonly { rate: string; text: string }[] }) {
   const s = t.settings;
   const r = s.reminderRules;
   const [f, setF] = useState<Fields>({
@@ -184,7 +184,7 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
                 <span className="hint">{s.termsHint}</span>
               </div>
             </div>
-            {text("email", s.fields.email, { className: "third", inputMode: "email", max: 254, hint: s.hints.email })}
+            {text("email", s.fields.email, { className: "third", inputMode: "email", max: 254, hint: f.email.trim() === "" && replyTo ? format(s.hints.emailEmpty, { address: replyTo }) : s.hints.email })}
             {text("phone", s.fields.phone, { className: "third", inputMode: "tel", max: 40 })}
             {text("website", s.fields.website, { className: "third", inputMode: "url", max: 120 })}
           </div>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chestSchedules as POST } from "../src/lib/deliveries.ts";
 import { updateCompany } from "../src/lib/company.ts";
 import { finalise, getDocument, listDocuments } from "../src/lib/documents.ts";
@@ -83,7 +83,7 @@ test("reminders by the bell only, when the company says so or the client has no 
   assert.equal(run.told, 1);
   assert.equal(chest.outbox.length, sent);
   // Camille finalised it and is still an issuer (admin): she hears of it.
-  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}` && n.title.includes("en retard de 8 jours")));
+  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}` && shownTo(n, "fr").title.includes("en retard de 8 jours")));
   await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
 });
 
@@ -149,10 +149,10 @@ test("the entries of a deposit invoice and of the final invoice that takes it ba
 
 test("mail not connected in the Chest: the morning's reminders go to the bell only, and pages say why (mail.available)", async () => {
   const { sql } = database;
-  assert.deepEqual(await mailState(sql), { works: true, reason: null });
+  assert.deepEqual(await mailState(sql), { works: true, reason: null, replyTo: "contact@atelier-martin.test" });
   chest.delivery.mail = "not_connected";
   try {
-    assert.deepEqual(await mailState(sql), { works: false, reason: "not_connected" });
+    assert.deepEqual(await mailState(sql), { works: false, reason: "not_connected", replyTo: "contact@atelier-martin.test" });
     await updateCompany(sql, asMember(camille), { remindersOn: true, remindersEmail: true, reminderDays: "7" });
     const c = await client(sql, { name: "Hors ligne SARL", siren: "", vatNumber: "" });
     const inv = await finalise(sql, asMember(camille), (await draft(sql, "invoice", c.id, [line("Site", 1000, 40000)])).id, "2029-06-01");
@@ -163,10 +163,10 @@ test("mail not connected in the Chest: the morning's reminders go to the bell on
     assert.equal(chest.outbox.length, sent, "no email tried");
     assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}`));
     chest.delivery.mail = "suspended";
-    assert.deepEqual(await mailState(sql), { works: false, reason: "suspended" });
+    assert.deepEqual(await mailState(sql), { works: false, reason: "suspended", replyTo: "contact@atelier-martin.test" });
   } finally {
     chest.delivery.mail = "ready";
     await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
   }
-  assert.deepEqual(await mailState(sql), { works: true, reason: null });
+  assert.deepEqual(await mailState(sql), { works: true, reason: null, replyTo: "contact@atelier-martin.test" });
 });

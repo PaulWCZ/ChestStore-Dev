@@ -3,13 +3,15 @@ import * as mail from "@argentic/chest-sdk/mail";
 import type { Query } from "./db.ts";
 import { company, rememberMail } from "./company.ts";
 
-// Whether the Chest would send email now (mail.available(), studio.16),
+// Whether the Chest would send email now (mail.available()),
 // asked before a page offers to send one: the send dialog opens on "send
 // it yourself" when it would not, and Settings says why the automatic
 // reminders only tell the bell. A snapshot: a send can still fail, and
 // sending says so. When the Chest does not answer, what the last send
 // taught (company.mail_works) — null when nothing is known.
-export type MailState = { works: boolean | null; reason: "not_granted" | "not_connected" | "suspended" | "quota" | null };
+// replyTo: the company's reply address the owner set with the Chest's
+// mail connector — where clients' replies go when Settings has no email.
+export type MailState = { works: boolean | null; reason: "not_granted" | "not_connected" | "suspended" | "quota" | null; replyTo: string | null };
 
 export async function mailState(sql: Query): Promise<MailState> {
   try {
@@ -17,10 +19,10 @@ export async function mailState(sql: Query): Promise<MailState> {
     // Remembered too: the morning's reminders read it when the Chest is
     // not answering.
     if (answer.ok || answer.reason === "not_granted" || answer.reason === "not_connected") await rememberMail(sql, answer.ok);
-    return { works: answer.ok, reason: answer.ok ? null : answer.reason };
+    return { works: answer.ok, reason: answer.ok ? null : answer.reason, replyTo: answer.replyTo ?? null };
   } catch (error) {
     if (!(error instanceof Unavailable)) throw error;
-    return { works: (await company(sql)).mailWorks, reason: null };
+    return { works: (await company(sql)).mailWorks, reason: null, replyTo: null };
   }
 }
 

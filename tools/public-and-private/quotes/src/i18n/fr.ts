@@ -917,6 +917,7 @@ export const fr: Catalogue = {
       vatOnDebits: "Seulement si vous avez opté pour la TVA à la facturation plutôt qu’à l’encaissement (prestations).",
       logo: "Imprimé en haut à gauche de chaque devis et facture.",
       email: "Vos clients répondent à cette adresse.",
+      emailEmpty: "Vos clients répondent à cette adresse. Vide : leurs réponses vont à {address}.",
       paymentDays: "0 signifie à réception ; 60 au plus entre professionnels en France.",
       penaltyRate: "Vide : le taux légal (taux de la BCE majoré de 10 points).",
       penaltyPlaceholder: "Taux BCE + 10 points",

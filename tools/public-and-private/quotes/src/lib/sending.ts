@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { CapabilityNotGranted, ChestError, QuotaExceeded } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError, QuotaExceeded, Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
@@ -15,9 +15,11 @@ import { pdfFileName } from "../pdf/document.ts";
 import { ensureLink } from "./online.ts";
 import { termsFile, termsFileName } from "./terms.ts";
 
-// Sending a document to its client: by email with its PDF attached,
-// through the Chest's mail (Proposal (studio): the "mail" capability,
-// chest.proposals.json) — or, where the Chest cannot send email yet, by
+// Sending a document to its client — someone outside the company: by email
+// with its PDF attached, through the Chest's mail connector (Proposal
+// (studio): "mail" in chest.proposals.json, backed by the company's own
+// mail provider; not built yet), Reply-To the company's address of
+// Settings (or the connector's own reply address when Settings has none) — or, where the Chest cannot send email yet, by
 // the member's own means: they download the PDF, send it, and the tool
 // records it as sent. The email is written in the client's language (the
 // document's), and the member may change it before it goes.
@@ -91,14 +93,12 @@ async function deliver(sql: Sql, full: Full, message: Message, fromName: string,
       ...(replyTo ? { replyTo } : {}),
       ...(bytes ? { attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }, ...(terms ? [{ name: termsFileName(full.language), type: "application/pdf", content: terms.bytes }] : [])] } : {}),
       key,
-      // The quote the client asked for, the invoice of what they bought:
-      // sent by a person, it must arrive whatever an addressee who is a
-      // member of this Chest chose for email (the automatic reminders
-      // below honour that choice).
-      transactional: true,
     });
   } catch (error) {
-    if (error instanceof CapabilityNotGranted) {
+    // No mail on this Chest, or its owner has not connected the company's
+    // mail provider (Unavailable — also a Chest that did not answer):
+    // nothing went, and the dialog offers to send it yourself.
+    if (error instanceof CapabilityNotGranted || error instanceof Unavailable) {
       await rememberMail(sql, false);
       return "no_mail";
     }
@@ -228,6 +228,9 @@ export async function sendAutomaticReminder(sql: Sql, full: Full, step: number, 
       await rememberMail(sql, false);
       return "no_mail";
     }
+    // Unavailable (paused, or no answer) is thrown: the step comes back
+    // the next morning (reminders.ts). Not connected is known before:
+    // remindByEmail sends nothing then, and the bell alone tells billing.
     if (error instanceof ChestError && (error.code === "suppressed" || error.code === "invalid_address")) return "no_mail";
     throw error;
   }
