@@ -49,7 +49,7 @@ export function HooksBox({ formId, delivery, hooks, anonymous, canEdit, t }: { f
     if (r.ok) toast({ id: "hooks", text: s.hookRemoved });
   };
   return (
-    <fieldset className="panel">
+    <fieldset className="panel hooks">
       <legend>{s.hooksTitle}</legend>
       {anonymous ? <p className="hint">{s.hooksAnonymous}</p> : (
         <>

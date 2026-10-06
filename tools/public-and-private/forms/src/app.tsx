@@ -96,8 +96,8 @@ routes.get("/chest/forms/:id/answers/:answer", members(answerPage));
 // The answers leaving: a CSV, and everything in a ZIP — written as they
 // are read (src/lib/downloads.ts); a refusal is a page in the reader's
 // words. Links to them carry `download`.
-routes.get("/chest/forms/:id/answers.csv", download(({ member, t, locale, param }) => answersCsv(db(), member, param("id"), t, localeOf(locale), chestZone())));
-routes.get("/chest/forms/:id/answers.zip", download(({ member, t, locale, param }) => archive(db(), member, param("id"), t, localeOf(locale), chestZone())));
+routes.get("/chest/forms/:id/export", download(({ member, t, locale, param }) => answersCsv(db(), member, param("id"), t, localeOf(locale), chestZone())));
+routes.get("/chest/forms/:id/archive", download(({ member, t, locale, param }) => archive(db(), member, param("id"), t, localeOf(locale), chestZone())));
 // A file of an answer: whoever may read the form's answers gets a fresh
 // signed link to it from the Chest (15 minutes), never a lasting address.
 routes.get("/chest/forms/:id/files/:answer/:question", download(async ({ member, param, query }) => {

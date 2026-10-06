@@ -131,7 +131,7 @@ test(`a public form of ${size.toLocaleString("en")} answers: its list, its answe
 
 test(`its CSV of ${size.toLocaleString("en")} lines is written as it is read`, { skip: !server }, async () => {
   const started = performance.now();
-  const response = await get(`/chest/forms/${formId}/answers.csv`);
+  const response = await get(`/chest/forms/${formId}/export`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   const text = new TextDecoder().decode(bytes);
   assert.equal(text.trimEnd().split("\r\n").length, size + 1);
@@ -144,7 +144,7 @@ test("its archive — the CSV, the form, 300 photos of 100 KB — is written as 
   photo.set([0xff, 0xd8, 0xff]);
   for (let g = 1; g <= 300; g++) chest.files.set(`answers/${formId}/${g.toString(16).padStart(20, "0")}.jpg`, { data: photo, type: "image/jpeg", updated: new Date().toISOString() } as never);
   const started = performance.now();
-  const response = await get(`/chest/forms/${formId}/answers.zip`);
+  const response = await get(`/chest/forms/${formId}/archive`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   const entries = readZip(bytes);
   assert.equal(entries.filter(e => e.name.endsWith(".jpg")).length, 300);
@@ -170,7 +170,7 @@ test(`an anonymous form of ${size.toLocaleString("en")} answers: its texts cappe
   const page = await (await get(`/chest/forms/${anonymousId}/answers`, camille)).text();
   assert.ok(page.length < 200_000, `${page.length} bytes`);
   assert.match(page, /300 (of|sur) 10[\s\u202f,.]?000/u);
-  const csv = await (await get(`/chest/forms/${anonymousId}/answers.csv`, camille)).text();
+  const csv = await (await get(`/chest/forms/${anonymousId}/export`, camille)).text();
   assert.equal(csv.split("\r\n").filter(l => /^Why\?[;,]Because of reason/u.test(l)).length, size);
   const started = performance.now();
   const sent = await call("answerTeam", { slug: anonymousSlug, version: 1, answers: { qmoodxxx: 4, qwhyxxxx: "Fine" } }, hugo);

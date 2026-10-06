@@ -44,8 +44,8 @@ export async function answersPage({ sql, member, t, lang, zone, param, query }: 
   const frame = (body: ReactNode) => ({ title: form.draft.title || t.builder.untitled, body: <FormFrame form={form} level={level} tab="answers" t={t} lang={lang}>{body}</FormFrame> });
   const exports = (
     <span className="exports">
-      <a className="button quiet small" href={`${base}/answers.csv`} download><Download />{form.anonymous ? t.answers.exportSummary : t.answers.export}</a>
-      {!form.anonymous && <a className="button quiet small" href={`${base}/answers.zip`} download><Zip />{t.answers.archive}</a>}
+      <a className="button quiet small" href={`${base}/export`} download><Download />{form.anonymous ? t.answers.exportSummary : t.answers.export}</a>
+      {!form.anonymous && <a className="button quiet small" href={`${base}/archive`} download><Zip />{t.answers.archive}</a>}
     </span>
   );
   const head = <AnswersSwitch base={base} current="list" t={t} />;

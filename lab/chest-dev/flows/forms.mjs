@@ -173,7 +173,7 @@ await step("a closing day before today is refused as typed: nothing is saved whi
 });
 
 // A visitor on a phone, in French.
-const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR", isMobile: true, hasTouch: true });
+const phone = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, locale: "fr-FR", isMobile: true, hasTouch: true });
 await phone.addCookies([{ name: "lang", value: "fr", url: origin }]);
 const visitor = await phone.newPage();
 visitor.on("pageerror", e => problems.push("visitor: " + e.message));
@@ -306,7 +306,7 @@ await step("a form in two languages: French visitors read the French version, ot
   await fr.goto(origin + "/p4x8vn2c");
   expect((await fr.locator(".runner-title").innerText()).startsWith("Portes ouvertes"), "French version");
   expect((await fr.locator(".form-button").innerText()).includes("Envoyer"), "French words");
-  const en = await browser.newContext({ locale: "en-GB" });
+  const en = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
   await en.addCookies([{ name: "lang", value: "en", url: origin }]);
   const g = await en.newPage();
   await g.goto(origin + "/p4x8vn2c");
@@ -503,7 +503,7 @@ await step("a contact form also makes a contact in Clients and opens a ticket in
   await page.waitForSelector("dialog[open]");
   const contactLink = (await page.locator("dialog[open] code").innerText()).trim();
   await page.keyboard.press("Escape");
-  const v = await browser.newPage();
+  const v = await browser.newPage({ ignoreHTTPSErrors: true });
   await v.goto(contactLink);
   await v.getByLabel("Your name").fill("Nina Roux");
   await v.getByLabel("Your email address").fill("nina.roux@example.com");
@@ -523,7 +523,7 @@ await step("one message, one email: with a copy on, an answer Support took gets 
   await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
   expect((await page.locator("main").innerText()).includes("Support confirms each request by email"), "Settings says why no copy goes");
   await page.waitForSelector(".save-state.saved", { timeout: 10000 });
-  const v = await browser.newPage();
+  const v = await browser.newPage({ ignoreHTTPSErrors: true });
   await v.goto(origin + "/c2n6yd8u");
   await v.getByLabel("Your name").fill("Marc Petit");
   await v.getByLabel("Your email address").fill("marc.petit@example.com");
@@ -579,7 +579,7 @@ await step("web addresses: a Slack channel added in Settings gets each new answe
   expect(!(await box.innerText()).includes("abcdefghijklmnopqrstuvwx"), "the secret path is never shown");
   // A visitor answers the sample contact form (published in the step
   // before): the channel is told, in the Chest's words, with a link.
-  const v = await browser.newPage();
+  const v = await browser.newPage({ ignoreHTTPSErrors: true });
   await v.goto(origin + "/c2n6yd8u");
   await v.getByLabel("Your name").fill("Paul Lemaire");
   await v.getByLabel("Your email address").fill("paul.lemaire@example.com");

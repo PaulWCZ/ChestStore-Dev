@@ -233,6 +233,8 @@ select.field { appearance: auto; }
 .panel { background: var(--surface); border-radius: var(--radius-l); padding: var(--space-5); box-shadow: var(--shadow-card); border: 0; margin: 0; display: grid; gap: var(--space-2); min-width: 0; }
 .panel > h2, .panel > legend { font-family: var(--font-display); font-size: var(--text-xl); margin-bottom: var(--space-2); float: left; width: 100%; }
 .panel > legend + * { clear: both; }
+/* The web addresses answers go to (Settings): one box, kept apart. */
+.hooks { scroll-margin-top: var(--space-6); }
 .quiet-panel { background: transparent; box-shadow: none; border: max(1.5px, var(--border-width)) dashed var(--line-strong); }
 .quiet-panel > h2 { font-size: var(--text-l); }
 .choice-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); }

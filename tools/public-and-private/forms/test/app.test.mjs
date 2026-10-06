@@ -208,16 +208,16 @@ test("the answers: the table's island, a filter in the address, an answer's page
   assert.match(await one.text(), /data-island="FollowUp"/u);
   const followed = await call(ines, "followAnswer", { id: "1", answer: table.rows[0].id, status: "doing", note: "Called back" });
   assert.equal(followed.status, 200);
-  const csv = await get(ines, "/chest/forms/1/answers.csv");
+  const csv = await get(ines, "/chest/forms/1/export");
   assert.equal(csv.status, 200);
   assert.match(csv.headers.get("content-disposition"), /attachment; filename="How-did-we-do.csv"/u);
   const text = await csv.text();
   assert.ok(text.split("\r\n").length > 20);
   assert.match(text, /En cours;Called back/u, "French: the separator and the follow-up");
-  const zip = await get(ines, "/chest/forms/1/answers.zip");
+  const zip = await get(ines, "/chest/forms/1/archive");
   assert.equal(zip.headers.get("content-type"), "application/zip");
   assert.ok((await zip.arrayBuffer()).byteLength > 1000);
-  assert.equal((await get(tom, "/chest/forms/1/answers.csv")).status, 404);
+  assert.equal((await get(tom, "/chest/forms/1/export")).status, 404);
 });
 
 test("an anonymous form: no table, no row, its texts shuffled; its CSV the summary", async () => {
@@ -226,7 +226,7 @@ test("an anonymous form: no table, no row, its texts shuffled; its CSV the summa
   const html = await page.text();
   assert.doesNotMatch(html, /data-island="AnswersTable"/u);
   assert.match(html, /class="summary-list"|Pas encore assez|Not enough answers/u);
-  assert.equal((await get(camille, "/chest/forms/4/answers.zip")).status, 400);
+  assert.equal((await get(camille, "/chest/forms/4/archive")).status, 400);
 });
 
 test("a team form, answered in the Chest: the respondent's frame without the tool's bar; answered once", async () => {
