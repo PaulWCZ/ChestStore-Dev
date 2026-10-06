@@ -1,9 +1,18 @@
 // Support, as customers and the team use it, in a real browser:
 //   node lab/chest-dev/flows/helpdesk.mjs [port]   (harness with --reset)
+import postgres from "postgres";
 import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4000);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { allow404: /\/chest\/tickets\/9999$/u });
+// The form counts five requests an hour per visitor, known by the address
+// the Chest's front saw (Chest-Visitor-Address). The harness's front sees
+// one machine: every visitor of a flow is the same one. A step that plays a
+// new visitor clears the form's counters (the tool's database, as the
+// harness names it: t_helpdesk, t_helpdesk_<port> off port 4000).
+const database = "t_helpdesk" + (port === 4000 ? "" : `_${port}`);
+const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, `/${database}`), { max: 1, onnotice: () => {} });
+const newVisitor = () => db`delete from form_counts`;
 let followUp = "";
 let lucie = 0;
 // Small files as a browser would pick them.
@@ -549,7 +558,7 @@ await step("the customer rates a closed request; the follow-up page speaks the r
 await step("a request sent twice is one ticket; the second sending lands on it", async () => {
   await context.clearCookies();
   // A visitor of their own (the form counts five requests an hour per visitor).
-  await page.setExtraHTTPHeaders({ "x-forwarded-for": "203.0.113.21" });
+  await newVisitor();
   const send = async () => {
     await page.goto(origin + "/");
     await page.getByLabel("Your name").fill("Marc Lenoir");
@@ -713,7 +722,7 @@ await step("Status says an incident is in progress: a banner above the inbox and
 
 await step("public form on a phone: a wrong address is said under its field; files in plain words", async () => {
   await context.clearCookies();
-  await page.setExtraHTTPHeaders({ "x-forwarded-for": "203.0.113.22" });
+  await newVisitor();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/");
   expect((await page.locator("form").innerText()).includes("photos, PDF, Word, Excel and text files"), "kinds of files in words");
@@ -728,7 +737,6 @@ await step("public form on a phone: a wrong address is said under its field; fil
   expect(await page.getByLabel("Your email address").getAttribute("aria-invalid") === "true", "the field is marked");
   const field = await page.getByLabel("Your email address").boundingBox(), said = await page.locator("#email-error").boundingBox();
   expect(said.y > field.y && said.y - field.y < 120, "the message is under the field");
-  await page.setExtraHTTPHeaders({});
 });
 
 await step("phone: the inbox's first ticket near the top; the folder is one choice; filters behind one button", async () => {
@@ -778,4 +786,5 @@ await step("phone width: public form, inbox and ticket fit", async () => {
 });
 
 await browser.close();
+await db.end();
 done(problems);
