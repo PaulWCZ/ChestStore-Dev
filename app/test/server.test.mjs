@@ -5,7 +5,7 @@ import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
 import { formToken, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
 import { AppError as BrowserError } from "../dist/client.js";
-import { applies } from "../dist/runtime.js";
+import { addressOf, applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
@@ -398,4 +398,10 @@ test("after a change in place, the focus goes to <main> only if nothing new took
   assert.equal(focusMain(gone, panel, body), false, "a panel that arrived focused itself: kept");
   assert.equal(focusMain(panel, panel, body), false, "the focused element stayed");
   assert.equal(focusMain(body, body, body), false);
+});
+
+test("a page read in place keeps the place the link named (#…), which fetch() never sends", () => {
+  assert.equal(addressOf("https://tool.test/chest/items/2", "/chest/items/2#problems"), "https://tool.test/chest/items/2#problems");
+  assert.equal(addressOf("https://tool.test/chest/items/2", "https://tool.test/chest/items/2"), "https://tool.test/chest/items/2");
+  assert.equal(addressOf("https://tool.test/chest/b#x", "/chest/a#y"), "https://tool.test/chest/b#x", "a redirect's own fragment wins");
 });

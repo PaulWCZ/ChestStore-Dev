@@ -85,7 +85,7 @@ test("give and take back from the item's page: the island's actions, the history
   assert.equal(given.ok, true);
   const page = await html(sofia, `/chest/items/${mac}`);
   assert.match(page, /data-island="ItemControls"/u);
-  assert.match(page, new RegExp(`id="item-${mac}"`, "u"));
+  assert.match(page, new RegExp(`id="i-item-${mac}"`, "u"));
   assert.match(page, /Hugo Bernard/u);
   assert.match(page, /Like new/u);
   // The label's QR code opens the item's page on the Chest's team host.

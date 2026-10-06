@@ -17,7 +17,7 @@ export async function importPage({ member, locale: language, t, f }: PageContext
     <div className="narrow">
       <h1 className="page-title">{t.importer.title}</h1>
       <p className="muted lead">{t.importer.intro}</p>
-      <Island id="importer" name="Importer" props={{ t: { importer: t.importer, status: t.status, categories: t.categories, files: t.files, table: t.table }, locale,
+      <Island id="i-importer" name="Importer" props={{ t: { importer: t.importer, status: t.status, categories: t.categories, files: t.files, table: t.table }, locale,
         intune: { connected: intune.connected, last, lastFailed: failed } }} />
     </div>
   ) };

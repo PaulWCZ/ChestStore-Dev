@@ -160,7 +160,7 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
                     )}
                     <div className="problem-foot">
                       <span className="small muted"><Avatar name={nameOf(names.get(p.reportedBy), locale)} photo={names.get(p.reportedBy)?.photo ?? null} size="s" /> {format(t.overview.reportedBy, { name: p.reportedBy === "erased" ? t.people.erased : nameOf(names.get(p.reportedBy), locale), when: relative(p.createdAt, locale, now) })}</span>
-                      <Island id={`solve-${p.id}`} name="SolveButton" props={{ id: p.id, label: t.overview.solved, done: t.overview.solvedDone }} />
+                      <Island id={`i-solve-${p.id}`} name="SolveButton" props={{ id: p.id, label: t.overview.solved, done: t.overview.solvedDone }} />
                     </div>
                   </li>
                 ))} />
@@ -228,7 +228,7 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
                         <Avatar name={name} photo={names.get(u.member)?.photo ?? null} size="m" />
                         <span className="mini-what"><span className="strong">{u.item.name}</span> <AssetTag tag={u.item.tag} /> <span className="muted">{name} · {format(t.overview.givenOn, { date: formatDay(u.givenOn, locale, { day: "numeric", month: "short" }) })}</span></span>
                       </a>
-                      {u.member.startsWith("mbr_") && <Island id={`remind-${u.item.id}`} name="RemindButton" props={{ id: u.item.id, name, item: u.item.name, done: u.remindedToday, t: { overview: t.overview } }} />}
+                      {u.member.startsWith("mbr_") && <Island id={`i-remind-${u.item.id}`} name="RemindButton" props={{ id: u.item.id, name, item: u.item.name, done: u.remindedToday, t: { overview: t.overview } }} />}
                     </li>
                   );
                 })} />

@@ -34,7 +34,7 @@ export async function peoplePage({ member, locale: language, t }: PageContext): 
     <div className="wide">
       <PageHeader size="m" title={t.peopleList.title} intro={t.peopleList.intro} />
       {!team.ok && <p className="notice">{t.peopleList.unavailable}</p>}
-      <Island id="people" name="PeopleView" props={{ leavers, members, t: t.peopleList, search: t.search }} />
+      <Island id="i-people" name="PeopleView" props={{ leavers, members, t: t.peopleList, search: t.search }} />
       {placeList.length > 0 && (
         <section aria-labelledby="places">
           <h2 id="places" className="section-title">{t.peopleList.places}</h2>

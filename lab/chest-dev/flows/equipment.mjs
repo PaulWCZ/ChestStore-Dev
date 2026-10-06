@@ -481,7 +481,7 @@ await step("the initials of someone who left are theirs: TW for “Tom Walker (f
 });
 
 await step("phone, French: Inès reports a problem from her list; no horizontal scroll", async () => {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR" });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR", ignoreHTTPSErrors: true });
   await phone.addCookies([{ name: "dev_member", value: id("ines"), url: origin }, { name: "dev_locale", value: "fr", url: origin }]);
   const p = await phone.newPage();
   p.on("pageerror", e => problems.push("phone: " + e.message));
@@ -635,7 +635,7 @@ await step("Intune: the overview's news, the item's facts, and the import page (
 });
 
 await step("phone, French, a manager: long sections fold to three lines; the search box's words fit", async () => {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR" });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR", ignoreHTTPSErrors: true });
   await phone.addCookies([{ name: "dev_member", value: id("sofia"), url: origin }, { name: "dev_locale", value: "fr", url: origin }]);
   const p = await phone.newPage();
   p.on("pageerror", e => problems.push("phone: " + e.message));

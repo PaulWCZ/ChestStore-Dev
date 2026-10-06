@@ -62,17 +62,17 @@ export async function minePage({ member, locale: language, t, f }: PageContext):
         {problemsOf(item.id).map((p: Problem) => <p key={p.id} className="sent small">{format(t.mine.reported, { when: relative(p.createdAt, locale, now), text: p.body.length > 80 ? p.body.slice(0, 79) + "…" : p.body })}</p>)}
         <div className="label-actions row">
           {unconfirmed && (
-            <Island id={`receive-${item.id}`} name="ReceiveButton" props={{ id: item.id, name: item.name, label: t.item.received, primary: toConfirm, given: givenText(item, r), condition: r?.condition ?? null,
+            <Island id={`i-receive-${item.id}`} name="ReceiveButton" props={{ id: item.id, name: item.name, label: t.item.received, primary: toConfirm, given: givenText(item, r), condition: r?.condition ?? null,
               charter: charter ? { id: charter.id, body: charterText(charter, t) } : null, t: { receive: t.receive, common: t.common, dialog: t.dialog } }} />
           )}
-          <Island id={`report-${item.id}`} name="ReportButton" props={{ id: item.id, name: item.name, label: t.mine.report, t: words }} />
+          <Island id={`i-report-${item.id}`} name="ReportButton" props={{ id: item.id, name: item.name, label: t.mine.report, t: words }} />
         </div>
       </li>
     );
   }
 
   const empty = held.items.length === 0 && held.seats.length === 0;
-  const ask = <Island id="ask" name="AskButton" props={{ categories: categories.map(c => ({ id: c.id, name: categoryName(c, t) })), t: { requests: t.requests, common: t.common, dialog: t.dialog }, primary: empty }} />;
+  const ask = <Island id="i-ask" name="AskButton" props={{ categories: categories.map(c => ({ id: c.id, name: categoryName(c, t) })), t: { requests: t.requests, common: t.common, dialog: t.dialog }, primary: empty }} />;
   return { title: t.mine.title, body: (
     <div className="wide">
       <PageHeader

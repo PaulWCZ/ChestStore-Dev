@@ -18,7 +18,7 @@ export async function settingsPage({ member, locale: language, t }: PageContext)
     <div className="narrow">
       <h1 className="page-title">{t.settings.title}</h1>
       <p className="muted lead">{t.settings.intro}</p>
-      <Island id="categories" name="CategoriesView" props={{
+      <Island id="i-categories" name="CategoriesView" props={{
         categories: counts.map(c => ({
           id: c.id, name: c.name ?? "", builtIn: c.key ? t.categories[c.key] : null, icon: c.icon, kind: c.kind, total: c.total, membersSee: c.membersSee,
           fields: fields.filter(f => f.categoryId === c.id).map(f => ({ id: f.id, name: fieldName(f, t), type: f.type })),
@@ -27,7 +27,7 @@ export async function settingsPage({ member, locale: language, t }: PageContext)
         locale,
       }} />
       <p className="small muted">{format(t.settings.currency, { currency: chest.currency })}</p>
-      <Island id="rules" name="RulesView" props={{ body: charter ? charterText(charter, t) : "", t: { settings: t.settings, common: t.common } }} />
+      <Island id="i-rules" name="RulesView" props={{ body: charter ? charterText(charter, t) : "", t: { settings: t.settings, common: t.common } }} />
     </div>
   ) };
 }

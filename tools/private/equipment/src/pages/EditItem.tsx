@@ -24,7 +24,7 @@ export async function editItemPage({ member, t, param }: PageContext): Promise<V
   return { title, body: (
     <div className="narrow">
       <h1 className="page-title">{title}</h1>
-      <Island id={`item-edit-${item.id}`} name="ItemForm" props={{
+      <Island id={`i-item-edit-${item.id}`} name="ItemForm" props={{
         mode: "edit",
         id: item.id,
         initial: {

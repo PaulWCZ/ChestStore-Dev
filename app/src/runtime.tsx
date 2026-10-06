@@ -109,10 +109,13 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
   }
   const next = new DOMParser().parseFromString(html, "text/html");
   // The page left keeps its scroll in its history entry (Back finds it).
+  // The address read, with the place in the page the link named (#…):
+  // fetch() never sends a fragment, so response.url has none.
+  const address = addressOf(response.url, href);
   if (push === "push") {
     history.replaceState({ scroll: scrollY }, "");
-    history.pushState({ scroll: 0 }, "", response.url);
-  } else if (push === "replace" || response.redirected) history.replaceState({ scroll: scrollY }, "", response.url);
+    history.pushState({ scroll: 0 }, "", address);
+  } else if (push === "replace" || response.redirected) history.replaceState({ scroll: scrollY }, "", address);
   document.title = next.title;
   const form = next.querySelector<HTMLMetaElement>('meta[name="chest-form"]')?.content;
   if (form) setForm(form);
@@ -147,6 +150,15 @@ export function focusMain(before: Focusable, now: Focusable, body: Focusable): b
   return !now || now === body || !now.isConnected;
 }
 
+// The address to show for a page read in place: the server's (after its
+// redirects), with the fragment of the address asked — unless a redirect
+// gave one of its own.
+export function addressOf(read: string, asked: string): string {
+  const url = new URL(read);
+  if (!url.hash) url.hash = new URL(asked, read).hash;
+  return url.href;
+}
+
 // ---- navigate(): another page of the same part without loading it again:
 // its HTML put in place as refresh() does, the address in the history,
 // the top of the page in view, the layout's islands (a toast and its
@@ -171,6 +183,10 @@ export async function navigate(to: string, { replace = false, top = true }: { re
   if (target.origin !== location.origin || members(target.pathname) !== members(location.pathname)) return location.assign(target.href);
   if (!(await load(target.href, replace ? "replace" : "push"))) return;
   if (!top) return;
+  // A place in the page (/chest/items/2#problems): shown, as a page load
+  // would show it.
+  const place = target.hash ? document.getElementById(decodeURIComponent(target.hash.slice(1))) : null;
+  if (place) return void place.scrollIntoView();
   scrollTo(0, 0);
   // Focus at the new page's start: a screen reader reads its heading.
   const main = document.getElementById("main");
