@@ -567,6 +567,7 @@ export const fr: Catalogue = {
     results: { zero: "Aucun résultat", one: "{count} résultat", other: "{count} résultats" },
     groupSize: { one: "{count} personne", other: "{count} personnes" },
     chosen: "Choisis",
+    unreadable: "La liste des personnes n’a pas pu être lue pour le moment. Réessayez dans un instant.",
   },
   date: {
     order: "dmy",

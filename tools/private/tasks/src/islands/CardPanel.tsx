@@ -56,6 +56,8 @@ type Props = {
   linkable: { id: string; title: string }[];
   people: People;
   audience: Person[];
+  // The Chest did not answer who sees the board: the pickers say so.
+  audienceUnreadable?: boolean;
   me: string;
   repeat: RepeatView;
   locale: Locale;
@@ -70,7 +72,7 @@ type Run = (step: () => Promise<Outcome<unknown>>, after?: () => void) => void;
 
 // A card, in full, beside the board. Each change is saved at once; the
 // page refreshes itself from the server after it.
-export function CardPanel({ path, view, card, board, columns, labels, fields, targets, linkable, people, audience, me, repeat, locale, t }: Props) {
+export function CardPanel({ path, view, card, board, columns, labels, fields, targets, linkable, people, audience, audienceUnreadable = false, me, repeat, locale, t }: Props) {
   const [, start] = useTransition();
   const writable = board.writable && !card.archived;
   const canComment = card.access !== "read" && !board.archived;
@@ -205,7 +207,7 @@ export function CardPanel({ path, view, card, board, columns, labels, fields, ta
           <RepeatField card={card} view={repeat} writable={writable} t={t} onSave={rule => run(() => call("setRepeat", rule === null ? { id: card.id } : rule.every === "week" ? { id: card.id, every: "week", days: rule.days } : rule.every === "month" ? { id: card.id, every: "month", day: rule.day } : { id: card.id, every: rule.every }))} />
 
           <Section icon={<People />} title={t.card.assignees}>
-            <Assignees card={card} choices={choices} people={people} writable={writable} locale={locale} t={t} onSave={ids => run(() => call("setAssignees", { id: card.id, people: ids }))} />
+            <Assignees card={card} choices={choices} people={people} writable={writable} unreadable={audienceUnreadable} locale={locale} t={t} onSave={ids => run(() => call("setAssignees", { id: card.id, people: ids }))} />
           </Section>
 
           {(writable || card.blockers.length > 0 || card.blocking.length > 0) && (
@@ -447,7 +449,7 @@ function TitleField({ card, writable, t, onSave, onEmpty }: { card: PanelCard; w
 
 // The card's people: the kit's picker (type a name, arrows, Enter; the
 // chosen ones as chips, each removable). Saved at once.
-function Assignees({ card, choices, people, writable, locale, t, onSave }: { card: PanelCard; choices: Choice[]; people: People; writable: boolean; locale: Locale; t: Words; onSave: (ids: string[]) => void }) {
+function Assignees({ card, choices, people, writable, unreadable, locale, t, onSave }: { card: PanelCard; choices: Choice[]; people: People; writable: boolean; unreadable: boolean; locale: Locale; t: Words; onSave: (ids: string[]) => void }) {
   const chosenOf = (ids: string[]) => ids.map(id => choices.find(c => c.id === id) ?? { kind: "member" as const, id, name: people[id]?.name ?? t.card.nobody, photo: people[id]?.photo ?? null });
   const [chosen, setChosen] = useState<Choice[]>(() => chosenOf(card.assignees));
   useEffect(() => setChosen(chosenOf(card.assignees)), [card.assignees]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -461,8 +463,11 @@ function Assignees({ card, choices, people, writable, locale, t, onSave }: { car
     );
   }
   return (
-    <PeoplePicker id="card-assign" label={t.card.assign} multiple value={chosen} search={search} suggestions={choices.slice(0, 12)} labels={t.peoplePicker} lang={locale}
-      onChange={next => { setChosen(next); onSave(next.map(p => p.id)); }} />
+    <>
+      <PeoplePicker id="card-assign" label={t.card.assign} multiple value={chosen} search={search} suggestions={choices.slice(0, 12)} labels={t.peoplePicker} lang={locale}
+        onChange={next => { setChosen(next); onSave(next.map(p => p.id)); }} />
+      {unreadable && <p className="hint" role="status">{t.peoplePicker.unreadable}</p>}
+    </>
   );
 }
 

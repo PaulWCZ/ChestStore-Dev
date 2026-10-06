@@ -578,6 +578,7 @@ export const en = {
     results: { zero: "No results", one: "{count} result", other: "{count} results" },
     groupSize: { one: "{count} person", other: "{count} people" },
     chosen: "Chosen",
+    unreadable: "The list of people could not be read right now. Try again in a moment.",
   },
   date: {
     order: "dmy",

@@ -21,7 +21,7 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
       where a.member_id = ${memberId} and c.archived_at is null and not k.done`;
     for (const { card_id } of open) {
       await tx`delete from card_assignees where card_id = ${card_id} and member_id = ${memberId}`;
-      await tx`insert into activity (card_id, actor, kind, data) values (${card_id}, 'chest', 'unassigned_left', ${tx.json({ "member": memberId })})`;
+      await tx`insert into activity (card_id, actor, kind, data) values (${card_id}, 'chest', 'unassigned_left', ${tx.json({ member: memberId })})`;
     }
     // Their open steps are freed too; ticked ones keep who did them.
     await tx`update checklist_items set assignee = null where assignee = ${memberId} and not done`;

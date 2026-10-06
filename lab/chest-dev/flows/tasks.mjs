@@ -465,11 +465,11 @@ await step("a private board shared with a group that does not give Tasks: its me
   await as(context, origin, "ines");
   await page.goto(url);
   expect((await page.locator("body").innerText()).includes("Rien ici") || (await page.locator("body").innerText()).includes("Nothing here"), "Inès (Sales) does not");
-  await control(page, origin, "group", { "member": id("tom"), group: "grp_tech" + "a".repeat(22), action: "remove" });
+  await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "remove" });
   await as(context, origin, "tom");
   await page.goto(url);
   expect((await page.locator("body").innerText()).includes("Nothing here"), "Tom, out of Tech, no longer does");
-  await control(page, origin, "group", { "member": id("tom"), group: "grp_tech" + "a".repeat(22), action: "add" });
+  await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "add" });
   await as(context, origin, "hugo");
 });
 

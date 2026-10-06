@@ -8,21 +8,27 @@ import { format, listFormat, type Catalogue, type Locale } from "../i18n/index.t
 // The people a board's cards may be given to, or who may be mentioned on
 // it: those who see it (a role in Tasks, and the board open to them). For
 // the pickers of a page: names and photos, by name. The Chest is asked a
-// page of 500 at a time, up to 2,000 people.
+// page of 500 at a time, every page (no cap of our own: the company's size
+// is the only limit). null when the Chest does not answer: the page says
+// the list could not be read rather than showing an empty picker.
 export type Person = { id: string; name: string; photo: string | null };
 
-export async function boardAudience(b: Pick<Board, "visibility" | "people" | "groups">): Promise<Person[]> {
+export async function boardAudience(b: Pick<Board, "visibility" | "people" | "groups">): Promise<Person[] | null> {
   const found: Person[] = [];
   try {
     let after: string | undefined;
-    for (let page = 0; page < 4; page++) {
+    const seen = new Set<string>();
+    for (;;) {
       const answer = await members.list({ limit: 500, ...(after ? { after } : {}) });
       for (const m of answer.members) if (boardAccess(m, b) !== "none") found.push({ id: m.id, name: m.name, photo: m.photo });
-      if (!answer.next) break;
+      // A cursor seen twice would loop for ever: what was read is kept.
+      if (!answer.next || seen.has(answer.next)) break;
+      seen.add(answer.next);
       after = answer.next;
     }
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
+    return null;
   }
   return found;
 }
@@ -31,11 +37,16 @@ export async function boardAudience(b: Pick<Board, "visibility" | "people" | "gr
 export const groupsOfTool = sharingGroups;
 
 // Whom a new private board may be shared with: everyone who has Tasks but
-// the creator, and the Chest's groups.
-export async function sharingFor(memberId: string): Promise<{ people: Person[]; groups: { id: string; name: string }[] }> {
+// the creator, and the Chest's groups; unreadable when the Chest did not
+// answer for either.
+export type Sharing = { people: Person[]; groups: { id: string; name: string }[]; unreadable: boolean };
+
+export async function sharingFor(memberId: string): Promise<Sharing> {
   const [people, groups] = await Promise.all([boardAudience({ visibility: "team", people: [], groups: [] }), groupsOfTool()]);
-  return { people: people.filter(p => p.id !== memberId), groups };
+  return { people: (people ?? []).filter(p => p.id !== memberId), groups: groups ?? [], unreadable: people === null || groups === null };
 }
+
+export const noSharing: Sharing = { people: [], groups: [], unreadable: false };
 
 // The managers' names, for "ask a manager" (at most three).
 export async function managerNames(): Promise<string[]> {

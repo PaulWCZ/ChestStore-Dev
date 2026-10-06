@@ -425,7 +425,7 @@ export async function moveToBoard(sql: Sql, actor: Member | null, cardId: unknow
     // "Blocked by" links cards of one board: they stay behind.
     const unlinked = await tx`delete from card_blockers where card_id = ${row.id} or blocker_id = ${row.id} returning card_id`;
     if (unlinked.length > 0) await record(tx, row.id, actor!.id, "links_left", { count: unlinked.length });
-    for (const p of kept.dropped) await record(tx, row.id, actor!.id, "unassigned", { "member": p });
+    for (const p of kept.dropped) await record(tx, row.id, actor!.id, "unassigned", { member: p });
     if (completed === true) await makeNext(tx, row.id, chestToday(), actor!.id);
     if (completed === false) await takeBack(tx, row.id);
     const stayed = (await tx<{ member_id: string }[]>`select member_id from card_assignees where card_id = ${row.id}`).map(r => r.member_id);
@@ -511,8 +511,8 @@ export async function setAssignees(sql: Sql, actor: Member | null, cardId: unkno
   await sql.begin(async tx => {
     for (const m of removed) await tx`delete from card_assignees where card_id = ${row.id} and member_id = ${m}`;
     for (const m of added) await tx`insert into card_assignees (card_id, member_id) values (${row.id}, ${m}) on conflict do nothing`;
-    for (const m of added) await record(tx, row.id, actor!.id, "assigned", { "member": m });
-    for (const m of removed) await record(tx, row.id, actor!.id, "unassigned", { "member": m });
+    for (const m of added) await record(tx, row.id, actor!.id, "assigned", { member: m });
+    for (const m of removed) await record(tx, row.id, actor!.id, "unassigned", { member: m });
   });
   return { added, removed, title: row.title, boardId: b.id };
 }
@@ -577,7 +577,7 @@ export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown
   const due = input.due === undefined ? i.due : day(input.due);
   await sql.begin(async tx => {
     await tx`update checklist_items set text = ${text}, done = ${done}, assignee = ${assignee}, due_on = ${due} where id = ${i.id}`;
-    if (assignee !== i.assignee && assignee) await record(tx, i.cardId, actor!.id, "step_assigned", { "member": assignee, step: text });
+    if (assignee !== i.assignee && assignee) await record(tx, i.cardId, actor!.id, "step_assigned", { member: assignee, step: text });
   });
   return { assigned: assignee !== i.assignee ? assignee : null, previous: assignee !== i.assignee ? i.assignee : null, assignee, text, card: { id: i.cardId, title: i.row.title, boardId: i.board.id } };
 }

@@ -4,7 +4,7 @@ import type { Sql } from "./db.ts";
 import { format } from "../i18n/index.ts";
 import type { CommentRef } from "./cards.ts";
 import { people } from "./people.ts";
-import { badges, cut, notify, withdraw } from "./notify.ts";
+import { badges, cut, cutLines, notify, withdraw } from "./notify.ts";
 import { settle } from "./reminders.ts";
 
 // What Tasks tells people through the Chest's bell, each in their own
@@ -42,13 +42,13 @@ export async function mentioned(actor: Member, people: string[], card: CardRef, 
   if (people.length === 0) return;
   // Each mention is an item of its own (a question asked of someone must
   // not be replaced by the next one).
-  await notify(people, t => ({ title: format(t.bell.mentioned, { name: actor.name, card: cut(card.title, 40) }), body: cut(body, 280) }), { path: cardPath(card.boardId, card.id), key: mentionKey(card.id, commentId) });
+  await notify(people, t => ({ title: format(t.bell.mentioned, { name: actor.name, card: cut(card.title, 40) }), body: cutLines(body, 280) }), { path: cardPath(card.boardId, card.id), key: mentionKey(card.id, commentId) });
   if (sql && commentId) await remember(sql, card.id, people, "mention", commentId);
 }
 
 export async function commented(actor: Member, people: string[], card: CardRef, body: string, sql?: Sql, commentId?: string): Promise<void> {
   if (people.length === 0) return;
-  await notify(people, t => ({ title: format(t.bell.commented, { name: actor.name, card: cut(card.title, 40) }), body: cut(body, 280) }), { path: cardPath(card.boardId, card.id), key: `card:${card.id}:comment` });
+  await notify(people, t => ({ title: format(t.bell.commented, { name: actor.name, card: cut(card.title, 40) }), body: cutLines(body, 280) }), { path: cardPath(card.boardId, card.id), key: `card:${card.id}:comment` });
   if (sql && commentId) await remember(sql, card.id, people, "comment", commentId);
 }
 
@@ -84,8 +84,8 @@ export async function commentShown(sql: Sql, ref: CommentRef): Promise<void> {
   const author = (await people([ref.author])).get(ref.author);
   const name = author?.status === "member" ? author.name : "";
   const path = cardPath(ref.card.boardId, ref.card.id);
-  if (told.mention.length > 0) await notify(told.mention, t => ({ title: format(t.bell.mentioned, { name: name || t.people.unknown, card: cut(ref.card.title, 40) }), body: cut(ref.body, 280) }), { path, key: mentionKey(ref.card.id, ref.id) });
-  if (told.comment.length > 0) await notify(told.comment, t => ({ title: format(t.bell.commented, { name: name || t.people.unknown, card: cut(ref.card.title, 40) }), body: cut(ref.body, 280) }), { path, key: `card:${ref.card.id}:comment` });
+  if (told.mention.length > 0) await notify(told.mention, t => ({ title: format(t.bell.mentioned, { name: name || t.people.unknown, card: cut(ref.card.title, 40) }), body: cutLines(ref.body, 280) }), { path, key: mentionKey(ref.card.id, ref.id) });
+  if (told.comment.length > 0) await notify(told.comment, t => ({ title: format(t.bell.commented, { name: name || t.people.unknown, card: cut(ref.card.title, 40) }), body: cutLines(ref.body, 280) }), { path, key: `card:${ref.card.id}:comment` });
 }
 
 // A card done frees the cards that waited only for it: their people are

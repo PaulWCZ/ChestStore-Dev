@@ -23,8 +23,8 @@ export async function settingsPage({ member, locale: language, t, param }: PageC
     readColumns(sql, b.id, { archived: true, words: t.templates.columns }),
     boardCards(sql, b.id, { archived: true }),
     // Everyone who has Tasks may be added to a private board.
-    own ? boardAudience({ visibility: "team", people: [], groups: [] }) : Promise.resolve([]),
-    own ? groupsOfTool() : Promise.resolve([]),
+    own ? boardAudience({ visibility: "team", people: [], groups: [] }) : Promise.resolve([] as Awaited<ReturnType<typeof boardAudience>>),
+    own ? groupsOfTool() : Promise.resolve([] as Awaited<ReturnType<typeof groupsOfTool>>),
   ]);
   const who = await people(b.people.map(p => p.memberId));
   // How many cards each archived column still holds.
@@ -39,8 +39,9 @@ export async function settingsPage({ member, locale: language, t, param }: PageC
         <Island name="BoardSettings" props={{
           board: { id: b.id, name: b.name, color: b.color, visibility: b.visibility, archived: b.archived, own, writable: (b.access === "write" || own) && !b.archived, groups: b.groups },
           members,
-          everyone: everyone.filter(p => !b.people.some(x => x.memberId === p.id)),
-          groups,
+          everyone: (everyone ?? []).filter(p => !b.people.some(x => x.memberId === p.id)),
+          groups: groups ?? [],
+          unreadable: everyone === null || groups === null,
           labels: labs,
           fields: boardFields,
           archivedColumns: archivedColumns.map(c => ({ ...c, cards: held.get(c.id) ?? 0 })),

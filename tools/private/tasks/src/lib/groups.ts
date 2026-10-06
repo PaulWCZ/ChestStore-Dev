@@ -23,9 +23,9 @@ export function forgetGroups(): void {
 }
 
 // The groups a private board may be shared with, by name: every group of
-// the Chest with the capability, else those that give Tasks; none without
-// an answer.
-export async function sharingGroups(): Promise<{ id: string; name: string }[]> {
+// the Chest with the capability, else those that give Tasks; null when the
+// Chest does not answer (the page says the list could not be read).
+export async function sharingGroups(): Promise<{ id: string; name: string }[] | null> {
   if (fresh(offered)) return offered.value;
   let found: { id: string; name: string }[];
   try {
@@ -36,7 +36,7 @@ export async function sharingGroups(): Promise<{ id: string; name: string }[]> {
       found = (await members.groups.list()).map(g => ({ id: g.id, name: g.name }));
     } catch (inner) {
       if (!(inner instanceof ChestError)) throw inner;
-      return [];
+      return null;
     }
   }
   found.sort((a, b) => a.name.localeCompare(b.name));
