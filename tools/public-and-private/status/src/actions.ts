@@ -313,7 +313,7 @@ export const actions = {
   subscribe: publicAction({ email: loose(400), scope: loose(10), component: field.list(loose(20), 200) }, async (input, { locale, request, charge }) => {
     const sql = db();
     try {
-      const result = await subscribe(sql, { email: input.email, language: localeOf(locale), components: input.scope === "some" ? input.component : "all" }, new Date(), kind => charge(kind));
+      const result = await subscribe(sql, { email: input.email, language: localeOf(locale), components: input.scope === "some" ? input.component : "all" }, new Date(), (kind, subject) => charge(kind, { subject }));
       const origin = publicOrigin(request.headers) ?? "";
       await rememberPublicOrigin(sql, origin || null);
       if (result.send && (await welcome(sql, result.subscriber, result.state, origin)) === "none") {

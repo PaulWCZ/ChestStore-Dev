@@ -1,5 +1,5 @@
 import type { Catalogue } from "../../i18n/index.ts";
-import { day, format, percent, plural } from "../../i18n/format.ts";
+import { day, format, percent, plural } from "../../components/format.ts";
 import type { Day } from "../../lib/timeline.ts";
 import { Pulse, StateIcon, StateUse } from "../../components/icons.tsx";
 import { tone } from "../../components/classes.ts";

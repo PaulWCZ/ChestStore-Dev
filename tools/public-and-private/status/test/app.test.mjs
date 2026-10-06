@@ -118,12 +118,13 @@ test("subscribing by email without script: the form's token, the same answer who
   const refilled = checkPage(await (await get(null, back)).text());
   assert.match(refilled, /role="alert">This email address does not look right/u);
   assert.match(refilled, /name="email"[^>]*value="ana@example"|value="ana@example"[^>]*name="email"/u, "what was typed is kept");
-  // The token was given back with the refusal: the page's one still serves.
-  const sent = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example.com" }, "/subscribe");
+  // A token serves once, whatever the answer: the page the form came back
+  // to carries the next one.
+  const spentToken = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example.com" }, "/subscribe");
+  assert.match(spentToken.headers.get("location"), /^\/subscribe\?error=expired/u);
+  const nextToken = /name="chest_form" value="([^"]+)"/u.exec(refilled)[1];
+  const sent = await form("/actions/subscribe", { website: "", scope: "all", chest_form: nextToken, email: "ana@example.com" }, "/subscribe");
   assert.equal(sent.headers.get("location"), "/subscribe?sent=1");
-  // Served once: the same token again is refused.
-  const again = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example.com" }, "/subscribe");
-  assert.match(again.headers.get("location"), /^\/subscribe\?error=expired/u);
   // The field only robots fill: "done", and nothing done.
   const robot = await subscribeForm({ website: "spam", email: "robot@example.com" });
   assert.equal(robot.status, 303);

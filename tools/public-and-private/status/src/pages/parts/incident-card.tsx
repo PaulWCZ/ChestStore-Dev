@@ -1,6 +1,6 @@
 import type { Incident, Update } from "../../lib/incidents.ts";
 import type { Catalogue } from "../../i18n/index.ts";
-import { duration, format } from "../../i18n/format.ts";
+import { duration, format } from "../../components/format.ts";
 import type { State } from "../../lib/model.ts";
 import { pick } from "../../lib/texts.ts";
 import { maintenancePhase } from "../../lib/timeline.ts";

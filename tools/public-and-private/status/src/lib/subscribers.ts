@@ -27,10 +27,11 @@ export const mailsPerAddressDay = 3;
 // address already known. The visitor is the address the Chest's front
 // gives, else the browser's cookie; the day's total is what closes the
 // form — a thousand new unconfirmed addresses a day is a table filling,
-// not customers.
+// not customers. A known address is asked about ten times a day at most,
+// whoever asks (perSubject; the package keeps only a digest of it).
 export const formBudgets = {
   new: { perVisitor: 5, perDay: 1000 },
-  again: { perVisitor: 10, perDay: 5000 },
+  again: { perVisitor: 10, perDay: 5000, perSubject: 10 },
 } as const;
 
 const tokenPattern = /^[A-Za-z0-9_-]{32}$/u;
@@ -54,14 +55,14 @@ export type Subscribed = { subscriber: Subscriber; state: "new" | "pending" | "c
 // nothing reveals who subscribed. charge(kind) spends the form's budget
 // once the request is known good: "new" for an address not yet kept,
 // "again" for one already known.
-export async function subscribe(sql: Sql, input: { email: unknown; language: string; components: unknown }, now = new Date(), charge: (kind: "new" | "again") => Promise<void> = async () => {}): Promise<Subscribed> {
+export async function subscribe(sql: Sql, input: { email: unknown; language: string; components: unknown }, now = new Date(), charge: (kind: "new" | "again", subject: string) => Promise<void> = async () => {}): Promise<Subscribed> {
   const address = email(input.email);
   const language = /^[a-z]{2}$/u.test(input.language) ? input.language : "en";
   // The budget is spent before the transaction (it is counted on another
   // connection), from whether the address is known; a refusal after it
   // gives it back.
   const known = (await sql`select 1 from subscribers where lower(email) = lower(${address})`).length > 0;
-  await charge(known ? "again" : "new");
+  await charge(known ? "again" : "new", address.toLowerCase());
   return sql.begin(async tx => {
     await tx`delete from subscribers where confirmed_at is null and created_at < ${new Date(now.getTime() - pendingDays * 86400000)}`;
     const components = await choice(tx, input.components);

@@ -7,7 +7,7 @@ import { useDateProblems, WatchedDateField } from "../components/date-problems.t
 import { LanguagePick, SecondField, SecondToggle, secondOf, type Languages } from "../components/second-field.tsx";
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format } from "../i18n/format.ts";
+import { format } from "../components/format.ts";
 import type { Impact } from "../lib/model.ts";
 import { addDays } from "../components/wall-time.ts";
 

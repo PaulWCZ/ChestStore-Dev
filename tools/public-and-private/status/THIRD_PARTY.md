@@ -8,7 +8,7 @@
 
 Code from the studio's own tools (same licence, MIT, © 2026 Argentic):
 `src/lib/ics.ts`, `src/lib/zone.ts`, `src/lib/public-origin.ts`,
-`src/i18n/format.ts` (adapted), `src/lib/people.ts`, `src/lib/notify.ts`
+`src/components/format.ts` (adapted), `src/lib/people.ts`, `src/lib/notify.ts`
 from Booking and the template; `test/support/db.ts` from Polls;
 `scripts/dev.mjs` from the studio's starter.
 

@@ -2,7 +2,7 @@ import { Island } from "@argentic/chest-app";
 import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
 import { Calendar, External, Mail, Rss } from "../../components/icons.tsx";
-import { format, zoneAbbreviation, zoneName } from "../../i18n/format.ts";
+import { format, zoneAbbreviation, zoneName } from "../../components/format.ts";
 import { languageNames, locales } from "../../i18n/index.ts";
 import type { PublicContext } from "../../lib/public-page.ts";
 import { siteName } from "../../lib/page-settings.ts";

@@ -30,7 +30,7 @@ no `style={}` — the look is a stylesheet the tool serves.
 | `src/lib/theme.ts`, `src/lib/states.ts`, `src/tokens.css`, `src/styles.css` | The look: the "Control room" identity, the company's choice (`chest.theme()`), served as `/chest/look.css` and `/look.css` (with the five fixed state colours), cached by its hash |
 | `src/lib/public-origin.ts` | The public address: `chest.tool.publicUrl` (the company's own domain once connected); the visitor's address only from `visitors.address()` |
 | `src/lib/public-page.ts` | What every public page reads: language, settings, look, whether mail and chats are offered (kept 30 s) |
-| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts`, `format.ts` (dates, numbers; Intl objects made once) |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`, `index.ts`; dates and numbers in `src/components/format.ts` (Intl objects made once) |
 | `migrations/` | `0001_status.sql` … `0005_bounds.sql` (the package's `chest_seen`, `chest_bounds`; three confirmation emails a day per address) (published shape: never edit one that ran; add a file) |
 | `test/` | `app.test.mjs` (the built server: pages, actions, forms, API, files, deliveries), `stack.test.ts`, and the rules' tests (`*.test.ts`, as before) |
 

@@ -126,7 +126,8 @@ minute, in plain words.
   address** 5 per visitor and **1,000 in all** (a table really filling,
   not a robot's afternoon: the form then refuses new addresses until the
   next day, and still answers people already known), a **known address**
-  10 per visitor and 5,000 in all. The visitor is the address the Chest's
+  10 per visitor, 10 a day for one address whoever asks, and 5,000 in
+  all (a refused request spends its form token and is counted too). The visitor is the address the Chest's
   front gives (a proposal, `Chest-Visitor-Address`), else the browser's
   cookie: a Chest of contract 0.4 gives no address, and a robot that drops
   its cookie is counted in the day's totals only — never every customer as

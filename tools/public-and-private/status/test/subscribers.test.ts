@@ -95,7 +95,7 @@ test("the form refuses bad addresses; unconfirmed addresses are forgotten after 
 test("the form spends its budget only on a good request — \"new\" for an unknown address, \"again\" for a known one — and mails an address three times a day at most", async () => {
   const { sql } = database;
   const spent: string[] = [];
-  const charge = async (kind: "new" | "again") => { spent.push(kind); };
+  const charge = async (kind: "new" | "again", _subject: string) => { spent.push(kind); };
   await refuses("invalid_email", () => subs.subscribe(sql, { email: "not an address", language: "en", components: "all" }, new Date(), charge));
   assert.deepEqual(spent, [], "a refused request costs nothing");
   const day = new Date("2026-10-06T08:00:00Z");

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Arrow, Trash } from "../components/icons.tsx";
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format } from "../i18n/format.ts";
+import { format } from "../components/format.ts";
 
 type Words = { settings: Record<string, string>; errors: Record<ErrorCode, string>; widget: string; files: FileWords; subscribers: string };
 type ImportResult = { incidents: number; maintenances: number; components: number; already: number; open: number; skipped: number };
