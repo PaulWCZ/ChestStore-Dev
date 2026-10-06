@@ -118,12 +118,14 @@ await step("a manager allows the company's website on the Share tab: the public 
   await english();
 });
 
-await step("settings save by themselves (no Save button): a copy by email, the bell and email for the owner, other tools", async () => {
+await step("settings save by themselves (no Save button): a copy by email, the bell for the owner, other tools", async () => {
   await page.goto(formUrl + "/settings");
   expect((await page.getByRole("button", { name: "Save" }).count()) === 0, "no Save button");
   await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
-  // Round 3: a new public form has its owner's alerts by email on already.
-  expect(await page.getByRole("switch", { name: "Also send them each batch by email" }).isChecked(), "the owner's alerts by email on by default");
+  // The people told hear of answers in their Chest notifications; no
+  // "email me" switch: each one chooses in the Chest.
+  expect((await page.getByRole("switch", { name: /by email/u }).count()) === 0, "no email switch for the people told");
+  expect((await page.locator("main").innerText()).includes("Each person chooses in the Chest whether these also come by email"), "the bell's hint says who chooses");
   await page.locator("label.ck-switch-label", { hasText: "The other tools of your Chest" }).click();
   await page.locator("input[placeholder='Thank you!']").fill("Thanks, see you Friday");
   // Straight to another tab: the change goes first.
@@ -210,10 +212,13 @@ await step("on a phone, a French visitor: the English form speaks English, one q
   await visitor.waitForSelector(".runner-thanks", { timeout: 15000 });
   expect((await visitor.locator(".runner-thanks").innerText()).includes("Thanks, see you Friday"), "own thank-you title");
   expect((await dev()).includes("Your answers — Team lunch on Friday"), "copy in the outbox, in the form's language");
-  // The owner (who reads French) is told in the bell once, and by email with the answer.
-  const told = (await dev()).split("1 nouvelle réponse à Team lunch on Friday").length - 1;
-  expect(told === 2, "one bell item and one email: " + told);
-  expect((await dev()).includes("replies to <code>nina@example.com</code>"), "Reply writes to Nina");
+  // The owner is told in the bell once (English, and French in the same
+  // notice), never by an email of the tool.
+  const told = (await dev()).split("fr: 1 nouvelle réponse à Team lunch on Friday").length - 1;
+  expect(told === 1, "one bell item: " + told);
+  expect(!(await dev()).includes("<b>1 nouvelle réponse"), "no email to the owner");
+  // The visitor's copy: replies reach the company's address.
+  expect(/Your answers — Team lunch on Friday<\/b>[\s\S]*?replies to <code>contact@atelier-martin\.test<\/code>/u.test(await dev()), "the copy's replies go to the company");
   expect((await dev()).includes("<code>forms.answered</code>"), "told to the other tools");
 });
 
@@ -473,7 +478,7 @@ await step("an answered date retyped as a date that cannot be read is refused: t
   expect(text.includes("Refused Then Right") && /15 Mar(ch)? 2031|2031-03-15|15\/03\/2031/u.test(text), "the corrected day is the one answered: " + text.slice(0, 400));
 });
 
-await step("Settings says the truth about where answers can go (SDK studio.16): Clients and Support are installed and linked to Forms by an admin (events.receivers), so both switches work, with no “not installed” or “not linked” sentence; this Chest sends to web addresses and email, so their forms and alerts are offered with no warning", async () => {
+await step("Settings says the truth about where answers can go (SDK studio.16): Clients and Support are installed and linked to Forms by an admin (events.receivers), so both switches work, with no “not installed” or “not linked” sentence; this Chest sends to web addresses and email, so their forms and the visitor's copy are offered with no warning", async () => {
   await as(context, origin, "ines");
   await english();
   await page.goto(origin + "/chest/forms/5/settings");
@@ -567,7 +572,7 @@ await step("one message, one email: with a copy on, an answer Support took gets 
   expect((await page.locator("main").innerText()).includes("Support follows this request up"), "no second follow-up here");
 });
 
-await step("a new form from the Contact template is linked right by default: Clients on, subject and details mapped, a company question, the owner's alerts by email on", async () => {
+await step("a new form from the Contact template is linked right by default: Clients on, subject and details mapped, a company question", async () => {
   await page.goto(origin + "/chest/new");
   await page.locator("button.template-card", { hasText: "Let customers write to you" }).click();
   await page.waitForURL(/\/chest\/forms\/\d+$/u);
@@ -578,7 +583,6 @@ await step("a new form from the Contact template is linked right by default: Cli
   const contact = page.locator(".route-fields").first();
   expect((await contact.getByLabel("Their company").locator("option:checked").innerText()) === "Your company (if any)", "company mapped");
   expect(!(await page.getByRole("switch", { name: "Also open a ticket in Support" }).isChecked()), "Support stays the author's choice");
-  expect(await page.getByRole("switch", { name: "Also send them each batch by email" }).isChecked(), "the owner's alerts by email on");
   await page.locator("label.ck-switch-label", { hasText: "Also open a ticket in Support" }).click();
   const ticket = page.locator(".route-fields").nth(1);
   await ticket.waitFor();

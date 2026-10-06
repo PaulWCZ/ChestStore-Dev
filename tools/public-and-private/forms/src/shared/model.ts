@@ -590,8 +590,6 @@ export type Settings = {
   sendCopy: boolean;
   retentionMonths: number | null;
   watchers: string[];
-  // The people told also get an email of each batch (Proposal (studio): mail).
-  notifyEmail: boolean;
   // Each answer is told to the tools of the Chest an admin linked
   // (Proposal (studio): events between tools, forms.answered).
   shareEvents: boolean;
@@ -653,7 +651,6 @@ export function settings(value: unknown, closesAt: string | null): Settings {
     sendCopy: !anonymous && value["sendCopy"] === true,
     retentionMonths: retention === null || retention === undefined || retention === "" ? null : (retentions as readonly unknown[]).includes(retention) ? (retention as number) : (() => { throw new AppError("invalid"); })(),
     watchers: [...new Set(watchers as string[])],
-    notifyEmail: value["notifyEmail"] === true,
     shareEvents: !anonymous && value["shareEvents"] === true,
     kiosk: value["kiosk"] === true,
     hiddenFields: anonymous ? [] : hiddenNames(value["hiddenFields"]),

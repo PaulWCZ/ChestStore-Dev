@@ -1,21 +1,23 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import { log } from "@argentic/chest-app";
-import { catalogue, format, isLocale, plural } from "../i18n/index.ts";
+import * as notifications from "@argentic/chest-sdk/notifications";
+import { catalogue, format, isLocale, plural, type Locale } from "../i18n/index.ts";
+import { notice } from "./notify.ts";
 import { answerText, isPick, recall, type Answers } from "../shared/logic.ts";
 import type { Query } from "./db.ts";
 import type { Definition } from "../shared/model.ts";
 
-// The copy of an answer, emailed to the person who gave it, through the
-// Chest's mail (Proposal (studio): the "mail" capability,
-// chest.proposals.json). Sent in the language the respondent read the form
-// in; the questions as the form's author wrote them. On a Chest without
-// mail yet (CapabilityNotGranted), or when the Chest refuses the message,
-// nothing is sent and the thank-you page says nothing about a copy.
-// A copy is the person's own answer, sent because they gave it: it is
-// transactional (Proposal (studio.15)), sent whatever email preference a
-// member chose in their Chest. The owner's alerts (lib/alerts.ts) are not:
-// the Chest applies the owner's preference to them.
+// The copy of a public form's answer, emailed to the visitor who asked for
+// it — someone outside the company — through the Chest's mail connector
+// (Proposal (studio): "mail" in chest.proposals.json, backed by the
+// company's own mail provider; not built yet). Sent in the language the
+// respondent read the form in; the questions as the form's author wrote
+// them; Reply-To the company's address (the connector's default): a reply
+// reaches the company's inbox, never Forms. On a Chest without mail, its
+// connector not connected, or a message refused, nothing is sent and the
+// thank-you page says nothing about a copy. A member's copy of a team
+// form is a notification (copyNotice), never a mail.
 export type Delivery = "email" | "none";
 
 // The kinds whose answer is made of the form's own words (options, yes or
@@ -48,7 +50,7 @@ export function copyText(def: Definition, answers: Answers, language: string, co
   }
   if (options.ownWordsOnly && left > 0) lines.push(plural(t.mail.copyWritten, left, isLocale(language) ? language : "en"), "");
   const values = { form: def.title, company: company || t.mail.team };
-  return { subject: format(t.mail.copySubject, values), text: [format(t.mail.copyIntro, values), "", ...lines, t.mail.copyFoot].join("\n") };
+  return { subject: format(t.mail.copySubject, values), text: [format(t.mail.copyIntro, values), "", ...lines, format(t.mail.copyFoot, values)].join("\n") };
 }
 
 // A public form's copies: at most perHour a form an hour (a flood of
@@ -67,13 +69,27 @@ export async function copyAllowed(sql: Query, formId: string, to: string, answer
   return false;
 }
 
-export async function sendCopy(to: string | { member: string }, def: Definition, answers: Answers, language: string, company: string, answerId: string, options: { ownWordsOnly?: boolean } = {}): Promise<Delivery> {
+export async function sendCopy(to: string, def: Definition, answers: Answers, language: string, company: string, answerId: string, options: { ownWordsOnly?: boolean } = {}): Promise<Delivery> {
   const { subject, text } = copyText(def, answers, language, company, options);
   try {
-    await mail.send({ to: typeof to === "string" ? to : { member: to.member }, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}:${typeof to === "string" ? to : to.member}`, transactional: true });
+    await mail.send({ to, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}:${to}` });
     return "email";
   } catch (error) {
     if (error instanceof ChestError) return "none";
+    throw error;
+  }
+}
+
+// copyNotice: a member's copy of their answer to a team form — an item in
+// their Chest notifications (English and French in one notice) opening
+// what they sent (/chest/sent/<answer>), where they also see where it
+// stands. The Chest mails it to them by their own choice.
+export async function copyNotice(member: string, title: (language: Locale) => string, answerId: string): Promise<boolean> {
+  try {
+    const { delivered } = await notifications.notify([member], notice((t, l) => ({ title: format(t.bell.copy, { form: title(l) || t.builder.untitled }), body: t.bell.copyBody }), { path: `/chest/sent/${answerId}`, key: `copy:${answerId}` }));
+    return delivered.length > 0;
+  } catch (error) {
+    if (error instanceof ChestError) return false;
     throw error;
   }
 }

@@ -124,16 +124,13 @@ built again from the studio's template to stand next to Tally and Typeform.
   *New*, *In progress* or *Done*, with a note. On a team form the person
   who sent it finds it under **What you sent** on their home, with its
   state and note, and the bell tells them when it changes.
-- **The bell, the tile and email**: the people chosen for a form (among
-  those who may open it) hear of new answers — at most one item per form
-  and person every 10 minutes, replaced, never doubled; the tile counts
-  what they have not seen. Opening the answers clears both. With *Also
-  send them each batch by email* (Proposal *mail*), the same batches come
-  by email, the answers written in it, and *Reply* writes to the
-  respondent when the batch holds one answer that gave an address; an
-  anonymous form's email says only how many. **On by default for a new
-  public form** (its owner is told), unless the Chest is known to have no
-  mail yet.
+- **The bell and the tile**: the people chosen for a form (among those
+  who may open it) hear of new answers in their Chest notifications — at
+  most one item per form and person every 10 minutes, replaced, never
+  doubled, one notice in English and French; the tile counts what they
+  have not seen. Opening the answers clears both. The Chest mails members
+  their notifications by their own choice (each one, once or twice a
+  day, or off; off per tool) — Forms itself never emails a member.
 - **Other tools of the Chest** (Settings → *Send answers to*): *Also
   create a contact in Clients* and *Also open a ticket in Support* — the
   form's author says which question gives the name, the email, the phone,
@@ -170,9 +167,10 @@ built again from the studio's template to stand next to Tally and Typeform.
   manager, brings one back); deleting a form with answers asks first and
   says how many go. Forms started and never touched go after a day.
 - **Search** on the forms list (title words, accents aside).
-- **A copy by email** of their answers, off unless the form's editor
-  turns it on: to the member (team forms), or — on a public form — to the
-  address given, **only when the visitor ticks *Email me a copy of my
+- **A copy** of their answers, off unless the form's editor turns it on:
+  for a member (team forms), a notification opening what they sent
+  (*What you sent*, with where it stands); on a public form, an email to
+  the address given, **only when the visitor ticks *Email me a copy of my
   answers***, and holding **only the form's own words** (the questions,
   the options picked, numbers and dates; never a text the visitor typed,
   so no link and no message goes out in the company's name), one an
@@ -428,7 +426,7 @@ an error.
 
 Hono and React rendered on the server, with islands for what runs in the
 browser, built by Vite — through the studio's package
-`@argentic/chest-app` (studio.6, `vendor/`), on SDK 0.4.1-studio.4 and the
+`@argentic/chest-app` (studio.6, `vendor/`), on SDK 0.4.1-studio.6 and the
 UI kit 0.2.6-studio.1. Contract 0.4: the Chest's strict CSP (no inline
 script or style: bars are SVG, widths are classes). `npm start` runs
 `dist/server/main.js`; the browser's files are `/assets/` (`build.static`).
@@ -467,9 +465,34 @@ erasure, their answers to team forms are deleted with their files, their
 mark in anonymous forms becomes "erased" (counted, never named), forms they
 owned are owned by "erased", then the erasure is acknowledged.
 
+## Mail to people outside the company
+
+Forms emails only visitors — people outside the company — and only the
+copy they ask for. Members are told in their Chest notifications: the
+people chosen for a form hear of new answers, a member who answered a
+team form gets their copy, everyone hears of a team form that opens.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| The visitor who answered a public form | A copy of their answers (a receipt) | They answer, with *Email me a copy of my answers* ticked, when the form's editor turned copies on (never for an answer Support confirms itself, never for an anonymous form); one an address a day, 20 a form an hour | The form's questions with only the form's own words (options picked, numbers, dates; never a text they typed), in the language they read the form in, signed with the company's name; "To write to {company}, reply to this email" | — | The company's address (the connector's default) |
+
+Sent through the Chest's mail connector (studio proposal, not built yet).
+Replies reach the company's usual inbox, never Forms. When the connector
+is absent or paused, nothing is lost: the answer is kept and told to the
+team, the thank-you page says nothing about a copy, and Settings says
+why copies do not go.
+
+**Changed on 6 October 2026** (the owner's mail decisions): *Also send
+them each batch by email* is gone (the people told get the bell, and the
+Chest mails it to them by their own choice); a member's copy of a team
+form is a notification opening *What you sent*, no longer an email; the
+team's *New form to answer* is one broadcast with its French
+translation. The `forms.notify_email` and `forms.mailed_at` columns are no
+longer read and stay for the previous version during an update.
+
 ## Needs from the SDK
 
-Built on SDK 0.4.1-studio.4 and the studio's package `@argentic/chest-app`
+Built on SDK 0.4.1-studio.6 and the studio's package `@argentic/chest-app`
 (studio.6). All exist as proposals in the studio's working copy; the tool
 calls them as if shipped and keeps working without them:
 
@@ -479,13 +502,10 @@ calls them as if shipped and keeps working without them:
 - **Visitors**: the package's `bound` public actions (a form token, a
   time floor, the honeypot, budgets per visitor, per form and per day kept
   in `chest_bounds`) — charged only once an answer is valid.
-- **Mail** (`mail.send`, to an address or `{member}`): without it, no copy
-  is sent and the thank-you page does not mention one. A copy is the
-  person's own answer: it is sent `transactional` (Proposal (studio.15)),
-  whatever email preference a member chose in their Chest; the owner's
-  alerts are not, so the Chest applies the owner's preference to them
-  (none: not sent, the bell still tells; one a day: in the Chest's daily
-  email). The form's own *Also send them each batch by email* switch stays, per form.
+- **Mail** (`mail.send`, to an address — a visitor's copy only; see
+  *Mail to people outside the company*): without it, or its connector
+  not connected, no copy is sent and the thank-you page does not mention
+  one.
 - **Schedules** (`bell`, `cleanup`): without them the bell still tells at
   once when the form was quiet for 10 minutes, but a batch waits for the
   next answer; retention does not run by itself (see below).
@@ -516,11 +536,10 @@ calls them as if shipped and keeps working without them:
   reason. Asked once per Settings page, never cached. In the harness,
   `node lab/chest-dev/dev.mjs … --tools crm,helpdesk --linked` installs
   and links them.
-- **Whether mail goes out** (`mail.available`, studio.16): Settings says
-  why the owner's alerts and the person's copy do not go (no mail, not
-  connected, paused, the day's emails used) before anyone relies on them;
-  a new public form starts with alerts on unless the Chest has no mail.
-  When the Chest does not answer, what the last email taught
+- **Whether mail goes out** (`mail.available`): Settings says why a
+  public form's copy does not go (no mail, not connected, paused, the
+  day's emails used) before anyone relies on it. When the Chest does not
+  answer, what the last copy taught
   (`mail_works`). Each copy's key carries its recipient, and each web
   address delivery's key its addresses (studio.16).
 - **Webhooks** (`webhooks.add`, `send`, `list`, `enable`, `remove`,
@@ -597,8 +616,6 @@ seeded (files are the Chest's): the flow uploads one.
 - Web addresses: per form (no "every form to this channel" setting); the
   text for Slack and Teams is plain (no buttons, no cards); the JSON
   carries files by their names only.
-- **Email alerts** need the Chest's mail; without it Settings says so and
-  the bell alone tells. No daily digest (the batches are every 10 minutes).
 - Import: form definitions from Google Forms and Typeform only (not
   Tally, Jotform or Microsoft Forms), without their logic rules, pictures
   or scoring; **no import of past answers** (a company keeps its history

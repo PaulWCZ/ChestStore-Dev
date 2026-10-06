@@ -22,8 +22,8 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 // Round 3 (critique of 2026-09-29): the links to Clients and Support right
 // by default — the Contact template mapped, a better first guess, greyed
 // while the receiving tool is not installed, each answer saying where it
-// went, no second email when Support confirms —; the owner's alerts on
-// for a public form; each answer sent to web addresses (webhooks).
+// went, no second email when Support confirms —; each answer sent to web
+// addresses (webhooks).
 let database: TestDatabase;
 let chest: FakeChest;
 // The tool's /chest-webhooks, as src/app.tsx answers it.
@@ -33,7 +33,7 @@ before(async () => {
   chest = await fakeChest({
     members: everyone,
     capabilities: ["members", "files", "notifications", "mail"],
-    mail: { domain: "atelier.test", mailboxes: [] },
+    mail: { domain: "atelier.test" },
     emits: ["forms.answered", "forms.contact", "forms.request"],
     receivers: 1,
     chest: { organization: "Atelier Martin", language: "en" },
@@ -75,14 +75,13 @@ test("the first guess reads the kinds of the questions, never their words: the C
   assert.deepEqual(guessRoutes(form([only])).request, { subject: null, details: null, email: only.id, name: null });
 });
 
-test("a new Contact form starts linked to Clients when an admin linked Clients to Forms, and with the owner's alerts by email on (a public form, mail not missing)", async () => {
+test("a new Contact form starts linked to Clients when an admin linked Clients to Forms", async () => {
   const { sql } = database;
   const made = template("contact", catalogue("en"));
   assert.deepEqual(installed(), { contact: false, request: false });
   assert.deepEqual(await links(), { contact: "not_installed", request: "not_installed" });
   const alone = await forms.create(sql, asMember(ines), await startOf(sql, made));
   assert.equal(alone.routes.contact, null, "nothing would receive it");
-  assert.equal(alone.notifyEmail, true);
   chest.installTool("crm");
   assert.deepEqual(installed(), { contact: true, request: false });
   // Installed is not enough (studio.16, events.receivers): until an admin
@@ -94,17 +93,13 @@ test("a new Contact form starts linked to Clients when an admin linked Clients t
   const linked = await forms.create(sql, asMember(ines), await startOf(sql, made));
   assert.deepEqual(linked.routes.contact, guessRoutes(made.definition).contact);
   assert.equal(linked.routes.request, null, "Support stays the author's choice");
-  // A team form: no alert by email by default; a Chest known without mail: none.
-  assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, template("it", catalogue("en"))))).notifyEmail, false);
-  // The Chest says whether it sends email (studio.16, mail.available):
-  // not connected, alerts start off; paused, they start on (it passes).
+  // The Chest says whether it sends email (mail.available): Settings
+  // warns that a public form's copy waits.
   chest.delivery.mail = "not_connected";
   try {
     assert.equal(await mailState(sql), "not_connected");
-    assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).notifyEmail, false);
     chest.delivery.mail = "suspended";
     assert.equal(await mailState(sql), "paused");
-    assert.equal((await forms.create(sql, asMember(ines), await startOf(sql, made))).notifyEmail, true);
   } finally {
     chest.delivery.mail = "ready";
   }

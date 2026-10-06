@@ -1,28 +1,33 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Locale } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { catalogue, type Catalogue } from "../i18n/index.ts";
-import { people } from "./people.ts";
+import { catalogue, defaultLocale, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 
-// Items in the Chest's bell, each written in its recipient's language. A
+// Items in the Chest's bell. One notice for all the recipients: English
+// words (the fallback) and their translations from the tool's own
+// catalogues; the Chest shows each member their language and mails it to
+// them by their own choice (the tool sends members no mail). A
 // notification is a courtesy: when the Chest cannot take it (not granted,
 // quota, unreachable), the action that sent it still succeeds.
 export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
   const ids = [...new Set(recipients)];
   if (ids.length === 0) return;
-  const byLocale = new Map<Locale, string[]>();
-  for (const person of (await people(ids)).values()) {
-    if (person.status !== "member") continue;
-    byLocale.set(person.locale, [...(byLocale.get(person.locale) ?? []), person.id]);
+  try {
+    // 500 recipients a call at most (0.4.1's notify).
+    for (let i = 0; i < ids.length; i += 500) await notifications.notify(ids.slice(i, i + 500), notice(message, options));
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
   }
-  for (const [locale, group] of byLocale) {
+}
+
+// notice: the English words, their translations, the path and the key.
+export function notice(message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): notifications.Notice {
+  const words = (locale: Locale) => {
     const { title, body } = message(catalogue(locale), locale);
-    try {
-      await notifications.notify(group, { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}), path: options.path, ...(options.key ? { key: options.key } : {}) });
-    } catch (error) {
-      if (!(error instanceof ChestError)) throw error;
-    }
-  }
+    const b = body ? cut(body, 280) : "";
+    return { title: cut(title, 80), ...(b ? { body: b } : {}) };
+  };
+  const translations = Object.fromEntries(locales.filter(l => l !== defaultLocale).map(l => [l, words(l)])) as notifications.Translations;
+  return { ...words(defaultLocale), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
 }
 
 export async function withdraw(key: string, members?: string[]): Promise<void> {

@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as files from "@argentic/chest-sdk/files";
-import { alertText } from "../src/lib/alerts.ts";
 import { answeredData } from "../src/lib/answered.ts";
 import * as answers from "../src/lib/answers.ts";
 import { AppError } from "../src/lib/app-error.ts";
@@ -114,29 +113,27 @@ test("forms are searched by title, whatever the case and accents; untouched draf
   assert.equal((await sql`select 1 from forms where id = ${edited.id}`).length, 1, "an edited draft stays");
 });
 
-test("new answers by email to the people told, in the bell's batches, with the answer and Reply to the respondent", async () => {
+test("new answers in the bell of the people told, batched, in English and French — never an email to a member", async () => {
   const { sql } = database;
   const name = q("short", "Your name");
   const email = q("email", "Your email");
-  const { form: f } = await published(form([name, email], "Contact"), { watchers: [ines.id], notifyEmail: true }, ines);
-  const before = chest.outbox.length;
+  const { form: f } = await published(form([name, email], "Contact"), { watchers: [ines.id] }, ines);
+  const mails = chest.outbox.length;
+  const key = `answers:${f.id}`;
   await take(sql, f, { version: f.version, answers: { [name.id]: "Nina", [email.id]: "nina@example.com" } }, null, "en");
-  const mails = chest.outbox.slice(before).filter(m => m.subject.includes("Contact"));
-  assert.equal(mails.length, 1);
-  assert.deepEqual(mails[0]!.to, [ines.email]);
-  assert.equal(mails[0]!.replyTo, "nina@example.com");
-  assert.ok(mails[0]!.text.includes("Nina"), "the answer is in the email");
-  assert.ok(mails[0]!.subject.startsWith("1 nouvelle réponse"), "in Inès's language: " + mails[0]!.subject);
-  // A second answer within ten minutes waits for the batch, then goes with it.
+  const told = () => chest.notifications.filter(n => n.member === ines.id && n.key === key);
+  assert.equal(told().length, 1);
+  assert.equal(shownTo(told()[0]!, "en").title, "1 new answer to Contact");
+  assert.match(shownTo(told()[0]!, "fr").title, /^1 nouvelle réponse/u);
+  assert.equal(told()[0]!.path, `/chest/forms/${f.id}/answers`);
+  // A second answer within ten minutes waits for the batch; the batch
+  // replaces the item (its key).
   await take(sql, f, { version: f.version, answers: { [name.id]: "Tom" } }, null, "en");
-  assert.equal(chest.outbox.slice(before).filter(m => m.subject.includes("Contact")).length, 1);
+  assert.equal(shownTo(told()[0]!, "en").title, "1 new answer to Contact");
   await tell.pending(sql);
-  const batch = chest.outbox.slice(before).filter(m => m.subject.includes("Contact"));
-  assert.equal(batch.length, 2);
-  assert.ok(batch[1]!.text.includes("Tom") && !batch[1]!.text.includes("Nina"), "only what is new");
-  // An anonymous form's email never says what an answer holds.
-  const text = alertText({ formId: "1", title: "Pulse", anonymous: true, answers: [], more: 0, replyTo: null }, 3, "en", "https://x.test/chest/forms/1/answers", "Europe/Paris");
-  assert.ok(text.text.includes("anonymous") && text.subject === "3 new answers to Pulse");
+  assert.equal(told().length, 1);
+  assert.equal(shownTo(told()[0]!, "en").title, "2 new answers to Contact");
+  assert.equal(chest.outbox.length, mails, "no email to a member");
 });
 
 test("forms.answered: each answer to the other tools when the form says so — never an anonymous form's", async () => {

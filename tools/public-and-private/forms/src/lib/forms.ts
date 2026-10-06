@@ -57,7 +57,6 @@ export type Form = {
   answerCount: number;
   kiosk: boolean;
   hiddenFields: string[];
-  notifyEmail: boolean;
   shareEvents: boolean;
   // Also a contact in Clients, a ticket in Support (lib/routes.ts).
   routes: Routes;
@@ -91,7 +90,6 @@ type Row = {
   answer_count: number;
   kiosk: boolean;
   hidden_fields: string[];
-  notify_email: boolean;
   share_events: boolean;
   routes: unknown;
   cover: Image | null;
@@ -124,7 +122,6 @@ export const toForm = (r: Row): Form => ({
   answerCount: r.answer_count,
   kiosk: r.kiosk,
   hiddenFields: r.hidden_fields,
-  notifyEmail: r.notify_email,
   shareEvents: r.share_events,
   routes: readRoutes(r.routes),
   cover: r.cover ?? null,
@@ -133,7 +130,7 @@ export const toForm = (r: Row): Form => ({
   publishedAt: r.published_at ? r.published_at.toISOString() : null,
 });
 
-export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, kiosk, hidden_fields, notify_email, share_events, routes, cover, created_at, updated_at, published_at";
+export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, kiosk, hidden_fields, share_events, routes, cover, created_at, updated_at, published_at";
 
 // Whether a form takes answers now, and if not, why.
 export type OpenState = { open: boolean; reason: "draft" | "closed" | "date" | "full" | null };
@@ -245,10 +242,8 @@ export function newSlug(): string {
   return Array.from({ length: 8 }, () => slugAlphabet[randomInt(slugAlphabet.length)]).join("");
 }
 
-// routes: the links to other tools it starts with (lib/routes.ts);
-// notifyEmail: the owner's alerts by email (on for a public form where the
-// Chest's mail is not known to be missing — createForm decides).
-export type Start = { definition: Definition; settings?: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous" | "notifyEmail">>; routes?: Routes };
+// routes: the links to other tools it starts with (lib/routes.ts).
+export type Start = { definition: Definition; settings?: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous">>; routes?: Routes };
 
 export async function create(sql: Sql, actor: Member | null, start: Start): Promise<Form> {
   if (!actor || !(await mayCreate(sql, actor))) throw new AppError("forbidden");
@@ -259,8 +254,8 @@ export async function create(sql: Sql, actor: Member | null, start: Start): Prom
   if (count >= limits.forms) throw new AppError("at_most", { max: limits.forms });
   for (let attempt = 0; attempt < 5; attempt++) {
     const [row] = await sql<Row[]>`
-      insert into forms (slug, owner, draft, audience, anonymous, once, layout, accent, send_copy, notify_email, routes)
-      values (${newSlug()}, ${actor.id}, ${sql.json(def as never)}, ${s.audience ?? "public"}, ${anonymous}, ${anonymous || (s.once ?? true)}, ${s.layout ?? "steps"}, ${s.accent ?? "berry"}, ${!anonymous && s.sendCopy === true}, ${s.notifyEmail === true},
+      insert into forms (slug, owner, draft, audience, anonymous, once, layout, accent, send_copy, routes)
+      values (${newSlug()}, ${actor.id}, ${sql.json(def as never)}, ${s.audience ?? "public"}, ${anonymous}, ${anonymous || (s.once ?? true)}, ${s.layout ?? "steps"}, ${s.accent ?? "berry"}, ${!anonymous && s.sendCopy === true},
         ${sql.json((anonymous ? noRoutes : cleanRoutes(start.routes ?? null, def, { anonymous, audience: s.audience ?? "public" })) as never)})
       on conflict (slug) do nothing
       returning ${sql.unsafe(columns)}`;
@@ -392,7 +387,7 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
       update forms set audience = ${s.audience}, anonymous = ${s.anonymous}, once = ${s.once}, tell_team = ${s.tellTeam}, layout = ${s.layout}, accent = ${s.accent},
         closes_at = ${s.closesAt}, max_answers = ${s.maxAnswers}, thanks_title = ${s.thanksTitle}, thanks_body = ${s.thanksBody},
         redirect_url = ${s.redirectUrl}, send_copy = ${s.sendCopy}, retention_months = ${s.retentionMonths},
-        notify_email = ${s.notifyEmail}, share_events = ${s.shareEvents}, routes = ${tx.json(routes as never)},
+        share_events = ${s.shareEvents}, routes = ${tx.json(routes as never)},
         kiosk = ${s.kiosk}, hidden_fields = ${s.hiddenFields}, updated_at = now()
       where id = ${form.id} returning ${tx.unsafe(columns)}`;
     // Only people who may open the form can be told of its answers.
@@ -440,7 +435,7 @@ export async function duplicate(sql: Sql, actor: Member | null, formId: unknown,
   def.title = [...title(def.title)].slice(0, limits.title).join("");
   const copy = await create(sql, actor, { definition: def, settings: { audience: form.audience, anonymous: form.anonymous, once: form.once, layout: form.layout, accent: form.accent, sendCopy: form.sendCopy } });
   await sql`update forms set thanks_title = ${form.thanksTitle}, thanks_body = ${form.thanksBody}, redirect_url = ${form.redirectUrl}, retention_months = ${form.retentionMonths},
-    notify_email = ${form.notifyEmail}, share_events = ${form.shareEvents}, cover = ${form.cover ? sql.json(form.cover as never) : null} where id = ${copy.id}`;
+    share_events = ${form.shareEvents}, cover = ${form.cover ? sql.json(form.cover as never) : null} where id = ${copy.id}`;
   return copy;
 }
 
