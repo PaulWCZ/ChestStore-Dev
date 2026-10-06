@@ -7,7 +7,7 @@ import { confirmationsPerHour } from "./mail-in.ts";
 import * as mailer from "./mailer.ts";
 import * as notices from "./notices.ts";
 import { email, limits } from "./model.ts";
-import { publicBase } from "./public-origin.ts";
+import { followUpLink } from "./public-origin.ts";
 import * as tell from "./tell.ts";
 import { robotAddress } from "../shared/text.ts";
 import * as tickets from "./tickets.ts";
@@ -179,7 +179,7 @@ export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">):
   if (!t.created) return;
   if (request.email && t.secret && !robotAddress(request.email) && (await tickets.confirmations(sql, request.email)) < confirmationsPerHour) {
     const s = await tickets.settings(sql);
-    const sent = await mailer.confirm({ number: t.number, subject: request.subject, customerEmail: request.email, customerName: request.name, language: request.language }, `${publicBase(s.publicOrigin)}/t/${t.secret}`, s.companyName || chest.organization.name);
+    const sent = await mailer.confirm({ number: t.number, subject: request.subject, customerEmail: request.email, customerName: request.name, language: request.language }, followUpLink(t.secret), s.companyName || chest.organization.name);
     if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
   }
   await tell.newTicket({ id: t.id, number: t.number, subject: request.subject, customerName: request.name, customerEmail: request.email ?? "", requester: request.member }, request.body, t.assignee);

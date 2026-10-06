@@ -1,4 +1,6 @@
 import { ToastHost } from "@argentic/chest-app/client";
+import { createElement, type ComponentType } from "react";
+import { useLive } from "../components/keys.ts";
 import { AutoRefresh } from "./AutoRefresh.tsx";
 import { Composer } from "./Composer.tsx";
 import { ContactForm } from "./ContactForm.tsx";
@@ -27,10 +29,24 @@ import { WriteAgain } from "./WriteAgain.tsx";
 // The components that also run in the browser (islands), by name. A page
 // renders one with <Island name="InboxList" props={{…}} />; everything
 // else is HTML from the server, with no script. Islands do not nest.
-export const islands = {
+// Each counts itself once alive (useLive: the keyboard shortcuts wait for
+// the whole page) — a wrapper without HTML of its own, on the server too.
+function live<P extends object>(Component: ComponentType<P>): ComponentType<P> {
+  const Live = (props: P) => {
+    useLive();
+    return createElement(Component, props);
+  };
+  Live.displayName = Component.displayName ?? Component.name;
+  return Live;
+}
+function allLive<T extends Record<string, ComponentType<never>>>(list: T): T {
+  return Object.fromEntries(Object.entries(list).map(([name, c]) => [name, live(c as ComponentType<object>)])) as unknown as T;
+}
+
+export const islands = allLive({
   ToastHost, AutoRefresh, Keys, FolderSelect,
   InboxTools, InboxList, Composer, TicketSide, FormattedBody, NewTicket, MineReply, Rate,
   PeriodTabs, ReportTable,
   FormBox, HoursBox, RulesBox, NoticesBox, EmbedBox, TagsBox, RepliesBox, EraseBox,
   ContactForm, WriteAgain, CopyLink,
-};
+});

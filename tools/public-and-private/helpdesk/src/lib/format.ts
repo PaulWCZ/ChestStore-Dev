@@ -62,8 +62,3 @@ export function languageIn(code: string, locale: string): string {
   return names.of(code) ?? languageNames[code] ?? code;
 }
 
-// fileSize says "340 KB", "2.4 MB" in that language.
-export function fileSize(bytes: number, locale: string): string {
-  const [unit, value] = bytes < 1024 * 1024 ? ["kilobyte", Math.max(1, Math.round(bytes / 1024))] as const : ["megabyte", Math.round((bytes / (1024 * 1024)) * 10) / 10] as const;
-  return numberFormat(intl(locale), { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: 1 }).format(value);
-}

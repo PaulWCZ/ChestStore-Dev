@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import { Island, type LayoutProps, type MemberContext, type VisitorContext } from "@argentic/chest-app";
 import { localeOf } from "./i18n/index.ts";
 import { PublicShell } from "./pages/public-shell.tsx";
@@ -30,7 +31,10 @@ export function PublicLayout({ viewer: { t, locale }, look, path, notice, status
     <>
       {status === 200 ? children : (
         <PublicShell company={t.public.teamPlain} logo={look?.logo ?? null} locale={localeOf(locale)} back={path} t={t} notice={notice}>
-          {children}
+          {/* A follow-up link that does not work (404): said as such, with
+              the way to write anew. */}
+          {status === 404 && path.startsWith("/t/") ? <EmptyState headingLevel={1} title={t.public.notFoundTitle} body={t.public.notFoundBody}/> : children}
+          {status === 404 && <p><a className="button" href="/">{t.public.newRequest}</a></p>}
         </PublicShell>
       )}
       <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy } }} />

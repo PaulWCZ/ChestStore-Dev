@@ -529,7 +529,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     run: (name: string, to: Target, run?: Parameters<OfficialFakeChest["run"]>[2]) => official.run(name, to, run),
     close: async () => {},
     former: [...(givenFormer ?? [])],
-    upload: async (url: string, data: Uint8Array | string, type: string) => fetch(url, { method: "PUT", body: typeof data === "string" ? data : new Uint8Array(data), headers: { "Content-Type": type } }),
+    // A path (a public upload's) is sent to the host its page is on: here, publicApi.
+    upload: async (url: string, data: Uint8Array | string, type: string) => fetch(new URL(url, chest.publicApi), { method: "PUT", body: typeof data === "string" ? data : new Uint8Array(data), headers: { "Content-Type": type } }),
     clearCaches: () => {},
     published: [],
     linked: Object.fromEntries(Object.entries(options.linked ?? {}).map(([t, l]) => [t, [...l]])),

@@ -297,7 +297,6 @@ kbd { display: inline-block; min-width: 28px; padding: 2px var(--space-2); borde
 .public-card { background: var(--surface); border-radius: var(--radius-l); padding: var(--space-6); box-shadow: var(--shadow-2); display: grid; gap: var(--space-4); border: var(--border-width) solid var(--line); }
 @media (max-width: 560px) { .public-card { padding: var(--space-4); border-radius: var(--radius-m); } .public-top { padding: var(--space-3) var(--space-4); } }
 .honey { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
-.email-hint { margin-top: calc(-1 * var(--space-2)); }
 .public-foot { text-align: center; padding: var(--space-4); color: var(--ink-2); font-size: var(--text-s); }
 .subject-line { font-size: var(--text-l); }
 .status-line { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }

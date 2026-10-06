@@ -110,7 +110,9 @@ test("an admin renames (merging into a tag of that name) and deletes tags, with 
   await assert.rejects(tickets.restoreTag(sql, asMember(camille), { name: "X", tickets: ["abc"] }), refused("not_found"));
   // The export says both.
   await tickets.setPriority(sql, asMember(hugo), a.number, "high");
-  const row = (await tickets.exportAll(sql, asMember(hugo))).find(r => r.number === a.number)!;
+  const rows: tickets.ExportTicket[] = [];
+  for await (const batch of tickets.exportBatches(sql, asMember(hugo), false, 2)) rows.push(...batch);
+  const row = rows.find(r => r.number === a.number)!;
   assert.deepEqual([row.priority, row.tags], ["high", ["Delay"]]);
 });
 
