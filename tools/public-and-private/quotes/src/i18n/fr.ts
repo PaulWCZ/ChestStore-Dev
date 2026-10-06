@@ -446,6 +446,13 @@ export const fr: Catalogue = {
     filters: "Afficher",
     total: "Total de la sélection",
     none: "Aucun résultat.",
+    pagesLabel: "Pages",
+    range: "{from} à {to} sur {count}",
+    newer: "← Plus récents",
+    older: "Plus anciens →",
+    previous: "← Précédents",
+    next: "Suivants →",
+    capped: "Les {count} plus récents sont listés : cherchez pour en trouver un plus ancien.",
   },
   quotes: {
     title: "Devis",
@@ -682,6 +689,7 @@ export const fr: Catalogue = {
     noItems: "Votre catalogue est vide.",
     vat: "TVA",
     manage: "Gérer le catalogue",
+    searching: "Recherche…",
   },
   clientForm: {
     kind: "Ce client est",

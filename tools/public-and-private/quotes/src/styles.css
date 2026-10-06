@@ -564,3 +564,8 @@ select.ink { appearance: none; cursor: pointer; padding-right: 18px; background-
 
 /* Names the flows and the tests select by, with no look of their own. */
 .siren-row, .filled, .art, .bank, .mapping, .doc-table, .from-timesheets, .versions, .online, .line-text, .download { --ck-hook: 1; }
+
+/* A long ledger's pages: newer, where we are, older. */
+.pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+/* The pager under an island that is a whole page (clients, catalogue). */
+.page.pager-page { margin-top: calc(-1 * var(--space-8)); padding-top: 0; }

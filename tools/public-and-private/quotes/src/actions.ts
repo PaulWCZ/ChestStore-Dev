@@ -1,7 +1,8 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import * as visitors from "@argentic/chest-sdk/visitors";
 import { action, after, fail, field, publicAction, redirect, type Field } from "@argentic/chest-app";
-import { localeOf, locales, words } from "./i18n/index.ts";
+import { countryName, localeOf, locales, words } from "./i18n/index.ts";
+import type { ClientOption, ItemOption } from "./lib/views.ts";
 import { can } from "./lib/access.ts";
 import { draw, keep } from "./lib/archive.ts";
 import * as bank from "./lib/bank.ts";
@@ -241,6 +242,20 @@ export const actions = {
   // A company's details from its SIREN, through the public directory
   // (lib/registry.ts: the tool's one declared network host). Reads only.
   lookupCompany: action({ siren: typed(20) }, async ({ siren }, { member }): Promise<registry.Registered> => registry.lookupSiren(member, siren), { parallel: true }),
+
+  // The document's pickers ask as the dialog opens and as one types: the
+  // page carries no list (studio.6 bounds an island's props). The first
+  // 50 that match, by name; a client's country in the document's language.
+  findClients: action({ q: field.optional(field.text({ max: 80 })), language: field.choice(locales) }, async ({ q, language }, { member }): Promise<ClientOption[]> =>
+    (await clients.listClients(db(), member, { q: q ?? "", limit: 50 })).map(c => ({
+      id: c.id, kind: c.kind, name: c.name, contact: c.contact, email: c.email, address: c.address, postcode: c.postcode, city: c.city, country: c.country,
+      deliveryAddress: c.deliveryAddress, siren: c.siren, vatNumber: c.vatNumber, language: c.language, reverseCharge: c.reverseCharge, archived: c.archived,
+      countryName: countryName(c.country, language),
+    })), { parallel: true }),
+
+  findItems: action({ q: field.optional(field.text({ max: 80 })) }, async ({ q }, { member }): Promise<ItemOption[]> =>
+    (await items.listItems(db(), member, { q: q ?? "", limit: 50 })).map(i => ({ id: i.id, name: i.name, description: i.description, unit: i.unit, unitPrice: i.unitPrice, vatRate: i.vatRate, goods: i.goods })),
+  { parallel: true }),
 
   addClient: action(clientFields, async (input, { member }): Promise<clients.Client> => clients.addClient(db(), member, input)),
 

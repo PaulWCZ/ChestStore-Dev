@@ -2,11 +2,10 @@ import { Island, type MemberContext, type PageContext, type View } from "@argent
 import { chest } from "@argentic/chest-sdk/chest";
 import { catalogue, format, formatDate, formatDay, localeOf, locales, type Catalogue, type Locale } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
-import { clientMissing, listClients } from "../lib/clients.ts";
+import { clientMissing } from "../lib/clients.ts";
 import { company, missing } from "../lib/company.ts";
 import { db } from "../lib/db.ts";
 import { editAbility, editable, getDocument, upcomingNumber, type Full } from "../lib/documents.ts";
-import { listItems } from "../lib/items.ts";
 import { mailState } from "../lib/mailing.ts";
 import { formatMoney } from "../shared/money.ts";
 import { sellerOf } from "../shared/parties.ts";
@@ -43,11 +42,9 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
   const seller = full.seller ?? sellerOf(c);
   const repeating = full.type === "invoice" ? await repeatOf(sql, full.id) : null;
   const canEdit = editable(full) && can(member, editAbility(full.type));
-  const clients: ClientOption[] = canEdit
-    ? (await listClients(sql, member)).map(x => ({ ...x, countryName: countryName(x.country, full.language) }))
-    : [];
-  if (full.client && !clients.some(x => x.id === full.client!.id)) clients.push({ ...full.client, countryName: countryName(full.client.country, full.language) });
-  const items = canEdit ? (await listItems(sql, member)).map(i => ({ id: i.id, name: i.name, description: i.description, unit: i.unit, unitPrice: i.unitPrice, vatRate: i.vatRate, goods: i.goods })) : [];
+  // The document's client only: the pickers search the others on the
+  // server (an island's props stay small, whatever the lists hold).
+  const clients: ClientOption[] = full.client ? [{ ...full.client, countryName: countryName(full.client.country, full.language) }] : [];
   const buyer = full.buyer ?? full.client;
   const ref = full.related.find(r => (full.type === "credit" ? r.id === full.invoiceId : r.id === full.quoteId));
   const doc: DocView = {
@@ -169,7 +166,6 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
         dates: { issue: day(full.issueDate ?? today), due: day(full.dueDate), valid: day(full.validUntil), delivery: day(full.deliveryDate), reference: day(ref?.issueDate ?? null) },
         rights: { edit: canEdit, quote: can(member, "quotes.write"), draftInvoice: can(member, "invoices.draft"), issue: can(member, "invoices.issue"), pay: can(member, "payments"), settings: can(member, "settings") },
         clients,
-        items,
         logo: seller.logo ? `/chest/logo?v=${encodeURIComponent(seller.logo)}` : null,
         facts,
         history,
@@ -198,7 +194,8 @@ export async function documentPage(ctx: PageContext<MemberContext>): Promise<Vie
 
 // Where an invoice came from in Timesheets, as its margin says it; what
 // Timesheets counted, when this invoice counts otherwise (src/lib/timesheets.ts).
-async function handoffView(sql: ReturnType<typeof db>, full: Pick<Full, "id" | "net" | "currency">, t: Catalogue, locale: Locale): Promise<DocView["timesheets"]> {
+type Counted = Pick<Full, "id" | "net" | "currency">;
+async function handoffView(sql: ReturnType<typeof db>, full: Counted, t: Catalogue, locale: Locale): Promise<DocView["timesheets"]> {
   const h = await handoffOf(sql, full.id);
   if (!h) return null;
   const counted = h.counted !== null && h.counted !== full.net ? format(t.doc.timesheetsCounted, { counted: formatMoney(h.counted, full.currency, locale), invoice: formatMoney(full.net, full.currency, locale) }) : null;

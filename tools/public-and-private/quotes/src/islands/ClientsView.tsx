@@ -7,12 +7,15 @@ import type { Catalogue, Locale } from "../i18n/index.ts";
 import { plural } from "../i18n/format.ts";
 import type { Client } from "../lib/clients.ts";
 
+// A client as the list shows it: its columns only.
+export type ClientRow = Pick<Client, "id" | "name" | "contact" | "email" | "postcode" | "city" | "documents">;
+
 export type ClientsWords = Pick<Catalogue, "clients" | "list" | "kit" | "clientForm" | "errors" | "common">;
 
 // The clients: a searchable list (the kit's table), a new one in a dialog
 // that asks before losing what was typed. A client is opened to change
 // their card and see their documents.
-export function ClientsView({ t, locale, clients, archived, q, total, canWrite, defaultLanguage }: { t: ClientsWords; locale: Locale; clients: readonly Client[]; archived: boolean; q: string; total: number; canWrite: boolean; defaultLanguage: Locale }) {
+export function ClientsView({ t, locale, clients, archived, q, total, canWrite, defaultLanguage }: { t: ClientsWords; locale: Locale; clients: readonly ClientRow[]; archived: boolean; q: string; total: number; canWrite: boolean; defaultLanguage: Locale }) {
   const c = t.clients;
   const [adding, setAdding] = useState(false);
   const [dirty, setDirty] = useState(false);

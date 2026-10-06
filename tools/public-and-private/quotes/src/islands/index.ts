@@ -5,6 +5,7 @@ import { CatalogueView } from "./CatalogueView.tsx";
 import { ClientsView } from "./ClientsView.tsx";
 import { ClientView } from "./ClientView.tsx";
 import { DocTable } from "./DocTable.tsx";
+import { AutoRefresh } from "./AutoRefresh.tsx";
 import { DocumentView } from "./document/DocumentView.tsx";
 import { Importer } from "./Importer.tsx";
 import { MoreMenu } from "./MoreMenu.tsx";
@@ -20,7 +21,7 @@ import { SettingsView } from "./SettingsView.tsx";
 // component an island uses — the client form, the pickers, the dialogs —
 // is just a component inside it).
 export const islands = {
-  ToastHost, MoreMenu, NewDocument, DocTable, SearchField,
+  ToastHost, MoreMenu, NewDocument, DocTable, SearchField, AutoRefresh,
   // The team's part.
   DocumentView, ClientsView, ClientView, CatalogueView, SettingsView, NumberingPanel, Importer, BankView, PeriodForm,
   // The public part.

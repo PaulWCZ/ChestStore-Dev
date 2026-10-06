@@ -11,6 +11,7 @@ import { nameOf, people } from "../src/lib/people.ts";
 import { answerUrl, publicOrigin } from "../src/lib/public-origin.ts";
 import { remindLatePayers } from "../src/lib/reminders.ts";
 import { kindOf, rowView } from "../src/lib/rows.ts";
+import { listStamp } from "../src/lib/stamp.ts";
 import { sendQuote, listDocuments } from "../src/lib/documents.ts";
 import type { DocView } from "../src/lib/views.ts";
 import { catalogue } from "../src/i18n/index.ts";
@@ -124,4 +125,19 @@ test("a list's row: its kind, number, client and amount, written for the reader"
   assert.equal(view.stateText, catalogue("fr").states[row.state]);
   const shape: Pick<DocView, "id"> = { id: view.id };
   assert.equal(shape.id, row.id);
+});
+
+test("the lists' version moves with what they show, and only then", async () => {
+  const { sql } = database;
+  const first = await listStamp(sql, today);
+  assert.equal(await listStamp(sql, today), first, "nothing new: the same mark (a refresh gets a 304)");
+  const c = await client(sql, { name: "Version Témoin" });
+  const withClient = await listStamp(sql, today);
+  assert.notEqual(withClient, first, "a client's name changed");
+  const d = await draft(sql, "quote", c.id, [line("Logo", 1000, 50000)]);
+  const withDraft = await listStamp(sql, today);
+  assert.notEqual(withDraft, withClient, "a new draft");
+  await sql`update documents set deleted_at = now(), updated_at = now() where id = ${d.id}`;
+  assert.notEqual(await listStamp(sql, today), withDraft, "a draft dropped");
+  assert.notEqual(await listStamp(sql, "2099-01-01"), await listStamp(sql, today), "another day: what is overdue moves");
 });

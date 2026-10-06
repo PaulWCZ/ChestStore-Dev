@@ -8,7 +8,15 @@ import { db } from "../lib/db.ts";
 import { listDocuments, type ListRow } from "../lib/documents.ts";
 import { formatMoney } from "../shared/money.ts";
 import { rowView } from "../lib/rows.ts";
-import { localeOf } from "../i18n/index.ts";
+import { format, intl, localeOf } from "../i18n/index.ts";
+import { numberFormat } from "../i18n/format.ts";
+import { Pager, pageOf, pageSize } from "../components/pager.tsx";
+
+// A page of the ledger at a time: its rows go to the browser as the
+// island's props (src/components/pager.tsx); the filters' counts and the
+// total are the whole selection's, worked out here.
+// The most rows a list reads (the newest first); past that, the search.
+export const listCap = 2000;
 
 // A list of quotes or of invoices: its filters (the states, as links that
 // keep the search: the kit's Filters), a search box that works without
@@ -19,7 +27,7 @@ type Filter = { key: string; label: string; match: (r: ListRow) => boolean };
 export async function quotesPage(ctx: PageContext<MemberContext>): Promise<View> {
   const { member, t } = ctx;
   const q = (ctx.query("q") ?? "").slice(0, 80);
-  const rows = await listDocuments(db(), member, { types: ["quote"], q }, chest.today());
+  const rows = await listDocuments(db(), member, { types: ["quote"], q, limit: listCap }, chest.today());
   const f = t.quotes.filters;
   const filters: Filter[] = [
     { key: "all", label: f.all, match: () => true },
@@ -41,7 +49,7 @@ export async function quotesPage(ctx: PageContext<MemberContext>): Promise<View>
 export async function invoicesPage(ctx: PageContext<MemberContext>): Promise<View> {
   const { member, t } = ctx;
   const q = (ctx.query("q") ?? "").slice(0, 80);
-  const rows = await listDocuments(db(), member, { types: ["invoice", "credit"], q }, chest.today());
+  const rows = await listDocuments(db(), member, { types: ["invoice", "credit"], q, limit: listCap }, chest.today());
   const f = t.invoices.filters;
   const open = new Set(["unpaid", "partly_paid", "overdue"]);
   const filters: Filter[] = [
@@ -87,14 +95,17 @@ function listPage(ctx: PageContext<MemberContext>, { path, title, intro, filters
   const [all, ...states] = filters;
   const current = ctx.query("state") ?? "all";
   const active = states.find(f => f.key === current) ?? all!;
-  const shown = rows.filter(active.match);
-  const currencies = new Set(shown.map(r => r.currency));
-  const totalValue = shown.reduce((s, r) => s + (r.type === "credit" ? -r.gross : r.gross), 0);
+  const chosen = rows.filter(active.match);
+  const { page, pages, offset } = pageOf(ctx.query("page"), chosen.length);
+  const shown = chosen.slice(offset, offset + pageSize);
+  const currencies = new Set(chosen.map(r => r.currency));
+  const totalValue = chosen.reduce((s, r) => s + (r.type === "credit" ? -r.gross : r.gross), 0);
   const params: Record<string, string> = { ...(active !== all ? { state: active.key } : {}), ...(q ? { q } : {}) };
   const h = t.list.head;
   const newButton = (label: string) => create && <Island name="NewDocument" props={{ type: create.type, label }} />;
   return (
     <div className="page">
+      <Island name="AutoRefresh" props={{ seconds: 60 }} />
       {/* Empty, the page's one action is the empty state's: no header button. */}
       <PageHeader size="m" title={title} intro={intro}
         secondary={side && (rows.length > 0 || q) ? <a className="button quiet" href={side.href}>{side.label}</a> : undefined}
@@ -121,9 +132,11 @@ function listPage(ctx: PageContext<MemberContext>, { path, title, intro, filters
               rows: shown.map(r => rowView(r, t, locale)),
               words: { caption: title, number: h.number, client: h.client, what: h.what, date: h.date, amount: h.amount, state: h.state, total: t.list.total },
               labels: t.kit.table,
-              total: currencies.size === 1 && shown.length > 1 ? formatMoney(totalValue, [...currencies][0]!, locale) : null,
+              total: currencies.size === 1 && chosen.length > 1 ? formatMoney(totalValue, [...currencies][0]!, locale) : null,
             }} />
           )}
+          <Pager path={path} params={params} page={page} pages={pages} shown={shown.length} count={chosen.length} words={t.list} locale={locale} back={t.list.newer} next={t.list.older} />
+          {rows.length >= listCap && <p className="muted small">{format(t.list.capped, { count: numberFormat(intl(locale)).format(listCap) })}</p>}
         </>
       )}
     </div>

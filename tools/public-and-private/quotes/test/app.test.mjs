@@ -15,7 +15,7 @@ import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/membe
 // look, actions (from an island, from a form), the public page and its
 // bounded answer, files, the Chest's signed calls. Every page fetched is
 // checked for what the policy would block (checkPage).
-atLeast(11);
+atLeast(12);
 let chest, database, app;
 before(async () => {
   chest = await fakeChest({ tool: "quotes", network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr" } });
@@ -113,6 +113,21 @@ test("actions from an island: a quote made, written, refused in the reader's wor
   assert.equal((await call(hugo, "noSuchAction", {})).status, 404);
   assert.equal((await call(null, "createDocument", { type: "quote" })).status, 404, "not on the public host");
   assert.equal((await call(hugo, "createDocument", { type: "quote" }, { "sec-fetch-site": "cross-site" })).status, 403);
+});
+
+test("the lists read again cheaply: a refresh with the page's version is a 304; the pickers search on the server", async () => {
+  const quotes = await get(hugo, "/chest/quotes");
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(await quotes.text())?.[1];
+  assert.ok(version, "the page says its version");
+  assert.equal((await get(hugo, "/chest/quotes", { accept: "text/html", "x-tool-navigate": "1", "x-tool-version": version })).status, 304);
+  const found = await (await call(hugo, "findClients", { q: "dupain", language: "en" })).json();
+  assert.deepEqual(found.value.map(c => c.name), ["Boulangerie Dupain SAS"]);
+  assert.equal(found.value[0].countryName, "France");
+  assert.equal((await call(hugo, "findItems", {})).status, 200);
+  assert.equal((await call(null, "findClients", { language: "en" })).status, 404, "not on the public host");
+  // Something new: the page is read again.
+  assert.equal((await call(hugo, "createDocument", { type: "quote" })).status, 200);
+  assert.equal((await get(hugo, "/chest/quotes", { accept: "text/html", "x-tool-navigate": "1", "x-tool-version": version })).status, 200);
 });
 
 test("finalising: the next number, the PDF of record kept after the answer, billing's badge", async () => {

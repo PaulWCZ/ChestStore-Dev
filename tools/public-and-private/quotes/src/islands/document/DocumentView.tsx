@@ -5,7 +5,7 @@ import { Stamp } from "../../components/stamp.tsx";
 import { format, formatDay } from "../../i18n/format.ts";
 import type { Catalogue, Locale } from "../../i18n/index.ts";
 import { formatMoney } from "../../shared/money.ts";
-import type { ClientOption, DocView, Fact, ItemOption, Moment, OnlineView, PaymentView, RelatedView, Rights, VersionView } from "../../lib/views.ts";
+import type { ClientOption, DocView, Fact, Moment, OnlineView, PaymentView, RelatedView, Rights, VersionView } from "../../lib/views.ts";
 import type { DocWords } from "../../lib/views.ts";
 import type { MailState } from "../../lib/mailing.ts";
 import { CopyLink } from "../CopyLink.tsx";
@@ -26,7 +26,6 @@ export type DocumentViewProps = {
   dates: { issue: string; due: string; valid: string; delivery: string; reference: string };
   rights: Rights;
   clients: ClientOption[];
-  items: ItemOption[];
   logo: string | null;
   facts: Fact[];
   history: Moment[];
@@ -178,7 +177,7 @@ export function DocumentView(props: DocumentViewProps) {
               </dl>
             </section>
           ) : (
-            <Paper doc={doc} t={t} words={props.words} locale={locale} today={props.today} dateWords={t.kit.date} editing={rights.edit} clients={props.clients} items={props.items} canAddClient={rights.quote}
+            <Paper doc={doc} t={t} words={props.words} locale={locale} today={props.today} dateWords={t.kit.date} editing={rights.edit} clients={props.clients} canAddClient={rights.quote}
               logo={props.logo} dates={props.dates} flushRef={flushRef} onState={onState} onTotals={onTotals} />
           )}
         </div>

@@ -10,7 +10,7 @@ import { formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inp
 import { addressLines, spacedSiren } from "../../shared/parties.ts";
 import { lineNet, totals } from "../../shared/totals.ts";
 import { unitText } from "../../shared/units.ts";
-import type { ClientOption, DocView, ItemOption } from "../../lib/views.ts";
+import type { ClientOption, DocView } from "../../lib/views.ts";
 import type { DocWords } from "../../lib/views.ts";
 import { ClientPicker } from "./client-picker.tsx";
 import { ItemPicker } from "./item-picker.tsx";
@@ -60,8 +60,8 @@ export type PaperProps = {
   today: string;
   dateWords: DateWords;
   editing: boolean;
+  // The document's client, when it has one (the picker finds the others).
   clients: ClientOption[];
-  items: ItemOption[];
   canAddClient: boolean;
   logo: string | null;
   dates: { issue: string; due: string; valid: string; delivery: string; reference: string };
@@ -453,7 +453,7 @@ export function Paper(props: PaperProps) {
       </footer>
 
       {picking === "client" && (
-        <ClientPicker t={t} clients={clients.filter(c => !c.archived)} canAdd={props.canAddClient} language={header.language} onClose={() => setPicking(null)}
+        <ClientPicker t={t} canAdd={props.canAddClient} language={header.language} onClose={() => setPicking(null)}
           onPick={picked => {
             setClients(list => (list.some(c => c.id === picked.id) ? list : [...list, picked]));
             setH({ clientId: picked.id, language: picked.language, vatTreatment: picked.reverseCharge ? "reverse_charge" : "standard" });
@@ -461,7 +461,7 @@ export function Paper(props: PaperProps) {
           }} />
       )}
       {picking === "item" && (
-        <ItemPicker t={t} items={props.items} currency={doc.currency} locale={locale} onClose={() => setPicking(null)}
+        <ItemPicker t={t} currency={doc.currency} locale={locale} onClose={() => setPicking(null)}
           onPick={item => {
             addLine({ itemId: item.id, description: item.description ? `${item.name}\n${item.description}` : item.name, unit: item.unit, unitPrice: inputAmount(item.unitPrice, doc.currency, header.language), vatRate: doc.franchise ? 0 : item.vatRate, goods: item.goods });
             focusNext.current = null;

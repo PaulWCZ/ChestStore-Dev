@@ -452,6 +452,14 @@ export const en = {
     filters: "Show",
     total: "Total of these",
     none: "Nothing matches.",
+    // A long list goes by pages of 200.
+    pagesLabel: "Pages",
+    range: "{from}–{to} of {count}",
+    newer: "← Newer",
+    older: "Older →",
+    previous: "← Previous",
+    next: "Next →",
+    capped: "The {count} most recent are listed: search to find an older one.",
   },
   quotes: {
     title: "Quotes",
@@ -688,6 +696,7 @@ export const en = {
     noItems: "Your catalogue is empty.",
     vat: "VAT",
     manage: "Manage the catalogue",
+    searching: "Searching…",
   },
   clientForm: {
     kind: "This client is",

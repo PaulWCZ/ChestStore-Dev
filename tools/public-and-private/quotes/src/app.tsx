@@ -8,6 +8,7 @@ import { can, roleOf } from "./lib/access.ts";
 import { pdfOf } from "./lib/archive.ts";
 import { company } from "./lib/company.ts";
 import { db } from "./lib/db.ts";
+import { listStamp } from "./lib/stamp.ts";
 import { chestEvents, chestSchedules } from "./lib/deliveries.ts";
 import { getDocument, overdueCount } from "./lib/documents.ts";
 import { disposition, linkGuard, publicFile } from "./lib/downloads.ts";
@@ -58,15 +59,19 @@ export const app = createApp({
 // the Invoices tab (the overdue invoices: a true count, read with the
 // page). A member whose role gives nothing gets the layout's "no access"
 // (the page reads nothing).
-const team = (render: (ctx: PageContext<MemberContext>) => Promise<View> | View) => page(async ctx => {
+//
+// The desk and the lists read again by themselves while their reader is
+// there (an AutoRefresh island: the package's useAutoRefresh), and a read
+// with nothing new is a 304 (their version: src/lib/stamp.ts).
+const team = (render: (ctx: PageContext<MemberContext>) => Promise<View> | View, options: { live?: boolean } = {}) => page(async ctx => {
   if (!roleOf(ctx.member)) return { title: ctx.t.noAccess.title, body: null };
   const view = await render(ctx);
   return { ...view, layout: { ...view.layout, overdue: await overdueCount(db(), chest.today()) } };
-});
+}, options.live ? { version: ({ member }) => (roleOf(member) ? listStamp(db(), chest.today()) : null) } : {});
 
-app.get("/chest", team(deskPage));
-app.get("/chest/quotes", team(quotesPage));
-app.get("/chest/invoices", team(invoicesPage));
+app.get("/chest", team(deskPage, { live: true }));
+app.get("/chest/quotes", team(quotesPage, { live: true }));
+app.get("/chest/invoices", team(invoicesPage, { live: true }));
 app.get("/chest/documents/:id", team(documentPage));
 app.get("/chest/clients", team(clientsPage));
 app.get("/chest/clients/:id", team(clientPage));

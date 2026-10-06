@@ -58,6 +58,7 @@ export async function deskPage(ctx: PageContext<MemberContext>): Promise<View> {
   };
   const body = (
     <div className="page">
+      <Island name="AutoRefresh" props={{ seconds: 60 }} />
       <p className="over-title">{formatDay(today, locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
       <PageHeader
         size="m"

@@ -37,18 +37,46 @@ export const toClient = (r: Row): Client => ({
   reverseCharge: r.reverse_charge, notes: r.notes, account: r.account ?? "", externalRef: r.external_ref, archived: r.archived_at !== null, documents: r.documents ?? 0,
 });
 
-export async function listClients(sql: Query, actor: Member | null, options: { q?: string; archived?: boolean } = {}): Promise<Client[]> {
+// A search compares words without case or accents ("etienne" finds
+// "Étienne"), in the database: the Latin letters with accents folded by
+// translate() (no extension needed), the needle folded the same way.
+const accented = "àáâãäåāăąçćčďèéêëēėęěìíîïīįñńňòóôõöōőŕřśšşťùúûüūůűųýÿžźż";
+const plain = [...accented].map(c => c.normalize("NFD")[0]).join("");
+const unaccent = (q: string) => q.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
+export const foldedLike = (sql: Query, column: string, like: string) => sql`translate(lower(${sql(column)}), ${accented}, ${plain}) like ${like}`;
+export const likeOf = (q: string) => "%" + unaccent(q).replace(/[\\%_]/gu, m => "\\" + m) + "%";
+
+// The clients, a page at a time (the list's island takes a page: studio.6
+// bounds an island's props): `limit` (200 by default, 1000 at most) from
+// `offset`, by name. Searched by name, contact, e-mail, city or SIREN.
+export async function listClients(sql: Query, actor: Member | null, options: { q?: string; archived?: boolean; limit?: number; offset?: number } = {}): Promise<Client[]> {
   if (!can(actor, "read")) throw new AppError("forbidden");
   const q = typeof options.q === "string" ? options.q.trim().slice(0, 80) : "";
-  const like = "%" + q.replace(/[\\%_]/gu, m => "\\" + m) + "%";
+  const limit = Math.min(Math.max(1, options.limit ?? 200), 1000);
+  const offset = Math.max(0, options.offset ?? 0);
   const rows = await sql<Row[]>`
     select c.*, (select count(*) from documents d where d.client_id = c.id and d.deleted_at is null)::int as documents
     from clients c
     where ${options.archived ? sql`c.archived_at is not null` : sql`c.archived_at is null`}
-      ${q ? sql`and (c.name ilike ${like} or c.contact ilike ${like} or c.email ilike ${like} or c.city ilike ${like} or c.siren like ${like.replace(/\s/gu, "")})` : sql``}
+      ${q ? clientMatch(sql, q) : sql``}
     order by lower(c.name), c.id
-    limit 1000`;
+    limit ${limit} offset ${offset}`;
   return rows.map(toClient);
+}
+
+function clientMatch(sql: Query, q: string) {
+  const like = likeOf(q);
+  const digits = q.replace(/\D/gu, "");
+  return sql`and (${foldedLike(sql, "c.name", like)} or ${foldedLike(sql, "c.contact", like)} or ${foldedLike(sql, "c.email", like)} or ${foldedLike(sql, "c.city", like)}
+    ${digits.length >= 3 ? sql`or c.siren like ${"%" + digits + "%"}` : sql``})`;
+}
+
+// How many clients a list (archived or not, searched or not) holds.
+export async function countMatching(sql: Query, options: { q?: string; archived?: boolean } = {}): Promise<number> {
+  const q = typeof options.q === "string" ? options.q.trim().slice(0, 80) : "";
+  const [row] = await sql<{ n: number }[]>`select count(*)::int as n from clients c
+    where ${options.archived ? sql`c.archived_at is not null` : sql`c.archived_at is null`} ${q ? clientMatch(sql, q) : sql``}`;
+  return row?.n ?? 0;
 }
 
 // How many clients the list holds (archived ones aside): an empty list

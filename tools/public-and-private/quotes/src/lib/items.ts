@@ -4,6 +4,7 @@ import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, id, limits } from "../shared/model.ts";
 import { isVatRate, parseAmount } from "../shared/money.ts";
+import { foldedLike, likeOf } from "./clients.ts";
 
 // The catalogue: what the company sells, with its price excluding VAT and
 // its VAT rate. A line made from an item copies it (the document keeps its
@@ -15,12 +16,23 @@ export type Item = { id: string; name: string; description: string; unit: string
 type Row = { id: number; name: string; description: string; unit: string; unit_price: number; vat_rate: number; goods: boolean; archived_at: Date | null };
 const toItem = (r: Row): Item => ({ id: String(r.id), name: r.name, description: r.description, unit: r.unit, unitPrice: r.unit_price, vatRate: r.vat_rate, goods: r.goods, archived: r.archived_at !== null });
 
-export async function listItems(sql: Query, actor: Member | null, options: { archived?: boolean } = {}): Promise<Item[]> {
+// The items, by name, a page at a time (`limit`, all of them by default;
+// the catalogue's island and the document's picker take a page): searched
+// by name or description, without case or accents.
+export async function listItems(sql: Query, actor: Member | null, options: { archived?: boolean; q?: string; limit?: number; offset?: number } = {}): Promise<Item[]> {
   if (!can(actor, "read")) throw new AppError("forbidden");
+  const q = typeof options.q === "string" ? options.q.trim().slice(0, 80) : "";
+  const limit = Math.min(Math.max(1, options.limit ?? limits.items), limits.items);
   const rows = await sql<Row[]>`
     select * from items where ${options.archived ? sql`archived_at is not null` : sql`archived_at is null`}
-    order by lower(name), id limit ${limits.items}`;
+      ${q ? sql`and (${foldedLike(sql, "name", likeOf(q))} or ${foldedLike(sql, "description", likeOf(q))})` : sql``}
+    order by lower(name), id limit ${limit} offset ${Math.max(0, options.offset ?? 0)}`;
   return rows.map(toItem);
+}
+
+export async function countItems(sql: Query, options: { archived?: boolean } = {}): Promise<number> {
+  const [row] = await sql<{ n: number }[]>`select count(*)::int as n from items where ${options.archived ? sql`archived_at is not null` : sql`archived_at is null`}`;
+  return row?.n ?? 0;
 }
 
 export type ItemInput = Partial<Record<"name" | "description" | "unit" | "unitPrice" | "vatRate" | "goods", unknown>>;
