@@ -1,9 +1,12 @@
 /* Leave: soft, rounded, calm. The look's tokens come from the theme
-   (lib/theme.ts, or the company's choice); the tool's own in tokens.css;
+   (src/theme.ts, or the company's choice); the tool's own in tokens.css;
    the components here (DESIGN.md names them). The kit's components
    (@argentic/chest-ui/components.css) are restyled here only where Leave's
    identity asks it (the pill tabs, the peach avatars). */
 *, *::before, *::after { box-sizing: border-box; }
+/* An island (@argentic/chest-app) is a wrapper for the script, not a box:
+   its insides sit in the page's layout as if it were not there. */
+.island { display: contents; }
 html { -webkit-text-size-adjust: 100%; }
 /* An icon takes the size of its text unless its place says otherwise. */
 svg { width: 1.1em; height: 1.1em; flex: none; vertical-align: -0.15em; }
