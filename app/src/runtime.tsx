@@ -100,8 +100,10 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     else location.reload();
     return false;
   }
+  // Another refusal (the page is gone: 404): the page loaded plainly, as
+  // the server shows it.
   if (!response.ok && !push) {
-    toast({ id: "refresh", text: words.unavailable, tone: "error" });
+    location.reload();
     return false;
   }
   const next = new DOMParser().parseFromString(html, "text/html");

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { chest } from "@argentic/chest-sdk/chest";
@@ -15,7 +15,7 @@ import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
 import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
 import type { ErrorCode, Words } from "./register.ts";
-import { AppError, HttpStatus, readInput, toolPath, type Action, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
+import { AppError, fail, HttpStatus, readInput, toolPath, type Action, type Bound, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
 
 // The server of a tool: security headers and a log line on every answer,
 // the browser's files under /assets/, the member of every /chest request,
@@ -30,7 +30,9 @@ export const policy = "default-src 'self'; script-src 'self'; style-src 'self'; 
 export type Viewer = MemberContext | VisitorContext;
 // What a page handler gets, and gives back (or a Response of its own).
 export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; param(name: string): string; query(name: string): string | undefined };
-export type View = { title: string; body: ReactNode };
+// lang: the page's own language when it is not the reader's (a page that
+// exists only in its author's language).
+export type View = { title: string; body: ReactNode; lang?: string };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
 // look: the request's look when createApp has one (its logo, in brand
@@ -119,7 +121,7 @@ function noticeOf(c: Context, t: Words): string | null {
     // Numbers only: a value in the address is anyone's to write.
     if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && typeof v === "number" && Number.isFinite(v)));
   } catch { /* no values */ }
-  const said = fill(t.errors[code as ErrorCode], values);
+  const said = fill(t.errors[code as ErrorCode] ?? t.errors.unavailable, values);
   // A value missing (an address written by hand): the plain refusal.
   return /\{\w+\}/u.test(said) ? t.errors.invalid : said;
 }
@@ -134,7 +136,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   const { members: Members, public: Public } = options.layouts;
   startRender(options.islands);
   const page = renderToString(
-    <html lang={viewer.locale}>
+    <html lang={view.lang ?? viewer.locale}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -233,8 +235,8 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   const definition = Object.hasOwn(options.actions, name) ? options.actions[name] : undefined;
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
-  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
-    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code], values) }, status) : c.redirect(back(c, members, code, values), 303);
+  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 429 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
+    fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code] ?? viewer.t.errors.unavailable, values) }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
   const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -244,15 +246,24 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
   // post anything to a public action).
   if (!json && type !== "application/x-www-form-urlencoded" && type !== "multipart/form-data") return refuse(415, "invalid");
   let answer: Response | undefined;
+  const bound = definition.access === "public" ? definition.bound ?? false : false;
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
     try {
       const raw = json ? await c.req.json<Record<string, unknown>>() : formFields(await c.req.formData());
+      if (bound) {
+        // A robot filled the field people never see: "done", nothing done.
+        if (typeof raw?.["website"] === "string" && raw["website"] !== "") {
+          answer = fetched ? c.json({ ok: true, value: null }) : c.redirect(back(c, members), 303);
+          return;
+        }
+        await counted(c, name, bound);
+      }
       const value = await definition.run(readInput(definition.input, raw !== null && typeof raw === "object" ? raw : {}) as never, { ...viewer, cookies: cookiesOf(c), request: c.req.raw } as never);
       answer = fetched ? c.json({ ok: true, value: value ?? null }) : c.redirect(back(c, members), 303);
     } catch (error) {
       if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to }) : c.redirect(error.to, 303);
       else if (error instanceof HttpStatus) answer = refuse(error.status === 403 ? 403 : 404, error.status === 403 ? "forbidden" : "not_found");
-      else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : 400, error.code, error.values);
+      else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : error.code === "limit" ? 429 : 400, error.code, error.values);
       else if (error instanceof SyntaxError || (error instanceof TypeError && /form|body|parse/iu.test(error.message))) answer = refuse(400, "invalid");
       else if (chestDown(error)) {
         log.warn("the Chest did not answer", { action: name, error: (error as Error).name });
@@ -264,6 +275,24 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
     }
   });
   return refused ?? answer ?? refuse(500, "unknown");
+}
+
+// A public action's bound: this browser's count and everyone's, today (the
+// Chest's day), in chest_bounds; past either, refused ("limit"). The
+// browser is known by a cookie of the tool's own, set at its first call.
+async function counted(c: Context, scope: string, bound: Bound): Promise<void> {
+  const { db } = await import("./db.ts");
+  let visitor = getCookie(c, "chest_v");
+  if (!visitor || !/^[\w-]{16,64}$/u.test(visitor)) {
+    visitor = randomBytes(18).toString("base64url");
+    setCookie(c, "chest_v", visitor, { path: "/", maxAge: 365 * 86_400, sameSite: "Lax", secure: true, httpOnly: true });
+  }
+  const sql = db();
+  const count = async (who: string) => (await sql<{ count: number }[]>`
+    insert into chest_bounds (scope, visitor, day, count) values (${scope}, ${who}, current_date, 1)
+    on conflict (scope, visitor, day) do update set count = chest_bounds.count + 1 returning count`)[0]!.count;
+  if ((await count(visitor)) > bound.perVisitor || (await count("*")) > bound.perDay) fail("limit");
+  if (Math.random() < 0.02) await sql`delete from chest_bounds where day < current_date - 1`;
 }
 
 // A form's fields; a name sent several times (checkboxes) is a list.
@@ -307,7 +336,9 @@ export function createApp(options: AppOptions) {
   app.use(async (c, next) => {
     const started = performance.now();
     await next();
-    c.header("Content-Security-Policy", policy);
+    // A route may answer its own policy (wider frame-ancestors for a page
+    // the company embeds): kept. Every other answer gets the package's.
+    if (!c.res.headers.has("Content-Security-Policy")) c.header("Content-Security-Policy", policy);
     c.header("X-Content-Type-Options", "nosniff");
     c.header("Referrer-Policy", "same-origin");
     c.header("Cross-Origin-Opener-Policy", "same-origin");
@@ -375,7 +406,10 @@ export function createApp(options: AppOptions) {
     // cannot be shown as asked) — never a 500.
     if (error instanceof AppError) return html(c, errorView(viewerOf(c), error.code === "forbidden" ? 403 : 404), viewerOf(c), error.code === "forbidden" ? 403 : 404);
     if (chestDown(error)) log.warn("the Chest did not answer", { route: routePath(c, -1), error: error.name });
-    else log.error("page failed", error, { route: routePath(c, -1) });
+    else {
+      const route = routePath(c, -1);
+      log.error(route === "/chest-schedules" ? "schedule failed" : route === "/chest-events" ? "event failed" : "page failed", error, { route });
+    }
     return html(c, errorView(viewerOf(c), 500), viewerOf(c), 500);
   });
   return app;

@@ -74,6 +74,24 @@ export function after(name: string, task: () => Promise<unknown>): void {
   setImmediate(() => void Promise.resolve().then(task).catch(error => log.error(`${name} failed`, error)));
 }
 
+// cutText(text, max): text cut to at most max characters as the SDK
+// counts them (code points), never inside a letter or an emoji, "…"
+// ending what was cut. For a limit set elsewhere — a notification's title
+// (80) or body (280), which the SDK refuses rather than cuts: a schedule
+// that sends a too-long title fails at every run.
+export function cutText(text: string, max: number): string {
+  if ([...text].length <= max) return text;
+  let kept = "";
+  let size = 0;
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)) {
+    const length = [...segment].length;
+    if (size + length > max - 1) break;
+    kept += segment;
+    size += length;
+  }
+  return kept.trimEnd() + "…";
+}
+
 // ---- The fields of an action's input. Each reads what a form sends
 // (text) and what fetch sends (JSON) alike, and refuses with a code.
 // read(value, all): its own value, and every value sent (for keyed()).
@@ -85,29 +103,43 @@ type Omissible<T, W = T> = Field<T, W> & { readonly omissible: true };
 const text = (value: unknown) => (typeof value === "string" ? value : typeof value === "number" && Number.isFinite(value) ? String(value) : fail("invalid"));
 const spaces = /[\s\u00a0\u202f]/gu;
 
-// An amount as people write it, to cents: "1234.5", "1 234,50" (any
-// space), "1,234.50", "1.234,50", "1,234" (English thousands). A lone "."
-// or "," followed by one or two digits is the decimal mark; "12.345" and
-// "1.234" are refused (which one was meant?).
+// An amount as people write it, to cents: "1234.5", "12,50", "1 234,50"
+// (any space), "1,234.50", "1.234,50". A group mark (thousands) counts only
+// beside a decimal mark of the other kind; a lone "," or "." followed by
+// three digits ("1,250", "0,500", "1.234") is refused: an English reader
+// means 1250, a French one 1.25. At most two decimals, numbers included
+// (12.345 and 1.005 refused, never rounded).
 function cents(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? Math.round(value * 100) : null;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Math.abs(value) >= 1e13) return null;
+    const n = Math.round(value * 100);
+    return Math.abs(n / 100 - value) < 1e-9 ? n : null;
+  }
   const s = text(value).replace(spaces, "");
-  const m = /^(-?)(\d+(?:([.,])\d{3})*)(?:([.,])(\d{1,2}))?$/u.exec(s);
-  if (!m) return null;
-  const [, sign, whole = "", group, mark, decimals = ""] = m;
-  if (group && (group === mark || (group === "." && mark !== ","))) return null;
-  if (group && !/^\d{1,3}([.,]\d{3})+$/u.test(whole)) return null;
-  const digits = whole.replace(/[.,]/gu, "");
-  if (digits.length > 13) return null;
-  const n = Number(digits) * 100 + Number(decimals.padEnd(2, "0"));
+  const plain = /^(-?)(\d{1,13})(?:[.,](\d{1,2}))?$/u.exec(s);
+  const grouped = /^(-?)(\d{1,3}(?:([.,])\d{3})+)([.,])(\d{1,2})$/u.exec(s);
+  let sign: string, whole: string, decimals: string;
+  if (plain) [, sign = "", whole = "", decimals = ""] = plain;
+  else if (grouped && grouped[3] !== grouped[4] && !/^-?0[.,]/u.test(s)) {
+    sign = grouped[1] ?? "";
+    whole = (grouped[2] ?? "").replace(/[.,]/gu, "");
+    decimals = grouped[5] ?? "";
+  } else return null;
+  if (whole.length > 13) return null;
+  const n = Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
   return sign ? -n : n;
 }
+
+// A visitor's text: no control character but tab and line breaks (a NUL
+// would reach PostgreSQL as an error).
+const controls = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
 
 export const field = {
   // Trimmed text, from min (1: required) to max characters.
   text: ({ min = 1, max }: { min?: number; max: number }): Field<string> => ({
     read(value) {
       const s = value === undefined || value === null ? "" : text(value).trim();
+      if (controls.test(s)) fail("invalid");
       if (s.length === 0 && min > 0) fail("empty");
       if (s.length < min) fail("invalid");
       return s.length > max ? fail("too_long", { max }) : s;
@@ -117,6 +149,7 @@ export const field = {
   // "1e1" refused: an empty required number is not 0).
   int: ({ min, max }: { min: number; max: number }): Field<number, number | string> => ({
     read(value) {
+      if (value === undefined || value === null) fail("empty");
       const s = typeof value === "number" ? String(value) : text(value).trim();
       if (s === "") fail("empty");
       if (!/^-?\d{1,15}$/u.test(s)) fail("invalid");
@@ -128,7 +161,7 @@ export const field = {
   // with f.money(cents, { cents: true }). min and max are in cents.
   money: ({ min = 0, max }: { min?: number; max: number }): Field<number, number | string> => ({
     read(value) {
-      if (typeof value === "string" && value.trim() === "") fail("empty");
+      if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) fail("empty");
       const n = cents(value);
       return n !== null && n >= min && n <= max ? n : fail("invalid");
     },
@@ -211,6 +244,8 @@ export type Action<F extends Fields = Fields, R = unknown> = {
   readonly input: F;
   // The largest body it takes, in bytes (1 MiB by default).
   readonly maxBody: number;
+  // A public action's bound (publicAction's options).
+  readonly bound?: Bound | false;
   run(input: InputOf<F>, context: never): Promise<R>; // its context: by access
 };
 
@@ -222,8 +257,18 @@ export type Action<F extends Fields = Fields, R = unknown> = {
 export function action<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number } = {}): Action<F, R> {
   return { access: "member", input, maxBody: options.maxBody ?? 1 << 20, run: run as Action<F, R>["run"] };
 }
-export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: VisitorContext) => Promise<R>, options: { maxBody?: number } = {}): Action<F, R> {
-  return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, run: run as Action<F, R>["run"] };
+// bound (public actions): anyone on the Internet may call one, so each is
+// bounded — perVisitor a day for one browser (a cookie the package sets:
+// the official SDK gives no visitor address), perDay for everyone together
+// (one bot slows the form, never fills the table) — and a form's hidden
+// field "website" (<Honeypot />), filled only by robots, makes the call
+// succeed without running. Counted in chest_bounds (the tool's
+// migrations/0001_chest.sql). Refused with the code "limit".
+// checkSources() fails on a publicAction without bound; bound: false says
+// the action writes nothing anyone could fill (or guards itself).
+export type Bound = { perVisitor: number; perDay: number };
+export function publicAction<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: VisitorContext) => Promise<R>, options: { maxBody?: number; bound?: Bound | false } = {}): Action<F, R> {
+  return { access: "public", input, maxBody: options.maxBody ?? 1 << 20, ...(options.bound !== undefined ? { bound: options.bound } : {}), run: run as Action<F, R>["run"] };
 }
 
 // An outcome as an island receives it: the value, or the code and the

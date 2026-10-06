@@ -100,13 +100,16 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   permission the owner approves (`checkSources` fails on a `publicAction`
   without it, and on it with nothing public served): any path outside `/chest`, served by `publicPage()` and
   `publicAction()`; no member; the visitor's language (`/lang/<code>`
-  switch). **Every public write needs a bound**, per visitor and overall:
-  the official SDK gives no visitor address (`visitors.address` is a studio
-  proposal), so key a visitor by a cookie the action sets
-  (`cookies.set("v", random, …)`: it slows a person, not a determined bot),
-  and keep a global ceiling a day counted in the database, so one bot can
-  slow the form but not fill the table; plus a field people never see
-  (a honeypot) that only robots fill.
+  switch). **Every public action is bounded**: `publicAction(fields, run,
+  { bound: { perVisitor: 5, perDay: 200 } })` counts it per browser (a
+  cookie the package sets: the official SDK gives no visitor address —
+  `visitors.address` is a studio proposal — so it slows a person, not a
+  determined bot) and for everyone (one bot slows the form, never fills
+  the table), in `chest_bounds` (`migrations/0001_chest.sql`); past it,
+  the code `limit` (`t.errors.limit`). Put `<Honeypot />` in the form: a
+  robot that fills it is answered "done" and nothing is done. `bound:
+  false` only for an action that writes nothing (`checkSources` fails on a
+  `publicAction` without `bound`).
 
 ## Fields of an action
 
@@ -168,6 +171,11 @@ version must keep working on the new schema.
 
 ## Recipes
 
+**A page that exists in one language** — return `{ title, body, lang:
+"en" }`: the page's `<html lang>` says so, whoever reads it.
+**A route that answers its own policy** (a page the company embeds
+elsewhere: a wider `frame-ancestors`) — answer a `Response` whose
+`Content-Security-Policy` is set: the package keeps it.
 **Optimistic state in a big island** (a board dragged, a list reordered)
 — show the server's props, unless a local state exists while a drag or a
 call is in flight: `const shown = pending ?? props.cards`; set `pending`
@@ -178,10 +186,30 @@ same render, with no flash of the old order.
 **A page** — a component in `src/pages/`, a route in `src/app.tsx`, its
 words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
 **A table** — `migrations/0003_tags.sql`, its rules and SQL in `src/lib/`.
+**Roles** — `"roles": ["manager", "member"]` in `chest.json` (the first
+is the default a new member gets; `"role_labels": { "manager": "Manager" }`
+for the Chest's screens); `member.role` says which, `member.isAdmin` too.
+Who may do what is one function in `src/lib/` (`can(member, "x")`), used
+by pages (to show the button) and actions (to refuse with `forbidden`).
+**Writing to another member** (a notification, a digest), outside their
+request: their language and zone from `members.get(id)` or
+`members.lookup(ids)` (`members` capability), then `words(member.language)`
+(the tool's `src/i18n/index.ts`) and `formatter(language, member.timeZone,
+chest.currency)` from `@argentic/chest-app`. A notification's title is 80
+characters at most and its body 280 (the SDK refuses longer, and a
+schedule that sends one fails at every run): `cutText(title, 80)`. Send
+it in `after("notify", () => notifications.notify(…))` from an action: a
+Chest hiccup then never fails an action whose data is written.
+**Long lists** — page them: `order by created_at desc, id desc limit
+${pageSize + 1}` after the last row's `(created_at, id)` from the address
+(`?after=…`); the extra row says whether a next page exists. Never a
+silent `limit 500`.
 **A schedule** — `"schedules": [{"name": "digest", "cron": "0 7 * * 1-5"}]`
 in `chest.json` (the Chest's zone; 15 minutes apart at least), a handler
 `digest: async run => …` in `schedules.handle` of `src/app.tsx`; within 5
-minutes, idempotent (a failed run comes again with the same id).
+minutes, idempotent (a failed run comes again with the same id). Test it:
+`await chest.run("digest", request => app.fetch(request))` (the SDK's
+`fakeChest`) answers the status; `chest.notifications` lists what it sent.
 **Members' lifecycle** — `"receives": ["member.*"]` (with `members`), a
 handler in `events.handle`: on `member.erased`, delete or anonymise, then
 `acknowledgeErasure`.

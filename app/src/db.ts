@@ -12,13 +12,16 @@ import postgres from "postgres";
 let pool: postgres.Sql<{ date: string }> | undefined;
 export function db(): postgres.Sql<{ date: string }> {
   const schema = process.env["TEST_DATABASE_SCHEMA"];
+  const zone = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/u.test(process.env["CHEST_TIME_ZONE"] ?? "") ? process.env["CHEST_TIME_ZONE"] : undefined;
   return (pool ??= postgres(databaseUrl(), {
     max: 4,
     idle_timeout: 60,
     connect_timeout: 10,
     onnotice: () => {},
     types: { date: { to: 1082, from: [1082], serialize: (day: string) => day, parse: (day: string) => day } },
-    ...(schema ? { connection: { search_path: schema } } : {}),
+    // The Chest's zone on every session, as the Chest sets it (current_date
+    // is the company's day) — so too in the tests' databases.
+    connection: { ...(schema ? { search_path: schema } : {}), ...(zone ? { TimeZone: zone } : {}) },
   }));
 }
 

@@ -4,7 +4,8 @@ import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
 import { rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
-import { applies, AppError as BrowserError } from "../dist/client.js";
+import { AppError as BrowserError } from "../dist/client.js";
+import { applies } from "../dist/runtime.js";
 import { db, seenIn } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
@@ -24,9 +25,11 @@ const actions = {
   go: action({}, async () => redirect("/chest/elsewhere")),
   big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
   refuse: action({}, async () => fail("forbidden")),
-  shout: publicAction({ text: field.text({ max: 5 }) }, async () => null),
+  shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
+  write: publicAction({ text: field.text({ max: 5 }) }, async () => { written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
 };
 let completed = 0;
+let written = 0;
 const layout = ({ notice, look, status, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "" }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
@@ -44,11 +47,14 @@ app.get("/chest/day", page(async () => {
 app.get("/chest/refused", page(() => fail("forbidden")));
 app.get("/chest/missing", page(() => fail("not_found")));
 app.get("/chest/invalid", page(() => fail("invalid")));
+app.get("/chest/own-policy", page(() => new Response("framed", { headers: { "content-security-policy": "frame-ancestors https://partner.example" } })));
+app.get("/chest/english", page(() => ({ title: "English only", body: "x", lang: "en-US" })));
+app.post("/chest-schedules", () => { throw new Error("boom"); });
 app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
 
 const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
 let chest, database;
-before(async () => { chest = await fakeChest({ members: [member] }); database = await testDatabase({ migrations: "test/no-migrations" }); });
+before(async () => { chest = await fakeChest({ members: [member], chest: { timeZone: "Pacific/Kiritimati" } }); database = await testDatabase({ migrations: "test/no-migrations" }); });
 after(async () => { await database.close(); await chest.close(); });
 
 const url = path => `https://tool.test${path}`;
@@ -267,4 +273,43 @@ test("zipStream: a zip any reader opens, written as it is read", async () => {
   assert.equal(execFileSync("unzip", ["-p", file, "notes.csv"]).toString(), "id,body\r\n1,héllo\r\n");
   assert.equal(execFileSync("unzip", ["-p", file, "files/photo.bin"]).length, 70003);
   await assert.rejects(new Response(zipStream([{ name: "../evil", data: "x" }])).arrayBuffer(), RangeError);
+});
+
+test("a route's own policy is kept; a page may say its own language; failures named by what failed", async () => {
+  assert.equal((await get("/chest/own-policy")).headers.get("content-security-policy"), "frame-ancestors https://partner.example");
+  assert.match((await get("/chest/day")).headers.get("content-security-policy"), /^default-src 'self'/u);
+  assert.match(await (await get("/chest/english")).text(), /<html lang="en-US">/u);
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    await app.fetch(new Request(url("/chest-schedules"), { method: "POST" }));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /^error "schedule failed"/mu);
+});
+
+test("the database runs in the Chest's zone (a far one)", async () => {
+  const { chest: sdkChest } = await import("@argentic/chest-sdk/chest");
+  const [{ day }] = await db()`select current_date::text as day`;
+  assert.equal(day, sdkChest.today());
+});
+
+test("a public action's bound: per visitor, for everyone, and the honeypot", async () => {
+  await db()`create table if not exists chest_bounds (scope text, visitor text, day date, count integer not null, primary key (scope, visitor, day))`;
+  const send = (cookie, fields) => app.fetch(new Request(url("/actions/write"), { method: "POST", body: JSON.stringify(fields), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}) } }));
+  const first = await send(null, { text: "a" });
+  assert.equal(first.status, 200);
+  const cookie = /chest_v=[\w-]+/u.exec(first.headers.get("set-cookie") ?? "")?.[0];
+  assert.ok(cookie, "a visitor cookie");
+  assert.equal((await send(cookie, { text: "b" })).status, 200);
+  const third = await send(cookie, { text: "c" });
+  assert.equal(third.status, 429);
+  assert.equal((await third.json()).error, "limit");
+  assert.equal((await send("chest_v=anotherbrowseranotherbrowser", { text: "d" })).status, 200, "another browser");
+  assert.equal((await send("chest_v=yetanotherbrowseryetanother", { text: "e" })).status, 429, "everyone's ceiling");
+  const before = written;
+  assert.equal((await send(null, { text: "f", website: "spam.example" })).status, 200, "a robot is answered done");
+  assert.equal(written, before, "and nothing is done");
 });

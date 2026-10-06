@@ -35,12 +35,16 @@ export type CoreWords = {
     readonly not_found: string;
     readonly unavailable: string;
     readonly unknown: string;
+    // A public action past its bound (optional: "unavailable" otherwise).
+    readonly limit?: string;
   };
   readonly kit: KitWords;
 };
 
 type Registered<K extends string, Fallback> = Register extends { [P in K]: infer T } ? T : Fallback;
 export type Words = Registered<"words", CoreWords> & CoreWords;
-export type ErrorCode = Extract<keyof Words["errors"], string>;
+// The codes of the tool's own catalogue (a code it does not say, as the
+// optional "limit", is not one it may use).
+export type ErrorCode = Extract<keyof Registered<"words", CoreWords>["errors"], string>;
 export type RegisteredActions = Registered<"actions", Record<string, unknown>>;
 export type RegisteredIslands = Registered<"islands", Record<string, ComponentType<any>>>;

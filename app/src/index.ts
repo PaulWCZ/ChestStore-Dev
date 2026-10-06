@@ -4,8 +4,8 @@ import { serve as listen } from "@hono/node-server";
 import { log } from "./log.ts";
 
 export { createApp, page, publicPage, publicActionsAt, rawRoute, sameOrigin, policy, type AppOptions, type LayoutProps, type Look, type PageContext, type View, type Viewer } from "./http.tsx";
-export { Island, type Plain } from "./island.tsx";
-export { action, publicAction, field, fail, notFound, forbidden, redirect, after, toolPath, AppError, HttpStatus, type Action, type Cookies, type Field, type Fields, type InputOf, type SentOf, type MemberContext, type VisitorContext, type Outcome } from "./tool.ts";
+export { Honeypot, Island, type Plain } from "./island.tsx";
+export { action, publicAction, field, fail, notFound, forbidden, redirect, after, toolPath, cutText, AppError, HttpStatus, type Bound, type Action, type Cookies, type Field, type Fields, type InputOf, type SentOf, type MemberContext, type VisitorContext, type Outcome } from "./tool.ts";
 export { fill, formatter, localeIn, publicLocale, dateFormat, numberFormat, type Format, type Plural } from "./i18n.ts";
 export { csvLine } from "./csv.ts";
 export { zipStream, type ZipEntry } from "./zip.ts";

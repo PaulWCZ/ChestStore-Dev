@@ -225,3 +225,12 @@ test("compressed: pages gzipped as they go, the browser's files brotli from the 
   const plain = await fetch(`${tool.origin}${script}`, { headers: { "accept-encoding": "identity" } });
   assert.equal(plain.headers.get("content-encoding"), null);
 });
+
+test("a refresh that meets a 404 loads the page plainly (its 404), not 'did not answer'", async () => {
+  const { page, close } = await open();
+  await page.evaluate(() => { window.samePage = true; });
+  tool.fail(404);
+  await page.locator("li.note").first().getByRole("button", { name: /^(Pin|Unpin)$/u }).click();
+  await page.waitForFunction(() => window.samePage !== true);
+  await close();
+});
