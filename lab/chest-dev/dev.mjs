@@ -259,6 +259,9 @@ const chest = await testing.fakeChest({
 // same-origin, as on a Chest, and the tool's CSP holds.
 const apiOrigin = chest.api;
 chest.api = origin;
+// A visitor's upload goes to the public host (/_chest/upload/), as on a
+// Chest (SDK report, public uploads): the public page's connect-src 'self'.
+chest.publicApi = publicOrigin;
 
 // --linked (opt-in; Proposal (studio.16): events.receivers): an admin
 // linked each tool installed beside this one to it, for every type this

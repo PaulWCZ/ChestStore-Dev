@@ -199,6 +199,10 @@ export type FakeChestOptions = Omit<OfficialFakeChestOptions, "members" | "forme
 // studio's fakes keep and do.
 export type FakeChest = Omit<OfficialFakeChest, "members" | "groups" | "emit"> & {
   members: StudioMember[];
+  // The origin of the public uploads' addresses (files.publicUploadUrl):
+  // api unless set — a harness that serves the public host's
+  // /_chest/upload/ sets it to the public host's origin.
+  publicApi: string;
   // Every group of the Chest, those that do not give the tool included.
   groups: FakeGroup[];
   // Those the tool had who no longer have it: what lookup answers "former"
@@ -496,9 +500,15 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
 
   // The studio's object: 0.4.1's fields read and written through (a test
   // that sets chest.members sets 0.4.1's), and the studio's own.
+  let publicApi: string | undefined;
   const chest = {
     get api() { return official.api; },
     set api(value: string) { official.api = value; },
+    // The origin of the public uploads' addresses: the public host's on a
+    // Chest; the fake's own (api) unless a harness that serves the public
+    // host's /_chest/upload/ sets it.
+    get publicApi() { return publicApi ?? official.api; },
+    set publicApi(value: string) { publicApi = value; },
     get token() { return official.token; },
     get tool() { return official.tool; },
     get members() { return official.members as StudioMember[]; },
@@ -1227,7 +1237,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     publicUploads.set(grant, { name, types: (types as string[] | undefined) ?? [], maxSize: (maxSize as number | undefined) ?? publicMaxObject, until: Date.now() + seconds * 1000, ...(typeof unclaimed === "number" ? { unclaimed } : {}) });
     // The public host's route, on the fake's own origin (as 0.4.1's fake
     // serves the team host's).
-    send(response, 200, { url: `${chest.api}/_chest/upload/${grant}`, method: "PUT", expires_in: seconds });
+    send(response, 200, { url: `${chest.publicApi}/_chest/upload/${grant}`, method: "PUT", expires_in: seconds });
   }
 
   // ---- The look ----

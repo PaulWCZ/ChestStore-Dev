@@ -53,7 +53,9 @@ Intercom): there is no chat bubble.
   (https, ten at most); the form and its follow-up pages may then be
   framed there, and nowhere else (`frame-ancestors`; the team's pages
   never). Settings gives the code to paste — a plain `<iframe>`, no
-  script — in English or French.
+  script — in English or French. **Not on a Chest of contract 0.4 yet**:
+  its front refuses every frame of a public page (below, "Needs from the
+  SDK"); Settings says so.
 - A link to the company's **help centre** above the form when an admin
   gives one (the Wiki's public pages, or any page of answers).
 - **Files** on the form and when writing again: photos, PDF, Word, Excel
@@ -125,7 +127,7 @@ Intercom): there is no chat bubble.
 - **Tags a desk starts with** (the sample's "Damaged", "Delivery",
   "Invoice", "Order change") read in each reader's language ("Abîmé",
   "Livraison"…) until someone renames them; typed in either language they
-  are the same tag (`lib/seed-words.ts`).
+  are the same tag (`src/lib/seed-words.ts`).
 - **Keyboard**: `j`/`k` move, `Enter` opens, `x` ticks, `r` reply, `n`
   note, `e` close, `c` new ticket, `/` search, `?` the list.
 - A **ticket**: the conversation, a composer with *Reply* or *Internal note*
@@ -237,8 +239,8 @@ of the public form:
   log says so without a word of its content.
 - **The link back**: the ticket keeps the answer's path only (never an
   address, which changes when Forms gets a custom domain); the ticket's
-  page makes the link when it is shown, with `chest.toolLink("forms",
-  path)` (`lib/forms-in.ts`, `formsLink`). While Forms is not installed on
+  page makes the link when it is shown, with `chest.tools.link("forms",
+  path)` (`src/lib/forms-in.ts`, `formsLink`). While Forms is not installed on
   the Chest, the form is named without a link. Following it opens Forms
   only for a member who has Forms; its host tells the others.
 
@@ -248,7 +250,7 @@ the two). The contract is Status' (its README, "With the other tools"):
 `{v, action: opened|updated|resolved|removed, incident: {id, title,
 language, titles, status, impact, started_at, resolved_at, url, services:
 [{id, names, state}]}, update: {id, status, at}}`. Read as untrusted
-(`lib/incidents-in.ts`: texts bounded and cleaned, the link https only,
+(`src/lib/incidents-in.ts`: texts bounded and cleaned, the link https only,
 states from a closed list); kept by the incident's id; an event published
 earlier (the Chest's `occurredAt`) never replaces a later one — they may
 arrive out of order. What the team sees of it: above.
@@ -274,7 +276,7 @@ contract is Goals' (its README, "With the other tools"):
   by a merge is not solved; closing spam solves nothing.
 - **Never lost, never twice**: a trigger (`0007_ticket_events.sql`)
   writes each change in the same transaction as the ticket;
-  `lib/ticket-events.ts` publishes it after the action, and the `late`
+  `src/lib/ticket-events.ts` publishes it after the action, and the `late`
   schedule (every 15 minutes) again while the Chest refuses (not linked
   yet, quota): the action itself never fails for it. The same key twice is
   one event. What the Chest refused for a week is forgotten by the nightly
@@ -329,8 +331,10 @@ contract is Goals' (its README, "With the other tools"):
 | `/chest/files/<id>` (`?thumbnail=1`) | idem | an attachment (a fresh 15-minute link), or a photo's thumbnail |
 | `/chest-events` | the Chest only (signed) | members' lifecycle; `forms.request` from Forms, `status.incident` from Status (proposal) |
 | `/chest-mail` | the Chest only (signed) — proposal | received email and bounces |
-| `/chest-jobs/cleanup`, `/chest-jobs/late` | the Chest only (signed) — proposal | nightly retention; every 15 minutes, requests waiting too long told to the channels that asked |
+| `/chest-schedules` | the Chest only (signed, `Chest-Schedule`) | the runs of `chest.json`'s schedules: `cleanup` (nightly retention), `late` (every 15 minutes: requests waiting too long told to the channels that asked; ticket events published again) |
 | `/chest-webhooks` | the Chest only (signed) — proposal | a Slack/Teams channel the Chest stopped (`webhook.disabled`) |
+| `/chest/actions/<name>`, `/actions/<name>` | members; anyone (the public form, a follow-up link) | every change (`src/actions.ts`): from an island or a plain form |
+| `/chest/look.css`, `/look.css`, `/assets/…` | members; anyone | the look (the company's choice), the browser's files, fonts and icon |
 
 ## Looks
 
@@ -343,33 +347,47 @@ readable (WCAG AA), light and dark. In brand mode the company's logo
 replaces Support's mark in the header, and the public contact form and
 follow-up pages carry the company's logo, colours and fonts: the customer
 is on the company's own page. The look is resolved on the server
-(`lib/theme.ts`, `chest.theme()` — Proposal (studio)); nothing runs in the
-browser for it. Outside a Chest that offers looks, Support wears its own.
+(`src/theme.ts`, `chest.theme()` — Proposal (studio)), served as a
+stylesheet of the tool's own (`/chest/look.css`, `/look.css` on the public
+host, cached by its hash); nothing runs in the browser for it. Outside a Chest that offers looks, Support wears its own.
 
 ## On a Chest
 
-- `public: true`, `csp: "tool"` (Next.js needs its own nonce policy).
+- Contract **0.4** (`"chest": "0.4"`), `public: true` — **no `csp`
+  permission**: no inline script, no inline style; the Chest's default
+  policy for a public part is the tool's own.
 - `capabilities`: `database`; `files` (attachments: the form's, the
-  team's, received emails');
-  `members` (names, and who answers: roles `admin`, `agent`);
-  `notifications`; `receives: ["member.*"]` (and `forms.request`,
-  `status.incident`, `webhooks: {max: 10}` and the `late` schedule in
-  `chest.proposals.json`: Proposal (studio)).
+  team's, received emails'); `members` (names, and who answers: roles
+  `admin`, `agent`); `notifications`; `receives: ["member.*"]`;
+  `schedules`: `cleanup` (03:15 every night) and `late` (every 15
+  minutes), in `chest.json`, posted to `/chest-schedules`. In
+  `chest.proposals.json` (Proposal (studio)): `mail`, public uploads,
+  `receives` `forms.request` and `status.incident`, `emits`, `webhooks`.
+- `build.static`: `["/assets/"]` — the browser's files, the fonts
+  (`/assets/fonts/`) and the icon (`/assets/icon.svg`); nothing is served
+  at the host's root.
 - **Customers are not members**: their email and name are kept to answer
   them, erased on request (Settings), and closed tickets are deleted after
   the retention (24 months by default; 0 keeps them). The CNIL's guidance
   on customer data applies: say it in your privacy notice.
 - **A member leaves**: their tickets go back to *Unassigned*. **Erasure**:
   their answers stay (customers received them), signed "Former member";
-  what they asked with a team form stays, asked by "Former member".
-- No WebSocket: the inbox and a ticket re-read themselves every 20 s (the kit's `useAutoRefresh`).
+  what they asked with a team form stays, asked by "Former member". A
+  member still in the Chest who lost access to Support is named "Léa
+  Dubois (no access)".
+- **Sleep**: nothing is kept in the process's memory; the first request
+  after a sleep is answered in about 0.5 s (measured in the harness).
+- No WebSocket: the inbox and a ticket re-read themselves every 20 s
+  (the kit's `useAutoRefresh`; what is being typed is kept).
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), a packed copy in
-`vendor/`. The member's `language` (the language of `/chest`) and the
-Chest's `organization.name`, `timeZone` and `language` are the released
-0.3.0; what follows is not in it yet.
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), a packed copy in
+`vendor/`, and the studio's app package `@argentic/chest-app` (also in
+`vendor/`). The member's `language` and `timeZone`, the Chest's
+`organization`, `timeZone`, `language`, `chest.tool.teamUrl` and
+`chest.tool.publicUrl`, and the schedules are the released 0.4.1; what
+follows is not in it yet.
 
 - **`chest.theme()`** — **Proposal (studio)**: the look the company chose
   (README, "Looks"); without it, Support's own.
@@ -388,15 +406,15 @@ Chest's `organization.name`, `timeZone` and `language` are the released
   **On a real Chest today there is no mail**: until the Chest ships it,
   sell Support as "a contact form and a shared inbox", not as a Zendesk
   replacement for email.
-- **`chest.publicUrl`, `chest.teamUrl`** — **Proposal (studio)**: links in
-  emails and notices use them (else the last public address seen). The
-  day and the working hours are the Chest's time zone (`chest.timeZone`,
-  0.3.0); email tickets and the public pages' last fallback take the
-  Chest's language (`chest.language`, 0.3.0).
-- **Scheduled tasks** — **Proposal (studio)**: the nightly `cleanup`.
-  Without it, closed tickets are kept until an admin erases them.
+- **Links in emails and notices** use `chest.tool.publicUrl` (0.4.1: the
+  company's own domain once it connected one — `support.acme.com` — else
+  the public host) and `chest.tool.teamUrl`; outside a Chest, the last
+  public address seen. The day and the working hours are the Chest's time
+  zone; email tickets and the public pages' last fallback take the
+  Chest's language.
 - **Public uploads** — **Proposal (studio)** (`chest.proposals.json`:
-  `"files": {"publicUploads": true}`), with `files.claim` and
+  `"files": {"publicUploads": true}`): `files.publicUploadUrl` (the
+  address is on the public host), `files.claim` and
   `expiresUnclaimedAfter` (a day). Without it the form works as before;
   *Add a file* answers "Files cannot be added right now. Describe it in
   words, or try again later." A visitor's file reaches them back through
@@ -407,11 +425,19 @@ Chest's `organization.name`, `timeZone` and `language` are the released
   new of the SDK but a manifest change per company: `mailboxes` is fixed
   in the manifest, so a company cannot add one from Settings. The SDK
   report asks for mailboxes an admin names at install time.
-- **Frame ancestors**: the policy is the tool's own (`csp: "tool"`). The
-  Chest's front must pass the tool's `frame-ancestors` through unchanged
-  on the public host (and keep refusing frames on the team host).
-- **The visitor's address** for the form's counters is read from
-  `X-Forwarded-For`, assumed set by the Chest's front.
+- **Being shown in the company's website** (Settings, "On your
+  website"): the public pages send the listed websites in their
+  `frame-ancestors`, but the Chest's front adds `frame-ancestors 'none'`
+  to every public answer, even with `csp: "tool"` (contract 0.4, "Content-
+  Security-Policy"), and two policies intersect: **the frame cannot work
+  on a Chest today**, and Settings says so. It needs the Chest to let an
+  administrator allow the company's websites (SDK report, "Framing public
+  pages").
+- **The visitor's address** for the form's counters: `visitors.address()`
+  (Proposal (studio): `Chest-Visitor-Address`, set by the Chest's front),
+  never `X-Forwarded-For` (the Chest adds none: it would be whatever the
+  visitor wrote). Without it every visitor counts together: 5 requests an
+  hour per visitor, 100 an hour in all.
 
 - **Events between tools** — **Proposal (studio)**: `forms.request` from
   Forms, `status.incident` from Status (above); `emits`
@@ -423,28 +449,42 @@ Chest's `organization.name`, `timeZone` and `language` are the released
   web-address notices (Settings). Without it, Settings says the Chest
   cannot send them yet. The "waiting too long" notice also needs
   **scheduled tasks** (the `late` schedule, every 15 minutes).
-- **`chest.toolLink`** — **Proposal (studio)** (SDK report §4.18): the
+- **`chest.tools.link`** — **Proposal (studio)** (SDK report §4.18): the
   link back to an answer in Forms, from the addresses the Chest gives in
   `CHEST_TOOL_URLS`. On a Chest without it, the form is named without a
   link.
 
 ## Develop
 
+The stack is the studio starter's: Hono and React rendered on the server,
+a few islands in the browser, Vite (`@argentic/chest-app`, its
+`AGENTS.md` in `node_modules/@argentic/chest-app/`).
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build
+npm run dev       # rebuilds on every change, restarts the server
+npm run build     # the type check, the browser's files, the server
+npm test          # tsc, the server built into dist/test, the tests (TEST_DATABASE_URL, else PGlite)
+npm start         # the built server, as the Chest runs it
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/helpdesk --reset`
 (the `/_dev` page shows the outbox and can send an email to the support
 mailbox), `node lab/chest-dev/flows/helpdesk.mjs`,
-`node lab/chest-dev/screens.mjs tools/public-and-private/helpdesk`.
+`node lab/chest-dev/screens.mjs tools/public-and-private/helpdesk`,
+`node lab/chest-dev/audit.mjs tools/public-and-private/helpdesk`.
+
+Measured (`lab/measure`, 6 October 2026, the same bench for every tool):
+at rest 65 MiB PSS (136.9 on Next.js), first answer after a start 489 ms
+(880), image 30 MiB (460); the install and the build fit 512 MiB and one
+CPU (they did not on Next.js).
 
 ## What it does not do (yet)
 
 - **Email on a real Chest**: the `mail` proposal is not shipped; until
   it is, email in and out works only in the studio's harness.
+- **The form inside the company's website** on a real Chest (above,
+  "Needs from the SDK"): link to the form's address instead.
 - **Live chat** (Crisp, Intercom): no chat bubble; a chat would need a
   push or long-poll primitive (no WebSocket on a Chest).
 - **Imports from Zendesk, Freshdesk or Help Scout**: not built, on

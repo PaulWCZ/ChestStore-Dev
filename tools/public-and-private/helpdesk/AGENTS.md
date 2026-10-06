@@ -5,53 +5,43 @@ what must not break.
 
 ## Map
 
+How a tool on the studio starter is built — pages, islands, actions,
+words, the database, tests, its rules — is
+`node_modules/@argentic/chest-app/AGENTS.md`: read it first. Support's
+own:
+
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `agent`, `viewer`; public part) and the proposals it uses (`mail`, public uploads, `schedules` `cleanup` and `late`, `receives` `forms.request` and `status.incident`, `webhooks`) |
-| `vendor/` | SDK 0.3.0 + studio proposals (0.3.1-studio.1) and the UI kit, packed copies |
-| `lib/session.ts` | Who asks (`member()`), the language of `/chest` (the member's `language`) and of a public page (the visitor's, else the Chest's `chest.language`, else English) |
-| `lib/access.ts` | Who may do what |
-| `lib/model.ts` | Bounds, statuses, folders, priorities, sorts, file types and limits, "waiting since" and the threshold, email check, `[#number]` in subjects — pure |
-| `lib/tickets.ts` | The service: public form, follow-up link (and its files, following merges), email filing (`fromEmail`: thread, headers, then same vouched-for sender), bounces, inbox (filters, sorts), answers, notes, assignment, priority, tags, merge/unmerge, bulk/unbulk, customer's address, rating, saved replies, settings (per-language sentence, hours, frame origins, help URL), erasure (and its log), cleanup, `exportAll` |
-| `lib/forms-in.ts` | What `forms.request` from Forms does (`/chest-events`, `tools`): `readRequest` reads the untrusted event (bounds, address, member id, path), `received` opens the ticket (`tickets.fromForms`) then confirms and tells as the public form does; `formsLink`, the link back |
-| `lib/tickets.ts` "A colleague's own requests" | My requests: `myRequests`, `myRequest`, `writeMine`, `rateMine`, `myFile`, `myOpenCount` — the requester's own tickets only |
-| `app/chest/mine/…` | My requests' pages (any member; the layout sends a member without a role there), `mine-reply.tsx` (write again, rate), `files/[id]` (a file of their own request) |
-| `lib/notices.ts`, `app/chest/settings/notices-box.tsx`, `app/chest-webhooks/route.ts` | Slack, Teams and web-address notices (`webhooks`): the channels (admins), what each is told, `notice()`/`about()` after a new request or a customer's message, `late()` (the `late` schedule), `webhook.disabled` |
-| `lib/incidents-in.ts`, `components/incident-banner.tsx` | `status.incident` from Status: read as untrusted, kept by id (ordered by `occurredAt`), the banner, the incident's saved reply |
-| `lib/mail-in.ts` | What `/chest-mail` does: file an email, confirm a new one (never to robots, three an hour per address), tell the team; mark a bounce and tell its author |
-| `lib/hours.ts` | Working hours (pure): the week, days off, `workMinutes`, time zones with Intl, France's public holidays, local timestamps |
-| `lib/text.ts` | Pure text: an email's quoted history (`splitQuoted`), links (`linkify`), `baseSubject`, robots' addresses |
-| `lib/rules.ts` | Rules on arrival: CRUD (admins), matching (`matches`, `decide`), forgetting a member |
-| `lib/views.ts` | Saved views: the inbox's parameters, checked |
-| `lib/reports.ts` | The reports (admins) |
-| `lib/export.ts`, `lib/zip.ts` | The ZIP export: two CSVs and a JSON |
-| `lib/frame.ts` | The websites that may frame the public pages, read from the database on every framed page by `proxy.ts` (no cache: the proxy runs in its own module instance) |
-| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Calm counter" (`defineTheme`, equal to the catalogue's `counter`) and `currentLook` (the company's choice, else the identity); Support's own tokens, from contract tokens; the styles (contract tokens only) |
-| `components/team-shell.tsx` | The kit's `AppShell` + toasts + auto-refresh, and the column (a row of chips on a phone) of folders and saved views |
-| `components/body.tsx`, `components/keys.tsx` | A message's words (links, folded quotes); keyboard shortcuts (`?` sheet in the kit's `Dialog`; `busy()`: never while typing or while a dialog is open) |
-| `components/public-shell.tsx` | The public pages' frame: the company's name, or its logo in brand mode; the kit's `LanguageSwitch` |
-| `lib/attachments.ts` | Files on messages: who may upload (visitor, member), the grant, taking claims/uploads once and moving them to `files/`, removal, the nightly sweep |
-| `components/attachments.tsx` | The kit's `FilePicker` wired to the tool's grants (public claims, members' object names) |
-| `components/badges.tsx`, `components/inbox-filters.tsx`, `components/report-table.tsx` | State and priority on the kit's `StatusBadge`, "waiting since"; the kit's `Filters` with Next's `Link`; the reports' `DataTable` |
-| `lib/form-token.ts` | The form's signed "shown at" time |
-| `lib/mailer.ts` | Confirmation and replies through the Chest's mail (`transactional`), falling back to the page |
-| `lib/ticket-events.ts`, `migrations/0007_ticket_events.sql` | `helpdesk.ticket.solved`/`reopened` for Goals: written by a trigger with the ticket, published after each action and by the `late` schedule |
-| `lib/tell.ts` | Bell and tile for those who answer |
-| `lib/lifecycle.ts` | Members leaving or erased |
-| `lib/public-origin.ts` | The public host's address; the visitor's key |
-| `app/page.tsx`, `app/t/[secret]/`, `app/public-actions.ts` | The public part (anonymous); `app/t/[secret]/files/[id]/route.ts` streams a request's file to its link |
-| `app/chest/…`, `app/chest/actions.ts` | The team's part (`inbox-list.tsx`: ticks and the bulk bar; `save-view.tsx`; `settings/hours-box.tsx`, `rules-box.tsx`, `embed-box.tsx`; `reports/`; `messages/[id]/original`) |
-| `app/chest-mail/route.ts`, `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
+| `chest.json`, `chest.proposals.json` | Manifest (contract 0.4: roles `admin`, `agent`, `viewer`; public part; schedules `cleanup` and `late`; `build.static` `/assets/`) and the proposals it uses (`mail`, public uploads, `receives` `forms.request` and `status.incident`, `emits`, `webhooks`) |
+| `vendor/` | SDK 0.4.1-studio.2, the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `src/app.tsx` | Every route: the team's pages in their frame (`team()`: a member without a role reaches My requests only), downloads, the public pages, the Chest's deliveries; around them, the frame-ancestors of the public pages and the sandbox of files |
+| `src/actions.ts` | Every change, by name (members' and public); the rules check values and rights |
+| `src/pages/` | Pages (server): `inbox`, `ticket`, `new-ticket`, `settings`, `reports`, `mine`, `contact`, `follow-up`; `frame.tsx` (the team's frame: shell, folders, saved views), `public-shell.tsx` (the public frame, the language switch with `?lang=`) |
+| `src/islands/` | What runs in the browser: the inbox's list and tools, a ticket's composer and side card, settings' boxes, the public form, write again, rate, keys, auto-refresh |
+| `src/components/` | Shared by pages and islands (island rules: no server code): icons, badges, a message's body, attachments (the kit's FilePicker), the incident banner, a settings box |
+| `src/shared/` | Pure rules the islands use too: `model.ts` (bounds, kinds, priorities, folders), `hours.ts` (working hours, time zones, France's holidays), `text.ts` (quoted history, links, subjects) |
+| `src/lib/` | The rules and the SQL (below), `deliveries.ts` (`/chest-events`, `/chest-mail`, `/chest-schedules`, `/chest-webhooks`), `downloads.ts` (files, the original email, the export), `format.ts` (dates, plurals, sizes; Intl objects kept) |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `kit` holds the kit's words |
+| `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity "Calm counter" and `sheetOf` (the company's choice, served as `/chest/look.css` and `/look.css`); Support's tokens; the styles (contract tokens only) |
+| `src/lib/access.ts` | Who may do what |
+| `src/lib/tickets.ts` | The service: public form, follow-up link, email filing, bounces, inbox, answers, notes, assignment, priority, tags, merge, bulk, customer's address, rating, saved replies, settings, erasure, cleanup, export; "A colleague's own requests" (My requests) |
+| `src/lib/forms-in.ts`, `src/lib/incidents-in.ts`, `src/lib/mail-in.ts` | What Forms, Status and the mailbox send |
+| `src/lib/notices.ts` | Slack, Teams and web-address notices (`webhooks`) |
+| `src/lib/rules.ts`, `src/lib/views.ts`, `src/lib/reports.ts`, `src/lib/export.ts`, `src/lib/zip.ts` | Rules on arrival, saved views, reports, the ZIP export |
+| `src/lib/attachments.ts` | Files on messages: grants (public: `files.publicUploadUrl`), claims, the nightly sweep |
+| `src/lib/form-token.ts`, `src/lib/public-origin.ts` | The form's signed "shown at" time; the public address (`chest.tool.publicUrl`) and the visitor's key (`visitors.address()`) |
+| `src/lib/ticket-events.ts`, `src/lib/tell.ts`, `src/lib/lifecycle.ts`, `src/lib/frame.ts` | Events for Goals; bell and tile; members leaving; the websites that may frame the form |
+| `test/` | `app.test.mjs` (the built server), `stack.test.ts` (the package's rules, words), the rules' own tests |
 
 ## Commands
 
 ```sh
-npm ci && npm test && npm run build   # all three must pass
+npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_URL)
 ```
 
 ## Added in round 2 of the critique
 
-- `lib/seed-words.ts` — the tags a desk starts with are kept as keys
+- `src/lib/seed-words.ts` — the tags a desk starts with are kept as keys
   (`@damaged`) and shown with `shownTag` in the reader's language; every
   service that returns tag names maps them (`readerWords(actor)`);
   `tagFor` finds a seeded tag by any of its translations; `renameTag`
@@ -60,8 +50,8 @@ npm ci && npm test && npm run build   # all three must pass
 - `ticket_links` (migration 0004) — a request sent twice within ten minutes
   (`fromForm`) is the same ticket with a second follow-up link; `linked()`
   reads both.
-- Phones: `components/filter-toggle.tsx` (filters behind one button), the
-  folder choice in `components/team-shell.tsx`, `app/chest/reports/period-tabs.tsx`
+- Phones: `src/islands/InboxTools.tsx` (filters behind one button), the
+  folder choice `src/islands/FolderSelect.tsx`, `src/islands/PeriodTabs.tsx`
   (tabs or one choice), report tables `phone="stack"`.
 - Public pages wear `publicLook()` (brand, else the identity; kit 0.2.3).
 
@@ -80,13 +70,12 @@ npm ci && npm test && npm run build   # all three must pass
 - `migrations/0006_notices_incidents.sql`: `notice_targets` (the channels:
   the Chest's target id, never the address), `tickets.late_noticed_for`
   (one "waiting too long" notice per wait), `incidents` (Status' news).
-- `proxy.ts` sets `X-Support-Path` on every request (whatever the browser
-  sent): `app/chest/layout.tsx` reads it to send a member without a role
-  to My requests. It chooses a layout only; every service checks rights.
-- `lib/forms-in.ts`: `betterSubject`, `messageField` — the subject and
+- `src/app.tsx` `team()` sends a member without a role to My requests. It
+  chooses a page only; every service checks rights.
+- `src/lib/forms-in.ts`: `betterSubject`, `messageField` — the subject and
   the message of a request from Forms' default mapping.
-- `lib/text.ts` `linkify(text, {contacts})`: `mailto:` and `tel:` on the
-  team's side only (`components/body.tsx` `contacts`).
+- `src/lib/text.ts` `linkify(text, {contacts})`: `mailto:` and `tel:` on the
+  team's side only (`src/components/body.tsx` `contacts`).
 - Tests: `test/mine.test.ts` (isolation), `test/notices.test.ts`,
   `test/incidents-in.test.ts`; flow steps "critique 3" in
   `lab/chest-dev/flows/helpdesk.mjs`.
@@ -98,7 +87,7 @@ npm ci && npm test && npm run build   # all three must pass
   `not_found` (never `forbidden`: nothing tells that it exists); only
   `publicKinds` (never a note, never an automatic answer); files through
   `myFile`. A member without a role reaches nothing else of `/chest`
-  (`lib/access.ts` gives them no ability). Keep `test/mine.test.ts` green.
+  (`src/lib/access.ts` gives them no ability). Keep `test/mine.test.ts` green.
 - **Notices leave the Chest**: the number, the subject, who asked, a link —
   never a message or a note; the address stays with the Chest (the tool
   keeps the target id and the shown address only).
@@ -111,7 +100,7 @@ npm ci && npm test && npm run build   # all three must pass
 - **A colleague's request stores their member id only** — never the name
   or address an event carries; no email to them; never merged with
   another person's request; *Change* (the address) is refused on it.
-  `lib/lifecycle.ts` marks it `'erased'` on erasure.
+  `src/lib/lifecycle.ts` marks it `'erased'` on erasure.
 - **An event from another tool is untrusted**: bound and clean it in
   `readRequest`; a handler that cannot use it returns (204), it never
   throws (the Chest would deliver it again for 72 hours); never log its
@@ -123,7 +112,7 @@ npm ci && npm test && npm run build   # all three must pass
   page, never list another ticket's files on a link, never a note's. A
   file is always served as a download with `nosniff` and a sandbox.
 - **Take files after the words are checked** (`withFiles` in
-  `lib/tickets.ts`): a refused message must not spend a visitor's claims,
+  `src/lib/tickets.ts`): a refused message must not spend a visitor's claims,
   and a message not saved deletes the files it took.
 - **Email is optional**: every path must work when `mail.send` throws
   `CapabilityNotGranted` (delivery `page`).
@@ -137,18 +126,20 @@ npm ci && npm test && npm run build   # all three must pass
   team's side, only on demand; the original `.eml` is a download.
 - **Merging never crosses customers** (the follow-up link of the merged
   ticket opens the other's conversation).
-- **Framing**: only `/`, `/t/…` and `/lang/…` may carry the admin's
-  `frame-ancestors`; `/chest` always `'none'`.
-- **Working hours** are computed on the server (`lib/hours.ts`, the
-  Chest's time zone); client components write dates with the kit's
-  `formatDate` and date words (no `Intl` in a client render).
+- **Framing**: only `/` and `/t/…` may carry the admin's
+  `frame-ancestors` (`src/app.tsx`, `framed`); `/chest` always `'none'`.
+  A Chest of contract 0.4 refuses every frame anyway (README).
+- **Working hours** are computed on the server (`src/lib/hours.ts`, the
+  Chest's time zone); islands write dates with the kit's
+  `formatDate` and date words; the server's `Intl` objects are made once
+  (`src/lib/format.ts`, the package's `f`), never per row.
 - **The UI kit first** (`@argentic/chest-ui/components`, `lab/BUILDING.md`):
   toasts (`undo` returns `true` or the reason it failed; an answer that
   left is `sent: true`, never an Undo), `Dialog`/`Confirm` (never
   `window.confirm`), `PeoplePicker`, `DateField` (never a browser date
   field), `FilePicker`, `Filters`, `SearchBox`, `StatusBadge`, `Tabs`,
   `DataTable`, `EmptyState`, `Avatar`, `AppShell`. The kit's words are
-  sections of the catalogues (`toast`, `dialog`, `peoplePicker`, `dates`,
+  the catalogues' `kit` (`toast`, `dialog`, `peoplePicker`, `date`,
   `files`, `table`); `node scripts/lint-words.mjs` stays at 0 errors.
   Kit 0.2.2 (re-vendored 2026-09-29): assignees are single `PeoplePicker`s
   with `clearable` (no "Unassign" link beside them); the saved replies are
@@ -158,5 +149,10 @@ npm ci && npm test && npm run build   # all three must pass
   is `AppShell width="full"`.
 - **No colour in CSS or TSX**: contract tokens only (`test/theme.test.ts`
   checks it); text only on measured pairs.
-- Identity from `member()` only; rights in `lib/access.ts`; words in every
-  catalogue; client components never import the SDK or `lib/db.ts`.
+- Identity from the package's `member` only; rights in `src/lib/access.ts`;
+  words in every catalogue; islands and `src/components/` never import
+  the SDK or `src/lib/` (`checkSources`).
+- **The visitor's address** only from `visitors.address()` — never
+  `X-Forwarded-For`.
+- **No inline script or style**: no `style={}`, no `<style>`; the look is
+  `/chest/look.css` and `/look.css`.

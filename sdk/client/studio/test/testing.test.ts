@@ -57,6 +57,10 @@ test("public uploads (proposal): a visitor sends to the public host, 10 MiB at m
     await assert.rejects(files.publicUploadUrl("uploads/public/", { maxSize: 11 << 20 }), TooLarge);
     const up = await files.publicUploadUrl("uploads/public/", { types: ["application/pdf"] });
     assert.ok(up.url.startsWith(chest.api + "/_chest/upload/"));
+    // A harness that serves the public host's route says its origin.
+    chest.publicApi = "https://support.chest.test";
+    assert.ok((await files.publicUploadUrl("uploads/public/")).url.startsWith("https://support.chest.test/_chest/upload/"));
+    chest.publicApi = chest.api;
     // A public token does not work on the team host's route.
     assert.equal((await chest.upload(up.url.replace("/_chest/upload/", "/_chest/files/upload/"), "%PDF", "application/pdf")).status, 403);
     const again = await files.publicUploadUrl("uploads/public/", { types: ["application/pdf"] });
