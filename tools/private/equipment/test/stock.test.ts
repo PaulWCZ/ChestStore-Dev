@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addCategory, categoryCounts, listCategories } from "../lib/categories.ts";
-import { closeInventory, lastSeen, markSeen, progress, reopenInventory, report, startInventory, unmarkSeen } from "../lib/inventory.ts";
-import * as items from "../lib/items.ts";
+import { AppError } from "@argentic/chest-app";
+import { addCategory, categoryCounts, listCategories } from "../src/lib/categories.ts";
+import { closeInventory, lastSeen, markSeen, progress, reopenInventory, report, startInventory, unmarkSeen } from "../src/lib/inventory.ts";
+import * as items from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, sofia } from "./support/members.ts";
@@ -14,7 +14,7 @@ let chest: FakeChest;
 let cats: Awaited<ReturnType<typeof listCategories>>;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
   cats = await listCategories(database.sql, asMember(camille));
 });
 after(async () => {

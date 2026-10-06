@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import { listCategories } from "../lib/categories.ts";
-import * as items from "../lib/items.ts";
+import { onSchedule } from "../src/lib/deliveries.ts";
+import { weekly } from "../src/lib/weekly.ts";
+import { listCategories } from "../src/lib/categories.ts";
+import * as items from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, sofia } from "./support/members.ts";
@@ -12,14 +13,14 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "weekly", cron: "50 7 * * 1" }] });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
   await database.close();
 });
 
-const handler = (request: Request) => POST(request);
+const handler = (request: Request) => onSchedule(request);
 
 test("Monday morning, the managers find what ends in the next 60 days, each in their language, replaced week after week", async () => {
   const { sql } = database;
@@ -43,6 +44,17 @@ test("Monday morning, the managers find what ends in the next 60 days, each in t
 });
 
 test("a run not signed by the Chest is refused; an unknown schedule is not found", async () => {
-  const response = await POST(new Request("http://tool.test/chest-jobs/weekly", { method: "POST", body: "{}" }));
+  const response = await onSchedule(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}" }));
   assert.equal(response.status, 401);
+});
+
+test("the weekly run forgets the deliveries older than 30 days (the Chest retries no longer), keeps the others", async () => {
+  const { sql } = database;
+  await sql`insert into chest_events (id, handled_at) values ('evt_old', now() - interval '31 days'), ('evt_new', now() - interval '2 days')`;
+  assert.equal(await chest.run("weekly", handler, { scheduledAt: "2026-10-05T05:50:00Z" }), 204);
+  const left = (await sql<{ id: string }[]>`select id from chest_events where id in ('evt_old', 'evt_new')`).map(r => r.id);
+  assert.deepEqual(left, ["evt_new"]);
+  // The run itself, as the handler calls it: the day is the Chest's when it was due.
+  await weekly(sql, { id: "run_" + "c".repeat(26), name: "weekly", scheduledAt: "2026-09-28T05:50:00Z", attempt: 1 });
+  assert.equal(chest.notifications.filter(n => n.member === camille.id && n.key === "ending").length, 1);
 });

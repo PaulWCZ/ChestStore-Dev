@@ -581,7 +581,7 @@ await step("a manager lets members see who holds keys and badges (off by default
 
 await step("an item's history reads newest first, strictly by time", async () => {
   await page.goto(origin + "/chest/items/2");
-  const whens = await page.locator(".timeline .tl-when time").evaluateAll(list => list.map(t => t.getAttribute("datetime")));
+  const whens = await page.locator(".timeline .tl time").evaluateAll(list => list.map(t => t.getAttribute("datetime")));
   const times = whens.map(w => Date.parse(w));
   expect(times.length >= 4 && times.every(t => Number.isFinite(t)), "times read: " + whens.join(" | "));
   expect(times.every((t, k) => k === 0 || t <= times[k - 1]), "newest first: " + whens.join(" | "));
@@ -598,7 +598,7 @@ await step("a problem under warranty: the overview says so; Claim the warranty s
   expect(line.includes("Under warranty until") && line.includes("bought from Apple Store Business"), "on the problem: " + line.slice(0, 200));
   await page.getByRole("button", { name: "Claim the warranty" }).click();
   const dialog = page.locator("dialog[open]");
-  const facts = await dialog.locator(".claim-facts").innerText();
+  const facts = await dialog.locator("dl.facts").innerText();
   expect(facts.includes("Apple Store Business") && facts.includes("5 October 2023"), "supplier details: " + facts);
   expect((await dialog.innerText()).includes("Inès Moreau holds it"), "says it comes back from Inès");
   expect((await dialog.getByLabel("What the supplier is told").inputValue()).startsWith("Warranty claim: La batterie"), "the claim's words");
@@ -653,7 +653,7 @@ await step("phone, French, a manager: long sections fold to three lines; the sea
   console.log("    phone overview height: " + height + " px (round 3: 3,650)");
   expect(height < 3400, "shorter overview: " + height);
   // No section of "Needs your attention" shows more than four lines folded.
-  const longest = await p.evaluate(() => Math.max(...[...document.querySelectorAll(".attention .panel")].map(panel =>
+  const longest = await p.evaluate(() => Math.max(...[...document.querySelectorAll("section[aria-labelledby=attention] .panel")].map(panel =>
     [...panel.querySelectorAll(":scope > ul.plain > li")].filter(li => li.offsetParent !== null).length)));
   expect(longest <= 4, "at most four lines per section: " + longest);
   expect(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "no horizontal scroll");

@@ -9,20 +9,6 @@
     "people.leaving",
     "people.leaving_cancelled"
   ],
-  "schedules": [
-    {
-      "name": "weekly",
-      "cron": "50 7 * * 1"
-    },
-    {
-      "name": "intune",
-      "cron": "40 5 * * *"
-    },
-    {
-      "name": "returns",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "translations": {
     "fr": {
       "title": "Matériel",
