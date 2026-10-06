@@ -178,7 +178,7 @@ export const isMemberId = (value: unknown): value is string => typeof value === 
 
 // The address of a job on the careers page: its title in lowercase ASCII,
 // words joined by "-". Names of the tool's own routes are never slugs.
-export const reservedSlugs = new Set(["chest", "lang", "api", "interview", "apply", "fonts", "icon", "favicon", "chest-events", "chest-jobs", "chest-mail", "not-found", "_next", "_chest", "_dev"]);
+export const reservedSlugs = new Set(["chest", "lang", "api", "interview", "apply", "fonts", "icon", "favicon", "chest-events", "chest-jobs", "not-found", "_next", "_chest", "_dev"]);
 export function slugify(title: string): string {
   const base = title
     .normalize("NFKD")

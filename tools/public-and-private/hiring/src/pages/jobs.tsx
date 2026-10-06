@@ -7,7 +7,6 @@ import { waitingOn } from "../lib/candidates.ts";
 import { db } from "../lib/db.ts";
 import { upcoming } from "../lib/interviews.ts";
 import { jobTemplateKeys, listJobs, type JobRow } from "../lib/jobs.ts";
-import { unmatchedCount } from "../lib/messages.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { format, meetingTime, plural, relative } from "../shared/format.ts";
@@ -36,7 +35,6 @@ export async function jobsPage({ member, t, locale: tag, f }: PageContext<Member
   const locale = localeOf(tag);
   const sql = db();
   const [list, waiting, next] = await Promise.all([listJobs(sql, member), waitingOn(sql, member), upcoming(sql, member)]);
-  const toFile = can(member, "candidates.manage") ? await unmatchedCount(sql) : 0;
   const who = await people(waiting.map(w => w.requestedBy));
   const recruiter = can(member, "jobs.manage");
   const careers = (publicOrigin() ?? "") + "/";
@@ -72,7 +70,6 @@ export async function jobsPage({ member, t, locale: tag, f }: PageContext<Member
           </section>
         )}
 
-        {toFile > 0 && <p className="notice with-link"><Inbox /><a href="/chest/mail">{plural(t.mailbox.toFile, toFile, locale)}</a></p>}
 
         {next.length > 0 && (
           <section className="upcoming" aria-labelledby="upcoming">

@@ -18,7 +18,6 @@
   {"name": "search", "path": "/chest/search?q=lu", "member": "camille", "locale": "en", "only": ["desktop"]},
   {"name": "pool", "path": "/chest/pool", "member": "camille", "locale": "fr"},
   {"name": "reports", "path": "/chest/reports?job=1", "member": "camille", "locale": "en"},
-  {"name": "mail", "path": "/chest/mail", "member": "camille", "locale": "en", "only": ["desktop"]},
   {"name": "import", "path": "/chest/jobs/1/import", "member": "camille", "locale": "en", "actions": [{"upload": ["input[type=file]", "test/fixtures/teamtailor-candidates.csv"]}, {"wait": 500}]},
   {"name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en"},
   {"name": "careers-dark", "path": "/", "locale": "fr", "dark": true, "only": ["phone"]},

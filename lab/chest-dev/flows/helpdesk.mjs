@@ -27,6 +27,30 @@ const png = { name: "box.png", mimeType: "image/png", buffer: Buffer.from([0x89,
 const pdf = (name) => ({ name, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7\n% sample\n") });
 // The kit's FilePicker: a file is listed at once, "sending" until the Chest has it.
 const settled = async (scope) => page.waitForFunction(s => document.querySelector(s + " .ck-file-list") && !document.querySelector(s + " .ck-file-sending"), scope);
+// Another customer writes through the public form in a browser of their own
+// (the team's session stays where it is); answers the request page's address.
+const visitorRequest = async ({ name, email, subject, message }) => {
+  const visitor = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  try {
+    const p = await visitor.newPage();
+    await p.goto(origin + "/");
+    await p.getByLabel("Your name").fill(name);
+    await p.getByLabel("Your email address").fill(email);
+    await p.getByLabel("Subject").fill(subject);
+    await p.getByLabel("Your message").fill(message);
+    await p.waitForTimeout(3200);
+    await p.getByRole("button", { name: "Send" }).click();
+    await p.waitForURL(/\/t\/[A-Za-z0-9_-]{32}\?new=1/u);
+    return p.url().split("?")[0];
+  } finally {
+    await visitor.close();
+  }
+};
+// The text of the last email whose subject holds these words (the harness's outbox).
+const mailText = (html, subject) => {
+  const item = [...html.matchAll(/<li><b>([^<]*)<\/b>((?:(?!<li>)[\s\S])*?)<pre[^>]*>([\s\S]*?)<\/pre>/gu)].find(m => m[1].includes(subject));
+  return item ? { head: item[2], text: item[3].replaceAll("&amp;", "&").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", '"').replaceAll("&#39;", "'") } : null;
+};
 
 await step("a customer writes through the public form and lands on their follow-up page", async () => {
   await context.clearCookies();
@@ -215,12 +239,15 @@ await step("close with undo", async () => {
   expect(published.indexOf(reopened) < published.indexOf(solved), "reopened after solved (the panel lists the latest first)");
 });
 
-await step("an email to the support mailbox opens a ticket, confirmed by email", async () => {
-  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "tom.h@example.com", fromName: "Tom H", subject: "Gift card", text: "Do you sell gift cards?", back: "/_dev" } });
+await step("a customer's confirmation gives their request page and says plainly where to write; replies to it go to the company's inbox", async () => {
+  await visitorRequest({ name: "Tom H", email: "tom.h@example.com", subject: "Gift card", message: "Do you sell gift cards?" });
   await page.goto(origin + "/chest");
-  expect((await page.locator(".tickets").innerText()).includes("Gift card"), "new ticket from email");
-  const dev = await (await page.request.get(origin + "/_dev")).text();
-  expect(dev.includes("We received your request: Gift card"), "confirmation");
+  expect((await page.locator(".tickets").innerText()).includes("Gift card"), "new ticket from the form");
+  const mail = mailText(await (await page.request.get(origin + "/_dev")).text(), "We received your request: Gift card");
+  expect(mail, "confirmation");
+  expect(/https:\/\/[^\s]+\/t\/[A-Za-z0-9_-]{32}/u.test(mail.text), "the request page's link");
+  expect(mail.text.includes("it is where you write to us again"), "where to write, said plainly");
+  expect(mail.head.includes("replies to <code>contact@atelier-martin.test</code>"), "Reply-To: the company's address");
 });
 
 await step("search by customer email and by number", async () => {
@@ -317,39 +344,47 @@ await step("the admin closes the form; the public page says so; then reopens it"
 });
 
 const devPage = async () => (await page.request.get(origin + "/_dev")).text();
-const lastOption = (html, subject) => [...html.matchAll(/<option value="(msg_[a-z2-7]{26})">Reply to “([^”]*)”/gu)].find(m => m[2].includes(subject))?.[1];
 let gift = 0;
 
-await step("email: the customer answers the confirmation; it lands on the ticket; the agent's reply goes back on its thread", async () => {
+await step("an answer by email carries the request page's link; the customer writes back there and the ticket reopens", async () => {
   await as(context, origin, "hugo");
-  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "tom.h@example.com", subject: "x", text: "Also: do you gift-wrap?", reply: lastOption(await devPage(), "Gift card"), back: "/_dev" } });
   await page.goto(origin + "/chest?q=tom.h@example.com");
-  expect(await page.locator(".ticket-row", { hasText: "Gift card" }).count() === 1, "one ticket, not two");
   await page.locator(".ticket-row", { hasText: "Gift card" }).click();
   await page.waitForURL(/\/chest\/tickets\/\d+/u);
   gift = Number(page.url().split("/").pop());
-  expect((await page.locator(".thread").innerText()).includes("do you gift-wrap"), "the answer is on the ticket");
   await page.locator("#answer").fill("Yes, and gift cards from 20 €.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.waitForSelector(".ck-toast:has-text('Answer sent.')");
-  const dev = await devPage();
-  expect(new RegExp(`replies to <code>support\\+t${gift}-[a-z2-7]{10}@`, "u").test(dev), "the reply's address is the ticket's thread");
-});
-
-await step("email: an out-of-office answer is kept quietly and reopens nothing", async () => {
-  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "tom.h@example.com", subject: "x", text: "I am away until Monday.", auto: "1", reply: lastOption(await devPage(), "Gift card"), back: "/_dev" } });
+  const mail = mailText(await devPage(), "Re: Gift card");
+  expect(mail && mail.text.includes("Please answer on your request page, where the whole conversation is kept:"), "the email says where to answer");
+  expect(mail.text.includes("(A reply to this email goes to Atelier Martin’s usual inbox, not to this conversation.)"), "and where an email reply goes");
+  expect(mail.head.includes("replies to <code>contact@atelier-martin.test</code>"), "Reply-To: the company's address");
+  const link = /https:\/\/[^\s]+\/t\/[A-Za-z0-9_-]{32}/u.exec(mail.text)[0];
+  const visitor = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  try {
+    const p = await visitor.newPage();
+    await p.goto(link);
+    expect((await p.locator(".thread").innerText()).includes("gift cards from 20"), "the answer is on the page");
+    expect((await p.locator("#again ~ .hint, .public-card .hint").first().innerText()).includes("this page keeps your whole conversation"), "the page says to write here");
+    await p.locator(".public-card textarea").fill("Great, I will take two.");
+    await p.locator(".public-card").getByRole("button", { name: "Send" }).click();
+    await p.waitForSelector("text=Sent. We will get back to you.");
+  } finally {
+    await visitor.close();
+  }
   await page.goto(origin + `/chest/tickets/${gift}`);
-  expect((await page.locator(".side-card").innerText()).includes("Waiting for the customer"), "still waiting for the customer");
-  expect(await page.locator(".msg.auto").count() === 1, "shown as an automatic reply");
+  expect((await page.locator(".thread").innerText()).includes("I will take two"), "the customer's answer is on the ticket");
 });
 
 await step("email: a bounce shows on the reply and the ticket; fixing the address clears it", async () => {
   const dev = await devPage();
   const sent = [...dev.matchAll(/<li><b>([^<]*)<\/b>(?:(?!<li>)[\s\S])*?name="message" value="(msg_[a-z2-7]{26})"/gu)].find(m => m[1].includes("Gift card") && m[1].startsWith("Re:"));
   await page.request.post(origin + "/_dev/bounce", { form: { message: sent[2], permanent: "1", back: "/_dev" } });
+  // The Chest posts no bounce: the late schedule asks it (mail.status).
+  await page.request.post(origin + "/_dev/schedule", { form: { name: "late", back: "/_dev" } });
   await page.goto(origin + `/chest/tickets/${gift}`);
   expect((await page.locator(".notice.danger").innerText()).includes("do not arrive"), "the ticket says it");
-  expect((await page.locator(".delivery.bounced").innerText()).includes("Not delivered"), "the reply says it");
+  expect((await page.locator(".delivery.bounced").first().innerText()).includes("Not delivered: the address does not exist or refuses email"), "the reply says it, in words");
   await page.getByRole("button", { name: "Change" }).click();
   await page.getByLabel("Customer’s email").fill("tom.hardy@example.com");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -358,16 +393,13 @@ await step("email: a bounce shows on the reply and the ticket; fixing the addres
   expect(await page.locator(".notice.danger").count() === 0, "cleared");
 });
 
-await step("email: HTML shown on demand, the quoted history folded, links clickable", async () => {
+await step("a customer's web address is a link on the team's side", async () => {
   await page.goto(origin + "/chest/tickets/1002");
-  expect(await page.locator(".bubble .quoted").count() === 1, "quoted text folded");
   expect(await page.locator(".bubble .body a[href^='https://pay.lumiere']").count() === 1, "link");
-  await page.getByRole("button", { name: "Show formatting" }).click();
-  expect(await page.locator(".bubble .body.html b").count() >= 1, "formatting shown");
 });
 
 await step("merge: the same customer's second request goes into the first; Undo splits them", async () => {
-  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "tom.hardy@example.com", fromName: "Tom H", subject: "Gift wrap price", text: "How much is the gift wrap?", back: "/_dev" } });
+  await visitorRequest({ name: "Tom H", email: "tom.hardy@example.com", subject: "Gift wrap price", message: "How much is the gift wrap?" });
   await page.goto(origin + "/chest?q=Gift wrap price");
   await page.locator(".ticket-row", { hasText: "Gift wrap price" }).click();
   await page.waitForURL(/\/chest\/tickets\/\d+/u);
@@ -475,7 +507,7 @@ await step("an admin sets working hours and a rule on arrival; a new request fol
   await page.waitForSelector(".rules li:has-text('Contains “gift card”')");
   await page.reload();
   expect(await page.locator(".holiday").count() >= 11, "holidays added");
-  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "zoe@example.com", subject: "Gift card for my mother", text: "Can I buy a gift card online?", back: "/_dev" } });
+  await visitorRequest({ name: "Zoé", email: "zoe@example.com", subject: "Gift card for my mother", message: "Can I buy a gift card online?" });
   await page.goto(origin + "/chest?q=zoe@example.com");
   const row = await page.locator(".ticket-row").first().innerText();
   expect(row.includes("Gift") && row.includes("High"), "tag and priority from the rule");
@@ -547,7 +579,7 @@ await step("reports and the export for the admin", async () => {
   expect(zip.status() === 200 && zip.headers()["content-type"] === "application/zip", "zip export");
   const files = unzip(await zip.body());
   expect([...files.keys()].join(",") === "tickets.csv,messages.csv,tickets.json", "three files, deflated");
-  expect(files.get("messages.csv").includes("do you gift-wrap"), "the words of the messages are exported");
+  expect(files.get("messages.csv").includes("I will take two"), "the words of the messages are exported");
   JSON.parse(files.get("tickets.json"));
 });
 
@@ -728,6 +760,31 @@ await step("Status says an incident is in progress: a banner above the inbox and
   await page.request.post(origin + "/_dev/deliver", { form: { type: "status.incident", data: JSON.stringify(incident("resolved", new Date(Date.now() + 1000).toISOString())) } });
   await page.goto(origin + "/chest");
   expect(await page.locator(".incidents").count() === 0, "gone once resolved");
+});
+
+await step("Settings says where customers' email replies land; without the company's mail connected, it says so and a new customer is told to copy their link", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/settings");
+  const box = await page.locator(".boxes").first().innerText();
+  expect(box.includes("Answers are emailed to customers with a link to their request page, where they write back."), "email to customers, said");
+  expect(box.includes("A customer who replies by email instead reaches contact@atelier-martin.test, not Support."), "where email replies land");
+  await page.request.post(origin + "/_dev/delivery", { form: { mail: "not_connected", back: "/_dev" } });
+  try {
+    await page.reload();
+    expect((await page.locator(".boxes").first().innerText()).includes("Customers get no email yet: ask your Chest’s owner to connect your company’s email."), "not connected, said");
+    const link = await visitorRequest({ name: "Yann", email: "yann@example.com", subject: "Delivery to Corsica", message: "Do you deliver to Corsica?" });
+    const visitor = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+    try {
+      const p = await visitor.newPage();
+      await p.goto(link + "?new=1");
+      expect((await p.locator("main").innerText()).includes("We could not email you this link: copy it now to find your request again."), "the customer is told to keep the link");
+    } finally {
+      await visitor.close();
+    }
+  } finally {
+    await page.request.post(origin + "/_dev/delivery", { form: { mail: "ready", back: "/_dev" } });
+  }
 });
 
 await step("public form on a phone: a wrong address is said under its field; files in plain words", async () => {

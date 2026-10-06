@@ -3,11 +3,12 @@ import { Box } from "../components/box.tsx";
 import { Globe, Mail } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 
-// Settings: the public form — its address (and the support mailbox's),
+// Settings: the public form — its address, whether customers are emailed
+// (and where their email replies land: the company's inbox, never Support),
 // open or closed, the company's name, a sentence above it per language
 // (English shows where one is left empty), the help centre's address, how
 // long closed tickets are kept. Administrators change it; the others read.
-export function FormBox({ settings, publicAddress, emailAddress, canSettings, languages, t }: { settings: { companyName: string; formOpen: boolean; intros: Record<string, string>; retentionMonths: number; helpUrl: string }; publicAddress: string; emailAddress: string | null; canSettings: boolean; languages: { code: string; label: string }[]; t: Catalogue["settings"] }) {
+export function FormBox({ settings, publicAddress, mail, canSettings, languages, t }: { settings: { companyName: string; formOpen: boolean; intros: Record<string, string>; retentionMonths: number; helpUrl: string }; publicAddress: string; mail: { ok: boolean; reason: string | null; replyTo: string | null }; canSettings: boolean; languages: { code: string; label: string }[]; t: Catalogue["settings"] }) {
   async function save(d: FormData) {
     const intros = Object.fromEntries(languages.map(({ code }) => [code, String(d.get(`intro-${code}`) ?? "")]));
     const r = await call("saveSettings", { input: { companyName: String(d.get("company") ?? ""), intros, helpUrl: String(d.get("help") ?? ""), formOpen: d.get("open") === "on", retentionMonths: Number(d.get("retention") ?? 24) } });
@@ -16,7 +17,10 @@ export function FormBox({ settings, publicAddress, emailAddress, canSettings, la
   return (
     <Box title={t.form} icon={<Globe />}>
       <p className="copy-line"><span className="muted">{t.address}</span><code>{publicAddress}</code></p>
-      {emailAddress ? <p className="copy-line"><span className="muted">{t.emailAddress}</span><code>{emailAddress}</code></p> : <p className="notice warm"><Mail />{t.noMail}</p>}
+      {mail.ok
+        ? <p className="notice"><Mail /><span>{t.mailOk} {mail.replyTo ? fill(t.mailReplies, { address: mail.replyTo }) : t.mailRepliesSender}</span></p>
+        : mail.reason === "unknown" ? null
+        : <p className="notice warm"><Mail /><span>{mail.reason === "not_connected" ? t.mailNotConnected : mail.reason === "suspended" || mail.reason === "quota" ? t.mailPaused : t.noMail}</span></p>}
       {!canSettings && <p className="hint">{t.readOnly}</p>}
       <form className="stack" onSubmit={e => { e.preventDefault(); void save(new FormData(e.currentTarget)); }}>
         <fieldset disabled={!canSettings} className="stack bare">

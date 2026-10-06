@@ -6,7 +6,7 @@ import { Box } from "../components/box.tsx";
 import { Download } from "../components/icons.tsx";
 import { formatDate, languageIn, languageNames, locales, plural } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
-import { supportAddress } from "../lib/mailer.ts";
+import { mailState } from "../lib/mailer.ts";
 import { targets as noticeTargets } from "../lib/notices.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
@@ -21,8 +21,8 @@ import { erasures, savedReplies, settings, tags } from "../lib/tickets.ts";
 // not change a box read it.
 export async function settingsPage({ sql, member, lang: locale, t, f }: TeamContext): Promise<View> {
   const canSettings = can(member, "settings");
-  const [s, replies, address, tagList, rules, team, erased] = await Promise.all([
-    settings(sql), savedReplies(sql, member), supportAddress(), tags(sql, member), listRules(sql, member), answerers(),
+  const [s, replies, mailing, tagList, rules, team, erased] = await Promise.all([
+    settings(sql), savedReplies(sql, member), mailState(), tags(sql, member), listRules(sql, member), answerers(),
     can(member, "customers.erase") ? erasures(sql, member) : Promise.resolve([]),
   ]);
   // Slack and Teams: the administrators' (the addresses are theirs to see).
@@ -39,7 +39,7 @@ export async function settingsPage({ sql, member, lang: locale, t, f }: TeamCont
         <PageHeader size="m" title={st.title} />
         <Island name="FormBox" props={{
           settings: { companyName: s.companyName, formOpen: s.formOpen, intros: s.intros, retentionMonths: s.retentionMonths, helpUrl: s.helpUrl },
-          publicAddress: origin, emailAddress: address, canSettings,
+          publicAddress: origin, mail: mailing, canSettings,
           languages: locales.map(code => ({ code, label: languageIn(code, locale) })),
           t: st,
         }} />

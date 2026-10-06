@@ -27,7 +27,7 @@ export function MembersLayout({ viewer: { member, t }, path, notice, look, child
   const role = roleOf(member);
   const recruiter = can(member, "settings");
   const nav: NavItem[] = role ? [
-    { href: "/chest", label: t.shell.jobs, icon: <Briefcase />, match: "exact", also: ["/chest/jobs", "/chest/candidates", "/chest/mail", "/chest/search"] },
+    { href: "/chest", label: t.shell.jobs, icon: <Briefcase />, match: "exact", also: ["/chest/jobs", "/chest/candidates", "/chest/search"] },
     ...(recruiter ? [
       { href: "/chest/pool", label: t.shell.pool, icon: <Star /> },
       { href: "/chest/reports", label: t.shell.reports, icon: <Chart /> },

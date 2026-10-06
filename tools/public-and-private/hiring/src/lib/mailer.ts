@@ -1,69 +1,64 @@
+import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
 import { catalogue, format, isLocale, type Catalogue } from "../i18n/index.ts";
 
-// Email to candidates through the Chest's mail (Proposal (studio): the
-// "mail" capability with the "jobs" mailbox, chest.proposals.json). Every
-// message leaves from jobs@<the company's domain> with the candidate's own
-// thread address as Reply-To (jobs+tc42-…@): their answer comes back to
-// the tool and lands in their history (lib/mail-in.ts), whatever their
-// mail app does with the headers. On a Chest without mail yet
-// (CapabilityNotGranted), or when the Chest refuses the message, nothing
-// is sent and the tool says so.
-//
-// Every email to a candidate is transactional (SDK studio.15): it answers
-// their own application — the confirmation, an interview's time or its
-// cancellation, the link to choose a time, a recruiter's message, the
-// answer. A candidate is usually an outside address, which no email
-// preference touches, so the flag changes nothing for them; it matters
-// for an employee who applies to an internal job with their work address
-// and chose "no email" or "one a day" in their Chest: without it, the
-// Chest would hold their interview's confirmation back.
-// later: the Chest did not answer, or the day's quota is used: the
-// outbox tries again (lib/outbox.ts).
+// Email to candidates — people outside the company — through the Chest's
+// mail (Proposal (studio): the "mail" capability, chest.proposals.json),
+// which the Chest sends through the company's own mail provider. The Chest
+// receives no mail (owner's decision, 6 October 2026): Reply-To is the
+// company's reply address the owner set with the connector (the SDK's
+// default), so a candidate's answer reaches the company's usual inbox, not
+// Hiring — and every email says so in its last line. On a Chest without
+// mail (CapabilityNotGranted), with the company's mail not connected, or
+// when the Chest refuses the message, nothing is sent and the tool says so.
+// later: the Chest is paused or the day's quota is used: the outbox tries
+// again (lib/outbox.ts).
 export type Delivery = "email" | "none" | "later";
 const retry = (error: unknown) => error instanceof Unavailable || error instanceof RateLimited || error instanceof QuotaExceeded;
-export const mailbox = "jobs";
 
-// A candidate's conversation: "c" and their id (a thread is 1 to 16 of
-// a-z 0-9; its tag in the address makes it unguessable).
-export const threadOf = (candidateId: string) => "c" + candidateId;
-export const candidateOfThread = (thread: string | null): string | null => (thread && /^c[1-9][0-9]{0,14}$/u.test(thread) ? thread.slice(1) : null);
+// send throws the same Unavailable when the Chest did not answer and when
+// the owner has not connected the company's mail: asked again, so that an
+// email that cannot leave for weeks says "not sent" instead of "leaving
+// soon" (an SDK obstacle, in the README).
+async function notConnected(): Promise<boolean> {
+  try {
+    const a = await mail.available();
+    return a.reason === "not_connected" || a.reason === "not_granted";
+  } catch {
+    return false;
+  }
+}
+
+// The company's name as the Chest says it (none outside a Chest).
+const organization = (): string => {
+  try {
+    return chest.organization.name;
+  } catch {
+    return "";
+  }
+};
 
 const wordsFor = (language: string): Catalogue => catalogue(isLocale(language) ? language : "en");
 
-export type Sent = { delivery: Delivery; id?: string; messageId?: string };
+export type Sent = { delivery: Delivery; id?: string };
 
-// send sends one message to a candidate in their conversation. A Chest
-// that does not know the jobs mailbox yet (no address given by the owner)
-// still sends it, from its no-reply address: the candidate is told to
-// answer nowhere — the text says the team will write.
-export async function send(message: { to: string; subject: string; text: string; candidateId: string; fromName?: string; key: string; attachments?: mail.Attachment[]; inReplyTo?: string; references?: string[] }): Promise<Sent> {
-  const base = {
-    to: message.to,
-    subject: message.subject,
-    text: message.text,
-    key: message.key,
-    transactional: true,
-    ...(message.fromName ? { fromName: message.fromName.slice(0, 100) } : {}),
-    ...(message.attachments?.length ? { attachments: message.attachments } : {}),
-    ...(message.inReplyTo ? { inReplyTo: message.inReplyTo } : {}),
-    ...(message.references?.length ? { references: message.references } : {}),
-  };
+// send sends one message to a candidate, with the line that says where a
+// reply goes (in the candidate's language).
+export async function send(message: { to: string; subject: string; text: string; language: string; company: string; fromName?: string; key: string; attachments?: mail.Attachment[] }): Promise<Sent> {
+  const t = wordsFor(message.language).mail;
   try {
-    const sent = await mail.send({ ...base, mailbox, thread: threadOf(message.candidateId) });
-    return { delivery: "email", id: sent.id, messageId: sent.messageId };
+    const sent = await mail.send({
+      to: message.to,
+      subject: message.subject,
+      text: `${message.text}\n\n—\n${format(t.replyLine, { company: message.company || organization() || t.team })}`,
+      key: message.key,
+      ...(message.fromName ? { fromName: message.fromName.slice(0, 100) } : {}),
+      ...(message.attachments?.length ? { attachments: message.attachments } : {}),
+    });
+    return { delivery: "email", id: sent.id };
   } catch (error) {
-    if (error instanceof ChestError && (error.code === "invalid_mailbox" || error.code === "no_mailbox")) {
-      try {
-        const sent = await mail.send(base);
-        return { delivery: "email", id: sent.id, messageId: sent.messageId };
-      } catch (again) {
-        if (retry(again)) return { delivery: "later" };
-        if (again instanceof ChestError) return { delivery: "none" };
-        throw again;
-      }
-    }
+    if (error instanceof Unavailable && await notConnected()) return { delivery: "none" };
     if (retry(error)) return { delivery: "later" };
     if (error instanceof ChestError) return { delivery: "none" };
     throw error;

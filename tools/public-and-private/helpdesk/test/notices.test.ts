@@ -17,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" }, webhooks: { max: 10, to: hooks } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" }, webhooks: { max: 10, to: hooks } });
 });
 after(async () => {
   await chest.close();

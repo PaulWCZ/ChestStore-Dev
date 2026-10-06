@@ -11,7 +11,9 @@ import { publicLook } from "../theme.ts";
 import { PublicShell } from "./public-shell.tsx";
 
 // A customer's request, as they see it with their link, /t/<secret>: our
-// answers (never the team's notes), its state, and a box to write again;
+// answers (never the team's notes), its state, and a box to write again —
+// where the conversation continues (the Chest receives no email: a reply
+// to our emails reaches the company's usual inbox, and the page says so);
 // once closed, "Did we solve your problem?". It speaks the request's
 // language (the customer wrote in it), unless the visitor switches
 // (?lang=). Its address is the key: never indexed, never logged (the
@@ -50,7 +52,7 @@ export async function followUpPage({ locale: visitor, query, f }: PageContext<Vi
             <p>{format(t.public.thanksNumber, { number: ticket.number })}</p>
             {query("again") && <p className="muted">{t.public.alreadyHad}</p>}
             <p>{t.public.keepLink}</p>
-            {query("mailed") && <p className="muted">{format(t.public.emailed, { email: ticket.customerEmail })}</p>}
+            {query("mailed") ? <p className="muted">{format(t.public.emailed, { email: ticket.customerEmail })}</p> : !query("again") && <p className="notice warm">{t.public.notEmailed}</p>}
             <Island name="CopyLink" props={{ label: t.public.copy, done: t.public.copied }} />
           </section>
         )}
@@ -78,6 +80,7 @@ export async function followUpPage({ locale: visitor, query, f }: PageContext<Vi
         {ticket.status === "closed" && <Island name="Rate" props={{ secret, rating: ticket.rating, t: { rateTitle: t.public.rateTitle, rateGood: t.public.rateGood, rateBad: t.public.rateBad, rated: t.public.rated } }} />}
         <section className="public-card" aria-labelledby="again">
           <h2 id="again">{t.public.reply}</h2>
+          <p className="hint">{format(t.public.writeHere, { company })}</p>
           {ticket.status === "closed" && <p className="hint">{t.public.reopenHint}</p>}
           <Island name="WriteAgain" props={{ secret, filesOn, t: { public: t.public, errors: t.errors, files: t.kit.files } }} />
         </section>

@@ -3,7 +3,7 @@ import { log } from "@argentic/chest-app";
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "../i18n/index.ts";
-import { confirmationsPerHour } from "./mail-in.ts";
+import { confirmationsPerHour } from "./mailer.ts";
 import * as mailer from "./mailer.ts";
 import * as notices from "./notices.ts";
 import { email, limits } from "./model.ts";

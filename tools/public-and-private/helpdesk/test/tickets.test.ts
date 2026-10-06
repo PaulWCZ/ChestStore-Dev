@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../src/lib/app-error.ts";
 import * as attachments from "../src/lib/attachments.ts";
 import * as mailer from "../src/lib/mailer.ts";
@@ -14,7 +14,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] } });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
 });
 after(async () => {
   await chest.close();
@@ -70,7 +70,7 @@ test("a Chest that takes no visitors' files: the public pages know it before off
   await assert.rejects(attachments.visitorGrant(sql, {}, "image/png", 10), refused("files_off"));
 });
 
-test("replies go by email, threaded, in the customer's language; without mail, on the page only", async () => {
+test("replies go by email, in the customer's language, with the link of their request page; without mail, on the page only", async () => {
   const { sql } = database;
   const t = await tickets.fromForm(sql, form());
   const ticket = (await tickets.byLink(sql, t.secret))!;
@@ -81,16 +81,16 @@ test("replies go by email, threaded, in the customer's language; without mail, o
   const done = await tickets.reply(sql, asMember(ines), t.number, "Sorry! A new one is on its way.");
   assert.equal(done.ticket.status, "waiting");
   assert.equal(done.ticket.assignee, ines.id);
-  const sent = await mailer.answer(done.ticket, "Sorry! A new one is on its way.", asMember(ines), "Atelier Martin", done.threading, done.messageId);
+  const sent = await mailer.answer(done.ticket, "Sorry! A new one is on its way.", asMember(ines), "Atelier Martin", "https://support.atelier.test/t/link", done.messageId);
   assert.equal(sent.delivery, "email");
-  assert.equal(chest.outbox[1]!.from, "support@atelier.test");
+  assert.equal(chest.outbox[1]!.replyTo, "contact@atelier.test", "replies go to the company's usual inbox");
   assert.equal(chest.outbox[1]!.fromName, "Inès — Atelier Martin");
   assert.match(chest.outbox[1]!.subject, /^Re: Broken lamp \[#\d+\]$/u);
   await assert.rejects(tickets.reply(sql, asMember(lea), t.number, "No"), refused("forbidden"));
   // A Chest without mail: nothing sent, the answer is on the page.
   const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members"] });
   try {
-    assert.deepEqual(await mailer.answer(done.ticket, "…", asMember(ines), "", { inReplyTo: null, references: [] }, "1"), { delivery: "page" });
+    assert.deepEqual(await mailer.answer(done.ticket, "…", asMember(ines), "", "https://support.atelier.test/t/link", "1"), { delivery: "page" });
   } finally {
     await bare.close();
   }
@@ -101,7 +101,7 @@ test("the inbox: folders, search, assignment to people who answer, the bell and 
   const t = await tickets.fromForm(sql, form({ email: "zoe@example.com", subject: "Where is my parcel", message: "Tracking number 4471" }));
   await tell.newTicket({ id: t.id, number: t.number, subject: "Where is my parcel", customerName: "Zoé", customerEmail: "zoe@example.com" }, "Tracking number 4471");
   assert.deepEqual(chest.notifications.map(n => n.member).sort(), [camille.id, hugo.id, ines.id].sort());
-  assert.ok(chest.notifications.some(n => n.member === ines.id && n.title === "Nouvelle demande de Zoé"));
+  assert.ok(chest.notifications.some(n => n.member === ines.id && shownTo(n, "fr").title === "Nouvelle demande de Zoé"));
   assert.ok((await tickets.listTickets(sql, asMember(lea), "unassigned")).some(x => x.number === t.number));
   assert.ok((await tickets.listTickets(sql, asMember(lea), "open", "parcel")).some(x => x.number === t.number));
   assert.ok((await tickets.listTickets(sql, asMember(lea), "open", "4471")).some(x => x.number === t.number));

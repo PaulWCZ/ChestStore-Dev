@@ -60,7 +60,7 @@ export const busyFingerprint = (s: BusySnapshot) => JSON.stringify([s.member, s.
 
 // readBusy checks what another tool sent: null when it is not a version 1
 // snapshot within bounds (then nothing is kept).
-export function readBusy(data: unknown): { member: string; at: Date; from: Date; to: Date; spans: Span[] } | null {
+export function readBusy(data: unknown): { at: Date; from: Date; to: Date; spans: Span[]; member: string } | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const d = data as Record<string, unknown>;
   const time = (value: unknown) => (typeof value === "string" && instantPattern.test(value) ? Date.parse(value) : NaN);
@@ -75,5 +75,5 @@ export function readBusy(data: unknown): { member: string; at: Date; from: Date;
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || start < from || end > to) return null;
     spans.push({ start, end });
   }
-  return { member: d["member"], at: new Date(at), from: new Date(from), to: new Date(to), spans };
+  return { at: new Date(at), from: new Date(from), to: new Date(to), spans, member: d["member"] };
 }

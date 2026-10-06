@@ -1,8 +1,8 @@
 # Hiring — publish your jobs, choose your candidates together
 
 **Hiring** (French: *Recrutement*) replaces the applicant-tracking part of
-Welcome to the Jungle, Teamtailor or Recruitee — and the "jobs@" mailbox plus
-a spreadsheet — for a company of 10 to 200 people. The company gets its own
+Welcome to the Jungle, Teamtailor or Recruitee — and the spreadsheet beside
+the "jobs@" inbox — for a company of 10 to 200 people. The company gets its own
 careers page; candidates apply with a short form and their CV; the team
 follows each candidate on one board per job, gives structured feedback, and
 decides together.
@@ -58,7 +58,7 @@ decides together.
   support*, in the recruiter's language: a draft to adapt).
 - **Jobs** (`/chest`): open jobs with their pipeline at a glance and their
   new applications, drafts, closed jobs; what waits for *my* feedback
-  first, *my next interviews*, emails to file. Write a job (draft, with its
+  first, *my next interviews*. Write a job (draft, with its
   address, working time, last day to apply and questions), publish,
   close, reopen — each with *Undo*; *Duplicate* a job into a new draft.
 - **Search** (top bar): any candidate of the jobs one may see, by name,
@@ -81,11 +81,15 @@ decides together.
   job, the company, the sender), **with files** (an offer letter, a
   contract: up to five, 9 MB together; a company template may carry its
   own, the offer letter sent every time — each email sends its own copy,
-  kept in the conversation and erased with the candidate): the email leaves from the `jobs` mailbox
-  with the candidate's own thread address as Reply-To, so **their answer
-  lands back in their conversation** (the thread, else In-Reply-To /
-  References, else their address when the sender's domain is verified;
-  anything else waits in *Emails to file*). **The candidate chooses the
+  kept in the conversation and erased with the candidate): the email leaves
+  from the company's address (the Chest's mail connector), and **their
+  answer goes to the company's usual inbox** — the Chest receives no mail
+  (owner's decision, 6 October 2026), so it never comes back into Hiring.
+  Every email to a candidate ends with one line that says so ("To answer,
+  reply to this email: it goes to Atelier Martin."), and the candidate's
+  page says it where the team writes ("Candidates' replies go to
+  jobs@atelier-martin.fr, your company's usual inbox — not to this
+  page."). **The candidate chooses the
   interview time** (the default of *Interview*): who meets them, how long,
   between which days and hours; the candidate gets a link
   (`/interview/<secret>?lang=<their language>`, never indexed; one open
@@ -111,8 +115,9 @@ decides together.
   warning on a clash), a place or video link, a note; the candidate gets an email with
   an `.ics` (and a CANCEL one if called off), the interviewers get it in
   their Chest calendar feed, and a reminder on the morning of it: an item
-  in the bell and one email with the whole day ("08:00 — Bastien Leroy,
-  Sales", with each candidate's link), in their language.
+  in the bell for each interview ("Interview at 08:00: Bastien Leroy",
+  opening the candidate), in their language. The Chest mails it to them
+  by their own choice; Hiring builds no reminder email.
   **Reject** with a reason (none chosen for you; "they withdrew" and "they
   stopped answering" close the application without a rejection email) and
   an email in their language that **leaves only once the Undo is over**
@@ -144,34 +149,32 @@ decides together.
   for feedback; whoever asked hears when it is given.
 - **GDPR / CNIL**: candidates are deleted with their CV and their emails'
   files 2 years (or 1 year, 6 months: *Settings*) after their last news
-  (an answer by email is news), every night (Proposal *schedules*); CVs
+  (a message sent, a move, an interview), every night (Proposal *schedules*); CVs
   sent but never claimed go after a day; every bell item that named a
-  deleted candidate is withdrawn (new, asked, answered, bounced, feedback
+  deleted candidate is withdrawn (new, asked, bounced, feedback
   given, an interview today, chosen, given back or called off); a file
   the Chest could not delete then is kept in `files_gone` and deleted by
   the next night's cleanup — an erased CV never survives silently; a
   recruiter erases a candidate on request, or gives them their data (a ZIP: what they sent, what the
-  team wrote, the emails, and the files of those emails both ways — the
-  offer letter sent, what they attached — under `emails/<email>/`, named
+  team wrote, the emails (with those an earlier version received), and
+  the files of those emails — the offer letter sent — under `emails/<email>/`, named
   in `data.json`); the form and each job page say it. Each job's
   candidates export as CSV; *Export everything* holds those files too,
   named in `emails.csv`.
-- **Email and people's choices** (SDK studio.15): each member chooses
-  once in their Chest how tools may email them (all, one a day, none);
-  the Chest applies it, so Hiring keeps no email switch. **Every email to
-  a candidate is transactional** — the confirmation of their application,
-  an interview's time, its cancellation, the link to choose a time, a
-  recruiter's message, the answer: each answers their own application.
-  A candidate is usually an outside address, which no preference
-  touches, so the flag changes nothing for them; it matters when an
-  employee applies to an internal job with their work address and chose
-  "none" — without it, their interview's confirmation would be held back.
-  The **interviewers' morning email** is a reminder, not transactional:
-  "none" gets the bell item only, "one a day" finds it in the Chest's
-  daily email. Keys are whole (`message:<id>:<address>`,
-  `morning:<day>:<member>`; the SDK hashes a long one): one email per
-  message and recipient, one morning email per person and day, whatever
-  the retries.
+- **Members are told in the bell, never by email** (owner's decision, 6
+  October 2026): a new application and an email that did not arrive tell
+  the recruiters (`notifications.broadcast` to the role, one call), asked
+  feedback, feedback given, a time chosen or given back and the morning's
+  interviews tell the people concerned (`notify`) — each one notice with
+  its French words (`translations`), read in each member's language. How
+  notifications reach a member by email (each one, once or twice a day,
+  none; none from Hiring) is their choice in the Chest: Hiring keeps no
+  email setting. Keys are whole (`message:<id>:<address>`; the SDK hashes
+  a long one): one email per message and recipient, whatever the retries.
+- **Bounces** are asked of the Chest: the `outbox` schedule asks
+  `mail.status` about each email still on its way, less often as it ages
+  (three days at most); one that bounced, was marked as spam or failed
+  reads "Not delivered" in the conversation, and the recruiters hear of it.
 - **No email promised that cannot leave** (SDK studio.16,
   `mail.available()`, `src/lib/mail-state.ts`): the reject form (one or
   several), *Write*, the interview invitation (a time or a link) and its
@@ -259,7 +262,7 @@ a token bound to its action, and for `apply` a proof of work:
 | `/look.css`, `/chest/look.css`, `/assets/…` | anyone; members | The look (public, team); fonts, icon, scripts and styles |
 | `/chest` | members | Jobs, what waits for me, my next interviews |
 | `/chest/search?q=` | members | Search candidates |
-| `/chest/pool`, `/chest/reports`, `/chest/mail` | recruiter | Talent pool, reports, emails to file |
+| `/chest/pool`, `/chest/reports` | recruiter | Talent pool, reports |
 | `/chest/jobs/<id>/import` | recruiter | Import candidates |
 | `/chest/export` | recruiter | Everything, as a ZIP |
 | `/chest/candidates/<id>/data` | recruiter | A candidate's own data (ZIP) |
@@ -274,8 +277,7 @@ a token bound to its action, and for `apply` a proof of work:
 | `/chest/candidates/<id>`, `…/cv` | recruiter, the job's interviewers | A candidate, their CV (served by the tool, two at a time per server, named after its file, framed only by the tool's pages, in a sandbox) |
 | `/chest/settings` | recruiter | Careers page settings, retention |
 | `POST /chest-events` | the Chest | Members' lifecycle; `booking.busy`, `leave.busy` |
-| `POST /chest-schedules` | the Chest | `cleanup` (nightly retention), `outbox` (due emails and calendars, every 15 min), `morning` (the interviewers' morning email) |
-| `POST /chest-mail` | the Chest | Emails to the jobs mailbox, bounces (Proposal) |
+| `POST /chest-schedules` | the Chest | `cleanup` (nightly retention), `outbox` (due emails, their bounces asked, calendars, every 15 min), `morning` (the interviewers' bell items of the day) |
 
 ## On a Chest
 
@@ -283,7 +285,7 @@ Contract 0.4 (`chest.json`): capabilities `database`, `files`,
 `members`, `notifications`; receives `member.*`; schedules `cleanup`
 (03:25), `outbox` (every 15 minutes) and `morning` (07:40 on weekdays), in
 the Chest's zone. Proposals (in `chest.proposals.json` until a Chest
-accepts them): `mail.send` and the `jobs` mailbox (receiving), `calendar`,
+accepts them): `mail.send` (to candidates only), `calendar`,
 `files.publicUploads` and `files.publicFiles` (visitors' CVs, logo,
 photos), `emits` (`hiring.hired`, `hiring.hire_cancelled`, `hiring.busy`),
 `receives` (`booking.busy`, `leave.busy`) and the tile's French words. When a member loses access or leaves, they are
@@ -336,9 +338,43 @@ their employment (the work contract). Telling People is the company's
 internal onboarding, which the Chest's link between the two tools makes
 explicit to its admin.
 
+## Mail to people outside the company
+
+Hiring emails candidates only — people outside the company — and never a
+member (members are told in the Chest's bell, above). Sent through the
+Chest's mail connector (studio proposal, not built yet): `mail.send`, from
+the company's address, in the candidate's language, each ending with
+"To answer, reply to this email: it goes to {company}." Nothing comes back
+into Hiring.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| A candidate who applied on the careers page | Confirm the application arrived | Right after the form (the thank-you page says whether it left) | The job, the company, "we read every one and will write to you", the careers page's link | None | The company's reply address (the connector's default) |
+| A candidate | A recruiter's message (ask availability, news, an offer — from a template or not) | When the recruiter presses *Send* | The recruiter's words; from "Camille — Atelier Martin" | The files the recruiter added or the template carries (an offer letter, a contract: 5 at most, 9 MB together; the Chest reads the tool's stored files) | The company's reply address |
+| A candidate | The link to choose their interview time | When a recruiter sends it | Who they meet, between which days, how long, the link `/interview/<secret>?lang=…` | None | The company's reply address |
+| A candidate | An interview's time (chosen by them or by the recruiter) | When it is set | Day, time and zone, place or video link, the note | `invitation.ics` (`text/calendar; method=PUBLISH`, the same UID for every version) | The company's reply address |
+| A candidate | An interview called off | When the recruiter cancels it | Day and time called off, "we will write again soon" | `cancelled.ics` (`method=CANCEL`) | The company's reply address |
+| A candidate | The rejection | 15 s after the recruiter rejects (after the Undo); never for "they withdrew" or "they stopped answering" | The rejection text in their language (from the company's template or the built-in one) | None | The company's reply address |
+
+When the Chest cannot send (no mail, the company's mail not connected):
+no form promises an email, *Write* opens the recruiter's own mail app,
+the link to choose a time is given to send by hand, and the conversation
+says "Not sent". Paused or the day's quota used: the email waits in the
+outbox and leaves when the Chest sends again; the forms say so.
+
+**What changed on 6 October 2026** (the owner's mail decisions): no `jobs`
+address that receives email, no answers by email filed on a candidate's
+page, no *Emails to file* (`/chest/mail`), no inbound mail route; the interviewers' morning email
+is gone (the bell item stays, mailed by the Chest by each member's
+choice); bounces are asked of the Chest (`mail.status`); member notices
+carry their French words. What an earlier version kept of received
+emails stays in the database, unread (`migrations/0008_mail_checks.sql`
+says why), so that version keeps working after a rollback; it is erased
+with its candidate and given to them in their data.
+
 ## Needs from the SDK
 
-The tool is built on SDK 0.4.1 + studio proposals (0.4.1-studio.4). The
+The tool is built on SDK 0.4.1 + studio proposals (0.4.1-studio.6). The
 needs below are proposals of the studio's working copy; the tool calls
 them as if shipped and keeps working without them:
 
@@ -349,18 +385,25 @@ them as if shipped and keeps working without them:
   upload is dropped by the Chest after a day. Without public uploads the
   form asks for a link to the CV instead; without public files the careers
   page shows the company's name, no logo or photos.
-- **Mail, sending and receiving** (`mail.send` with `{mailbox: "jobs",
-  thread}`, `mail.handle`): without it, a written email is kept as "not
-  sent" and the recruiter's own mail app opens with it (the history says
-  it was written there); the thank-you page says the team will write;
-  interview invitations are saved without email. Without a `jobs`
-  mailbox address, emails leave from the Chest's no-reply address and
-  answers cannot come back.
+- **Mail to people outside** (`mail.send`, `mail.available`,
+  `mail.status`; see "Mail to people outside the company"): without it,
+  a written email is kept as "not sent" and the recruiter's own mail app
+  opens with it (the history says it was written there); the thank-you
+  page says the team will write; interview invitations are saved without
+  email. **Obstacle**: `mail.send` throws the same `Unavailable` when the
+  Chest did not answer and when the owner has not connected the company's
+  mail; Hiring asks `mail.available()` again to tell them apart (else an
+  email would read "Leaving soon" for weeks). A distinct error
+  (`NotConnected`) would spare that question.
+- **Notifications**: a notice's `translations` and `broadcast` —
+  proposals announced for 0.5. Without broadcast, the tool lists its
+  recruiters (`members.list` by role) and notifies them.
 - **Calendar** (`calendar.put/remove`, `calendar.ics`): without it, each
   interview offers "Add to my calendar" (an `.ics` with the same UID).
 - **Schedules** (`cleanup`, `outbox`, `morning`): without them the
   retention does not run by itself, a rejection email leaves at the next
-  page a recruiter opens after its Undo, and there is no morning reminder.
+  page a recruiter opens after its Undo, bounces are not learnt, and
+  there is no morning reminder.
 - **Visitors**: a contract-0.4 Chest names no visitor. The public
   actions are bounded by the package's `bound` in the tool's own table
   (`chest_bounds`), a day in the Chest's zone (`publicBounds` in
@@ -423,8 +466,7 @@ node ../../../lab/chest-dev/flows/hiring.mjs 5300                  # the browser
 written in French, one with screening questions), a closed one, fifteen
 candidates with feedback, notes, emails, three interviews (one at 09:00
 this morning, Paris time, whenever it is loaded: the morning reminder
-always has a day to tell), a template, an
-email to file and history. `test/fixtures/` holds a Teamtailor-style and a
+always has a day to tell), a template and history. `test/fixtures/` holds a Teamtailor-style and a
 French CSV export for the importer. Sample CVs cannot be seeded (files are the Chest's): the flows
 upload one.
 
@@ -464,8 +506,10 @@ upload one.
   there by hand.
 - A HEIC photo of a CV is kept and downloaded; browsers other than Safari
   cannot show it on the page.
-- **Emails to file** are filed one by one; an attachment a candidate sends
-  is downloaded, never shown inside the tool.
+- **Candidates' answers by email** reach the company's usual inbox, not
+  Hiring (the Chest receives no mail): applications by email, "emails to
+  file" and answers threaded onto a candidate's page are gone. A recruiter
+  who wants an answer on the page adds it as a note.
 - **No hiring requests to approve**, no scorecards per stage, no
   reporting beyond counts (no cost per hire, no diversity data).
 - **Imports**: the Teamtailor, WTTJ and Workable column sets were not read

@@ -414,14 +414,6 @@ export const actions = {
     await messages.removeTemplate(db(), member, id);
     return null;
   }),
-  fileMessage: action({ message: ref(), candidate: ref() }, async ({ message, candidate }, { member }): Promise<null> => {
-    await messages.file(db(), member, message, candidate);
-    return null;
-  }),
-  removeMessage: action({ message: ref() }, async ({ message }, { member }): Promise<null> => {
-    await cv.remove(await messages.remove(db(), member, message));
-    return null;
-  }),
 
   // ---- Interviews -----------------------------------------------------------
   scheduleInterview: action({ id: ref(), interview: field.json() }, async ({ id, interview }, { member }): Promise<{ status: Delivery }> => {
@@ -461,9 +453,9 @@ export const actions = {
   // busyTimes: when these people are already busy on a day, as the
   // Chest's clock reads it ("09:30"): an interview here, a booking, a day
   // off (src/lib/interviews.ts busy). Asked while the recruiter chooses.
-  busyTimes: action({ people: field.list(person(), limits.interviewPeople), day: field.day() }, async ({ people, day }, { member }): Promise<{ member: string; from: string; to: string; source: string | null }[]> => {
+  busyTimes: action({ people: field.list(person(), limits.interviewPeople), day: field.day() }, async ({ people, day }, { member }): Promise<{ from: string; to: string; source: string | null; member: string }[]> => {
     const zone = chest.timeZone;
-    return (await interviews.busy(db(), member, people, day)).map(b => ({ member: b.member, from: timeOf(b.start, zone), to: timeOf(b.end, zone), source: b.source ?? null }));
+    return (await interviews.busy(db(), member, people, day)).map(b => ({ from: timeOf(b.start, zone), to: timeOf(b.end, zone), source: b.source ?? null, member: b.member }));
   }, { parallel: true }),
 
   // ---- Import ---------------------------------------------------------------
@@ -523,9 +515,8 @@ export const actions = {
       if (file) await cv.remove([file.object]);
       throw error;
     });
-    // The confirmation leaves from the jobs mailbox with the candidate's
-    // thread address: if they answer it, their answer lands in their
-    // history.
+    // The confirmation leaves from the company's address; an answer to it
+    // reaches the company's usual inbox (its last line says so).
     const s = await jobs.settings(sql);
     const words2 = mailer.confirmation(candidate, job, s.companyName, publicOrigin());
     const message = await messages.queueConfirmation(sql, candidate.id, words2.subject, words2.text);

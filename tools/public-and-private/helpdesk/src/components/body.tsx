@@ -1,16 +1,12 @@
-import { linkify, splitQuoted } from "../shared/text.ts";
+import { linkify } from "../shared/text.ts";
 
 // What someone wrote: line breaks kept, web addresses as links (a new
-// tab, no referrer), and — for an email — the quoted conversation below it
-// folded away ("Show the quoted text"). No HTML is read from the text.
-// contacts (the team's side): email addresses and phone numbers too, as
-// mailto: and tel: links.
-export function Body({ text, quotedLabel, contacts = false }: { text: string; quotedLabel?: string; contacts?: boolean }) {
-  const { main, quoted } = quotedLabel ? splitQuoted(text) : { main: text, quoted: "" };
+// tab, no referrer). No HTML is read from the text. contacts (the team's
+// side): email addresses and phone numbers too, as mailto: and tel: links.
+export function Body({ text, contacts = false }: { text: string; contacts?: boolean }) {
   return (
     <div className="body">
-      <Linked text={main} contacts={contacts} />
-      {quoted && <details className="quoted"><summary>{quotedLabel}</summary><div className="body"><Linked text={quoted} contacts={contacts} /></div></details>}
+      <Linked text={text} contacts={contacts} />
     </div>
   );
 }

@@ -135,21 +135,6 @@ export async function teamFile(actor: Member, fileId: string, thumbnail: boolean
   return signed(row.object, thumbnail && /^image\/(jpeg|png|gif|webp)$/u.test(row.type) ? { thumbnail: 256 as const } : { download: true });
 }
 
-// The email as it was received (.eml), for whoever reads tickets: never
-// shown in a page (it may hold anything its sender put in it).
-export async function originalEmail(actor: Member, messageId: string): Promise<Response> {
-  if (!can(actor, "tickets.read")) return none(403);
-  let key: string;
-  try {
-    key = id(messageId);
-  } catch {
-    return none(404);
-  }
-  const [row] = await db()<{ original: string | null }[]>`select original from messages where id = ${key}`;
-  if (!row?.original) return none(404);
-  return signed(row.original, { download: true });
-}
-
 // A file of the member's own request (theirs, or one the team sent with an
 // answer — never a note's). Anything else is 404.
 export async function mineFile(actor: Member, number: string, fileId: string): Promise<Response> {

@@ -8,7 +8,6 @@ import { CopyLink } from "./CopyLink.tsx";
 import { EmbedBox } from "./EmbedBox.tsx";
 import { EraseBox } from "./EraseBox.tsx";
 import { FolderSelect } from "./FolderSelect.tsx";
-import { FormattedBody } from "./FormattedBody.tsx";
 import { FormBox } from "./FormBox.tsx";
 import { HoursBox } from "./HoursBox.tsx";
 import { InboxList } from "./InboxList.tsx";
@@ -45,7 +44,7 @@ function allLive<T extends Record<string, ComponentType<never>>>(list: T): T {
 
 export const islands = allLive({
   ToastHost, AutoRefresh, Keys, FolderSelect,
-  InboxTools, InboxList, Composer, TicketSide, FormattedBody, NewTicket, MineReply, Rate,
+  InboxTools, InboxList, Composer, TicketSide, NewTicket, MineReply, Rate,
   PeriodTabs, ReportTable,
   FormBox, HoursBox, RulesBox, NoticesBox, EmbedBox, TagsBox, RepliesBox, EraseBox,
   ContactForm, WriteAgain, CopyLink,

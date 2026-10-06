@@ -23,10 +23,18 @@ export function stateOf(answer: mail.MailAvailability): MailState {
 }
 
 export async function mailState(): Promise<MailState> {
+  return (await mailInfo()).state;
+}
+
+// mailInfo adds where a candidate's reply goes: the company's reply address
+// the owner set with the mail connector (null: the sending address, or the
+// Chest does not say). The Chest receives no mail: never Hiring.
+export async function mailInfo(): Promise<{ state: MailState; replyTo: string | null }> {
   try {
-    return stateOf(await mail.available());
+    const answer = await mail.available();
+    return { state: stateOf(answer), replyTo: answer.replyTo };
   } catch (error) {
-    if (error instanceof ChestError) return "unknown";
+    if (error instanceof ChestError) return { state: "unknown", replyTo: null };
     throw error;
   }
 }

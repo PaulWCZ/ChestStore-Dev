@@ -1,9 +1,6 @@
 {
   "mail": {
-    "send": true,
-    "mailboxes": [
-      "jobs"
-    ]
+    "send": true
   },
   "calendar": true,
   "files": {

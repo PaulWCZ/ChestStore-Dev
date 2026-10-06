@@ -1,11 +1,9 @@
 import { notFound, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { EmptyState, PageHeader, SearchBox, StatusBadge } from "@argentic/chest-ui/components";
-import { Bin, Download } from "../components/icons.tsx";
 import { localeOf, type Catalogue, type Locale } from "../i18n/index.ts";
 import { can } from "../lib/access.ts";
 import { pool, search, type Found } from "../lib/candidates.ts";
 import { db } from "../lib/db.ts";
-import { unmatched } from "../lib/messages.ts";
 import { report } from "../lib/reports.ts";
 import { dayLabel, format, formatDate, plural } from "../shared/format.ts";
 import { stageLabel } from "../shared/stages.ts";
@@ -152,68 +150,3 @@ function Bars({ title, hint, rows, max, empty }: { title: string; hint?: string;
     </section>
   );
 }
-
-// Emails to the jobs mailbox no candidate claimed (a new address, a CV
-// forwarded by a friend): a recruiter files each with a candidate, or
-// deletes it. Plain forms: the page refreshes after each. The candidates
-// offered: those who wrote from that address, then the latest hundred.
-export async function mailPage({ member, t, locale: tag, f }: PageContext<MemberContext>): Promise<View> {
-  if (!can(member, "candidates.manage")) notFound();
-  const locale = localeOf(tag);
-  const sql = db();
-  const list = await unmatched(sql, member);
-  const recent = await sql<{ id: string; name: string; email: string; title: string }[]>`
-    select c.id, c.name, c.email, j.title from candidates c join jobs j on j.id = c.job_id order by c.created_at desc limit 100`;
-  const addresses = [...new Set(list.map(m => (m.fromAddress ?? "").toLowerCase()).filter(Boolean))];
-  const same = addresses.length === 0 ? [] : await sql<{ id: string; name: string; email: string; title: string }[]>`
-    select c.id, c.name, c.email, j.title from candidates c join jobs j on j.id = c.job_id where lower(c.email) in ${sql(addresses)} order by c.created_at desc limit 200`;
-  const w = t.mailbox;
-  const label = (c: { name: string; title: string }) => `${c.name} · ${c.title}`;
-  return {
-    title: w.title,
-    body: (
-      <div className="narrow">
-        <PageHeader title={w.title} intro={w.intro} />
-        {list.length === 0 ? <EmptyState title={w.emptyTitle} body={w.emptyBody} /> : (
-          <ul className="to-file">
-            {list.map(m => {
-              const address = (m.fromAddress ?? "").toLowerCase();
-              const theirs = same.filter(c => c.email.toLowerCase() === address);
-              const others = recent.filter(c => c.email.toLowerCase() !== address);
-              return (
-                <li key={m.id} id={`tofile-${m.id}`} className="panel">
-                  <div className="panel-head"><strong>{m.subject || t.write.noSubject}</strong><span className="muted small">{formatDate(m.createdAt, locale, f.timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>
-                  <p className="muted small">{m.fromName ? `${m.fromName} <${m.fromAddress ?? ""}>` : m.fromAddress ?? ""}</p>
-                  <p className="pre mail-body">{m.body}</p>
-                  {(m.attachments.length > 0 || m.hasOriginal) && (
-                    <ul className="mail-files">
-                      {m.attachments.map((a, i) => <li key={i}><a href={`/chest/messages/${m.id}/files/${i}`} download><Download />{a.name}</a></li>)}
-                      {m.hasOriginal && <li><a href={`/chest/messages/${m.id}/files/original`} download><Download />{t.write.original}</a></li>}
-                    </ul>
-                  )}
-                  <div className="inline-form">
-                    <form className="inline-form" method="post" action="/chest/actions/fileMessage">
-                      <input type="hidden" name="message" value={m.id} />
-                      <label className="visually-hidden" htmlFor={`file-${m.id}`}>{w.fileWith}</label>
-                      <select id={`file-${m.id}`} name="candidate" className="field" required defaultValue={theirs[0]?.id ?? ""}>
-                        <option value="">{w.fileWith}…</option>
-                        {theirs.length > 0 && <optgroup label={w.sameAddress}>{theirs.map(c => <option key={c.id} value={c.id}>{label(c)}</option>)}</optgroup>}
-                        <optgroup label={w.everyone}>{others.map(c => <option key={c.id} value={c.id}>{label(c)}</option>)}</optgroup>
-                      </select>
-                      <button type="submit" className="button small">{w.file}</button>
-                    </form>
-                    <form method="post" action="/chest/actions/removeMessage">
-                      <input type="hidden" name="message" value={m.id} />
-                      <button type="submit" className="button link small"><Bin />{w.remove}</button>
-                    </form>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-    ),
-  };
-}
-

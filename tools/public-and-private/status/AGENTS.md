@@ -8,8 +8,8 @@ actions, words, the database, tests, recipes, rules — is
 ## Stack
 
 Hono + React rendered on the server + islands + Vite, on the vendored
-`@argentic/chest-app` (0.1.0-studio.3), the SDK `@argentic/chest-sdk`
-0.4.1-studio.3 and the UI kit `@argentic/chest-ui` 0.2.6-studio.1
+`@argentic/chest-app` (0.1.0-studio.8), the SDK `@argentic/chest-sdk`
+0.4.1-studio.5 and the UI kit `@argentic/chest-ui` 0.2.6-studio.1
 (`vendor/`, never edited: `node scripts/add-app.mjs`, `add-sdk.mjs`,
 `add-ui.mjs` from the studio). `chest.json` is contract 0.4 (official keys
 only, the `updates` schedule in it); the studio's proposals are in

@@ -94,12 +94,10 @@ export const folders = ["unassigned", "mine", "open", "waiting", "closed", "spam
 export type Folder = (typeof folders)[number];
 export const isFolder = (value: unknown): value is Folder => typeof value === "string" && (folders as readonly string[]).includes(value);
 
-// The subject of an email about a ticket carries its number: "[#1042]".
+// The subject of an email about a ticket carries its number: "[#1042]" —
+// a customer who replies by email reaches the company's usual inbox, where
+// the number says which request it is about.
 export const subjectTag = (n: number) => `[#${n}]`;
-export function numberInSubject(subject: string): number | null {
-  const m = /\[#([1-9][0-9]{0,8})\]/u.exec(subject);
-  return m ? Number(m[1]) : null;
-}
 
 // Saved replies fill {customer} and {agent}.
 export function fillReply(text: string, values: { customer: string; agent: string }): string {

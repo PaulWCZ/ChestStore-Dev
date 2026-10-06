@@ -1,28 +1,50 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { catalogue, type Catalogue } from "../i18n/index.ts";
-import { people } from "./people.ts";
+import { catalogue, locales, type Catalogue } from "../i18n/index.ts";
 
-// Items in the Chest's bell, each written in its recipient's language. A
+// Items in the Chest's bell: one notice for all its recipients, in every
+// language the tool speaks (studio.5: a notice's translations, announced
+// for 0.5) — English its own title and body, French in translations; the
+// Chest shows each member their language, and mails members their
+// notifications by each one's choice (Hiring sends members no email). A
 // notification is a courtesy: when the Chest cannot take it (not granted,
 // quota, unreachable), the action that sent it still succeeds.
 export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
   const ids = [...new Set(recipients)];
   if (ids.length === 0) return;
-  const byLocale = new Map<Locale, string[]>();
-  for (const person of (await people(ids)).values()) {
-    if (person.status !== "member") continue;
-    byLocale.set(person.locale, [...(byLocale.get(person.locale) ?? []), person.id]);
+  const notice = translated(message, options);
+  try {
+    for (let i = 0; i < ids.length; i += 500) await notifications.notify(ids.slice(i, i + 500), notice);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
   }
-  for (const [locale, group] of byLocale) {
+}
+
+// broadcast tells everyone of some roles in one call (Proposal (studio),
+// announced for 0.5: notifications.broadcast). On a Chest without it (or
+// past its 30 an hour), the tool lists them itself (who()) and notifies
+// them.
+export async function broadcast(roles: readonly string[], who: () => Promise<string[]>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
+  try {
+    await notifications.broadcast(translated(message, options), { to: { roles: [...roles] } });
+    return;
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+  }
+  await notify(await who(), message, options);
+}
+
+// translated is one notice in every language of the catalogues.
+function translated(message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): notifications.Notice {
+  const words = (locale: Locale) => {
     const { title, body } = message(catalogue(locale), locale);
-    try {
-      await notifications.notify(group, { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}), path: options.path, ...(options.key ? { key: options.key } : {}) });
-    } catch (error) {
-      if (!(error instanceof ChestError)) throw error;
-    }
-  }
+    return { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}) };
+  };
+  return {
+    ...words("en"), path: options.path, ...(options.key ? { key: options.key } : {}),
+    translations: Object.fromEntries(locales.filter(l => l !== "en").map(l => [l, words(l)])),
+  };
 }
 
 export async function withdraw(key: string, members?: string[]): Promise<void> {

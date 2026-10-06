@@ -13,19 +13,20 @@ own:
 | Path | What it is |
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest (contract 0.4: roles `admin`, `agent`, `viewer`; public part; schedules `cleanup` and `late`; `build.static` `/assets/`) and the proposals it uses (`mail`, public uploads, `receives` `forms.request` and `status.incident`, `emits`, `webhooks`) |
-| `vendor/` | SDK 0.4.1-studio.3, the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `vendor/` | SDK 0.4.1-studio.6, the UI kit, `@argentic/chest-app`: packed copies, never edited |
 | `src/app.tsx` | Every route: the team's pages in their frame (`team()`: a member without a role reaches My requests only), downloads, the public pages, the Chest's deliveries; around them, the frame-ancestors of the public pages and the sandbox of files |
 | `src/actions.ts` | Every change, by name (members' and public); the rules check values and rights |
 | `src/pages/` | Pages (server): `inbox`, `ticket`, `new-ticket`, `settings`, `reports`, `mine`, `contact`, `follow-up`; `frame.tsx` (the team's frame: shell, folders, saved views), `public-shell.tsx` (the public frame, the language switch with `?lang=`) |
 | `src/islands/` | What runs in the browser: the inbox's list and tools, a ticket's composer and side card, settings' boxes, the public form, write again, rate, keys, auto-refresh |
 | `src/components/` | Shared by pages and islands (island rules: no server code): icons, badges, a message's body, attachments (the kit's FilePicker), the incident banner, a settings box |
-| `src/shared/` | Pure rules the islands use too: `model.ts` (bounds, kinds, priorities, folders), `hours.ts` (working hours, time zones, France's holidays), `text.ts` (quoted history, links, subjects) |
-| `src/lib/` | The rules and the SQL (below), `deliveries.ts` (`/chest-events`, `/chest-mail`, `/chest-schedules`, `/chest-webhooks`), `downloads.ts` (files, the original email, the export), `format.ts` (dates, plurals, sizes; Intl objects kept) |
+| `src/shared/` | Pure rules the islands use too: `model.ts` (bounds, kinds, priorities, folders), `hours.ts` (working hours, time zones, France's holidays), `text.ts` (links, robots' addresses) |
+| `src/lib/` | The rules and the SQL (below), `deliveries.ts` (`/chest-events`, `/chest-schedules`, `/chest-webhooks`), `downloads.ts` (files, the export), `format.ts` (dates, plurals, sizes; Intl objects kept) |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `kit` holds the kit's words |
 | `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity "Calm counter" and `sheetOf` (the company's choice, served as `/chest/look.css` and `/look.css`); Support's tokens; the styles (contract tokens only) |
 | `src/lib/access.ts` | Who may do what |
 | `src/lib/tickets.ts` | The service: public form, follow-up link, email filing, bounces, inbox, answers, notes, assignment, priority, tags, merge, bulk, customer's address, rating, saved replies, settings, erasure, cleanup, export; "A colleague's own requests" (My requests) |
-| `src/lib/forms-in.ts`, `src/lib/incidents-in.ts`, `src/lib/mail-in.ts` | What Forms, Status and the mailbox send |
+| `src/lib/forms-in.ts`, `src/lib/incidents-in.ts` | What Forms and Status send |
+| `src/lib/mailer.ts`, `src/lib/mail-checks.ts` | Emails to customers (confirmation, answers: always with the request page's link); whether they arrived (`mail.status`, on the `late` schedule) |
 | `src/lib/notices.ts` | Slack, Teams and web-address notices (`webhooks`) |
 | `src/lib/rules.ts`, `src/lib/views.ts`, `src/lib/reports.ts`, `src/lib/export.ts`, `src/lib/zip.ts` | Rules on arrival, saved views, reports, the ZIP export (streamed: `exportBatches`, deflated as it goes) |
 | `src/lib/attachments.ts` | Files on messages: grants (public: `files.publicUploadUrl`), claims, the nightly sweep |
@@ -115,15 +116,21 @@ npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_
   `src/lib/tickets.ts`): a refused message must not spend a visitor's claims,
   and a message not saved deletes the files it took.
 - **Email is optional**: every path must work when `mail.send` throws
-  `CapabilityNotGranted` (delivery `page`).
-- **Never file a stranger into someone's ticket**: a received email joins
-  a ticket only by its verified thread, by the id of an email we sent, or
-  — when `authenticated` — by the same customer's address. `[#1042]` in a
-  subject is never proof on its own. Keep `test/mail.test.ts` green.
-- **Automatic answers** (`auto`) never open a ticket, reopen one, notify
-  or get answered; confirmations never go to robots' addresses.
-- **Received HTML** is shown only as the Chest cleaned it, only on the
-  team's side, only on demand; the original `.eml` is a download.
+  (`CapabilityNotGranted`, `Unavailable` when the company's mail is not
+  connected, a refusal: delivery `page`), and say so.
+- **Email is for customers only** (owner's decision, 6 October 2026):
+  never a member (notify them: `lib/notify.ts`, one notice with its
+  `translations`); never a mail setting in Support (the member chooses in
+  the Chest). The Chest receives no mail: every email carries the
+  request page's link and says that replies by email go to the company's
+  usual inbox (`replyHint`); never promise that an email reply reaches
+  the ticket. Confirmations never go to robots' addresses. Keep
+  `test/mail.test.ts` green.
+- **Columns of received emails** (`messages.mail_from`, `html`,
+  `original`, `dropped`, `auto`, `email_id`, `tickets.confirm_email_id`)
+  are an earlier version's: never written nor read again (only an
+  original's file is deleted with its ticket); drop them in a later
+  migration.
 - **Merging never crosses customers** (the follow-up link of the merged
   ticket opens the other's conversation).
 - **Framing**: only `/` and `/t/…` may carry the admin's

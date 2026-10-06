@@ -147,7 +147,7 @@ export async function upcoming(sql: Sql, actor: Member | null, now = new Date())
 // — their bookings and other calendars; "leave" — a day off), to plan
 // around them. Only times:
 // which candidate or customer is never said.
-export type Busy = { member: string; start: string; end: string; source?: string };
+export type Busy = { start: string; end: string; source?: string; member: string };
 export async function busy(sql: Sql, actor: Member | null, people: unknown, onDay: unknown): Promise<Busy[]> {
   if (roleOf(actor) !== "recruiter") throw new AppError("forbidden");
   const d = readDay(onDay);
@@ -159,12 +159,12 @@ export async function busy(sql: Sql, actor: Member | null, people: unknown, onDa
     select p.member_id, i.starts_at, i.ends_at from interviews i join interview_people p on p.interview_id = i.id
     where i.cancelled_at is null and p.member_id in ${sql(people as string[])} and i.starts_at < ${to} and i.ends_at > ${from}
     order by i.starts_at`;
-  const own: Busy[] = rows.filter(r => dayOf(r.starts_at, zone()) === d).map(r => ({ member: r.member_id, start: r.starts_at.toISOString(), end: r.ends_at.toISOString() }));
+  const own: Busy[] = rows.filter(r => dayOf(r.starts_at, zone()) === d).map(r => ({ start: r.starts_at.toISOString(), end: r.ends_at.toISOString(), member: r.member_id }));
   // What another tool told, clipped to the day (a day-long event reads
   // 00:00–23:59).
   const dayEnd = instantOf(addDays(d, 1), "00:00", zone());
   const told: Busy[] = (await toldBusy(sql, people as string[], from, dayEnd))
-    .map(b => ({ member: b.member, start: new Date(Math.max(b.start.getTime(), from.getTime())).toISOString(), end: new Date(Math.min(b.end.getTime(), dayEnd.getTime() - 60_000)).toISOString(), source: b.source }));
+    .map(b => ({ start: new Date(Math.max(b.start.getTime(), from.getTime())).toISOString(), end: new Date(Math.min(b.end.getTime(), dayEnd.getTime() - 60_000)).toISOString(), source: b.source, member: b.member }));
   return [...own, ...told].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 }
 

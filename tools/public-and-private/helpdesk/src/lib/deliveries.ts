@@ -1,5 +1,4 @@
 import * as events from "@argentic/chest-sdk/events";
-import * as mail from "@argentic/chest-sdk/mail";
 import * as schedules from "@argentic/chest-sdk/schedules";
 import * as webhooks from "@argentic/chest-sdk/webhooks";
 import { log } from "@argentic/chest-app";
@@ -8,10 +7,10 @@ import { db } from "./db.ts";
 import { received as fromForms } from "./forms-in.ts";
 import * as incidents from "./incidents-in.ts";
 import { handlers, seen } from "./lifecycle.ts";
-import { bounced, received as fromMail } from "./mail-in.ts";
+import { checkMail } from "./mail-checks.ts";
 import { disabled, late } from "./notices.ts";
 import { noticeStopped } from "./tell.ts";
-import { forgetTicketEvents, publishTicketEvents, tellLinkedTools } from "./ticket-events.ts";
+import { forgetTicketEvents, publishTicketEvents } from "./ticket-events.ts";
 import { cleanup } from "./tickets.ts";
 
 // What the Chest posts by itself, signed, at least once — never under
@@ -37,23 +36,14 @@ export async function chestEvents(request: Request): Promise<Response> {
   });
 }
 
-// Email sent to the support mailbox, and the bounces of what the tool sent
-// (Proposal (studio): mail). lib/mail-in.ts says what happens.
-export async function chestMail(request: Request): Promise<Response> {
-  const sql = db();
-  const status = await mail.handle(request, { message: message => fromMail(sql, message), bounce: bounce => bounced(sql, bounce) }, { seen: seen(sql) });
-  // A customer's email on a solved ticket reopens it: the linked tools told.
-  await tellLinkedTools(sql);
-  return new Response(null, { status });
-}
-
 // The runs of chest.json's "schedules" (contract 0.4). Every night,
 // "cleanup": closed tickets older than the retention (Settings) go, with
 // their files; so do the files members sent but never added to a message,
 // and the ticket events told long ago. Every 15 minutes, "late": requests
 // waiting past the threshold are told to the channels that asked for it
-// (lib/notices.ts), and the tickets solved or reopened that the Chest
-// could not take yet are published again (lib/ticket-events.ts).
+// (lib/notices.ts), the tickets solved or reopened that the Chest could
+// not take yet are published again (lib/ticket-events.ts), and the Chest
+// is asked whether the emails sent lately arrived (lib/mail-checks.ts).
 export async function chestSchedules(request: Request): Promise<Response> {
   const sql = db();
   return new Response(null, {
@@ -70,7 +60,8 @@ export async function chestSchedules(request: Request): Promise<Response> {
         const told = await late(sql, new Date(run.scheduledAt));
         // What the linked tools could not be told after an action.
         const published = await publishTicketEvents(sql);
-        log.info("late", { told, published });
+        const mails = await checkMail(sql, new Date(run.scheduledAt));
+        log.info("late", { told, published, mailsAsked: mails.asked, bounced: mails.bounced });
       },
     }, { seen: seen(sql) }),
   });

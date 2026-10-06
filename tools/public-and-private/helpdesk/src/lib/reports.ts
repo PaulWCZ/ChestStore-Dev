@@ -35,7 +35,7 @@ export async function report(sql: Sql, actor: Member | null, options: { weeks: n
   const since = new Date(Date.parse(firstWeek + "T00:00:00Z") - 86400000);
   const rows = await sql<{ id: string; created_at: Date; closed_at: Date | null; status: string; assignee: string | null; channel: string; rating: string | null; first_customer: Date | null; first_reply: Date | null; first_author: string | null; tags: string[] | null }[]>`
     select t.id, t.created_at, t.closed_at, t.status, t.assignee, t.channel, t.rating,
-      (select min(m.created_at) from messages m where m.ticket_id = t.id and m.kind = 'customer' and not m.auto) as first_customer,
+      (select min(m.created_at) from messages m where m.ticket_id = t.id and m.kind = 'customer') as first_customer,
       r.created_at as first_reply, r.author as first_author,
       (select array_agg(g.name) from ticket_tags x join tags g on g.id = x.tag_id where x.ticket_id = t.id) as tags
     from tickets t

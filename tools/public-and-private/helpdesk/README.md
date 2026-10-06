@@ -3,41 +3,44 @@
 A tool for [Chest](https://argentic.app): the company's private software
 space. A Chest builds it from this repository and runs it on the company's
 own server. It replaces **Zendesk, Freshdesk or Help Scout** for a small
-company: email to support@ and a public contact form, one shared inbox,
-replies and internal notes. It is **not** a live-chat tool (Crisp,
+company: a public contact form, one shared inbox, replies by email and
+internal notes, and a request page where each customer follows their
+request and writes back. It is **not** a live-chat tool (Crisp,
 Intercom): there is no chat bubble.
 
 ## What it does
 
-**By email** (the Chest's mail — Proposal (studio), see "Needs from the SDK"):
-- An email to the support address **opens a ticket**, confirmed to the
-  customer (with their follow-up link) in the Chest's language, threaded
-  under their email. Its HTML (cleaned by the Chest) is one click away
-  ("Show formatting"); the text shows by default, the quoted history
-  folded ("Show the quoted text"), web addresses as links; the original
-  `.eml` downloads ("Original email"); attachments are kept (photos shown
-  as thumbnails), and those the Chest refused are named ("Not kept:
-  setup.exe (a program)").
-- **Replies thread onto their ticket**, most certain first: the ticket's
-  own reply address (`support+t1042-…@`, a tag only this tool can make);
-  else In-Reply-To/References matching an email we sent (or one the same,
-  authenticated customer sent); last, only when the Chest vouches for the
-  sender, the same address with "[#1042]" or the same subject on a ticket
-  still open that moved in the last 14 days. Otherwise a new ticket: a
-  stranger never lands in someone else's conversation. A colleague who
-  answers on the thread is shown by their address.
-- **Agents' replies go out by email** from the support address, on the
-  ticket's thread, with the conversation's headers and their files. A
-  **bounce** shows on the reply ("Not delivered: 550 …") and above the
-  ticket ("Emails to … do not arrive"), and tells whoever wrote it;
-  correcting the customer's address (*Change*) clears it. An address the
-  Chest refuses since a bounce is said on the next reply.
-- **No loops, no spam tickets**: an automatic answer (out of office) is
-  kept quietly on the ticket it answers — it reopens nothing, starts no
-  wait, tells no one, is never answered — and opens no ticket; robots'
-  addresses (no-reply@, mailer-daemon@) get no confirmation, one address
-  three an hour at most; spam scores 5 and above go to *Spam*, untold.
-- A merged ticket's emails go to the ticket it was merged into.
+**The conversation lives on the customer's request page.** The Chest
+receives no email (owner's decision, 6 October 2026): customers write
+through the contact form (or Forms, or the team opens a ticket for them),
+and every email Support sends them carries the link of their request page,
+where they read every answer and write back. Each email says so plainly —
+"Please answer on your request page, where the whole conversation is
+kept … (A reply to this email goes to Atelier Martin's usual inbox, not
+to this conversation.)" — and so does the page itself, above its box.
+
+**Emails to customers** (the Chest's mail connector — Proposal (studio),
+see "Mail to people outside the company"):
+- The **confirmation** of a new request, with its number and the link of
+  the request page, in the request's language.
+- **Agents' replies**, with their files and a fresh link to the request
+  page (a new secret each time, kept hashed: `ticket_links`). Replies to
+  the email go to the company's own reply address (the connector's
+  Reply-To), never into Support.
+- **Bounces**: the Chest posts nothing to the tool; the `late` schedule
+  asks the Chest (`mail.status`) about each email still on its way, less
+  often as it ages (three days at most). An email that bounced, was
+  marked as spam or failed shows on the reply ("Not delivered: the
+  address does not exist or refuses email") and above the ticket ("Emails
+  to … do not arrive"), and whoever wrote it hears of it in the bell;
+  correcting the customer's address (*Change*) or a later email that
+  arrives clears it. An address the Chest refuses since then is said on
+  the next reply.
+- **Without email** (no mail on the Chest, the company's mail not
+  connected, paused, the day's quota used): nothing is lost — every
+  answer is on the request page, the reply says "On the follow-up page
+  only", the thank-you page tells the customer to copy their link, and
+  *Settings* says why.
 
 **For customers (the public part, no account):**
 - A contact form in the company's name (name, email, subject, message), in
@@ -74,8 +77,10 @@ Intercom): there is no chat bubble.
   files: describe it in words." instead of a picker.
 - After sending, a **follow-up page** whose address is a secret link (192
   bits; only its hash is stored): the answers, the state, and a box to write
-  again (which reopens the request). The link is also emailed when the Chest
-  can send email. The thank-you is said once (the address loses `?new=1`
+  again (which reopens the request) — the place where the conversation
+  continues, as the page says above its box. The link is also emailed
+  when the Chest can send email; when it cannot, the thank-you says so
+  ("copy it now"). The thank-you is said once (the address loses `?new=1`
   in the browser). A link that does not work is a 404 that says so, with
   the way to write a new request. Each link writes again 60 times a day
   and rates 10 times (the package's `perSubject`), adds 40 files and
@@ -119,13 +124,14 @@ Intercom): there is no chat bubble.
   same name whatever its case), removes it, clicks it to see every ticket
   carrying it. Ten a ticket, 200 in all. An admin renames them (a name
   that exists merges the two) and deletes them, with *Undo*.
-- **Rules on arrival** (admins): when a new request (form or email)
+- **Rules on arrival** (admins): when a new request (form, Forms, or
+  written by the team)
   contains some words, or comes from an address or a domain — tag it, set
   its priority, give it to someone (thirty rules; tags add up, the first
   priority and person win; a person who leaves drops out of the rules).
 - **Merge** a ticket into another of the **same customer** (they wrote
   twice): messages combined in time order, tags and the higher priority
-  kept, the other closed and leading there (its link, its email thread);
+  kept, the other closed and leading there (its link);
   *Undo* splits them again. Never across customers: nobody sees another
   person's messages.
 - **Reports** (admins): new, closed and still-open requests, the typical
@@ -171,9 +177,15 @@ Intercom): there is no chat bubble.
   process, from 117 at rest). Each file reads the tickets anew: a ticket
   that arrives during the export may be in one file and not the one
   before.
-- **The bell**: a new request tells everyone who answers; a customer's new
-  message tells the ticket's agent; giving a ticket to someone tells them —
-  each in their own language. The tile's number: open tickets nobody took
+- **The bell**: a new request tells everyone who answers
+  (`notifications.broadcast` to the roles `admin` and `agent`; on a Chest
+  without it, the tool lists them and notifies them); a customer's new
+  message tells the ticket's agent; giving a ticket to someone tells them
+  — one notice each time, each member reading it in their own language
+  (its `translations`). Support never emails a member: the Chest mails
+  members their notifications by each one's choice (every one, once or
+  twice a day, or none; or none from Support), set in the Chest, not in
+  Support. The tile's number: open tickets nobody took
   plus open ones given to you.
 - **Slack and Teams** (Settings, administrators — `webhooks`, Proposal
   (studio)): paste a Slack incoming webhook, a Teams workflow's address or
@@ -296,8 +308,7 @@ contract is Goals' (its README, "With the other tools"):
   `<time>` when it happened (milliseconds): solved again, it is published
   again, and Goals keeps the latest.
 - **Every path**: a reply sent with *Close*, the status menu, a bulk close
-  and its Undo, the customer writing again on the follow-up page or by
-  email, a solved ticket marked as spam (taken back). A duplicate closed
+  and its Undo, the customer writing again on the follow-up page, a solved ticket marked as spam (taken back). A duplicate closed
   by a merge is not solved; closing spam solves nothing.
 - **Never lost, never twice**: a trigger (`0007_ticket_events.sql`)
   writes each change in the same transaction as the ticket;
@@ -350,13 +361,11 @@ contract is Goals' (its README, "With the other tools"):
 | `/chest/tickets/<number>` | idem | a ticket |
 | `/chest/new`, `/chest/settings`, `/chest/export` | idem (writing: agents, admins) | new ticket, settings, the ZIP export |
 | `/chest/reports` (`?weeks=`) | admins | reports |
-| `/chest/messages/<id>/original` | members with a role | a received email's original `.eml` (a download) |
 | `/chest/mine`, `/chest/mine/<number>` | any member, their own requests only | My requests; one of them (answers, write again, rate) |
 | `/chest/mine/<number>/files/<id>` | idem | a file of their own request (never a note's), as a download |
 | `/chest/files/<id>` (`?thumbnail=1`) | idem | an attachment (a fresh 15-minute link), or a photo's thumbnail |
 | `/chest-events` | the Chest only (signed) | members' lifecycle; `forms.request` from Forms, `status.incident` from Status (proposal) |
-| `/chest-mail` | the Chest only (signed) — proposal | received email and bounces |
-| `/chest-schedules` | the Chest only (signed, `Chest-Schedule`) | the runs of `chest.json`'s schedules: `cleanup` (nightly retention), `late` (every 15 minutes: requests waiting too long told to the channels that asked; ticket events published again) |
+| `/chest-schedules` | the Chest only (signed, `Chest-Schedule`) | the runs of `chest.json`'s schedules: `cleanup` (nightly retention), `late` (every 15 minutes: requests waiting too long told to the channels that asked; ticket events published again; the Chest asked whether recent emails arrived) |
 | `/chest-webhooks` | the Chest only (signed) — proposal | a Slack/Teams channel the Chest stopped (`webhook.disabled`) |
 | `/chest/actions/<name>`, `/actions/<name>` | members; anyone (the public form, a follow-up link) | every change (`src/actions.ts`): from an island or a plain form |
 | `/chest/look.css`, `/look.css`, `/assets/…` | members; anyone | the look (the company's choice), the browser's files, fonts and icon |
@@ -382,11 +391,11 @@ host, cached by its hash); nothing runs in the browser for it. Outside a Chest t
   permission**: no inline script, no inline style; the Chest's default
   policy for a public part is the tool's own.
 - `capabilities`: `database`; `files` (attachments: the form's, the
-  team's, received emails'); `members` (names, and who answers: roles
+  team's); `members` (names, and who answers: roles
   `admin`, `agent`); `notifications`; `receives: ["member.*"]`;
   `schedules`: `cleanup` (03:15 every night) and `late` (every 15
   minutes), in `chest.json`, posted to `/chest-schedules`. In
-  `chest.proposals.json` (Proposal (studio)): `mail`, public uploads,
+  `chest.proposals.json` (Proposal (studio)): `mail` (`send` only), public uploads,
   `receives` `forms.request` and `status.incident`, `emits`, `webhooks`.
 - `build.static`: `["/assets/"]` — the browser's files, the fonts
   (`/assets/fonts/`) and the icon (`/assets/icon.svg`); nothing is served
@@ -405,9 +414,39 @@ host, cached by its hash); nothing runs in the browser for it. Outside a Chest t
 - No WebSocket: the inbox and a ticket re-read themselves every 20 s
   (the kit's `useAutoRefresh`; what is being typed is kept).
 
+## Mail to people outside the company
+
+Support emails only its customers — people outside the company — and
+never a member (members are told in the Chest's bell, above). Sent through
+the Chest's mail connector (studio proposal, not built yet): `mail.send`,
+from the company's own address; nothing comes back into Support.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| The customer who wrote (the public form, Forms' public form, or a ticket the team opened for them) | Confirm the request arrived and give the way back to it | Right after it arrived (never to a robot's address; three an hour to one address at most; not again for a request sent twice) | The request's subject and number (`[#1042]` in the subject), the link of their request page, "it is where you write to us again", "keep this email"; in the request's language; from the company's name | None | The company's reply address (the connector's default) |
+| The customer of a ticket | An agent's answer | When the agent sends it (*Send* or *Send and close*) | The answer, the agent's first name and the company, a fresh link to the request page, "Please answer on your request page … (A reply to this email goes to {company}'s usual inbox, not to this conversation.)"; `Re: <subject> [#1042]`; from "Hugo — Atelier Martin" | The files the agent added (the Chest's stored files; 10 MiB a message in all, else the answer stays on the page) | The company's reply address |
+
+Not emailed: a colleague's request (from a team form of Forms: they read
+answers in *My requests* and hear of them in the bell), a note, a merge,
+a rating. When an email cannot go (no mail, not connected, paused, quota,
+an address that refused earlier emails), the reply says "On the follow-up
+page only" (or why), the customer's thank-you page says to copy the link,
+and *Settings* says why.
+
+**What changed on 6 October 2026** (the owner's mail decisions): the
+Chest receives no mail, so Support no longer has a support address,
+email-to-ticket, replies by email threaded onto tickets, the original
+`.eml`, the cleaned HTML, quoted-text folding, automatic-answer detection
+or spam scores of received emails; bounces are asked of the Chest
+(`mail.status`) instead of being posted to the tool; member
+notifications carry their French words (`translations`) instead of being
+sent per language. The columns an earlier version wrote for received
+emails stay in the database, unread (`migrations/0009_mail_checks.sql`
+says why), so that version keeps working after a rollback.
+
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), a packed copy in
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), a packed copy in
 `vendor/`, and the studio's app package `@argentic/chest-app` (also in
 `vendor/`). The member's `language` and `timeZone`, the Chest's
 `organization`, `timeZone`, `language`, `chest.tool.teamUrl` and
@@ -416,28 +455,25 @@ follows is not in it yet.
 
 - **`chest.theme()`** — **Proposal (studio)**: the look the company chose
   (README, "Looks"); without it, Support's own.
-- **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`,
-  mailbox `support`), with **receiving** (studio.12): thread addresses
-  (`send({mailbox, thread})`, `Received.thread`), `mail.handle` with
-  `message` and `bounce`, the HTML cleaned by the Chest, the original
-  `.eml`, `authenticated`, `auto`, `dropped`. Without mail the tool is
-  fully usable through the form: replies are on the customer's follow-up
-  page, marked *On the follow-up page only*, and Settings says so.
-  The customer's confirmation and the team's answers are
-  `transactional` (studio.15): the answer to their own request arrives
-  even when the address is a member's who chose no email from the tools.
-  Their keys carry the customer's address (studio.16): after a restore
-  from a backup, a ticket number can name another customer's request.
-  **On a real Chest today there is no mail**: until the Chest ships it,
-  sell Support as "a contact form and a shared inbox", not as a Zendesk
-  replacement for email.
+- **`mail`** — **Proposal (studio)** (`chest.proposals.json`:
+  `"mail": {"send": true}`): `mail.send` to customers only (see "Mail to
+  people outside the company"), `mail.available()` for Settings and
+  `mail.status()` for bounces. Without mail the tool is fully usable:
+  replies are on the customer's request page, marked *On the follow-up
+  page only*, and Settings says why. Keys carry the customer's address
+  (studio.16): after a restore from a backup, a ticket number can name
+  another customer's request. **On a real Chest today there is no mail**:
+  until the Chest ships its mail connector, customers follow their
+  requests with the link shown after they write.
+- **`notifications`**: a notice's `translations` and `broadcast` —
+  **Proposal (studio)**, announced for 0.5. On a Chest without broadcast,
+  the tool lists who answers (`members.list` by role) and notifies them.
 - **Links in emails and notices** use `chest.tool.publicUrl` (0.4.1: the
   company's own domain once it connected one — `support.acme.com` — else
   the public host) and `chest.tool.teamUrl`, and nothing else: outside a
   Chest (tests, a build) there is no public address, and nothing is
   remembered from a request's `Host`. The day and the working hours are the Chest's time
-  zone; email tickets and the public pages' last fallback take the
-  Chest's language.
+  zone; the public pages' last fallback takes the Chest's language.
 - **Public uploads** — **Proposal (studio)** (`chest.proposals.json`:
   `"files": {"publicUploads": true}`): `files.publicUploadUrl` (a path,
   `/_chest/upload/<token>`, that the browser sends to the address it is
@@ -448,10 +484,6 @@ follows is not in it yet.
   the tool (`/t/<secret>/files/<id>`, streamed with `files.get`): the
   Chest's signed links are for members' browsers; a signed link on the
   public host would spare the tool the bytes.
-- **Several mailboxes** (support@ and sales@, two brands) need nothing
-  new of the SDK but a manifest change per company: `mailboxes` is fixed
-  in the manifest, so a company cannot add one from Settings. The SDK
-  report asks for mailboxes an admin names at install time.
 - **Being shown in the company's website** (Settings, "On your
   website"): the public pages send the listed websites in their
   `frame-ancestors`, but the Chest's front adds `frame-ancestors 'none'`
@@ -500,8 +532,9 @@ npm start         # the built server, as the Chest runs it
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/helpdesk --reset`
-(the `/_dev` page shows the outbox and can send an email to the support
-mailbox), `node lab/chest-dev/flows/helpdesk.mjs`,
+(the `/_dev` page shows the outbox, each message with its Reply-To;
+`--no-mail-connector` plays a Chest whose owner has not connected the
+company's mail), `node lab/chest-dev/flows/helpdesk.mjs`,
 `node lab/chest-dev/screens.mjs tools/public-and-private/helpdesk`,
 `node lab/chest-dev/audit.mjs tools/public-and-private/helpdesk`.
 
@@ -513,7 +546,14 @@ CPU (they did not on Next.js).
 ## What it does not do (yet)
 
 - **Email on a real Chest**: the `mail` proposal is not shipped; until
-  it is, email in and out works only in the studio's harness.
+  it is, emails to customers go out only in the studio's harness.
+- **Receiving email** (owner's decision, 6 October 2026: the Chest
+  receives no mail): no support address that opens tickets, no replies
+  by email filed onto a ticket. A customer who answers by email reaches
+  the company's usual inbox; an agent who finds such a reply there adds
+  it to the ticket by hand (an internal note, or *New ticket* for a new
+  matter). Every email and the request page ask customers to write on
+  the page instead.
 - **The form inside the company's website** on a real Chest (above,
   "Needs from the SDK"): link to the form's address instead.
 - **Live chat** (Crisp, Intercom): no chat bubble; a chat would need a
@@ -532,11 +572,12 @@ CPU (they did not on Next.js).
 - **A help centre** (knowledge base): the Wiki's job — Support links to
   it (Settings, "help centre's address"); a public mode of the Wiki is in
   the suite's report.
-- **Several mailboxes or brands**, one company name per tool.
-- **SLA reminders by email**: the wait is counted in working hours and
+- **Several brands**: one company name per tool.
+- **SLA reminders to members**: the wait is counted in working hours and
   highlighted, reports give the first-answer time, and a Slack/Teams
-  channel can be told when a request waits too long; nobody is emailed
-  when a target is missed, and there is no separate "resolution" target.
+  channel can be told when a request waits too long; no member is
+  notified when a target is missed, and there is no separate
+  "resolution" target.
 - **Asking the team from Support itself**: a colleague's request comes
   from a team form of Forms; My requests shows and answers it, but has no
   "New request" of its own.
@@ -557,6 +598,7 @@ CPU (they did not on Next.js).
 - **The files in the export**: the ZIP carries every word and every
   file's name; the files themselves stay in the Chest (no bulk download
   of files in the SDK yet).
-- A customer choosing the priority; per-agent notification settings.
-- The tool does not scan files for viruses (the Chest drops what its
-  provider flags on received mail); it serves them only as downloads.
+- A customer choosing the priority. Per-agent notification settings are
+  the Chest's: each member chooses there how notifications reach them.
+- The tool does not scan files for viruses; it serves them only as
+  downloads.

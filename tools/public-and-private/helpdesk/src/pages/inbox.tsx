@@ -9,7 +9,6 @@ import { can } from "../lib/access.ts";
 import { toolLink } from "../lib/forms-in.ts";
 import { workMinutes } from "../shared/hours.ts";
 import { openIncidents } from "../lib/incidents-in.ts";
-import { supportAddress } from "../lib/mailer.ts";
 import { defaultSort, isFolder, lateAfter, priorities, sorts, waitedFor, type Folder } from "../lib/model.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
@@ -39,7 +38,6 @@ export async function inboxPage({ sql, member, lang: locale, t, query, desk }: T
   const team = canManage ? await answerers() : [];
   const who = await people([...rows.flatMap(r => [r.assignee, r.requester]).filter((a): a is string => !!a && a.startsWith("mbr_")), ...team]);
   const total = counts.all + counts.spam;
-  const address = total === 0 ? await supportAddress() : null;
   // A company that already has a contact form in Forms is shown the way.
   const forms = total === 0 ? toolLink("forms", "/chest") : null;
   // The order shown by default is no choice of the view's.
@@ -78,7 +76,7 @@ export async function inboxPage({ sql, member, lang: locale, t, query, desk }: T
         )}
         {q && <p className="muted results" role="status">{plural(w.results, rows.length, locale, { q })}</p>}
         {total === 0 && !q ? (
-          <EmptyState icon={<Inbox />} title={w.firstTitle} body={format(w.firstBody, { email: address ? format(w.firstEmail, { email: address }) : "" })}
+          <EmptyState icon={<Inbox />} title={w.firstTitle} body={w.firstBody}
             action={<a className="ck-button" href={origin ?? "/"} target="_blank" rel="noopener">{w.openForm}</a>}
             note={forms && canCreate ? <a href={forms}>{w.formsNote}</a> : undefined} />
         ) : rows.length === 0 && !q ? (
