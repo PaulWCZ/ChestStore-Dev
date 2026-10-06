@@ -3,7 +3,7 @@ import type { Bounce, Received } from "@argentic/chest-sdk/mail";
 import type { Sql } from "./db.ts";
 import * as mailer from "./mailer.ts";
 import * as notices from "./notices.ts";
-import { publicBase } from "./public-origin.ts";
+import { followUpLink } from "./public-origin.ts";
 import * as tell from "./tell.ts";
 import * as tickets from "./tickets.ts";
 import { robotAddress } from "../shared/text.ts";
@@ -28,7 +28,7 @@ export async function received(sql: Sql, message: Received): Promise<void> {
     const from = message.from.address;
     if (!robotAddress(from) && (await tickets.confirmations(sql, from)) < confirmationsPerHour) {
       const s = await tickets.settings(sql);
-      const sent = await mailer.confirm({ ...t, language: row!.language }, `${publicBase(s.publicOrigin)}/t/${filed.secret}`, s.companyName || chest.organization.name, message.messageId);
+      const sent = await mailer.confirm({ ...t, language: row!.language }, followUpLink(filed.secret), s.companyName || chest.organization.name, message.messageId);
       if (sent.delivery === "email") await tickets.confirmed(sql, filed.id, sent.mail);
     }
     await tell.newTicket(t, message.text, filed.assignee);

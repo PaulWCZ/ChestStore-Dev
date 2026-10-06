@@ -11,7 +11,7 @@ the hour and wants to know where its time goes.
   (and task) found by typing a few words of it (a searchable picker, also
   in the grid and the day list), *Start*. One timer per person, kept on the server (its start
   instant): it survives a reload, a closed tab, another device (pages
-  re-read it every minute and when they come back into view). *Stop* turns
+  re-read it when they come back into view). *Stop* turns
   it into an entry of the day it started, in the Chest's time zone. A timer
   left running more than 10 hours is **forgotten**: on the next visit a
   dialog asks when it really stopped (quarter-hour choices), or discards it.
@@ -88,14 +88,18 @@ the hour and wants to know where its time goes.
 - **Search the notes** (Reports): words of a note ("Feyssine") narrow the
   report, list the entries found (the 100 most recent: day, person,
   project, note, time) and the CSV. A member searches their own.
-- **Draft invoices in Quotes** (managers, when Quotes is installed): in
-  "Billable, not invoiced", each project's billable time of the period is
-  offered as one draft invoice — *Draft invoice in Quotes* — sent through
-  events between tools (the contract below). Sent once: the entries wait
-  for their invoice, locked; Quotes' answer marks them invoiced (rates
-  written on them), with the invoice's number and a link to it; *Take
-  back* frees them before that. On a Chest that cannot tell Quotes, the
-  page says so and nothing changes.
+- **Draft invoices in Quotes** (managers, when Quotes is installed and an
+  administrator linked it to Timesheets): in "Billable, not invoiced", each
+  project's billable time of the period is offered as one draft invoice —
+  *Draft invoice in Quotes* — sent through events between tools (the
+  contract below). Sent once: the entries wait for their invoice, locked,
+  **their rates written on them at that moment** (a rate changed later
+  never makes the invoice and Timesheets disagree); Quotes' answer marks
+  them invoiced, with the invoice's number and a link to it; *Take back*
+  frees them (and their rates) before that. Quotes installed but not
+  linked: the panel says an administrator links them, and offers nothing.
+  A hand-off that reaches no tool is undone at once and said so — the
+  time never waits for an invoice nobody makes.
 - **Invoiced time** (managers): in "Billable, not invoiced", *Mark N
   entries as invoiced* once the invoice is out; that time locks and keeps
   its rates; *Undo* puts it back.
@@ -218,8 +222,10 @@ there is a project" (a member reads that a manager opens projects).
   lock, rate, approval or invoicing they did forgets who did it; the
   erasure is acknowledged.
 - **Nothing runs in the background**: deleted entries are purged after 30
-  days on a later request. No WebSocket: pages re-read themselves every
-  minute while visible (the timer's state from another device).
+  days on a later request. No WebSocket: a page reads itself again when
+  its tab is shown again or its window focused (the timer's state from
+  another device) — never on a timer, so an open tab does not keep the
+  tool awake.
 - A day holds 24 hours at most, per person, checked in one transaction per
   person (two tabs saving at once cannot overflow it).
 
@@ -293,14 +299,15 @@ the moment it was taken back. `data`:
 ```
 
 People are never named (no member id either: an invoice line is per task
-and rate). **What Quotes must do** (its side is built in another round):
-receive `timesheets.billable` (declare it in `receives`), make one **draft
+and rate). **What Quotes does** (built: Quotes' `lib/timesheets.ts`,
+its `chest.proposals.json` receives `timesheets.billable` and
+`timesheets.billable_cancelled` and emits `quotes.invoiced`): it receives `timesheets.billable` (declare it in `receives`), make one **draft
 invoice** per `handoff` (a second delivery of the same `handoff` changes
 nothing) for the client (matched by name, or asked), one line per `lines[]`
-item (label, quantity `minutes / 60` hours, unit price `rate`), link back
+item (label, quantity `minutes / 60` hours, unit price `rate`), links back
 with `chest.toolLink("timesheets", source.path)`; on
-`timesheets.billable_cancelled {version: 1, handoff}` drop that draft if it
-was not issued (else ignore it); and when the invoice is **issued**, publish
+`timesheets.billable_cancelled {version: 1, handoff}` drops that draft if it
+was not issued (else tells billing); and when the invoice is **issued**, publishes
 **`quotes.invoiced`** `{ handoff: "12", invoice: "F2026-014", path:
 "/chest/invoices/14", by?: "mbr_…" }` (key `quotes:invoiced:<handoff>`).
 Timesheets receives it (`src/calls.ts`, `/chest-events`): the hand-off's
@@ -372,12 +379,18 @@ hand-off to Quotes), `node lab/chest-dev/flows/timesheets.mjs 5200`,
 
 ## What it does not do (yet)
 
-- **Invoices**: it writes no invoice itself. The hand-off to Quotes is
-  built on Timesheets' side; Quotes' side (the draft invoice, and its
-  `quotes.invoiced` answer) is not built yet, so today the time waits
-  "for its invoice" until a manager takes it back or marks it invoiced.
-  One hand-off per project and period; no grouping of several projects of
-  a client in one invoice, no notes on the invoice lines.
+- **Invoices**: it writes no invoice itself — Quotes does, from the
+  hand-off (both sides built; they need a Chest with events between tools,
+  a studio proposal, and an administrator's link). One hand-off per
+  project and period; no grouping of several projects of a client in one
+  invoice, no notes on the invoice lines. **Amounts round per entry**: an
+  entry's amount is its minutes at its rate, rounded to the cent; a
+  report's totals, the CSV and the `amount` of each hand-off line add those
+  up. Quotes prices a line itself (`minutes / 60` × `rate`), which may
+  differ from the line's `amount` by a cent or so on a long line.
+- **An entry's day is the Chest's day** (its time zone): a timer started
+  in Montréal after 18:00 for a Chest in Paris belongs to the next day, and
+  a person's week is the Chest's Monday to Sunday.
 - **No integrations or browser extension**: no timer started from Jira,
   Asana, Trello or GitHub, no calendar sync. Time is recorded here, on the
   phone or the computer.
@@ -391,8 +404,9 @@ hand-off to Quotes), `node lab/chest-dev/flows/timesheets.mjs 5200`,
   searches notes only (not project or task names).
 - Emails: no switch of the tool's own — the person's choice in the Chest
   (all, one a day, none) applies to every email Timesheets sends.
-- Members' reports show a project's whole budget ("251:15 of 230:00 used"),
-  not only their share (seen by the critic as harmless; not changed).
+- Members' reports show a project's whole budget: in hours as it is
+  ("251:15 of 230:00 used"), in money as a share only ("64 % of the budget
+  used") — never an amount, which beside their hours would give the rate.
 - Approval is weekly and by the whole week (a lead is asked first, any
   other manager may approve; no approval line by line, no monthly periods).
 - No export of the projects and clients themselves (their time exports as

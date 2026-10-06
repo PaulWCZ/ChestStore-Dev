@@ -1,5 +1,5 @@
 import { chest } from "@argentic/chest-sdk/chest";
-import { createApp, fill, page, publicPage, redirect, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
+import { createApp, download, fill, page, publicPage, redirect, type MemberContext, type PageContext, type View } from "@argentic/chest-app";
 import { actions } from "./actions.ts";
 import { locales, localeOf, words, type Catalogue, type Locale } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
@@ -97,16 +97,16 @@ routes.get("/chest/mine/:number", team(ctx => myRequestPage(ctx, ctx.param("numb
 routes.get("/chest/files/:id", c => teamFile(c.get("viewer").member, c.req.param("id"), c.req.query("thumbnail") === "1"));
 routes.get("/chest/messages/:id/original", c => originalEmail(c.get("viewer").member, c.req.param("id")));
 routes.get("/chest/mine/:number/files/:id", c => mineFile(c.get("viewer").member, c.req.param("number"), c.req.param("id")));
-routes.get("/chest/export", c => {
-  const { member, t, locale } = c.get("viewer");
-  return exportDownload(member, t, localeOf(locale), chest.today());
-});
+// The export: a file (download(): a refusal is a page in the reader's
+// words), sent as it is written; a link marked download is never fetched
+// in place, so the archive is made once.
+routes.get("/chest/export", download(({ member, t, locale }) => exportDownload(member, t, localeOf(locale), chest.today())));
 
 // ---- The public part ("public": true): the contact form, a request's
 // follow-up page (its address is the secret), the request's files.
 routes.get("/", publicPage(contactPage));
 routes.get("/t/:secret", publicPage(ctx => followUpPage(ctx, ctx.param("secret"))));
-routes.get("/t/:secret/files/:id", c => publicFile(c.req.param("secret"), c.req.param("id")));
+routes.get("/t/:secret/files/:id", c => publicFile(c.req.param("secret"), c.req.param("id"), c.req.method === "HEAD"));
 
 // ---- What the Chest sends by itself, signed (src/lib/deliveries.ts).
 routes.post("/chest-events", c => chestEvents(c.req.raw));

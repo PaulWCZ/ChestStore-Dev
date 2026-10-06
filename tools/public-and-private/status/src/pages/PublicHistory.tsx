@@ -14,7 +14,7 @@ export async function publicHistory(context: PublicContext, raw: string | undefi
   const { t, locale, sql, now, zone, offerUpdates } = context;
   const { months, older } = await historyPage(sql, page, zone, now);
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
-  return { title: siteTitle(context, t.history.title), exactTitle: true, head: indexed(), body: (
+  return { title: siteTitle(context, t.history.title), exactTitle: true, head: indexed(t), body: (
     <PublicShell context={context} path={page ? `/history?page=${page}` : "/history"} offerMail={offerUpdates}>
       <p className="crumb"><a href="/"><Back />{t.public.back}</a></p>
       <h1 className="page-title">{t.history.title}</h1>

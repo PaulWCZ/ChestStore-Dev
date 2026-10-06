@@ -16,7 +16,7 @@ export async function pagesPage(p: PageContext<MemberContext>): Promise<View> {
     body: (
       <div className="page narrow contents-page">
         <h1>{p.t.shell.pages}</h1>
-        <Island name="Contents" props={sidebarProps(p, spaces, nodes, p.url.pathname)} />
+        <Island name="Contents" props={sidebarProps(p, spaces, nodes, p.url.pathname, { all: true })} />
       </div>
     ),
   };

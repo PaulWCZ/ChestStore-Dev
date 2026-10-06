@@ -14,7 +14,7 @@ import { defaultSort, isFolder, lateAfter, priorities, sorts, waitedFor, type Fo
 import { nameOf, people } from "../lib/people.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { answerers, colleagueName } from "../lib/tell.ts";
-import { folderCounts, listTickets, rememberPublicOrigin, settings, tags as allTags } from "../lib/tickets.ts";
+import { folderCounts, listTickets, settings, tags as allTags } from "../lib/tickets.ts";
 import { listViews, viewHref, viewParams } from "../lib/views.ts";
 
 // The shared inbox, /chest: a folder of tickets, the most urgent first and,
@@ -23,12 +23,11 @@ import { listViews, viewHref, viewParams } from "../lib/views.ts";
 // sorted otherwise on demand. A tag without a folder shows every ticket
 // carrying it. Tick tickets to change several at once (the InboxList
 // island), search and filter above it (InboxTools).
-export async function inboxPage({ sql, member, lang: locale, t, query, request, desk }: TeamContext): Promise<View> {
+export async function inboxPage({ sql, member, lang: locale, t, query, desk }: TeamContext): Promise<View> {
   const search = { folder: query("folder"), q: query("q"), priority: query("priority"), tag: query("tag"), sort: query("sort") };
   const folder: Folder = isFolder(search.folder) ? search.folder : search.tag && !search.folder ? "all" : "unassigned";
   const q = (search.q ?? "").trim().slice(0, 100);
-  const origin = publicOrigin(request.headers);
-  await rememberPublicOrigin(sql, origin);
+  const origin = publicOrigin();
   const filters = { priority: search.priority, tag: search.tag, sort: search.sort };
   const [rows, counts, tagList, s, incidents, views] = await Promise.all([listTickets(sql, member, folder, q || undefined, filters), desk?.counts ?? folderCounts(sql, member), allTags(sql, member), settings(sql), openIncidents(sql, member, locale), desk?.views ?? listViews(sql, member)]);
   const filtered = Boolean(search.priority || search.tag);

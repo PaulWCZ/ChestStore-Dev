@@ -234,6 +234,23 @@ same render, with no flash of the old order.
 
 **A page** — a component in `src/pages/`, a route in `src/app.tsx`, its
 words in `en.ts` and `fr.ts`; a section: one line in `nav` of `src/layout.tsx`.
+**A page others change, left open** (a board, a queue, a timesheet) —
+an island that calls `useAutoRefresh(60)` from
+`@argentic/chest-app/client` (not the kit's: it reads all day long), and
+`page(render, { version: p => … })`, what the page shows in a few
+characters (`select md5(string_agg(…))`, a max of `updated_at`, a count):
+the page is read again when the tab comes back and every minute while
+its reader was active in the last ten (idle, it stops: the Chest may
+put the tool to sleep), less often while nothing changes, and a read
+with the same version is a 304 — nothing rendered. The version is keyed
+by the reader and their language; include what only they see.
+**A big list in an island** (an inventory, a directory) — never the whole
+table in its props: they are rendered and sent twice in the page (7,045
+items made 14 MB of HTML and 272 MiB, past the tool's 256). Give the
+island counts and a first page (`limit 50`), page or search on the
+server (`?q=`, `?page=`: links or a GET form), and fetch what a dialog
+needs when it opens, with an action declared `parallel: true`. In
+development, props over 256 KB are warned about.
 **A page that tells the layout something** (a tab shown only when the
 page found it has content, a count in the nav) — return `{ title, body,
 layout: { trash: true } }`; the layout reads `data.trash` (`{}` on an
@@ -378,7 +395,9 @@ their components — use the components.
 
 ## Tests
 
-`npm test`: tsc, the server built into `dist/test`, then `test/*.test.*`.
+`npm test`: tsc, the browser's files built (`dist/client`: a test that
+asks `/assets/…` finds them), the server built into `dist/test`, then
+`test/*.test.*`.
 From `@argentic/chest-app/testing`: `testDatabase()` (start `fakeChest()`
 first: the returned `sql` seeds in the Chest's zone, as `db()` reads;
 TEST_DATABASE_URL —
@@ -399,7 +418,9 @@ The SDK's `fakeChest`, `withMember` sign the member.
 
 | Symptom | Cause |
 |---|---|
-| An island shows a new thing with the old one's state (a draft, an open menu) after a refresh or a navigation | Same island, same place, other subject: give it an id, `<Island id={"card-" + card.id} …/>` (in development the browser warns when a prop `id` changes under an island without one) |
+| An island shows a new thing with the old one's state (a draft, an open menu) after a refresh or a navigation | Same island, same place, other subject: give it an id, `<Island id={"card-" + card.id} …/>` (in development the browser warns when a prop `id` changes under an island without one; its wrapper's DOM id is then `island-card-12`, apart from any id of its content) |
+| A page with a big list is slow, then the tool restarts (out of memory) | The whole table in an island's props: counts and a first page instead, the rest by search, paging or a parallel action ("A big list in an island") |
+| A unit test calls `chest.clearCaches()` (or changes the fake's members) and the built server still answers from its cache | The server built into `dist/test` bundles its own copy of the SDK: its caches are not the test's. Call the tool's own functions (the delivery, the rule in `src/lib/`) directly in a unit test, and keep server tests to what a request shows |
 | Two quick actions reorder rows | Calls with `parallel: true`, or two people at once: serialise in SQL (a transaction with a lock) |
 | Pasted HTML loses its bold and italics, the console reports a refused style | A `DOMParser` document inherits the page's policy: its `style=""` attributes are refused. Rename them in the text before parsing and read them by hand (Wiki's `src/islands/editor/paste.ts`, `unstyled()` and `inlineStyles()`) |
 | TS7022/TS7024: `actions` "implicitly has type any" | A cycle through `Register`: an action's inferred type depends on `t` or on `fail()` in an expression. Annotate its run's return type (`async (…): Promise<{ id: string }> => …`) |

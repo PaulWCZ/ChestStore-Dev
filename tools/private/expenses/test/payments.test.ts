@@ -23,6 +23,23 @@ import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, tom } from "./support/members.ts";
 import { get as fetchAs } from "./support/server.ts";
 
+// Every transfer file is checked against the ISO 20022 schema
+// (test/fixtures/pain.001.001.03.xsd, THIRD_PARTY.md) with xmllint, which
+// this check needs: without it the check says so and is skipped (CI images
+// have it: libxml2-utils). SEPA_XSD names another copy of the schema.
+const xsdPath = process.env["SEPA_XSD"] ?? join(import.meta.dirname, "fixtures", "pain.001.001.03.xsd");
+const hasXmllint = (() => { try { execFileSync("xmllint", ["--version"], { stdio: "pipe" }); return true; } catch { return false; } })();
+function validates(xml: string): void {
+  assert.ok(existsSync(xsdPath), "the pain.001.001.03 schema");
+  if (!hasXmllint) {
+    console.warn("xmllint is missing: the transfer file is not checked against the ISO 20022 schema");
+    return;
+  }
+  const file = join(mkdtempSync(join(tmpdir(), "sepa-")), "file.xml");
+  writeFileSync(file, xml);
+  execFileSync("xmllint", ["--noout", "--schema", xsdPath, file], { stdio: "pipe" });
+}
+
 let database: TestDatabase;
 let chest: FakeChest;
 const cat: Record<string, string> = {};
@@ -206,14 +223,7 @@ test("the transfer file: one transfer per person with bank details, everything p
   // Downloaded again: the very same file.
   assert.equal((await payments.runFile(sql, asMember(camille), made.run.id)).xml, xml);
   await assert.rejects(payments.runFile(sql, asMember(ines), made.run.id), refuses("forbidden"));
-  // Checked against the ISO 20022 schema when it is at hand (not shipped:
-  // SEPA_XSD=<path to pain.001.001.03.xsd>, and xmllint).
-  const xsd = process.env["SEPA_XSD"];
-  if (xsd && existsSync(xsd)) {
-    const file = join(mkdtempSync(join(tmpdir(), "sepa-")), "file.xml");
-    writeFileSync(file, xml);
-    execFileSync("xmllint", ["--noout", "--schema", xsd, file], { stdio: "pipe" });
-  }
+  validates(xml);
   // A line of a batch is not undone alone: the batch is cancelled.
   await assert.rejects(expenses.unmarkPaid(sql, asMember(camille), [h1]), refuses("invalid"));
   const back = await payments.cancelRun(sql, asMember(camille), made.run.id);
@@ -385,15 +395,47 @@ test("an account outside the EEA (UK, Switzerland): the holder's address is aske
   assert.match(xml, /<Cdtr><Nm>Tom Walker<\/Nm><PstlAdr><TwnNm>Bath<\/TwnNm><Ctry>GB<\/Ctry><\/PstlAdr><\/Cdtr>/u);
   assert.match(xml, /<Cdtr><Nm>Hugo Bernard<\/Nm><\/Cdtr>/u); // inside the EEA: none
   assert.ok([t, h].every(id => xml.includes(`E${id}`)) && !xml.includes(`E${l}<`));
-  // Checked against the ISO 20022 schema when it is at hand (SEPA_XSD).
-  const xsd = process.env["SEPA_XSD"];
-  if (xsd && existsSync(xsd)) {
-    const file = join(mkdtempSync(join(tmpdir(), "sepa-")), "file.xml");
-    writeFileSync(file, xml);
-    execFileSync("xmllint", ["--noout", "--schema", xsd, file], { stdio: "pipe" });
-  }
+  validates(xml);
   // An erased person's address leaves the batch with their account.
   await erase(sql, tom.id);
   const [run] = await sql`select file::text as file from payment_runs where id = ${made.run.id}`;
   assert.equal(String(run!["file"]).includes("Bath"), false);
+});
+
+test("the schema check refuses a file that is not pain.001.001.03", { skip: !hasXmllint && "no xmllint" }, () => {
+  assert.throws(() => validates('<?xml version="1.0" encoding="UTF-8"?><Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"><CstmrCdtTrfInitn/></Document>'));
+});
+
+test("a file whose day has come is cancelled only when the bank did not pay it; one just made, by its Undo", async () => {
+  const { sql } = database;
+  await company();
+  await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban });
+  await approved(hugo, "10");
+  const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  await sql`update payment_runs set created_at = now() - interval '1 hour' where id = ${made.run.id}`;
+  await assert.rejects(payments.cancelRun(sql, asMember(camille), made.run.id), refuses("file_due"));
+  assert.deepEqual(await payments.cancelRun(sql, asMember(camille), made.run.id, { notPaid: true }), [hugo.id]);
+  // Made a minute ago (the toast's Undo): cancelled at once.
+  const again = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  assert.deepEqual(await payments.cancelRun(sql, asMember(camille), again.run.id), [hugo.id]);
+});
+
+test("bank details an accountant entered wait for their owner's word before a transfer file pays into them", async () => {
+  const { sql } = database;
+  await company();
+  await bank.setBankDetails(sql, asMember(camille), hugo.id, { iban: hugoIban });
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, true);
+  await approved(hugo, "10");
+  await assert.rejects(payments.createRun(sql, asMember(camille), { executionDate: today() }), refuses("bank_unconfirmed"));
+  await bank.confirmBankDetails(sql, asMember(hugo));
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, false);
+  const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  assert.equal(made.run.count, 1);
+  // Changed again by the accountant: held again; changed by Hugo himself: not.
+  await bank.setBankDetails(sql, asMember(camille), hugo.id, { iban: "" , holder: "H. Bernard" });
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, true);
+  await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban });
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, false);
+  // Nothing to confirm: refused; the company's account is the accountants' own.
+  await assert.rejects(bank.confirmBankDetails(sql, asMember(hugo)), refuses("not_found"));
 });

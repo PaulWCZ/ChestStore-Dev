@@ -909,7 +909,7 @@ MIT (`LICENSE`), © 2026 Argentic.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the README of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.3**: that release,
+0.4.1, word for word. This package is **0.4.1-studio.4**: that release,
 unchanged, plus the studio's proposals — what the store's tools needed that
 0.4.1 does not give. Each is designed as it would ship: a module or an
 export, its route on the Chest's API, a fake in `testing`, its tests. On a
@@ -918,9 +918,11 @@ real Chest these routes do not exist yet: a call throws
 the tool's own look), and the tool stays useful without them. Nothing here
 is published.
 
-Studio versions: **studio.3** — `visitors.count()` counts a visitor
+Studio versions: **studio.4** — `files.publicUploadUrl` answers a **path**
+(`/_chest/upload/<token>`), sent to the host the page is on — the company's
+own domain once connected. **studio.3** — `visitors.count()` counts a visitor
 without an address in the ceiling for everyone only; `fakeChest`'s
-`publicApi` (the origin of `files.publicUploadUrl`'s addresses).
+`publicApi` (the origin a public upload's path is sent to).
 **studio.2** — the review fixes (the visitor's address from the front
 only, the fake's fidelity, a narrower surface). **studio.1** — the
 proposals on 0.4.1.
@@ -1000,8 +1002,8 @@ proposals on 0.4.1.
   `lookup`, so it is a call of its own until the Chest's members API
   carries it.
 - **`files.uploadUrl(name, {public: true})` → `files.publicUploadUrl(name)`.**
-  A public upload's address is on the public host (`/_chest/upload/`),
-  which 0.4.1's `uploadUrl` refuses to return; 0.4.1's function stays as
+  A public upload's address is a path of the public host (`/_chest/upload/`:
+  the company's own domain once connected), which 0.4.1's `uploadUrl` refuses to return; 0.4.1's function stays as
   published.
 - **`chest.toolUrl(name, {surface})`, `chest.toolLink(...)` →
   `chest.tools.get(name)` → `{teamUrl, publicUrl} | null` and
@@ -1937,7 +1939,8 @@ which the Chest has not built yet:
 ```ts
 // A public page's action, after the tool's own checks of the visitor:
 const up = await files.publicUploadUrl("uploads/public/", { types: ["application/pdf"], maxSize: 5 << 20, expiresUnclaimedAfter: 86400 });
-// → { url: "https://<public host>/_chest/upload/<token>", method: "PUT", expiresIn }: the visitor's browser PUTs the file there, no session
+// → { url: "/_chest/upload/<token>", method: "PUT", expiresIn }: a path — the visitor's browser PUTs the file to the host it is on
+//   (the public host, or the company's own domain once connected: chest.tool.publicUrl), no session
 const object = await files.claim(claimFromTheForm);   // the visitor's browser got {type, size, claim}; the tool trades the claim, once
 
 files.publicPath("public/logo.png", { version: info.updated }); // "/_chest/public/logo.png?v=…", a path of the public host
@@ -1989,7 +1992,7 @@ reads `options.former` once). `chest.api` is the studio's server, and
 | `fakeChest({groups: [{…, grants: false}], capabilities: [..., "groups"]})`, `chest.groups` | Groups that do not give the tool, seen only with `groups` (`groups.all`, `groups.members`, `groups.of`); 0.4.1's `groups.list` and a member's `groups` show those that do; `emit` delivers `group.changed` and `group.removed` |
 | `chest.former` | Those the tool had who no longer have it (`{id, name?, status?, leftAt?}`): lookup answers them as 0.4.1's fake would, `leftAt` answers when. A test that removes a member from `chest.members` moves them here, as a real Chest would, then calls `clearCaches()` |
 | `chest.clearCaches()` | Forgets what the process keeps of the Chest's answers — lookup's minute (0.4.1's `forget`), the theme — after a test changed `chest.members`, `chest.former` or `chest.theme` by hand |
-| `chest.upload(url, data, type)` | Plays a browser sending a file to an `uploadUrl` or a `publicUploadUrl` answer (a PUT of `data` of that type; 0.4.1's front sniffs the content) |
+| `chest.upload(url, data, type)` | Plays a browser sending a file to an `uploadUrl` or a `publicUploadUrl` answer (a PUT of `data` of that type; 0.4.1's front sniffs the content); a path is sent to `chest.publicApi` |
 | `fakeChest({tools})`, `chest.tools`, `chest.installTool(name, {teamUrl?, publicUrl?})`, `chest.removeTool(name)` | The tools installed beside this one (`chest.tools.get`), by name: `true` for a team host at `https://<name>-chest.chest.test`, or its addresses. This tool is always there, at `chest: {teamUrl, publicUrl}`. `installTool` and `removeTool` rewrite `CHEST_TOOL_URLS` as the Chest does |
 | `fakeChest({theme, themeFiles})`, `chest.theme`, `chest.themeFiles` | The company's look at its two levels (`{all, tools}`), which `chest.theme()` answers resolved for the tool with `max-age=0`; the files its front serves under `/_chest/theme/` |
 | `fakeChest({network: {host: handler}})`, `chest.egress` | The hosts the tool declares (`chest.json` `network`: `"graph.microsoft.com"`, `"*.icloud.com"`, `"*"`) and a handler of Web Requests answering each. While the fake runs, the tool's **plain `fetch()`**, unchanged, goes as through the Chest's egress proxy: a declared host to its handler (redirects followed through declared hosts, `AbortSignal` honoured); an undeclared name, an IP literal or a port other than 80/443 refused as the proxy refuses — `fetch` rejects with a `TypeError` for `https:`, answers 403 `Chest-Egress: refused; reason=…` for `http:`; `localhost`, `127.0.0.1` and `::1` straight through. `chest.egress` lists each request `{method, url, status, refused?}`. It replaces `globalThis.fetch` (and gives it back on `close`): Node reads `NODE_USE_ENV_PROXY` only when it starts. `node:http(s).request` is not routed |

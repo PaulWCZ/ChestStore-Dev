@@ -675,6 +675,7 @@ const words = {
     unavailable: "The Chest did not answer. Try again in a moment.",
     number_taken: "Another record already has this employee number.",
     already_asked: "You already asked for a change: HR has not answered yet.",
+    erased: "This person asked to be forgotten: their address and emergency contact are no longer kept.",
     unknown: "Something went wrong. Try again.",
   },
   records: {
@@ -854,6 +855,7 @@ const words = {
       change_accepted: "Made the change asked: {fields}",
       change_declined: "Declined the change asked: {fields}",
       letter_printed: "Printed a letter ({fields})",
+      directory_exported: "Downloaded the directory",
     },
     noHistory: "Nothing yet.",
   },

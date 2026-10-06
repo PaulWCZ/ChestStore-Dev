@@ -1,9 +1,8 @@
 import { Island, type PageContext, type View, type VisitorContext } from "@argentic/chest-app";
 import { format, isLocale, localeOf } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
-import { issue } from "../lib/form-token.ts";
-import { publicOrigin } from "../lib/public-origin.ts";
-import { introFor, rememberPublicOrigin, settings } from "../lib/tickets.ts";
+import { publicUploadsOn } from "../lib/attachments.ts";
+import { introFor, settings } from "../lib/tickets.ts";
 import { words } from "../i18n/index.ts";
 import { publicLook } from "../theme.ts";
 import { PublicShell } from "./public-shell.tsx";
@@ -14,14 +13,13 @@ import { PublicShell } from "./public-shell.tsx";
 // ?lang=: the language the address names (a frame may not keep the
 // switch's cookie). A form sent without JavaScript and refused comes back
 // with ?error= (said under its field).
-export async function contactPage({ locale: visitor, query, request }: PageContext<VisitorContext>): Promise<View> {
+export async function contactPage({ locale: visitor, query }: PageContext<VisitorContext>): Promise<View> {
   const given = query("lang");
   const locale = isLocale(given) ? given : localeOf(visitor);
   const t = words(locale);
   const embed = query("embed") === "1";
   const sql = db();
-  await rememberPublicOrigin(sql, publicOrigin(request.headers));
-  const [s, look] = await Promise.all([settings(sql), publicLook()]);
+  const [s, look, filesOn] = await Promise.all([settings(sql), publicLook(), publicUploadsOn()]);
   const company = s.companyName || t.public.teamPlain;
   const error = query("error");
   return {
@@ -36,7 +34,7 @@ export async function contactPage({ locale: visitor, query, request }: PageConte
         </div>
         {s.formOpen ? (
           <section className="public-card">
-            <Island name="ContactForm" props={{ started: issue(), locale, embed, error: error && Object.hasOwn(t.errors, error) ? error : null, t: { public: t.public, errors: t.errors, files: t.kit.files } }} />
+            <Island name="ContactForm" props={{ filesOn, locale, embed, error: error && Object.hasOwn(t.errors, error) ? error : null, t: { public: t.public, errors: t.errors, files: t.kit.files } }} />
           </section>
         ) : <p className="notice">{t.public.closed}</p>}
       </PublicShell>

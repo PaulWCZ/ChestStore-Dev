@@ -1,7 +1,7 @@
-import { Avatar, DateField, Segmented } from "@argentic/chest-ui/components";
-import type { DateWords } from "@argentic/chest-ui/components/logic";
+import { Avatar, DateField, PeoplePicker, Segmented } from "@argentic/chest-ui/components";
+import { localSearch, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { call, fill as format, toast } from "@argentic/chest-app/client";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useBusy } from "../components/busy.ts";
 import { Lock, Plus, Trash } from "../components/icons.tsx";
 import { limits } from "../shared/model.ts";
@@ -19,6 +19,7 @@ type Words = {
   };
   edit: { title: string; team: string; office: string; manager: string; noManager: string; startDate: string; phone: string };
   date: DateWords;
+  peoplePicker: PeoplePickerWords;
 };
 
 // Each cell saves itself when HR leaves it (the server checks it as it
@@ -28,18 +29,23 @@ type Words = {
 // This grid of fields stays the tool's own, not the kit's DataTable (a
 // table to read and sort, not to type in): here every cell is a field
 // saved on its own, the names stay in view while scrolling sideways, and a
-// manager is a select — a compact list in a cell. The start date is the
+// manager is their name on a button that opens the kit's person picker in
+// the cell — one picker at a time, so the page grows with the number of
+// people, not with its square (a select of every manager in every row
+// was 289 MB for 2,000 people). The start date is the
 // kit's compact date field ("29/09/2026", "1er octobre", "demain", or its
 // calendar), never the browser's date input. A cell saved keeps what HR
 // sees (the page is not read again for it); a column added, renamed or
 // removed reads the page again.
-export function TableEditor({ rows, managers, fields, known, today, t }: {
+export function TableEditor({ rows, managers, fields, known, today, lang, t }: {
   rows: TableRow[];
   managers: { id: string; name: string; left?: boolean }[];
   fields: { id: string; label: string; editor: "person" | "hr"; seen: "everyone" | "private"; kind: "text" | "date" | "choice"; options: string[] }[];
   known: { teams: string[]; offices: string[]; titles: string[] };
-  // Today in the Chest's time zone ("tomorrow" in a date cell).
+  // Today in the Chest's time zone ("tomorrow" in a date cell); the
+  // language of the people picker.
   today: string;
+  lang: string;
   t: Words;
 }) {
   const uid = useId();
@@ -113,16 +119,20 @@ export function TableEditor({ rows, managers, fields, known, today, t }: {
                 <td>{input(r, "team", t.edit.team, { list: uid + "teams", maxLength: limits.team })}</td>
                 <td>{input(r, "office", t.edit.office, { list: uid + "offices", maxLength: limits.office })}</td>
                 <td>
-                  <select className="cell" value={values[`${r.id}|managerId`] ?? ""} aria-label={format(t.table.cell, { field: t.edit.manager, name: r.name })}
-                    onChange={e => {
+                  <ManagerCell
+                    person={r}
+                    value={values[`${r.id}|managerId`] ?? ""}
+                    managers={managers}
+                    label={format(t.table.cell, { field: t.edit.manager, name: r.name })}
+                    lang={lang}
+                    t={t}
+                    onPick={id => {
                       const cell = `${r.id}|managerId`;
                       const before = saved[cell] ?? "";
-                      setValues(v => ({ ...v, [cell]: e.target.value }));
-                      commit(r.id, "managerId", e.target.value, before);
-                    }}>
-                    <option value="">{t.edit.noManager}</option>
-                    {managers.filter(m => m.id !== r.id && (!m.left || m.id === r.managerId)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
+                      setValues(v => ({ ...v, [cell]: id }));
+                      commit(r.id, "managerId", id, before);
+                    }}
+                  />
                 </td>
                 <td>
                   <DateCell value={values[`${r.id}|startDate`] ?? ""} label={format(t.table.cell, { field: t.edit.startDate, name: r.name })} today={today} words={t.date}
@@ -266,4 +276,45 @@ function DateCell({ value, label, today, words, onCommit }: { value: string; lab
   // screen readers; a date it cannot read stays as typed, with its problem
   // under it, and nothing is saved.
   return <DateField variant="compact" hideLabel className="cell-date" label={label} value={value || null} today={today} labels={words} onChange={iso => onCommit(iso ?? "")} />;
+}
+
+// A manager cell: the manager's name (or "No manager") on a button; a click
+// opens the kit's person picker in its place, over the people who may be
+// this person's manager (never themselves; one who left only while still
+// theirs). Choosing someone, or clearing, saves; Escape or leaving the
+// cell closes it unchanged. The server refuses a loop.
+function ManagerCell({ person, value, managers, label, lang, t, onPick }: {
+  person: TableRow;
+  value: string;
+  managers: { id: string; name: string; left?: boolean }[];
+  label: string;
+  lang: string;
+  t: Words;
+  onPick: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const holder = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const reopen = useRef(false);
+  const offered = useMemo(() => (open ? managers.filter(m => m.id !== person.id && (!m.left || m.id === person.managerId)) : []), [open, managers, person.id, person.managerId]);
+  const search = useMemo(() => localSearch(offered), [offered]);
+  const current = managers.find(m => m.id === value);
+  useEffect(() => {
+    if (open) holder.current?.querySelector("input")?.focus();
+    else if (reopen.current) { reopen.current = false; button.current?.focus(); }
+  }, [open]);
+  const close = () => { reopen.current = true; setOpen(false); };
+  if (!open) {
+    return (
+      <button ref={button} type="button" className="cell cell-button" aria-label={`${label}: ${current?.name ?? t.edit.noManager}`} onClick={() => setOpen(true)}>
+        {current ? current.name : <span className="muted">{t.edit.noManager}</span>}
+      </button>
+    );
+  }
+  return (
+    <div ref={holder} className="cell-picker" onKeyDown={e => { if (e.key === "Escape") close(); }} onBlur={e => { if (!holder.current?.contains(e.relatedTarget as Node | null)) setOpen(false); }}>
+      <PeoplePicker label={label} hideLabel clearable value={current ? [{ id: current.id, name: current.name }] : []} search={search} labels={t.peoplePicker} lang={lang}
+        onChange={chosen => { close(); const id = chosen[0]?.id ?? ""; if (id !== value) onPick(id); }} />
+    </div>
+  );
 }

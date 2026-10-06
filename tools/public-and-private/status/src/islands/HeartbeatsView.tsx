@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Trash } from "../components/icons.tsx";
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format } from "../i18n/format.ts";
+import { format } from "../components/format.ts";
 
 // Heartbeats: choose a service and how often its job runs, get a secret
 // address (shown once), paste it at the end of the job. The list says when

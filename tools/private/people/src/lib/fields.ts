@@ -135,6 +135,14 @@ export async function removeField(sql: Sql, actor: Member | null, fieldId: unkno
 // One value: by the person for their own "person" fields, by HR for anyone.
 // An empty value removes it.
 export async function setValue(sql: Query, actor: Member | null, member: unknown, fieldId: unknown, value: unknown): Promise<void> {
+  const { who, key, text } = await checkValue(sql, actor, member, fieldId, value);
+  if (text === "") await sql`delete from field_values where member_id = ${who} and field_id = ${key}`;
+  else await sql`insert into field_values (member_id, field_id, value) values (${who}, ${key}, ${text}) on conflict (member_id, field_id) do update set value = excluded.value`;
+}
+
+// One value checked — who may write it, the field, the value — nothing
+// written (a form checks every part before it writes any).
+export async function checkValue(sql: Query, actor: Member | null, member: unknown, fieldId: unknown, value: unknown): Promise<{ who: string; key: string; text: string }> {
   if (!actor || !can(actor, "directory.read")) throw new AppError("forbidden");
   const who = memberId(member);
   const key = id(fieldId);
@@ -144,8 +152,7 @@ export async function setValue(sql: Query, actor: Member | null, member: unknown
   const mine = who === actor.id && can(actor, "profile.own") && field.editor === "person";
   if (!mine && !can(actor, "profile.job")) throw new AppError("forbidden");
   if (who !== actor.id && !(await present([who])).has(who)) throw new AppError("not_found");
-  if (text === "") await sql`delete from field_values where member_id = ${who} and field_id = ${key}`;
-  else await sql`insert into field_values (member_id, field_id, value) values (${who}, ${key}, ${text}) on conflict (member_id, field_id) do update set value = excluded.value`;
+  return { who, key, text };
 }
 
 export async function purgeFields(sql: Query): Promise<number> {

@@ -186,7 +186,7 @@ export const en = {
     toc: "On this page",
     children: "In this section",
     backlinks: "Linked from",
-    editing: "{name} is editing this page since {time}.",
+    editing: "{name} has been editing this page since {time}.",
     editingIdle: "{name} started editing at {time} but has not typed for a while.",
     yourDraft: "You have unsaved changes on this page.",
     continueDraft: "Continue editing",
@@ -227,6 +227,7 @@ export const en = {
     bodyPlaceholder: "Write here. Type “/” for a heading, a list, a table…",
     status: {
       clean: "No changes",
+      typing: "Not saved yet",
       nothing: "Nothing to save yet: type in the page.",
       draft: "Draft saved {time}",
       saving: "Saving draft…",

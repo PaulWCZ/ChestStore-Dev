@@ -1,5 +1,5 @@
-import { refresh, toast } from "@argentic/chest-app/client";
-import { SearchBox, useAutoRefresh } from "@argentic/chest-ui/components";
+import { toast, useAutoRefresh } from "@argentic/chest-app/client";
+import { SearchBox } from "@argentic/chest-ui/components";
 import type { SearchWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useRef } from "react";
 
@@ -22,12 +22,13 @@ export function Ready() {
   return null;
 }
 
-// The Chest has no WebSocket: a page others change re-reads itself every
-// few seconds while it is visible, and at once when it becomes visible
-// again (the kit's useAutoRefresh; refresh() keeps what is typed, the
-// focus and each island's state).
+// The Chest has no WebSocket: a page others change is read again while
+// its reader is there — when the tab comes back, and every `seconds` while
+// they were active in the last ten minutes (the package's useAutoRefresh:
+// idle, it stops, so a tab left open lets the tool sleep). The page's
+// version (src/app.tsx: pageStamp) makes a read with nothing new a 304.
 export function AutoRefresh({ seconds }: { seconds: number }) {
-  useAutoRefresh(() => void refresh(), seconds);
+  useAutoRefresh(seconds);
   return null;
 }
 

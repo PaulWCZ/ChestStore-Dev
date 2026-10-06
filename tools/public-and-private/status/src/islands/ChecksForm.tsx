@@ -2,7 +2,7 @@ import { toast } from "@argentic/chest-app/client";
 import { useState } from "react";
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format, plural } from "../i18n/format.ts";
+import { format, plural } from "../components/format.ts";
 import { tone } from "../components/classes.ts";
 
 // One line per service: the address to check (empty: not checked), how

@@ -2,7 +2,7 @@ import { Confirm } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { useRun } from "../components/use-run.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format } from "../i18n/format.ts";
+import { format } from "../components/format.ts";
 
 // The subscribers, for the rare erasure someone asks for by phone or email
 // (they can always unsubscribe themselves from any email). An address is

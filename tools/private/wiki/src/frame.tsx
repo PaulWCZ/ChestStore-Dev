@@ -4,7 +4,7 @@ import { NoAccess } from "@argentic/chest-ui/components";
 import { newPageWords } from "./i18n/index.ts";
 import { can, roleOf } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
-import { tree } from "./lib/pages.ts";
+import { shownTree, tree } from "./lib/pages.ts";
 import { listSpaces } from "./lib/spaces.ts";
 
 // The frame of every page of /chest around the page itself: the wiki's
@@ -41,7 +41,7 @@ export const framed = (render: Render): Render => async p => {
     layout,
     body: (
       <div className="frame with-sidebar">
-        <Island name="Sidebar" props={sidebarProps(p, spaces, nodes, path)} />
+        <Island name="Sidebar" props={sidebarProps(p, spaces, nodes, path, { all: false })} />
         <div className="content">{view.body}</div>
       </div>
     ),
@@ -51,10 +51,13 @@ export const framed = (render: Render): Render => async p => {
 // The tree's data and words, for the sidebar and the "Pages" page.
 type Spaces = Awaited<ReturnType<typeof listSpaces>>;
 type Nodes = Awaited<ReturnType<typeof tree>>;
-export function sidebarProps({ member, t }: MemberContext, spaces: Spaces, nodes: Nodes, path: string) {
+// all: every page (the "Pages" page), else the top pages and the current
+// page's branch (the sidebar: the rest comes when a branch opens).
+export function sidebarProps({ member, t }: MemberContext, spaces: Spaces, nodes: Nodes, path: string, { all }: { all: boolean }) {
+  const current = /^\/chest\/pages\/(\d+)/u.exec(path)?.[1] ?? null;
   return {
     spaces: spaces.map(s => ({ id: s.id, name: s.name, color: s.color, access: s.access === "write" ? "write" as const : "read" as const, private: s.visibility === "private" })),
-    nodes: nodes.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title })),
+    nodes: shownTree(nodes, current, all),
     path,
     canWrite: can(member, "write"),
     t: { ...newPageWords(t), shell: t.shell, newSpace: t.newSpace, mine: t.mine },

@@ -3,7 +3,7 @@ import { useStep } from "../components/step.ts";
 import { DateField, Segmented } from "@argentic/chest-ui/components";
 import { useEffect, useState } from "react";
 import { Back, Close, Plus } from "../components/icons.tsx";
-import { amountText, hoursText, parseAmount, parseHours } from "../shared/amounts.ts";
+import { amountProblem, amountText, hoursText, parseAmount, parseHours } from "../shared/amounts.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { format } from "../i18n/format.ts";
 import { colors } from "../shared/model.ts";
@@ -55,7 +55,8 @@ export function ProjectForm({ initial, clients, people, managers, currency, comm
 
   function save() {
     const rateCents = rate.trim() === "" ? null : parseAmount(rate);
-    if (rate.trim() !== "" && rateCents === null) return setError(t.errors.invalid);
+    const rateRefused = rate.trim() === "" ? null : amountProblem(rate);
+    if (rateRefused) return setError(t.errors[rateRefused]);
     let b: Budget = { kind: "none" };
     if (kind === "hours") {
       const minutes = parseHours(budget);
@@ -63,7 +64,7 @@ export function ProjectForm({ initial, clients, people, managers, currency, comm
       b = { kind: "hours", minutes };
     } else if (kind === "money") {
       const cents = parseAmount(budget);
-      if (!cents) return setError(t.errors.invalid);
+      if (!cents) return setError(t.errors[amountProblem(budget) ?? "invalid"]);
       b = { kind: "money", cents };
     }
     // A changed rate on a project with time needs its first day, after the

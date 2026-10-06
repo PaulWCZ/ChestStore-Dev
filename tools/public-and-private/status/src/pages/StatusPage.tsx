@@ -1,7 +1,7 @@
-import type { View } from "@argentic/chest-app";
+import { Island, type View } from "@argentic/chest-app";
 import { EmptyState } from "@argentic/chest-ui/components";
 import { Fill } from "../components/fill.tsx";
-import { Arrow, StateIcon } from "../components/icons.tsx";
+import { Arrow, StateIcon, StateSprite } from "../components/icons.tsx";
 import { StateLabel } from "../components/state.tsx";
 import { day, format, percent } from "../i18n/index.ts";
 import type { PublicContext } from "../lib/public-page.ts";
@@ -36,7 +36,7 @@ export async function statusPage(context: PublicContext): Promise<View> {
   const anyMeasured = view.entries.some(e => (e.self ? [e.self] : e.children).some(c => c.measured?.percent != null));
   // Before any service is listed, the page says only that it is being set
   // up: never "All systems operational" about nothing.
-  const head = indexed(format(t.meta.publicDescription, { company: company || t.mail.team }));
+  const head = indexed(t, format(t.meta.publicDescription, { company: company || t.mail.team }));
   if (view.entries.length === 0) {
     return {
       title: siteTitle(context), exactTitle: true, head, body: (
@@ -48,6 +48,11 @@ export async function statusPage(context: PublicContext): Promise<View> {
   }
   return { title: siteTitle(context), exactTitle: true, head, body: (
     <PublicShell context={context} path="/" offerMail={offerUpdates}>
+      <StateSprite />
+      {/* During an outage the page stays open on a customer's screen: it
+          reads itself again every minute while visible (a cache answers
+          most of these). */}
+      <Island name="AutoRefresh" props={{ seconds: 60 }} />
       <section className={`banner ${tone(view.overall)}`} aria-labelledby="overall">
         <StateIcon state={view.overall} />
         <div>

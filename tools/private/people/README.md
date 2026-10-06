@@ -476,7 +476,7 @@ records, the morning run).
   profiles after 30 days, past leaves, arrivals, records after five years,
   the journal after two, the delivered ids after 30 days). The tile's
   number is also set whenever a step changes and when its owner opens *My
-  to-dos*, and the profiles' purge runs whenever the directory is read.
+  to-dos*. Reading a page never deletes anything.
 - `mail` — **Proposal (studio)**: `mail.send` of the welcome email (to a
   member by id, or to an arrival's work address; `replyTo` the HR person's
   Chest address, `members.email`). The person's own email choice

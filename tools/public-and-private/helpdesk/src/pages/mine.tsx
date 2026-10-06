@@ -86,7 +86,7 @@ export async function myRequestPage({ sql, member, lang: locale, t, f }: TeamCon
                   <Body text={m.body} />
                   {m.attachments.length > 0 && (
                     <div className="files" aria-label={t.kit.files.list}>
-                      {m.attachments.map(a => <a key={a.id} href={`/chest/mine/${ticket.number}/files/${a.id}`} rel="noreferrer"><Clip />{a.fileName}<span className="size">{fileSize(a.size, locale)}</span></a>)}
+                      {m.attachments.map(a => <a key={a.id} href={`/chest/mine/${ticket.number}/files/${a.id}`} rel="noreferrer" download><Clip />{a.fileName}<span className="size">{fileSize(a.size, locale)}</span></a>)}
                     </div>
                   )}
                 </div>

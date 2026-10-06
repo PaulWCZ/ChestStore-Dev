@@ -135,7 +135,7 @@ function noticeOf(c: Context, t: Words): string | null {
   return /\{\w+\}/u.test(said) ? t.errors.invalid : said;
 }
 
-async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 401 | 403 | 404 | 500 = 200) {
+async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 401 | 403 | 404 | 500 = 200, version?: string) {
   const options = optionsOf(c);
   const { script, version: v } = browserFiles();
   const look = options.look ? await options.look(viewer) : null;
@@ -143,7 +143,9 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
   const name = viewer.t.tool.name;
   const notice = noticeOf(c, viewer.t);
   const { members: Members, public: Public } = options.layouts;
-  startRender(options.islands);
+  // The render's mark (in the islands' prefixes): the browser leaves it
+  // out when it compares two reads of a page (useAutoRefresh's back-off).
+  const render = startRender(options.islands);
   // A public page of a tool with bounded actions carries a form token
   // (<Honeypot /> puts it in a form; call() sends it).
   const form = viewer.member === null && hasBounds(options) ? formToken() : "";
@@ -160,6 +162,8 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 
         {options.head?.(viewer)}
         {view.head}
         {form && <meta name="chest-form" content={form} />}
+        <meta name="chest-render" content={render} />
+        {version && <meta name="chest-version" content={version} />}
         {parallel.length > 0 && <meta name="chest-parallel" content={parallel.join(",")} />}
         <link rel="stylesheet" href={`/assets/client.css?v=${v}`} />
         {look && <link rel="stylesheet" href={`${viewer.member !== null ? "/chest" : ""}/look.css?v=${lookTag}`} />}
@@ -245,14 +249,32 @@ export const publicDownload = (render: (p: PageContext<VisitorContext>) => Promi
 // page(): a page of the members' part (under /chest); publicPage(): one of
 // the public part. The handler reads what the page needs and returns its
 // title and body (the layout goes around), or a Response of its own.
-export const page = (render: (p: PageContext<MemberContext>) => Promise<View | Response> | View | Response) => async (c: Context<Env>) => {
-  const view = await render(contextOf(c, c.get("viewer")));
-  return view instanceof Response ? view : html(c, view, c.get("viewer"));
+// version (optional): what the page shows, in a few characters — the
+// newest change of its rows (`select max(updated_at)…`), a count. A
+// refresh (useAutoRefresh, refresh()) that already has this version is
+// answered 304 before the page is rendered: a cheap read for a page left
+// open. The package keys it by the reader and their language.
+export type PageOptions<V extends Viewer> = { version?: (p: PageContext<V>) => Promise<string | number | null> | string | number | null };
+async function versionOf<V extends Viewer>(c: Context, p: PageContext<V>, options: PageOptions<V>): Promise<string | undefined> {
+  if (!options.version) return undefined;
+  const v = await options.version(p);
+  if (v === null || v === undefined) return undefined;
+  return createHash("sha256").update(`${p.member?.id ?? "-"}|${p.locale}|${c.req.path}|${new URL(c.req.url).search}|${String(v)}`).digest("base64url").slice(0, 22);
+}
+export const page = (render: (p: PageContext<MemberContext>) => Promise<View | Response> | View | Response, options: PageOptions<MemberContext> = {}) => async (c: Context<Env>) => {
+  const p = contextOf(c, c.get("viewer"));
+  const version = await versionOf(c, p, options);
+  if (version && c.req.header("x-tool-version") === version) return c.body(null, 304, { "x-tool-version": version });
+  const view = await render(p);
+  return view instanceof Response ? view : html(c, view, c.get("viewer"), 200, version);
 };
-export const publicPage = (render: (p: PageContext<VisitorContext>) => Promise<View | Response> | View | Response) => async (c: Context) => {
+export const publicPage = (render: (p: PageContext<VisitorContext>) => Promise<View | Response> | View | Response, options: PageOptions<VisitorContext> = {}) => async (c: Context) => {
   const viewer = visitor(c);
-  const view = await render(contextOf(c, viewer));
-  return view instanceof Response ? view : html(c, view, speaking(c, viewer, view.locale));
+  const p = contextOf(c, viewer);
+  const version = await versionOf(c, p, options);
+  if (version && c.req.header("x-tool-version") === version) return c.body(null, 304, { "x-tool-version": version });
+  const view = await render(p);
+  return view instanceof Response ? view : html(c, view, speaking(c, viewer, view.locale), 200, version);
 };
 // The visitor, in the page's own language when it names one the tool speaks.
 function speaking(c: Context, viewer: VisitorContext, locale: string | undefined): VisitorContext {
@@ -712,9 +734,28 @@ export function rawRoute(options: { maxBytes: number }, handler: (body: Uint8Arr
     if (!sameOrigin(c.req.raw)) return c.text("Cross-site request refused.", 403);
     const declared = Number(c.req.header("content-length") ?? NaN);
     if (Number.isFinite(declared) && declared > options.maxBytes) return c.text("Too large.", 413);
+    // With a Content-Length (a browser's upload has one), the body is read
+    // straight into one buffer of that size: the tool holds it once, never
+    // twice (chunks, then their copy) — a 40 MB import is 40 MB, not 80.
+    // A body longer than it said is refused; a chunked one is gathered.
+    const reader = c.req.raw.body?.getReader();
+    if (Number.isFinite(declared) && declared >= 0) {
+      const body = new Uint8Array(declared);
+      let at = 0;
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (at + value.byteLength > declared) {
+          await reader.cancel();
+          return c.text("The body is longer than its Content-Length.", 400);
+        }
+        body.set(value, at);
+        at += value.byteLength;
+      }
+      return handler(at === declared ? body : body.subarray(0, at), { viewer: viewerOf(c), c });
+    }
     const chunks: Uint8Array[] = [];
     let size = 0;
-    const reader = c.req.raw.body?.getReader();
     while (reader) {
       const { done, value } = await reader.read();
       if (done) break;

@@ -1,19 +1,26 @@
 // Support, as customers and the team use it, in a real browser:
 //   node lab/chest-dev/flows/helpdesk.mjs [port]   (harness with --reset)
-import postgres from "postgres";
+import { inflateRawSync } from "node:zlib";
 import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4000);
 const { browser, context, page, origin, publicOrigin, problems } = await open(port, "hugo", { allow404: /\/chest\/tickets\/9999$/u });
-// The form counts five requests an hour per visitor, known by the address
-// the Chest's front saw (Chest-Visitor-Address). The harness's front sees
-// one machine: every visitor of a flow is the same one. A step that plays a
-// new visitor clears the form's counters (the tool's database, as the
-// harness names it: t_helpdesk, t_helpdesk_<port> off port 4000).
-const database = "t_helpdesk" + (port === 4000 ? "" : `_${port}`);
-const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, `/${database}`), { max: 1, onnotice: () => {} });
-const newVisitor = () => db`delete from form_counts`;
+// The public actions count per browser (the package's chest_v cookie: the
+// harness, as a real 0.4 Chest, names no visitor) and per day for everyone:
+// a step that plays a new visitor starts without cookies, nothing else.
 let followUp = "";
+// A ZIP as an unzip tool reads it: the central directory, each entry inflated.
+const unzip = (data) => {
+  const end = data.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const files = new Map();
+  for (let i = 0, at = data.readUInt32LE(end + 16); i < data.readUInt16LE(end + 10); i++) {
+    const [packed, nameLength, local] = [data.readUInt32LE(at + 20), data.readUInt16LE(at + 28), data.readUInt32LE(at + 42)];
+    const start = local + 30 + data.readUInt16LE(local + 26) + data.readUInt16LE(local + 28);
+    files.set(data.subarray(at + 46, at + 46 + nameLength).toString("utf8"), inflateRawSync(data.subarray(start, start + packed)).toString("utf8"));
+    at += 46 + nameLength + data.readUInt16LE(at + 30) + data.readUInt16LE(at + 32);
+  }
+  return files;
+};
 let lucie = 0;
 // Small files as a browser would pick them.
 const png = { name: "box.png", mimeType: "image/png", buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]) };
@@ -70,15 +77,17 @@ await step("a customer adds a photo to a request with their link; another reques
   expect(other.status() === 404, "another link cannot open it");
 });
 
-await step("a form sent too fast is refused, what was written stays", async () => {
+await step("a form sent the moment it appeared is not refused as too fast: it waits the few seconds a person takes, then is read; what was written stays", async () => {
   await page.goto(origin + "/");
-  await page.getByLabel("Your email address").fill("bot@example.com");
+  const shown = Date.now();
+  await page.getByLabel("Your email address").fill("quick@example");
   await page.getByLabel("Subject").fill("Fast");
-  await page.getByLabel("Your message").fill("Too fast");
+  await page.getByLabel("Your message").fill("Written very fast");
   await page.getByRole("button", { name: "Send" }).click();
   await page.waitForSelector("p.error");
-  expect((await page.locator("p.error").innerText()).includes("very fast"), "too fast");
-  expect((await page.getByLabel("Your message").inputValue()) === "Too fast", "kept");
+  expect(Date.now() - shown >= 2500, "the package waited the seconds left");
+  expect((await page.locator("p.error").innerText()).includes("Check the email address"), "read like any other: the real mistake is said");
+  expect((await page.getByLabel("Your message").inputValue()) === "Written very fast", "kept");
 });
 
 await step("a customer who fixes a field and sends again at once is not taken for a robot (critique bug 1)", async () => {
@@ -536,8 +545,10 @@ await step("reports and the export for the admin", async () => {
   expect((await page.locator("main, #main").first().innerText()).includes("New requests"), "reports");
   const zip = await page.request.get(origin + "/chest/export");
   expect(zip.status() === 200 && zip.headers()["content-type"] === "application/zip", "zip export");
-  const body = (await zip.body()).toString("utf8");
-  expect(body.includes("messages.csv") && body.includes("do you gift-wrap"), "the words of the messages are exported");
+  const files = unzip(await zip.body());
+  expect([...files.keys()].join(",") === "tickets.csv,messages.csv,tickets.json", "three files, deflated");
+  expect(files.get("messages.csv").includes("do you gift-wrap"), "the words of the messages are exported");
+  JSON.parse(files.get("tickets.json"));
 });
 
 await step("the customer rates a closed request; the follow-up page speaks the request's language", async () => {
@@ -556,9 +567,8 @@ await step("the customer rates a closed request; the follow-up page speaks the r
 });
 
 await step("a request sent twice is one ticket; the second sending lands on it", async () => {
+  // A visitor of their own: a browser without cookies.
   await context.clearCookies();
-  // A visitor of their own (the form counts five requests an hour per visitor).
-  await newVisitor();
   const send = async () => {
     await page.goto(origin + "/");
     await page.getByLabel("Your name").fill("Marc Lenoir");
@@ -722,7 +732,6 @@ await step("Status says an incident is in progress: a banner above the inbox and
 
 await step("public form on a phone: a wrong address is said under its field; files in plain words", async () => {
   await context.clearCookies();
-  await newVisitor();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/");
   expect((await page.locator("form").innerText()).includes("photos, PDF, Word, Excel and text files"), "kinds of files in words");
@@ -786,5 +795,4 @@ await step("phone width: public form, inbox and ticket fit", async () => {
 });
 
 await browser.close();
-await db.end();
 done(problems);

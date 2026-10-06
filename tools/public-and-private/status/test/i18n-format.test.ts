@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { en } from "../src/i18n/en.ts";
-import { duration, moment, month, percent, stamp } from "../src/i18n/format.ts";
+import { duration, moment, month, percent, stamp } from "../src/components/format.ts";
 
 test("times, lengths and percentages as each language writes them", () => {
   const at = new Date("2026-09-28T12:05:00Z");

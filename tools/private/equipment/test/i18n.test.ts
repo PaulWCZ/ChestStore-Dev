@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { en } from "../lib/i18n/en.ts";
-import { catalogue, format, locales, plural, publicLocale } from "../lib/i18n/index.ts";
+import { en } from "../src/i18n/en.ts";
+import { checkWords } from "@argentic/chest-app/testing";
+import { publicLocale } from "@argentic/chest-app";
+import { catalogue, catalogues, format, locales, plural } from "../src/i18n/index.ts";
 
 // Every catalogue has exactly the keys of the English one, no empty word,
 // and the same {placeholders} in each word.
@@ -26,11 +28,17 @@ test("every language has every word of English, none empty, with the same placeh
   }
 });
 
+// The package's own check: the same texts and {placeholders} in every
+// language, French typography (a narrow no-break space before : ; ? !).
+test("the package's word check: every text, French typography", () => {
+  checkWords(catalogues);
+});
+
 test("the public part's language: the visitor's choice, then the browser's, then English", () => {
-  assert.equal(publicLocale("fr", "en-GB"), "fr");
-  assert.equal(publicLocale(undefined, "de-DE,fr;q=0.8,en;q=0.5"), "fr");
-  assert.equal(publicLocale("xx", "de"), "en");
-  assert.equal(publicLocale(undefined, null), "en");
+  assert.equal(publicLocale(locales, "fr", "en-GB"), "fr");
+  assert.equal(publicLocale(locales, undefined, "de-DE,fr;q=0.8,en;q=0.5"), "fr");
+  assert.equal(publicLocale(locales, "xx", "de"), "en");
+  assert.equal(publicLocale(locales, undefined, undefined), "en");
 });
 
 test("plurals and placeholders follow the language", () => {
@@ -43,7 +51,7 @@ test("plurals and placeholders follow the language", () => {
 });
 
 test("the first of a month as each language writes it: 1er février, 1 February", async () => {
-  const { formatDay } = await import("../lib/i18n/index.ts");
+  const { formatDay } = await import("../src/i18n/index.ts");
   assert.equal(formatDay("2023-02-01", "fr", { day: "numeric", month: "long", year: "numeric" }), "1er février 2023");
   assert.equal(formatDay("2023-02-02", "fr", { day: "numeric", month: "long", year: "numeric" }), "2 février 2023");
   assert.equal(formatDay("2023-02-01", "en", { day: "numeric", month: "long", year: "numeric" }), "1 February 2023");

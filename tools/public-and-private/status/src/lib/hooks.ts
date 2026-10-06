@@ -82,6 +82,11 @@ export async function hooksDelivery(sql: Query, now = new Date()): Promise<Hooks
 // subscribeHook asks the Chest to deliver to an address, then keeps the
 // subscription. Says it, and whether a generic receiver's secret waits to
 // be shown once on its page.
+// The chat form's budget a day (@argentic/chest-app's bound,
+// src/actions.ts): a new subscription the Chest is asked to check. The
+// Chest bounds the addresses it keeps too (webhooks.max).
+export const chatBudgets = { new: { perVisitor: 5, perDay: 200 } } as const;
+
 export async function subscribeHook(sql: Sql, input: { kind: unknown; url: unknown; language: string; components: unknown }): Promise<HookSubscriber> {
   if (!isKind(input.kind)) throw new AppError("invalid");
   const kind = input.kind;

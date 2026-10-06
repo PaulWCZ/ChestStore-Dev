@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { Catalogue } from "../i18n/index.ts";
 import { limits } from "../shared/model.ts";
 
-type Words = { importer: Catalogue["importer"]; files: FileWords; unavailable: string; unknown: string };
+type Words = { importer: Catalogue["importer"]; files: FileWords; unavailable: string; unknown: string; tooLarge: string };
 // What the importer reads (lib/importer.ts).
 const accept = [".zip", ".docx", ".md", ".markdown", ".txt", ".html", ".htm"];
 type Done = { spaceId: string; firstPageId: string | null; pages: number; files: number; skipped: { files: string[]; images: number } };
@@ -43,7 +43,7 @@ export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: st
       const r = await fetch("/chest/api/import", { method: "POST", body });
       // A refusal comes in the reader's words; a page loaded again (the
       // Chest signed them out) answers no JSON.
-      const answer = (await r.json().catch(() => ({ error: "unknown", message: t.unknown }))) as Done | { error: string; message: string };
+      const answer = (await r.json().catch(() => ({ error: "unknown", message: r.status === 413 ? t.tooLarge : t.unknown }))) as Done | { error: string; message: string };
       if ("error" in answer) setError(answer.message);
       else {
         setDone(answer);

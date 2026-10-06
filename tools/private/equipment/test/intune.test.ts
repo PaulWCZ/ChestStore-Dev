@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { listCategories } from "../lib/categories.ts";
-import { allFields } from "../lib/fields.ts";
-import { applyImport, previewImport } from "../lib/importer.ts";
-import * as intune from "../lib/intune.ts";
-import * as items from "../lib/items.ts";
-import { erase } from "../lib/lifecycle.ts";
+import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
+import { AppError } from "@argentic/chest-app";
+import { listCategories } from "../src/lib/categories.ts";
+import { allFields } from "../src/lib/fields.ts";
+import { applyImport, previewImport } from "../src/lib/importer.ts";
+import * as intune from "../src/lib/intune.ts";
+import * as items from "../src/lib/items.ts";
+import { erase } from "../src/lib/lifecycle.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
@@ -36,7 +36,6 @@ before(async () => {
   chest = await fakeChest({
     tool: "equipment",
     members: withMail,
-    schedules: [{ name: "intune", cron: "40 5 * * *" }],
     network: { "login.microsoftonline.com": request => microsoft(request), "graph.microsoft.com": request => microsoft(request) },
   });
 });
@@ -258,16 +257,16 @@ test("an erasure forgets the member Intune named; the nightly read does nothing 
   await erase(sql, ines.id);
   assert.deepEqual((await sql<{ member_id: string }[]>`select member_id from intune_devices where serial_key = 'ser-1'`).map(r => r.member_id), ["erased"]);
   const before = (await sql`select 1 from intune_reads`).length;
-  assert.equal(await chest.run("intune", request => POST(request), { scheduledAt: "2026-09-29T03:40:00Z" }), 204);
+  assert.equal(await chest.run("intune", onSchedule, { scheduledAt: "2026-09-29T03:40:00Z" }), 204);
   assert.equal((await sql`select 1 from intune_reads`).length, before);
   // Connected: it reads; a refusal is kept, and the run still ends well
   // (tried again the next night, not every few minutes).
   Object.assign(process.env, env);
   graph([device("1", "SER-1", { userDisplayName: "Sofia Rossi", emailAddress: address(sofia) })]);
-  assert.equal(await chest.run("intune", request => POST(request), { scheduledAt: "2026-09-30T03:40:00Z" }), 204);
+  assert.equal(await chest.run("intune", onSchedule, { scheduledAt: "2026-09-30T03:40:00Z" }), 204);
   assert.deepEqual((await sql<{ member_id: string }[]>`select member_id from intune_devices`).map(r => r.member_id), [sofia.id]);
   graph([], { token: json({}, 401) });
-  assert.equal(await chest.run("intune", request => POST(request), { scheduledAt: "2026-10-01T03:40:00Z" }), 204);
+  assert.equal(await chest.run("intune", onSchedule, { scheduledAt: "2026-10-01T03:40:00Z" }), 204);
   const [last] = await sql<{ by: string; outcome: string }[]>`select by, outcome from intune_reads order by id desc limit 1`;
   assert.deepEqual([last!.by, last!.outcome], ["schedule", "denied"]);
 });
