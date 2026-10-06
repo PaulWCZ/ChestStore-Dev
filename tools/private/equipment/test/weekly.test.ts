@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { onSchedule } from "../src/lib/deliveries.ts";
 import { weekly } from "../src/lib/weekly.ts";
 import { listCategories } from "../src/lib/categories.ts";
@@ -34,8 +34,8 @@ test("Monday morning, the managers find what ends in the next 60 days, each in t
   assert.equal(await chest.run("weekly", handler, { scheduledAt, id: "run_" + "b".repeat(26) }), 204);
   const toCamille = chest.notifications.filter(n => n.member === camille.id && n.key === "ending");
   assert.equal(toCamille.length, 1);
-  assert.equal(toCamille[0]!.title, "2 garanties ou renouvellements arrivent à échéance");
-  assert.equal(toCamille[0]!.body, "Dell XPS (EQ-0001) · Notion (EQ-0002)");
+  assert.equal(shownTo(toCamille[0]!, "fr").title, "2 garanties ou renouvellements arrivent à échéance");
+  assert.equal(shownTo(toCamille[0]!, "fr").body, "Dell XPS (EQ-0001) · Notion (EQ-0002)");
   assert.equal(chest.notifications.find(n => n.member === sofia.id && n.key === "ending")?.title, "2 warranties or renewals end soon");
   assert.equal(chest.notifications.some(n => n.member === hugo.id), false);
   // A week with nothing ending takes the item away.

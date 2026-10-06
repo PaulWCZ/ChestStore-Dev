@@ -7,7 +7,7 @@ import { Bell } from "../components/icons.tsx";
 type Words = { overview: Catalogue["overview"] };
 
 // "Remind them", beside a receipt nobody confirmed: the holder hears it in
-// the bell again (and by email where the Chest sends it). A reminder left
+// the bell again (the Chest mails it to them if they chose so). A reminder left
 // is not taken back (no Undo: "sent"); once a day at most, then the button
 // says it was done.
 export function RemindButton({ id, name, item, done, t }: { id: string; name: string; item: string; done: boolean; t: Words }) {
@@ -23,7 +23,7 @@ export function RemindButton({ id, name, item, done, t }: { id: string; name: st
         return;
       }
       setSent(true);
-      toast({ text: r.value.mailed ? w.remindedMail : w.reminded, sent: true });
+      toast({ text: w.reminded, sent: true });
     })}><Bell /><span>{w.remind}</span></button>
   );
 }

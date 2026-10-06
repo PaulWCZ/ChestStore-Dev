@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
 import { AppError } from "@argentic/chest-app";
 import { categoryCounts, listCategories } from "../src/lib/categories.ts";
@@ -37,7 +37,7 @@ test("a member asks; the managers hear it and see it; their tile counts it", asy
   assert.equal(r.status, "open");
   const bell = chest.notifications.filter(n => n.key === `request:${r.id}`);
   assert.deepEqual(bell.map(n => n.member).sort(), [camille.id, sofia.id].sort());
-  assert.equal(bell.find(n => n.member === camille.id)?.title, "Hugo demande du matériel");
+  assert.equal(shownTo(bell.find(n => n.member === camille.id)!, "fr").title, "Hugo demande du matériel");
   assert.equal(chest.badges.get(sofia.id), 1);
   await refused(waitingRequests(sql, H), "forbidden");
   assert.deepEqual((await waitingRequests(sql, M)).map(x => x.id), [r.id]);
@@ -77,7 +77,7 @@ test("refused with a reason; cancelled by the one who asked; at most 10 waiting 
   const refusedOne = await refuse(sql, M, a.id, "Les écrans de 27 pouces suffisent");
   assert.equal(refusedOne.status, "refused");
   assert.equal(refusedOne.answer, "Les écrans de 27 pouces suffisent");
-  assert.equal(chest.notifications.find(n => n.key === `request:${a.id}:answer`)?.title, "Camille a refusé votre demande : Un écran 32 pouces");
+  assert.equal(shownTo(chest.notifications.find(n => n.key === `request:${a.id}:answer`)!, "fr").title, "Camille a refusé votre demande : Un écran 32 pouces");
   const b = await ask(sql, I, { body: "Un casque" });
   await refused(cancel(sql, H, b.id), "not_found");
   assert.equal((await cancel(sql, I, b.id)).status, "cancelled");

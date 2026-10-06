@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "@argentic/chest-app";
 import { listCategories } from "../src/lib/categories.ts";
 import * as items from "../src/lib/items.ts";
@@ -73,7 +73,7 @@ test("give, transfer and take back, each in the history; the holder hears of it 
   assert.equal(given.holder, ines.id);
   assert.equal(given.status, "in_use");
   const bell = chest.notifications.find(n => n.member === ines.id && n.key === `item:${mac!.id}:given`);
-  assert.equal(bell?.title, "Camille vous a remis MacBook Pro 14 EQ-0001");
+  assert.equal(shownTo(bell!, "fr").title, "Camille vous a remis MacBook Pro 14 EQ-0001");
   await refused(items.give(sql, M, mac!.id, { to: { member: ines.id } }), "already_there");
   await refused(items.give(sql, M, mac!.id, { to: { member: "mbr_ghost" + "a".repeat(21) } }), "not_member");
   await refused(items.give(sql, M, mac!.id, { to: { member: hugo.id }, day: "2999-01-01" }), "invalid_date");
@@ -194,7 +194,7 @@ test("a holder reports a problem: every manager hears it in their language; solv
   const p = await items.report(sql, I, mac!.id, "The battery lasts one hour");
   const toCamille = chest.notifications.find(n => n.member === camille.id && n.key === `problem:${p.id}`);
   const toSofia = chest.notifications.find(n => n.member === sofia.id && n.key === `problem:${p.id}`);
-  assert.equal(toCamille?.title, "Inès a signalé un problème : MacBook Pro 14 EQ-0001");
+  assert.equal(shownTo(toCamille!, "fr").title, "Inès a signalé un problème : MacBook Pro 14 EQ-0001");
   assert.equal(toSofia?.title, "Inès reported a problem: MacBook Pro 14 EQ-0001");
   assert.equal(toSofia?.body, "The battery lasts one hour");
   assert.equal(chest.badges.get(camille.id), 1);

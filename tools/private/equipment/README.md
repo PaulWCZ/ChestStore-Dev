@@ -41,9 +41,8 @@ people. French name: **Matériel**.
   read that exact version. Who, when, the note and the rules accepted are
   kept (receipt and history). Receipts not confirmed after a week show on
   the managers' overview, each with **Remind them**: the person hears it
-  again in the bell and — where the Chest sends email (the `mail`
-  proposal) — by email, in their language; once a day at most ("Reminded
-  today"), never an Undo (it has left). "You confirmed receiving it on …"
+  again in the bell, with the day it was given, in their language; once a
+  day at most ("Reminded today"), never an Undo (it has left). "You confirmed receiving it on …"
   shows under an item for a month, then goes (not under every item
   imported years ago).
 - **The rules for company equipment**: optional, written by a manager;
@@ -359,10 +358,25 @@ member may not see at all (someone else's item or sheet) is "not found".
   inventory ticks with `erased` in place of the person.
 - Licence keys are not stored: they are secrets (see "does not do").
 
+## Mail
+
+Equipment sends **no email**, to anyone. Everything it tells a member is a
+notification in the Chest's bell (given, *Remind them*, a request answered,
+a problem reported, someone leaving with things to return, stock running
+low, what ends soon); **the Chest itself mails members their
+notifications, as each member chooses** in the Chest (every one, once or
+twice a day, or never; and per tool) — Equipment has no "email me"
+setting. It writes to nobody outside the company, so it does not ask for
+the `mail` proposal.
+
+*Changed on 6 October 2026* (the owner's mail decisions): *Remind them*
+used to email the holder too, where the Chest sent email; it is now a
+notification only (the bell item rung again, with the day it was given).
+
 ## Needs from the SDK
 
-All in `vendor/` (the studio's working copy: SDK 0.3.0 + studio proposals
-(0.4.1-studio.3)):
+All in `vendor/` (the studio's working copy: SDK 0.4.1 + studio proposals
+(0.4.1-studio.5)):
 
 - `member.language` (0.3.0) — the interface and the bell in each member's
   language.
@@ -394,12 +408,9 @@ All in `vendor/` (the studio's working copy: SDK 0.3.0 + studio proposals
   People's "Return the laptop" step by hand.
 
 - `files` — besides photos, each item's purchase invoice (PDF or picture).
-- `mail` (**Proposal (studio)**, `chest.proposals.json`) — *Remind them*
-  also emails the holder, through the Chest, to their address the tool
-  never knows. On a Chest without mail the bell alone reminds them, and
-  nothing fails (`src/lib/tell.ts`, `remindReceipt`). Its key carries the
-  holder (studio.16): after a restore from a backup, an item's id can name
-  another thing given to someone else.
+- `notifications` with `translations` (studio.5, announced for 0.5) — each
+  bell item is one notice, its English words and their French translation;
+  the Chest shows each member theirs (`src/lib/notify.ts`).
 
 Not in the SDK, and not faked here: a **signature** a person draws or a
 qualified electronic signature (the receipt is a confirmation in the

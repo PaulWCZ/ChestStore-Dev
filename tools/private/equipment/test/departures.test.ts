@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chest as chestSettings } from "@argentic/chest-sdk/chest";
 import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
 import { listCategories } from "../src/lib/categories.ts";
@@ -56,7 +56,7 @@ test("someone leaving: the managers hear it once, in their language, with what t
   assert.equal(await told("people.leaving", { member: hugo.id, lastDay: last }, { occurredAt: ago(60_000) }), 204);
   const toCamille = bell(camille.id, hugo.id);
   assert.equal(toCamille.length, 1);
-  assert.match(toCamille[0]!.title, /^Hugo Bernard part le \d+ \S+ — 3 objets à reprendre$/u);
+  assert.match(shownTo(toCamille[0]!, "fr").title, /^Hugo Bernard part le \d+ \S+ — 3 objets à reprendre$/u);
   assert.match(bell(sofia.id, hugo.id)[0]!.title, /^Hugo Bernard leaves on \d+ \S+ — 3 items to take back$/u);
   assert.equal(toCamille[0]!.path, `/chest/people/${hugo.id}`);
   assert.equal(bell(hugo.id, hugo.id).length, 0, "never the person leaving");
