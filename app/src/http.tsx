@@ -29,7 +29,10 @@ export const policy = "default-src 'self'; script-src 'self'; style-src 'self'; 
 export type Viewer = MemberContext | VisitorContext;
 // What a page handler gets, and gives back (or a Response of its own).
 export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; param(name: string): string; query(name: string): string | undefined };
-export type View = { title: string; body: ReactNode };
+// locale: a public page in a language of its own, one of the tool's (a
+// request's page in the request's language): <html lang> and the layout's
+// words follow it. A member's page is in the member's language.
+export type View = { title: string; body: ReactNode; locale?: string };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
 // look: the request's look when createApp has one (its logo, in brand
@@ -171,8 +174,13 @@ export const page = (render: (p: PageContext<MemberContext>) => Promise<View | R
 export const publicPage = (render: (p: PageContext<VisitorContext>) => Promise<View | Response> | View | Response) => async (c: Context) => {
   const viewer = visitor(c);
   const view = await render(contextOf(c, viewer));
-  return view instanceof Response ? view : html(c, view, viewer);
+  return view instanceof Response ? view : html(c, view, speaking(viewer, view.locale));
 };
+// The visitor, in the page's own language when it names one the tool speaks.
+function speaking(viewer: VisitorContext, locale: string | undefined): VisitorContext {
+  if (!locale || locale === viewer.locale || !options.locales.includes(locale)) return viewer;
+  return { ...viewer, locale, t: options.words(locale), f: formatter(locale, chest.timeZone, chest.currency) };
+}
 
 // A mutation is sent by the page itself: the browser says so
 // (Sec-Fetch-Site), or, for an older one, its Origin is this host.

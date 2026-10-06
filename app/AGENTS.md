@@ -156,6 +156,9 @@ must cache its answer a minute (600 members calls a minute per tool).
 `chestConfig()` without `theme`. The layouts receive `look` (its `logo` in brand mode) and the page's
 `status` (an error page's public layout may draw its frame); a visitor's
 404 reads `pages.notFound.publicBody` when the catalogue has one.
+**A public page in its own language** (a request's page in the language it
+was written in) — return `{ title, body, locale }` from `publicPage()`:
+`<html lang>` and the layout's words follow it (a language the tool speaks).
 **The head** (an icon, robots) —
 `createApp({ head: viewer => <><link rel="icon" href="/assets/icon.svg" /></> })`.
 **Static files** — `public/assets/…`, served at `/assets/…`; the

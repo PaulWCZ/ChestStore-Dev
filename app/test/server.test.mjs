@@ -28,7 +28,7 @@ const actions = {
 let completed = 0;
 const layout = ({ notice, look, status, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "" }, notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
-  actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
+  actions, islands: { Labelled }, locales: ["en", "fr"], words: locale => (locale === "fr" ? { ...words, tool: { name: "Sonde" } } : words), layouts: { members: layout, public: layout },
   look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: { url: "/_chest/theme/brand/logo.svg", alt: "Brand" } }),
   complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
@@ -40,6 +40,7 @@ app.get("/chest/day", page(async () => {
   return { title: "Day", body: h("p", null, typeof day + " " + day) };
 }));
 app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
+app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
 
 const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
 let chest, database;
@@ -141,4 +142,13 @@ test("layouts receive the look (its logo) and the page's status; a visitor's 404
   assert.match(text, /data-status="404"/u);
   assert.match(text, /Ask whoever sent the link\./u);
   assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
+});
+
+test("a public page in a language of its own: <html lang> and the layout's words follow it, one the tool does not speak is ignored", async () => {
+  const fr = await (await get("/in/fr", null)).text();
+  assert.match(fr, /<html lang="fr">/u);
+  assert.match(fr, /<title>Public · Sonde<\/title>/u);
+  const unknown = await (await get("/in/xx", null)).text();
+  assert.match(unknown, /<html lang="en">/u);
+  assert.match(unknown, /<title>Public · Probe<\/title>/u);
 });
