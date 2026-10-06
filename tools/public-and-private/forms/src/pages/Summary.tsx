@@ -6,6 +6,7 @@ import { dayWords, format, number, plural } from "../i18n/index.ts";
 import { summaryOf } from "../lib/answers.ts";
 import { AppError } from "../lib/app-error.ts";
 import { open } from "../lib/forms.ts";
+import { reachOf } from "../lib/reach.ts";
 import { limits, readIn } from "../shared/model.ts";
 import { summarise, type Bar, type Summary } from "../shared/summary.ts";
 import type { Ctx } from "./context.ts";
@@ -150,6 +151,33 @@ export async function summaryPage({ sql, member, t, lang, param }: Ctx) {
     }
   };
   // The questions in the member's language when the form has it.
+  // Who it reached: openings, answers, the share; the answers day by day
+  // (a column a day, drawn as SVG: the policy refuses a style attribute).
+  const reach = await reachOf(sql, form);
+  const most = Math.max(1, ...(reach.days ?? []).map(d => d.count));
+  const inDays = (reach.days ?? []).reduce((sum, d) => sum + d.count, 0);
+  const reachCard = (reach.views > 0 || inDays > 0) && (
+    <section className="summary-card reach" aria-labelledby="h-reach">
+      <h2 id="h-reach">{s.reach}</h2>
+      {reach.views > 0 && (
+        <dl className="facts">
+          <div><dt>{s.opened}</dt><dd>{n(reach.views)}</dd></div>
+          <div><dt>{s.answeredSince}</dt><dd>{n(reach.answers)}</dd></div>
+          {reach.rate !== null && <div><dt>{s.completion}</dt><dd>{format(s.percent, { share: n(reach.rate) })}</dd></div>}
+        </dl>
+      )}
+      {reach.since && <p className="hint">{format(s.completionHint, { day: dayWords(reach.since, lang) })}</p>}
+      {reach.days && inDays > 0 && (
+        <figure className="per-day">
+          <figcaption className="mini-label">{s.perDay}</figcaption>
+          <svg viewBox={`0 0 ${reach.days.length * 10} 60`} preserveAspectRatio="none" role="img" aria-label={format(s.perDayLabel, { count: n(inDays), most: n(most) })}>
+            {reach.days.map((d, i) => d.count > 0 && <rect key={d.day} className="day-bar" x={i * 10 + 1} width="8" y={60 - Math.max(2, (d.count / most) * 60)} height={Math.max(2, (d.count / most) * 60)} rx="1.5" />)}
+          </svg>
+          <p className="per-day-ends dim" aria-hidden="true"><span>{dayWords(reach.days[0]!.day, lang)}</span><span>{dayWords(reach.days.at(-1)!.day, lang)}</span></p>
+        </figure>
+      )}
+    </section>
+  );
   const summaries = summarise(new Map([...data.versions].map(([v, d]) => [v, readIn(d, lang)])), data.stats, { yes: t.respond.yes, no: t.respond.no, other: t.respond.other });
   return frame(
     <div className="summary-page">
@@ -157,6 +185,7 @@ export async function summaryPage({ sql, member, t, lang, param }: Ctx) {
       {head}
       <p className="answers-count">{plural(t.answers.count, data.stats.total, lang)}</p>
       {data.versions.size > 1 && <p className="hint">{s.versions}</p>}
+      {reachCard}
       {data.stats.total === 0 ? <EmptyState title={s.empty} /> : (
         <ol className="summary-list">
           {summaries.map(x => (

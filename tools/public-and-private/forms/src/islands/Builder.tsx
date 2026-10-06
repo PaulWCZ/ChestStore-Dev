@@ -10,6 +10,7 @@ import { format, plural } from "../shared/format.ts";
 import { guardLinks, sendOnLeave } from "../shared/leave.ts";
 import {
   END,
+  clausesOf,
   copyQuestion,
   enterOption,
   keyPattern,
@@ -24,9 +25,11 @@ import {
   newQuestion,
   opsFor,
   problems,
+  unreachable,
   untranslated,
   withOptions,
   type Accent,
+  type Clause,
   type Condition,
   type Definition,
   type Kind,
@@ -170,6 +173,7 @@ export function Builder(props: Props) {
   }, [props.id]);
 
   const found = useMemo(() => problems(def), [def]);
+  const aside = useMemo(() => new Set(unreachable(def)), [def]);
   const allQs = useMemo(() => def.pages.flatMap(p => p.questions), [def]);
   const missing = useMemo(() => untranslated(def), [def]);
   const alt = editing === "alt" && def.alt ? def.alt : null;
@@ -433,6 +437,7 @@ export function Builder(props: Props) {
                   {props.canEdit && !alt && <button type="button" className="icon-button" onClick={() => removePage(page.id)}><Trash /><span className="visually-hidden">{b.removePage}</span></button>}
                 </div>
               )}
+              {aside.has(page.id) && <p className="notice">{b.pageUnreachable}</p>}
               {def.pages.length === 1 && <h2 id={`page-${page.id}`} className="visually-hidden">{format(b.page, { n: 1 })}</h2>}
               {page.questions.length === 0 && <p className="page-empty">{b.noQuestions}</p>}
               <ol className="question-list">
@@ -843,13 +848,40 @@ function ConditionEditor({ label, condition, before, ro, b, onChange }: { label:
   return (
     <div className="logic on">
       <p className="field-label"><Branch /> {label}</p>
-      <ConditionFields condition={condition} questions={usable} ro={ro} b={b} onChange={onChange} />
+      <RuleFields rule={condition} questions={usable} ro={ro} b={b} onChange={onChange} />
       {!ro && <button type="button" className="button link" onClick={() => onChange(undefined)}>{b.logicRemove}</button>}
     </div>
   );
 }
 
-function ConditionFields({ condition, questions, ro, b, onChange }: { condition: Condition; questions: Question[]; ro: boolean; b: Catalogue["builder"]; onChange: (c: Condition) => void }) {
+// A rule: its first comparison, then — joined by "and" or "or", one word
+// for the whole rule — up to four more (limits.clauses).
+function RuleFields({ rule, questions, ro, b, onChange }: { rule: Condition; questions: Question[]; ro: boolean; b: Catalogue["builder"]; onChange: (c: Condition) => void }) {
+  const more = rule.more ?? [];
+  const join = rule.join ?? "all";
+  const put = (first: Clause, list: Clause[], j: "all" | "any" = join): Condition => (list.length > 0 ? { ...first, join: j, more: list } : first);
+  const first = clausesOf(rule)[0]!;
+  const fresh = (): Clause => ({ question: questions.at(-1)!.id, op: opsFor(questions.at(-1)!.kind)[0]! });
+  return (
+    <div className="rule">
+      <ConditionFields condition={first} questions={questions} ro={ro} b={b} onChange={c => onChange(put(c, more))} />
+      {more.map((c, i) => (
+        <div key={i} className="rule-more">
+          {i === 0 && !ro
+            ? <SelectField label={b.ruleJoin} hideLabel value={join} ro={ro} options={[["all", b.ruleAnd], ["any", b.ruleOr]]} onChange={v => onChange(put(first, more, v === "any" ? "any" : "all"))} />
+            : <span className="jump-word">{join === "any" ? b.ruleOr : b.ruleAnd}</span>}
+          <ConditionFields condition={c} questions={questions} ro={ro} b={b} onChange={x => onChange(put(first, more.map((y, k) => (k === i ? x : y))))} />
+          {!ro && <button type="button" className="icon-button" onClick={() => onChange(put(first, more.filter((_, k) => k !== i)))}><Close /><span className="visually-hidden">{b.removeClause}</span></button>}
+        </div>
+      ))}
+      {!ro && more.length < limits.clauses - 1 && questions.length > 0 && (
+        <button type="button" className="button link" onClick={() => onChange(put(first, [...more, fresh()]))}><Plus />{b.addClause}</button>
+      )}
+    </div>
+  );
+}
+
+function ConditionFields({ condition, questions, ro, b, onChange }: { condition: Clause; questions: Question[]; ro: boolean; b: Catalogue["builder"]; onChange: (c: Clause) => void }) {
   const target = questions.find(q => q.id === condition.question);
   const ops = target ? opsFor(target.kind) : [];
   const pickQuestion = (id: string) => {
@@ -888,7 +920,7 @@ function Jumps({ page, pageIndex, pages, before, canEdit, b, onChange }: { page:
       {page.jumps.map((j, i) => (
         <div key={i} className="jump">
           <span className="jump-word">{b.ruleIf}</span>
-          <ConditionFields condition={j.when} questions={usable} ro={!canEdit} b={b} onChange={c => onChange(page.jumps.map((x, k) => (k === i ? { ...x, when: c } : x)))} />
+          <RuleFields rule={j.when} questions={usable} ro={!canEdit} b={b} onChange={c => onChange(page.jumps.map((x, k) => (k === i ? { ...x, when: c } : x)))} />
           <span className="jump-word">{b.ruleThen}</span>
           <SelectField label={b.ruleThen} hideLabel value={j.to} ro={!canEdit} options={later} onChange={v => onChange(page.jumps.map((x, k) => (k === i ? { ...x, to: v } : x)))} />
           {canEdit && <button type="button" className="icon-button" onClick={() => onChange(page.jumps.filter((_, k) => k !== i))}><Close /><span className="visually-hidden">{b.removeRule}</span></button>}

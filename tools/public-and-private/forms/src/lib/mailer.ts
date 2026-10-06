@@ -1,7 +1,9 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
-import { catalogue, format, isLocale } from "../i18n/index.ts";
-import { answerText, type Answers } from "../shared/logic.ts";
+import { log } from "@argentic/chest-app";
+import { catalogue, format, isLocale, plural } from "../i18n/index.ts";
+import { answerText, isPick, recall, type Answers } from "../shared/logic.ts";
+import type { Query } from "./db.ts";
 import type { Definition } from "../shared/model.ts";
 
 // The copy of an answer, emailed to the person who gave it, through the
@@ -16,21 +18,57 @@ import type { Definition } from "../shared/model.ts";
 // the Chest applies the owner's preference to them.
 export type Delivery = "email" | "none";
 
-// copyText: the email's words (tested alone).
-export function copyText(def: Definition, answers: Answers, language: string, company: string): { subject: string; text: string } {
+// The kinds whose answer is made of the form's own words (options, yes or
+// no, a number of stars…): what a copy to a typed address may repeat.
+const ownWords = new Set(["choice", "choices", "dropdown", "picture", "yesno", "rating", "scale", "matrix", "ranking", "date", "number"]);
+
+// copyText: the email's words (tested alone). ownWordsOnly (a public
+// form's copy): the questions answered with the form's own words, an
+// option's "Other" without what was typed, and a line saying the written
+// answers are not repeated — no text a visitor typed, so no link and no
+// message of theirs goes out in the company's name.
+export function copyText(def: Definition, answers: Answers, language: string, company: string, options: { ownWordsOnly?: boolean } = {}): { subject: string; text: string } {
   const t = catalogue(isLocale(language) ? language : "en");
   const words = { yes: t.respond.yes, no: t.respond.no, other: t.respond.other };
   const lines: string[] = [];
+  let left = 0;
   for (const q of def.pages.flatMap(p => p.questions)) {
     if (q.kind === "statement" || answers[q.id] === undefined) continue;
-    lines.push(q.title, "  " + answerText(q, answers[q.id], words).replace(/\n/gu, "\n  "), "");
+    let value = answers[q.id];
+    if (options.ownWordsOnly) {
+      if (!ownWords.has(q.kind)) {
+        left++;
+        continue;
+      }
+      if (isPick(value) && value.other) value = { ids: value.ids, other: "…" };
+    }
+    // A title that repeats an answer ({name}): the team's copy says it,
+    // a public one leaves it out (what was typed stays out).
+    lines.push(recall(q.title, def, options.ownWordsOnly ? {} : answers, words), "  " + answerText(q, value, words).replace(/\n/gu, "\n  "), "");
   }
+  if (options.ownWordsOnly && left > 0) lines.push(plural(t.mail.copyWritten, left, isLocale(language) ? language : "en"), "");
   const values = { form: def.title, company: company || t.mail.team };
   return { subject: format(t.mail.copySubject, values), text: [format(t.mail.copyIntro, values), "", ...lines, t.mail.copyFoot].join("\n") };
 }
 
-export async function sendCopy(to: string | { member: string }, def: Definition, answers: Answers, language: string, company: string, answerId: string): Promise<Delivery> {
-  const { subject, text } = copyText(def, answers, language, company);
+// A public form's copies: at most perHour a form an hour (a flood of
+// answers sends no flood of emails), one an address a day for a form
+// (nobody's inbox filled by someone typing their address). Counted on the
+// answers that say a copy went (answers.sent).
+export const copyLimits = { perHour: 20 } as const;
+export async function copyAllowed(sql: Query, formId: string, to: string, answerId: string): Promise<boolean> {
+  const [row] = await sql<{ hour: number; address: number }[]>`
+    select count(*) filter (where created_at > now() - interval '1 hour')::int as hour,
+           count(*) filter (where email = ${to.toLowerCase()})::int as address
+    from answers
+    where form_id = ${formId} and id <> ${answerId} and 'copy' = any(sent) and created_at > now() - interval '1 day'`;
+  if ((row?.hour ?? 0) < copyLimits.perHour && (row?.address ?? 0) === 0) return true;
+  log.warn("copy by email held back", { form: formId, reason: (row?.address ?? 0) > 0 ? "address" : "hour" });
+  return false;
+}
+
+export async function sendCopy(to: string | { member: string }, def: Definition, answers: Answers, language: string, company: string, answerId: string, options: { ownWordsOnly?: boolean } = {}): Promise<Delivery> {
+  const { subject, text } = copyText(def, answers, language, company, options);
   try {
     await mail.send({ to: typeof to === "string" ? to : { member: to.member }, subject, text, ...(company ? { fromName: company } : {}), key: `copy:${answerId}:${typeof to === "string" ? to : to.member}`, transactional: true });
     return "email";

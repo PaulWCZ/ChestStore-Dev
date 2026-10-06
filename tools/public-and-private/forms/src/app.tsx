@@ -16,6 +16,7 @@ import { embedOrigins, frameAncestors } from "./lib/embed.ts";
 import { told } from "./lib/hooks.ts";
 import { sweepImages } from "./lib/images.ts";
 import { handlers } from "./lib/lifecycle.ts";
+import { forgetViews } from "./lib/reach.ts";
 import { pending, refreshBadges } from "./lib/tell.ts";
 import * as uploads from "./lib/uploads.ts";
 import { answersVersion, homeVersion } from "./lib/versions.ts";
@@ -47,8 +48,9 @@ const routes = createApp({
   words,
   layouts: { members: MembersLayout, public: PublicLayout },
   look: viewer => lookOf(viewer.member !== null ? "team" : "public"),
-  // Forms' icon; no search engine indexes a form or the team's pages.
-  head: viewer => <><meta name="robots" content="noindex, nofollow" /><meta name="description" content={viewer.t.meta.tagline} /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
+  // Forms' icon; no search engine indexes a form or the team's pages. The
+  // description is the page's (a public form's: its own introduction).
+  head: () => <><meta name="robots" content="noindex, nofollow" /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
 });
 
 // The Chest's zone (dates are written on its clock); UTC outside a Chest.
@@ -139,6 +141,7 @@ routes.post("/chest-schedules", async c => new Response(null, {
       const swept = await uploads.sweep(at);
       const pictures = await sweepImages(sql, at);
       await refreshBadges(sql);
+      await forgetViews(sql);
       await seen.forget();
       log.info("cleanup", { answers: gone.answers, forms: gone.forms, files: gone.objects.length, uploads: swept, pictures });
     },

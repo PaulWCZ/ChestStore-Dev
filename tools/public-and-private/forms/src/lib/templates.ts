@@ -45,7 +45,7 @@ function build(key: TemplateKey, t: Catalogue): Template {
           q("choice", c.topic, { required: true, options: [c.topicQuestion, c.topicQuote, c.topicOrder], other: true }),
           q("long", c.message, { required: true, max: 2000 }),
         ])] },
-        settings: { audience: "public", layout: "classic", accent: "indigo", sendCopy: true },
+        settings: { audience: "public", layout: "classic", accent: "indigo" },
         links: { contact: true },
       };
     }
@@ -63,7 +63,7 @@ function build(key: TemplateKey, t: Catalogue): Template {
           diet,
           q("long", e.notes),
         ])] },
-        settings: { audience: "public", layout: "classic", accent: "tangerine", sendCopy: true },
+        settings: { audience: "public", layout: "classic", accent: "tangerine" },
       };
     }
     case "feedback": {
@@ -91,7 +91,7 @@ function build(key: TemplateKey, t: Catalogue): Template {
           q("long", j.why, { max: 3000 }),
           q("date", j.start),
         ])] },
-        settings: { audience: "public", layout: "classic", accent: "forest", sendCopy: true },
+        settings: { audience: "public", layout: "classic", accent: "forest" },
       };
     }
     case "it": {

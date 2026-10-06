@@ -22,9 +22,25 @@ built again from the studio's template to stand next to Tally and Typeform.
   New options are empty with "Option 1" as a placeholder; one left empty
   blocks publishing. Duplicate, move, change the kind, delete with *Undo*.
 - **Pages and logic**: *Show only if…* an earlier answer is / is not /
-  includes / is more than / is less than / is answered; after a page,
-  rules *If … go to page N* or *the end*. Rules only go forward, so a form
-  can never loop. The same engine runs in the browser and on the server.
+  includes / is more than / is less than / is answered — up to five
+  conditions joined by *and* or *or*; after a page, rules *If … go to page
+  N* or *the end*. Rules only go forward, so a form can never loop. A page
+  no answer can reach (the page before always jumps elsewhere) is said in
+  the builder. The same engine runs in the browser and on the server.
+- **Repeat an answer**: a question named in links (`first_name`) is
+  repeated by `{first_name}` in a later question, its help or the
+  thank-you message ("Thanks, {first_name}!").
+- **Values from the link** (hidden fields): Settings names what the
+  form's link may carry (`utm_source, ref`, ten at most); each answer keeps
+  them (200 characters each), shown on its page and as CSV columns, and
+  `{utm_source}` repeats one in a text. Never on an anonymous form.
+- **A shared device** (Settings): a tablet at an event keeps nothing typed,
+  and the form starts again for the next person after each answer.
+  Elsewhere, what is typed waits on the device for 12 hours at most.
+- **Who it reached** (Summary): how many times the form's page was opened,
+  how many answers came since, the share that answered, and the answers
+  of the last 30 days, a column a day (not for an anonymous form: a day
+  would say when someone answered).
 - **Live preview**: the real respondent's page beside the builder (a tab on
   a phone), following the question you edit.
 - **Everything saves by itself** — questions and settings alike, one model
@@ -154,10 +170,15 @@ built again from the studio's template to stand next to Tally and Typeform.
   manager, brings one back); deleting a form with answers asks first and
   says how many go. Forms started and never touched go after a day.
 - **Search** on the forms list (title words, accents aside).
-- **A copy by email** of their answers to the person who gave an address
-  (public forms) or to the member (team forms), in their language
-  (Proposal *mail*). Never for anonymous forms. **Not when Support took
-  the answer** (see "One message, one email" below).
+- **A copy by email** of their answers, off unless the form's editor
+  turns it on: to the member (team forms), or — on a public form — to the
+  address given, **only when the visitor ticks *Email me a copy of my
+  answers***, and holding **only the form's own words** (the questions,
+  the options picked, numbers and dates; never a text the visitor typed,
+  so no link and no message goes out in the company's name), one an
+  address a day and 20 a form an hour. In their language (Proposal
+  *mail*). Never for anonymous forms. **Not when Support took the answer**
+  (see "One message, one email" below).
 - **Privacy**: answers deleted after 1–36 months if chosen (every night,
   with their files: Proposal *schedules*); a manager finds a person's
   answers by email address or name and erases them (*Erase a person's
@@ -319,8 +340,13 @@ SDK*.
   *Summary* and CSV are aggregates. Nothing at all under five answers, to
   anyone (owner and managers included).
 - An anonymous form **cannot ask for files** (an upload goes through the
-  member's own session), sends **no copies**, and **cannot change its
-  anonymity once someone answered**.
+  member's own session), sends **no copies**, reads **nothing from its
+  link**, and **cannot change its anonymity once someone answered**.
+- **No version, no language gives anyone away**: every answer is kept in
+  the form's own language (not the reader's), and once an anonymous form
+  has answers **its questions cannot change** — its words can, and every
+  answer moves to the new version — so no answer says it came before or
+  after a change. To ask other questions, duplicate it.
 - What it does **not** protect against, honestly: someone watching the
   bell's count right after a colleague answered (the bell is batched every
   10 minutes, which blurs it); a free text that gives its author away; the
@@ -422,7 +448,18 @@ The tool also calls `chest` (company, time zone, `tool.publicUrl` and
 `tool.teamUrl` for its addresses, `tools.get` for the others', `theme()`
 for the look and the logo) and `notifications.broadcast`.
 The public part never asks the Chest at each visitor's request, and never
-lists members. When a member loses access or leaves, they are taken off the forms shared
+lists members. **What anyone on the Internet can make a form do**, a day
+(`src/lib/flood.ts`, said in Settings): 2,000 answers a form (100 a
+visitor, 20,000 for all forms); a form whose answers go further — a
+contact in Clients, a ticket in Support, a web address, a copy by email —
+200 (20 a visitor, 2,000 for all); 200 files a form (30 a visitor, 1,000
+for all, 10 MiB each). Each answer waits for the page's single-use token
+and three seconds, and a robot that fills the hidden field is answered
+"sent" with nothing kept. The tool's log says when a form's day is half,
+four fifths and fully spent (counts and the form's id only). Answers to
+questions a form does not ask, and link values it does not name, are
+dropped, never kept. The Chest checks the first bytes of images and PDFs
+itself; the tool reads the others' (Office, text), two at a time. When a member loses access or leaves, they are taken off the forms shared
 with them and the bell; forms they own stay (managers open them). On
 erasure, their answers to team forms are deleted with their files, their
 mark in anonymous forms becomes "erased" (counted, never named), forms they
@@ -531,10 +568,14 @@ seeded (files are the Chest's): the flow uploads one.
 
 ## What it does not do yet
 
-- No payments, quizzes or scores, calculated fields, recall of an earlier
-  answer in a question ("Thanks, {name}"), signature question.
+- No payments, no quizzes or scores, no calculated fields, no signature
+  question.
 - No partial answers (what someone typed but did not send stays on their
-  device) — a privacy decision to take first.
+  device, 12 hours at most) — a privacy decision to take first.
+- A robot can still fill a public form up to its day's budget (above):
+  without a visitor's identity, the budgets bound the harm but do not stop
+  it. A proof of work in the page (the package's next `bound` option) is
+  the next step.
 - **Not shown in another website yet** (the Chest's frame policy, above);
   the button code works. Web addresses get each answer (webhooks), but
   there is **no two-way spreadsheet sync** and no Google Sheets
@@ -568,7 +609,8 @@ seeded (files are the Chest's): the flow uploads one.
 - Files over 10 MB are not taken (the public upload proposal caps at 10
   MiB). Pictures of a team form are published files too (random names,
   never listed).
-- Tested at 10,000 answers per form (the summary counts them all in the
-  database; the CSV and the ZIP are streamed); beyond, no hard cap yet.
+- **10,000 answers a form at most** (taken in the same statement as the
+  form's own limit; Settings says it): the summary counts them in the
+  database, the CSV and the ZIP are streamed (`test/scale.test.ts`).
 - On a Chest without schedules, retention does not run by itself;
   answers are still erased by hand.

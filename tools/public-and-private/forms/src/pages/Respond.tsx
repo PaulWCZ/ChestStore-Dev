@@ -7,17 +7,21 @@ import { fail } from "../lib/app-error.ts";
 import { bySlug, openState, type Form } from "../lib/forms.ts";
 import { imageUrl, pictureUrls } from "../lib/images.ts";
 import { companyName } from "../lib/public-origin.ts";
+import { countView } from "../lib/reach.ts";
+import type { Query as Db } from "../lib/db.ts";
 import { sheetOf } from "../lib/theme.ts";
 import { prefill } from "../shared/logic.ts";
-import { languageFor, languages, localize, type Definition } from "../shared/model.ts";
+import { hiddenValues, languageFor, languages, localize, type Definition } from "../shared/model.ts";
 import { zonedParts } from "../shared/zone.ts";
 import type { Ctx, PublicCtx } from "./context.ts";
 
 type Query = (name: string) => string | undefined;
 
 // What the runner of a form receives, in the language its page speaks.
-async function runner(form: Form, found: Definition, locale: Locale, mode: "public" | "team", query: URLSearchParams, zone: string, host: "public" | "team") {
+// Drawing it counts one view of the form (its completion rate).
+async function runner(sql: Db, form: Form, found: Definition, locale: Locale, mode: "public" | "team", query: URLSearchParams, zone: string, host: "public" | "team") {
   const t = catalogue(locale);
+  await countView(sql, form.id);
   const definition = localize(found, locale);
   const given = Object.fromEntries([...query].filter(([k]) => k.length <= 40));
   return {
@@ -37,6 +41,10 @@ async function runner(form: Form, found: Definition, locale: Locale, mode: "publ
     locale,
     pictures: await pictureUrls(definition, host),
     cover: await imageUrl(form.cover, host),
+    // Not when Support takes the request: Support confirms it itself.
+    offerCopy: mode === "public" && form.sendCopy && !form.anonymous && !form.routes.request,
+    hidden: form.anonymous ? {} : hiddenValues(form.hiddenFields, given),
+    kiosk: form.kiosk,
   };
 }
 
@@ -62,11 +70,12 @@ export async function publicFormPage({ sql, lang, zone, param, url }: PublicCtx)
     title: localize(definition, locale).title || t.builder.untitled,
     exactTitle: true,
     locale,
-    head: definition.intro ? <meta name="description" content={definition.intro.slice(0, 160)} /> : undefined,
+    // One description: the form's introduction, in the page's language.
+    head: <meta name="description" content={(localize(definition, locale).intro || t.meta.tagline).slice(0, 160)} />,
     body: (
       <RespondFrame accent={form.accent} company={company || t.public.title} logo={logo} locale={locale} languages={offered} languageLabel={t.public.language} back={`/${form.slug}`} footer={format(t.respond.footer, { company: company || t.public.title })}>
         {openState(form).open
-          ? <Island id={`runner-${form.slug}`} name="Runner" props={await runner(form, definition, locale, "public", url.searchParams, zone, "public")} />
+          ? <Island id={`runner-${form.slug}`} name="Runner" props={await runner(sql, form, definition, locale, "public", url.searchParams, zone, "public")} />
           : <RespondNotice title={t.respond.closed.title} body={closedBody(form, t)} />}
       </RespondFrame>
     ),
@@ -100,7 +109,7 @@ export async function teamFormPage({ sql, member, lang, zone, param, url }: Ctx)
     body: (
       <RespondFrame accent={form.accent} company={companyName() || t.public.title} logo={logo} locale={locale} footer={t.respond.footerTeam} aside={back}>
         {already ? <RespondNotice title={t.respond.already.title} body={t.respond.already.body}>{home}</RespondNotice>
-          : openState(form).open ? <Island id={`runner-${form.slug}`} name="Runner" props={await runner(form, definition, locale, "team", url.searchParams, zone, "team")} />
+          : openState(form).open ? <Island id={`runner-${form.slug}`} name="Runner" props={await runner(sql, form, definition, locale, "team", url.searchParams, zone, "team")} />
           : <RespondNotice title={t.respond.closed.title} body={closedBody(form, t)}>{home}</RespondNotice>}
       </RespondFrame>
     ),

@@ -15,9 +15,13 @@ test("CSV: a byte-order mark, quotes where needed, and no cell a spreadsheet wou
   const csv = toCsv([["Name", "Note"], ["=HYPERLINK(\"http://evil\")", "+1"], ["  @SUM(A1)", "-2"], ["\tTab", "line\nbreak"], [3.5, -4]], ",");
   assert.ok(csv.startsWith("﻿"));
   const lines = csv.slice(1).split("\r\n");
-  assert.equal(lines[1], `"'=HYPERLINK(""http://evil"")",'+1`);
-  assert.equal(lines[2], "'  @SUM(A1),'-2");
+  // A phone number or a signed number typed as text runs nothing: kept.
+  assert.equal(lines[1], `"'=HYPERLINK(""http://evil"")",+1`);
+  assert.equal(lines[2], "'  @SUM(A1),-2");
   assert.equal(lines[3], `'\tTab,"line\nbreak"`.replace("\n", "\n"));
+  // Phone numbers stay as typed; a sign before anything else is still guarded.
+  const more = toCsv([["+33 6 12 34 56 78", "-1+cmd|' /C calc'!A0", "+1 (555) 010-9999", "+SUM(1)"]], ";").slice(1).split("\r\n")[0];
+  assert.equal(more, "+33 6 12 34 56 78;'-1+cmd|' /C calc'!A0;+1 (555) 010-9999;'+SUM(1)");
   assert.ok(csv.includes("\r\n3.5,-4\r\n"), "numbers stay numbers");
   assert.equal(cell(3.5, ";"), "3,5", "a French spreadsheet reads a decimal comma");
   assert.equal(cell("a;b", ";"), '"a;b"');
@@ -33,7 +37,7 @@ function setup(anonymous: boolean) {
   v2.pages[0]!.questions[0]!.title = "Favourite colour";
   const versions = new Map([[1, v1], [2, v2]]);
   const [red, blue] = colour.options!.map(o => o.id) as [string, string];
-  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en", status: "new", note: "", handledAt: null, sent: [] });
+  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en", status: "new", note: "", handledAt: null, sent: [], hidden: {} });
   const answers = [
     a("aaaaaaaaaaaaaaaa", 1, { [colour.id]: { ids: [red] }, [score.id]: 10, [gone.id]: "=cmd" }, anonymous ? null : "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", anonymous ? null : "2026-09-20T10:00:00Z"),
     a("bbbbbbbbbbbbbbbb", 2, { [colour.id]: { ids: [blue] }, [score.id]: 3 }, null, anonymous ? null : "2026-09-21T10:00:00Z"),

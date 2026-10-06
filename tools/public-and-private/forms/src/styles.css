@@ -217,12 +217,16 @@ select.field { appearance: auto; }
 .logic.on { background: var(--accent-soft); border-radius: var(--radius-m); padding: var(--space-3); }
 .logic.on .field-label { margin-top: 0; display: flex; align-items: center; gap: var(--space-2); color: var(--ink); }
 .condition { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+/* A rule's comparisons, joined by one word (and / or). */
+.rule { display: grid; gap: var(--space-2); }
+.rule-more { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.rule-more .condition { flex: 1 1 280px; }
 .condition .mini { flex: 1 1 140px; }
 .jumps { background: var(--surface); border: max(1.5px, var(--border-width)) dashed var(--line-strong); border-radius: var(--radius-m); padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-2); }
 .jumps-title { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-s); font-weight: var(--weight-strong); color: var(--ink-2); }
 .jumps-title span { font-weight: normal; }
 .jump { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.jump .condition { flex: 1 1 320px; }
+.jump .condition, .jump .rule { flex: 1 1 320px; }
 .jump-word { font-weight: var(--weight-strong); color: var(--accent-text); font-size: var(--text-s); }
 .preview-pane { position: sticky; top: calc(var(--bar-h) + 63px); }
 .device { border-radius: var(--radius-xl); padding: 10px; background: var(--ink); box-shadow: var(--shadow-2); }
@@ -266,6 +270,9 @@ select.field { appearance: auto; }
 .checks { display: grid; gap: var(--space-1); }
 .check { display: flex; align-items: center; gap: var(--space-3); min-height: 40px; cursor: pointer; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
+/* A public form's copy, asked by the visitor under the email question. */
+.copy-ask { margin-top: var(--space-3); }
+.copy-ask input { accent-color: var(--form); }
 .save-bar { position: sticky; bottom: var(--space-3); display: flex; justify-content: flex-end; z-index: 5; }
 .save-bar .button { box-shadow: var(--shadow-2); }
 .prefill { display: flex; gap: var(--space-3); flex-wrap: wrap; }
@@ -305,6 +312,14 @@ select.field { appearance: auto; }
 .bars li.top .bar-label { font-weight: var(--weight-strong); }
 .bar-track { display: block; width: 100%; height: 14px; background: var(--surface-2); border-radius: var(--radius-round); overflow: hidden; }
 .bar-fill { fill: var(--accent-text); }
+/* An answer's values from the form's link, under its questions. */
+.from-link { margin-top: var(--space-4); }
+/* The answers day by day (Summary): a column a day, the busiest one full height. */
+.reach { margin-bottom: var(--space-4); }
+.per-day { margin: var(--space-3) 0 0; }
+.per-day svg { display: block; width: 100%; height: 72px; }
+.day-bar { fill: var(--accent-text); }
+.per-day-ends { display: flex; justify-content: space-between; font-size: var(--text-s); margin: var(--space-1) 0 0; }
 .bars li:not(.top) .bar-fill { fill: color-mix(in oklab, var(--accent-text) 55%, var(--surface-2)); }
 .bars.numeric li { grid-template-columns: 2.2em 1fr auto; }
 .bar-value { font-weight: var(--weight-strong); white-space: nowrap; text-align: right; min-width: 4.5em; }
@@ -354,6 +369,9 @@ select.field { appearance: auto; }
 .runner-banner { background: var(--danger-soft); color: var(--danger-ink); border-radius: var(--radius-m); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
 .runner-banner.soft { margin: 0; }
 .runner-banner.spent { visibility: hidden; }
+/* The questions to look at, each a link to its field (one alert says them all). */
+.fix-list { margin: var(--space-1) 0 0; padding-left: var(--space-5); }
+.fix-list a { color: inherit; }
 .runner-start { padding: var(--space-6) 0; }
 .runner-notice { padding: var(--space-7) 0; }
 .runner-after { margin-top: var(--space-6); }
@@ -463,7 +481,7 @@ select.field { appearance: auto; }
 .desktop-only { }
 @media (max-width: 900px) {
   .builder-grid { grid-template-columns: minmax(0, 1fr); }
-  .builder-grid > *, .page-block, .question-list, .question-list > li, .jumps, .condition, .jump { min-width: 0; }
+  .builder-grid > *, .page-block, .question-list, .question-list > li, .jumps, .condition, .jump, .rule, .rule-more { min-width: 0; }
   .card-title { overflow-wrap: anywhere; min-width: 0; }
   .phone-only { display: inline-flex !important; }
   .builder.view-edit .preview-pane { display: none; }
@@ -603,7 +621,8 @@ select.field { appearance: auto; }
 /* ---- Phones: the builder never scrolls sideways; four tabs fit ----------------------------- */
 @media (max-width: 640px) {
   .jump { display: grid; grid-template-columns: 1fr; }
-  .jump .condition { flex: none; }
+  .jump .condition, .jump .rule { flex: none; }
+  .rule-more { display: grid; grid-template-columns: 1fr; }
   .condition { display: grid; grid-template-columns: 1fr; }
   .condition .mini { flex: none; }
   .jumps-title { flex-wrap: wrap; }

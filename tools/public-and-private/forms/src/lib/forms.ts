@@ -8,7 +8,9 @@ import {
   allQuestions,
   copyDefinition,
   definition,
+  skeleton,
   definitionFromText,
+  capOf,
   id as readId,
   isImage,
   isMemberId,
@@ -53,6 +55,8 @@ export type Form = {
   sendCopy: boolean;
   retentionMonths: number | null;
   answerCount: number;
+  kiosk: boolean;
+  hiddenFields: string[];
   notifyEmail: boolean;
   shareEvents: boolean;
   // Also a contact in Clients, a ticket in Support (lib/routes.ts).
@@ -85,6 +89,8 @@ type Row = {
   send_copy: boolean;
   retention_months: number | null;
   answer_count: number;
+  kiosk: boolean;
+  hidden_fields: string[];
   notify_email: boolean;
   share_events: boolean;
   routes: unknown;
@@ -116,6 +122,8 @@ export const toForm = (r: Row): Form => ({
   sendCopy: r.send_copy,
   retentionMonths: r.retention_months,
   answerCount: r.answer_count,
+  kiosk: r.kiosk,
+  hiddenFields: r.hidden_fields,
   notifyEmail: r.notify_email,
   shareEvents: r.share_events,
   routes: readRoutes(r.routes),
@@ -125,7 +133,7 @@ export const toForm = (r: Row): Form => ({
   publishedAt: r.published_at ? r.published_at.toISOString() : null,
 });
 
-export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, notify_email, share_events, routes, cover, created_at, updated_at, published_at";
+export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, kiosk, hidden_fields, notify_email, share_events, routes, cover, created_at, updated_at, published_at";
 
 // Whether a form takes answers now, and if not, why.
 export type OpenState = { open: boolean; reason: "draft" | "closed" | "date" | "full" | null };
@@ -133,7 +141,7 @@ export function openState(form: Pick<Form, "status" | "closesAt" | "maxAnswers" 
   if (form.status === "draft") return { open: false, reason: "draft" };
   if (form.status === "closed") return { open: false, reason: "closed" };
   if (form.closesAt && new Date(form.closesAt).getTime() <= now.getTime()) return { open: false, reason: "date" };
-  if (form.maxAnswers !== null && form.answerCount >= form.maxAnswers) return { open: false, reason: "full" };
+  if (form.answerCount >= capOf(form)) return { open: false, reason: "full" };
   return { open: true, reason: null };
 }
 
@@ -307,7 +315,17 @@ export async function publish(sql: Sql, actor: Member | null, formId: unknown): 
     let version = form.version;
     if (await unpublished(tx, form)) {
       version = form.version + 1;
+      // An anonymous form with answers keeps one version: an answer's
+      // version would say when it came (before or after a change), and
+      // with a few colleagues that names someone. Its words may change —
+      // every answer moves to the new version —, its questions may not.
+      const [answered] = form.anonymous && form.version > 0 ? await tx`select 1 from answers where form_id = ${form.id} limit 1` : [];
+      if (answered) {
+        const before = await versionOf(tx, form.id, form.version);
+        if (!before || skeleton(before) !== skeleton(def)) throw new AppError("anonymous_questions");
+      }
       await tx`insert into versions (form_id, version, definition) values (${form.id}, ${version}, ${tx.json(def as never)})`;
+      if (answered) await tx`update answers set version = ${version} where form_id = ${form.id}`;
     }
     const first = form.version === 0;
     // Reopening a form whose date passed clears the date; one at its limit
@@ -339,7 +357,7 @@ export async function close(sql: Sql, actor: Member | null, formId: unknown): Pr
 export async function reopen(sql: Sql, actor: Member | null, formId: unknown): Promise<Form> {
   const { form } = await open(sql, actor, formId, "editor");
   if (form.version === 0) throw new AppError("invalid");
-  if (form.maxAnswers !== null && form.answerCount >= form.maxAnswers) throw new AppError("full");
+  if (form.answerCount >= capOf(form)) throw new AppError("full");
   const [row] = await sql<Row[]>`
     update forms set status = 'published', closed_at = null, updated_at = now(),
       closes_at = case when closes_at is not null and closes_at <= now() then null else closes_at end
@@ -374,7 +392,8 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
       update forms set audience = ${s.audience}, anonymous = ${s.anonymous}, once = ${s.once}, tell_team = ${s.tellTeam}, layout = ${s.layout}, accent = ${s.accent},
         closes_at = ${s.closesAt}, max_answers = ${s.maxAnswers}, thanks_title = ${s.thanksTitle}, thanks_body = ${s.thanksBody},
         redirect_url = ${s.redirectUrl}, send_copy = ${s.sendCopy}, retention_months = ${s.retentionMonths},
-        notify_email = ${s.notifyEmail}, share_events = ${s.shareEvents}, routes = ${tx.json(routes as never)}, updated_at = now()
+        notify_email = ${s.notifyEmail}, share_events = ${s.shareEvents}, routes = ${tx.json(routes as never)},
+        kiosk = ${s.kiosk}, hidden_fields = ${s.hiddenFields}, updated_at = now()
       where id = ${form.id} returning ${tx.unsafe(columns)}`;
     // Only people who may open the form can be told of its answers.
     const { owner, shared } = await team(tx, form.id);

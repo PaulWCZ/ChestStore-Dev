@@ -128,7 +128,7 @@ const mail = q("email", "Your email");
 const topic = q("dropdown", "What is it about?", { options: opts("A quote", "An order") });
 const message = q("long", "Your message");
 const def = form([name, mail, topic, message], "Contact us");
-const reply = () => ({ [name.id]: "Nina Roux", [mail.id]: "nina@example.com", [topic.id]: { ids: [topic.options![0]!.id] }, [message.id]: "Six oak chairs." });
+const reply = (email = "nina@example.com") => ({ [name.id]: "Nina Roux", [mail.id]: email, [topic.id]: { ids: [topic.options![0]!.id] }, [message.id]: "Six oak chairs." });
 const routes = { contact: { name: name.id, email: mail.id, message: message.id }, request: { subject: topic.id, details: message.id, email: mail.id, name: name.id } };
 const lastAnswer = async (formId: string) => (await database.sql<{ id: string; sent: string[] }[]>`select id, sent from answers where form_id = ${formId} order by created_at desc limit 1`)[0]!;
 
@@ -140,7 +140,7 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   chest.linked["forms.request"] = ["helpdesk"];
   const f = await published(def, { sendCopy: true, routes });
   const before = chest.outbox.length;
-  const r = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
+  const r = await take(sql, f, { version: f.version, answers: reply() }, null, "en", { copyAsked: true });
   assert.deepEqual(r, { copy: false });
   assert.equal(chest.outbox.slice(before).filter(m => JSON.stringify(m.to).includes("nina@example.com")).length, 0, "Support confirms: no copy from Forms");
   const a = await lastAnswer(f.id);
@@ -149,7 +149,7 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   // Support installed but not linked (studio.16): no ticket, nobody
   // confirms, so the copy goes; the answer does not claim a ticket.
   chest.linked["forms.request"] = [];
-  const unlinked = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
+  const unlinked = await take(sql, f, { version: f.version, answers: reply() }, null, "en", { copyAsked: true });
   assert.deepEqual(unlinked, { copy: true });
   const unlinkedAnswer = await lastAnswer(f.id);
   assert.deepEqual(unlinkedAnswer.sent, ["forms.contact", "copy"]);
@@ -158,12 +158,13 @@ test("one message, one email: when Support opens a ticket of it (and confirms), 
   chest.linked["forms.request"] = ["helpdesk"];
   // Support not installed: nobody confirms, so the copy goes.
   chest.removeTool("helpdesk");
-  const again = await take(sql, f, { version: f.version, answers: reply() }, null, "en");
+  // (Another address: one copy an address a day for a form.)
+  const again = await take(sql, f, { version: f.version, answers: reply("nina.roux@example.com") }, null, "en", { copyAsked: true });
   assert.deepEqual(again, { copy: true });
   assert.ok((await lastAnswer(f.id)).sent.includes("copy"));
   // No route, a copy: only the copy.
   const plain = await published(def, { sendCopy: true });
-  await take(sql, plain, { version: plain.version, answers: reply() }, null, "en");
+  await take(sql, plain, { version: plain.version, answers: reply() }, null, "en", { copyAsked: true });
   assert.deepEqual((await lastAnswer(plain.id)).sent, ["copy"]);
 });
 
@@ -218,7 +219,7 @@ test("an address that keeps failing is stopped by the Chest: Settings says so, t
   const s = await hooks.addHook(sql, asMember(ines), f.id, { url: slack, kind: "slack", label: "Gone channel" });
   chest.webhooks.respond(s.hook.id, 404);
   chest.notifications.splice(0);
-  await take(sql, f, { version: f.version, answers: reply() }, null, "en");
+  await take(sql, f, { version: f.version, answers: reply() }, null, "en", { copyAsked: true });
   const listed = (await hooks.hooksOf(sql, asMember(ines), f.id)).hooks.find(h => h.id === s.hook.id)!;
   assert.equal(listed.disabled, true);
   const [row] = await sql<{ disabled_at: Date | null; last_error: string }[]>`select disabled_at, last_error from form_hooks where id = ${s.hook.id}`;
@@ -226,7 +227,7 @@ test("an address that keeps failing is stopped by the Chest: Settings says so, t
   assert.ok(chest.notifications.some(n => n.member === ines.id && n.title.includes("Gone channel") && n.path === `/chest/forms/${f.id}/settings`), "its owner hears of it, in French");
   // A stopped address is not sent to.
   const before = chest.webhooks.deliveries.length;
-  await take(sql, f, { version: f.version, answers: reply() }, null, "en");
+  await take(sql, f, { version: f.version, answers: reply() }, null, "en", { copyAsked: true });
   assert.equal(chest.webhooks.deliveries.filter(d => d.target === s.hook.id).length, chest.webhooks.deliveries.slice(0, before).filter(d => d.target === s.hook.id).length);
   chest.webhooks.respond(s.hook.id, 200);
   await hooks.enableHook(sql, asMember(ines), f.id, s.hook.id);

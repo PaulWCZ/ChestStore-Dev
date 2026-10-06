@@ -152,7 +152,7 @@ test("its archive — the CSV, the form, 300 photos of 100 KB — is written as 
   assert.ok(peak() < memoryLimit, `peak ${mib(peak())}`);
 });
 
-test(`an anonymous form of ${size.toLocaleString("en")} answers: its texts capped and shuffled, its CSV its summary, one more answer rewrites them all in one statement`, { skip: !server }, async () => {
+test(`an anonymous form at ${size.toLocaleString("en")} answers: its texts capped and shuffled, its CSV its summary, the last answer rewrites them all in one statement, then the form is full`, { skip: !server }, async () => {
   const { sql } = database;
   const def: Definition = { title: "Weekly pulse", intro: "", pages: [{ id: "pagepuls", title: "", jumps: [], questions: [
     { id: "qmoodxxx", kind: "rating", title: "Your week", help: "", required: true, steps: 5 },
@@ -164,20 +164,24 @@ test(`an anonymous form of ${size.toLocaleString("en")} answers: its texts cappe
   anonymousSlug = made.slug;
   await sql`insert into answers (id, form_id, version, data, created_at, month, language)
     select lpad(to_hex(g + 100000), 16, '0'), ${anonymousId}, 1, jsonb_build_object('qmoodxxx', 1 + g % 5, 'qwhyxxxx', 'Because of reason ' || g), null, date_trunc('month', now())::date, 'en'
-    from generate_series(1, ${size}) g`;
-  await sql`insert into participants (form_id, member) select ${anonymousId}, 'erased' from generate_series(1, ${size})`;
-  await sql`update forms set answer_count = ${size} where id = ${anonymousId}`;
+    from generate_series(1, ${size - 1}) g`;
+  await sql`insert into participants (form_id, member) select ${anonymousId}, 'erased' from generate_series(1, ${size - 1})`;
+  await sql`update forms set answer_count = ${size - 1} where id = ${anonymousId}`;
   const page = await (await get(`/chest/forms/${anonymousId}/answers`, camille)).text();
   assert.ok(page.length < 200_000, `${page.length} bytes`);
-  assert.match(page, /300 (of|sur) 10[\s\u202f,.]?000/u);
+  assert.match(page, /300 (of|sur) 9[\s\u202f,.]?999/u);
   const csv = await (await get(`/chest/forms/${anonymousId}/export`, camille)).text();
-  assert.equal(csv.split("\r\n").filter(l => /^Why\?[;,]Because of reason/u.test(l)).length, size);
+  assert.equal(csv.split("\r\n").filter(l => /^Why\?[;,]Because of reason/u.test(l)).length, size - 1);
   const started = performance.now();
   const sent = await call("answerTeam", { slug: anonymousSlug, version: 1, answers: { qmoodxxx: 4, qwhyxxxx: "Fine" } }, hugo);
   const took = Math.round(performance.now() - started);
   assert.equal(sent.ok, true, sent.error);
   const rows = await sql<{ n: number; stamps: number }[]>`select count(*)::int as n, count(distinct xmin::text)::int as stamps from answers where form_id = ${anonymousId}`;
-  assert.deepEqual(rows[0], { n: size + 1, stamps: 1 }, "every row rewritten by the last answer");
+  assert.deepEqual(rows[0], { n: size, stamps: 1 }, "every row rewritten by the last answer");
+  // The hard cap (limits.maxAnswers): the next answer is refused.
+  const over = await call("answerTeam", { slug: anonymousSlug, version: 1, answers: { qmoodxxx: 2 } }, camille);
+  assert.equal(over.ok, false);
+  assert.equal(over.error, "full");
   console.log(`scale: anonymous answer over ${size} rows in ${took} ms, peak ${mib(peak())}`);
   assert.ok(took < 5_000, `${took} ms`);
   assert.ok(peak() < memoryLimit, `peak ${mib(peak())}`);

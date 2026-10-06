@@ -4,7 +4,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { open, openState, toForm, columns, versionOf, versions, type Form } from "./forms.ts";
-import { allQuestions, answerIdPattern, clean, isMemberId, limits, type Definition, type Question } from "../shared/model.ts";
+import { allQuestions, answerIdPattern, clean, hiddenValues, isMemberId, limits, type Definition, type Question } from "../shared/model.ts";
 import { check, filesIn, type Answers, type FileRef, type StoredFile } from "../shared/logic.ts";
 import type { Stats } from "../shared/summary.ts";
 import { answerStats, shuffledTexts } from "./stats.ts";
@@ -15,11 +15,11 @@ import { forgetHooks } from "./hooks.ts";
 
 export const followStates = ["new", "doing", "done"] as const;
 export type FollowState = (typeof followStates)[number];
-export type Answer = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; createdAt: string | null; month: string; language: string; status: FollowState; note: string; handledAt: string | null; sent: string[] };
-type Row = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; created_at: Date | null; month: Date | string; language: string; status: FollowState; note: string; handled_at: Date | null; sent?: string[] | null };
+export type Answer = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; createdAt: string | null; month: string; language: string; status: FollowState; note: string; handledAt: string | null; sent: string[]; hidden: Record<string, string> };
+type Row = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; created_at: Date | null; month: Date | string; language: string; status: FollowState; note: string; handled_at: Date | null; sent?: string[] | null; hidden?: Record<string, string> | null };
 const monthText = (m: Date | string) => (typeof m === "string" ? m.slice(0, 10) : m.toISOString().slice(0, 10));
-const toAnswer = (r: Row): Answer => ({ id: r.id, version: r.version, respondent: r.respondent, email: r.email, data: r.data, createdAt: r.created_at ? r.created_at.toISOString() : null, month: monthText(r.month), language: r.language, status: r.status ?? "new", note: r.note ?? "", handledAt: r.handled_at ? r.handled_at.toISOString() : null, sent: r.sent ?? [] });
-const answerColumns = "id, version, respondent, email, data, created_at, month, language, status, note, handled_at, sent";
+const toAnswer = (r: Row): Answer => ({ id: r.id, version: r.version, respondent: r.respondent, email: r.email, data: r.data, createdAt: r.created_at ? r.created_at.toISOString() : null, month: monthText(r.month), language: r.language, status: r.status ?? "new", note: r.note ?? "", handledAt: r.handled_at ? r.handled_at.toISOString() : null, sent: r.sent ?? [], hidden: r.hidden ?? {} });
+const answerColumns = "id, version, respondent, email, data, created_at, month, language, status, note, handled_at, sent, hidden";
 
 const answerAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
 export const newAnswerId = () => Array.from({ length: 16 }, () => answerAlphabet[randomInt(answerAlphabet.length)]).join("");
@@ -43,6 +43,8 @@ export type Submission = {
   // The member answering a team form (never for a public one).
   respondent: Member | null;
   language: string;
+  // What the form's link gave for its hidden fields (form.hiddenFields).
+  hidden?: unknown;
   // Turns a file sent with the answer into the tool's own object (claimed
   // and checked): lib/uploads.ts.
   files: (ref: FileRef, question: Question) => Promise<StoredFile>;
@@ -57,7 +59,10 @@ export async function submit(sql: Sql, s: Submission): Promise<{ answer: Answer;
   const { form } = s;
   if (form.audience === "team" && (!s.respondent || !can(s.respondent, "forms.answer"))) throw new AppError("not_found");
   if (form.audience === "public" && s.respondent) throw new AppError("invalid");
-  const version = typeof s.version === "number" && Number.isInteger(s.version) && s.version >= 1 && s.version <= form.version ? s.version : form.version;
+  // The version the page answered — on an anonymous form, always the
+  // latest (its versions differ only in words: lib/forms.ts publish), so
+  // no answer says it came from a page opened before a change.
+  const version = !form.anonymous && typeof s.version === "number" && Number.isInteger(s.version) && s.version >= 1 && s.version <= form.version ? s.version : form.version;
   const def = await versionOf(sql, form.id, version);
   if (!def) throw new AppError("not_found");
   if (!openState(form).open) throw new AppError(openState(form).reason === "full" ? "full" : "closed");
@@ -103,18 +108,21 @@ export async function submit(sql: Sql, s: Submission): Promise<{ answer: Answer;
       // The limit, counted in the same statement that takes the place.
       const [counted] = await tx`
         update forms set answer_count = answer_count + 1, bell_pending = true
-        where id = ${form.id} and (max_answers is null or answer_count < max_answers)
+        where id = ${form.id} and answer_count < least(coalesce(max_answers, ${limits.maxAnswers}), ${limits.maxAnswers})
         returning answer_count`;
       if (!counted) throw new AppError("full");
       await tx`update watchers set unseen = unseen + 1 where form_id = ${form.id}`;
       const id = newAnswerId();
       if (now.anonymous) {
-        await anonymous(tx, form.id, { id, version, data: answers, language: s.language }, member!);
-        return { id, version, respondent: null, email: null, data: answers, createdAt: null, month: "", language: s.language, status: "new", note: "", handledAt: null, sent: [] } satisfies Answer;
+        // The form's own language, never the reader's: a French answer
+        // among English colleagues would name its author.
+        const language = def.language ?? "en";
+        await anonymous(tx, form.id, { id, version, data: answers, language }, member!);
+        return { id, version, respondent: null, email: null, data: answers, createdAt: null, month: "", language, status: "new", note: "", handledAt: null, sent: [], hidden: {} } satisfies Answer;
       }
       const [kept] = await tx<Row[]>`
-        insert into answers (id, form_id, version, respondent, email, data, created_at, month, language)
-        values (${id}, ${form.id}, ${version}, ${now.audience === "team" ? member : null}, ${email}, ${tx.json(answers as never)}, now(), date_trunc('month', now())::date, ${s.language})
+        insert into answers (id, form_id, version, respondent, email, data, created_at, month, language, hidden)
+        values (${id}, ${form.id}, ${version}, ${now.audience === "team" ? member : null}, ${email}, ${tx.json(answers as never)}, now(), date_trunc('month', now())::date, ${s.language}, ${tx.json(hiddenValues(now.hiddenFields, s.hidden) as never)})
         returning ${tx.unsafe(answerColumns)}`;
       return toAnswer(kept!);
     });
@@ -144,7 +152,7 @@ async function anonymous(tx: Query, formId: string, a: { id: string; version: nu
   await tx`
     with gone as (delete from answers where form_id = ${formId} returning id, version, data, month, language, deleted_at)
     insert into answers (id, form_id, version, respondent, email, data, created_at, month, language, deleted_at)
-    select id, ${formId}, version, null, null, data, null, month, language, deleted_at from (
+    select id, ${formId}, version, null, null, data, null, month, ${a.language}::text, deleted_at from (
       select id, version, data, month, language, deleted_at from gone
       union all
       select ${a.id}::text, ${a.version}::int, ${tx.json(a.data as never)}::jsonb, date_trunc('month', now())::date, ${a.language}::text, null::timestamptz

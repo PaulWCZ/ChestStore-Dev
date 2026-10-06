@@ -1,5 +1,7 @@
 import { Island } from "@argentic/chest-app";
-import { format } from "../i18n/index.ts";
+import { publicLimits } from "../lib/flood.ts";
+import { copyLimits } from "../lib/mailer.ts";
+import { format, number } from "../i18n/index.ts";
 import { atLeast } from "../lib/access.ts";
 import { open, team, versionOf } from "../lib/forms.ts";
 import { hooksOf } from "../lib/hooks.ts";
@@ -9,7 +11,7 @@ import { nameOf, people } from "../lib/people.ts";
 import { contactSlots, guessRoutes, requestSlots } from "../lib/routes.ts";
 import { ownLook, publicLook, teamLook } from "../lib/theme.ts";
 import type { RouteChoices } from "../islands/Settings.tsx";
-import { allQuestions, readIn } from "../shared/model.ts";
+import { allQuestions, limits, readIn } from "../shared/model.ts";
 import { zonedParts } from "../shared/zone.ts";
 import type { Ctx } from "./context.ts";
 import { FormFrame } from "./form-frame.tsx";
@@ -57,10 +59,11 @@ export async function settingsPage({ sql, member, t, lang, zone, param }: Ctx) {
           cover,
           initial: {
             audience: form.audience, anonymous: form.anonymous, once: form.once, tellTeam: form.tellTeam, layout: form.layout, accent: form.accent,
-            closesDay: closes?.day ?? "", closesHour: closes?.hour ?? 18, maxAnswers: form.maxAnswers === null ? "" : String(form.maxAnswers),
+            closesDay: closes?.day ?? "", closesHour: closes?.hour ?? 18, maxAnswers: form.maxAnswers === null ? "" : String(Math.min(form.maxAnswers, limits.maxAnswers)),
             thanksTitle: form.thanksTitle, thanksBody: form.thanksBody, redirectUrl: form.redirectUrl ?? "", sendCopy: form.sendCopy,
             retentionMonths: form.retentionMonths === null ? "" : String(form.retentionMonths), watchers,
             notifyEmail: form.notifyEmail, shareEvents: form.shareEvents, routes: form.routes,
+            kiosk: form.kiosk, hiddenFields: form.hiddenFields.join(", "),
           },
           routeChoices,
           anonymityLocked: taken,
@@ -70,6 +73,7 @@ export async function settingsPage({ sql, member, t, lang, zone, param }: Ctx) {
           locale: lang,
           today: zonedParts(new Date(), zone).day,
           own: ownLook(look),
+          budget: { answers: number(publicLimits.answers.perSubject, lang), reaching: number(publicLimits.reaching.perSubject, lang), files: number(publicLimits.files.perSubject, lang), copies: number(copyLimits.perHour, lang), cap: number(limits.maxAnswers, lang) },
           t: { s: t.settings, errors: t.errors, b: t.builder, date: t.kit.date, dialog: t.kit.dialog },
         }} />
       </FormFrame>

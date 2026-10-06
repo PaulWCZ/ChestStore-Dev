@@ -20,7 +20,7 @@ type Values = {
   audience: Audience; anonymous: boolean; once: boolean; tellTeam: boolean; layout: Layout; accent: Accent;
   closesDay: string; closesHour: number; maxAnswers: string; thanksTitle: string; thanksBody: string; redirectUrl: string;
   sendCopy: boolean; retentionMonths: string; watchers: string[]; notifyEmail: boolean; shareEvents: boolean;
-  routes: Routes;
+  routes: Routes; kiosk: boolean; hiddenFields: string;
 };
 // The questions that may give each piece of a contact or a ticket
 // (lib/routes.ts contactSlots, requestSlots), written by the server.
@@ -52,6 +52,9 @@ type Props = {
   links: { contact: "linked" | "not_linked" | "not_installed"; request: "linked" | "not_linked" | "not_installed" };
   // The form's web addresses (src/components/hooks-box.tsx), placed after the links.
   hooks: { delivery: "ready" | "not_granted" | "suspended" | "unknown"; list: FormHook[] };
+  // A public form's budgets a day (src/lib/flood.ts) and copies an hour
+  // (src/lib/mailer.ts), said where they apply.
+  budget: { answers: string; reaching: string; files: string; copies: string; cap: string };
   t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"]; date: DateWords; dialog: DialogWords };
 };
 type SaveState = "saved" | "saving" | "error" | "held";
@@ -195,6 +198,7 @@ export function Settings(p: Props) {
           {whoChoice("team", <Users />, s.whoTeam, s.whoTeamHint)}
           {whoChoice("anonymous", <Mask />, s.whoAnonymous, s.whoAnonymousHint)}
         </div>
+        {v.audience === "public" && <p className="hint">{format(s.publicBudget, { answers: p.budget.answers, reaching: p.budget.reaching, files: p.budget.files })}</p>}
         {p.anonymityLocked && <p className="hint">{s.anonymousLocked}</p>}
         {p.hasFiles && !v.anonymous && <p className="hint">{p.t.errors.anonymous_files}</p>}
         {v.audience === "team" && !v.anonymous && (
@@ -260,9 +264,11 @@ export function Settings(p: Props) {
         {v.closesDay && <p className="hint">{p.zoneNote}</p>}
         <label className="mini inline">
           <span className="mini-label">{s.limit}</span>
-          <input className="field number" inputMode="numeric" value={v.maxAnswers} placeholder={s.limitNone} onChange={e => /^\d{0,6}$/u.test(e.target.value) && set("maxAnswers", e.target.value)} />
+          <input className="field number" inputMode="numeric" value={v.maxAnswers} placeholder={s.limitNone} onChange={e => /^\d{0,5}$/u.test(e.target.value) && set("maxAnswers", e.target.value)} />
           <span className="suffix">{s.limitSuffix}</span>
         </label>
+        <p className="hint">{format(s.limitCap, { max: p.budget.cap })}</p>
+        <Switch label={s.kiosk} hint={s.kioskHint} checked={v.kiosk} onChange={on => set("kiosk", on)} />
       </fieldset>
 
       <fieldset className="panel" disabled={ro}>
@@ -280,7 +286,7 @@ export function Settings(p: Props) {
           <input className="field" type="url" inputMode="url" value={v.redirectUrl} maxLength={2000} placeholder={s.redirectPlaceholder} onChange={e => set("redirectUrl", e.target.value)} />
         </label>
         {v.anonymous ? <p className="hint">{s.sendCopyAnonymous}</p> : (
-          <><Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.routes.request && p.links.request === "linked" ? s.supportConfirms : v.audience === "public" ? s.sendCopyHint : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
+          <><Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.routes.request && p.links.request === "linked" ? s.supportConfirms : v.audience === "public" ? format(s.sendCopyHint, { perHour: p.budget.copies }) : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
             {v.sendCopy && mailNotice && !(v.routes.request && p.links.request === "linked") && <p className="notice">{s.copyOff}</p>}</>
         )}
       </fieldset>
@@ -331,6 +337,17 @@ export function Settings(p: Props) {
       </fieldset>
 
       <HooksBox formId={p.formId} delivery={p.hooks.delivery} hooks={p.hooks.list} anonymous={v.anonymous} canEdit={p.canEdit} t={{ s, dialog: p.t.dialog }} />
+
+      {!v.anonymous && (
+        <fieldset className="panel" disabled={ro}>
+          <legend>{s.hidden}</legend>
+          <label className="mini block">
+            <span className="mini-label">{s.hiddenLabel}</span>
+            <input className="field" value={v.hiddenFields} maxLength={400} placeholder={s.hiddenPlaceholder} spellCheck={false} autoCapitalize="none" onChange={e => set("hiddenFields", e.target.value)} />
+          </label>
+          <p className="hint">{s.hiddenHint}</p>
+        </fieldset>
+      )}
 
       <fieldset className="panel" disabled={ro}>
         <legend>{s.privacy}</legend>

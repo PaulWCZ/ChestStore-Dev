@@ -6,8 +6,8 @@ import { getSetting, putSetting } from "./settings.ts";
 
 // The company's websites allowed to show the public forms inside their own
 // pages (an iframe), which a manager lists on a form's Share tab: they
-// become the public pages' frame-ancestors (proxy.ts). The team's pages
-// are never framed.
+// become the public pages' frame-ancestors (src/app.tsx, framed()). The
+// team's pages are never framed.
 //
 // On a Chest today this is not enough: the Chest's front adds its own
 // `frame-ancestors 'none'` to every public response (the contract's floor
@@ -50,11 +50,10 @@ export async function saveSites(sql: Query, actor: Member | null, value: unknown
   return list;
 }
 
-// Read from the database for every public page's policy (proxy.ts), never
-// kept in the process: Next.js runs proxy.ts in its own module instance,
-// apart from the server actions, so a copy kept here could not be told of a
-// change and a newly allowed website would be refused until it expired.
-// One row by its key: as cheap as a query gets.
+// Read from the database for every public form's page (src/app.tsx,
+// framed()), never kept in the process: a newly allowed website works at
+// once, and two processes never disagree. One row by its key: as cheap as
+// a query gets.
 export async function embedOrigins(sql: Query = db()): Promise<string[]> {
   try {
     return await embedSites(sql);

@@ -9,7 +9,7 @@
 //   sends to its page (always a later one) or to the end; none, the next
 //   page;
 // - an answer to a question that was not asked is dropped, never stored.
-import { END, limits, manyPicks, withOptions, type Condition, type Definition, type Page, type Question } from "./model.ts";
+import { END, clausesOf, limits, manyPicks, withOptions, type Clause, type Condition, type Definition, type Page, type Question } from "./model.ts";
 
 // What an answer is, once read:
 // short, long, email, phone → string; number → number; choice, choices,
@@ -43,7 +43,15 @@ export function has(value: Value | undefined): boolean {
 
 const lower = (s: string) => s.toLocaleLowerCase().normalize("NFKD").replace(/[̀-ͯ]/gu, "").trim();
 
-export function matches(c: Condition, answers: Answers): boolean {
+// matches: a rule against the answers — its one comparison, or all (or
+// any) of the ones it joins.
+export function matches(rule: Condition, answers: Answers): boolean {
+  if (!rule.more || rule.more.length === 0) return holds(rule, answers);
+  const all = clausesOf(rule);
+  return rule.join === "any" ? all.some(c => holds(c, answers)) : all.every(c => holds(c, answers));
+}
+
+function holds(c: Clause, answers: Answers): boolean {
   const v = answers[c.question];
   if (c.op === "answered") return has(v);
   if (c.op === "empty") return !has(v);
@@ -112,8 +120,12 @@ export type AnswerError = "required" | "invalid" | "too_short" | "too_long" | "t
 
 const emailPattern = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
 const chars = (s: string) => [...s].length;
-const oneLine = (s: string) => s.replace(/\s+/gu, " ").replace(/\p{Cc}/gu, "").trim();
-const lines = (s: string) => s.replace(/\r\n?/gu, "\n").replace(/[^\P{Cc}\n\t]/gu, "").trim();
+// Control characters go, and the invisible format ones (\p{Cf}: bidi
+// overrides that turn a text around, zero-width spaces that hide words)
+// — all but the joiner that holds an emoji together (U+200D).
+const invisible = /(?!\u200d)\p{Cf}/gu;
+const oneLine = (s: string) => s.replace(/\s+/gu, " ").replace(/\p{Cc}/gu, "").replace(invisible, "").trim();
+const lines = (s: string) => s.replace(/\r\n?/gu, "\n").replace(/[^\P{Cc}\n\t]/gu, "").replace(invisible, "").trim();
 
 export function validDate(text: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(text);
@@ -261,6 +273,21 @@ export function answerText(q: Question, v: Value | undefined, words: { yes: stri
   if (isGrid(v)) return (q.rows ?? []).filter(r => v.rows[r.id]).map(r => `${r.label}: ${label(v.rows[r.id]!)}`).join("; ");
   if (typeof v === "object") return filesIn(v).map(f => f.name).join(", ");
   return String(v);
+}
+
+// recall: a text with {name} in it says the answer to the question of that
+// name in links (or what the link gave a hidden field of that name):
+// "Thanks, {first_name}!". A name nothing answers yet says nothing; braces
+// around anything else stay as written.
+const recallPattern = /\{([a-z][a-z0-9_]{0,29})\}/gu;
+export function recall(text: string, def: Definition, answers: Answers, words: { yes: string; no: string; other: string }, hidden: Readonly<Record<string, string>> = {}): string {
+  if (!text.includes("{")) return text;
+  const byKey = new Map(def.pages.flatMap(p => p.questions).filter(q => q.key).map(q => [q.key!, q]));
+  return text.replace(recallPattern, (whole: string, key: string) => {
+    const q = byKey.get(key);
+    if (q) return q.kind === "file" ? "" : answerText(q, answers[q.id], words);
+    return Object.hasOwn(hidden, key) ? hidden[key]! : whole;
+  });
 }
 
 // prefill reads the link's parameters (?<question id>=value) into answers a
