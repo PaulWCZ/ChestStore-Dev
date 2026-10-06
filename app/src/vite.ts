@@ -1,5 +1,8 @@
 import { themeCss } from "@argentic/chest-ui";
 import type { Theme } from "@argentic/chest-ui/contract";
+import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 import { defineConfig, type BuildEnvironmentOptions, type Plugin, type UserConfig } from "vite";
 
 // The tool's vite.config.ts:
@@ -40,8 +43,34 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
     resolveId: id => (id === "virtual:look.css" ? "\0look.css" : null),
     load: id => (id === "\0look.css" ? (theme ? themeCss(theme, { fontBase: "/assets/fonts" }) : "") : null),
   };
+  // The browser's files compressed once, at build: client-<hash>.js.br and
+  // .gz beside each, served by Accept-Encoding (the Chest's front does not
+  // compress). In development, none (a stale .br would hide a rebuild).
+  const precompress = (development: boolean): Plugin => ({
+    name: "chest-precompress",
+    apply: "build",
+    closeBundle() {
+      const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
+      let files: string[];
+      try {
+        files = walk("dist/client");
+      } catch {
+        return;
+      }
+      for (const file of files) {
+        if (/\.(br|gz)$/u.test(file)) {
+          if (development) rmSync(file);
+          continue;
+        }
+        if (development || !/\.(js|mjs|css|svg|json|txt|map)$/u.test(file) || statSync(file).size < 1024) continue;
+        const bytes = readFileSync(file);
+        writeFileSync(`${file}.gz`, gzipSync(bytes, { level: 9 }));
+        writeFileSync(`${file}.br`, brotliCompressSync(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 11, [constants.BROTLI_PARAM_SIZE_HINT]: bytes.length } }));
+      }
+    },
+  });
   return defineConfig(({ isSsrBuild, mode }) => ({
-    plugins: [look],
+    plugins: isSsrBuild ? [look] : [look, precompress(mode === "development")],
     // The JSX runtime and React's build follow the Vite mode, never the
     // shell's NODE_ENV (the Perseus workbench sets development: a build's
     // JSX must still be the production runtime its React provides).

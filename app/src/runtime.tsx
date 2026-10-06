@@ -25,8 +25,13 @@ export function startIslands(islands: Record<string, ComponentType<never>>, reac
   dom = reactDom;
   for (const node of document.body.childNodes) served.add(node);
   for (const el of document.querySelectorAll("[data-island]")) mount(el);
-  // Back and Forward between addresses navigate() made: the page follows.
-  addEventListener("popstate", () => void refresh());
+  // Back and Forward between addresses navigate() made: the page follows,
+  // at the scroll it was left at.
+  history.scrollRestoration = "manual";
+  addEventListener("popstate", event => {
+    const scroll = (event.state as { scroll?: number } | null)?.scroll ?? 0;
+    void refresh().then(shown => { if (shown) scrollTo(0, scroll); });
+  });
 }
 // Each island is a root of its own, with the id prefix the server used.
 // On load its HTML is hydrated. An island a refresh or a navigation brings
@@ -100,8 +105,11 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     return false;
   }
   const next = new DOMParser().parseFromString(html, "text/html");
-  if (push === "push") history.pushState(null, "", response.url);
-  else if (push === "replace" || response.redirected) history.replaceState(null, "", response.url);
+  // The page left keeps its scroll in its history entry (Back finds it).
+  if (push === "push") {
+    history.replaceState({ scroll: scrollY }, "");
+    history.pushState({ scroll: 0 }, "", response.url);
+  } else if (push === "replace" || response.redirected) history.replaceState({ scroll: scrollY }, "", response.url);
   document.title = next.title;
   const focused = document.activeElement;
   attributes(document.body, next.body);
@@ -136,7 +144,31 @@ export async function navigate(to: string, { replace = false, top = true }: { re
   if (!(await load(target.href, replace ? "replace" : "push"))) return;
   if (!top) return;
   scrollTo(0, 0);
-  document.getElementById("main")?.focus({ preventScroll: true });
+  // Focus at the new page's start: a screen reader reads its heading.
+  const main = document.getElementById("main");
+  const heading = main?.querySelector<HTMLElement>("h1");
+  if (heading) {
+    if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
+    heading.focus({ preventScroll: true });
+  } else main?.focus({ preventScroll: true });
+}
+
+// The links between pages of the same part go through navigate() (start()
+// listens): no page load, the layout's islands kept (a toast's Undo).
+// A link stays a plain page load when: another site or part, a target or
+// download, a modifier key or another button, a link to a place on the
+// same page (#…), a file of /assets/, or data-reload on the link (or an
+// ancestor) — the opt-out.
+export function intercepts(event: MouseEvent): HTMLAnchorElement | null {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
+  const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+  if (!link || link.closest("[data-reload]") || link.hasAttribute("download") || (link.target && link.target !== "_self")) return null;
+  const to = new URL(link.href, location.href);
+  const members = (path: string) => path.split("/")[1]?.toLowerCase() === "chest";
+  if (to.origin !== location.origin || members(to.pathname) !== members(location.pathname)) return null;
+  if (to.pathname.startsWith("/assets/") || to.pathname.startsWith("/lang/")) return null;
+  if (to.hash && to.pathname === location.pathname && to.search === location.search) return null;
+  return link;
 }
 
 // A link's onClick that navigates in place (a click with a modifier or the
@@ -196,7 +228,17 @@ function update(node: ChildNode, incoming: ChildNode): void {
   const root = roots.get(node);
   if (root) {
     // An island: React owns its inside; it gets its new props.
-    if (node.getAttribute("data-props") !== before) root.render(createElement(registry[node.getAttribute("data-island")!]!, propsOf(node)));
+    if (node.getAttribute("data-props") !== before) {
+      const props = propsOf(node) as { id?: unknown };
+      // The same island, at the same place, now about another thing: its
+      // state (a draft, an open menu) belongs to the old one. Give the
+      // island an id ("card-" + id) so it is replaced instead.
+      if (process.env.NODE_ENV === "development" && before && !node.id) {
+        const old = JSON.parse(before) as { id?: unknown };
+        if (old.id !== undefined && old.id !== props.id) console.warn(`chest-app: the island ${node.getAttribute("data-island")} now shows id ${String(props.id)} instead of ${String(old.id)} but kept its state: give it an id, <Island id={"…-" + id} …/>`);
+      }
+      root.render(createElement(registry[node.getAttribute("data-island")!]!, props as object));
+    }
     return;
   }
   children(node, incoming as Element);
@@ -211,7 +253,7 @@ type In<A> = A extends Action<infer F, unknown> ? SentOf<F> : never;
 type Out<A> = A extends { run(...args: never[]): Promise<infer R> } ? R : never;
 type Name = Extract<keyof RegisteredActions, string>;
 
-export function call<N extends Name>(name: N, input: In<RegisteredActions[N]>, options: { refresh?: boolean; quiet?: boolean; at?: string } = {}): Promise<Outcome<Out<RegisteredActions[N]>>> {
+export function call<N extends Name>(name: N, input: In<RegisteredActions[N]>, options: { refresh?: boolean; quiet?: boolean; at?: string; parallel?: boolean } = {}): Promise<Outcome<Out<RegisteredActions[N]>>> {
   const members = location.pathname.split("/")[1]?.toLowerCase() === "chest";
   const base = options.at !== undefined ? options.at.replace(/\/$/u, "") : members ? "/chest" : "";
   return send(`${base}/actions/${name}`, { "content-type": "application/json" }, JSON.stringify(input), options);
@@ -219,7 +261,18 @@ export function call<N extends Name>(name: N, input: In<RegisteredActions[N]>, o
 
 // What call() and the enhanced forms share: the request, its outcome, the
 // redirect or the refresh, the toast. Never throws.
-export async function send<T>(url: string, headers: Record<string, string>, body: BodyInit, options: { refresh?: boolean; quiet?: boolean } = {}): Promise<Outcome<T> & { redirect?: string }> {
+// Actions are sent one at a time, in the order asked (as Next.js's server
+// actions were): two that read then write (a position, a count) never
+// interleave. parallel: true sends one at once, for calls that touch
+// nothing in common (a search, a preview).
+let queue: Promise<unknown> = Promise.resolve();
+export function send<T>(url: string, headers: Record<string, string>, body: BodyInit, options: { refresh?: boolean; quiet?: boolean; parallel?: boolean } = {}): Promise<Outcome<T> & { redirect?: string }> {
+  if (options.parallel) return sendNow<T>(url, headers, body, options);
+  const next = queue.then(() => sendNow<T>(url, headers, body, options));
+  queue = next.catch(() => undefined);
+  return next;
+}
+async function sendNow<T>(url: string, headers: Record<string, string>, body: BodyInit, options: { refresh?: boolean; quiet?: boolean }): Promise<Outcome<T> & { redirect?: string }> {
   let outcome: Outcome<T> & { redirect?: string };
   sending++;
   try {

@@ -71,6 +71,24 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   a list); `useAutoRefresh(refresh, 30)` (kit) on a timer. A navigation is
   never lost to a refresh or an action on its way; an island it brings is
   live the moment it shows.
+- **Links** between pages of the same part go in place too (`start()`
+  intercepts a plain click on `<a href>`): no page load, the layout's
+  islands kept (a toast's Undo), focus on the new page's `<h1>`, Back and
+  Forward restoring the page and its scroll. A link stays a page load for
+  another part or site, a `target`, a `download`, a modifier key, a `#`
+  on the same page, `/assets/`, or `data-reload` on the link or an
+  ancestor (the opt-out: a page that must start afresh).
+- **Actions run one at a time**, in the order asked, from `call()` and
+  from forms (as Next.js's server actions did): two that read then write
+  (a position, a count) never interleave. `call(name, input, { parallel:
+  true })` for one that touches nothing in common (a search, a preview).
+  Rules that compute from existing rows must still be safe in SQL: two
+  people act at once too (`db().begin(…)` with a lock, or a unique
+  constraint).
+- **Compressed**: pages, JSON and downloads of 1 KiB and more are gzipped
+  as they go; the browser's files are compressed at build (`.br`, `.gz`
+  beside each, served by `Accept-Encoding`). The Chest's front compresses
+  nothing itself.
 - **Refusals are codes**, one way everywhere: `fail("not_found")`,
   `fail("too_long", { max })`; each code is a sentence in `t.errors`. In an
   action the caller gets the code and the sentence; in a page,
@@ -262,6 +280,8 @@ The SDK's `fakeChest`, `withMember` sign the member.
 
 | Symptom | Cause |
 |---|---|
+| An island shows a new thing with the old one's state (a draft, an open menu) after a refresh or a navigation | Same island, same place, other subject: give it an id, `<Island id={"card-" + card.id} …/>` (in development the browser warns when a prop `id` changes under an island without one) |
+| Two quick actions reorder rows | Calls with `parallel: true`, or two people at once: serialise in SQL (a transaction with a lock) |
 | TS7022/TS7024: `actions` "implicitly has type any" | A cycle through `Register`: an action's inferred type depends on `t` or on `fail()` in an expression. Annotate its run's return type (`async (…): Promise<{ id: string }> => …`) |
 | A migration's `create extension` fails in the tests on PGlite | Give `testDatabase({ extensions: ["unaccent", "pg_trgm"] })`, or use a server |
 | 401 on `/chest` locally | No Chest: run in the Chest's preview, or test with `fakeChest` |

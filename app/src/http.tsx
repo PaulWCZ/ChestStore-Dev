@@ -6,6 +6,7 @@ import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { compress } from "hono/compress";
 import { getCookie, setCookie } from "hono/cookie";
 import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
@@ -293,6 +294,8 @@ function stylesheet(c: Context, css: string) {
 // them. call(name, input, { at: "/p/abc" }) sends there.
 export const publicActionsAt = () => (c: Context<Env>) => runAction(c, false);
 
+const gzip = compress({ encoding: "gzip", threshold: 1024 });
+
 export function createApp(options: AppOptions) {
   const app = new Hono<Env>();
   app.use(async (c, next) => {
@@ -319,6 +322,11 @@ export function createApp(options: AppOptions) {
     }
   });
 
+  // Pages, JSON and downloads of 1 KiB and more, gzipped as they are sent
+  // (the Chest's front does not compress); the browser's files are
+  // compressed at build (chestConfig) and served as they are.
+  app.use(async (c, next) => (c.req.path.startsWith("/assets/") ? next() : gzip(c, next)));
+
   // The browser's files (dist/client/assets, from src/ and public/assets/):
   // linked with ?v=…, or named by their hash (the script, its chunks),
   // they never change; any other, an hour.
@@ -327,7 +335,7 @@ export function createApp(options: AppOptions) {
   app.use("/assets/*", async (c, next) => {
     await next();
     if (c.res.ok) c.res.headers.set("Cache-Control", c.req.query("v") || hashed.test(c.req.path) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
-  }, serveStatic({ root: "./dist/client" }));
+  }, serveStatic({ root: "./dist/client", precompressed: true }));
 
   // The members' part: the Chest asserts who asks on every request
   // (member(): the only source of identity); without it, 401.
