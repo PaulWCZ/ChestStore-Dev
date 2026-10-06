@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { today } from "../src/shared/model.ts";
 import { addDays, firstDue, nextDue, occurs, parseRepeat, suggest, weekday } from "../src/shared/repeat.ts";
 

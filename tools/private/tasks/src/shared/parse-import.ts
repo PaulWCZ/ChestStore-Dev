@@ -1,5 +1,5 @@
 import { parseCsv } from "./csv.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app/client";
 import { colors, limits, type Color } from "./model.ts";
 
 // Reading another tool's export into one neutral shape: pure, so the page

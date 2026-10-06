@@ -1,7 +1,8 @@
+import { localeOf } from "../i18n/index.ts";
 import { Back } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { AppError, notFound } from "../core/tool.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { AppError, notFound } from "@argentic/chest-app";
 import { boardAudience, groupsOfTool } from "../lib/audience.ts";
 import { board as readBoard, columns as readColumns, fields as readFields, labels as readLabels } from "../lib/boards.ts";
 import { boardCards } from "../lib/cards.ts";
@@ -11,7 +12,8 @@ import { nameOf, people } from "../lib/people.ts";
 // A board's settings: name and colour, who sees it, labels, fields, what
 // was archived, export, archive and delete. Owners and managers change
 // them; others read them.
-export async function settingsPage({ member, locale, t, param }: PageContext): Promise<View> {
+export async function settingsPage({ member, locale: language, t, param }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   const sql = db();
   const b = await readBoard(sql, member, param("id")).catch((error: unknown) => (error instanceof AppError && error.code === "not_found" ? notFound() : Promise.reject(error)));
   const own = b.access === "own";

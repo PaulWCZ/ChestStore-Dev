@@ -1,7 +1,7 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { identityOf, type Theme } from "@argentic/chest-ui";
-import { lookCss, resolveTheme, type Look } from "@argentic/chest-ui/runtime";
-import { log } from "./core/log.ts";
+import { log, type Look as PageLook } from "@argentic/chest-app";
+import { lookColors, lookCss, resolveTheme, type Look } from "@argentic/chest-ui/runtime";
 
 // The tool's own identity (DESIGN.md), "Workshop": warm paper, ink
 // outlines, sun yellow, hard shadows. It is the catalogue's own "workshop"
@@ -30,8 +30,11 @@ export async function currentLook(): Promise<Look> {
 }
 export const ownLook = (): Look => resolveTheme(null, identity, { ownFonts: fontBase });
 
-// The stylesheet of a look (src/app.tsx serves it at /chest/look.css and
-// /look.css): a file, never an inline <style>, so the strictest policy
-// admits it. Its ETag is a hash of the text: the browser asks again with
-// each page and gets 304 while the look stays the same.
-export const lookSheet = (look: Look): string => lookCss(look);
+// The look of a page as createApp() serves it (/chest/look.css and
+// /look.css, linked with the hash of the sheet; the browser bar's colours;
+// in brand mode the company's logo, which the layout shows): a member's
+// page wears the company's choice, a page outside /chest the tool's own.
+export async function pageLook(member: boolean): Promise<PageLook> {
+  const look = member ? await currentLook() : ownLook();
+  return { css: lookCss(look), colors: lookColors(look), logo: look.logo };
+}

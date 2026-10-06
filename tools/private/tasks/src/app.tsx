@@ -1,8 +1,11 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import { NoAccess } from "@argentic/chest-ui/components";
-import { createApp, lookResponse, page, publicPage, type PageContext, type View } from "./core/http.tsx";
-import { AppError } from "./core/tool.ts";
+import { AppError, createApp, page, publicPage, type PageContext, type View } from "@argentic/chest-app";
+import { actions } from "./actions.ts";
+import { locales, words } from "./i18n/index.ts";
+import { islands } from "./islands/index.ts";
+import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { roleOf } from "./lib/access.ts";
 import { attachment } from "./lib/cards.ts";
 import { db } from "./lib/db.ts";
@@ -15,14 +18,22 @@ import { importPage } from "./pages/Import.tsx";
 import { myTasksPage } from "./pages/MyTasks.tsx";
 import { searchPage } from "./pages/Search.tsx";
 import { settingsPage } from "./pages/Settings.tsx";
-import { currentLook, lookSheet } from "./theme.ts";
+import { localeOf } from "./i18n/index.ts";
+import { pageLook } from "./theme.ts";
 
 // The tool's routes. createApp() already serves /assets/, the actions
-// (src/actions.ts), the member of every /chest request (with every group
-// of the Chest they are in: a private board may be shared with any,
-// lib/groups.ts), /look.css, /lang/<code>, the error pages, and answers 404
-// to anything else.
-export const app = createApp({ member: withGroups });
+// (src/actions.ts), the member of every /chest request — with every group
+// of the Chest they are in (complete: a private board may be shared with
+// any; lib/groups.ts keeps the answer a minute) —, the look the company
+// chose as a stylesheet (/chest/look.css; /look.css outside /chest),
+// /lang/<code>, the error pages, and answers 404 to anything else.
+export const app = createApp({
+  actions, islands, locales, words,
+  layouts: { members: MembersLayout, public: PublicLayout },
+  complete: withGroups,
+  look: viewer => pageLook(viewer.member !== null),
+  head: viewer => <><meta name="robots" content="noindex, nofollow" /><meta name="description" content={viewer.t.meta.tagline} /><link rel="icon" href="/assets/icon.svg" type="image/svg+xml" /></>,
+});
 
 // A page of Tasks: a member whose role gives nothing sees why (the layout
 // says it), and the page reads nothing.
@@ -38,15 +49,11 @@ app.get("/chest/cards/:id", tasks(cardAddress));
 app.get("/chest/search", tasks(searchPage));
 app.get("/chest/import", tasks(importPage));
 
-// The look the company chose for Tasks (or Tasks' own): a stylesheet, never
-// an inline <style>, so the page's policy needs nothing more.
-app.get("/chest/look.css", async c => lookResponse(c, lookSheet(await currentLook())));
-
 // Downloads. A board as a file: ?format=csv (a spreadsheet, in the reader's
 // words) or ?format=json (everything).
 app.get("/chest/boards/:id/export", tasks(async ({ member, t, locale, param, query }) => {
   const json = query("format") === "json";
-  const out = await (json ? boardJson(db(), member, param("id")) : boardCsv(db(), member, param("id"), t, locale)).catch(refused);
+  const out = await (json ? boardJson(db(), member, param("id")) : boardCsv(db(), member, param("id"), t, localeOf(locale))).catch(refused);
   if (out instanceof Response) return out;
   return download("csv" in out ? out.csv : out.json, fileName(out.name, json ? "json" : "csv"), json ? "application/json" : "text/csv");
 }));

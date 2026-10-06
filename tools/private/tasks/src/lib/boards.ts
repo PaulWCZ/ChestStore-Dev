@@ -4,7 +4,7 @@ import * as members from "@argentic/chest-sdk/members";
 import { atLeast, boardAccess, can, roleOf, type BoardAccess } from "./access.ts";
 import { chestToday } from "./clock.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { catalogue, locales, type Catalogue } from "../i18n/index.ts";
 import { clean, colors, groupPattern, id, isColor, isFieldKind, isTemplate, limits, memberIds, templates, type Color, type FieldKind, type Template } from "../shared/model.ts";
 import { between, isPosition, sequence } from "../shared/position.ts";

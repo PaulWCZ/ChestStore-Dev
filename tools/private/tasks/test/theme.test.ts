@@ -6,7 +6,7 @@ import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { checkTheme, identityOf, validateTheme } from "@argentic/chest-ui";
 import { fontFiles } from "@argentic/chest-ui/fonts";
-import { currentLook, identity, lookSheet, ownLook } from "../src/theme.ts";
+import { currentLook, identity, pageLook } from "../src/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -22,14 +22,15 @@ test("the identity is the catalogue's Workshop theme, exactly", () => {
   assert.equal(identity.id, "workshop");
 });
 
-test("its fonts are the tool's own files, served at /assets/fonts", () => {
+test("its fonts are the tool's own files, served at /assets/fonts", async () => {
   const present = new Set(readdirSync(join(root, "public", "assets", "fonts")));
   const needed = fontFiles([identity.fonts.display, identity.fonts.body, identity.fonts.mono, identity.fonts.accent]);
   assert.ok(needed.length > 0);
   for (const file of needed) assert.ok(present.has(file), file);
   // The tool's own look, as /look.css and /chest/look.css serve it.
-  assert.match(lookSheet(ownLook()), /url\(\/assets\/fonts\/space-grotesk-latin-wght-normal\.woff2\)/u);
-  assert.match(lookSheet(ownLook()), /url\(\/assets\/fonts\/inter-latin-wght-normal\.woff2\)/u);
+  const own = (await pageLook(false)).css;
+  assert.match(own, /url\(\/assets\/fonts\/space-grotesk-latin-wght-normal\.woff2\)/u);
+  assert.match(own, /url\(\/assets\/fonts\/inter-latin-wght-normal\.woff2\)/u);
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {

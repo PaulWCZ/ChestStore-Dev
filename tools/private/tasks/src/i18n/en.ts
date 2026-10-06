@@ -1,33 +1,29 @@
+import { en as kit } from "@argentic/chest-ui/components/logic";
+
 // English: the source catalogue, the default and the fallback. Every word the
 // tool shows is here, and in every other catalogue with the same keys
 // (test/i18n.test.ts). {name} marks a value filled by format(); an entry
 // with one/other is a plural (plural()).
 export const en = {
+  // The UI kit's own words (its shell, toasts, dialogs…).
+  kit,
+  tool: { name: "Tasks" },
+  pages: {
+    notFound: { title: "Nothing here", body: "This board or card does not exist, or you cannot see it." },
+    forbidden: { title: "Not allowed", body: "Your role does not allow this. Ask a manager of Tasks." },
+    failed: { title: "Something went wrong", body: "Try again in a moment. If it goes on, tell a manager of Tasks." },
+    signIn: "Sign in through your Chest to open this page.",
+    busy: "Still sending…",
+    language: "Language",
+    back: "Back to my tasks",
+  },
   meta: {
     lang: "en",
-    name: "Tasks",
     tagline: "Plan the team’s work, give it to someone, see what is late.",
-  },
-  http: {
-    signIn: "Sign in through your Chest to open this page.",
   },
   public: {
     title: "Tasks lives in your Chest",
     body: "Open it from your Chest’s home page, signed in with your work account.",
-    language: "Language",
-  },
-  notFound: {
-    title: "Nothing here",
-    body: "This board or card does not exist, or you cannot see it.",
-    back: "Back to my tasks",
-  },
-  forbidden: {
-    title: "Not allowed",
-    body: "Your role does not allow this. Ask a manager of Tasks.",
-  },
-  failed: {
-    title: "Something went wrong",
-    body: "Try again in a moment. If it goes on, tell a manager of Tasks.",
   },
   roles: {
     manager: "Manager",
@@ -667,6 +663,7 @@ export const en = {
     empty: "Write something first.",
     too_many: "Too many: {max} at most.",
     not_archived: "Archive it first.",
+    too_large: "Too large.",
     file_missing: "The file did not arrive. Try again.",
     file_too_large: "This file is too large (25 MB at most).",
     import_invalid: "This file is not one we can read. Check it is the export described above.",

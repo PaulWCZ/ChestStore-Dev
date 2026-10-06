@@ -32,10 +32,13 @@ export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; para
 export type View = { title: string; body: ReactNode };
 // What a layout gets: the viewer, the path, a refusal of a form sent
 // without JavaScript (notice), the page.
-export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; children: ReactNode };
+// look: the page's look when the tool gives one (createApp's look), else null.
+export type LayoutProps<V extends Viewer> = { viewer: V; path: string; notice: string | null; look: Look | null; children: ReactNode };
 // A look served as a stylesheet of its own (/chest/look.css, /look.css),
 // for a look that depends on the request; the browser bar's colours.
-export type Look = { css: string; colors?: readonly { media: string; color: string }[] };
+// logo: the company's (brand mode), for the layout to show beside the
+// tool's name.
+export type Look = { css: string; colors?: readonly { media: string; color: string }[]; logo?: { url: string; alt: string; dark?: string | null } | null };
 
 export type AppOptions = {
   // The tool's actions (src/actions.ts) and islands (src/islands/index.ts).
@@ -127,8 +130,8 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
       </head>
       <body>
         {viewer.member !== null
-          ? <Members viewer={viewer} path={c.req.path} notice={notice}>{view.body}</Members>
-          : <Public viewer={viewer} path={c.req.path} notice={notice}>{view.body}</Public>}
+          ? <Members viewer={viewer} path={c.req.path} notice={notice} look={look}>{view.body}</Members>
+          : <Public viewer={viewer} path={c.req.path} notice={notice} look={look}>{view.body}</Public>}
       </body>
     </html>,
   );

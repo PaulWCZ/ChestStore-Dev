@@ -1,32 +1,26 @@
+import { fr as kit } from "@argentic/chest-ui/components/logic";
 import type { Catalogue } from "./index.ts";
 
 // French: the second language, complete — the same keys as English.
 export const fr: Catalogue = {
+  kit,
+  tool: { name: "Tâches" },
+  pages: {
+    notFound: { title: "Rien ici", body: "Ce tableau ou cette carte n’existe pas, ou vous ne pouvez pas le voir." },
+    forbidden: { title: "Pas autorisé", body: "Votre rôle ne le permet pas. Demandez à un responsable de Tâches." },
+    failed: { title: "Un problème est survenu", body: "Réessayez dans un moment. Si cela continue, prévenez un responsable de Tâches." },
+    signIn: "Connectez-vous par votre Chest pour ouvrir cette page.",
+    busy: "Envoi en cours…",
+    language: "Langue",
+    back: "Retour à mes tâches",
+  },
   meta: {
     lang: "fr",
-    name: "Tâches",
     tagline: "Planifiez le travail de l’équipe, confiez-le, voyez ce qui est en retard.",
-  },
-  http: {
-    signIn: "Connectez-vous par votre Chest pour ouvrir cette page.",
   },
   public: {
     title: "Tâches se trouve dans votre Chest",
     body: "Ouvrez-le depuis l’accueil de votre Chest, connecté avec votre compte de travail.",
-    language: "Langue",
-  },
-  notFound: {
-    title: "Rien ici",
-    body: "Ce tableau ou cette carte n’existe pas, ou vous ne pouvez pas le voir.",
-    back: "Retour à mes tâches",
-  },
-  forbidden: {
-    title: "Pas autorisé",
-    body: "Votre rôle ne le permet pas. Demandez à un responsable de Tâches.",
-  },
-  failed: {
-    title: "Un problème est survenu",
-    body: "Réessayez dans un moment. Si cela continue, prévenez un responsable de Tâches.",
   },
   roles: {
     manager: "Responsable",
@@ -655,6 +649,7 @@ export const fr: Catalogue = {
     empty: "Écrivez d’abord quelque chose.",
     too_many: "Trop nombreux : {max} au plus.",
     not_archived: "Archivez-le d’abord.",
+    too_large: "Trop volumineux.",
     file_missing: "Le fichier n’est pas arrivé. Réessayez.",
     file_too_large: "Ce fichier est trop gros (25 Mo au plus).",
     import_invalid: "Nous ne savons pas lire ce fichier. Vérifiez qu’il s’agit bien de l’export décrit plus haut.",

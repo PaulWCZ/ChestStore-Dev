@@ -1,10 +1,10 @@
 import { EmptyState } from "@argentic/chest-ui/components";
 import { BoardTiles } from "../components/board-tiles.tsx";
 import { Calendar, Grid } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { after } from "../core/tool.ts";
-import { dayText, plural } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { after } from "@argentic/chest-app";
+import { dayText, plural, localeOf } from "../i18n/index.ts";
 import type { NewBoardWords } from "../islands/NewBoard.tsx";
 import type { TaskRow } from "../islands/TaskGroups.tsx";
 import { can } from "../lib/access.ts";
@@ -21,7 +21,8 @@ import { dueState, type DueState } from "../shared/model.ts";
 
 // Home: what is on my plate, across every board, by when it is due; and
 // my boards. The one obvious action: tick what is done.
-export async function myTasksPage({ member, locale, t }: PageContext): Promise<View> {
+export async function myTasksPage({ member, locale: language, t }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   const sql = db();
   const creates = can(member, "boards.create");
   const [boards, tasks, steps, reminder, emails, sharing, feed, delivery, preference] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), emailOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] }), calendarWorks(sql), mailState(), mailPreference(member.id)]);

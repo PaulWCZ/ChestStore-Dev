@@ -1,4 +1,4 @@
-import { ToastHost } from "../core/client.tsx";
+import { ToastHost } from "@argentic/chest-app/client";
 import { AutoRefresh } from "./AutoRefresh.tsx";
 import { BoardSettings } from "./BoardSettings.tsx";
 import { BoardView } from "./BoardView.tsx";

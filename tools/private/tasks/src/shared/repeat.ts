@@ -1,4 +1,4 @@
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app/client";
 
 // When a card repeats: plain rules, and the day the next one is due. Pure
 // (no database, no clock): the browser uses the shapes, the server the

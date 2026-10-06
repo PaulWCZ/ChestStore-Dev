@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { boardAudience } from "../src/lib/audience.ts";
 import * as boards from "../src/lib/boards.ts";
 import * as cards from "../src/lib/cards.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { forgetGroups, sharingGroups, withGroups } from "../src/lib/groups.ts";
 import { en } from "../src/i18n/en.ts";
 import { handlers } from "../src/lib/lifecycle.ts";

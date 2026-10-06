@@ -577,6 +577,9 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .brand { display: flex; align-items: center; gap: var(--space-2); font: var(--display-weight) var(--text-l) var(--font-display); letter-spacing: var(--display-tracking); color: var(--ink); text-decoration: none; }
 .public .brand svg { width: 48px; height: 48px; }
 .public .brand picture { display: block; }
+.public-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* A card the address named that is gone: said above the board. */
+.card-gone { margin: var(--space-3) var(--space-4) 0; }
 .page { max-width: 860px; margin: 0 auto; padding: var(--space-5) var(--space-4) var(--space-7); }
 .choice.small-choice { padding: var(--space-2) var(--space-3); }
 .row > .field.grow { min-width: 140px; width: auto; }

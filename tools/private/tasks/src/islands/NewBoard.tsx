@@ -2,7 +2,7 @@ import { Dialog, PeoplePicker } from "@argentic/chest-ui/components";
 import { localSearch, type Choice } from "@argentic/chest-ui/components/logic";
 import { useId, useMemo, useState, useTransition } from "react";
 import { Lock, Plus } from "../components/icons.tsx";
-import { call } from "../core/client.tsx";
+import { call } from "@argentic/chest-app/client";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 

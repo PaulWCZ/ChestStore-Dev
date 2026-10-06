@@ -1,7 +1,7 @@
 import { useState, useTransition } from "react";
 import { Lock, Upload } from "../components/icons.tsx";
-import { call } from "../core/client.tsx";
-import { AppError } from "../core/tool.ts";
+import { call } from "@argentic/chest-app/client";
+import { AppError } from "@argentic/chest-app/client";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue } from "../i18n/index.ts";
 import { arrange, fromCsv, fromTrello, importedCounts, type ImportedBoard } from "../shared/parse-import.ts";
@@ -144,7 +144,7 @@ export function Importer({ t, locale, doneName }: { t: Words; locale: string; do
             ))}
           </ul>
           {people && (people.found.length > 0 || people.missing.length > 0) && (
-            <div className="stack people-check">
+            <div className="stack">
               {people.found.length > 0 && <p>{plural(w.found, people.found.length, locale)} <span className="muted">{people.found.join(", ")}</span></p>}
               {people.missing.length > 0 && (
                 <p className="warn">{plural(w.missing, people.missing.length, locale)} <span className="muted">{people.missing.join(", ")}</span></p>

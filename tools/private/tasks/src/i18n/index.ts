@@ -1,4 +1,4 @@
-import type { DateWords } from "@argentic/chest-ui/components/logic";
+import type { DateWords, KitWords } from "@argentic/chest-ui/components/logic";
 import { en } from "./en.ts";
 import { dateFormat, format, numberFormat, plural } from "./format.ts";
 import { fr } from "./fr.ts";
@@ -18,7 +18,7 @@ export const languageNames: Record<Locale, string> = { en: "English", fr: "Fran√
 // except the UI kit's date words, which carry a date order and a first
 // day of the week (the kit's DateWords type).
 type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
-export type Catalogue = Shape<Omit<typeof en, "date">> & { readonly date: DateWords };
+export type Catalogue = Shape<Omit<typeof en, "date" | "kit">> & { readonly date: DateWords; readonly kit: KitWords };
 
 const catalogues: Record<Locale, Catalogue> = { en, fr };
 
@@ -29,8 +29,9 @@ export function isLocale(value: unknown): value is Locale {
 export function catalogue(locale: Locale): Catalogue {
   return catalogues[locale] ?? catalogues[defaultLocale];
 }
-// The starter's name for it.
-export const words = catalogue;
+// The words of a language the package names (any code: the tool's, else
+// English).
+export const words = (locale: string): Catalogue => catalogue(localeOf(locale));
 
 // A member's language (member.language: "fr", "de"‚Ä¶), narrowed to one the
 // tool speaks; English otherwise.

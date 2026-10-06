@@ -1,4 +1,4 @@
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app/client";
 
 // The rules of what a person writes, and the shapes pages receive. No
 // framework, no database: tested alone.

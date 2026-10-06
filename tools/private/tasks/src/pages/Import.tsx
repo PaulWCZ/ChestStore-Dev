@@ -1,10 +1,12 @@
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
+import { localeOf } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
 
 // Bring a board from Trello, Asana or a spreadsheet: the importer reads the
 // files in the browser to show what will come (an island).
-export function importPage({ member, locale, t }: PageContext): View {
+export function importPage({ member, locale: language, t }: PageContext): View {
+  const locale = localeOf(language);
   return {
     title: t.importer.title,
     body: (

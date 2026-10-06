@@ -1,8 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
-import { AppError, notFound, redirect } from "../core/tool.ts";
-import { dateFormat, dayText, format, formatDate, listFormat, plural, relative, type Catalogue, type Locale } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
+import { AppError, notFound, redirect } from "@argentic/chest-app";
+import { dateFormat, dayText, format, formatDate, listFormat, plural, relative, type Catalogue, type Locale, localeOf } from "../i18n/index.ts";
 import type { RepeatView, Target } from "../islands/CardPanel.tsx";
 import { boardAudience } from "../lib/audience.ts";
 import { board as readBoard, columnName, columns as readColumns, fields as readFields, labels as readLabels, listBoards } from "../lib/boards.ts";
@@ -17,7 +17,8 @@ import { addDays, nextDue, type Repeat } from "../shared/repeat.ts";
 // the card asked in the address (?card=…) open in a panel beside it. Both
 // are islands (the board's drag and drop, the card's changes); the page
 // writes every date and name on the server, in the reader's language.
-export async function boardPage({ member, locale, t, param, query, url }: PageContext): Promise<View> {
+export async function boardPage({ member, locale: language, t, param, query, url }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   const sql = db();
   const b = await readBoard(sql, member, param("id")).catch((error: unknown) => (error instanceof AppError && error.code === "not_found" ? notFound() : Promise.reject(error)));
   const [cols, labs, own, cards, audience] = await Promise.all([readColumns(sql, b.id, { words: t.templates.columns }), readLabels(sql, b.id), readFields(sql, b.id), boardCards(sql, b.id), boardAudience(b)]);

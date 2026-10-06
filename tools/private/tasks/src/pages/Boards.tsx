@@ -1,8 +1,9 @@
+import { localeOf } from "../i18n/index.ts";
 import { EmptyState } from "@argentic/chest-ui/components";
 import { BoardTiles } from "../components/board-tiles.tsx";
 import { Download, Grid, Upload } from "../components/icons.tsx";
-import type { PageContext, View } from "../core/http.tsx";
-import { Island } from "../core/island.tsx";
+import type { PageContext, View } from "@argentic/chest-app";
+import { Island } from "@argentic/chest-app";
 import { can } from "../lib/access.ts";
 import { askWho, sharingFor } from "../lib/audience.ts";
 import { listBoards } from "../lib/boards.ts";
@@ -10,7 +11,8 @@ import { db } from "../lib/db.ts";
 import { newBoardWords } from "./MyTasks.tsx";
 
 // Every board the member sees; the archived ones on demand.
-export async function boardsPage({ member, locale, t, query }: PageContext): Promise<View> {
+export async function boardsPage({ member, locale: language, t, query }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   const archived = query("archived") === "1";
   const creates = !archived && can(member, "boards.create");
   const [boards, sharing] = await Promise.all([listBoards(db(), member, { archived }), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] })]);

@@ -1,6 +1,6 @@
-import type { PageContext, View } from "../core/http.tsx";
-import { AppError } from "../core/tool.ts";
-import { plural } from "../i18n/index.ts";
+import type { PageContext, View } from "@argentic/chest-app";
+import { AppError } from "@argentic/chest-app";
+import { plural, localeOf } from "../i18n/index.ts";
 import { columnName } from "../lib/boards.ts";
 import { searchCards } from "../lib/cards.ts";
 import { db } from "../lib/db.ts";
@@ -9,7 +9,8 @@ import { db } from "../lib/db.ts";
 // comments, checklists or labels, on the boards I see; the archive too
 // when asked (each result then says it is archived). A plain form: it
 // works without a script.
-export async function searchPage({ member, locale, t, query }: PageContext): Promise<View> {
+export async function searchPage({ member, locale: language, t, query }: PageContext): Promise<View> {
+  const locale = localeOf(language);
   const q = (query("q") ?? "").trim().slice(0, 100);
   const archived = query("archived") === "1";
   let found: Awaited<ReturnType<typeof searchCards>> = [];

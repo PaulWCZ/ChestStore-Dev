@@ -3,7 +3,9 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { en as kit } from "@argentic/chest-ui/components/logic";
 import { createElement as h, useId } from "react";
-import { action, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { action, after as afterAnswer, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { applies, AppError as BrowserError } from "../dist/client.js";
+import { AppError } from "../dist/index.js";
 import { db } from "../dist/db.js";
 import { checkPage, testDatabase } from "../dist/testing.js";
 
@@ -26,10 +28,10 @@ const actions = {
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null),
 };
 let completed = 0;
-const layout = ({ notice, children }) => h("main", { id: "main" }, notice && h("p", { role: "alert" }, notice), children);
+const layout = ({ notice, look, children }) => h("main", { id: "main" }, look?.logo && h("img", { src: look.logo.url, alt: look.logo.alt }), notice && h("p", { role: "alert" }, notice), children);
 const app = createApp({
   actions, islands: { Labelled }, locales: ["en"], words: () => words, layouts: { members: layout, public: layout },
-  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }] }),
+  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: viewer.member ? { url: "/_chest/theme/brand/logo.svg", alt: "Atelier" } : null }),
   complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
 });
 app.post("/p/:link/actions/:name", publicActionsAt());
@@ -130,4 +132,37 @@ test("the log names the route, never the path or the query", async () => {
   assert.match(text, /route=\/p\/:link\/actions\/:name action=shout status=200/u);
   assert.match(text, /route=\/chest\/day status=200/u);
   assert.match(text, /route=\(none\) status=404/u);
+});
+
+test("the layout receives the look (a company's logo)", async () => {
+  assert.match(await (await get("/chest")).text(), /<img src="\/_chest\/theme\/brand\/logo.svg" alt="Atelier"\/>/u);
+  assert.doesNotMatch(await (await get("/", null)).text(), /<img/u);
+});
+
+test("after(): a task that throws before its first await is logged, never thrown", async () => {
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    afterAnswer("probe", () => { throw new Error("at once"); });
+    await new Promise(resolve => setTimeout(resolve, 20));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /^error "probe failed"/mu);
+});
+
+test("which page read is put in place: a navigation is never lost to a refresh or an action", () => {
+  const read = { ticket: 3, latest: 3, move: 1, moves: 1, settled: true, sending: 0 };
+  assert.equal(applies({ ...read, navigation: false }), true);
+  assert.equal(applies({ ...read, navigation: false, latest: 4 }), false, "a newer read is on its way");
+  assert.equal(applies({ ...read, navigation: false, moves: 2 }), false, "a navigation came since: this refresh read the old address");
+  assert.equal(applies({ ...read, navigation: false, sending: 1 }), false, "an action is on its way");
+  assert.equal(applies({ ...read, navigation: false, settled: false }), false, "an action was on its way when it started");
+  assert.equal(applies({ ...read, navigation: true, latest: 5, sending: 1, settled: false }), true, "the person's own click");
+  assert.equal(applies({ ...read, navigation: true, moves: 2 }), false, "but not a click followed by another");
+});
+
+test("a rule shared with the browser refuses with the server's own AppError", () => {
+  assert.equal(BrowserError, AppError);
 });

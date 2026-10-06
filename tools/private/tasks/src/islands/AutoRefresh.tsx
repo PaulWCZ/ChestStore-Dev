@@ -1,5 +1,5 @@
 import { useAutoRefresh } from "@argentic/chest-ui/components";
-import { refresh } from "../core/client.tsx";
+import { refresh } from "@argentic/chest-app/client";
 
 // The Chest has no WebSocket: a page others change reads itself again every
 // few seconds while it is visible, and at once when it becomes visible

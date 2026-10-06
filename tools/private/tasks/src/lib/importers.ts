@@ -3,7 +3,7 @@ import * as members from "@argentic/chest-sdk/members";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import { boardAccess, can } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { colors } from "../shared/model.ts";
 import { arrange, type ImportedBoard } from "../shared/parse-import.ts";
 import { sequence } from "../shared/position.ts";

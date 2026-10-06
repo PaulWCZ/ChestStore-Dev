@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as boards from "../src/lib/boards.ts";
 import * as cards from "../src/lib/cards.ts";
 import { parseCsv, toCsv } from "../src/shared/csv.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { arrange, dayOf, fromCsv, fromTrello, importBoard } from "../src/lib/importers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";

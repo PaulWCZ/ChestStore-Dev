@@ -22,7 +22,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { AvatarStack, Dialog, Menu, Segmented, type LinkComponent } from "@argentic/chest-ui/components";
 import { useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { Alert, Archive, Arrow, Back, Blocked, Calendar, Chat, Check, CheckList, Clip, Columns, Gear, ListIcon, Lock, Plus, RepeatIcon, Search, Sliders, Text, Timeline } from "../components/icons.tsx";
-import { call, navigate, onLinkClick, toast } from "../core/client.tsx";
+import { call, navigate, onLinkClick, toast } from "@argentic/chest-app/client";
 import { dayText, format, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { BoardAccess } from "../lib/access.ts";
@@ -56,9 +56,8 @@ type Props = {
   t: Words;
 };
 
-// A link of the board that changes only its query (a view, a month, a
-// card): the page changes in place, the board keeps its scroll.
-export const InPlace: LinkComponent = props => <a {...props} onClick={e => onLinkClick(e)} />;
+// A view of the board (its link in the address): the page changes in place,
+// from its top.
 const ToTop: LinkComponent = props => <a {...props} onClick={e => onLinkClick(e, { top: true })} />;
 
 // Cards and columns are both drag targets: their keys say which is which
@@ -75,7 +74,7 @@ const lanesOf = (columns: Column[], cards: CardSummary[]): Lanes => Object.fromE
 export function BoardView({ board, path, columns, labels, fields, cards, people, audience, me, today, locale, view, calendar, timeline, filter, t }: Props) {
   // The id of the cards' keyboard instructions (their aria-describedby):
   // the same on the server and in the browser (each island is a root of
-  // its own, with its own prefix: src/core/island.tsx).
+  // its own, with its own prefix: @argentic/chest-app's Island).
   const dndId = useId();
   const [, start] = useTransition();
   const writable = (board.access === "write" || board.access === "own") && !board.archived;
@@ -101,7 +100,7 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
     for (const [key, value] of Object.entries(change)) if (value) params.set(key, value); else params.delete(key);
     return `${path}${params.size ? "?" + params.toString() : ""}`;
   };
-  const setFilter = (key: "who" | "label", value: string) => void navigate(query({ [key]: value }), { replace: true });
+  const setFilter = (key: "who" | "label", value: string) => void navigate(query({ [key]: value }), { replace: true, top: false });
 
   // The keyboard moves a card as on a board: up and down among the cards of
   // its column, left and right to the neighbouring column (its top).
@@ -219,7 +218,7 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
   const openCard = (id: string) => {
     const params = new URLSearchParams(window.location.search);
     params.set("card", id);
-    void navigate(`${path}?${params.toString()}`);
+    void navigate(`${path}?${params.toString()}`, { top: false });
   };
 
   return (
@@ -249,7 +248,7 @@ export function BoardView({ board, path, columns, labels, fields, cards, people,
               </select>
             </>
           )}
-          {filtered && <button type="button" className="link-button" onClick={() => void navigate(query({ who: "", label: "" }), { replace: true })}>{t.board.clear}</button>}
+          {filtered && <button type="button" className="link-button" onClick={() => void navigate(query({ who: "", label: "" }), { replace: true, top: false })}>{t.board.clear}</button>}
         </div>
         {/* The view is kept in the address: the kit's Segmented, its link variant. */}
         <Segmented label={t.board.views} link={ToTop} value={view} className="views" options={[

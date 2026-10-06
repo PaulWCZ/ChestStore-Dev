@@ -3,8 +3,8 @@ import { localSearch, parseTime, putWithProgress, searchChoices, timeText, type 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { Archive, Blocked, Chat, Check, CheckList, Clip, Clock, Close, Copy, Dots, Download, Fields, File, MoveTo, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../components/icons.tsx";
 import { Markdown } from "../components/markdown.tsx";
-import { call, navigate, onLinkClick, refresh, toast } from "../core/client.tsx";
-import type { Outcome } from "../core/tool.ts";
+import { call, navigate, onLinkClick, refresh, toast } from "@argentic/chest-app/client";
+import type { Outcome } from "@argentic/chest-app";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { Column, Field, Label } from "../lib/boards.ts";
@@ -76,7 +76,7 @@ export function CardPanel({ path, card, board, columns, labels, fields, targets,
   const close = () => {
     const params = new URLSearchParams(window.location.search);
     params.delete("card");
-    void navigate(`${path}${params.size ? "?" + params.toString() : ""}`);
+    void navigate(`${path}${params.size ? "?" + params.toString() : ""}`, { top: false });
   };
   useEffect(() => {
     panel.current?.focus();
@@ -169,7 +169,7 @@ export function CardPanel({ path, card, board, columns, labels, fields, targets,
                   <div className="when">
                     <label className="visually-hidden" htmlFor="card-time">{t.card.dueTime}</label>
                     {/* The kit's 24-hour list, every quarter of an hour, "Any time" first. */}
-                    <TimeSelect id="card-time" className="time" empty={t.card.anyTime} value={card.dueTime === null ? null : parseTime(card.dueTime)}
+                    <TimeSelect id="card-time" empty={t.card.anyTime} value={card.dueTime === null ? null : parseTime(card.dueTime)}
                       onChange={m => run(() => call("updateCard", { id: card.id, dueTime: m === null ? null : timeText(m) }))} />
                     <button type="button" className="link-button" onClick={() => run(() => call("updateCard", { id: card.id, due: null }))}>{t.card.removeDue}</button>
                   </div>
@@ -289,7 +289,7 @@ function MoveDialog({ card, board, targets, t, onClose }: { card: PanelCard; boa
     if (!r.ok) return;
     onClose();
     toast({ text: r.value.dropped > 0 ? format(t.card.movedDropped, { board: where, count: r.value.dropped }) : format(t.card.movedTo, { board: where }) });
-    await navigate(r.value.boardId !== board.id ? `/chest/boards/${r.value.boardId}?card=${card.id}` : location.href, { replace: r.value.boardId === board.id });
+    await navigate(r.value.boardId !== board.id ? `/chest/boards/${r.value.boardId}?card=${card.id}` : location.href, { replace: r.value.boardId === board.id, top: r.value.boardId !== board.id });
   });
   return (
     <Dialog open title={t.card.moveOrCopy} onClose={onClose} labels={t.dialog}
@@ -387,7 +387,7 @@ function RepeatField({ card, view, writable, t, onSave }: { card: PanelCard; vie
       )}
       {(view.summary || view.upcoming || view.made) && (
         <p className="repeat-note" role="status">
-          {view.summary && <strong>{view.summary}</strong>} {view.upcoming}{view.made && <>{view.made.text} <a href={view.made.href} onClick={e => onLinkClick(e)} className="link-button">{t.card.repeatOpen}</a></>}
+          {view.summary && <strong>{view.summary}</strong>} {view.upcoming}{view.made && <>{view.made.text} <a href={view.made.href} onClick={e => onLinkClick(e, { top: false })} className="link-button">{t.card.repeatOpen}</a></>}
         </p>
       )}
     </div>
@@ -801,7 +801,7 @@ function Blockers({ path, card, linkable, writable, t, onAdd, onRemove }: { path
   const choices = linkable.filter(c => !card.blockers.some(b => b.id === c.id) && !card.blocking.some(b => b.id === c.id));
   const line = (l: CardLink, remove: boolean) => (
     <li key={l.id} className={`link-line${l.done || l.archived ? " is-done" : ""}`}>
-      <a href={open(l.id)} onClick={e => onLinkClick(e)}>{l.title}</a>
+      <a href={open(l.id)} onClick={e => onLinkClick(e, { top: false })}>{l.title}</a>
       {(l.done || l.archived) && <span className="chip done"><Check />{t.card.linkDone}</span>}
       {remove && writable && <button type="button" className="icon-button" onClick={() => onRemove(l.id)}><Close /><span className="visually-hidden">{format(t.card.removeBlocker, { title: l.title })}</span></button>}
     </li>

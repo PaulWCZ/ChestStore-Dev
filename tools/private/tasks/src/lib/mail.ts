@@ -5,7 +5,7 @@ import * as mail from "@argentic/chest-sdk/mail";
 import { roleOf } from "./access.ts";
 import { purgeComments } from "./cards.ts";
 import type { Query, Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { catalogue, format, listFormat, plural, type Catalogue } from "../i18n/index.ts";
 import { nameOf, people } from "./people.ts";
 

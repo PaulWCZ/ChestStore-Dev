@@ -1,7 +1,7 @@
 import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type Announcements, type DragEndEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core";
 import { useId, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { Alert, Back, Arrow } from "../components/icons.tsx";
-import { call, onLinkClick } from "../core/client.tsx";
+import { call, onLinkClick } from "@argentic/chest-app/client";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { Label } from "../lib/boards.ts";
@@ -23,7 +23,7 @@ export function CalendarView({ calendar, cards, labels, writable, locale, query,
   t: Words;
 }) {
   // The id of the cards' keyboard instructions (their aria-describedby):
-  // the same on the server and in the browser (src/core/island.tsx).
+  // the same on the server and in the browser (@argentic/chest-app's Island).
   const dndId = useId();
   const [, start] = useTransition();
   // Dates moved here before the server says so: kept until the move is
@@ -60,10 +60,10 @@ export function CalendarView({ calendar, cards, labels, writable, locale, query,
   return (
     <div className="calendar">
       <div className="calendar-head">
-        <a className="icon-button" href={query({ month: calendar.prev })} onClick={e => onLinkClick(e)} title={t.board.prevMonth}><Back /><span className="visually-hidden">{t.board.prevMonth}</span></a>
+        <a className="icon-button" href={query({ month: calendar.prev })} onClick={e => onLinkClick(e, { top: false })} title={t.board.prevMonth}><Back /><span className="visually-hidden">{t.board.prevMonth}</span></a>
         <h2 aria-live="polite">{calendar.title}</h2>
-        <a className="icon-button" href={query({ month: calendar.next })} onClick={e => onLinkClick(e)} title={t.board.nextMonth}><Arrow /><span className="visually-hidden">{t.board.nextMonth}</span></a>
-        {calendar.month !== calendar.current && <a className="button small quiet" href={query({ month: calendar.current })} onClick={e => onLinkClick(e)}>{t.board.thisMonth}</a>}
+        <a className="icon-button" href={query({ month: calendar.next })} onClick={e => onLinkClick(e, { top: false })} title={t.board.nextMonth}><Arrow /><span className="visually-hidden">{t.board.nextMonth}</span></a>
+        {calendar.month !== calendar.current && <a className="button small quiet" href={query({ month: calendar.current })} onClick={e => onLinkClick(e, { top: false })}>{t.board.thisMonth}</a>}
         <span className="spacer" />
         {undated > 0 && <span className="small muted">{plural(t.board.undated, undated, locale)}</span>}
       </div>
@@ -108,7 +108,7 @@ function DayCard({ card, labels, late, writable, href, t }: { card: CardSummary;
   }, [transform]);
   return (
     <li ref={el => { item.current = el; setNodeRef(el); }} className={transform ? "moving" : undefined}>
-      <a href={href} onClick={e => onLinkClick(e)} {...(writable ? listeners : {})} {...(writable ? attributes : {})} aria-roledescription={undefined}
+      <a href={href} onClick={e => onLinkClick(e, { top: false })} {...(writable ? listeners : {})} {...(writable ? attributes : {})} aria-roledescription={undefined}
         className={`cal-card${card.done ? " is-done" : ""}${late ? " late" : ""}${isDragging ? " dragging" : ""}${color ? " c-" + color : ""}`}>
         {color && <span className="bar" aria-hidden="true" />}
         {late && <Alert />}

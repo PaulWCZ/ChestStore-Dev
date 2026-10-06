@@ -4,7 +4,7 @@ import { board, columns, fields, labels, listBoards } from "./boards.ts";
 import { boardCards } from "./cards.ts";
 import { toCsv } from "../shared/csv.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import { nameOf, people } from "./people.ts";
 

@@ -1,6 +1,6 @@
 import { ChestError, TooLarge } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
-import { action, after, fail, field, redirect, type Fields, type InputOf, type MemberContext } from "./core/tool.ts";
+import { action, after, fail, field, redirect, type Fields, type InputOf, type MemberContext } from "@argentic/chest-app";
 import * as boards from "./lib/boards.ts";
 import { tellLinkedTools } from "./lib/card-events.ts";
 import * as cards from "./lib/cards.ts";
@@ -230,7 +230,7 @@ export const actions = {
       throw error;
     }
   }),
-  recordFile: act({ id: id(), name: field.text({ max: 200 }), fileName: text(limits.fileName) }, async ({ id, name, fileName }, { member }) => {
+  recordFile: act({ id: id(), name: field.text({ max: 200 }), fileName: text(limits.fileName) }, async ({ id, name, fileName }, { member }): Promise<cards.Attachment> => {
     const card = await writableCard(id, member);
     // Only an object of this card's folder, as the Chest named it.
     if (!name.startsWith(`cards/${card.id}/`) || !/^cards\/[0-9]+\/[0-9a-f]{20}(\.[a-z0-9]{1,8})?$/u.test(name)) fail("invalid");
@@ -253,7 +253,7 @@ export const actions = {
   // board, private unless "everyone" was chosen. A file of 10 MB at most.
   previewImport: act({ names: field.list(field.text({ max: 200 }), 2000) }, async ({ names }, { member }) => previewPeople(member, names), { maxBody: 2 << 20 }),
   importBoard: act({ kind: field.choice(["trello", "csv"]), text: field.text({ max: 10 << 20 }), name: field.text({ min: 0, max: limits.boardName * 2 }), visibility: field.choice(["team", "private"]), done: field.list(field.int({ min: 0, max: 1000 }), 1000) },
-    async ({ kind, text, name, visibility, done }, { member, t }) => {
+    async ({ kind, text, name, visibility, done }, { member, t }): Promise<{ id: string; cards: number; matched: number; people: number }> => {
       const board = kind === "trello" ? fromTrello(text) : fromCsv(text, name);
       if (kind === "trello" && name) board.name = name.slice(0, limits.boardName);
       return importBoard(db(), member, board, t.templates.columns.done, { visibility, done });

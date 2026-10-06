@@ -3,6 +3,9 @@ import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { atLeast, checkPage } from "@argentic/chest-app/testing";
+
+atLeast(11);
 
 // The server as built for the tests (npm test: dist/test), asked as the
 // Chest asks it: members signed by a fake Chest, a real PostgreSQL (PGlite,
@@ -42,7 +45,8 @@ test("a member's page: their language, the policy, no inline script or style, th
   const html = await response.text();
   assert.match(html, /<html lang="fr">/u);
   assert.match(html, /Mes tâches/u);
-  assert.match(html, /<link rel="stylesheet" href="\/chest\/look.css"\/>/u);
+  assert.match(html, /<link rel="stylesheet" href="\/chest\/look.css\?v=[\w-]+"\/>/u);
+  checkPage(html);
   assert.match(html, /<meta name="theme-color"/u);
   assert.doesNotMatch(html, /\sstyle="/u);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/u);
@@ -53,23 +57,22 @@ test("a member's page: their language, the policy, no inline script or style, th
   assert.equal(new Set(prefixes).size, prefixes.length);
 });
 
-test("the look: a stylesheet with an ETag, 304 while it stays the same", async () => {
-  const sheet = await get(hugo, "/chest/look.css");
+test("the look: the company's choice as a stylesheet, its address the hash of its text", async () => {
+  const linkOf = async () => /href="(\/chest\/look\.css\?v=[^"]+)"/u.exec(await (await get(hugo, "/chest")).text())![1]!;
+  const own = await linkOf();
+  const sheet = await get(hugo, own);
   assert.equal(sheet.status, 200);
   assert.match(sheet.headers.get("content-type") ?? "", /^text\/css/u);
   const css = await sheet.text();
   assert.match(css, /--accent:/u);
   assert.match(css, /\/assets\/fonts\/space-grotesk-latin-wght-normal\.woff2/u);
-  const tag = sheet.headers.get("etag")!;
-  assert.equal((await get(hugo, "/chest/look.css", { "if-none-match": tag })).status, 304);
-  // The company's choice: another sheet, another tag.
+  // The company's choice: another sheet at another address.
   chest.theme.all = { mode: "catalogue", theme: "newsprint" };
-  const chosen = await get(hugo, "/chest/look.css", { "if-none-match": tag });
-  assert.equal(chosen.status, 200);
-  assert.notEqual(chosen.headers.get("etag"), tag);
+  const chosen = await linkOf();
+  assert.notEqual(chosen, own);
+  assert.doesNotMatch(await (await get(hugo, chosen)).text(), /space-grotesk/u);
   chest.theme.all = { mode: "own" };
-  const own = await get(null, "/look.css");
-  assert.equal(own.status, 200);
+  assert.equal((await get(null, "/look.css")).status, 200);
   assert.equal((await get(null, "/assets/icon.svg")).status, 200);
 });
 
@@ -83,7 +86,7 @@ test("a board made by an action opens at once; its page has the board and the ca
   done = cols.find(c => c.done)!.id;
   first = (await call(hugo, "addCard", { board: boardId, column: todo, title: "Book the truck" })).value.id;
   second = (await call(hugo, "addCard", { board: boardId, column: todo, title: "Load the truck" })).value.id;
-  const page = await (await get(hugo, `/chest/boards/${boardId}?card=${second}`)).text();
+  const page = checkPage(await (await get(hugo, `/chest/boards/${boardId}?card=${second}`)).text());
   assert.match(page, /data-island="BoardView"/u);
   assert.match(page, /data-island="CardPanel"/u);
   assert.match(page, /<title>Load the truck · Launch · Tasks<\/title>/u);
@@ -91,7 +94,9 @@ test("a board made by an action opens at once; its page has the board and the ca
   assert.doesNotMatch(page, /\sstyle="/u);
   // The timeline places its bars with classes, never a style attribute.
   await call(hugo, "updateCard", { id: first, start: new Date().toISOString().slice(0, 10), due: null });
-  const timeline = await (await get(hugo, `/chest/boards/${boardId}?view=timeline`)).text();
+  const timeline = checkPage(await (await get(hugo, `/chest/boards/${boardId}?view=timeline`)).text());
+  for (const view of ["list", "calendar"]) checkPage(await (await get(hugo, `/chest/boards/${boardId}?view=${view}`)).text());
+  for (const path of ["/chest/boards", "/chest/search?q=truck", "/chest/import", `/chest/boards/${boardId}/settings`]) checkPage(await (await get(camille, path)).text());
   assert.match(timeline, /tl-bar tl-from-\d+ tl-len-1/u);
   assert.doesNotMatch(timeline, /\sstyle="/u);
 });

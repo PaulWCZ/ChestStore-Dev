@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as boards from "../src/lib/boards.ts";
 import * as cards from "../src/lib/cards.ts";
 import { chestToday } from "../src/lib/clock.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { en } from "../src/i18n/en.ts";
 import { addDays, firstDue, nextDue } from "../src/shared/repeat.ts";
 import { catchUp } from "../src/lib/repeats.ts";

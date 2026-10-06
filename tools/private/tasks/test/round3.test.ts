@@ -6,7 +6,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import * as boards from "../src/lib/boards.ts";
 import * as cards from "../src/lib/cards.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { en } from "../src/i18n/en.ts";
 import { arrange, fromCsv, fromTrello, importBoard, importedCounts, looksDone, previewPeople } from "../src/lib/importers.ts";
 import { morning } from "../src/lib/morning.ts";

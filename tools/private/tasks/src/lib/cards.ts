@@ -5,7 +5,7 @@ import { atLeast, boardAccess, roleOf, type BoardAccess } from "./access.ts";
 import { withGroupsAmong } from "./groups.ts";
 import { board, fields as boardFields, membership as membershipOf, type Board } from "./boards.ts";
 import type { Query, Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { chestToday } from "./clock.ts";
 import { clean, day, fieldValue, id, limits, memberIds, memberPattern, time } from "../shared/model.ts";
 import { between } from "../shared/position.ts";

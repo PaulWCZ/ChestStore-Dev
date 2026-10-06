@@ -1,7 +1,7 @@
 import { Switch } from "@argentic/chest-ui/components";
 import { useState, type ReactNode } from "react";
 import { Clock, Mail } from "../components/icons.tsx";
-import { call } from "../core/client.tsx";
+import { call } from "@argentic/chest-app/client";
 
 // A personal switch (the kit's), saved at once (put back, and the refusal
 // said, if the server refuses).

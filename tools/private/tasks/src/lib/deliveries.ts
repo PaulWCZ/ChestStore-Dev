@@ -1,6 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import { log } from "../core/log.ts";
+import { log } from "@argentic/chest-app";
 import { forgetCardEvents, publishCardEvents } from "./card-events.ts";
 import { db } from "./db.ts";
 import { forgetSeen, handlers, seen } from "./lifecycle.ts";

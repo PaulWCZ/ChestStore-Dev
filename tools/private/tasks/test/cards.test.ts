@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as boards from "../src/lib/boards.ts";
 import * as cards from "../src/lib/cards.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { en } from "../src/i18n/en.ts";
 import { chestToday } from "../src/lib/clock.ts";
 import * as tell from "../src/lib/tell.ts";

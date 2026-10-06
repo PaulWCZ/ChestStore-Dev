@@ -7,7 +7,7 @@ import type { Run } from "@argentic/chest-sdk/schedules";
 import * as boards from "../src/lib/boards.ts";
 import * as cards from "../src/lib/cards.ts";
 import { chestToday } from "../src/lib/clock.ts";
-import { AppError } from "../src/core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { boardCsv, everything } from "../src/lib/export.ts";
 import { en } from "../src/i18n/en.ts";
 import { fromCsv, fromTrello, importBoard, importedCounts, previewPeople } from "../src/lib/importers.ts";

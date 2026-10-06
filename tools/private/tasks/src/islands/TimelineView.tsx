@@ -1,7 +1,7 @@
 import { DndContext, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useSensor, useSensors, type Announcements, type DragEndEvent, type KeyboardCoordinateGetter, type Modifier } from "@dnd-kit/core";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { Alert, Arrow, Back, Blocked } from "../components/icons.tsx";
-import { call, navigate, onLinkClick } from "../core/client.tsx";
+import { call, navigate, onLinkClick } from "@argentic/chest-app/client";
 import { format, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { Column } from "../lib/boards.ts";
@@ -37,7 +37,7 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
   t: Words;
 }) {
   // The id of the cards' keyboard instructions (their aria-describedby):
-  // the same on the server and in the browser (src/core/island.tsx).
+  // the same on the server and in the browser (@argentic/chest-app's Island).
   const dndId = useId();
   const w = t.board.timeline;
   const [, start] = useTransition();
@@ -131,10 +131,10 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
   return (
     <div className="timeline">
       <div className="calendar-head">
-        <a className="icon-button" href={query({ from: timeline.prev })} onClick={e => onLinkClick(e)} title={w.earlier}><Back /><span className="visually-hidden">{w.earlier}</span></a>
+        <a className="icon-button" href={query({ from: timeline.prev })} onClick={e => onLinkClick(e, { top: false })} title={w.earlier}><Back /><span className="visually-hidden">{w.earlier}</span></a>
         <h2 aria-live="polite">{timeline.title}</h2>
-        <a className="icon-button" href={query({ from: timeline.next })} onClick={e => onLinkClick(e)} title={w.later}><Arrow /><span className="visually-hidden">{w.later}</span></a>
-        {timeline.first !== timeline.current && <a className="button small quiet" href={query({ from: "" })} onClick={e => onLinkClick(e)}>{w.today}</a>}
+        <a className="icon-button" href={query({ from: timeline.next })} onClick={e => onLinkClick(e, { top: false })} title={w.later}><Arrow /><span className="visually-hidden">{w.later}</span></a>
+        {timeline.first !== timeline.current && <a className="button small quiet" href={query({ from: "" })} onClick={e => onLinkClick(e, { top: false })}>{w.today}</a>}
         <span className="spacer" />
         <label className="row small">
           <span className="label">{w.rows}</span>
@@ -163,7 +163,7 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
                       const waits = c.waiting > 0 && !c.done;
                       return (
                         <li key={c.id} className={`tl-week-card${c.done ? " is-done" : ""}${late ? " late" : ""}`}>
-                          <a href={cardHref(c.id)} onClick={e => onLinkClick(e)}>{c.title}</a>
+                          <a href={cardHref(c.id)} onClick={e => onLinkClick(e, { top: false })}>{c.title}</a>
                           <span className="tl-week-dates">
                             {late && <><Alert /> {t.card.late} · </>}
                             {waits && <Blocked />}
@@ -198,12 +198,12 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
                 </div>
               </div>
               {groups.map(g => (
-                <section key={g.key} className="tl-group" aria-label={g.title}>
+                <section key={g.key} aria-label={g.title}>
                   <h3 className="tl-group-title">{g.title} <span className="chip">{g.cards.length}</span></h3>
                   <ul>
                     {g.cards.map(c => (
                       <li key={c.id} className="tl-row">
-                        <div className="tl-name"><a href={cardHref(c.id)} onClick={e => onLinkClick(e)} className={c.done ? "is-done" : undefined}>{c.title}</a></div>
+                        <div className="tl-name"><a href={cardHref(c.id)} onClick={e => onLinkClick(e, { top: false })} className={c.done ? "is-done" : undefined}>{c.title}</a></div>
                         <div className="tl-track">
                           <Bar card={c} dates={datesOf(c)} first={timeline.first} writable={writable} href={cardHref(c.id)} nameOfDay={nameOfDay} conflict={links.some(l => l.conflict && l.key.endsWith("-" + c.id))} blockerTitles={c.blockedBy.map(b => byId.get(b)?.title ?? "").filter(Boolean)} t={t} />
                         </div>
@@ -238,7 +238,7 @@ function Bar({ card, dates, first, writable, href, nameOfDay, conflict, blockerT
   const place = span(dates, first)!;
   const bar = useDraggable({ id: "bar:" + card.id, disabled: !writable });
   const end = useDraggable({ id: "end:" + card.id, disabled: !writable || (!dates.due && !dates.start) });
-  const open = () => void navigate(href);
+  const open = () => void navigate(href, { top: false });
   const from = dates.start ?? dates.due, to = dates.due ?? dates.start;
   const label = from === to ? format(w.oneDay, { title: card.title, from: nameOfDay(from) }) : format(w.bar, { title: card.title, from: nameOfDay(from), to: nameOfDay(to) });
   const waiting = card.waiting > 0 && !card.done;

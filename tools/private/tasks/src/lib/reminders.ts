@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { roleOf } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "../core/tool.ts";
+import { AppError } from "@argentic/chest-app";
 import { withdraw } from "./notify.ts";
 
 // The morning reminder's one switch, per person (on unless they turned it
