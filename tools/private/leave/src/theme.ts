@@ -70,7 +70,7 @@ export async function sheetOf(surface: Surface): Promise<Sheet> {
 // What createApp({ look }) asks for each page (src/app.tsx): the sheet of
 // the page's surface, and the company's logo in brand mode (the layout
 // shows it beside the name).
-export async function lookFor(viewer: { "member": unknown }): Promise<{ css: string; colors: { media: string; color: string }[]; logo: Look["logo"] }> {
+export async function lookFor(viewer: { member: unknown }): Promise<{ css: string; colors: { media: string; color: string }[]; logo: Look["logo"] }> {
   const sheet = await sheetOf(viewer.member === null ? "public" : "team");
   return { css: sheet.css, colors: sheet.colors, logo: sheet.look.logo };
 }

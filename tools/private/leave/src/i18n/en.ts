@@ -295,6 +295,7 @@ export const en = {
     allDay: "all day",
     cell: "{name}: {what}, {when}",
     caption: "Absences in {month}",
+    groupUnreadable: "Could not read who is in {group} right now. Try again in a moment.",
     unreachable: "The Chest did not answer: only people with leave this month are shown.",
     weekOf: "Week of {day}",
     remote: "Remote work",

@@ -47,9 +47,13 @@ export async function calendarPage({ member, locale, t, query }: PageContext<Mem
   const ids = new Set([...dir.people.map(p => p.id), ...entries.filter(e => e.start <= last).map(e => e.memberId)]);
   const who = await people(ids);
   let rows = [...ids];
-  const inGroup = teams.some(g => g.id === show) ? await groupMembers(show) : null;
+  const team = teams.find(g => g.id === show);
+  const inGroup = team ? await groupMembers(show) : null;
+  // A group whose people the Chest did not say: said, and no rows — never
+  // everyone under the group's chip.
+  const groupUnread = team && inGroup === null ? format(t.calendar.groupUnreadable, { group: team.name }) : null;
   if (show === "mine") rows = rows.filter(id => id === member.id || mine.includes(id));
-  else if (inGroup) rows = rows.filter(id => inGroup.includes(id));
+  else if (team) rows = rows.filter(id => inGroup?.includes(id) ?? false);
   const order = new Map(dir.people.map((p, i) => [p.id, i]));
   rows.sort((a, b) => (a === member.id ? -1 : b === member.id ? 1 : (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9) || compare(locale)(nameOf(who.get(a), locale), nameOf(who.get(b), locale))));
   const shownEntries = entries.filter(e => rows.includes(e.memberId));
@@ -86,7 +90,7 @@ export async function calendarPage({ member, locale, t, query }: PageContext<Mem
   const mondayOf = (d: Day) => addDays(d, -((weekday(d) + 6) % 7));
   const cards = shownEntries.filter(e => e.end >= from && e.start <= listEnd).map(e => ({ e, part: clip(e, from, listEnd)! })).filter(c => c.part);
   const holidaysAhead = [...offList].filter(([d]) => d >= from && weekday(d) !== 0 && weekday(d) !== 6);
-  const listWeeks = [...new Set([...cards.map(c => mondayOf(c.part.start < from ? from : c.part.start)), ...holidaysAhead.map(([d]) => mondayOf(d))])].sort();
+  const listWeeks = groupUnread ? [] : [...new Set([...cards.map(c => mondayOf(c.part.start < from ? from : c.part.start)), ...holidaysAhead.map(([d]) => mondayOf(d))])].sort();
 
   return {
     title: t.calendar.title,
@@ -119,7 +123,9 @@ export async function calendarPage({ member, locale, t, query }: PageContext<Mem
         </ul>
         {!dir.reached && <p className="notice">{t.calendar.unreachable}</p>}
 
-        {rows.length === 0 ? <EmptyState title={t.calendar.noPeople} /> : (
+        {groupUnread && <p className="notice" role="status">{groupUnread}</p>}
+
+        {groupUnread ? null : rows.length === 0 ? <EmptyState title={t.calendar.noPeople} /> : (
           <div className="grid-wrap">
             <table className="grid">
               <caption className="visually-hidden">{format(t.calendar.caption, { month: monthName })}</caption>
@@ -177,7 +183,7 @@ export async function calendarPage({ member, locale, t, query }: PageContext<Mem
         )}
 
         <div className="day-list">
-          {listWeeks.length === 0 ? <p className="muted">{t.calendar.nobody}</p> : listWeeks.map(monday => {
+          {groupUnread ? null : listWeeks.length === 0 ? <p className="muted">{t.calendar.nobody}</p> : listWeeks.map(monday => {
             const sunday = addDays(monday, 6);
             const inWeek = cards.filter(c => mondayOf(c.part.start < from ? from : c.part.start) === monday);
             const hols = holidaysAhead.filter(([d]) => d >= monday && d <= sunday);

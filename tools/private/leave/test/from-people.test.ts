@@ -36,7 +36,7 @@ const full = (member: string, more: Record<string, unknown> = {}) => ({ member, 
 
 test("People's events are read field by field; another shape changes nothing", () => {
   const ok = readRecord(full(tom.id, { employeeNumber: " 0019 ", startDate: "2024-03-04", workDays: [4, 1, 2, 3], weeklyHours: 28 }));
-  assert.deepEqual(ok, { "member": tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: [1, 2, 3, 4] });
+  assert.deepEqual(ok, { member: tom.id, employeeNumber: "0019", startDate: "2024-03-04", lastDay: null, workDays: [1, 2, 3, 4] });
   // Sunday (ISO 7) is Leave's 0.
   assert.deepEqual(readRecord(full(tom.id, { workDays: [6, 7] }))?.workDays, [0, 6]);
   for (const bad of [
@@ -44,8 +44,8 @@ test("People's events are read field by field; another shape changes nothing", (
     full(tom.id, { workDays: [0] }), full(tom.id, { workDays: [1, 1] }), full(tom.id, { workDays: [] }), full(tom.id, { employeeNumber: "x".repeat(31) }),
     full(tom.id, { weeklyHours: 90 }), full(tom.id, { employeeNumber: 17 }),
   ]) assert.equal(readRecord(bad), null, JSON.stringify(bad));
-  assert.deepEqual(readLeaving({ "member": tom.id, lastDay: "2026-12-31" }), { "member": tom.id, lastDay: "2026-12-31" });
-  assert.equal(readLeaving({ "member": tom.id, lastDay: "soon" }), null);
+  assert.deepEqual(readLeaving({ member: tom.id, lastDay: "2026-12-31" }), { member: tom.id, lastDay: "2026-12-31" });
+  assert.equal(readLeaving({ member: tom.id, lastDay: "soon" }), null);
 });
 
 test("a record told by People fills the number, first day and week HR would type twice; what People does not say stays; an older event changes nothing", async () => {
@@ -68,7 +68,7 @@ test("a record told by People fills the number, first day and week HR would type
   await record(full(tom.id, { employeeNumber: "0021" }), "2026-09-29T10:03:00Z");
   assert.equal((await staffRow(sql, tom.id)).employeeNumber, "0019");
   // Another shape: accepted (the Chest stops retrying) and ignored.
-  assert.equal(await record({ "member": tom.id, startDate: 12 }, "2026-09-29T10:04:00Z"), 204);
+  assert.equal(await record({ member: tom.id, startDate: 12 }, "2026-09-29T10:04:00Z"), 204);
   assert.equal((await staffRow(sql, tom.id)).startDate, "2024-03-04");
 });
 
@@ -99,10 +99,10 @@ test("a last day from the record settles leave after it and tells HR; cleared in
 
 test("a leaving checklist in People sets the last day unless one is set another way; stopped, it goes", async () => {
   const { sql } = database;
-  await leaving({ "member": lea.id, lastDay: "2027-02-26" }, "2026-09-29T12:00:00Z");
+  await leaving({ member: lea.id, lastDay: "2027-02-26" }, "2026-09-29T12:00:00Z");
   assert.deepEqual([(await staffRow(sql, lea.id)).endDate, (await staffRow(sql, lea.id)).endBy], ["2027-02-26", "leaving"]);
   // Moved: the latest day told.
-  await leaving({ "member": lea.id, lastDay: "2027-03-05" }, "2026-09-29T12:01:00Z");
+  await leaving({ member: lea.id, lastDay: "2027-03-05" }, "2026-09-29T12:01:00Z");
   assert.equal((await staffRow(sql, lea.id)).endDate, "2027-03-05");
   // An older "stays" delivered late changes nothing; the newer one clears it.
   await stays(lea.id, "2026-09-29T11:59:00Z");
@@ -110,7 +110,7 @@ test("a leaving checklist in People sets the last day unless one is set another 
   await stays(lea.id, "2026-09-29T12:02:00Z");
   assert.deepEqual([(await staffRow(sql, lea.id)).endDate, (await staffRow(sql, lea.id)).endBy], [null, null]);
   // Never over the record's own last day, nor one HR typed here.
-  await leaving({ "member": sofia.id, lastDay: "2026-12-15" }, "2026-09-29T12:03:00Z");
+  await leaving({ member: sofia.id, lastDay: "2026-12-15" }, "2026-09-29T12:03:00Z");
   assert.equal((await staffRow(sql, sofia.id)).endDate, "2027-01-31");
   await stays(sofia.id, "2026-09-29T12:04:00Z");
   assert.equal((await staffRow(sql, sofia.id)).endDate, "2027-01-31");

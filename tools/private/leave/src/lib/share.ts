@@ -43,7 +43,7 @@ import { today } from "./today.ts";
 
 export const shareLimits = { perRun: 200, keepPublishedHours: 24, keepWaitingDays: 90 } as const;
 
-type Told = { "member": string; from: string; to: string; fromHalf: Half; toHalf: Half; request: string };
+type Told = { member: string; from: string; to: string; fromHalf: Half; toHalf: Half; request: string };
 type Type = "leave.approved" | "leave.cancelled";
 
 const rawOf = (t: Pick<Told, "from" | "to" | "fromHalf" | "toHalf">) => `${t.from}|${t.to}|${t.fromHalf}|${t.toHalf}`;
@@ -88,7 +88,7 @@ export async function plan(sql: Sql, now = new Date()): Promise<number> {
     for (const id of new Set([...told.keys(), ...byId.keys()])) {
       const r = byId.get(id);
       const before = told.get(id);
-      const cur: Told | null = r ? { "member": r.member_id, from: r.start, to: r.end, fromHalf: r.start_half, toHalf: r.end_half, request: id } : null;
+      const cur: Told | null = r ? { member: r.member_id, from: r.start, to: r.end, fromHalf: r.start_half, toHalf: r.end_half, request: id } : null;
       const stands = !!r && r.status === "approved" && r.away && r.member_id === (before?.member_id ?? r.member_id) && /^mbr_/u.test(r.member_id);
       const wanted = stands && r!.end >= from;
       if (before && cur && stands && before.raw === rawOf(cur)) {
