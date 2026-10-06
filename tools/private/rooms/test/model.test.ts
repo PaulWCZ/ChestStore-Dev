@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addDays, clean, clock, day, freeSlots, id, int, keysOf, memberIds, minutes, mondayOf, nextNames, nextWorkingDay, overlaps, tapStart, today, twoWeeks, weekday } from "../lib/model.ts";
+import { addDays, clean, clock, day, freeSlots, id, int, keysOf, memberIds, minutes, mondayOf, nextNames, nextWorkingDay, overlaps, tapStart, today, twoWeeks, weekday } from "../src/lib/model.ts";
 
 test("texts are trimmed, one line, bounded", () => {
   assert.equal(clean("  Weekly\n  sync\t", 20), "Weekly sync");

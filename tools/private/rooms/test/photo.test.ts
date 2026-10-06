@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { authorisePhoto, photoLink, recordPhoto } from "../lib/photos.ts";
-import { offices, removeRoom } from "../lib/places.ts";
+import { authorisePhoto, photoLink, recordPhoto } from "../src/lib/photos.ts";
+import { offices, removeRoom } from "../src/lib/places.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, nora } from "./support/members.ts";

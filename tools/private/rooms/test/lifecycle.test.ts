@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as desks from "../lib/desk-bookings.ts";
-import { addDays, today } from "../lib/model.ts";
-import * as places from "../lib/places.ts";
-import { presenceOf, setPresence } from "../lib/presence.ts";
-import * as rooms from "../lib/room-bookings.ts";
+import { builtServer, type Handler } from "./support/server.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { addDays, today } from "../src/lib/model.ts";
+import * as places from "../src/lib/places.ts";
+import { presenceOf, setPresence } from "../src/lib/presence.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -15,7 +15,9 @@ import { office, workday, zone } from "./support/places.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 let o: Awaited<ReturnType<typeof office>>;
+let POST: Handler;
 before(async () => {
+  POST = await builtServer();
   database = await testDatabase();
   chest = await fakeChest({ members: everyone });
   o = await office(database.sql);

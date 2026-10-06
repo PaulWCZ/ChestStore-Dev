@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "rooms",
   "title": "Rooms",
   "description": "Book a desk or a meeting room, and see who is in the office which day.",
@@ -25,6 +25,12 @@
   "receives": [
     "member.*"
   ],
+  "schedules": [
+    {
+      "name": "quarter",
+      "cron": "*/15 * * * *"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
@@ -32,7 +38,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

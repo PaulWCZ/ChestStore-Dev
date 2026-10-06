@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as desks from "../lib/desk-bookings.ts";
-import * as places from "../lib/places.ts";
-import { addDays, mondayOf, today } from "../lib/model.ts";
-import { atOffice, presenceOf } from "../lib/presence.ts";
-import { setRules } from "../lib/settings.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import * as places from "../src/lib/places.ts";
+import { addDays, mondayOf, today } from "../src/lib/model.ts";
+import { atOffice, presenceOf } from "../src/lib/presence.ts";
+import { setRules } from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";

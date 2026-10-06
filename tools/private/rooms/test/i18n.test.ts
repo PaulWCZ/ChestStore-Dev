@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { en } from "../lib/i18n/en.ts";
-import { catalogue, format, formatDay, formatSpan, formatTime, locales, plural, publicLocale } from "../lib/i18n/index.ts";
+import { en } from "../src/i18n/en.ts";
+import { catalogue, format, formatDay, formatSpan, formatTime, locales, plural } from "../src/i18n/index.ts";
 
 // Every catalogue has exactly the keys of the English one, no empty word,
 // and the same {placeholders} in each word.
@@ -22,15 +22,8 @@ test("every language has every word of English, none empty, with the same placeh
       assert.ok(text.trim().length > 0, `${locale}: ${key} is empty`);
       assert.equal(placeholders(text), placeholders(source.get(key)!), `${locale}: ${key} placeholders`);
     }
-    assert.equal(catalogue(locale).meta.lang, locale);
+    assert.equal(catalogue(locale).kit.lang, locale);
   }
-});
-
-test("the public part's language: the visitor's choice, then the browser's, then English", () => {
-  assert.equal(publicLocale("fr", "en-GB"), "fr");
-  assert.equal(publicLocale(undefined, "de-DE,fr;q=0.8,en;q=0.5"), "fr");
-  assert.equal(publicLocale("xx", "de"), "en");
-  assert.equal(publicLocale(undefined, null), "en");
 });
 
 test("plurals and placeholders follow the language", () => {
@@ -42,8 +35,12 @@ test("plurals and placeholders follow the language", () => {
 });
 
 test("days and times are written as in Europe, in each language", () => {
-  assert.equal(formatDay("2026-09-29", "en"), "Tue 29 Sept");
-  assert.equal(formatDay("2026-09-29", "fr"), "mar. 29 sept.");
+  assert.equal(formatDay("2026-09-29", "en", undefined, "2026"), "Tue 29 Sept");
+  assert.equal(formatDay("2026-09-29", "fr", undefined, "2026"), "mar. 29 sept.");
+  // A day of another year says its year; a weekday alone never does.
+  assert.equal(formatDay("2027-01-05", "en", undefined, "2026"), "Tue, 5 Jan 2027");
+  assert.equal(formatDay("2027-01-05", "fr", { weekday: "long", day: "numeric", month: "long" }, "2026"), "mardi 5 janvier 2027");
+  assert.equal(formatDay("2027-01-05", "en", { weekday: "long" }, "2026"), "Tuesday");
   assert.equal(formatSpan(570, 660, "en"), "09:30–11:00");
   assert.equal(formatTime(1440, "fr"), "24:00");
 });
