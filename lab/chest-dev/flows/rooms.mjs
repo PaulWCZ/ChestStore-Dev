@@ -771,6 +771,25 @@ await step("a room kept for Sales, a group that does not give Rooms: Hugo (Sales
   await page.waitForSelector(".ck-toast");
 });
 
+await step("a weekly meeting changed from one week on: this one and the next ones move, the weeks before stay", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // Next Monday's stand-up (a weekly booking of the sample).
+  const nextMonday = iso(new Date(monday.getTime() + 7 * 864e5));
+  await page.goto(origin + `/chest/rooms?day=${nextMonday}`);
+  await page.locator(".block", { hasText: "Team stand-up" }).first().click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await field(dialog, "What for \\(optional\\)").fill("Team stand-up (new time)");
+  await dialog.getByRole("button", { name: "Save this and the next ones" }).click();
+  await page.waitForSelector(".ck-toast >> text=/bookings? changed/");
+  await page.reload();
+  expect(await page.locator(".block", { hasText: "Team stand-up (new time)" }).count() === 1, "this week's changed");
+  await page.goto(origin + `/chest/rooms?day=${iso(monday)}`);
+  expect(await page.locator(".block", { hasText: "Team stand-up (new time)" }).count() === 0, "the week before stays");
+});
+
 await step("a phone says to tap, not to drag", async () => {
   await as(context, origin, "tom");
   await page.setViewportSize({ width: 390, height: 844 });

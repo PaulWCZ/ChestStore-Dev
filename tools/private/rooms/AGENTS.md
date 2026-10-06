@@ -110,7 +110,8 @@ NODE_ENV=development npm test            # as the workbench runs them
 - **Whoever loses a booking they did not cancel is told** (`lib/tell.ts`);
   booking for oneself is silent.
 - **No network, no disk.** Background work is only the `quarter` schedule;
-  old data is purged when My week is read; usual weeks and calendar
+  old data is purged by it too (never by a page: a page's write would
+  move every page's version); usual weeks and calendar
   flushes run when pages are read and after each action.
 - **Anything that changes a booking or a day enqueues its calendar keys**
   (`enqueue(tx, …)` with `roomKey`/`dayKey`) in the same transaction; never

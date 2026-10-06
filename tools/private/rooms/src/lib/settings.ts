@@ -13,16 +13,18 @@ export type Rules = {
   dayEnd: number;
   weekdays: number[];
   keepMonths: number;
+  // Visitors' names and companies are kept this many days after their visit.
+  visitorDays: number;
   // A room nobody checked in to is freed a quarter of an hour after its start.
   checkIn: boolean;
 };
 
-type Row = { days_ahead: number; max_desk_days: number | null; repeat_weeks: number; day_start: number; day_end: number; weekdays: number[]; keep_months: number; check_in: boolean };
+type Row = { days_ahead: number; max_desk_days: number | null; repeat_weeks: number; day_start: number; day_end: number; weekdays: number[]; keep_months: number; visitor_days: number; check_in: boolean };
 
 export async function rules(sql: Query): Promise<Rules> {
-  const [r] = await sql<Row[]>`select days_ahead, max_desk_days, repeat_weeks, day_start, day_end, weekdays, keep_months, check_in from settings`;
-  if (!r) return { daysAhead: 14, maxDeskDays: null, repeatWeeks: 12, dayStart: 420, dayEnd: 1200, weekdays: [1, 2, 3, 4, 5], keepMonths: 12, checkIn: false };
-  return { daysAhead: r.days_ahead, maxDeskDays: r.max_desk_days, repeatWeeks: r.repeat_weeks, dayStart: r.day_start, dayEnd: r.day_end, weekdays: [...r.weekdays].sort(), keepMonths: r.keep_months, checkIn: r.check_in };
+  const [r] = await sql<Row[]>`select days_ahead, max_desk_days, repeat_weeks, day_start, day_end, weekdays, keep_months, visitor_days, check_in from settings`;
+  if (!r) return { daysAhead: 14, maxDeskDays: null, repeatWeeks: 12, dayStart: 420, dayEnd: 1200, weekdays: [1, 2, 3, 4, 5], keepMonths: 12, visitorDays: 30, checkIn: false };
+  return { daysAhead: r.days_ahead, maxDeskDays: r.max_desk_days, repeatWeeks: r.repeat_weeks, dayStart: r.day_start, dayEnd: r.day_end, weekdays: [...r.weekdays].sort(), keepMonths: r.keep_months, visitorDays: r.visitor_days, checkIn: r.check_in };
 }
 
 export async function setRules(sql: Sql, actor: Member | null, input: Record<string, unknown>): Promise<Rules> {
@@ -36,6 +38,7 @@ export async function setRules(sql: Sql, actor: Member | null, input: Record<str
     dayEnd: input["dayEnd"] === undefined ? current.dayEnd : int(input["dayEnd"], 60, 1440),
     weekdays: current.weekdays,
     keepMonths: input["keepMonths"] === undefined ? current.keepMonths : int(input["keepMonths"], 1, 60),
+    visitorDays: input["visitorDays"] === undefined ? current.visitorDays : int(input["visitorDays"], 1, 90),
     checkIn: input["checkIn"] === undefined ? current.checkIn : input["checkIn"] === true,
   };
   if (input["checkIn"] !== undefined && typeof input["checkIn"] !== "boolean") throw new AppError("invalid");
@@ -46,20 +49,21 @@ export async function setRules(sql: Sql, actor: Member | null, input: Record<str
   }
   if (next.dayStart % 60 !== 0 || next.dayEnd % 60 !== 0 || next.dayEnd <= next.dayStart) throw new AppError("invalid");
   await sql`update settings set days_ahead = ${next.daysAhead}, max_desk_days = ${next.maxDeskDays}, repeat_weeks = ${next.repeatWeeks},
-    day_start = ${next.dayStart}, day_end = ${next.dayEnd}, weekdays = ${next.weekdays}, keep_months = ${next.keepMonths}, check_in = ${next.checkIn}`;
+    day_start = ${next.dayStart}, day_end = ${next.dayEnd}, weekdays = ${next.weekdays}, keep_months = ${next.keepMonths}, visitor_days = ${next.visitorDays}, check_in = ${next.checkIn}`;
   return next;
 }
 
-// What is older than the rules keep goes: past bookings, visits and presence, and
-// cancelled bookings a day after (their undo is long over). Nothing runs in
-// the background: this runs when a page of the week is read.
+// What is older than the rules keep goes: past bookings and presence, and
+// cancelled bookings a day after (their undo is long over); visitors (third
+// parties: a name and a company) a shorter time, visitorDays after their
+// visit. Run by the quarter's schedule (src/app.tsx).
 export async function purge(sql: Sql, zone: string): Promise<void> {
-  const { keepMonths } = await rules(sql);
+  const { keepMonths, visitorDays } = await rules(sql);
   const cutoff = sql`((now() at time zone ${zone})::date - make_interval(months => ${keepMonths}))::date`;
   await sql`delete from presence where day < ${cutoff}`;
   await sql`delete from desk_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from room_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
-  await sql`delete from visits where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
+  await sql`delete from visits where day < (now() at time zone ${zone})::date - ${visitorDays}::int or cancelled_at < now() - interval '1 day'`;
   await sql`delete from usual_applied where day < (now() at time zone ${zone})::date`;
   // Leave's words (lib/away.ts), while they can still matter: a
   // cancellation a week (an approval delivered that late cannot bring it

@@ -12,7 +12,6 @@ import { addDays, minutesNow, mondayOf, overlaps, placeName, twoWeeks } from "..
 import { nameOf, people } from "../lib/people.ts";
 import { atOffice, presenceOf } from "../lib/presence.ts";
 import { myRoomBookings } from "../lib/room-bookings.ts";
-import { purge } from "../lib/settings.ts";
 import { usualWeek } from "../lib/usual.ts";
 import { myVisitors } from "../lib/visits.ts";
 import { formatDay, formatSpan, formatTime } from "../i18n/index.ts";
@@ -29,8 +28,6 @@ export async function weekPage(p: PageContext): Promise<View> {
   const c = await context(p, p.query("office"));
   if (!c) return { title: p.t.noAccess.title, body: null };
   const { member, locale, t, sql, office } = c;
-  // What the rules no longer keep goes (nothing runs in the background).
-  await purge(sql, c.zone);
   const days = twoWeeks(c.today, c.rules.weekdays);
   const from = mondayOf(c.today);
   const to = addDays(from, 13);
@@ -81,7 +78,7 @@ export async function weekPage(p: PageContext): Promise<View> {
         span: formatSpan(b.start, b.end, locale),
         title: b.title,
         by: b.memberId === member.id ? null : nameOf(who.get(b.memberId), locale),
-        checkable: c.rules.checkIn && !b.checkedIn && d === c.today && now >= b.start - checkInOpens && now < b.end,
+        check: c.rules.checkIn && !b.checkedIn && d === c.today ? [b.start - checkInOpens, b.end] as [number, number] : null,
       })),
       usualFree: usual !== null && !usual.assigned && !onUsual.some(b => b.day === d && overlaps(b.part, "day")),
       lentTo: lent ? nameOf(who.get(lent.memberId), locale) : null,
@@ -127,6 +124,8 @@ export async function weekPage(p: PageContext): Promise<View> {
           desks: choices,
           calendarPage: how.calendarOn ? feedPage : null,
           self: { name: member.name, photo: member.photo },
+          zone: c.zone,
+          now,
           locale,
           t: { visitor: t.visitors.mine, visitorHere: t.visitors.mineHere, week: t.week, usual: t.usual, status: t.status, parts: t.parts, days: t.days, dialog: t.kit.dialog, you: t.people.you, checkIn: t.booking.checkIn, checkedIn: t.booking.checkedInToast },
         }} />

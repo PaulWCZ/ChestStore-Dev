@@ -2,6 +2,7 @@ import { call, toast, type Outcome } from "@argentic/chest-app/client";
 import { Avatar, Dialog, PageHeader, PeoplePicker, TimeSelect } from "@argentic/chest-ui/components";
 import { localSearch, moveEnd, moveStart } from "@argentic/chest-ui/components/logic";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useMinutes } from "../components/clock.ts";
 import { useDateProblems, WatchedDateField } from "../components/date-problems.tsx";
 import { DayPicker, type DayPickerProps } from "../components/day-picker.tsx";
 import { equipmentIcons } from "../components/equipment.tsx";
@@ -9,17 +10,20 @@ import { CalendarAdd, Check, Lock, Plus, Repeat, Seat } from "../components/icon
 import { OfficePicker, type OfficePickerProps } from "../components/office-picker.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, formatDay, formatNumber, formatSpan, formatTime, plural } from "../i18n/format.ts";
-import { addDays, equipment as equipmentKeys, freeSlots, limits, step, tapStart, type Equipment } from "../shared/model.ts";
+import { addDays, checkInOpens, equipment as equipmentKeys, freeSlots, limits, step, tapStart, type Equipment } from "../shared/model.ts";
 
 export type GridRoom = { id: string; name: string; capacity: number; equipment: Equipment[]; note: string; photo: boolean; floor: string; group: { name: string; mine: boolean } | null };
 type Person = { id: string; name: string; photo: string | null };
-// checkable: check-in is on, it is mine, and it starts within ten minutes or is under way.
+// checkable: check-in is on, it is mine, today, not checked in yet, and —
+// by the reader's clock (useMinutes) — it starts within ten minutes or is
+// under way.
 export type GridBooking = { id: string; roomId: string; start: number; end: number; title: string; series: string | null; organiser: Person; attendees: Person[]; mine: boolean; canChange: boolean; checkedIn: boolean; checkable: boolean };
 // What the page sends (props are rendered and sent twice in a page, and an
 // office may hold hundreds of rooms, its day as many bookings): each
 // person once in `who` ([id, name, photo]), each booking a row naming them
 // by their place in it — [id, room, start, end, title, organiser, guests,
-// flags (1 mine, 2 may change, 4 checked in, 8 may check in), series].
+// flags (1 mine, 2 may change, 4 checked in, 8 may check in today: the
+// clock decides when), series].
 export type Who = [string, string, string | null][];
 export type SentBooking = [string, string, number, number, string, number, number[], number, string | null];
 const personOf = (who: Who, i: number): Person => ({ id: who[i]?.[0] ?? "", name: who[i]?.[1] ?? "", photo: who[i]?.[2] ?? null });
@@ -35,7 +39,7 @@ type Open = { mode: "new"; draft: Draft } | { mode: "detail"; id: string } | { m
 // (beyond how far ahead one may book; opensOn says when it opens).
 export type Locked = { why: "past" | "closed" | "notYet"; opensOn?: string } | null;
 
-export function RoomsView({ head, strip, notice, lockedHint, day, days, today, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings: sent, who, people: team, bookFor, initial, told, calendarPage, locale, t }: {
+export function RoomsView({ head, strip, notice, lockedHint, day, days, today, now: served, zone, locked: lockedDay, open, close, maxWeeks, rooms, bookings: sent, who, people: team, bookFor, initial, told, calendarPage, locale, t }: {
   // The page's title and the line under it; the office picker; the days.
   // Here, so that the page's one action, "Book a room", sits at the top.
   head: { title: string; intro: string; offices: OfficePickerProps | null };
@@ -50,6 +54,8 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
   // Today in the Chest's zone (the day field's "today").
   today: string;
   now: number | null;
+  // The office's zone: the clock of this page.
+  zone: string;
   locked: Locked;
   open: number;
   close: number;
@@ -70,7 +76,10 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
   locale: string;
   t: Words;
 }) {
-  const bookings = useMemo(() => sent.map(b => expand(b, who)), [sent, who]);
+  // Now, kept current by the clock while the page is open (today only).
+  const ticking = useMinutes(zone, served ?? 0);
+  const now = served === null ? null : ticking;
+  const bookings = useMemo(() => sent.map(b => expand(b, who)).map(b => ({ ...b, checkable: b.checkable && now !== null && now >= b.start - checkInOpens && now < b.end })), [sent, who, now]);
   const people = useMemo(() => team.map(id => personOf(who, id)), [team, who]);
   const [dialog, setDialog] = useState<Open>(initial ? { mode: "detail", id: initial } : null);
   const [dirty, setDirty] = useState(false);
@@ -132,12 +141,13 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
     }
   }
 
-  async function saveEdit(id: string, d: Draft, done: (error: string | null) => void) {
-    const r = await call("updateRoomBooking", { bookingId: id, roomId: d.roomId, day: d.day, start: d.start, end: d.end, title: d.title, attendees: d.attendees }, { quiet: true });
+  async function saveEdit(id: string, d: Draft, done: (error: string | null) => void, scope: "one" | "following") {
+    const r = await call("updateRoomBooking", { bookingId: id, roomId: d.roomId, day: d.day, start: d.start, end: d.end, title: d.title, attendees: d.attendees, scope }, { quiet: true });
     if (!r.ok) return done(r.message);
     done(null);
     close_();
-    toast({ id: "room-" + id, text: t.booking.changed });
+    const { changed, taken } = r.value;
+    toast({ id: "room-" + id, text: (scope === "following" ? plural(t.booking.changedWeekly, changed, locale) : t.booking.changed) + (taken.length ? " " + format(t.booking.skipped, { days: taken.map(x => formatDay(x, locale)).join(", ") }) : "") });
   }
 
   async function cancel(b: GridBooking, scope: "one" | "following") {
@@ -225,7 +235,8 @@ export function RoomsView({ head, strip, notice, lockedHint, day, days, today, n
         )}
         {dialog?.mode === "edit" && shownBooking && (
           <BookingForm initial={dialog.draft} isNew={false} days={days} today={today} rooms={rooms} bookable={bookable} open={open} close={close} maxWeeks={maxWeeks} people={people} bookFor={false} told={told} locale={locale} t={t}
-            onDirty={setDirty} onSubmit={(d, done) => void saveEdit(shownBooking.id, d, done)} />
+            series={shownBooking.series !== null}
+            onDirty={setDirty} onSubmit={(d, done, scope) => void saveEdit(shownBooking.id, d, done, scope)} />
         )}
         {dialog?.mode === "detail" && shownBooking && (
           <Detail b={shownBooking} room={rooms.find(r => r.id === shownBooking.roomId)!} day={day} over={isOver(shownBooking)} calendarPage={calendarPage} locale={locale} t={t}
@@ -451,12 +462,15 @@ function Detail({ b, room, day, over, calendarPage, locale, t, onEdit, onCancel,
   );
 }
 
-function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close, maxWeeks, people, bookFor, told, locale, t, onDirty, onSubmit }: {
+function BookingForm({ initial, isNew, series = false, days, today, rooms, bookable, open, close, maxWeeks, people, bookFor, told, locale, t, onDirty, onSubmit }: {
   initial: Draft; isNew: boolean; days: { value: string; label: string }[]; today: string; rooms: GridRoom[]; bookable: (r: GridRoom) => boolean; open: number; close: number; maxWeeks: number; people: Person[]; bookFor: boolean; told: "bell" | "calendar" | "mail"; locale: string; t: Words;
   onDirty: (dirty: boolean) => void;
-  onSubmit: (d: Draft, done: (error: string | null) => void) => void;
+  // A weekly booking's occurrence: saved alone, or with the next ones.
+  series?: boolean;
+  onSubmit: (d: Draft, done: (error: string | null) => void, scope: "one" | "following") => void;
 }) {
   const [d, setDraft] = useState(initial);
+  const scope = useRef<"one" | "following">("one");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Whatever was typed or chosen: closing the form now asks first.
@@ -492,7 +506,7 @@ function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close
     onSubmit(d, message => {
       setBusy(false);
       if (message) setError(message);
-    });
+    }, scope.current);
   }
 
   return (
@@ -550,7 +564,8 @@ function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close
       )}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row">
-        <button type="submit" className="button" disabled={busy}>{busy ? t.booking.saving : isNew ? t.booking.save : t.booking.saveChanges}</button>
+        <button type="submit" className="button" disabled={busy} onClick={() => { scope.current = "one"; }}>{busy ? t.booking.saving : isNew ? t.booking.save : t.booking.saveChanges}</button>
+        {series && !isNew && <button type="submit" className="button quiet" disabled={busy} onClick={() => { scope.current = "following"; }}><Repeat />{t.booking.saveFollowing}</button>}
       </div>
     </form>
   );

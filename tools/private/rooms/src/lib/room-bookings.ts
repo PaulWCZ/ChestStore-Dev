@@ -6,7 +6,8 @@ import { enqueue, roomKey } from "./calendar.ts";
 import { bookedFor } from "./desk-bookings.ts";
 import { groupsOf } from "./groups.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
-import { addDays, clean, day, id, int, limits, memberIds, minutes } from "../shared/model.ts";
+import type { TransactionSql } from "postgres";
+import { addDays, clean, day, daysBetween, id, int, limits, memberIds, minutes } from "../shared/model.ts";
 
 // Meeting rooms booked by the quarter hour. PostgreSQL refuses two live
 // bookings of a room that overlap (constraint room_taken): whoever comes
@@ -129,7 +130,46 @@ export async function updateRoomBooking(sql: Sql, actor: Member | null, bookingI
   if (!actor || !can(actor, "book")) throw new AppError("forbidden");
   const bid = id(bookingId);
   const mine = input.roomId === undefined ? [] : await groupsOf(actor);
+  return sql.begin(tx => changeOne(tx, actor, bid, input, zone, mine));
+}
+
+// "This and the following ones" of a weekly booking: the same change to
+// this occurrence and every later one still to come — the same time, room,
+// title and people; another day moves each by as many days. This one must
+// take the change; a later one that cannot (taken that day, a closed day)
+// stays as it was and is named (taken).
+export async function updateFollowing(sql: Sql, actor: Member | null, bookingId: unknown, input: RoomInput, zone: string): Promise<{ changes: { before: RoomBooking; after: RoomBooking }[]; taken: string[] }> {
+  if (!actor || !can(actor, "book")) throw new AppError("forbidden");
+  const bid = id(bookingId);
+  const mine = input.roomId === undefined ? [] : await groupsOf(actor);
   return sql.begin(async tx => {
+    const [row] = await tx<{ series: string | null; day: string }[]>`
+      select series, to_char(day, 'YYYY-MM-DD') as day from room_bookings where id = ${bid} and cancelled_at is null`;
+    if (!row) throw new AppError("not_found");
+    const first = await changeOne(tx, actor, bid, input, zone, mine);
+    if (!row.series) return { changes: [first], taken: [] };
+    const shift = input.day === undefined ? 0 : daysBetween(row.day, day(input.day));
+    const later = await tx<{ id: string; day: string }[]>`
+      select id, to_char(day, 'YYYY-MM-DD') as day from room_bookings
+      where series = ${row.series} and id <> ${bid} and day > ${row.day} and cancelled_at is null and upper(during) > now()
+      order by day, id`;
+    const changes = [first];
+    const taken: string[] = [];
+    for (const o of later) {
+      const moved = { ...input, ...(input.day !== undefined ? { day: addDays(o.day, shift) } : {}) };
+      try {
+        changes.push(await tx.savepoint(sp => changeOne(sp, actor, String(o.id), moved, zone, mine)));
+      } catch (error) {
+        if (!(error instanceof AppError)) throw error;
+        taken.push(o.day);
+      }
+    }
+    return { changes, taken };
+  });
+}
+
+async function changeOne(tx: TransactionSql, actor: Member, bid: string, input: RoomInput, zone: string, mine: string[]): Promise<{ before: RoomBooking; after: RoomBooking }> {
+  {
     const [row] = await tx<{ member_id: string; over: boolean; started: boolean }[]>`
       select member_id, upper(during) <= now() as over, lower(during) <= now() as started from room_bookings where id = ${bid} and cancelled_at is null for update`;
     if (!row) throw new AppError("not_found");
@@ -149,7 +189,11 @@ export async function updateRoomBooking(sql: Sql, actor: Member | null, bookingI
     const title = input.title === undefined ? before!.title : clean(input.title, limits.title, { optional: true });
     try {
       await tx.savepoint(async sp => {
-        await sp`update room_bookings set room_id = ${roomId}, day = ${d}, during = ${span(sp, d, s.start, s.end, zone)}, title = ${title}, revision = revision + 1, changed_at = now() where id = ${bid}`;
+        // Moved (another day, time or room): its reminder and its check-in
+        // belonged to the old slot.
+        const moved = d !== before!.day || s.start !== before!.start || s.end !== before!.end || roomId !== before!.roomId;
+        await sp`update room_bookings set room_id = ${roomId}, day = ${d}, during = ${span(sp, d, s.start, s.end, zone)}, title = ${title}, revision = revision + 1, changed_at = now(),
+          reminded_at = case when ${moved} then null else reminded_at end, checked_in_at = case when ${moved} then null else checked_in_at end where id = ${bid}`;
       });
     } catch (error) {
       throw conflict(error) ?? error;
@@ -162,7 +206,7 @@ export async function updateRoomBooking(sql: Sql, actor: Member | null, bookingI
     await enqueue(tx, [roomKey(bid)]);
     const [after] = await byIds(tx, [bid], zone);
     return { before: before!, after: after! };
-  });
+  }
 }
 
 // Cancels one booking, or with "following" this one and the next ones of

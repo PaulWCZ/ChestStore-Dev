@@ -5,7 +5,7 @@ import { erase, leave } from "../src/lib/lifecycle.ts";
 import { myCsv } from "../src/lib/mine.ts";
 import { catalogue } from "../src/i18n/index.ts";
 import { addDays, today } from "../src/shared/model.ts";
-import { purge } from "../src/lib/settings.ts";
+import { purge, setRules } from "../src/lib/settings.ts";
 import * as tell from "../src/lib/tell.ts";
 import * as visits from "../src/lib/visits.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -107,9 +107,25 @@ test("a host who leaves: their coming visitors are cancelled; erased: no trace o
   await erase(sql, ines.id, zone);
   const [left] = await sql<{ n: number }[]>`select count(*)::int as n from visits where host = ${ines.id} or created_by = ${ines.id} or arrived_by = ${ines.id}`;
   assert.equal(left!.n, 0);
-  // A visit long past goes when the week is read (purge).
+  // A visit long past goes at the quarter's purge.
   await sql`insert into visits (office_id, day, at_minute, name, host, created_by) values (${o.office}, ${addDays(now(), -400)}, 600, 'Old', ${hugo.id}, ${hugo.id})`;
   await purge(sql, zone);
   const [old] = await sql<{ n: number }[]>`select count(*)::int as n from visits where name = 'Old'`;
   assert.equal(old!.n, 0);
+});
+
+test("visitors are kept a shorter time than bookings: 30 days after their visit, or what an admin sets (1 to 90)", async () => {
+  const { sql } = database;
+  const count = async (name: string) => (await sql<{ n: number }[]>`select count(*)::int as n from visits where name = ${name}`)[0]!.n;
+  for (const [name, ago] of [["Forty", -40], ["Ten", -10]] as const) {
+    await sql`insert into visits (office_id, day, at_minute, name, host, created_by) values (${o.office}, ${addDays(now(), ago)}, 600, ${name}, ${hugo.id}, ${hugo.id})`;
+  }
+  await purge(sql, zone);
+  assert.equal(await count("Forty"), 0, "past 30 days: gone");
+  assert.equal(await count("Ten"), 1);
+  await setRules(sql, asMember(camille), { visitorDays: 5 });
+  await purge(sql, zone);
+  assert.equal(await count("Ten"), 0);
+  await assert.rejects(setRules(sql, asMember(camille), { visitorDays: 365 }), { code: "invalid" });
+  await setRules(sql, asMember(camille), { visitorDays: 30 });
 });

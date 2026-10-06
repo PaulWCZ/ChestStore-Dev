@@ -111,6 +111,13 @@ test("a day at the office is a whole free day in the member's own calendar; remo
   await setPresence(sql, asMember(lea), { day: d, status: "office" }, zone);
   await cal.flush(sql, zone);
   assert.equal(chest.calendar.get(key)?.title.en, "At the office");
+  // A day changed again: a newer sequence, so calendars that hold it update it.
+  const first = (await cal.eventOf(sql, key, zone))!;
+  assert.ok(first.sequence > 0);
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  await desks.bookDesk(sql, asMember(lea), { deskId: o.desks[0], day: d, part: "pm" }, zone);
+  const later = (await cal.eventOf(sql, key, zone))!;
+  assert.ok(later.sequence > first.sequence, `${first.sequence} → ${later.sequence}`);
 });
 
 test("someone who leaves: their days go, they leave their guests' events; an erasure drops every key naming them", async () => {
