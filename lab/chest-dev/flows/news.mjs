@@ -88,10 +88,9 @@ await step("a publisher writes an Important post with a picture and a file", asy
   await page.locator("label", { hasText: "Attach a file" }).locator("input").setInputFiles(tmp + "/badge-rules.txt");
   await page.waitForSelector(".file-list li:has-text('badge-rules.txt')", { timeout: 8000 });
   await page.getByLabel("Important").check();
-  // Studio.16: asked of the Chest before the first send (mail.available), the
-  // composer promises email only when it would go.
-  expect((await page.locator("main").innerText()).includes("told in their bell and by email"), "the Chest sends email: the hint says so");
-  await page.getByRole("button", { name: "Publish and tell 6 people by bell and email" }).click();
+  // A notification, never an email from News: the hint and the button say so plainly.
+  expect((await page.locator("main").innerText()).includes("gets a notification and is asked to confirm"), "the hint says what happens");
+  await page.getByRole("button", { name: "Publish and tell 6 people", exact: true }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   expect(await page.locator(".ck-toast", { hasText: "Telling 6 people in 10 seconds" }).locator(".ck-toast-undo").isVisible(), "the Undo toast");
   expect(await page.locator(".prose strong", { hasText: "both doors" }).isVisible() && await page.locator(".prose li").count() >= 2, "kept as formatted");
@@ -103,14 +102,14 @@ await step("a publisher writes an Important post with a picture and a file", asy
 });
 const badgesUrl = page.url();
 
-await step("after 10 seconds, everyone is told in their bell and by email, in their language", async () => {
+await step("after 10 seconds, everyone gets a notification in their language — no email", async () => {
   expect(!(await dev()).includes("Important: New badges from Monday"), "nothing sent during the Undo seconds");
   await page.waitForSelector(".ck-toast.ck-toast-sent:has-text('Sent.')", { timeout: 15000 });
   expect(!(await page.locator(".ck-toast", { hasText: "Sent." }).locator(".ck-toast-undo").count()), "once sent, no Undo");
   const text = await dev();
-  expect(has(text, `<b>Important${sp}: New badges from Monday</b>`) && text.includes("<b>Important: New badges from Monday</b>"), "emails in both languages");
-  expect(has(text, `Important${sp}: New badges from Monday`), "French bell for Inès");
-  expect(text.includes("Important: New badges from Monday"), "English bell for Hugo");
+  expect(!text.includes("<b>Important: New badges from Monday</b>"), "no email to members");
+  expect(has(text, `fr: Important${sp}: New badges from Monday`), "the notice's French words");
+  expect(text.includes("Important: New badges from Monday"), "and its English ones");
 });
 
 await step("a reader confirms from the front page; reacts and comments", async () => {
@@ -211,7 +210,7 @@ await step("a publisher writes for one team only; nobody else sees it, is told o
   await page.locator(".audience-groups label", { hasText: "Sales" }).locator("input").check();
   expect((await page.locator("#audience-count").innerText()).includes("2 people can see it"), "the count follows");
   await page.getByLabel("Important").check();
-  await page.getByRole("button", { name: "Publish and tell 2 people by bell and email" }).click();
+  await page.getByRole("button", { name: "Publish and tell 2 people", exact: true }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   salesUrl = page.url();
   await page.waitForSelector(".ck-toast.ck-toast-sent:has-text('Sent.')", { timeout: 15000 });
@@ -259,18 +258,6 @@ await step("search: one box, accents and case aside, words marked, only what one
   expect(said.includes("@Sofia Rossi, qui s’occupe du déménagement des plantes"), "the mention reads as a name: " + said);
   expect(!/mbr_|@\[/u.test(await comments.innerHTML()), "no member id in the passage");
   expect((await comments.locator("mark").allTextContents()).includes("plantes"), "the word found still marked");
-});
-
-await step("the weekly digest: one item per person, in their language, never doubled, gone once they come", async () => {
-  const count = text => (text.match(/Nora Petit<\/b> · Cette semaine[ \u00a0\u202f]: \d+ publications? que vous n’avez pas encore vues?/gu) ?? []).length;
-  await page.request.post(origin + "/_dev/schedule", { form: { name: "digest" } });
-  expect(count(await dev()) === 1, "Nora (French) has her digest");
-  await page.request.post(origin + "/_dev/schedule", { form: { name: "digest" } });
-  expect(count(await dev()) === 1, "delivered again: still one");
-  expect(!(await dev()).includes("Tom Walker</b> · This week: 1 post you haven’t seen yet<br><small>Sales"), "no Sales post for Tech");
-  await as(context, origin, "nora");
-  await page.goto(origin + "/chest");
-  expect(count(await dev()) === 0, "Nora came: it is withdrawn");
 });
 
 await step("French, phone width: nothing overflows; confirm and write work", async () => {
@@ -329,7 +316,7 @@ await step("Undo within 10 seconds: nothing leaves, the post is back in the comp
   await page.locator(".notice", { hasText: "Your draft is back" }).waitFor();
   expect(await page.getByLabel("Headline").inputValue() === "Oops: wrong date", "the draft is back");
   await page.waitForTimeout(11000);
-  expect((await dev()).split("Oops: wrong date").length === before, "no bell, no email");
+  expect((await dev()).split("Oops: wrong date").length === before, "no notification");
   await page.getByRole("button", { name: "Start over" }).click();
 });
 
@@ -374,6 +361,7 @@ await step("two languages: each reader sees theirs", async () => {
   await page.goto(url);
   expect((await page.locator("#headline").innerText()) === "Cantine fermée vendredi", "Inès reads French");
   await page.getByRole("link", { name: "Read in English" }).click();
+  await page.waitForURL(u => u.searchParams.get("lang") === "en");
   expect((await page.locator("#headline").innerText()) === "Canteen closed on Friday", "and may read the English one");
 });
 
@@ -429,7 +417,7 @@ await step("a changed Important text: its earlier version kept, everyone asked a
   expect((await page.locator(".readers").innerText()).includes("confirmed an earlier version"), "earlier confirmations said");
   await page.locator(".history summary").click();
   expect((await page.locator(".history").innerText()).includes("Version 2"), "earlier versions kept");
-  expect((await page.locator(".reach").innerText()).includes("Sent by email"), "reach, counts only");
+  expect(!(await page.locator(".reach").innerText()).includes("email"), "reach, counts only — no email line");
 });
 
 await step("schedule from the bar, next to Publish", async () => {
@@ -495,14 +483,12 @@ await step("import a Slack channel, take it back; download all posts", async () 
   expect(zip.status() === 200 && (zip.headers()["content-type"] ?? "").includes("zip") && (await zip.body()).length > 1000, "the ZIP");
 });
 
-await step("the weekly digest email can be turned off", async () => {
+await step("no digest and no email switch of News's own: the Chest groups notifications as each member chose", async () => {
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest");
-  expect((await page.locator(".digest-switch").innerText()).includes("come in your bell and by email"), "a Chest that sends email: the switch is offered");
-  await page.getByRole("button", { name: "Stop the email" }).click();
-  await page.waitForSelector(".ck-toast:has-text('No more weekly email')");
-  await page.reload();
-  expect(await page.getByRole("button", { name: "Also by email" }).isVisible(), "kept");
+  expect(!(await page.locator(".digest-switch").count()), "no switch at the foot of the front page");
+  expect(!(await page.getByRole("button", { name: "Stop the email" }).count()), "no email setting in News");
+  expect((await page.request.post(origin + "/_dev/schedule", { form: { name: "digest" } })).status() >= 400 || !(await dev()).includes("This week:"), "no digest schedule");
 });
 
 await step("views are a number only, from 5; events ask when and where under the headline; the bar never covers the side", async () => {
@@ -609,43 +595,32 @@ await step("round 3: a reader shares a shout-out with a picture; only publishers
   await page.waitForSelector(".proposal:has-text('Le chantier de Villeurbanne est livré')");
 });
 
-await step("round 3: “I’m coming” in one tap from the email of an Important event — for that person only, with Undo", async () => {
+await step("an Important event: the notification opens it, where “I’m coming” is one tap", async () => {
   await as(context, origin, "camille");
   await speak("en");
   await compose("/chest/new?kind=event");
   await page.getByLabel("Headline").fill("Farewell drinks for Tom");
   await page.getByLabel("Important").check();
-  await page.getByRole("button", { name: /^Publish and tell \d+ people by bell and email$/u }).click();
+  await page.getByRole("button", { name: /^Publish and tell \d+ people$/u }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   const post = new URL(page.url()).pathname;
   await page.waitForSelector(".ck-toast.ck-toast-sent", { timeout: 15000 });
   const panel = await dev();
-  const letter = panel.split("<li>").find(li => li.includes("Important: Farewell drinks for Tom") && li.includes("hugo@example.test")) ?? "";
-  const link = /I’m coming: (\S+?)(?:\s|&lt;|<)/u.exec(letter)?.[1]?.replaceAll("&amp;", "&") ?? "";
-  expect(new RegExp(`${post}/answer\\?a=yes&t=[A-Za-z0-9_-]{32}$`, "u").test(link), "the email carries the link: " + link);
-  expect(letter.includes("Not coming: "), "and the other answer");
-  const path = new URL(link).pathname + new URL(link).search;
+  const item = panel.split("<li>").find(li => li.includes("Hugo Bernard</b> · Important: Farewell drinks for Tom")) ?? "";
+  expect(item.includes(`href="${post}"`), "Hugo's notification opens the post: " + item.slice(0, 200));
+  expect(!panel.split("<li>").some(li => li.includes("Important: Farewell drinks for Tom") && li.includes("@example.test")), "no email");
   await as(context, origin, "hugo");
-  await page.goto(origin + path);
-  await page.waitForURL(u => u.pathname === post && u.search === "");
-  await page.waitForSelector(".ck-toast:has-text('You’re coming.')");
+  await page.goto(origin + post);
+  await saved(() => page.locator(".rsvp").getByRole("button", { name: "I’m coming" }).click());
   expect(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "I’m coming" }).isVisible(), "answered");
-  await saved(() => page.locator(".ck-toast", { hasText: "You’re coming." }).locator(".ck-toast-undo").click());
-  await page.reload();
-  expect(!(await page.locator(".rsvp button[aria-pressed=true]").count()), "Undo took the answer back");
-  // Léa opens Hugo's link: nothing changes for anyone.
-  await as(context, origin, "lea");
-  await speak("fr");
-  await page.goto(origin + path);
-  await page.waitForSelector(".ck-toast:has-text('Ce lien n’a pas été écrit pour vous')");
-  expect(!(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "Je viens" }).count()), "Léa is not answered for");
+  expect((await page.request.get(origin + post + "/answer?a=yes&t=x", { maxRedirects: 0 })).status() === 404, "the old one-tap email links are gone");
 });
 
 await step("pass 4: a post published 19 days ago, made Important now, is told to its audience then, once", async () => {
   await as(context, origin, "camille");
   await speak("en");
   const subject = "Important: The Wi-Fi password changes on Monday";
-  expect(!(await dev()).includes(subject), "nobody told before");
+  expect(!(await dev()).includes("</b> · " + subject), "nobody told before");
   await page.goto(origin + "/chest/posts/2/edit");
   await page.waitForSelector(".composer[data-ready]", { state: "attached" });
   await page.getByLabel("Important").check();
@@ -653,14 +628,14 @@ await step("pass 4: a post published 19 days ago, made Important now, is told to
   await page.waitForURL(/\/chest\/posts\/2$/u);
   // The next pass (the front page opened, or the publish schedule) tells.
   await page.goto(origin + "/chest");
-  const panel = await dev();
-  const letters = panel.split("<li>").filter(li => li.includes(subject) && li.includes("@example.test"));
-  expect(letters.length > 0, "emailed now");
-  expect(panel.includes("hugo@example.test") && letters.some(li => li.includes("hugo@example.test")), "Hugo emailed");
-  // Once: another pass sends nothing more.
+  const items = (text) => text.split("<li>").filter(li => li.includes("</b> · " + subject));
+  const told = items(await dev());
+  expect(told.length > 0, "told now");
+  expect(told.some(li => li.includes("Hugo Bernard</b>")), "Hugo told");
+  // Once: another pass tells nothing more (one key per post: replaced, never doubled).
   await page.goto(origin + "/chest");
-  const after = (await dev()).split("<li>").filter(li => li.includes(subject) && li.includes("@example.test"));
-  expect(after.length === letters.length, `emailed once (${letters.length} then ${after.length})`);
+  const after = items(await dev());
+  expect(after.length === told.length, `told once (${told.length} then ${after.length})`);
   await page.goto(origin + "/chest/posts/2");
   expect(/Read by 0 of \d+/u.test(await page.locator(".readers h2").innerText()), "asked to confirm");
 });
@@ -676,8 +651,6 @@ await step("round 3: an empty front page: no empty band, one import link; a read
   const body = await page.locator(".ck-empty").innerText();
   expect(body.includes("To publish one, ask Sofia Rossi or Camille Martin."), "names the publishers: " + body);
   expect(await page.locator(".ck-empty").getByRole("link", { name: "Share something" }).isVisible(), "and offers to share");
-  const rule = await page.locator(".digest-switch").evaluate(el => getComputedStyle(el).borderTopStyle);
-  expect(rule === "none", "no second rule under the empty state: " + rule);
   await as(context, origin, "sofia");
   await page.goto(origin + "/chest");
   expect(await page.getByRole("link", { name: /Import/u }).count() === 1, "one Slack import link");

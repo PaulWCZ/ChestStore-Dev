@@ -1,4 +1,3 @@
-import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError, TooLarge } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
@@ -286,12 +285,12 @@ export const actions = {
     return { asked: state.asked ? await tell.readAsked(member, p, state.asked) : 0 };
   }),
 
-  // "Remind those who have not confirmed": the bell again, and an email.
+  // "Remind those who have not confirmed": the notification again.
   remindRead: action(page, async ({ pageId }, { member }) => {
     const p = await pages.page(db(), member, pageId, "write");
     const state = await reads.readState(db(), member, p.id);
     if (!state.asked) fail("invalid");
-    return { reminded: await tell.remindReaders(db(), p, state.asked!, chest.today()) };
+    return { reminded: await tell.remindReaders(db(), p, state.asked!) };
   }),
 
   stopAskRead: action(page, async ({ pageId }, { member }) => {

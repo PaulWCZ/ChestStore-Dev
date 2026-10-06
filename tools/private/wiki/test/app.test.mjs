@@ -21,7 +21,7 @@ before(async () => {
     tool: "wiki",
     network: {},
     members: everyone,
-    capabilities: ["members", "files", "notifications", "groups"],
+    capabilities: ["members", "files", "notifications", "members.groups"],
     groups: [
       { id: groups.office, name: "Office", members: [camille.id] },
       { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] },

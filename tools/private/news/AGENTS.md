@@ -14,13 +14,13 @@ the studio's `app/`.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `publisher`, `reader`; `database`, `files`, `members`, `notifications`; `receives`; the `publish` and `digest` schedules; `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposals of the studio's SDK: `mail` (send), `calendar`, `groups: read` and `receives: ["group.*"]`, the French tile |
-| `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, `complete: withGroups`, the look), the pages, files, downloads, the Slack import, `/chest-events`, `/chest-schedules` |
-| `src/calls.ts` | What the Chest calls by itself (`chestEvents`, `chestSchedules`) and the one-tap answer link (`answerLink`): plain functions of a Request, tested directly |
+| `chest.json` | Manifest (contract 0.4): roles `publisher`, `reader`; `database`, `files`, `members`, `notifications`; `receives`; the `publish` schedule; `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Proposals of the studio's SDK: `calendar`, `capabilities: ["members.groups"]` and `receives: ["group.*"]`, the French tile (no `mail`: News writes to nobody outside) |
+| `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, files, downloads, the Slack import, `/chest-events`, `/chest-schedules` |
+| `src/calls.ts` | What the Chest calls by itself (`chestEvents`, `chestSchedules`): plain functions of a Request, tested directly |
 | `src/actions.ts` | **Every mutation**, by name (`call("savePost", …)` from an island); thin: the rules are in `src/lib/` |
 | `src/pages/` | The pages, rendered on the server: `Front.tsx` (+ `Story.tsx`), `Post.tsx`, `Compose.tsx` (new, edit), `Propose.tsx`, `Proposals.tsx`, `Search.tsx`, `Transfer.tsx`, `PublicHome.tsx` |
-| `src/islands/` | What runs in the browser, listed in `index.ts`: `Composer` (+ `TextEditor` → `Tiptap`, fetched only by the composer), `Post.tsx` (`PostTools`, `ConfirmBox`, `SendingNotice`, `Rsvp`, `Reactions`, `RemindButton`, `AnsweredNotice`), `Comments`, `ProposeForm`/`TakeBack`, `Decide`, `SlackImport`, `DigestSwitch`, `Search`, `AutoRefresh`, `Ready` (the `html[data-hydrated]` marker flows wait for); `upload.ts` (the three-step upload) |
+| `src/islands/` | What runs in the browser, listed in `index.ts`: `Composer` (+ `TextEditor` → `Tiptap`, fetched only by the composer), `Post.tsx` (`PostTools`, `ConfirmBox`, `SendingNotice`, `Rsvp`, `Reactions`, `RemindButton`), `Comments`, `ProposeForm`/`TakeBack`, `Decide`, `SlackImport`, `Search`, `AutoRefresh`, `Ready` (the `html[data-hydrated]` marker flows wait for); `upload.ts` (the three-step upload) |
 | `src/components/` | Shared by pages and islands (no server code): icons, the mark, `RichText` (a post's text as React elements), `Highlighted` |
 | `src/shared/` | Pure rules both sides use: `model.ts` (bounds, kinds, audience), `markdown.ts`, `editor-doc.ts` (text ↔ the editor's document) |
 | `src/layout.tsx` | The kit's `AppShell` (search, "Write a post"/"Share something", member chip, the company's logo), `NoAccess`, the toasts (outside `<main>`, `id="toasts"`: they survive `navigate()`) |
@@ -30,12 +30,12 @@ the studio's `app/`.
 | `src/lib/input.ts` | What a person sends, read and refused with a code (texts, ids, groups, people) |
 | `src/lib/posts.ts` | Posts, files, reactions, comments, confirmations, event answers, visits, the tile's count, purge — every service `(sql, actor, …)` |
 | `src/lib/proposals.ts` | **Posts from everyone**: propose, mine, waiting, approve (never one's own), decline/restore; seen only by its author and publishers |
-| `src/lib/answer-links.ts`, `src/lib/answering.ts` | "I'm coming" from an email: an HMAC token per person, event and button (key in `chest_state`) |
-| `src/lib/tell.ts` | The bell, email and the tile: telling Important posts (paged, resumable past the quota, one email per person and version), welcomes, comments, replies, mentions, reminders, a freed seat; `reconcile`; `pass`/`catchUp` |
-| `src/lib/mailer.ts`, `agenda.ts`, `state.ts`, `preferences.ts` | Email through the Chest; events in the Chest's calendar; what News learned of the Chest; the digest's email switch |
+| `src/lib/answering.ts` | "I'm coming" / "Not coming", seats and the waiting list |
+| `src/lib/tell.ts` | Notifications (one notice with its `translations`, never an email) and the tile: telling Important posts (paged, resumable past the quota), welcomes, comments, replies, mentions, reminders, a freed seat; `reconcile`; `pass`/`catchUp` |
+| `src/lib/agenda.ts`, `state.ts` | Events in the Chest's calendar; what News learned of the Chest |
 | `src/lib/transfer.ts`, `zip.ts` | Download all posts (ZIP); import a Slack channel export |
-| `src/lib/audience.ts`, `groups.ts` | Who has News (500 a page); the Chest's groups and each person's (`withGroups`, kept a minute) |
-| `src/lib/search.ts`, `highlight.ts`, `digest.ts`, `views.ts`, `ics.ts`, `time.ts`, `zone.ts`, `dates.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | Search; the weekly digest; view counts (a number only); `.ics`; days and times on the Chest's clock; leaving and erasure; names; the package's `db()` |
+| `src/lib/audience.ts`, `groups.ts` | Who has News (500 a page); the Chest's groups (kept a minute; a member's groups come with the member, `members.groups`) |
+| `src/lib/search.ts`, `highlight.ts`, `views.ts`, `ics.ts`, `time.ts`, `zone.ts`, `dates.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | Search; view counts (a number only); `.ics`; days and times on the Chest's clock; leaving and erasure; names; the package's `db()` |
 | `migrations/` | Schema. Never edit a shipped file; add `0008_…` |
 | `seed/sample.sql` | A small company's month, for local runs |
 | `test/` | `node:test`: services with `fakeChest` and PostgreSQL (`support/db.ts`: TEST_DATABASE_URL, else PGlite with `unaccent` and `pg_trgm`); `app.test.mjs` asks the built server (`dist/test`); `stack.test.ts` the package's `checkSources()`; `i18n.test.ts` its `checkWords()` |
@@ -74,8 +74,8 @@ TEST_DATABASE_URL=postgres://… npm test   # the same on a real PostgreSQL
 - **Telling many people**: go through `src/lib/tell.ts` — pages of 500, one key
   per post (`post:<id>:important`) so telling again replaces, a lease so two
   passes never tell at once, the cursor kept when the quota stops it —
-  only the post's audience. The digest follows the same rules (key
-  `digest`, `digest_runs.after`).
+  only the post's audience. Never an email to a member: a notice with its
+  `translations` (`notice()` in `src/lib/notify.ts`).
 - **A proposal is not a post.** Nothing that reads posts sees
   `proposals`; only `src/lib/proposals.ts` does, for its author and the
   publishers (`test/round3.test.ts`). A new place that shows proposals

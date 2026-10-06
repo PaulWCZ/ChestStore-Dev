@@ -11,7 +11,7 @@ import { asMember } from "./support/member.ts";
 import { camille, hugo, sofia } from "./support/members.ts";
 
 // Company surveys: organisers only by default; an anonymous survey read
-// per team (Proposal (studio): "groups": "read"), each group from 5
+// per team (Proposal (studio): "members.groups"), each group from 5
 // answers and never when subtraction would tell a smaller group.
 let database: TestDatabase;
 before(async () => {
@@ -88,7 +88,7 @@ const teams = [
 const cast = [...people.map(p => ({ ...p, groups: teams.filter(t => t.members.includes(p.id)).map(t => t.id) })), { ...sofia, groups: [] }];
 
 test("an anonymous survey per team: counts per group of 5 or more, shown once closed, never a group that could be worked out", async () => {
-  const chest = await fakeChest({ network: {}, members: cast, groups: teams, capabilities: ["members", "notifications", "groups"], chest: { timeZone: zone } });
+  const chest = await fakeChest({ network: {}, members: cast, groups: teams, capabilities: ["members", "notifications", "members.groups"], chest: { timeZone: zone } });
   try {
     const { sql } = database;
     const made = await polls.createPoll(sql, asMember(sofia), { kind: "survey", title: "Our week", anonymous: true, questions: [{ kind: "scale", text: "Your week?" }, { kind: "text", text: "Anything?" }], open: true }, ctx);

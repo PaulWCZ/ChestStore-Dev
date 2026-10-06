@@ -8,7 +8,7 @@ import { view } from "./polls.ts";
 // An anonymous survey read per team (Officevibe's heat map, without its
 // leaks). Once the survey is closed and its results show (5 answers or
 // more, for everyone), its counts are also shown per group of the Chest
-// (Proposal (studio): "groups": "read"), under three rules:
+// (Proposal (studio): "members.groups"), under three rules:
 //
 // 1. A group shows from 5 answers (teamFloor), like the whole survey.
 // 2. Never when it could be worked out by subtraction: when a shown group

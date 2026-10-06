@@ -1,28 +1,49 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { catalogue, type Catalogue } from "../i18n/index.ts";
+import { catalogue, locales, type Catalogue } from "../i18n/index.ts";
 import { people } from "./people.ts";
 
-// Items in the Chest's bell, each written in its recipient's language. A
-// notification is a courtesy: when the Chest cannot take it (not granted,
-// quota, unreachable), the action that sent it still succeeds.
-export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
+// Items in the Chest's bell. A notice is written once in every language
+// Polls speaks — English the fallback, the others as its translations —
+// and the Chest shows each member theirs (Proposal (studio), announced for
+// 0.5). The Chest mails members their notifications by each member's
+// choice: Polls never mails a member. A notification is a courtesy: when
+// the Chest cannot take it (not granted, quota, unreachable), the action
+// that sent it still succeeds.
+export type Words = (t: Catalogue, locale: Locale) => { title: string; body?: string };
+
+// notice: the words in English, with the other languages as translations.
+export function notice(message: Words, options: { path: string; key?: string }): notifications.Notice {
+  const shaped = (locale: Locale) => {
+    const { title, body } = message(catalogue(locale), locale);
+    return { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}) };
+  };
+  const translations = Object.fromEntries(locales.filter(l => l !== "en").map(l => [l, shaped(l)]));
+  return { ...shaped("en"), path: options.path, ...(options.key ? { key: options.key } : {}), translations };
+}
+
+// The Chest takes 500 recipients a call (0.4.1).
+const perCall = 500;
+
+// sendNotice: these members (already known to have Polls) hear of it.
+// False when the Chest refused: the caller may try again later.
+export async function sendNotice(ids: readonly string[], value: notifications.Notice): Promise<boolean> {
+  try {
+    for (let i = 0; i < ids.length; i += perCall) await notifications.notify(ids.slice(i, i + perCall), value);
+    return true;
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return false;
+  }
+}
+
+// notify: those of these members who still have Polls hear of it.
+export async function notify(recipients: Iterable<string>, message: Words, options: { path: string; key?: string }): Promise<void> {
   const ids = [...new Set(recipients)];
   if (ids.length === 0) return;
-  const byLocale = new Map<Locale, string[]>();
-  for (const person of (await people(ids)).values()) {
-    if (person.status !== "member") continue;
-    byLocale.set(person.locale, [...(byLocale.get(person.locale) ?? []), person.id]);
-  }
-  for (const [locale, group] of byLocale) {
-    const { title, body } = message(catalogue(locale), locale);
-    try {
-      await notifications.notify(group, { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}), path: options.path, ...(options.key ? { key: options.key } : {}) });
-    } catch (error) {
-      if (!(error instanceof ChestError)) throw error;
-    }
-  }
+  const current = [...(await people(ids)).values()].filter(p => p.status === "member").map(p => p.id);
+  if (current.length > 0) await sendNotice(current, notice(message, options));
 }
 
 export async function withdraw(key: string, members?: string[]): Promise<void> {

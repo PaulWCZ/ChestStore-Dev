@@ -12,15 +12,17 @@ import { chestZone } from "./zone.ts";
 //
 // - Losing access or leaving: their answers to events still to come are
 //   removed (nobody counts on them; the seat goes to the first waiting),
-//   their last visit, weekly digest and choices are forgotten, their
+//   their last visit is forgotten (and what earlier versions kept: their
+//   weekly digest and email choice), their
 //   posts still waiting for a publisher go. What they wrote and confirmed stays: it is the company's
 //   record, and their name reads "(former member)".
 // - Erasure: what they wrote stays for the company, unsigned ('erased'):
 //   posts, comments, reactions (still counted), files they added; a welcome
 //   post about them names nobody, a mention of them in a comment names
 //   nobody. Their confirmations, answers, visits, the fingerprints of the posts
-//   they opened (lib/views.ts), choices, the record of
-//   the emails sent to them, of posts kept to them and their proposals are deleted. Then the erasure is
+//   they opened (lib/views.ts), what earlier versions kept (their email
+//   choice, weekly digest, the record of the emails sent to them), of
+//   posts kept to them and their proposals are deleted. Then the erasure is
 //   acknowledged. The words others wrote about them (a welcome text, a
 //   photo) are not changed: a publisher deletes the post if it must go
 //   (README, "On a Chest").
@@ -28,6 +30,8 @@ export async function leave(sql: Sql, memberId: string, day = today(chestZone())
   const events = await sql.begin(async tx => {
     const gone = await tx<{ post_id: string }[]>`delete from rsvps r using posts p where p.id = r.post_id and r.member = ${memberId} and coalesce(p.event_last_day, p.event_day) >= ${day} returning r.post_id`;
     await tx`delete from visits where member = ${memberId}`;
+    // Rows of earlier versions (their email choice, weekly digest): the
+    // tables stay until no version in service reads them.
     await tx`delete from preferences where member = ${memberId}`;
     await tx`delete from digests where member = ${memberId}`;
     // Their posts still waiting for a publisher go: nobody could tell them
@@ -95,10 +99,9 @@ export function handlers(sql: Sql): events.Handlers {
     // front page and in their number.
     "member.updated": async event => {
       if (!event.data.changed.includes("groups")) return;
-      forgetGroups();
       await reconcile(sql, { member: event.data.id });
     },
-    // Groups (Proposal (studio), "groups": "read"): members left a group, or
+    // Groups (Proposal (studio), "members.groups"): members left a group, or
     // the group is gone — its posts' bell items leave whoever they are no
     // longer for.
     "group.changed": async event => {

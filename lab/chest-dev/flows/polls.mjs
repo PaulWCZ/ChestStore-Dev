@@ -349,7 +349,7 @@ await step("a sign-up sheet: a full slot cannot be taken, a free one can", async
   await page.waitForSelector(".thanks");
 });
 
-await step("the organiser reminds those who have not answered, once per 12 hours", async () => {
+await step("the organiser reminds those who have not answered (a notification, never an email), once per 12 hours", async () => {
   await who("sofia", "en");
   await page.goto(origin + "/chest/polls/4");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
@@ -357,7 +357,7 @@ await step("the organiser reminds those who have not answered, once per 12 hours
   expect(!(await page.locator(".ck-toast-undo").count()), "a reminder that left offers no Undo");
   const told = await dev();
   expect(told.includes("Reminder: Which plants for the office?"), "the reminder in the bell");
-  expect(told.includes("→ tom@example.test"), "and by email to Tom, who has not answered");
+  expect(!told.includes("→ tom@example.test"), "never by email: the Chest mails members their notifications as each one chose");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
   await page.waitForSelector(".ck-toast:has-text('less than 12 hours')");
 });
@@ -527,6 +527,7 @@ await step("the date chosen for a poll with guests: in the team's Chest calendar
   const board = await dev();
   expect(board.includes("poll:11"), "the calendar event, in the harness");
   expect(board.split("<li>").some(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("jean@client.example")), "the guest's email, to their address");
+  expect(board.split("<li>").some(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("replies to <code>contact@atelier-martin.test</code>") && li.includes("Replies to this email go to")), "replies go to the company's own address, and the email says so");
   // Told again (the page reloaded, the choice the same): no second email.
   await page.reload();
   const toJean = (await dev()).split("<li>").filter(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("jean@client.example")).length;

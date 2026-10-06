@@ -14,7 +14,7 @@ import { camille, everyone, fakeGroups, hugo, ines, sofia, stranger } from "./su
 // the Chest's signed calls.
 let chest, database, app;
 before(async () => {
-  chest = await fakeChest({ tool: "news", network: {}, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications", "mail", "calendar", "groups"], mail: { domain: "atelier.test" }, calendar: { domain: "atelier.test", toolTitle: "News", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: null } });
+  chest = await fakeChest({ tool: "news", network: {}, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications", "calendar", "members.groups"], calendar: { domain: "atelier.test", toolTitle: "News", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: null } });
   database = await testDatabase();
   await database.sql.unsafe(readFileSync("seed/sample.sql", "utf8")).simple();
   ({ app } = await import("../dist/test/app.js"));
@@ -177,12 +177,8 @@ test("downloads: who confirmed as CSV, the event as .ics, every post as a ZIP; a
   assert.equal((await get(hugo, "/chest/files/999")).status, 404);
 });
 
-test("an answer from an email's link: as the member the Chest asserts, the token theirs", async () => {
-  const forged = await get(hugo, "/chest/posts/3/answer?a=yes&t=forged");
-  assert.equal(forged.status, 303);
-  assert.equal(forged.headers.get("location"), "/chest/posts/3?answered=invalid");
-  assert.equal((await get(null, "/chest/posts/3/answer?a=yes&t=x")).status, 401);
-  assert.equal((await get(hugo, "/chest/posts/x/answer?a=yes&t=x")).status, 404);
+test("the one-tap answer links of the old emails are gone: nothing answers at that address", async () => {
+  assert.equal((await get(hugo, "/chest/posts/3/answer?a=yes&t=forged")).status, 404);
 });
 
 test("the host's root, the language switch, the error pages, the browser's files", async () => {
@@ -202,7 +198,7 @@ test("the Chest's events and schedule runs, signed, each handled once", async ()
   assert.equal(await chest.emit(left, to), 204);
   assert.equal(await chest.emit(left, to), 204);
   assert.equal(await chest.run("publish", to), 204);
-  assert.equal(await chest.run("digest", to), 204);
+  assert.equal(await chest.run("digest", to), 404, "no digest of its own: the Chest groups notifications as each member chose");
   assert.equal(await chest.run("nothing", to), 404);
   assert.equal((await app.fetch(new Request(url("/chest-schedules"), { method: "POST", body: "{}" }))).status, 401, "unsigned");
   assert.equal((await app.fetch(new Request(url("/chest-events"), { method: "POST", body: "{}" }))).status, 401, "unsigned");

@@ -75,10 +75,9 @@ export function handlers(sql: Sql): events.Handlers {
     // concern them leave their bell.
     "member.updated": async event => {
       if (!event.data.changed.includes("groups")) return;
-      forgetGroups();
       await reconcileReads(sql, { member: event.data.id });
     },
-    // Groups (Proposal (studio), "groups": "read"): read again; a group
+    // Groups (Proposal (studio), "members.groups"): read again; a group
     // changed or gone takes its pages to confirm from whoever left it.
     "group.changed": async event => {
       forgetGroups();

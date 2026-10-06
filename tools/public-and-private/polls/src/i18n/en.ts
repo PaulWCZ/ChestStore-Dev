@@ -401,15 +401,12 @@ export const en = {
     answeredBack: "An anonymous author answered: {title}",
     answeredBackBody: "Open the poll to read it.",
   },
-  mail: {
-    subject: "Reminder: {title}",
-    body: "Hello {name},\n\n{organiser} is waiting for your answer: {title}\n\nAnswer here: {link}\n\nPolls, in your company’s Chest",
-    bodyUntil: "Hello {name},\n\n{organiser} is waiting for your answer: {title}\nIt closes {date}.\n\nAnswer here: {link}\n\nPolls, in your company’s Chest",
-  },
   guestMail: {
     subject: "The date for “{title}”",
-    body: "Hello {name},\n\nThe date for “{title}” is chosen: {date}.\n\nThanks for answering.",
-    bodyLink: "Hello {name},\n\nThe date for “{title}” is chosen: {date}.\n\nThe poll, and the date for your calendar: {link}\n\nThanks for answering.",
+    body: "Hello {name},\n\nThe date for “{title}” is chosen: {date}.\n\nThanks for answering.\n\n{replies}",
+    bodyLink: "Hello {name},\n\nThe date for “{title}” is chosen: {date}.\n\nThe poll, and the date for your calendar: {link}\n\nThanks for answering.\n\n{replies}",
+    replies: "Replies to this email go to {company}.",
+    repliesPlain: "Replies to this email go to the company that sent it.",
   },
   dates: {
     range: "{start} – {end}",

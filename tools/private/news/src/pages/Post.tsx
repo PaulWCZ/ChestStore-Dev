@@ -1,5 +1,5 @@
 import { Avatar } from "@argentic/chest-ui/components";
-import { Back, Calendar, Clip, Clock, Download, Globe, Group, History, Mail, Pin, Place } from "../components/icons.tsx";
+import { Back, Calendar, Clip, Clock, Download, Globe, Group, History, Pin, Place } from "../components/icons.tsx";
 import { RichText } from "../components/rich-text.tsx";
 import type { PageContext, View } from "@argentic/chest-app";
 import { Island } from "@argentic/chest-app";
@@ -55,17 +55,12 @@ export async function postPage({ member, locale: language, t, param, query }: Pa
   const who = await people(ids);
   const name = (memberId: string) => (memberId === member.id ? t.people.you : nameOf(who.get(memberId), locale));
   const plainName = (memberId: string) => (memberId === member.id ? member.name : nameOf(who.get(memberId), locale));
-  // Answered from an email's link (./answer/route.ts).
-  const answeredValues = ["yes", "no", "wait", "none", "invalid", "closed"] as const;
-  const answered = answeredValues.find(a => a === query("answered")) ?? null;
-  const was = (["yes", "no", "none"] as const).find(a => a === query("was")) ?? null;
   const photo = (memberId: string) => (memberId === member.id ? member.photo : who.get(memberId)?.photo ?? null);
   const audience = p.groups.length > 0 || p.people.length > 0 ? audienceLabel(p, await groupNames(), locale) : null;
   const going = p.answers.filter(a => a.answer === "yes");
   const notGoing = p.answers.filter(a => a.answer === "no");
   const waiting = p.answers.filter(a => a.answer === "wait");
   const inCalendar = p.rsvp === "yes" && (await learned(sql, "calendar")) === "on";
-  const mail = await learned(sql, "mail");
 
   async function readersOf(post: PostDetail, list: Awaited<ReturnType<typeof everyone>>) {
     const found = await confirmations(sql, member, post.id);
@@ -145,7 +140,6 @@ export async function postPage({ member, locale: language, t, param, query }: Pa
               {p.event.place && <div><dt><Place /><span className="visually-hidden">{t.event.where}</span></dt><dd>{p.event.place}</dd></div>}
             </dl>
             {p.event.seats !== null && <p className="seats">{format(t.event.places, { taken: going.length, seats: p.event.seats })}{waiting.length > 0 ? " · " + plural(t.event.waitingCount, waiting.length, locale) : ""}</p>}
-            {answered && <Island name="AnsweredNotice" props={{ id: p.id, answered, was, t: t.event }} />}
             <Island name="Rsvp" props={{ id: p.id, answer: p.rsvp, open: p.eventOpen, full: p.event.seats !== null && going.length >= p.event.seats, t: t.event }} />
             <p className="row">
               {inCalendar && <a className="link" href={calendarPage}><Calendar />{t.event.inCalendar}</a>}
@@ -240,9 +234,6 @@ export async function postPage({ member, locale: language, t, param, query }: Pa
           {reached.total < floor
             ? <p className="quiet-text">{t.reach.small}</p>
             : <p className="reach-figure"><strong>{reached.count === null ? "< 5" : reached.count}</strong><span>{reached.count === null ? format(t.reach.few, { total: reached.total }) : format(t.reach.opened, { count: reached.count, total: reached.total })} {t.reach.hourly}</span></p>}
-          {p.important && (
-            <p className="quiet-text"><Mail />{mail === "off" && p.emailed === 0 ? t.reach.emailOff : plural(t.reach.emailed, p.emailed, locale)}{p.emailShort ? " " + t.reach.emailShort : ""}</p>
-          )}
           <p className="fine">{t.reach.privacy}</p>
         </section>
       )}

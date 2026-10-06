@@ -397,7 +397,8 @@ await step("review reminders: the owner of a page due is told by the morning run
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reviews" } });
   const told = await bell();
   expect(told.includes("Time to check “Who to ask”"), "Sofia is told");
-  expect(told.includes("À relire : « Wi-Fi and printers »") === false, "Tom's page is his (English)");
+  // Tom's page is his: his item reads in English (the notice carries its French words too, for a French reader).
+  expect(told.includes("Tom Walker</b> · Time to check “Wi-Fi and printers”"), "Tom's page is his (English)");
   expect(told.includes("Time to check “Wi-Fi and printers”"), "Tom is told too");
   await page.goto(origin + "/chest/pages/7");
   await page.getByRole("button", { name: "Still correct" }).click();
@@ -583,20 +584,19 @@ await step("read and acknowledged: Hugo is asked, confirms in one click; Camille
   await page.goto(origin + "/chest/pages/13");
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: "Ask readers to confirm" }).click();
-  // Studio.16: the dialog asks the Chest whether email would go now
-  // (mail.available) before promising it.
-  expect((await page.locator("dialog[open] .where").innerText()).includes("told in the bell and by email"), "the Chest sends email: the dialog says so");
+  // A notification, never an email from the wiki: the dialog says so plainly.
+  expect((await page.locator("dialog[open] .where").innerText()).includes("gets a notification"), "the dialog says what happens");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   await page.waitForSelector(".ck-toast:has-text('people asked')");
   expect((await bell()).includes("Tom Walker vous demande de lire"), "Léa is told, in French");
-  // By email too (the "mail" proposal): one letter each, in their language.
+  // One notice with its translation; no email to members.
   const dev = await bell();
-  expect(dev.includes("<li><b>Tom Walker vous demande de lire « Onboarding for engineers »</b>"), "Léa's email, in French");
-  expect(dev.includes("<li><b>Tom Walker asks you to read “Onboarding for engineers”</b>"), "Hugo's email, in English");
-  // Those who have not confirmed are reminded, in the bell and by email.
+  expect(!dev.includes("<li><b>Tom Walker asks you to read “Onboarding for engineers”</b>"), "no email to members");
+  expect(dev.includes("Tom Walker asks you to read “Onboarding for engineers”"), "the notice's English words");
+  // Those who have not confirmed are reminded with a notification.
   await page.goto(origin + "/chest/pages/13/reads");
   await page.getByRole("button", { name: "Remind those who have not confirmed" }).click();
-  await page.waitForSelector(".ck-toast:has-text('reminded, in the bell and by email')");
+  await page.waitForSelector(".ck-toast:has-text('reminded.')");
   expect((await bell()).includes("Rappel : merci de lire « Onboarding for engineers »"), "the reminder, in French");
 });
 

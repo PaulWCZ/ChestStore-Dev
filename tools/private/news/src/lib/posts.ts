@@ -72,8 +72,6 @@ export type PostDetail = PostSummary & {
   forMe: boolean;
   pinnedUntil: string | null;
   undoUntil: string | null;
-  emailed: number;
-  emailShort: boolean;
   textVersion: number;
 };
 
@@ -83,7 +81,7 @@ type Row = {
   event_day: string | null; event_last_day: string | null; event_start: Date | null; event_end: Date | null; place: string | null; seats: number | null;
   welcome: string | null; groups: string[]; people: string[];
   cover: string | null; reactions: number; comments: number; confirmed: boolean; rsvp: "yes" | "no" | "wait" | null; going: number;
-  text_version: number; confirm_from: number; emailed: number; email_short: boolean;
+  text_version: number; confirm_from: number;
 };
 
 // Pinned: until its day, if it has one (computed when read).
@@ -93,8 +91,7 @@ const columns = (sql: Query, actor: string, now: Date) => sql`
   p.id, p.kind, p.title, p.body, p.locale, p.author, p.important, p.pinned_at, p.pinned_until, ${pinnedNow(sql, now)} as pinned,
   p.publish_at, p.edited_at, p.created_at, p.undo_until,
   to_char(p.event_day, 'YYYY-MM-DD') as event_day, to_char(p.event_last_day, 'YYYY-MM-DD') as event_last_day, p.event_start, p.event_end, p.place, p.seats, p.welcome,
-  p.text_version, p.confirm_from, p.email_short,
-  (select count(distinct e.member)::int from emails e where e.post_id = p.id) as emailed,
+  p.text_version, p.confirm_from,
   coalesce((select json_agg(json_build_object('locale', v.locale, 'title', v.title, 'body', v.body) order by v.locale) from post_versions v where v.post_id = p.id), '[]'::json) as versions,
   array(select g.group_id from post_groups g where g.post_id = p.id order by g.group_id) as groups,
   array(select pp.member from post_people pp where pp.post_id = p.id order by pp.member) as people,
@@ -264,8 +261,6 @@ export async function post(sql: Sql, actor: Member | null, postId: unknown, opti
     forMe: inAudience(who, row),
     pinnedUntil: row.pinned_at && row.pinned_until ? row.pinned_until.toISOString() : null,
     undoUntil: row.undo_until?.toISOString() ?? null,
-    emailed: row.emailed,
-    emailShort: row.email_short,
     textVersion: row.text_version,
   };
 }
@@ -516,7 +511,7 @@ export async function updatePost(sql: Sql, actor: Member | null, postId: unknown
         event_day = ${c.event?.day ?? null}, event_last_day = ${c.event?.lastDay ?? null}, event_start = ${c.event?.start ?? null}, event_end = ${c.event?.end ?? null}, place = ${c.event?.place ?? null}, seats = ${c.event?.seats ?? null},
         welcome = ${c.welcome}, edited_at = ${scheduled ? null : now}, text_version = ${version}
         ${reconfirm ? tx`, confirm_from = ${version}` : tx``}
-        ${tellAgain ? tx`, announced_at = null, announce_after = null, email_short = false, announce_due = ${now}` : tx``}
+        ${tellAgain ? tx`, announced_at = null, announce_after = null, announce_due = ${now}` : tx``}
       where id = ${key}`;
     if (c.kind !== "event") await tx`delete from rsvps where post_id = ${key}`;
     if (!c.important) await tx`delete from confirmations where post_id = ${key}`;

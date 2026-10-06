@@ -15,7 +15,7 @@ export function RestoreButton({ pageId, number, label }: { pageId: string; numbe
   );
 }
 
-// Reminding those who have not confirmed (bell and email: once sent, it
+// Reminding those who have not confirmed (a notification: once sent, it
 // is sent — no Undo), asking again (the page changed since: everyone
 // confirms the new version) and no longer asking.
 export function ReadsActions({ pageId, stale, waiting, locale, t }: { pageId: string; stale: boolean; waiting: number; locale: string; t: { again: string; againDone: string; stop: string; stopped: string; remind: string; reminded: Catalogue["reads"]["reminded"] } }) {

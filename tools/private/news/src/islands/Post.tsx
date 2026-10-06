@@ -152,33 +152,9 @@ export function RemindButton({ id, t, locale }: { id: string; t: Catalogue["read
   return (
     <button type="button" className="button small" disabled={busy} onClick={() => start(async () => {
       const r = await call("remind", { postId: id });
-      // The reminders left (bell and email): the toast says so, with no Undo.
+      // The reminders left: the toast says so, with no Undo.
       if (r.ok) toast({ id: `remind-${id}`, text: plural(locale, t.reminded, r.value.count), sent: true });
     })}>{t.remind}</button>
   );
 }
 
-// Answered from an email's link (/chest/posts/<id>/answer, src/app.tsx):
-// the answer is said once, with Undo back to the one before; a link that
-// was not the person's, or an event already over, says so. Then the
-// address is clean again, so a reload says nothing.
-type Answered = "yes" | "no" | "wait" | "none" | "invalid" | "closed";
-export function AnsweredNotice({ id, answered, was, t }: { id: string; answered: Answered; was: "yes" | "no" | "none" | null; t: Catalogue["event"] }) {
-  const shown = useRef(false);
-  useEffect(() => {
-    if (shown.current) return;
-    shown.current = true;
-    const url = new URL(window.location.href);
-    url.searchParams.delete("answered");
-    url.searchParams.delete("was");
-    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
-    if (answered === "invalid" || answered === "closed") return void toast({ id: `rsvp-${id}`, text: answered === "closed" ? t.closed : t.linkNotYours, tone: "error" });
-    const text = answered === "yes" ? t.youCome : answered === "wait" ? t.youWait : answered === "no" ? t.youDont : t.noAnswer;
-    const undo = was === null || answered === "none" ? undefined : async () => {
-      const r = await call("answerEvent", { postId: id, answer: was === "none" ? null : was }, { quiet: true });
-      return r.ok ? true : r.message;
-    };
-    toast({ id: `rsvp-${id}`, text, ...(undo ? { undo } : {}) });
-  }, [id, answered, was, t]);
-  return null;
-}

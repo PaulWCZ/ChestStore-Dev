@@ -17,7 +17,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test 
 | Path | What it is |
 |---|---|
 | `chest.json` | Contract 0.4: roles `organiser`, `member`; `public: true`; `database`, `members`, `notifications`; `receives`; schedule `pass` (every 15 min); `build.static: ["/assets/"]` |
-| `chest.proposals.json` | Proposals of the studio's SDK: `mail: {send}`, `calendar: true`, `groups: "read"` + `group.*`, `translations` |
+| `chest.proposals.json` | Proposals of the studio's SDK: `mail: {send}`, `calendar: true`, `capabilities: ["members.groups"]` + `group.*`, `translations` |
 | `src/app.tsx` | **Every route**: home, composer, poll, export, .ics, the looks, the guest page, `/chest-events`, `/chest-schedules` |
 | `src/actions.ts` | **Every mutation**, by name (members' `action`, the guest's `publicAction`) |
 | `src/pages/` | Pages rendered on the server: `Home`, `Compose` (new, edit), `Poll` (+ `Results`, `Trend`, `Teams`), `Guest`, `PublicHome` |
@@ -36,7 +36,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test 
 `src/lib/`: `access.ts` (who may do what), `model.ts` (bounds, `readPoll`,
 `readAnswer`), `polls.ts` (services), `answers.ts` (the anonymous
 rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
-(bell, tile, email, `pass`/`catchUp`), `groups.ts`, `teams.ts`,
+(notifications with `translations`, tile, `pass`/`catchUp`; never an email to a member), `groups.ts`, `teams.ts`,
 `audience.ts`, `guests.ts`, `public-origin.ts`,
 `guest-cookie.ts`, `replies.ts`, `agenda.ts` (calendar, guests' email),
 `export.ts` (CSV), `ics.ts`, `csv.ts`, `time.ts`, `zone.ts`, `dates.ts`,
@@ -89,11 +89,14 @@ rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
   matrix with its best column lit — `DataTable` is a list of records), the
   kind chips with their icons, the chunky answer controls.
 
-- **Identity only from `member()`** (`member` of `page()`/`action()`, completed with every group by `createApp({ complete: withAllGroups })`); answers bind to it.
-  Never accept a member id from a form (see Rallly's vote IDOR). Its
-  `groups` (and `members.*`'s) are only those that give Polls: check a
-  poll's groups against `withAllGroups`/`withGroupsOf` (`src/lib/groups.ts`),
-  never against the assertion's alone.
+- **Identity only from `member()`** (`member` of `page()`/`action()`); answers bind to it.
+  Never accept a member id from a form (see Rallly's vote IDOR). With
+  `members.groups` its `groups` (and `members.*`'s) are every group the
+  member is in; without it, only those that give Polls.
+- **Members are told with notifications, never by email** (the owner's
+  decision of 6 October 2026): `notice()` in `src/lib/notify.ts` writes
+  English with the other languages as `translations`. `mail.send` is for
+  guests (people outside the company) only.
 - **A poll someone may not see is `not_found`**, never `forbidden`.
 - **Per team, counts only.** `group_tallies` holds counts per group, never
   a text, a member or a time; groups of fewer than 5 members are not

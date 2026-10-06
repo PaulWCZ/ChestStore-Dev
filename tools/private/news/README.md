@@ -16,20 +16,21 @@ channel where announcements drown.
   (bold, italic, subheading, lists, numbered lists, quote, link, picture)
   and the usual shortcuts (Ctrl+B, Ctrl+I); nobody types marks. News keeps
   the text as plain text with a few marks (`src/shared/markdown.ts`, never HTML),
-  which search, the bell and email read. A **cover picture**, **pictures
+  which search and the notifications read. A **cover picture**, **pictures
   inside the text**, a **gallery** of up to 20 pictures and videos (MP4,
   WebM up to 25 MB, played as they are) and up to 10 attached files.
 - **Two languages**: a post may have its headline and text in English and
-  in French; each reader sees theirs (the bell, the email, the calendar
+  in French; each reader sees theirs (the notifications and the calendar
   too), with a link to read the other one.
-- **Important posts**: everyone it is for is told in the Chest's bell **and
-  by email** (Proposal (studio): mail), in their own language — the
-  headline, the whole text, the link to confirm — and asked to click **"I
-  have read it"**. The button says what will happen: *Publish and tell 6
-  people by bell and email*. For **10 seconds** after it, nothing has left:
+- **Important posts**: everyone it is for gets a **notification**, in
+  their own language — the headline, the start of the text, the link to
+  the post — and is asked to click **"I have read it"**. The Chest emails
+  members their notifications as each one chose (every one, once or twice
+  a day, or off): News never emails anyone. The button says what will
+  happen: *Publish and tell 6 people*. For **10 seconds** after it, nothing has left:
   **Undo** (in the toast, or on the post) takes it back to the composer.
   The publisher sees *Read by 4 of 7*, who confirmed and when, who has not
-  yet; reminds them (once a day at most, bell and email); downloads the
+  yet; reminds them (once a day at most, a notification); downloads the
   list (CSV, with the version each person confirmed). Only the click
   counts: News never shows who opened a post (see "Works council").
 - **Versions**: each change of a published post's words keeps the words
@@ -39,9 +40,8 @@ channel where announcements drown.
   earlier version) and everyone is told again.
 - **Made Important later**: a post made Important when it is already out
   — the day after or a month after — is told then, like a new one, to its
-  audience who has not confirmed it: in the bell and by email, once (the
-  bell item is replaced, never doubled; nobody is emailed twice for the
-  same version). The same goes for a new audience or *Ask everyone to
+  audience who has not confirmed it, once (the notification is replaced,
+  never doubled). The same goes for a new audience or *Ask everyone to
   confirm again*. What is told is due for 7 days from the edit (from
   publishing, for a new post): a post the Chest could not be reached for
   in a week is no longer told (`migrations/0007_…`). Until this version
@@ -49,19 +49,12 @@ channel where announcements drown.
   Important told nobody.
 - **Views, a number only**: for publishers, how many different people of
   a post's audience opened it (*Opened by 12 of the 40 people it is for*),
-  shown from 5 people and counted every hour, next to *Read by* and how many
-  were sent it by email — never who (see "Works council").
+  shown from 5 people and counted every hour, next to *Read by* — never
+  who (see "Works council").
 - **Events**: a day or several, time (or all day), place, and **places**
   if they are limited: past them, *Join the waiting list*; a place freed
   goes to the first waiting, who is told. **I'm coming / Not coming**
-  until the end of the last day, with who is coming. **From the email** of
-  an Important event (and its reminders) and from the weekly digest's
-  email, *I'm coming* and *Not coming* are links of their own: one tap
-  opens News through the Chest (so the answer is the person's who opened
-  it), answers, and the post says *You're coming.* with **Undo**. The
-  link carries a token News signs for that person, event and button: a
-  link forwarded to someone else, or forged, changes nothing (*This link
-  was not written for you*). Whoever comes finds
+  until the end of the last day, with who is coming. Whoever comes finds
   the event **in their Chest calendar** (Proposal (studio): calendar — the
   one feed a member adds to Google, Outlook or Apple once); the `.ics`
   file stays.
@@ -78,8 +71,8 @@ channel where announcements drown.
   like any post) or **Decline** it with an optional reason (*Undo* puts
   it back). The author is told either way; the colleague thanked is told
   once it is published. **Until then only its author and the publishers
-  see it**: it is not a post — never on a front page, in search, the
-  digest, an export or anyone else's bell, and its picture opens for
+  see it**: it is not a post — never on a front page, in search, an
+  export or anyone else's bell, and its picture opens for
   them alone. Nobody approves their own proposal; a reader approves
   nothing. The author sees their proposals under the form and may take
   one back (*Undo*). Five may wait per person. Publishers can also write
@@ -94,13 +87,13 @@ channel where announcements drown.
 - **Pinned until**: a pin may end on a day (then the post is no longer
   first).
 - **Who is it for**: *Everyone* (the default) or *Some groups or people* —
-  any group of the Chest (Sales, the workshop…, Proposal (studio): groups
-  read), and people picked by name; the composer counts them (*6 people
+  any group of the Chest (Sales, the workshop…, Proposal (studio):
+  `members.groups`), and people picked by name; the composer counts them (*6 people
   can see it*). A post kept to an audience is marked *For Sales and 2
   people* and seen by it, its author and the Chest's admins; **nobody
   else** sees it, its comments, reactions, files, calendar file or search
   results (a link to it answers "not found"). Only its audience is told,
-  emailed, asked to confirm, reminded and counted (*Read by 1 of 2*); an
+  asked to confirm, reminded and counted (*Read by 1 of 2*); an
   admin or the author outside it is never asked. Someone who leaves a
   group loses the bell item of its posts (the Chest's `member.updated` /
   `group.changed` / `group.removed`); changing the audience of an
@@ -120,14 +113,6 @@ channel where announcements drown.
   comment found shows under its post, with its author, its mentions
   written as names. A mention is not a word of its comment: a member id,
   "mbr" or "erased" finds nothing (`migrations/0005_…`).
-- **The weekly digest**: on Monday morning (08:30, the Chest's time zone),
-  each person finds one item in their bell, in their language — *This
-  week: 3 posts you haven't seen yet* and their headlines — only when there
-  are some: posts of the last 7 days for them, not theirs, published after
-  their last visit to the front page (an Important post they confirmed does
-  not count). Next week's replaces it; opening the front page removes it.
-  **By email too**, unless the person chooses *Stop the email* at the foot
-  of the front page.
 - **Moving in and out** (publishers, *Import from Slack, or download all
   posts* at the foot of the front page): a **Slack export** (the ZIP a
   workspace owner downloads) — one channel at a time, each top-level
@@ -179,8 +164,7 @@ Wiki's spaces kept to groups).
   a phone, follows the form.
 - **Clicks for the main job:** confirming an Important post is 2 clicks from
   the front page; answering an event is 2; publishing is 1 after typing —
-  and the button says who will be told and how (*Publish and tell 6 people
-  by bell and email*).
+  and the button says who will be told (*Publish and tell 6 people*).
 - **A mistake:** an Important post sent by mistake → *Undo* within 10
   seconds, nothing has left; a typo found later → edit it (the earlier
   version is kept; *Ask everyone to confirm again* if it matters); a
@@ -201,7 +185,6 @@ Wiki's spaces kept to groups).
 | `/chest/search` (`?q=`) | members with a role | search: the posts and comments they may see |
 | `/chest/new` (`?kind=`), `/chest/posts/<id>/edit` | publishers | the composer |
 | `/chest/posts/<id>/calendar` | who sees the event | the `.ics` file |
-| `/chest/posts/<id>/answer?a=yes\|no&t=` | who sees the event (the token is theirs) | answer from an email in one tap, then the post (`?answered=`, with Undo) |
 | `/chest/propose` | members with a role | share something: a shout-out or news, for a publisher to approve; one's own proposals |
 | `/chest/proposals` | publishers | what waits for approval: Publish, Decline |
 | `/chest/posts/<id>/confirmations` | publishers | who confirmed, as CSV |
@@ -211,7 +194,7 @@ Wiki's spaces kept to groups).
 | `/chest/transfer/export` | publishers | every post they see, as a ZIP |
 | `/chest/files/<id>` (`?size=256\|1024`, `?download`) | who sees the post (or its uploader, before saving) | a 15-minute link signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle; groups (`group.changed`, `group.removed`) |
-| `/chest-schedules` | the Chest only (signed) | the runs of the "publish" and "digest" schedules of `chest.json` |
+| `/chest-schedules` | the Chest only (signed) | the runs of the "publish" schedule of `chest.json` |
 | `/chest/actions/<name>` | members (the page itself) | every change (`src/actions.ts`) |
 | `/chest/look.css` | members | the look: the company's choice, else Newsprint (a stylesheet, cached by its hash) |
 | `/` | anyone | "News lives in your Chest" |
@@ -222,43 +205,29 @@ Wiki's spaces kept to groups).
   the pictures the Chest makes thumbnails of — attachments 25 MB, uploaded
   from the browser to the Chest); `members` (names, photos, who has News);
   `notifications` (the bell, the tile's number); `receives: ["member.*"]`.
-- **Groups** are the Chest's. With the **groups** permission (Proposal
-  (studio): `"groups": "read"`, "Sees your Chest's groups and who is in
-  them") News offers **every** group (`members.groups.all()`), and each
-  member's groups are all of theirs, asked of the Chest (0.3.0's
-  `member.groups` lists only the groups that give News:
-  `members.groups.of(id)` for the reader signed in, every group's members
-  for the list of readers, kept a minute; `src/lib/groups.ts`) — a company that opens News to
-  everyone can still write for Sales. It receives `group.*`: someone who
-  leaves a group (`member.updated`, `group.changed`) or a group removed
-  (`group.removed`) takes the bell item of the Important posts they are no
-  longer in the audience of away, and their number. Without the
-  permission, only the groups that **give** News are offered (the Chest
-  shows a tool no other group). A group the Chest no longer has stays on
-  the posts it was on (read *a former group*).
-- **Email** (Proposal (studio): `"mail": {"send": true}`, "Sends emails in
-  your company's name"): one message per person, `to: {member}` — News
-  never knows an address — in their language, keyed so a retry never sends
-  twice (the whole key: the SDK sends a long one as its SHA-256). Each
-  person's email choice in their Chest (Proposal (studio):
-  `mail.preference(id)`) is applied by the Chest: *none* gets no email
-  from News (the bell still tells them, and *sent by email* does not count
-  them), *one a day* gets it in the Chest's daily email. Nothing News sends
-  is marked transactional. News's own *Stop the email* (the weekly digest)
-  stays, for a person who wants other tools' emails but not this one; the Chest's default quota is 500 a day: past it, the rest of an
-  Important post's audience is told in the bell only and the publisher
-  sees *The Chest's email limit for the day stopped the rest*. The links
-  of an event's email are signed with a key News makes once at random and
-  keeps in its database (`chest_state`), never shown. On a Chest
-  that cannot send email yet, nothing fails; News remembers it
-  (`chest_state`), and a post's page says who was emailed. Before
-  publishing, the composer asks the Chest (`mail.available()`, Proposal (studio);
-  `src/lib/state.ts`, `mailNow`): when it would not send now (no mail, not
-  connected, paused, the day's emails used) it says *Publish and tell 6
-  people in their bell*. The front page offers the digest's *By email too*
-  only on a Chest that sends email at all (`mailConnected`). When the
-  Chest does not answer, what the last send taught. Keys carry the member
-  (`news:<post>:<round>:<member>`, `digest:<week>:<member>`).
+- **Groups** are the Chest's. With the capability **`members.groups`**
+  (Proposal (studio), the name announced for 0.5, in
+  `chest.proposals.json`: "Sees your Chest's groups and who is in them")
+  News offers **every** group (`members.groups.all()`), and the Chest names
+  every group a member is in — in `member(request).groups` and in
+  `members.*` — so a company that opens News to everyone can still write
+  for Sales. It receives `group.*`: someone who leaves a group
+  (`member.updated`, `group.changed`) or a group removed (`group.removed`)
+  takes the item of the Important posts they are no longer in the audience
+  of away, and their number. Without the capability, only the groups that
+  **give** News are offered (the Chest shows a tool no other group). A
+  group the Chest no longer has stays on the posts it was on (read *a
+  former group*). Known limit of the official 0.4.1: `member()` refuses an
+  assertion with more than 16 groups (lifted by 0.5).
+- **Notifications, never email** (the owner's decisions of 6 October
+  2026): every notice is written once, in English with its French
+  `translations` (Proposal (studio), announced for 0.5) — an Important
+  post's in each language the post has — and the Chest shows each member
+  theirs. The Chest emails members their notifications by their own
+  choice (every one, once or twice a day, or off; and off per tool) and
+  groups them: News has no email, no digest and no "email me" setting of
+  its own. News sends **no mail at all**: nobody outside the company is
+  ever written to, so it declares no `mail`.
 - **Calendar** (Proposal (studio): `"calendar": true`): an event is put in
   the Chest's feed of each person coming (`calendar.put`, key
   `event:<id>`, in their language), again at each answer or change, and
@@ -297,8 +266,7 @@ Wiki's spaces kept to groups).
   is not changed — a publisher deletes that post if it must go.
 - **Works council (France, Code du travail L.2312-38)**: News records an
   Important post's confirmations — an explicit click — and, per person,
-  the time of their last visit to the front page (for the *New* marks and
-  the digest). For **views** it keeps a number, never a name:
+  the time of their last visit to the front page (for the *New* marks). For **views** it keeps a number, never a name:
   - Each view is stored as a *fingerprint* — a keyed hash (HMAC-SHA-256,
     cut to 128 bits) of the viewer's member id under a random key of that
     post alone — so a second visit is not counted twice. The table has no
@@ -317,9 +285,7 @@ Wiki's spaces kept to groups).
     nobody, admins included.
 
   We chose this over a per-person record ("Hugo opened it at 10:12"),
-  which is the monitoring a CSE must be consulted on. It also records who
-  was **sent** an Important post by email (a delivery, so it is never sent
-  twice). A company of 50 or more should still inform its CSE before
+  which is the monitoring a CSE must be consulted on. A company of 50 or more should still inform its CSE before
   using confirmations and view counts; this paragraph is written so it can
   be handed to them.
 - No WebSocket: the front page re-reads itself every 60 s, a post every
@@ -327,40 +293,60 @@ Wiki's spaces kept to groups).
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`, and the
-studio's app machinery `@argentic/chest-app` (0.1.0-studio.3).
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`, and the
+studio's app machinery `@argentic/chest-app` (0.1.0-studio.8).
 
 - `member.language` (SDK 0.3.0 and later): the interface in each member's language;
-  `members.*` `language` for the bell and emails in the recipient's.
+  a notice's `translations` (Proposal (studio), announced for 0.5) for the
+  notifications in each recipient's.
 - **Scheduled tasks** (`schedules`, SDK 0.4.0): `chest.json` declares
-  `publish` every 15 minutes and `digest` on Monday at 08:30, run on
-  `POST /chest-schedules` (`src/calls.ts`). Without them News
-  still works — the publish pass runs when someone opens the front page —
-  but **there is no weekly digest** (a visit never sends one). The digest
-  shares the Chest's 1,000 recipients an hour with Important posts (they
-  go first): in a larger company it goes on with each publish pass, a page
-  of 500 at a time, within the week; someone told twice gets the same item
-  again (one key), never two.
+  `publish` every 15 minutes, run on `POST /chest-schedules`
+  (`src/calls.ts`). Without it News still works — the publish pass runs
+  when someone opens the front page.
 - The Chest's **time zone** (`chest.timeZone`, SDK 0.3.0): event times
   and schedules are typed on the Chest's clock. The Chest makes it its
   database sessions' zone too: the sample data's days and times
   (`current_date`, `::timestamptz`) are on that clock.
 - **Localized manifest title** (studio report): the tile says "News" to a
   French member; the interface says *Actualités*.
-- **Groups read** (`"groups": "read"`, `receives: ["group.*"]`),
-  **mail** (`send`) and the **calendar** — Proposals (studio), in
+- **`members.groups`** (`receives: ["group.*"]`), notices'
+  **`translations`** and the **calendar** — Proposals (studio), in
   `vendor/`, described above.
 - Wanted, not built: **actions on a bell item** (`notify(…, { actions:
   [{ label, path }] })`: *I'm coming* / *Not coming* in the Chest's bell
-  itself — today the bell opens the post, where the answer is two taps
-  away; the email's links are News's own), **signed one-click links in
-  `mail`** (the Chest could sign an action link the way News does itself);
-  **push to a phone** (the bell and email are all a
-  Chest gives); a way to **ask whether email works** before sending (News
-  learns it from its last try); a **per-member digest broadcast** and a
-  **"notify at least once" quota exemption** so a large company is told
-  at once; a **video thumbnail/transcoding** service (videos play as
+  itself, and in the Chest's emails of notifications — today the
+  notification opens the post, where the answer is two taps away);
+  **push to a phone**; a **broadcast to roles, groups and people by id
+  that also sets each one's tile number**, or a **"notify at least once"
+  quota exemption**, so a large company is told at once; a **video thumbnail/transcoding** service (videos play as
   uploaded); a **polls** embed across tools.
+
+## Mail to people outside the company
+
+None. News is for the team only: it writes to nobody outside the company,
+and it emails no member either (the Chest emails members their
+notifications, by their choice). It declares no `mail`.
+
+## What changed with the mail decisions of 6 October 2026
+
+- **No email from News any more.** Important posts, their reminders, the
+  welcomes and everything else are notifications; the Chest emails them
+  to each member as they chose. Gone: News's emails of Important posts and
+  reminders, the "Sent by email to N people" line, the composer's "by
+  bell and email" wording, the one-tap *I'm coming* links of those emails
+  (`/chest/posts/<id>/answer`), and the `mail` proposal.
+- **No weekly digest.** The Chest groups notifications as each member
+  chose; News's Monday digest (its `digest` schedule, bell item and
+  email) and the *Stop the email* switch at the foot of the front page
+  are gone.
+- **Notices carry their translations**: one notice per moment, in English
+  with French `translations`, instead of one call per language.
+- **Groups** use the capability `members.groups` (the earlier groups read
+  proposal is gone): a member's groups come with the member.
+- The tables only these used (`preferences`, `digests`, `digest_runs`,
+  `emails`, `posts.email_short`) stay until no version in service reads
+  them (a Chest runs the new migrations before switching versions); a
+  leaving or erased member's rows in them are still deleted.
 
 ## Looks
 
@@ -421,10 +407,10 @@ cannot hold files).
 
 ## What it does not do (yet)
 
-Push notifications to a phone (the bell and email only), an app; automatic
+Push notifications to a phone (the Chest's notifications only), an app; automatic
 translation (the second language is written by hand: News has no
 network); reading statistics per person (by design: counts only, see
-"Works council"); a digest more often than weekly; **polls in a post**
+"Works council"); **polls in a post**
 (the store's Polls tool is separate: a post may link to a poll, but shows
 no result card. It needs Polls to publish its result as an event between
 tools — `polls.poll.closed` with the counts it already shows everyone —

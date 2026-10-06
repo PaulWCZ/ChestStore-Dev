@@ -13,8 +13,7 @@ import { fill, plural } from "@argentic/chest-app/client";
 // Writing a post: what it is, its headline and text (in one language or
 // two), what the kind needs (days and a place, a colleague), who it is for,
 // pictures and files, then one button that says what will happen —
-// "Publish", "Publish for 6 people", "Publish and tell 6 people by bell and
-// email". A new Important post can be taken back for 10 seconds (the kit
+// "Publish", "Publish for 6 people", "Publish and tell 6 people". A new Important post can be taken back for 10 seconds (the kit
 // toast's Undo) before anything is sent; once it has gone out, the same
 // toast says "Sent." and offers no Undo. A new post's draft is kept in this browser until
 // it is published: a closed tab loses nothing.
@@ -37,11 +36,11 @@ const minutes = (hhmm: string): number | null => (/^\d{2}:\d{2}$/u.test(hhmm) ? 
 const hhmm = (m: number | null): string => (m === null ? "" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
 
 // people: everyone who has News (the welcome, the audience, the count);
-// groups: the Chest's groups; author: who wrote it (never counted); mail:
-// what News knows of the Chest's email; languages: the store's languages.
-export function Composer({ postId, initial, author, people, groups, languages, mail, defaults, locale, t }: {
+// groups: the Chest's groups; author: who wrote it (never counted);
+// languages: the store's languages.
+export function Composer({ postId, initial, author, people, groups, languages, defaults, locale, t }: {
   postId: string | null; initial: ComposerDraft; author: string; people: Someone[]; groups: { id: string; name: string }[];
-  languages: { code: string; name: string; said: string }[]; mail: "on" | "off" | "unknown"; defaults: { day: string; time: string; today: string }; locale: string; t: Words;
+  languages: { code: string; name: string; said: string }[]; defaults: { day: string; time: string; today: string }; locale: string; t: Words;
 }) {
   const w = t.composer;
   const [d, setD] = useState<ComposerDraft>(initial);
@@ -247,7 +246,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   const action = saving ? w.saving
     : postId !== null ? (tells && !initial.scheduled ? plural(locale, w.saveTell, reach) : w.save)
     : later ? w.schedule
-    : d.important ? plural(locale, mail === "off" ? w.publishTellBell : w.publishTell, reach)
+    : d.important ? plural(locale, w.publishTell, reach)
     : kept ? plural(locale, w.publishFor, reach)
     : w.publish;
 
@@ -424,7 +423,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
           <section className="side-card">
             <h2>{w.options}</h2>
             {/* On/off choices that wait for Publish: the kit's Checkbox. */}
-            <Checkbox label={<strong>{w.important}</strong>} hint={mail === "off" ? w.importantHintBell : w.importantHint} checked={d.important} onChange={on => update({ important: on })} />
+            <Checkbox label={<strong>{w.important}</strong>} hint={w.importantHint} checked={d.important} onChange={on => update({ important: on })} />
             {postId !== null && initial.important && d.important && textChanged && !initial.scheduled && (
               <Checkbox className="indent" label={<strong>{w.reconfirm}</strong>} hint={w.reconfirmHint} checked={reconfirm} onChange={setReconfirm} />
             )}

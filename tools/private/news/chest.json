@@ -26,10 +26,6 @@
     {
       "name": "publish",
       "cron": "*/15 * * * *"
-    },
-    {
-      "name": "digest",
-      "cron": "30 8 * * 1"
     }
   ],
   "build": {

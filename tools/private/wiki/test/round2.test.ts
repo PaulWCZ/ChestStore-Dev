@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as comments from "../src/lib/comments.ts";
 import { forgetGroups, companyGroups } from "../src/lib/groups.ts";
 import { confluenceDate } from "../src/lib/html.ts";
@@ -22,7 +22,7 @@ import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, tom } from "./support/members.ts";
 
 // The second severe critique: read-and-acknowledged and review reminders
-// by email; every group of the Chest; French search without noise and with
+// (notifications, never an email); every group of the Chest; French search without noise and with
 // words that mean the same; replies, resolve and comments on a passage; a
 // deleted comment leaves the bell; Confluence pages keep their date.
 
@@ -34,8 +34,7 @@ before(async () => {
   chest = await fakeChest({
     network: {},
     members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@lumen.test", ...(p.id === hugo.id ? { groups: [...p.groups, warehouse] } : {}) })),
-    capabilities: ["members", "files", "notifications", "mail", "groups"],
-    mail: { domain: "lumen.test" },
+    capabilities: ["members", "files", "notifications", "members.groups"],
     // The runs below are read on the Chest's clock (SDK 0.4: a run has no
     // zone of its own).
     chest: { timeZone: "Europe/Paris", publicUrl: null },
@@ -43,7 +42,7 @@ before(async () => {
       { id: groups.office, name: "Office", members: [camille.id] },
       { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] },
       { id: groups.tech, name: "Tech", members: [tom.id, lea.id] },
-      // A group that does not give the wiki: only seen with "groups".
+      // A group that does not give the wiki: only seen with "members.groups".
       { id: warehouse, name: "Warehouse", members: [hugo.id], grants: false },
     ],
   });
@@ -106,7 +105,7 @@ test("editors keep the synonyms: add, change, delete (and back); readers cannot"
   await assert.rejects(deleteSynonyms(sql, asMember(ines), made.id), /not_found/u);
 });
 
-test("every group of the Chest, with the groups permission: one that does not give the wiki too", async () => {
+test("every group of the Chest, with members.groups: one that does not give the wiki too", async () => {
   const names = (await companyGroups()).map(g => g.name);
   assert.deepEqual(names, ["Office", "Sales", "Tech", "Warehouse"]);
   // Hugo is asked to confirm through a group that does not give the wiki.
@@ -118,50 +117,47 @@ test("every group of the Chest, with the groups permission: one that does not gi
   assert.deepEqual(chest.notifications.map(n => n.member), [hugo.id]);
 });
 
-test("asked to confirm: by email too, in each one's language; reminders go to those who have not, by email", async () => {
+test("asked to confirm: a notification in each one's language, never an email; reminders go to those who have not", async () => {
   const { sql } = database;
   const s = await spaces.createSpace(sql, asMember(camille), { name: "Rules " + Math.random() });
   const p = await pages.createPage(sql, asMember(camille), { spaceId: s.id, title: "Règlement intérieur 2026" });
   const page = await reads.ask(sql, asMember(camille), p.id, {});
   const state = await reads.readState(sql, asMember(camille), p.id);
   assert.equal(await tell.readAsked(asMember(camille), page, state.asked!), 4);
-  // Inès, Tom, Hugo, Léa: one email each, nobody sees the others.
-  assert.equal(chest.outbox.length, 4);
-  assert.ok(chest.outbox.every(m => m.to.length === 1));
-  const toLea = chest.outbox.find(m => m.to[0] === "lea@lumen.test")!;
-  assert.match(toLea.subject, /Camille Martin vous demande de lire/u);
-  assert.match(toLea.text, /confirmer/u);
-  assert.match(chest.outbox.find(m => m.to[0] === "hugo@lumen.test")!.subject, /asks you to read/u);
+  // Inès, Tom, Hugo, Léa: one notice, each sees their language.
+  const asked = () => chest.notifications.filter(n => n.key === `read:${p.id}`);
+  assert.deepEqual(asked().map(n => n.member).sort(), [ines.id, tom.id, hugo.id, lea.id].sort());
+  assert.match(shownTo(asked().find(n => n.member === lea.id)!, "fr").title, /Camille Martin vous demande de lire/u);
+  assert.match(shownTo(asked().find(n => n.member === hugo.id)!, "en").title, /asks you to read/u);
+  assert.equal(asked()[0]!.path, `/chest/pages/${p.id}`);
+  assert.equal(chest.outbox.length, 0, "members are never emailed by the wiki");
   // Hugo confirms; a reminder goes to the three others only.
   await reads.confirm(sql, asMember(hugo), p.id);
-  chest.outbox.length = 0;
-  const asked = (await reads.readState(sql, asMember(camille), p.id)).asked!;
-  assert.equal(await tell.remindReaders(sql, page, asked, "2026-10-01"), 3);
-  assert.deepEqual(chest.outbox.map(m => m.to[0]).sort(), ["ines@lumen.test", "lea@lumen.test", "tom@lumen.test"]);
-  assert.match(chest.outbox.find(m => m.to[0] === "tom@lumen.test")!.subject, /^Reminder: please read/u);
-  // The same day again: the Chest's key sends nothing twice.
-  await tell.remindReaders(sql, page, asked, "2026-10-01");
-  assert.equal(chest.outbox.length, 3);
+  chest.notifications.splice(0);
+  const ask = (await reads.readState(sql, asMember(camille), p.id)).asked!;
+  assert.equal(await tell.remindReaders(sql, page, ask), 3);
+  assert.deepEqual(asked().map(n => n.member).sort(), [ines.id, lea.id, tom.id].sort());
+  assert.match(shownTo(asked().find(n => n.member === tom.id)!, "en").title, /^Reminder: please read/u);
   // The morning schedule reminds a week after the ask, twice at most.
-  chest.outbox.length = 0;
+  chest.notifications.splice(0);
   await sql`update pages set read_asked_at = now() - interval '8 days', read_reminded_at = null, read_reminders = 0 where id = ${p.id}`;
-  const run = await tell.reviews(sql, { id: "run_" + "a".repeat(26), name: "reviews", scheduledAt: "2026-10-09T05:40:00Z", attempt: 1 });
+  const run = await tell.reviews(sql);
   assert.ok(run.reminded >= 3);
-  assert.equal(chest.outbox.filter(m => m.subject.includes("Règlement intérieur 2026")).length, 3);
-  const again = await tell.reviews(sql, { id: "run_" + "b".repeat(26), name: "reviews", scheduledAt: "2026-10-10T05:40:00Z", attempt: 1 });
+  assert.equal(asked().length, 3);
+  const again = await tell.reviews(sql);
   assert.equal(again.reminded, 0, "not again the next day");
 });
 
-test("a page due for its check: its owner is told by email too", async () => {
+test("a page due for its check: its owner gets a notification", async () => {
   const { sql } = database;
   const s = await spaces.createSpace(sql, asMember(tom), { name: "Checks " + Math.random() });
   const p = await pages.createPage(sql, asMember(tom), { spaceId: s.id, title: "Fire drill" });
   await reviews.setReview(sql, asMember(tom), p.id, 3);
   await sql`update pages set reviewed_at = now() - interval '4 months' where id = ${p.id}`;
   await tell.reviews(sql);
-  const letter = chest.outbox.find(m => m.to[0] === "tom@lumen.test" && /Fire drill/u.test(m.subject));
-  assert.ok(letter, chest.outbox.map(m => m.subject).join(" | "));
-  assert.match(letter.text, /Review reminder/u);
+  const item = chest.notifications.find(n => n.member === tom.id && n.key === `review:${p.id}`);
+  assert.ok(item && /Fire drill/u.test(item.title), chest.notifications.map(n => n.title).join(" | "));
+  assert.equal(chest.outbox.length, 0);
 });
 
 test("replies, resolve, a comment on a passage; a deleted comment leaves the bell at once", async () => {

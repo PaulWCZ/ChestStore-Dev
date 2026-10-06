@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
 import { AppError } from "@argentic/chest-app";
 import * as comments from "../src/lib/comments.ts";
@@ -115,9 +115,8 @@ test("comments: named polls only, by those asked or managing; removed by their a
   await assert.rejects(comments.add(sql, asMember(ines), anon.id, "Hmm", now), refuses("no_comments"));
 });
 
-test("the organiser reminds those who have not answered — bell and email, at most every 12 hours", async () => {
-  const withMail = everyone.map(m => (m.id === hugo.id ? m : { ...m, email: `${m.firstName.toLowerCase()}@atelier.test` }));
-  const chest = await fakeChest({ network: {}, members: withMail, groups: chestGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: zone } });
+test("the organiser reminds those who have not answered — a notification in each one's language, never an email, at most every 12 hours", async () => {
+  const chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], chest: { timeZone: zone } });
   try {
     const { sql } = database;
     const made = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Lunch?", options: ["Pizza", "Sushi"], closes: { day: "2026-10-09", time: "12:00" }, open: true }, ctx);
@@ -127,39 +126,17 @@ test("the organiser reminds those who have not answered — bell and email, at m
     await assert.rejects(polls.nudge(sql, asMember(hugo), made.id, now), refuses("forbidden"));
     await polls.nudge(sql, asMember(sofia), made.id, now);
     await tell.runTellings(sql, now);
-    // Léa and Tom had not answered (Sofia organises it).
-    const mails = chest.outbox.filter(m => m.subject.includes("Lunch?"));
-    assert.equal(mails.length, 2);
-    assert.ok(mails.every(m => m.to.length === 1), "one message each: nobody sees who else is reminded");
-    assert.ok(mails.some(m => m.subject === "Rappel\u202f: Lunch?"), "Léa's in French");
-    assert.ok(mails.some(m => m.subject === "Reminder: Lunch?" && m.text.includes(`/chest/polls/${made.id}`) && m.text.includes("Sofia Rossi")));
-    const bell = chest.notifications.filter(n => n.key === tell.askKey(made.id) && n.member === tom.id).at(-1)!;
-    assert.equal(bell.title, "Reminder: Lunch?");
-    assert.equal(bell.body, "Sofia Rossi is waiting for your answer. It closes Fri 9 Oct, 12:00.");
+    // Léa and Tom had not answered (Sofia organises it): the reminder
+    // replaces their "asks you" item (the same key).
+    const reminded = chest.notifications.filter(n => n.key === tell.askKey(made.id) && n.title.startsWith("Reminder"));
+    assert.deepEqual(reminded.map(n => n.member).sort(), [lea.id, tom.id].sort());
+    const toTom = reminded.find(n => n.member === tom.id)!;
+    assert.deepEqual(shownTo(toTom, "en"), { title: "Reminder: Lunch?", body: "Sofia Rossi is waiting for your answer. It closes Fri 9 Oct, 12:00." });
+    assert.match(shownTo(reminded.find(n => n.member === lea.id)!, "fr").title, /^Rappel\s:\sLunch\?$/u);
+    assert.equal(toTom.path, `/chest/polls/${made.id}`);
+    assert.equal(chest.outbox.length, 0, "members are never mailed by Polls");
     await assert.rejects(polls.nudge(sql, asMember(sofia), made.id, later(0.25)), refuses("nudged"));
     await polls.nudge(sql, asMember(camille), made.id, later(0.6));
-  } finally {
-    await chest.close();
-  }
-});
-
-test("reminders by email follow each member's email preference; the bell still reminds everyone", async () => {
-  const withMail = everyone.map(m => (m.id === hugo.id ? m : { ...m, email: `${m.firstName.toLowerCase()}@atelier.test` }));
-  const prefs = withMail.map(m => (m.id === tom.id ? { ...m, mailPreference: "none" as const } : m.id === lea.id ? { ...m, mailPreference: "digest" as const } : m));
-  const chest = await fakeChest({ network: {}, members: prefs, groups: chestGroups, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: zone } });
-  try {
-    const { sql } = database;
-    const made = await polls.createPoll(sql, asMember(sofia), { kind: "choice", title: "Offsite?", options: ["Yes", "No"], closes: { day: "2026-10-09", time: "12:00" }, open: true }, ctx);
-    await tell.runTellings(sql, now);
-    const q = (await polls.load(sql, made.id)).questions[0]!;
-    for (const p of [hugo, camille]) await answer(sql, asMember(p), made.id, { [q.id]: { options: [q.options[0]!.id] } }, now);
-    await polls.nudge(sql, asMember(sofia), made.id, now);
-    await tell.runTellings(sql, now);
-    // Inès wants every email; Tom none; Léa one a day, from the Chest.
-    const mails = chest.outbox.filter(m => m.subject.includes("Offsite?"));
-    assert.deepEqual(mails.map(m => m.to), [["inès@atelier.test"]]);
-    assert.deepEqual(chest.held.filter(h => h.subject.includes("Offsite?")).map(h => [h.member, h.reason]).sort(), [[lea.id, "digest"], [tom.id, "none"]].sort());
-    for (const who of [tom, lea, ines]) assert.ok(chest.notifications.some(n => n.key === tell.askKey(made.id) && n.member === who.id && /Offsite\?/u.test(n.title)), `${who.firstName}'s bell`);
   } finally {
     await chest.close();
   }

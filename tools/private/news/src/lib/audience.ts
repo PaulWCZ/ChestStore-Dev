@@ -2,13 +2,12 @@ import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import { localeOf, type Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { inAudience, type Audience } from "./access.ts";
-import { withAllGroups } from "./groups.ts";
 
 // Everyone who has News with a role: the readers of the company's front
 // page. The Chest answers 500 at a time; News reads up to 10,000 people.
-// groups: their groups (all of them with the "groups" permission, asked
-// of the Chest: lib/groups.ts; those that give News without it) — a post's
-// audience.
+// groups: their groups as the Chest names them (all of them with
+// "members.groups": lib/groups.ts; those that give News without it) — a
+// post's audience.
 export type Reader = { id: string; name: string; photo: string | null; locale: Locale; role: string | null; groups: string[] };
 
 export const pageSize = 500;
@@ -20,7 +19,7 @@ export type Page = { people: Reader[]; next: string | null };
 export async function page(after: string | null): Promise<Page> {
   const answer = await members.list({ limit: pageSize, ...(after ? { after } : {}) });
   return {
-    people: await withAllGroups(answer.members.filter(m => m.role !== null).map(m => ({ id: m.id, name: m.name, photo: m.photo, locale: localeOf(m.language), role: m.role, groups: m.groups }))),
+    people: answer.members.filter(m => m.role !== null).map(m => ({ id: m.id, name: m.name, photo: m.photo, locale: localeOf(m.language), role: m.role, groups: [...m.groups] })),
     next: answer.next,
   };
 }
