@@ -540,6 +540,7 @@ export const fr: Catalogue = {
   bell: {
     shortWeek: "Votre semaine compte {hours} h — compléter le reste ?",
     emptyWeek: "Votre semaine est vide — la remplir ?",
+    remindBy: "{name} vous demande de remplir votre semaine.",
     submitted: "{name} a envoyé sa semaine du {date} ({hours})",
     approved: "Votre semaine du {date} est validée",
     returned: "Votre semaine du {date} vous est renvoyée",
@@ -585,7 +586,6 @@ export const fr: Catalogue = {
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     unknown: "Un problème est survenu. Réessayez.",
   },
-  mail: { open: "Ouvrir : {link}", why: "Vous recevez cet e-mail parce que Temps attend quelque chose de vous. La même chose est dans la cloche du Chest.", submittedLine: "Ouvrez la semaine pour la valider, ou la renvoyer avec un mot.", remindLine: "{name} vous demande de remplir votre semaine.", fridayLine: "Ouvrez Temps pour compléter, puis envoyez votre semaine." },
   // The words of the UI kit's components (@argentic/chest-ui/components),
   // typed by the kit: what is not said here is the kit's own.
   kit: {

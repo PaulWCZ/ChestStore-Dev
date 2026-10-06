@@ -25,7 +25,7 @@ This page is the map and the tool's own rules.
 | `src/lib/rates.ts` | Rates with a history; SQL `bill_rate()`/`cost_rate()`; `fixRates` |
 | `src/lib/weeks.ts` | Send / take back / approve / send back a week, the team's weeks, usual weeks, *Remind* |
 | `src/lib/budgets.ts`, `invoicing.ts`, `handoff.ts` | Budget alerts; invoiced time; billable time to Quotes (`timesheets.billable` v1) |
-| `src/lib/mail.ts`, `notify.ts`, `people.ts`, `directory.ts` | Email (proposal), the bell, names of stored ids (with `leftAt`, `no_access`), the Chest's members |
+| `src/lib/notify.ts`, `people.ts`, `directory.ts` | Notifications (one notice per event, French in `translations`), names of stored ids (with `leftAt`, `no_access`), the Chest's members |
 | `src/lib/timer.ts`, `reports.ts`, `settings.ts`, `import.ts`, `reminder.ts`, `lifecycle.ts`, `tx.ts`, `db.ts` | The timer; reports and export batches; settings; import; the Friday reminder; leave and erasure (and `seen`); transactions; the pool (`DATABASE_POOL_MAX`, `provide` for tests) |
 | `src/shared/` | Pure rules both sides use: `duration.ts`, `amounts.ts`, `days.ts`, `periods.ts`, `work.ts`, `model.ts`, `csv.ts`, `import-formats.ts`, `rate-day.ts` — no SDK, no server code (`test/stack.test.ts`) |
 | `src/i18n/` | Every word (`en.ts` source, `fr.ts`; `kit` is the UI kit's), `format.ts` the only place that makes `Intl` objects (cached) |
@@ -66,11 +66,9 @@ This page is the map and the tool's own rules.
   invoiced in `src/lib/entries.ts`) until Quotes answers or a manager takes it
   back. The event's contract is in README "With the other tools": change it
   only with a new `version`.
-- **Emails** leave through `src/lib/mail.ts` with a key built from what names
-  the email (the recipient is appended) and given **whole** — never cut:
-  the SDK sends a long one as its digest. None is
-  `transactional`: each asks someone to act, so the person's choice in the
-  Chest (`mailPreference`) holds.
+- **No email to members**, ever: a member hears through a notification
+  (`src/lib/notify.ts`, with `translations`); the Chest mails it by the
+  member's choice. No digest, no reminder mail, no "email me" setting.
 
 ## Commands
 

@@ -358,12 +358,14 @@ await step("Hugo reads why his week came back and sends it again", async () => {
   await toast("Week sent.");
 });
 
-await step("his week sent again reaches both managers by email, each their own (keys given whole, SDK studio.15)", async () => {
-  // The harness's outbox (its Mail section; the bell's items are elsewhere).
-  const dev = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&amp;", "&").split("<h2>Mail (proposal)</h2>")[1] ?? "";
-  const sent = dev.split("<li>").filter(li => /Hugo Bernard (sent their week|a envoyé sa semaine)/u.test(li)).slice(0, 2);
-  const to = sent.map(li => /→ ([^<\s]+@[^<\s]+)/u.exec(li)?.[1]).sort();
-  expect(to.join(",") === "camille@example.test,sofia@example.test", "the latest two: " + to.join(","));
+await step("his week sent again reaches both managers in their inbox, French words with it; nothing is mailed", async () => {
+  // The harness's bell: one item per member, "<b>Name</b> · title".
+  const dev = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&amp;", "&");
+  const items = dev.split("<li>").filter(li => li.includes("Hugo Bernard sent their week"));
+  const to = [...new Set(items.map(li => /^<b>([^<]+)<\/b>/u.exec(li)?.[1]))].sort();
+  expect(to.join(",") === "Camille Martin,Sofia Rossi", "told: " + to.join(","));
+  expect(items.every(li => li.includes("fr: Hugo Bernard a envoyé sa semaine")), "the French words ride with the notice");
+  expect(!dev.includes("Mail to people outside"), "Timesheets mails nobody (no mail proposal)");
 });
 
 // Round 3 of the critique.
@@ -400,7 +402,7 @@ await step("nobody approves their own week: Sofia sends hers, her own line has n
   await page.locator(".ck-toast", { hasText: "La semaine de Sofia Rossi est validée." }).waitFor();
 });
 
-await step("Remind never counts the manager who presses it; Camille's own short week is said apart; the email leaves", async () => {
+await step("Remind never counts the manager who presses it; Camille's own short week is said apart; the notice says who asks", async () => {
   await page.goto(origin + "/chest/team");
   const bar = await page.locator(".remind-bar").innerText();
   const button = page.getByRole("button", { name: /^Rappeler/u });
@@ -409,7 +411,7 @@ await step("Remind never counts the manager who presses it; Camille's own short 
     await button.click();
     await page.locator(".ck-toast", { hasText: new RegExp(`${n}`, "u") }).waitFor();
     const dev = await (await page.request.get(origin + "/_dev")).text();
-    expect(/Votre semaine du|Your week of/u.test(dev), "the reminder is emailed too");
+    expect(/Camille Martin asks you to fill in your week\./u.test(dev) && /Camille Martin vous demande de remplir votre semaine\./u.test(dev), "the reminder names who asks, in both languages");
   }
   const cell = await page.locator("tr", { hasText: "Camille Martin" }).locator(".week-cell").last().innerText();
   expect(!/incompl/u.test(cell) || /Votre propre semaine est incomplète aussi|sauf vous/u.test(bar), "Camille's own short week is said apart: " + bar);

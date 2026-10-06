@@ -32,8 +32,8 @@ the hour and wants to know where its time goes.
   the person reads on their week. **Nobody approves (or sends back) their
   own week**: a manager's week shows on the Team page with "another
   manager approves it", no button, and the server refuses (`self_approval`);
-  the only manager is told to give someone the Manager role. The bell and
-  an email ask the **leads of the projects the week holds** (every other
+  the only manager is told to give someone the Manager role. A notification
+  asks the **leads of the projects the week holds** (every other
   manager when none has a lead), and tell the person of the answer. The
   company may turn approvals off.
 - **Project leads**: each project may have a lead, one of the managers
@@ -77,7 +77,8 @@ the hour and wants to know where its time goes.
   before the tool's first project or entry) show "—": never "short", never
   reminded; an empty tool expects nothing of anyone. *Remind N people*
   never counts the manager who presses it ("Your own week is short too"
-  is said beside it), and reaches each person by bell and by email. A
+  is said beside it), and reaches each person by a notification that names
+  who asks. A
   person's week opens read-only with every note.
 - **Reports**: this week, last week, this month, last month or chosen days;
   grouped by project, client, person or task; billable or not, or
@@ -125,6 +126,26 @@ the hour and wants to know where its time goes.
   item in their language — "Your week has 22 h — fill in the rest?". It can
   be turned off; everything else works without it (the Team page's
   *Remind* works on any Chest).
+
+## Notifications, and mail
+
+Timesheets tells its team through the Chest's notifications only, each in
+its reader's language: a week sent to approve (to the projects' leads),
+approved or sent back (to its person), *Remind* (to each person short of
+their usual week, saying who asks), the Friday reminder at 15:30 (the
+Chest’s zone), a project at 80 % and 100 % of its budget (to its lead, or
+every manager when it has none). The tool mails nobody: the Chest mails
+each member their notifications by their own choice (each one, once or twice a day, or never; off per tool), set in
+the Chest — Timesheets has no email setting.
+
+**Mail to people outside the company**: none. Timesheets is for the team
+only; billable time reaches clients through Quotes, which sends the
+invoice.
+
+**Changed on 6 October 2026** (the owner's mail decisions): Remind, the
+Friday reminder and a week sent to approve also went by email; those
+emails are gone (the notifications stay, at the same moments). The `mail`
+proposal is no longer declared.
 
 ## Looks
 
@@ -205,7 +226,7 @@ there is a project" (a member reads that a manager opens projects).
   `schedules: [{"name": "friday", "cron": "30 15 * * 5"}]` (the Chest's
   zone); `build.static: ["/assets/"]` (the script, the stylesheet, the
   fonts, the icon — everything the tool serves outside `/chest`).
-  Proposals (`chest.proposals.json`): `mail: {send: true}`, `emits:
+  Proposals (`chest.proposals.json`): `emits:
   ["timesheets.billable", "timesheets.billable_cancelled"]`, `receives:
   ["quotes.invoiced"]`, the French `translations`.
 - **Someone leaves** (or loses access): their running timer stops and
@@ -243,8 +264,7 @@ week", the hours of an entry; the database's `current_date` is that day
 too: the Chest makes its zone the TimeZone of the tool's database
 sessions. `chest.currency` — rates and amounts (EUR when the Chest does
 not say). `schedules` — the Friday reminder on `POST /chest-schedules`;
-without it the tool is complete; the setting says so. `chest.tool.teamUrl`
-— the link in an email.
+without it the tool is complete; the setting says so.
 
 - **`members.leftAt(ids)`** — **Proposal (studio)**: "Left the Chest on
   30 September 2026" on a former member's week. Nothing on a Chest that
@@ -252,15 +272,10 @@ without it the tool is complete; the setting says so. `chest.tool.teamUrl`
 - **Events between tools** — **Proposal (studio)**: billable time to Quotes
   (below), `chest.tools.get/link`. Without it the page says Quotes cannot
   be told; *Mark invoiced* by hand still works.
-- `mail` — **Proposal (studio)**: Remind, the Friday reminder and a week
-  sent to approve also go by email. Without it, the bell only. Keys are
-  given whole (`week:<member>:<monday>:<sent at>:<recipient>`; the SDK
-  sends one longer than the Chest keeps as its digest). **None
-  of these emails is transactional**: each asks someone to act (fill in a
-  week, approve one) — a reminder, like Hiring's interviewers' — so the
-  choice each person made in the Chest (`mailPreference` in the members
-  API: all, one a day, none; applied by `mail.send`) always holds; the bell
-  still tells them. An approval or a return is told by the bell only.
+- **Notices with translations** — **Proposal (studio, announced for 0.5)**:
+  one `notifications.notify` per event, its English words with their French
+  in `translations`; the Chest shows each member their language
+  (`src/lib/notify.ts`).
 - **Wished — a start-timer event from Tasks**: Toggl and Clockify users start
   timers from their task tool; with events between tools, Tasks could send
   `tasks.timer.start` (a task's title as the note).
@@ -405,8 +420,6 @@ hand-off to Quotes), `node lab/chest-dev/flows/timesheets.mjs 5200`,
   person's rate changes.
 - The notes' search is case-insensitive but not accent-insensitive, and
   searches notes only (not project or task names).
-- Emails: no switch of the tool's own — the person's choice in the Chest
-  (all, one a day, none) applies to every email Timesheets sends.
 - Members' reports show a project's whole budget: in hours as it is
   ("251:15 of 230:00 used"), in money as a share only ("64 % of the budget
   used") — never an amount, which beside their hours would give the rate.

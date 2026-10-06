@@ -540,6 +540,7 @@ export const en = {
   bell: {
     shortWeek: "Your week has {hours} h — fill in the rest?",
     emptyWeek: "Your week is empty — fill it in?",
+    remindBy: "{name} asks you to fill in your week.",
     submitted: "{name} sent their week of {date} ({hours})",
     approved: "Your week of {date} is approved",
     returned: "Your week of {date} was sent back",
@@ -585,7 +586,6 @@ export const en = {
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
   },
-  mail: { open: "Open it: {link}", why: "You get this email because Timesheets needs something from you. The same is in the Chest’s bell.", submittedLine: "Open the week to approve it, or send it back with a word.", remindLine: "{name} asks you to fill in your week.", fridayLine: "Open Timesheets to fill in the rest, then send your week." },
   // The words of the UI kit's components (@argentic/chest-ui/components),
   // typed by the kit: what is not said here is the kit's own.
   kit: {

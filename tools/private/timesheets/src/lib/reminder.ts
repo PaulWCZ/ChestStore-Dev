@@ -5,7 +5,6 @@ import { addDays, mondayOf, todayIn } from "../shared/days.ts";
 import { zone } from "./clock.ts";
 import { everyone } from "./directory.ts";
 import { decimal, format, type Catalogue } from "../i18n/index.ts";
-import { email } from "./mail.ts";
 import { numeric } from "../shared/model.ts";
 import { notify } from "./notify.ts";
 import { settings } from "./settings.ts";
@@ -19,7 +18,8 @@ import { capacities, startWeeks } from "./weeks.ts";
 // fill in the rest?" — replacing last week's. Nobody is reminded of a week
 // before their start in the tool (an empty tool expects nothing). Off in the settings, it sends
 // nothing. Idempotent: a run delivered twice sends the same item again
-// under the same key; the email goes once (its key). Nothing else in the tool
+// under the same key (the Chest mails it to those who chose so; the tool
+// mails nobody). Nothing else in the tool
 // depends on it.
 export async function friday(sql: Sql, run: Run): Promise<number> {
   const s = await settings(sql);
@@ -51,8 +51,6 @@ export async function friday(sql: Sql, run: Run): Promise<number> {
   for (const [total, ids] of byTotal) {
     const title = (t: Catalogue, locale: string) => total === 0 ? t.bell.emptyWeek : format(t.bell.shortWeek, { hours: decimal(total / 60, locale, 1) });
     await notify(ids, (t, locale) => ({ title: title(t, locale) }), { path: "/chest", key: "week" });
-    // By email too (the mail proposal), once for this week whatever the retries.
-    await email(ids, (t, locale) => ({ subject: title(t, locale), lines: [t.mail.fridayLine] }), { path: "/chest", key: `friday:${monday}` });
     told += ids.length;
   }
   return told;
