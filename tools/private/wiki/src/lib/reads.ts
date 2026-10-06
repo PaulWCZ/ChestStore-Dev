@@ -49,6 +49,19 @@ export async function ask(sql: Sql, actor: Member | null, pageId: unknown, input
   return p;
 }
 
+// claimReminder: an editor's "Remind those who have not confirmed", at most
+// once every 12 hours per page. Each reminder is a notification the Chest
+// may email at once (the member's choice): a few clicks must not become a
+// few emails. Claimed in one statement, so two clicks never both pass.
+export const remindHours = 12;
+export async function claimReminder(sql: Sql, pageId: string): Promise<void> {
+  const [claimed] = await sql`
+    update pages set read_reminded_at = now() where id = ${pageId}
+      and (read_reminded_at is null or read_reminded_at <= now() - make_interval(hours => ${remindHours}))
+    returning id`;
+  if (!claimed) throw new AppError("reminded", { hours: remindHours });
+}
+
 // stopAsking: nobody is asked any more; confirmations already given stay.
 export async function stopAsking(sql: Sql, actor: Member | null, pageId: unknown): Promise<void> {
   const p = await page(sql, actor, pageId, "write");

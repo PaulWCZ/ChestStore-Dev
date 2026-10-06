@@ -613,7 +613,12 @@ await step("an Important event: the notification opens it, where “I’m coming
   await page.goto(origin + post);
   await saved(() => page.locator(".rsvp").getByRole("button", { name: "I’m coming" }).click());
   expect(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "I’m coming" }).isVisible(), "answered");
-  expect((await page.request.get(origin + post + "/answer?a=yes&t=x", { maxRedirects: 0 })).status() === 404, "the old one-tap email links are gone");
+  // An old email's one-tap link answers nothing: it opens the post.
+  const old = await page.request.get(origin + post + "/answer?a=no&t=x", { maxRedirects: 0 });
+  expect(old.status() === 303 && old.headers()["location"] === post, "an old email's link opens the post");
+  await page.goto(origin + post + "/answer?a=no&t=x");
+  await page.waitForURL(u => u.pathname === post);
+  expect(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "I’m coming" }).isVisible(), "and changes nothing");
 });
 
 await step("pass 4: a post published 19 days ago, made Important now, is told to its audience then, once", async () => {

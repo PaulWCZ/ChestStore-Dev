@@ -48,7 +48,7 @@ export function GuestForm({ link, pollId, options, signup, mailOn, mine, sent, l
         {said.length > 0 ? (
           <div className="said" aria-label={t.poll.youSaid}>{said.map((s, i) => <span key={i} className="chip">{s}</span>)}</div>
         ) : <p>{t.guest.noneSuits}</p>}
-        <p>{mine.email && mailOn ? format(t.guest.willMail, { email: mine.email }) : t.guest.changeHint}</p>
+        <p>{mine.email && mailOn ? format(t.guest.willMail, { email: mine.email }) : signup ? t.guest.changeHint : `${t.guest.comeBack} ${t.guest.changeHint}`}</p>
         <button type="button" className="button small" onClick={() => setEditing(true)}>{t.poll.change}</button>
       </div>
     );

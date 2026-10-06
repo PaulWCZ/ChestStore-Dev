@@ -598,6 +598,9 @@ await step("read and acknowledged: Hugo is asked, confirms in one click; Camille
   await page.getByRole("button", { name: "Remind those who have not confirmed" }).click();
   await page.waitForSelector(".ck-toast:has-text('reminded.')");
   expect((await bell()).includes("Rappel : merci de lire « Onboarding for engineers »"), "the reminder, in French");
+  // Once every 12 hours: a second click says so (each reminder may be an email from the Chest).
+  await page.getByRole("button", { name: "Remind those who have not confirmed" }).click();
+  await page.waitForSelector(".ck-toast:has-text('less than 12 hours')");
 });
 
 await step("search in French: little words do not count; words that mean the same find each other; editors keep them", async () => {

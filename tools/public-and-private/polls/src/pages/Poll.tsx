@@ -6,7 +6,7 @@ import { Island } from "@argentic/chest-app";
 import { log } from "@argentic/chest-app";
 import { AppError, notFound, redirect } from "@argentic/chest-app";
 import { fill as format, listOf, type Catalogue, type Format, type Locale } from "../i18n/index.ts";
-import { calendarPage, inCalendar, learned, notInCalendar } from "../lib/agenda.ts";
+import { calendarPage, guestMailOffered, inCalendar, learned, notInCalendar } from "../lib/agenda.ts";
 import { all, groups as chestGroups } from "../lib/audience.ts";
 import { canComment, list as listComments } from "../lib/comments.ts";
 import { dates, optionText } from "../lib/dates.ts";
@@ -86,6 +86,9 @@ export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sq
   const link = guestsShown ? await guestLink(sql, poll.id) : null;
   const origin = link ? publicOrigin(request.headers) : null;
   const guestList = guestsShown ? await listGuests(sql, member, poll) : [];
+  // Whether guests hear the chosen date by email (the guests' form asks
+  // their address only then); a sign-up sheet has no date to choose.
+  const guestMail = guestsShown && link !== null && poll.slots === null ? ((await guestMailOffered()) ? "on" : "off") : null;
   // The chosen date in this member's Chest calendar (Proposal (studio)).
   // Replies to anonymous free texts, for those who manage a closed survey.
   const talks = poll.anonymous && pv.state === "shown" && pv.results?.some(q => q.kind === "text") ? await conversations(sql, member, poll) : null;
@@ -235,7 +238,7 @@ export async function pollPage({ sql, member, locale, t, f, request }: { sql: Sq
           </section>
 
           {guestsShown && (poll.status === "open" || link !== null || guestList.length > 0) && (
-            <Island name="GuestsCard" props={{ pollId: poll.id, url: link && origin ? `${origin}/p/${link}` : null, open: poll.status === "open", list: guestList, locale, t: { guests: t.guests } }} />
+            <Island name="GuestsCard" props={{ pollId: poll.id, url: link && origin ? `${origin}/p/${link}` : null, open: poll.status === "open", list: guestList, mail: guestMail, locale, t: { guests: t.guests } }} />
           )}
 
           {pv.manages && (

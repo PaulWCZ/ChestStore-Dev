@@ -14,7 +14,7 @@ import { clean, id, memberId } from "./input.ts";
 // colleague thanked is told when it is published (lib/tell.ts).
 //
 // Until then, a proposal is seen by its author and the publishers only:
-// never on the front page, in search, in the digest or in an export (it
+// never on the front page, in search or in an export (it
 // is not a post); its picture opens for them alone. A publisher cannot
 // approve their own proposal (they publish directly), and nobody else can
 // approve at all. Its author may take it back (Undo brings it back).

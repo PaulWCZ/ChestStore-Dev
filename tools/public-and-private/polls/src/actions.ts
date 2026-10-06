@@ -102,8 +102,8 @@ export const actions = {
     await tell.refreshAsked(sql, back);
     if (back.finalOption !== null) await syncFinal(sql, back.id);
   }),
-  // Reminding those who have not answered (bell, and email where the Chest
-  // sends it).
+  // Reminding those who have not answered: a notification (the Chest
+  // emails it to those who chose so), once every 12 hours.
   nudgePoll: action(poll, async ({ pollId }, { member }) => {
     const sql = db();
     await polls.nudge(sql, member, pollId);

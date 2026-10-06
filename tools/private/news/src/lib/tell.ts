@@ -149,8 +149,27 @@ export async function announce(sql: Sql, now = new Date()): Promise<{ told: stri
 // and purge what was deleted long ago.
 export async function pass(sql: Sql, now = new Date()): Promise<{ told: string[]; waiting: string[] }> {
   const result = await announce(sql, now);
+  await clearDigests(sql);
   await removeObjects(await purge(sql));
   return result;
+}
+
+// clearDigests: the weekly digest's item (key "digest") that versions
+// before the mail decisions of 6 October 2026 left in a bell went when its
+// reader opened the front page; there is no digest any more, so the items
+// still standing (the digests table says whose) are withdrawn once, in one
+// call, and the rows go. Kept while that table exists: then nothing to do.
+export const oldDigestKey = "digest";
+export async function clearDigests(sql: Sql): Promise<void> {
+  const [held] = await sql<{ member: string }[]>`select member from digests limit 1`;
+  if (!held) return;
+  try {
+    await notifications.withdraw(oldDigestKey);
+  } catch (error) {
+    if (error instanceof ChestError) return;
+    throw error;
+  }
+  await sql`delete from digests`;
 }
 
 // A new comment: the post's author hears of it (not of their own); a reply,
@@ -297,6 +316,7 @@ export async function catchUp(sql: Sql, now = new Date()): Promise<void> {
   await announce(sql, now);
   if (now.getTime() - lastPurge > 10 * 60 * 1000) {
     lastPurge = now.getTime();
+    await clearDigests(sql);
     await removeObjects(await purge(sql));
   }
 }

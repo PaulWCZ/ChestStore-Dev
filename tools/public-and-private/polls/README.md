@@ -432,7 +432,11 @@ poll, who is not in the Chest. Sent through the Chest's mail connector
 
 When the Chest cannot send (mail not granted, the company's mail not
 connected, sending suspended), the guest form does not ask for an email at
-all; the page shows the chosen date to anyone who comes back.
+all; the page shows the chosen date to anyone who comes back, and the
+guest's thanks says so ("Open this link again to see the date chosen").
+The organiser's *Guests outside the Chest* card says which way guests
+learn the date: by email, or — when the Chest cannot send — "Guests are
+not emailed … send them the link again: the page shows it".
 
 ## What changed with the mail decisions of 6 October 2026
 

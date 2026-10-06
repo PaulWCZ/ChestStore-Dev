@@ -93,6 +93,13 @@ app.get("/chest/files/:id", async c => {
   }
 });
 
+// The one-tap "I'm coming" / "Not coming" links of the emails News sent
+// before the mail decisions of 6 October 2026: they answer nothing any
+// more (GET changes nothing), they open the post, where the answer is one
+// tap. Kept so an email still in someone's inbox never leads to "Nothing
+// here".
+app.get("/chest/posts/:id{[0-9]+}/answer", c => c.redirect(`/chest/posts/${c.req.param("id")}`, 303));
+
 // "Add to my calendar": the event as an .ics file, for whoever sees it, in
 // their language when the post has it.
 app.get("/chest/posts/:id/calendar", async c => {

@@ -38,8 +38,8 @@ export function can(actor: Member | null, ability: Ability): boolean {
 
 // Audience (lib/model.ts, inAudience): a post is for everyone, or for the
 // members of some of the Chest's groups and some people picked by hand. Its
-// audience — and only its audience — is told in the bell and by email,
-// asked to confirm, counted in "Read by", and in the digest.
+// audience — and only its audience — is told (a notification), asked to
+// confirm, and counted in "Read by".
 export { inAudience, type Audience, type Grouped } from "../shared/model.ts";
 
 // Who sees a post kept to an audience: its audience, its author (who may edit
