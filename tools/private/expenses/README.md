@@ -200,7 +200,8 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   approvers when something is sent to them (each expense named);
   employees when approved, refused (with the reason) or paid; card holders
   when card payments wait for their receipt (each payment named: "15 Sept ·
-  UBER *TRIP · €23.40"); on the 25th, people with drafts not sent. The
+  UBER *TRIP · €23.40"); on the 25th, people with drafts not sent, and
+  approvers with expenses waiting for them. The
   tile's number is what waits for you: expenses to decide, plus your
   refused drafts. **Email**: the tool sends none to the team — the Chest
   mails each member their notifications by their own choice (each one,
@@ -218,14 +219,17 @@ Expenses used to send its team — to an approver when expenses were sent, to
 a card holder for a missing receipt, the 25th's reminder to people with
 drafts and to approvers with expenses waiting — are gone. The first three
 are notifications (they were already in the bell; the card one now names
-each payment, as its email did). The approvers' monthly email is not
-replaced: what waits for an approver is in their inbox from the moment it
-is sent until it is settled, and on the tile.
+each payment, as its email did). The approvers' "5 expenses wait for your
+approval" of the 25th, an email only until then, is a notification at the
+same moment: the nudge before the month closes for an approver who let the
+first notices go by; it goes from the inbox once nothing waits.
 - **One date format**: every list writes a day the same way ("8 Sept",
   "8 sept."), and a line's parts never wrap with a "·" at the start.
 - **Reminder** (schedule proposal): on the 25th at 09:00, everyone with
   unsent drafts is reminded ("Send your expenses before the end of the
-  month", with their count and total). The accountant can turn it off.
+  month", with their count and total), and each approver with expenses
+  waiting for them ("5 expenses wait for your approval", replaced each
+  month, gone once nothing waits). The accountant can turn it off.
 
 ## Roles
 

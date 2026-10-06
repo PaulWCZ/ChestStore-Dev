@@ -110,8 +110,8 @@ app.post("/chest-events", async c => {
 });
 
 // The schedules of chest.json, on the Chest's clock: Friday morning, the
-// owners of key results not updated this week hear of it in the bell (and
-// by email); Monday morning, every tile's number is set for the new week,
+// owners of key results not updated this week hear of it (a notification,
+// which the Chest mails them when they chose so); Monday morning, every tile's number is set for the new week,
 // and what the Chest delivered more than 30 days ago is forgotten. Without
 // schedules the tool still works: badges are set whenever people use it.
 app.post("/chest-schedules", async c => new Response(null, {

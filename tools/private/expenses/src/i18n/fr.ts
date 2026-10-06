@@ -692,7 +692,7 @@ export const fr: Catalogue = {
     company: {
       title: "Pour toute l’entreprise",
       currency: "Devise de l’entreprise",
-      reminder: "Le 25 du mois, rappeler aux personnes qui ont des brouillons de les envoyer",
+      reminder: "Le 25 du mois, rappeler à chacun ses brouillons, et aux valideurs ce qui les attend",
       saved: "Enregistré.",
     },
     cardWords: {
@@ -778,6 +778,8 @@ export const fr: Catalogue = {
     paid: "Remboursé : {total}, le {date}",
     reminder: "Envoyez vos notes de frais avant la fin du mois",
     reminderBody: { one: "1 brouillon · {total}", other: "{count} brouillons · {total}" },
+    waiting: { one: "1 dépense attend votre validation", other: "{count} dépenses attendent votre validation" },
+    waitingBody: "Ouvrez « À valider » pour les valider ou les refuser.",
     bankByOther: "{name} a modifié vos coordonnées bancaires (compte finissant par {last4})",
     bankOwn: "{name} a modifié ses coordonnées bancaires (compte finissant par {last4})",
     cardReceipts: { one: "Un paiement par carte de l’entreprise attend son justificatif", other: "{count} paiements par carte de l’entreprise attendent leur justificatif" },

@@ -83,7 +83,7 @@ test("a notice goes to members only, its French with it; none to an id the Chest
   await notify([hugo.id, "mbr_" + "z".repeat(26)], t => ({ title: t.bell.emptyWeek }), { path: "/chest", key: "week" });
   assert.equal(chest!.notifications.length, 1);
   assert.equal(chest!.notifications[0]!.title, "Your week is empty — fill it in?");
-  assert.deepEqual(chest!.notifications[0]!.translations, { fr: { title: "Votre semaine est vide — la remplir ?" } });
+  assert.deepEqual(chest!.notifications[0]!.translations, { fr: { title: "Votre semaine est vide — la remplir\u202f?" } });
 });
 
 test("the Friday reminder, turned off, sends nothing", async () => {

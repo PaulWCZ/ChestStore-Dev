@@ -104,8 +104,11 @@ companies give their tools to everyone and have no groups): anyone may write
 for such a team. Admins add them in *Settings* ("Add the 2 groups of your
 Chest" is one click). With the capability `members.groups`, the groups the
 Chest names for a member (`member.groups`) are every group they are in, and
-a group's members are `members.list({ group })`; without it, only the groups
-that give Goals.
+a group's members are `members.list({ group })`, page by page, asked only
+for the groups that are teams (kept a minute, their identifiers only); without
+it, only the groups that give Goals. Goals sets no cap on the Chest's
+groups: every one is offered in *Settings* (a company keeps up to 100 active
+teams).
 
 ### Personal objectives, and what Goals never does
 
@@ -369,6 +372,14 @@ result's history),
 `node lab/chest-dev/flows/goals.mjs 5600`, `node lab/chest-dev/screens.mjs
 tools/private/goals --port 5600`, `node lab/chest-dev/audit.mjs
 tools/private/goals --port 5600`.
+
+**Each of the three needs the sample data as seeded: start the harness
+again with `--reset` before each one.** They check in Hugo's key results
+for real — the flow all of them; the screenshots and the audit the first
+one waiting, to show the check-in's Undo (once for the screenshots, once
+per theme for the audit) — and Hugo has two waiting in the sample. Run
+after another, the audit cannot reach its *check-in-undo* screen and the
+flow's first steps find nothing to check in.
 
 ## What it does not do (yet)
 

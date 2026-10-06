@@ -12,49 +12,70 @@ import { clean, groupPattern, id, limits } from "./model.ts";
 // and has no groups). Admins add, rename and archive them.
 
 export type Team = { id: string; name: string; groupId: string | null; archived: boolean; members: string[] | null };
-export type Group = { id: string; name: string; members: string[] };
+export type Group = { id: string; name: string };
 
-// The Chest's groups, each with its members who have the tool. With the
-// capability "members.groups" (Proposal (studio), announced for 0.5, as
-// News, Wiki and Polls) every group of the Chest — Sales, Tech, the warehouse — even
-// when Goals is open to everyone; without it, only the groups that give
-// Goals (a company that gives it to everyone then has none). [] when the
-// Chest cannot say. Kept a minute (the SDK's advice), per Chest API.
-let cached: { at: number; api: string | undefined; groups: Group[] } | null = null;
+// The Chest's groups, by name. With the capability "members.groups"
+// (Proposal (studio), announced for 0.5, as News, Wiki and Polls) every
+// group of the Chest — Sales, Tech, the warehouse — even when Goals is open
+// to everyone; without it, only the groups that give Goals (a company that
+// gives it to everyone then has none). No cap of the tool's own: the
+// Chest's list as it is. [] when the Chest cannot say. Kept a minute (the
+// SDK's advice), per Chest API.
+let named: { at: number; api: string | undefined; groups: Group[] } | null = null;
+// The members of the groups that are teams, asked only for those (a
+// company may have many groups and few teams), kept a minute each.
+const kept = new Map<string, { at: number; api: string | undefined; members: string[] }>();
+const fresh = (entry: { at: number; api: string | undefined }) => entry.api === process.env["CHEST_API"] && Date.now() - entry.at < 60_000;
 
 export async function chestGroups(): Promise<Group[]> {
-  if (cached && cached.api === process.env["CHEST_API"] && Date.now() - cached.at < 60_000) return cached.groups;
+  if (named && fresh(named)) return named.groups;
   let groups: Group[];
   try {
-    const all = await members.groups.all();
-    groups = [];
-    for (const g of all.slice(0, limits.teams)) {
-      const who: string[] = [];
-      let after: string | undefined;
-      do {
-        const page = await members.list({ group: g.id, limit: 500, ...(after ? { after } : {}) });
-        who.push(...page.members.map(m => m.id));
-        after = page.next ?? undefined;
-      } while (after);
-      groups.push({ id: g.id, name: g.name, members: who });
-    }
+    groups = (await members.groups.all()).map(g => ({ id: g.id, name: g.name }));
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     if (!(error instanceof CapabilityNotGranted)) return [];
     try {
-      groups = (await members.groups.list()).map(g => ({ id: g.id, name: g.name, members: [...g.members] }));
+      groups = (await members.groups.list()).map(g => ({ id: g.id, name: g.name }));
     } catch (inner) {
       if (inner instanceof ChestError) return [];
       throw inner;
     }
   }
-  cached = { at: Date.now(), api: process.env["CHEST_API"], groups };
+  named = { at: Date.now(), api: process.env["CHEST_API"], groups };
   return groups;
 }
 
-// A group changed or was removed (events): read them again.
+// The members of a group who have Goals (official 0.4.1: members.list
+// with `group`; without "members.groups" a group that does not give Goals
+// answers nobody), page by page, 500 a page: only their identifiers are
+// kept. [] when the Chest cannot say (asked again next time).
+export async function groupMembers(groupId: string): Promise<string[]> {
+  const hit = kept.get(groupId);
+  if (hit && fresh(hit)) return hit.members;
+  const who: string[] = [];
+  try {
+    let after: string | undefined;
+    do {
+      const page = await members.list({ group: groupId, limit: 500, ...(after ? { after } : {}) });
+      for (const m of page.members) who.push(m.id);
+      // A cursor that comes back is the Chest's bug: stop rather than loop.
+      after = page.next && page.next !== after ? page.next : undefined;
+    } while (after);
+  } catch (error) {
+    if (error instanceof ChestError) return [];
+    throw error;
+  }
+  if (kept.size >= 1000) kept.clear();
+  kept.set(groupId, { at: Date.now(), api: process.env["CHEST_API"], members: who });
+  return who;
+}
+
+// A group changed or was removed, a member's role or groups (events): read
+// them again.
 export function forgetGroups(): void {
-  cached = null;
+  named = null;
+  kept.clear();
 }
 
 export async function teams(sql: Query, options: { archived?: boolean; groups?: Group[] } = {}): Promise<Team[]> {
@@ -62,19 +83,19 @@ export async function teams(sql: Query, options: { archived?: boolean; groups?: 
     select id, name, group_id, archived_at from teams ${options.archived ? sql`` : sql`where archived_at is null`} order by lower(name), id limit 200`;
   const groups = options.groups ?? (rows.some(r => r.group_id) ? await chestGroups() : []);
   const byId = new Map(groups.map(g => [g.id, g]));
-  return rows
-    .map(r => {
-      const group = r.group_id ? byId.get(r.group_id) : undefined;
-      return { id: String(r.id), name: group?.name ?? r.name, groupId: r.group_id, archived: r.archived_at !== null, members: r.group_id ? group?.members ?? [] : null };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const list: Team[] = [];
+  for (const r of rows) {
+    const group = r.group_id ? byId.get(r.group_id) : undefined;
+    list.push({ id: String(r.id), name: group?.name ?? r.name, groupId: r.group_id, archived: r.archived_at !== null, members: r.group_id ? await groupMembers(r.group_id) : null });
+  }
+  return list.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function team(sql: Query, teamId: string): Promise<Team | null> {
   const [row] = await sql<{ id: string; name: string; group_id: string | null; archived_at: Date | null }[]>`select id, name, group_id, archived_at from teams where id = ${teamId}`;
   if (!row) return null;
   const group = row.group_id ? (await chestGroups()).find(g => g.id === row.group_id) : undefined;
-  return { id: String(row.id), name: group?.name ?? row.name, groupId: row.group_id, archived: row.archived_at !== null, members: row.group_id ? group?.members ?? [] : null };
+  return { id: String(row.id), name: group?.name ?? row.name, groupId: row.group_id, archived: row.archived_at !== null, members: row.group_id ? await groupMembers(row.group_id) : null };
 }
 
 function manage(actor: Member | null): Member {

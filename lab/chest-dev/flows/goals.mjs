@@ -1,5 +1,7 @@
 // Goals, as people use it, in a real browser: node lab/chest-dev/flows/goals.mjs [port]
-// (the harness runs the tool with --reset: Atelier Martin's sample cycles are there).
+// (the harness runs the tool with --reset: Atelier Martin's sample cycles are there;
+// start it again with --reset after screens.mjs or audit.mjs, which check in one
+// of Hugo's key results for their Undo screen, and before running this a second time).
 // With --empty, a new company's first visit instead (the harness runs with --reset --empty).
 import { fileURLToPath } from "node:url";
 import { as, done, expect, open, step } from "./lib.mjs";

@@ -498,10 +498,11 @@ await step("Camille names Inès as Léa's approver; Léa's trip waiting moves to
   expect((await page.locator("main").innerText()).includes("Léa Dubois"), "Léa's trip waits for Inès");
 });
 
-await step("the 25th: a reminder to those with drafts, in their language", async () => {
+await step("the 25th: a reminder to those with drafts, and to approvers with expenses waiting, in their language", async () => {
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reminder" } });
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Send your expenses before the end of the month") && dev.includes("Envoyez vos notes de frais avant la fin du mois"), "reminders in English and French");
+  expect(/<b>Inès Moreau<\/b>[^<]*· \d+ expenses? waits? for your approval/u.test(dev) && /fr: \d+ dépenses? attendent? votre validation/u.test(dev), "Inès nudged of what waits for her, in both languages");
 });
 
 await step("Tom claims a flat rate: two meals away from home", async () => {

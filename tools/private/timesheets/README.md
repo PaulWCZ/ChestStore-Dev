@@ -389,11 +389,22 @@ npm start         # the built server, as the Chest runs it (PORT)
 npm run dev       # rebuilds on every change
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --build --reset --port 5200`
-(Atelier Martin from `seed/sample.sql`; `--tools quotes --linked` for the
-hand-off to Quotes), `node lab/chest-dev/flows/timesheets.mjs 5200`,
-`node lab/chest-dev/screens.mjs tools/private/timesheets --port 5200`,
-`node lab/chest-dev/audit.mjs tools/private/timesheets --port 5200`.
+In the studio:
+
+```sh
+node lab/chest-dev/dev.mjs tools/private/timesheets --prod --build --reset --tools quotes --linked --port 5200
+node lab/chest-dev/flows/timesheets.mjs 5200
+node lab/chest-dev/screens.mjs tools/private/timesheets --port 5200
+node lab/chest-dev/audit.mjs tools/private/timesheets --port 5200
+```
+
+Atelier Martin comes from `seed/sample.sql`. **`--tools quotes --linked`
+is needed by the flow**: Quotes installed beside Timesheets and linked to
+it by an admin, for the hand-off of billable time (without them the
+Reports page offers no *Draft invoice in Quotes*, or says Quotes is not
+linked yet, and the flow's hand-off steps fail). Start the harness again
+with `--reset` before running the flow a second time: it expects the
+sample data as seeded.
 
 ## What it does not do (yet)
 

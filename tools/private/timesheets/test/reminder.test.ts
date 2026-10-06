@@ -47,7 +47,7 @@ test("on Friday, whoever has a short week gets one notice, in every language; de
   // entry), so this week is expected of him — as the Team page says.
   assert.deepEqual(items, [
     [hugo.id, "Your week is empty — fill it in?", "week"],
-    [ines.id, "Votre semaine compte 21,5 h — compléter le reste ?", "week"],
+    [ines.id, "Votre semaine compte 21,5 h — compléter le reste\u202f?", "week"],
     [tom.id, "Your week is empty — fill it in?", "week"],
   ].sort());
   // The tool mails nobody: the Chest mails each member their

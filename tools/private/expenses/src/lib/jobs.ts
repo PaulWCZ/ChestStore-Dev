@@ -1,8 +1,9 @@
 import type { Run } from "@argentic/chest-sdk/schedules";
 import type { Sql } from "./db.ts";
-import { totals } from "./expenses.ts";
+import { decideCounts, totals } from "./expenses.ts";
 import { plural } from "../i18n/index.ts";
 import { cut, notify } from "./notify.ts";
+import { accountants } from "./people.ts";
 import { cleanUploads, forget } from "./receipts.ts";
 import { settings } from "./settings.ts";
 import { totalText } from "./tell.ts";
@@ -14,9 +15,11 @@ import { totalText } from "./tell.ts";
 // in their bell, in their language — "Send your expenses before the end of
 // the month", with their count and total. It replaces last month's (same
 // key); a run delivered twice sends the same item again, not a second one.
-// Off when the accountant turned the reminder off. Approvers need no
-// reminder: what waits for them is already in their inbox (one item per
-// person who sent, until it is settled) and on the tool's tile.
+// Off when the accountant turned the reminder off. The same day, each
+// approver with expenses waiting for them finds "5 expenses wait for your
+// approval" — the nudge before the month closes for an approver who let
+// the first notices go by (the Chest mails it to them when they chose so).
+// It replaces last month's, and goes once nothing waits (tell.refresh).
 export async function reminder(sql: Sql, _run?: Run): Promise<number> {
   if (!(await settings(sql)).reminder) return 0;
   const rows = await sql<{ member_id: string; amount_cents: string; currency: string }[]>`
@@ -27,6 +30,16 @@ export async function reminder(sql: Sql, _run?: Run): Promise<number> {
   for (const [member, list] of byMember) {
     const sum = totals(list);
     await notify([member], (t, locale) => ({ title: t.bell.reminder, body: cut(plural(t.bell.reminderBody, list.length, locale, { total: totalText(sum, locale) }), 280) }), { path: "/chest", key: "reminder" });
+  }
+  // What waits for each approver: sent to them, or to the accountants
+  // (never their own).
+  const waiting = await sql<{ approver_id: string | null }[]>`
+    select distinct approver_id from expenses where status = 'submitted' and deleted_at is null limit 20000`;
+  const team = await accountants();
+  const approvers = [...new Set([...waiting.flatMap(w => w.approver_id ? [w.approver_id] : team)])].filter(id => id.startsWith("mbr_"));
+  for (const [who, count] of await decideCounts(sql, approvers, team)) {
+    if (count === 0) continue;
+    await notify([who], (t, locale) => ({ title: plural(t.bell.waiting, count, locale), body: t.bell.waitingBody }), { path: "/chest/approve", key: "approve-reminder" });
   }
   return byMember.size;
 }

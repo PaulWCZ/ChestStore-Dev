@@ -1,9 +1,9 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
-import { waitingCounts, totals, type Decision, type Expense, type Total } from "./expenses.ts";
+import { decideCounts, waitingCounts, totals, type Decision, type Expense, type Total } from "./expenses.ts";
 import { format, formatDate, plural, shortDate } from "../i18n/index.ts";
 import { formatMoney } from "../shared/money.ts";
-import { badges, cut, notify, withdraw } from "./notify.ts";
+import { badges, notify, withdraw } from "./notify.ts";
 import { receiptsOwed } from "./cards.ts";
 import { accountants } from "./people.ts";
 
@@ -28,7 +28,7 @@ export async function sent(sql: Query, actor: Member, result: { claim?: string; 
   const sum = totals(result.expenses);
   await notify(recipients, (t, locale) => ({
     title: plural(t.bell.sent, result.expenses.length, locale, { name: actor.name, total: totalText(sum, locale) }),
-    body: cut(result.expenses.map(e => what(e, locale)).join("\n"), 280),
+    body: result.expenses.map(e => what(e, locale)).join("\n"),
   }), { path: "/chest/approve", key: `waiting:${actor.id}` });
   // Refused expenses sent again no longer need their owner's look.
   for (const e of result.expenses) await withdraw(`refused:${e.id}`, [actor.id]);
@@ -44,11 +44,11 @@ export async function decided(sql: Query, actor: Member, decisions: Decision[], 
       const sum = totals(d.expenses);
       await notify([d.owner], (t, locale) => ({
         title: plural(t.bell.approved, d.expenses.length, locale, { name: actor.name, total: totalText(sum, locale) }),
-        body: cut(d.expenses.map(e => what(e, locale)).join("\n"), 280),
+        body: d.expenses.map(e => what(e, locale)).join("\n"),
       }), { path: "/chest", key: `approved:${d.owner}` });
     } else {
       for (const e of d.expenses) {
-        await notify([d.owner], (t, locale) => ({ title: format(t.bell.refused, { name: actor.name, what: what(e, locale) }), body: cut(reason, 280) }), { path: `/chest/expenses/${e.id}`, key: `refused:${e.id}` });
+        await notify([d.owner], (t, locale) => ({ title: format(t.bell.refused, { name: actor.name, what: what(e, locale) }), body: reason }), { path: `/chest/expenses/${e.id}`, key: `refused:${e.id}` });
       }
     }
   }
@@ -71,7 +71,7 @@ export async function paid(sql: Query, actor: Member, decisions: Decision[], pai
     const sum = totals(d.expenses);
     await notify([d.owner], (t, locale) => ({
       title: format(t.bell.paid, { total: totalText(sum, locale), date: formatDate(paidOn + "T12:00:00Z", locale, { day: "numeric", month: "long" }) }),
-      body: cut(d.expenses.map(e => what(e, locale)).join("\n"), 280),
+      body: d.expenses.map(e => what(e, locale)).join("\n"),
     }), { path: "/chest", key: `paid:${d.owner}` });
   }
   await refresh(sql, [actor.id]);
@@ -90,7 +90,11 @@ export async function refresh(sql: Query, people: string[]): Promise<void> {
   const accounting = await accountants();
   const ids = [...new Set([...people, ...accounting])].filter(p => p.startsWith("mbr_"));
   if (ids.length === 0) return;
-  await badges(await waitingCounts(sql, ids, accounting));
+  const decide = await decideCounts(sql, ids, accounting);
+  await badges(await waitingCounts(sql, ids, accounting, decide));
+  // The 25th's "N expenses wait for your approval" goes once nothing waits.
+  const settled = [...decide].filter(([, n]) => n === 0).map(([id]) => id);
+  if (settled.length > 0) await withdraw("approve-reminder", settled);
 }
 
 // Bank details changed: a classic fraud is to change someone's account just

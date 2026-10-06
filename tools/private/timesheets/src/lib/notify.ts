@@ -56,8 +56,12 @@ export async function badges(counts: Map<string, number>): Promise<void> {
   }
 }
 
+// White space folded to one space — but never a no-break space, which the
+// French words carry on purpose (« guillemets », "7 h").
+const breakable = /[^\S\u00a0\u2007\u202f]+/gu;
+
 // cut shortens a text to max characters (not UTF-16 units), with an ellipsis.
 export function cut(text: string, max: number): string {
-  const chars = [...text.replace(/\s+/gu, " ").trim()];
+  const chars = [...text.replace(breakable, " ").trim()];
   return chars.length <= max ? chars.join("") : chars.slice(0, max - 1).join("") + "…";
 }
