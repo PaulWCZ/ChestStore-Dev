@@ -109,7 +109,8 @@ export async function fulfil(sql: Sql, actor: Member | null, requestId: unknown,
   // tells them once, from the answer below.
   if (item.category.kind === "licence") await giveSeat(sql, who, item.id, request.member, { quiet: true });
   else if (item.category.kind === "consumable") await handOut(sql, who, item.id, { qty: 1, to: { member: request.member }, note: request.body });
-  else await give(sql, who, item.id, { to: { member: request.member } }, { bell: false });
+  // From the stock: if someone gave it meanwhile, refused ("moved").
+  else await give(sql, who, item.id, { to: { member: request.member }, from: null }, { bell: false });
   const done = await decide(sql, who, key, ["open", "approved"], "done", null, item.id);
   await tell.answered(sql, who, { ...done, status: "done", item });
   return done;

@@ -1,37 +1,16 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "crm",
   "title": "Clients",
   "description": "Companies, contacts and deals in one place, and never forget to call back.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": [
-    "manager",
-    "sales",
-    "viewer"
+  "roles": ["manager", "sales", "viewer"],
+  "role_labels": {"manager": "Manager", "sales": "Sales", "viewer": "Viewer"},
+  "capabilities": ["database", "files", "members", "notifications"],
+  "receives": ["member.*"],
+  "schedules": [
+    {"name": "morning", "cron": "30 7 * * 1-5"}
   ],
-  "role_labels": {
-    "manager": "Manager",
-    "sales": "Sales",
-    "viewer": "Viewer"
-  },
-  "capabilities": [
-    "database",
-    "members",
-    "notifications",
-    "files"
-  ],
-  "receives": [
-    "member.*"
-  ],
-  "build": {
-    "runtime": "node",
-    "install": "npm ci",
-    "command": "npm run build",
-    "start": "npm start",
-    "port": 3000,
-    "static": [
-      "/_next/static/"
-    ]
-  }
+  "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
 }

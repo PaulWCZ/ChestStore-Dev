@@ -28,9 +28,9 @@ const boardReady = () => page.waitForFunction(() => {
   const hint = handle && document.getElementById(handle.getAttribute("aria-describedby"));
   return Boolean(hint && hint.textContent.trim());
 }).catch(error => { throw new Error("the board's drag and drop never came alive: " + error.message); });
-// A move is saved when the server answered its action (a POST to the board
-// with Next.js's action header): only then may the page be read again.
-const moveSaved = () => page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/chest/deals" && r.request().headers()["next-action"] !== undefined, { timeout: 60_000 });
+// A move is saved when the server answered its action (the island's call()
+// to /chest/actions/moveDeal): only then may the page be read again.
+const moveSaved = () => page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/chest/actions/moveDeal", { timeout: 60_000 });
 // A dragged card has landed when the copy that follows the pointer is gone
 // (the drop animation is over and the drag has let go of the page).
 const landed = () => page.locator(".deal-card.overlay").waitFor({ state: "detached" });

@@ -1,24 +1,29 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as files from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as activities from "../lib/activities.ts";
-import { attach, detach, listFiles, uploadFolder } from "../lib/attachments.ts";
-import { bulk } from "../lib/bulk.ts";
-import * as companies from "../lib/companies.ts";
-import * as contacts from "../lib/contacts.ts";
-import * as deals from "../lib/deals.ts";
-import { AppError } from "../lib/errors.ts";
-import { companiesCsv, contactJson, contactsCsv, dealsCsv, everything } from "../lib/export.ts";
-import * as fields from "../lib/fields.ts";
-import { en } from "../lib/i18n/en.ts";
-import { mergeCompanies, mergeContacts } from "../lib/merge.ts";
-import { teamReport } from "../lib/reports.ts";
-import { search } from "../lib/search.ts";
-import { listStages } from "../lib/stages.ts";
-import * as steps from "../lib/steps.ts";
-import { today } from "../lib/zone.ts";
+import * as activities from "../src/lib/activities.ts";
+import { attach, detach, listFiles, uploadFolder } from "../src/lib/attachments.ts";
+import { bulk } from "../src/lib/bulk.ts";
+import * as companies from "../src/lib/companies.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import * as deals from "../src/lib/deals.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { companiesCsv, contactJson, contactsCsv, dealsCsv, everything } from "../src/lib/export.ts";
+import * as fields from "../src/lib/fields.ts";
+import { en } from "../src/i18n/en.ts";
+import { mergeCompanies, mergeContacts } from "../src/lib/merge.ts";
+import { teamReport } from "../src/lib/reports.ts";
+import { search } from "../src/lib/search.ts";
+import { listStages } from "../src/lib/stages.ts";
+import * as steps from "../src/lib/steps.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { bytes, collect } from "./support/collect.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 
@@ -29,8 +34,8 @@ import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -66,7 +71,7 @@ test("the team's own fields: a manager sets them; values are checked, shown, fil
   assert.deepEqual(await names({ field: renewal.id, min: "2027-01-01", max: "2027-06-30" }), ["Alpha Fournitures"]);
   assert.deepEqual(await names({ field: segment.id }), ["Alpha Fournitures", "Beta Mobilier"], "filled in");
   // Exported, each field a column named as the team named it.
-  const csv = await companiesCsv(sql, asMember(lea), {}, en, "en");
+  const csv = await collect(await companiesCsv(sql, asMember(lea), {}, en, "en"));
   const [head, first] = csv.replace(/^﻿/u, "").split("\r\n");
   assert.ok(head!.endsWith("Segment,Employees,Contract end,Lead source"));
   assert.ok(first!.startsWith("Alpha Fournitures,") && first!.endsWith("SMB,1250,2027-03-31,Trade show Lyon"));
@@ -88,12 +93,12 @@ test("fields on contacts and deals: in the person's data export, in the deals' C
   const d = await deals.addDeal(sql, asMember(ines), { title: "Counters", contact: p.id, custom: { [po.id]: "PO-2026-114" } });
   assert.equal((await deals.deal(sql, asMember(lea), d.id)).custom[po.id], "PO-2026-114");
   await deals.updateDeal(sql, asMember(ines), d.id, { custom: { [po.id]: "PO-2026-115" } });
-  const out = await dealsCsv(sql, asMember(lea), { status: "" }, en, "en");
+  const out = await collect(await dealsCsv(sql, asMember(lea), { status: "" }, en, "en"));
   assert.ok(out.split("\r\n")[0]!.endsWith(",PO number") && out.includes("PO-2026-115"));
   const json = JSON.parse((await contactJson(sql, asMember(lea), p.id, "en", en)).json);
   assert.deepEqual(json.contact.fields, { "Preferred language": "English" });
   assert.equal(json.contact.otherPhone, "+33 4 78 42 16 90");
-  const table = await contactsCsv(sql, asMember(lea), { q: "nadia" }, en, "en");
+  const table = await collect(await contactsCsv(sql, asMember(lea), { q: "nadia" }, en, "en"));
   assert.ok(table.includes("+33 4 78 42 16 90,linkedin.com/in/nadia"));
 });
 
@@ -240,9 +245,9 @@ test("the team's report: open pipeline by person, won and lost by month, closing
   const { sql } = database;
   const stages = await listStages(sql);
   const won = stages.find(s => s.kind === "won")!, lost = stages.find(s => s.kind === "lost")!;
-  const a = await deals.addDeal(sql, asMember(ines), { title: "Report A", value: "10 000", expectedClose: today() });
-  const b = await deals.addDeal(sql, asMember(ines), { title: "Report B", value: "5 000" });
-  const c = await deals.addDeal(sql, asMember(ines), { title: "Report C", value: "2 000" });
+  const a = await deals.addDeal(sql, asMember(ines), { title: "Report A", value: 1000000, expectedClose: today() });
+  const b = await deals.addDeal(sql, asMember(ines), { title: "Report B", value: 500000 });
+  const c = await deals.addDeal(sql, asMember(ines), { title: "Report C", value: 200000 });
   await steps.addStep(sql, asMember(ines), { deal: a.id }, { text: "Late one", due: "2026-01-05" });
   await deals.moveDeal(sql, asMember(ines), b.id, won.id, null, null, "Best price");
   await deals.moveDeal(sql, asMember(ines), c.id, lost.id, null, null, "Too expensive");
@@ -261,10 +266,24 @@ test("the team's report: open pipeline by person, won and lost by month, closing
 test("the whole client book as one ZIP of CSV files, for a manager", async () => {
   const { sql } = database;
   await assert.rejects(everything(sql, asMember(hugo), "en", en), refused("forbidden"));
-  const bytes = await everything(sql, asMember(camille), "en", en);
-  assert.equal(new DataView(bytes.buffer).getUint32(0, true), 0x04034b50);
-  const text = new TextDecoder().decode(bytes);
+  const zipped = await bytes(await everything(sql, asMember(camille), "en", en));
+  assert.equal(new DataView(zipped.buffer).getUint32(0, true), 0x04034b50);
+  const text = new TextDecoder().decode(zipped);
   for (const name of ["companies.csv", "contacts.csv", "deals.csv", "activities.csv", "next-steps.csv", "fields.csv"]) assert.ok(text.includes(name), name);
   assert.ok(text.includes("id,name,website,phone,email,address,postcode,city,country,siren,vat"));
   assert.ok(text.includes("Garage Martin"));
+  // Any system opens it (unzip, when this one has it).
+  const dir = mkdtempSync(join(tmpdir(), "crm-zip-"));
+  try {
+    writeFileSync(join(dir, "book.zip"), zipped);
+    let unzip = true;
+    try { execFileSync("unzip", ["-v"], { stdio: "ignore" }); } catch { unzip = false; }
+    if (unzip) {
+      execFileSync("unzip", ["-q", "-o", join(dir, "book.zip"), "-d", join(dir, "out")]);
+      assert.match(readFileSync(join(dir, "out", "companies.csv"), "utf8"), /^\uFEFFid,name,website/u);
+      assert.match(readFileSync(join(dir, "out", "fields.csv"), "utf8"), /id,object,label,kind,choices/u);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

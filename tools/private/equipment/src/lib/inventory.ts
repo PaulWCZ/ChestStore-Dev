@@ -39,22 +39,57 @@ export async function startInventory(sql: Sql, actor: Member | null): Promise<In
   });
 }
 
-// What an open inventory has seen and not seen yet, in the list's order
-// (by tag).
-export async function progress(sql: Query, actor: Member | null): Promise<{ inventory: Inventory; seen: (Item & { sighting: Sighting })[]; notSeen: Item[] } | null> {
+// How much an inventory page shows: the last things seen, and one page of
+// what is not seen yet (searchable). A company may have 20,000 items: the
+// page never carries them all (a 7,000-item list was 14 MB of HTML).
+export const shown = { seen: 50, notSeen: 200, missing: 500 } as const;
+
+export type Progress = {
+  inventory: Inventory;
+  // In scope now: everything, seen so far, not seen and matching the search.
+  total: number; seenCount: number; notSeenCount: number;
+  // The last things seen (newest first) and one page of what is not seen
+  // yet, by tag.
+  seen: (Item & { sighting: Sighting })[]; notSeen: Item[];
+  page: number; pages: number;
+};
+
+// A search of what is not seen yet: a tag, a name, a serial number.
+const matching = (sql: Query, q: string) => {
+  if (!q) return sql``;
+  const like = "%" + q.replace(/[\\%_]/gu, m => "\\" + m) + "%";
+  return sql`and (i.tag ilike ${like} or i.name ilike ${like} or i.serial ilike ${like})`;
+};
+
+// What an open inventory has seen and not seen yet: the counts, the last
+// seen, one page of the not seen (in the list's order, by tag).
+export async function progress(sql: Query, actor: Member | null, options: { q?: string; page?: number } = {}): Promise<Progress | null> {
   const who = manager(actor);
   const inventory = await openInventory(sql);
   if (!inventory) return null;
-  const covered = await sql<{ id: string }[]>`select i.id from items i join categories c on c.id = i.category_id where ${inScope(sql)}`;
-  const ids = new Set(covered.map(r => String(r.id)));
-  const sightings = await sql<{ item_id: string; seen_by: string; seen_at: Date }[]>`select item_id, seen_by, seen_at from sightings where inventory_id = ${inventory.id}`;
+  const q = (options.q ?? "").trim().slice(0, limits.search);
+  const unseen = () => sql`not exists (select 1 from sightings s where s.inventory_id = ${inventory.id} and s.item_id = i.id)`;
+  const [counts] = await sql<{ total: number; seen: number; unseen: number }[]>`
+    select count(*)::int as total, count(*) filter (where not ${unseen()})::int as seen,
+      count(*) filter (where ${unseen()} ${matching(sql, q)})::int as unseen
+    from items i join categories c on c.id = i.category_id where ${inScope(sql)}`;
+  const pages = Math.max(1, Math.ceil(counts!.unseen / shown.notSeen));
+  const page = Math.min(Math.max(1, Math.floor(options.page ?? 1)), pages);
+  const notSeenIds = await sql<{ id: string }[]>`
+    select i.id from items i join categories c on c.id = i.category_id
+    where ${inScope(sql)} and ${unseen()} ${matching(sql, q)}
+    order by lower(i.tag), i.id limit ${shown.notSeen} offset ${(page - 1) * shown.notSeen}`;
+  const sightings = await sql<{ item_id: string; seen_by: string; seen_at: Date }[]>`
+    select s.item_id, s.seen_by, s.seen_at from sightings s join items i on i.id = s.item_id join categories c on c.id = i.category_id
+    where s.inventory_id = ${inventory.id} and ${inScope(sql)} order by s.seen_at desc, s.item_id desc limit ${shown.seen}`;
   const byItem = new Map(sightings.map(s => [String(s.item_id), { itemId: String(s.item_id), seenBy: s.seen_by, seenAt: new Date(s.seen_at).toISOString() }]));
-  const items = ids.size === 0 ? [] : await listItemsById(sql, who, [...ids]);
-  const seen = items.filter(i => byItem.has(i.id)).map(i => ({ ...i, sighting: byItem.get(i.id)! })).sort((a, b) => b.sighting.seenAt.localeCompare(a.sighting.seenAt));
-  const notSeen = items.filter(i => !byItem.has(i.id));
-  return { inventory, seen, notSeen };
+  const seenItems = new Map((await listItemsById(sql, who, [...byItem.keys()])).map(i => [i.id, i]));
+  const seen = [...byItem.values()].flatMap(s => { const i = seenItems.get(s.itemId); return i ? [{ ...i, sighting: s }] : []; });
+  const notSeen = await listItemsById(sql, who, notSeenIds.map(r => String(r.id)));
+  return { inventory, total: counts!.total, seenCount: counts!.seen, notSeenCount: counts!.unseen, seen, notSeen, page, pages };
 }
 
+// Items by id, a page at a time (labels' bound), by tag.
 async function listItemsById(sql: Query, actor: Member, ids: string[]): Promise<Item[]> {
   const out: Item[] = [];
   for (let k = 0; k < ids.length; k += limits.labels) out.push(...(await listItems(sql, actor, { ids: ids.slice(k, k + limits.labels) }, limits.labels)));
@@ -143,12 +178,16 @@ export async function pastInventories(sql: Query, actor: Member | null): Promise
 }
 
 // A closed inventory: what it missed, as the items are now.
-export async function report(sql: Query, actor: Member | null, inventoryId: unknown): Promise<{ inventory: Inventory; missing: Item[] }> {
+// The first 500 by tag (count: all of them); the CSV export of the list
+// carries every one.
+export async function report(sql: Query, actor: Member | null, inventoryId: unknown): Promise<{ inventory: Inventory; missing: Item[]; count: number }> {
   const who = manager(actor);
   const [row] = await sql<Row[]>`select * from inventories where id = ${id(inventoryId)} and closed_at is not null`;
   if (!row) throw new AppError("not_found");
-  const missing = await sql<{ item_id: string }[]>`select m.item_id from inventory_missing m join items i on i.id = m.item_id where m.inventory_id = ${row.id} and i.deleted_at is null`;
-  return { inventory: shape(row), missing: missing.length === 0 ? [] : await listItemsById(sql, who, missing.map(m => String(m.item_id))) };
+  const [counted] = await sql<{ n: number }[]>`select count(*)::int as n from inventory_missing m join items i on i.id = m.item_id where m.inventory_id = ${row.id} and i.deleted_at is null`;
+  const missing = await sql<{ item_id: string }[]>`select m.item_id from inventory_missing m join items i on i.id = m.item_id
+    where m.inventory_id = ${row.id} and i.deleted_at is null order by lower(i.tag), i.id limit ${shown.missing}`;
+  return { inventory: shape(row), missing: missing.length === 0 ? [] : await listItemsById(sql, who, missing.map(m => String(m.item_id))), count: counted?.n ?? 0 };
 }
 
 // When an item was last seen in an inventory, and whether the last one

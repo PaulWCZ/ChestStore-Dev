@@ -33,7 +33,10 @@ export async function inventoryReportPage({ member, locale: language, t, f, para
       </div>
       <h2 className="section-title">{t.inventory.missing}</h2>
       {found.missing.length === 0 ? <p className="all-clear"><span aria-hidden="true">✓</span> {t.inventory.nothingMissing}</p> : (
-        <ul className="lines">{found.missing.map(i => <ItemLine key={i.id} row={rowOf(i, names, t, locale, today, member.id)} />)}</ul>
+        <>
+          {found.missing.length < found.count && <p className="small muted">{format(t.inventory.missingShown, { shown: found.missing.length, count: found.count })}</p>}
+          <ul className="lines">{found.missing.map(i => <ItemLine key={i.id} row={rowOf(i, names, t, locale, today, member.id)} />)}</ul>
+        </>
       )}
     </div>
   ) };

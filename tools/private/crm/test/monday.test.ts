@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as activities from "../lib/activities.ts";
-import * as deals from "../lib/deals.ts";
-import { today } from "../lib/zone.ts";
-import { stageConversion, weekActivities, weekStart } from "../lib/reports.ts";
-import { listStages } from "../lib/stages.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as deals from "../src/lib/deals.ts";
+import { today } from "../src/lib/zone.ts";
+import { stageConversion, weekActivities, weekStart } from "../src/lib/reports.ts";
+import { listStages } from "../src/lib/stages.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -15,8 +15,8 @@ import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();

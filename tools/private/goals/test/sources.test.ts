@@ -1,19 +1,19 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { createObjective } from "../lib/objectives.ts";
-import { noCycleWords, whoStarts } from "../lib/people.ts";
-import { cycleObjectives, objectiveById } from "../lib/read.ts";
-import { forgetMemberGroups, groupsOf, readerFor } from "../lib/groups.ts";
-import { knownBoards } from "../lib/sources.ts";
-import { addGroupTeam, chestGroups, forgetGroups } from "../lib/teams.ts";
-import { clockAt } from "../lib/tell.ts";
-import { unitFor, valueText } from "../lib/values.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
+import { createObjective } from "../src/lib/objectives.ts";
+import { noCycleWords, whoStarts } from "../src/lib/people.ts";
+import { cycleObjectives, objectiveById } from "../src/lib/read.ts";
+import { forgetMemberGroups, groupsOf, readerFor } from "../src/lib/groups.ts";
+import { knownBoards } from "../src/lib/sources.ts";
+import { addGroupTeam, chestGroups, forgetGroups } from "../src/lib/teams.ts";
+import { clockAt } from "../src/lib/tell.ts";
+import { unitFor, valueText } from "../src/shared/values.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, sofia } from "./support/members.ts";
+import { server, type Server } from "./support/server.ts";
 import { running, world, type World } from "./support/world.ts";
 
 // Key results fed by the store's other tools (lib/sources.ts): cards done
@@ -22,7 +22,8 @@ import { running, world, type World } from "./support/world.ts";
 // And the coherence fixes: every group of the Chest as a team, units read
 // by their own language's rule, the admins named on an empty page.
 let w: World;
-before(async () => { w = await world({ groups: true }); });
+let POST: Server;
+before(async () => { w = await world({ groups: true }); POST = await server(); });
 after(async () => { await w.close(); });
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;

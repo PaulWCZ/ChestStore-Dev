@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "goals",
   "title": "Goals",
   "description": "Agree on what matters this quarter: company and team objectives, key results, weekly check-ins, progress for all to see.",
@@ -21,6 +21,16 @@
   "receives": [
     "member.*"
   ],
+  "schedules": [
+    {
+      "name": "reminder",
+      "cron": "45 8 * * 5"
+    },
+    {
+      "name": "week",
+      "cron": "50 6 * * 1"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
@@ -28,7 +38,7 @@
     "start": "npm start",
     "port": 3000,
     "static": [
-      "/_next/static/"
+      "/assets/"
     ]
   }
 }

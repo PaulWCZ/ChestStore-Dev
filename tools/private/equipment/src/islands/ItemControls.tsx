@@ -1,4 +1,4 @@
-import { call, navigate, toast } from "@argentic/chest-app/client";
+import { call, navigate, refresh, toast } from "@argentic/chest-app/client";
 import { Avatar, Dialog, Menu, PeoplePicker, Segmented } from "@argentic/chest-ui/components";
 import { localSearch } from "@argentic/chest-ui/components/logic";
 import { useEffect, useLayoutEffect, useMemo, useState, useTransition } from "react";
@@ -56,10 +56,18 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
   // The forms report it in a layout effect, so an Escape pressed right after
   // a key already finds it dirty.
   const [dirty, setDirty] = useState(false);
-  const fail = (r: { message: string }) => setError(r.message);
+  // Refused: said in the dialog. Moved by someone else meanwhile: the page
+  // is read again, to show where it is now.
+  const fail = (r: { message: string; error: string }) => {
+    setError(r.message);
+    if (r.error === "moved") void refresh();
+  };
   const open = (d: typeof dialog) => { setError(null); setDirty(false); setDialog(d); };
   const close = () => { setDirty(false); setDialog(null); };
   const held = holder.kind === "member" || holder.kind === "place";
+  // Where it was when this page was read: sent with a give or a take-back,
+  // so that one made meanwhile by someone else is not undone silently.
+  const where = holder.kind === "member" ? { member: holder.id } : holder.kind === "place" ? { place: holder.name } : null;
   const low = holder.kind === "stock" && holder.low;
   // Deleted, the item's page is gone: the list shows; its Undo brings the
   // page back.
@@ -188,7 +196,7 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
       <Dialog open={dialog === "give"} title={format(t.give.title, { name: item.name })} labels={t.dialog} dirty={dirty} onClose={close}>
         <GiveForm item={item} team={team.filter(p => !(holder.kind === "member" && holder.id === p.id))} places={places} today={today} t={t} error={error} pending={pending} onDirty={setDirty}
           onSubmit={(to, note, day, label) => start(async () => {
-            const r = await call("giveItem", { id: item.id, to, note, day }, { quiet: true });
+            const r = await call("giveItem", { id: item.id, to, from: where, note, day }, { quiet: true });
             if (!r.ok) return fail(r);
             close();
             toast("member" in to ? format(t.give.done, { name: label }) : format(t.give.moved, { place: label }));
@@ -206,7 +214,7 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
       <Dialog open={dialog === "back"} title={format(t.takeBack.title, { name: item.name })} labels={t.dialog} dirty={dirty} onClose={close}>
         <BackForm from={holderText} today={today} t={t} error={error} pending={pending} onDirty={setDirty}
           onSubmit={(note, repair, day) => start(async () => {
-            const r = await call("takeBackItem", { id: item.id, note, day, status: repair ? "in_repair" : "in_stock" }, { quiet: true });
+            const r = await call("takeBackItem", { id: item.id, from: where ?? { place: "" }, note, day, status: repair ? "in_repair" : "in_stock" }, { quiet: true });
             if (!r.ok) return fail(r);
             close();
             const from = r.value;

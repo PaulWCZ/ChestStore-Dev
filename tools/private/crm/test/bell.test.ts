@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import * as activities from "../lib/activities.ts";
-import * as deals from "../lib/deals.ts";
-import { addDays } from "../lib/model.ts";
-import { today } from "../lib/zone.ts";
-import * as steps from "../lib/steps.ts";
-import * as tell from "../lib/tell.ts";
+import { onSchedule as POST } from "../src/lib/deliveries.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as deals from "../src/lib/deals.ts";
+import { addDays } from "../src/shared/model.ts";
+import { today } from "../src/lib/zone.ts";
+import * as steps from "../src/lib/steps.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -15,8 +15,8 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "morning", cron: "30 7 * * 1-5" }] });
 });
 after(async () => {
   await chest.close();
@@ -25,7 +25,7 @@ after(async () => {
 
 test("given a deal or a next step, one is told in their language; done, the item goes and the tile follows", async () => {
   const { sql } = database;
-  const d = await deals.addDeal(sql, asMember(camille), { title: "Printers", value: "2 400" });
+  const d = await deals.addDeal(sql, asMember(camille), { title: "Printers", value: 240000 });
   const given = await deals.setOwner(sql, asMember(camille), d.id, ines.id);
   await tell.dealGiven(asMember(camille), given.given, { id: d.id, title: d.title, value: d.value });
   assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body?.replace(/\s/gu, " "), n.key]), [[ines.id, "Camille Martin vous a confié une affaire", "Printers · 2 400 €", `deal:${d.id}:owner`]]);

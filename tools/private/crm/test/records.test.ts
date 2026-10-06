@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as activities from "../lib/activities.ts";
-import * as companies from "../lib/companies.ts";
-import * as contacts from "../lib/contacts.ts";
-import * as deals from "../lib/deals.ts";
-import { AppError } from "../lib/errors.ts";
-import { lookalikes, search } from "../lib/search.ts";
-import * as steps from "../lib/steps.ts";
-import { today } from "../lib/zone.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as companies from "../src/lib/companies.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import * as deals from "../src/lib/deals.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { lookalikes, search } from "../src/lib/search.ts";
+import * as steps from "../src/lib/steps.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -16,8 +16,8 @@ import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -78,11 +78,11 @@ test("deals: created at the top of their stage, moved by their owner, won with a
   const { sql } = database;
   const co = await companies.addCompany(sql, asMember(hugo), { name: "Garage Petit" });
   const pierre = await contacts.addContact(sql, asMember(hugo), { name: "Pierre Petit", company: co.id });
-  const d = await deals.addDeal(sql, asMember(hugo), { title: "Fleet of 12 vans", contact: pierre.id, value: "48 000", expectedClose: "2026-12-15" });
+  const d = await deals.addDeal(sql, asMember(hugo), { title: "Fleet of 12 vans", contact: pierre.id, value: 4800000, expectedClose: "2026-12-15" });
   assert.equal(d.company?.id, co.id, "the contact brings their company");
   assert.equal(d.value, 4800000);
   assert.equal(d.owner, hugo.id);
-  const stages = await (await import("../lib/stages.ts")).listStages(sql);
+  const stages = await (await import("../src/lib/stages.ts")).listStages(sql);
   const won = stages.find(s => s.kind === "won")!;
   const second = stages[1]!;
   // Inès does not own it; Léa is a viewer.
@@ -106,7 +106,7 @@ test("deals: created at the top of their stage, moved by their owner, won with a
   // A contact of another company is refused.
   const elsewhere = await contacts.addContact(sql, asMember(hugo), { name: "Someone Else", company: (await companies.addCompany(sql, asMember(hugo), { name: "Elsewhere" })).id });
   await assert.rejects(deals.updateDeal(sql, asMember(hugo), d.id, { contact: elsewhere.id }), refused("invalid"));
-  await assert.rejects(deals.updateDeal(sql, asMember(hugo), d.id, { value: "lots" }), refused("bad_amount"));
+  await assert.rejects(deals.updateDeal(sql, asMember(hugo), d.id, { value: -1 }), refused("bad_amount"));
   // Filters of the list.
   const closing = await deals.listDeals(sql, asMember(lea), { closing: "month" }, 500, "2026-12-03");
   assert.deepEqual(closing.rows.map(x => x.title), ["Fleet of 12 vans"]);
@@ -116,7 +116,7 @@ test("deals: created at the top of their stage, moved by their owner, won with a
 
 test("owners: a manager gives a deal; a salesperson takes an unassigned one; the deleted deal goes with its history", async () => {
   const { sql } = database;
-  const d = await deals.addDeal(sql, asMember(camille), { title: "Maintenance contract", value: 1200, owner: ines.id });
+  const d = await deals.addDeal(sql, asMember(camille), { title: "Maintenance contract", value: 120000, owner: ines.id });
   assert.equal(d.owner, ines.id);
   await assert.rejects(deals.addDeal(sql, asMember(camille), { title: "For a viewer", owner: lea.id }), refused("invalid"));
   const given = await deals.setOwner(sql, asMember(camille), d.id, hugo.id);

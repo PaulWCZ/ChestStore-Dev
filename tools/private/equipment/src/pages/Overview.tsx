@@ -10,7 +10,7 @@ import { db } from "../lib/db.ts";
 import { leavingList, purgeDepartures } from "../lib/departures.ts";
 import { status as intuneStatus } from "../lib/intune.ts";
 import { openInventory } from "../lib/inventory.ts";
-import { holderCounts, listItems, overview, unconfirmedReceipts } from "../lib/items.ts";
+import { holderCounts, overview, unconfirmedReceipts } from "../lib/items.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { waitingRequests } from "../lib/requests.ts";
 import { holderIds, rowOf } from "../lib/view.ts";
@@ -55,12 +55,6 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
 
   const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length + leaving.length + requests.length + ov.low.length + unconfirmed.length
     + intune.differ.length + (intune.missing > 0 ? 1 : 0);
-  // What a request may be answered with: things in stock, supplies left,
-  // licences with a free seat.
-  const offer = requests.length === 0 ? [] : [
-    ...(await listItems(sql, member, { status: "in_stock" }, 300)),
-    ...(await listItems(sql, member, { status: "in_use" }, 300)).filter(i => i.seats !== null && i.seatsUsed < i.seats),
-  ].filter(i => i.category.kind !== "consumable" || (i.quantity ?? 0) > 0).map(i => ({ ...rowOf(i, names, t, locale, today, member.id), categoryId: i.category.id }));
   const kindName = new Map(counts.map(c => [c.id, categoryName(c, t)]));
   return { title: t.overview.title, body: (
     <div className="wide">
@@ -118,7 +112,6 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
                   when: relative(r.createdAt, locale, now), gone: person?.status !== "member",
                 };
               }),
-              offer,
               t: { overview: t.overview, requests: t.requests, common: t.common, dialog: t.dialog, search: t.search },
             }} />
           )}
@@ -160,7 +153,7 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
                     )}
                     <div className="problem-foot">
                       <span className="small muted"><Avatar name={nameOf(names.get(p.reportedBy), locale)} photo={names.get(p.reportedBy)?.photo ?? null} size="s" /> {format(t.overview.reportedBy, { name: p.reportedBy === "erased" ? t.people.erased : nameOf(names.get(p.reportedBy), locale), when: relative(p.createdAt, locale, now) })}</span>
-                      <Island id={`i-solve-${p.id}`} name="SolveButton" props={{ id: p.id, label: t.overview.solved, done: t.overview.solvedDone }} />
+                      <Island id={`solve-${p.id}`} name="SolveButton" props={{ id: p.id, label: t.overview.solved, done: t.overview.solvedDone }} />
                     </div>
                   </li>
                 ))} />
@@ -228,7 +221,7 @@ export async function overviewPage({ member, locale: language, t }: PageContext)
                         <Avatar name={name} photo={names.get(u.member)?.photo ?? null} size="m" />
                         <span className="mini-what"><span className="strong">{u.item.name}</span> <AssetTag tag={u.item.tag} /> <span className="muted">{name} · {format(t.overview.givenOn, { date: formatDay(u.givenOn, locale, { day: "numeric", month: "short" }) })}</span></span>
                       </a>
-                      {u.member.startsWith("mbr_") && <Island id={`i-remind-${u.item.id}`} name="RemindButton" props={{ id: u.item.id, name, item: u.item.name, done: u.remindedToday, t: { overview: t.overview } }} />}
+                      {u.member.startsWith("mbr_") && <Island id={`remind-${u.item.id}`} name="RemindButton" props={{ id: u.item.id, name, item: u.item.name, done: u.remindedToday, t: { overview: t.overview } }} />}
                     </li>
                   );
                 })} />

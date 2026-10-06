@@ -1,25 +1,26 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as companies from "../lib/companies.ts";
-import * as contacts from "../lib/contacts.ts";
-import * as deals from "../lib/deals.ts";
-import { AppError } from "../lib/errors.ts";
-import { contactsCsv, contactsVcf, dealsCsv } from "../lib/export.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { importTable, importVcards } from "../lib/importers.ts";
-import { guessMapping, readTable } from "../lib/parse-import.ts";
-import { parseVcards } from "../lib/vcard.ts";
+import * as companies from "../src/lib/companies.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import * as deals from "../src/lib/deals.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { contactsCsv, contactsVcf, dealsCsv } from "../src/lib/export.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { importTable, importVcards } from "../src/lib/importers.ts";
+import { guessMapping, readTable } from "../src/shared/parse-import.ts";
+import { parseVcards } from "../src/shared/vcard.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { collect } from "./support/collect.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -75,7 +76,7 @@ test("a Pipedrive deals export in French: stages, won and lost, amounts, people 
   assert.ok(ovens.closedAt);
   // Exported in French, the formula-looking cell neutralised.
   await deals.updateDeal(sql, asMember(camille), bread.id, { title: "=HYPERLINK(\"x\")" });
-  const out = await dealsCsv(sql, asMember(lea), {}, fr, "fr");
+  const out = await collect(await dealsCsv(sql, asMember(lea), {}, fr, "fr"));
   assert.ok(out.startsWith("﻿Intitulé,Entreprise,Contact,Montant"));
   assert.ok(out.includes("\"'=HYPERLINK(\"\"x\"\")\""));
   assert.ok(out.includes("Perdue"));
@@ -97,8 +98,8 @@ test("a companies file and an address book (vCard); a file of the wrong kind is 
   assert.deepEqual(counts(cards), { created: 1, companies: 0, contacts: 0, duplicates: 1, skipped: [] });
   await assert.rejects(importVcards(sql, asMember(hugo), "nothing"), refused("vcard_invalid"));
   // And they leave as vCards, read back the same.
-  const out = parseVcards(await contactsVcf(sql, asMember(lea), { q: "luc" }));
+  const out = parseVcards(await collect(await contactsVcf(sql, asMember(lea), { q: "luc" })));
   assert.deepEqual(out.map(c => [c.name, c.email, c.company]), [["Luc Bernard", "luc@garage-martin.fr", "Garage Martin"]]);
-  const table = await contactsCsv(sql, asMember(lea), {}, en, "en");
+  const table = await collect(await contactsCsv(sql, asMember(lea), {}, en, "en"));
   assert.ok(table.split("\r\n")[0]!.startsWith("﻿Name,Email,Phone,Other phone,Web,Job title,Company"));
 });

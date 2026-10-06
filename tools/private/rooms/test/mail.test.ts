@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { weekdayLoad } from "../lib/export.ts";
-import { told } from "../lib/mail.ts";
-import * as rooms from "../lib/room-bookings.ts";
-import * as tell from "../lib/tell.ts";
+import { weekdayLoad } from "../src/lib/export.ts";
+import { told } from "../src/lib/mail.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";

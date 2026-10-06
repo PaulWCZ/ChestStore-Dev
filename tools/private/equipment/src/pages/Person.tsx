@@ -5,7 +5,7 @@ import { Back } from "../components/icons.tsx";
 import { format, formatDay, localeOf, plural } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
 import { lastDayOf } from "../lib/departures.ts";
-import { holdings, listItems, openReceipts, type Receipt } from "../lib/items.ts";
+import { holdings, openReceipts, type Receipt } from "../lib/items.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { rowOf } from "../lib/view.ts";
 import { memberPattern } from "../shared/model.ts";
@@ -13,6 +13,8 @@ import { memberPattern } from "../shared/model.ts";
 // Everything one person holds (managers): the checklist of the day they
 // leave, with "Take everything back" (and their last day, when People told
 // it); and "Give something" from the stock.
+const shownHeld = 200;
+
 export async function personPage({ member, locale: language, t, param }: PageContext): Promise<View> {
   const locale = localeOf(language);
   const id = param("id");
@@ -28,13 +30,14 @@ export async function personPage({ member, locale: language, t, param }: PageCon
   const name = id === "erased" ? t.people.erased : nameOf(person, locale);
   const today = chest.today();
   const names = new Map(person ? [[id, person]] : []);
-  const rows = held.items.map(i => rowOf(i, names, t, locale, today, member.id));
-  const seatRows = held.seats.map(i => rowOf(i, names, t, locale, today, member.id));
-  const stock = present ? (await listItems(sql, member, { status: "in_stock" }, 500)).concat((await listItems(sql, member, { status: "in_use" }, 500)).filter(i => i.seats !== null && i.seatsUsed < i.seats)) : [];
-  const offer = stock.filter(i => !held.seats.some(s => s.id === i.id) && i.category.kind !== "consumable").map(i => rowOf(i, new Map(), t, locale, today, member.id));
+  // The page shows the first 200 of each list (someone holding 667 things
+  // made a 1.2 MB page); the list (/chest/items?holder=…) has them all, and
+  // "Take everything back" takes them all.
+  const rows = held.items.slice(0, shownHeld).map(i => rowOf(i, names, t, locale, today, member.id));
+  const seatRows = held.seats.slice(0, shownHeld).map(i => rowOf(i, names, t, locale, today, member.id));
   // Each thing they hold: received (they confirmed) or to confirm.
   const receipts = id === "erased" ? new Map<string, Receipt>() : await openReceipts(sql, id);
-  const receipt = Object.fromEntries(held.items.map(i => [i.id, receipts.get(i.id)?.confirmedAt ? "confirmed" as const : "waiting" as const]));
+  const receipt = Object.fromEntries(held.items.slice(0, shownHeld).map(i => [i.id, receipts.get(i.id)?.confirmedAt ? "confirmed" as const : "waiting" as const]));
   const count = held.items.length + held.seats.length;
   const lastDay = present ? await lastDayOf(sql, member, id) : null;
   const leaving = lastDay ? format(t.person.leaving, { date: formatDay(lastDay, locale, { weekday: "long", day: "numeric", month: "long" }) }) : null;
@@ -51,14 +54,14 @@ export async function personPage({ member, locale: language, t, param }: PageCon
           </p>
         </div>
       </div>
-      <Island id={`i-person-${id}`} name="PersonView" props={{
+      <Island id={`person-${id}`} name="PersonView" props={{
         holder: id,
         name,
         present,
         gone: id === "erased" || !present,
         items: rows,
         seats: seatRows,
-        offer,
+        more: Math.max(0, held.items.length - rows.length) + Math.max(0, held.seats.length - seatRows.length),
         count,
         leaving,
         receipt,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { dayOf, endOf, firstName, guessMapping, mapRow, readTable } from "../lib/parse-import.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { dayOf, endOf, firstName, guessMapping, mapRow, readTable } from "../src/shared/parse-import.ts";
 
 test("HubSpot's exports: their headers find their fields", () => {
   assert.deepEqual(guessMapping("contacts", ["Record ID", "First Name", "Last Name", "Email", "Phone Number", "Mobile Phone Number", "Job Title", "Associated Company", "Contact owner", "Lifecycle Stage"]),

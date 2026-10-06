@@ -1,7 +1,7 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
-import { AppError, createApp, csvLine, page, publicPage, type PageContext, type View } from "@argentic/chest-app";
+import { AppError, createApp, page, publicPage, textStream, type PageContext, type View } from "@argentic/chest-app";
 import { NoAccess } from "@argentic/chest-ui/components";
 import { stream } from "hono/streaming";
 import { actions } from "./actions.ts";
@@ -9,6 +9,7 @@ import { catalogue, localeOf, locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { can, roleOf } from "./lib/access.ts";
+import { csvRow, separatorOf } from "./lib/csv.ts";
 import { db } from "./lib/db.ts";
 import { onEvent, onSchedule } from "./lib/deliveries.ts";
 import { exportHeader, exportRow } from "./lib/export.ts";
@@ -113,27 +114,21 @@ app.get("/chest/export", managers(({ member, locale: language, query }) => {
   const filters = { q: query("q") ?? "", category: query("category") ?? "", status: query("status") ?? "", holder: query("holder") ?? "", sort: sorts.includes(sort as never) ? sort : "tag" };
   const headers = { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${t.export.filename}-${chest.today()}.csv"`, "Cache-Control": "no-store" };
   const currency = chest.currency;
-  return new Response(new ReadableStream<Uint8Array>({
-    async start(out) {
-      const encoder = new TextEncoder();
-      const encode = (text: string) => out.enqueue(encoder.encode(text));
-      try {
-        const fields = await allFields(db());
-        const header = exportHeader(t, fields);
-        encode("﻿" + csvLine(header.cells));
-        for (let offset = 0; ; offset += 500) {
-          const items = await listItems(db(), member, filters, 500, offset);
-          if (items.length === 0) break;
-          const names = await people(holderIds(items));
-          encode(items.map(i => csvLine(exportRow(i, t, currency, id => (id === "erased" ? t.people.erased : nameOf(names.get(id), locale)), header))).join(""));
-          if (items.length < 500) break;
-        }
-        out.close();
-      } catch (error) {
-        out.error(error);
-      }
-    },
-  }), { headers });
+  const separator = separatorOf(locale);
+  // Written as it is read, 500 items at a time; the next page is read only
+  // when the browser took the last (textStream: backpressure).
+  async function* lines(): AsyncGenerator<string> {
+    const header = exportHeader(t, await allFields(db()));
+    yield "\uFEFF" + csvRow(header.cells, separator);
+    for (let offset = 0; ; offset += 500) {
+      const items = await listItems(db(), member, filters, 500, offset);
+      if (items.length === 0) return;
+      const names = await people(holderIds(items));
+      yield items.map(i => csvRow(exportRow(i, t, currency, id => (id === "erased" ? t.people.erased : nameOf(names.get(id), locale)), header), separator)).join("");
+      if (items.length < 500) return;
+    }
+  }
+  return new Response(textStream(lines()), { headers });
 }));
 
 // ---- Outside /chest. Equipment has no public part ("public" is not in

@@ -1,19 +1,19 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
-import { readerFor } from "../lib/groups.ts";
-import { AppError } from "../lib/app-error.ts";
-import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { emailOn, mailPreferenceOf, mailState, setEmail } from "../lib/mail.ts";
-import { addComment } from "../lib/comments.ts";
-import { createObjective, readObjective, updateObjective } from "../lib/objectives.ts";
-import { cycleObjectives, keyResultChanges, viewersOf } from "../lib/read.ts";
-import { remind, remindAll, waitingFor } from "../lib/remind.ts";
-import { clockAt, weeklyReminder } from "../lib/tell.ts";
-import { cycleCsv, checkInsCsv } from "../lib/export.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { quarterOf } from "../lib/model.ts";
-import { today } from "../lib/time.ts";
+import { readerFor } from "../src/lib/groups.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
+import { emailOn, mailPreferenceOf, mailState, setEmail } from "../src/lib/mail.ts";
+import { addComment } from "../src/lib/comments.ts";
+import { createObjective, readObjective, updateObjective } from "../src/lib/objectives.ts";
+import { cycleObjectives, keyResultChanges, viewersOf } from "../src/lib/read.ts";
+import { remind, remindAll, waitingFor } from "../src/lib/remind.ts";
+import { clockAt, weeklyReminder } from "../src/lib/tell.ts";
+import { cycleCsv, checkInsCsv } from "../src/lib/export.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { quarterOf } from "../src/lib/model.ts";
+import { today } from "../src/lib/time.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, sofia } from "./support/members.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";
@@ -117,7 +117,7 @@ test("the Friday reminder follows each person's email choice in the Chest: none 
   await sql`delete from preferences`;
   const chosen = { [hugo.id]: "none", [ines.id]: "digest" } as const;
   const people = w.chest.members.filter(m => m.id in chosen);
-  for (const m of people) m.mailPreference = chosen[m.id as keyof typeof chosen];
+  for (const m of people) m.mailPreference = chosen[m.id as keyof typeof chosen]!;
   w.chest.clearCaches();
   try {
     // What My goals says under the switch: the members API's answer.

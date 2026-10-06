@@ -142,7 +142,9 @@ people. French name: **Matériel**.
   location" becomes a place. Other columns — Snipe-IT's custom fields —
   are offered as fields, kept by default (untick one to leave it out).
   Importing the same file twice adds nothing. **Export** CSV in the
-  reader's language, with a column per field — and it imports back.
+  reader's language (cells separated by `;` in French, as a French
+  spreadsheet expects; `,` otherwise), with a column per field — and it
+  imports back.
 
 ## Microsoft Intune (read only)
 
@@ -314,20 +316,21 @@ the first role, `manager`.
 | `/chest/people`, `/chest/people/<id or erased>` | managers | who holds what; a person's equipment |
 | `/chest/people/<id>/handover` (`?items=`) | managers, and the person themself | the printable handover sheet |
 | `/chest/people/<id>/return` | managers | the printable return sheet |
-| `/chest/inventory`, `/chest/inventory/<id>` | managers | the inventory under way (or start one); a closed one's missing items |
+| `/chest/inventory` (`?q=&page=`), `/chest/inventory/<id>` | managers | the inventory under way (or start one): its counts, the last 50 seen, 200 not seen a page (searchable); a closed one's missing items (the first 500) |
 | `/chest/items/<id>/invoice` | managers | the purchase invoice: a fresh signed link (uploads: `uploadInvoice`, `saveInvoice`, `removeInvoice`) |
 | `/chest/labels` (`?ids=` or the list's filters) | managers | printable A4 sheets |
 | `/chest/import`, `/chest/export` | managers | CSV in and out |
 | `/chest/settings` | managers | categories, their fields, the rules for company equipment |
 
-Every managers' page asked by a member answers **403** with the kit's
-*NoAccess* — "This page is for managers", and a link to My equipment —
-the same on each (`test/refusals.test.ts`, the browser flow); something a
-member may not see at all (someone else's item or sheet) is "not found".
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
 | `/chest/actions/<name>` | members (the service checks the role) | every change, by name (`src/actions.ts`) |
 | `/chest-schedules` | the Chest only (signed, `Chest-Schedule`) | the runs of `weekly` (Monday's word to managers), `intune` (the nightly read), `returns` (`equipment.returned` told again while the Chest could not take it) |
 | `/` | anyone | "This tool lives in your Chest" |
+
+Every managers' page asked by a member answers **403** with the kit's
+*NoAccess* — "This page is for managers", and a link to My equipment —
+the same on each (`managersPages` in `test/app.test.ts`, the browser flow); something a
+member may not see at all (someone else's item or sheet) is "not found".
 
 ## On a Chest
 
@@ -443,20 +446,33 @@ browser — the studio's starter, its machinery the vendored package
   numbers, money, plurals) with kept `Intl` objects (`format.ts`).
 - The look is resolved per request (`src/theme.ts`) and served as a
   stylesheet, `/chest/look.css`; no inline script or style anywhere.
-- The CSV export is written as it is read (500 items at a time); an import
-  sends the file's text (5 MB at most) to an action.
+- The CSV export is written as it is read (500 items at a time, the next
+  read when the browser took the last); an import sends the file's text
+  (5 MB, 5,000 rows at most) to an action, which answers the counts and
+  the first 50 rows. The inventory page carries its counts, the last 50
+  seen and 200 not seen at a time; a person's page the first 200 things
+  they hold; a Give dialog reads what is in stock when it opens.
+- At its largest (`test/scale.test.ts`, the built server in a process of
+  its own, on PostgreSQL; 2026-10-06): 20,000 items, a person holding 700,
+  an inventory under way, a 5 MB import of 5,000 rows × 30 columns — the
+  server's peak resident memory 159–177 MiB over runs (91 MiB at rest; a tool has 256),
+  the inventory page 473 KB, a person's 541 KB, the import's preview
+  answer 81 KB.
 
-Measured with `lab/measure` (2026-10-06, Node 24.21, this machine; method in
-its README; before = Next.js 16.3.6):
+Measured with `lab/measure` (2026-10-06 06:54 UTC, Node 24.21, this
+machine, 4 CPUs; method in its README; before = Next.js 16.3.6, measured
+2026-10-05). Other agents' builds ran beside it: load average 6.6 (1 min)
+at the start, 1.3 at the end — at rest, the tool's numbers moved by about
+3 MiB between the five rests:
 
 | | Next.js | Hono + islands |
 |---|--:|--:|
-| PSS at rest (MiB) | 126.2 | 66.8 |
-| Peak PSS (MiB) | 162.4 | 75.4 |
-| First 200 after start (ms) | 942 | 584 |
+| PSS at rest (MiB, median of 5 rests of 30 s) | 126.2 | 69.4 (67.6–70.4) |
+| Peak PSS (MiB) | 162.4 | 76.9 |
+| First 200 after start (ms, median of 10) | 942 | 434 |
 | Image (MiB) | 459 | 30 |
-| Build peak PSS (MiB) | 1011 | 314 |
-| `npm ci` in 512 MiB, 1 CPU | killed | 4.0 s |
+| Build peak PSS (MiB) | 1011 | 274 |
+| `npm ci` in 512 MiB, 1 CPU | killed | fits |
 
 ## Develop
 
@@ -495,6 +511,5 @@ fixed-asset register (the accountant's job — the invoice is attached);
 adding "return the laptop" steps to People's leaving checklist (it would
 need a request between tools, not an event); network discovery or MDM
 agents (Intune is read, see above; Jamf, Kandji and Google are not yet
-connected, and nothing is written to an MDM); matching Intune's user by
-e-mail (by name only: `members.email` is not asked for); a bell to the holder when their warranty ends; photos in the
+connected, and nothing is written to an MDM); a bell to the holder when their warranty ends; photos in the
 export (a ZIP). The return sheet looks back 90 days.

@@ -15,7 +15,7 @@ export async function newItemPage({ member, t, query }: PageContext): Promise<Vi
   return { title: t.form.newTitle, body: (
     <div className="narrow">
       <h1 className="page-title">{t.form.newTitle}</h1>
-      <Island id="i-item-new" name="ItemForm" props={{
+      <Island id="item-new" name="ItemForm" props={{
         mode: "new",
         id: null,
         initial: { categoryId: first?.id ?? "", name: "", tag: "", serial: "", purchasedOn: "", price: "", supplier: "", warrantyUntil: "", notes: "", seats: "1", renewsOn: "", cost: "", period: "year", quantity: "0", minQuantity: "", extra: {}, count: "1", serials: "" },

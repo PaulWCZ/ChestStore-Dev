@@ -171,7 +171,7 @@ tool's builders come in with the first role.
 ## Looks
 
 Rooms wears its own identity, **Blueprint** (drafting paper, navy ink, one
-signal orange: `lib/theme.ts`, DESIGN.md), unless the company chose
+signal orange: `src/theme.ts`, DESIGN.md), unless the company chose
 otherwise in its Chest: any theme of the store's catalogue (the other
 tools' identities, "Chest", "High contrast"), or **its own brand** (its
 colours, fonts, corners and logo), for all its tools or for Rooms alone.
@@ -197,10 +197,12 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
 | `/chest/mine` | members | Everything Rooms keeps about me, CSV |
 | `/chest/places`, `/rules`, `/export` | admins | Offices; rules; downloads |
 | `/chest/export?kind=bookings\|occupancy&from&to` | admins | CSV |
-| `/chest/api/rooms/<id>/photo` | admins | Authorise (POST) and record (PUT) a room photo upload |
 | `/chest/files/rooms/<id>` | members | A room photo: a fresh signed thumbnail link |
-| `/chest-events` | the Chest only (signed) | members' lifecycle; Leave's events |
-| `/chest-jobs/quarter` | the Chest only (signed) | every quarter of an hour: reminders, check-in |
+| `/chest-events` | the Chest only (signed) | members' lifecycle; groups; Leave's events |
+| `/chest/actions/<name>` | members | Every change (`src/actions.ts`), called by the pages' islands |
+| `/chest/look.css` | members | The look: Blueprint or the company's choice, a stylesheet with an ETag |
+| `/assets/…` | anyone | The browser's script and styles, the fonts, the icon (`build.static`) |
+| `/chest-schedules` | the Chest only (signed) | `quarter`, every quarter of an hour: reminders, check-in |
 | `/` | anyone (public host) | "This tool lives in your Chest", with a language switch |
 
 ## On a Chest
@@ -210,9 +212,11 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
   organisers and guests of an imported calendar, and desk holders, by
   address: read on the server for matching, never shown nor kept),
   `notifications` (guests told);
-  `receives: ["member.*"]`. Proposals in `chest.proposals.json`:
-  `calendar`, `groups: "read"`, `mail.send`, `schedules` (`quarter`), and
-  `receives` Leave's events.
+  `receives: ["member.*"]`; `schedules`: `quarter` (`*/15 * * * *`), run
+  on `POST /chest-schedules` (contract 0.4, `"chest": "0.4"`). Proposals in
+  `chest.proposals.json`: `calendar`, `groups: "read"`, `mail.send`, and
+  `receives` Leave's events and `group.*` (a group changed: the kept
+  memberships are read again).
 - **PostgreSQL extension `btree_gist` is required.** The first migration
   runs `create extension if not exists btree_gist`: PostgreSQL marks it
   *trusted*, so the database's owner (the tool's role on a Chest) may create
@@ -231,11 +235,22 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
   nothing here does (no check-in, no approval). A count of today's bookings
   would sit on the tile every day and mean nothing; keeping it right would
   also need a schedule every morning.
-- **One schedule** (**Proposal (studio)**, `chest.proposals.json`):
+- **One schedule** (`chest.json`, contract 0.4):
   `quarter`, every 15 minutes — reminders before meetings and, with
   check-in on, freeing unclaimed rooms. Everything else needs none: what
   the rules no longer keep is deleted when *My week* is next read; the
   usual weeks are applied and the calendars told when any page is read.
+- **Calendar UIDs**: a room booking's event (the members' feeds, its
+  `.ics` files and invitations) is keyed `room:<id>:<salt>`, the salt
+  random per booking (`migrations/0008`): unique across companies (the team
+  host is the UID's domain) and across a database restored from a backup,
+  whose new bookings may reuse ids. Bookings made before keep `room:<id>`,
+  so the events calendars already hold are still updated.
+- **Pages others change** read themselves again while open (the package's
+  `useAutoRefresh`: on focus, and while the reader was active in the last
+  ten minutes) and answer 304 when nothing changed: a page's version is a
+  sequence every write takes (`migrations/0009`), the day and the quarter
+  hour (`src/lib/stamp.ts`).
 - **Calendar, email, groups** (**Proposals (studio)**): `"calendar": true`,
   `"mail": {"send": true}`, `"groups": "read"`. Each change writes the keys
   it touched in `calendar_queue` in its own transaction; the tool then puts
@@ -252,7 +267,7 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
   the past (`'erased'`, "Former member"), deletes presence and preferences,
   and is acknowledged.
 - Private part in the member's language (`member.language`), English first,
-  French second (`lib/i18n/`); dates as in Europe (24-hour clock).
+  French second (`src/i18n/`); dates as in Europe (24-hour clock).
 - No network, no disk writes, nothing in the background; pages that others
   change re-read themselves every 20–30 s while visible.
 
@@ -266,7 +281,7 @@ other half) and frees their desk those days; a cancelled leave takes back
 the days it marked — never what the person set themselves since — and
 leaves them to the person's usual week again. A freed desk is not booked
 again by itself; the days leave the person's calendar feed; a given desk
-is lent to others on those days (`lib/away.ts`).
+is lent to others on those days (`src/lib/away.ts`).
 
 Leave shortens a leave by telling `leave.cancelled`, then `leave.approved`
 for the days that remain (the same request, the same moment). Events come
@@ -282,12 +297,12 @@ back), an approval until its last day is past; an erasure forgets them.
 
 ## Needs from the SDK
 
-All in the SDK working copy packed in `vendor/`: SDK 0.3.0 + studio
-proposals (0.3.1-studio.1).
+All in the SDK working copy packed in `vendor/`: SDK 0.4.1 + studio
+proposals (0.4.1-studio.4).
 
-- `member.language`, `chest.timeZone`, `chest.language` — SDK 0.3.0;
-  `chest.teamUrl` — **Proposal (studio)**.
-- `calendar` (`putMany`, `put`, `remove`, `ics`, `uidOf`, `page`) — **Proposal (studio)**:
+- `member.language`, `chest.timeZone`, `chest.language`,
+  `chest.tool.teamUrl`, `schedules` — SDK 0.4.1 (official).
+- `calendar` (`putMany`, `put`, `remove`, `ics`, `uidOf`) — **Proposal (studio)**:
   the members' calendar feeds, the `.ics` files. What changed goes in one
   `putMany` (studio.15: up to 100 events, one write of the minute); the
   Chest answers each event (studio.16): one it took is remembered as sent,
@@ -306,9 +321,8 @@ proposals (0.3.1-studio.1).
   **Proposal (studio)** (`"groups": "read"`): `member.groups` says only the
   groups that give Rooms (none when Rooms is open to everyone, SDK 0.3.0),
   so a place kept for Sales asks the Chest who is in Sales
-  (`lib/groups.ts`: `groupsOf` for one member, `membership` for the teams
+  (`src/lib/groups.ts`: `groupsOf` (kept a minute, forgotten on `group.*` and `member.updated`) for one member, `membership` for the teams
   of "Who's where"). Without the permission, the groups that give Rooms.
-- `schedules` — **Proposal (studio)**: the quarter-hour reminders and check-in.
 - Events between tools — **Proposal (studio)**: Leave's `leave.approved` / `leave.cancelled`.
 - Would help, not built: a way for a tool to know the UID the Chest's feed
   gives one of its events (today the `.ics` files use the team host as
@@ -329,13 +343,21 @@ proposals (0.3.1-studio.1).
 
 ## Develop
 
+Rooms is built like the studio's starter: Hono serving React pages
+rendered on the server, a few islands that run in the browser, Vite
+building both — the machinery is `@argentic/chest-app` (`vendor/`, its
+`AGENTS.md` in `node_modules/@argentic/chest-app/`).
+
 ```sh
 npm ci
-npm test          # node:test; PGlite (with btree_gist) unless TEST_DATABASE_URL names a PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run build     # tsc, the browser's files (dist/client), the server (dist/server)
+npm start         # the built server, as the Chest runs it (PORT)
+npm test          # tsc, the server built into dist/test, node:test; PGlite (with btree_gist) unless TEST_DATABASE_URL names a PostgreSQL
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test   # also plays two people taking one desk or room at once
+npm run dev       # rebuilds and restarts on every change
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/private/rooms --port 5000`
+In the studio: `node lab/chest-dev/dev.mjs tools/private/rooms --port 5000 --prod --build --reset`
 runs it against a fake Chest with the sample office (`seed/sample.sql`);
 `node lab/chest-dev/flows/rooms.mjs 5000` drives it in a browser;
 `node lab/chest-dev/screens.mjs tools/private/rooms --port 5000` takes the

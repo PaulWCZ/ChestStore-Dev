@@ -46,7 +46,7 @@ export async function itemsPage({ member, locale: language, t, query: param }: P
     <div className="wide">
       <PageHeader size="m" title={t.list.title} intro={plural(t.list.count, total, locale)}
         action={manager ? <a className="button" href="/chest/items/new"><Plus />{t.overview.add}</a> : undefined} />
-      <Island id="i-items-list" name="ItemsView" props={{
+      <Island id="items-list" name="ItemsView" props={{
         rows,
         paging: pages > 1 ? { page, pages, text: format(t.list.page, { from: (page - 1) * size + 1, to: (page - 1) * size + shown.length, total }) } : null,
         manager,
