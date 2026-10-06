@@ -25,7 +25,7 @@ after(async () => {
   await database.close();
 });
 beforeEach(async () => {
-  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs restart identity cascade`;
+  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits restart identity cascade`;
   chest.notifications.length = 0;
   chest.badges.clear();
 });

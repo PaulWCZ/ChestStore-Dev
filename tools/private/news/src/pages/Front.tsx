@@ -10,9 +10,7 @@ import { db } from "../lib/db.ts";
 import { audienceLabel, groupNames } from "../lib/groups.ts";
 import { nameOf, people } from "../lib/people.ts";
 import { front, visit } from "../lib/posts.ts";
-import { digestEmail } from "../lib/preferences.ts";
 import { waitingCount } from "../lib/proposals.ts";
-import { mailConnected } from "../lib/state.ts";
 import { catchUp, refreshBadges } from "../lib/tell.ts";
 import { chestZone } from "../lib/zone.ts";
 import { kinds } from "../shared/model.ts";
@@ -31,7 +29,7 @@ export async function frontPage({ member, locale: language, t, query }: PageCont
   const now = new Date();
   // Nothing runs in the background on a Chest without schedules: what is due
   // is told now; the tile's number is set right for whoever comes.
-  await catchUp(sql, now, member.id);
+  await catchUp(sql, now);
   const marker = await visit(sql, member, now);
   const f = await front(sql, member, { kind, page: pageText, zone, now });
   await refreshBadges(sql, [member]);
@@ -39,7 +37,6 @@ export async function frontPage({ member, locale: language, t, query }: PageCont
   const who = await people(all.flatMap(p => [p.author, ...(p.welcome ? [p.welcome] : [])]));
   const names = all.some(p => p.groups.length > 0) ? await groupNames() : new Map<string, string>();
   const audience = (p: (typeof all)[number]) => audienceLabel(p, names, locale);
-  const digestOn = await digestEmail(sql, member);
   const byline = (id: string): Byline => (id === member.id ? { name: t.people.you, photo: member.photo } : { name: nameOf(who.get(id), locale), photo: who.get(id)?.photo ?? null });
   const d = dates(locale, zone, now);
   const isNew = (p: (typeof all)[number]) => marker !== null && p.author !== member.id && p.publishAt > marker;
@@ -66,7 +63,6 @@ export async function frontPage({ member, locale: language, t, query }: PageCont
   const empty = !lead && !kind;
   // Posts from colleagues waiting for a publisher (lib/proposals.ts).
   const toApprove = publisher ? await waitingCount(sql) : 0;
-  const digest = { on: digestOn, mail: await mailConnected(sql) };
   return { title: t.tool.name, body: (
     <div className="front">
       <Island name="AutoRefresh" props={{ seconds: 60 }} />
@@ -155,7 +151,6 @@ export async function frontPage({ member, locale: language, t, query }: PageCont
           {f.more && <a className="button quiet" href={link({ page: String(page + 1) })}>{t.front.older}</a>}
         </nav>
       )}
-      <Island name="DigestSwitch" props={{ on: digest.on, mail: digest.mail, t: t.front }} />
       {/* On an empty front page, the empty state already offers the import. */}
       {publisher && !empty && <p className="foot-link"><a href="/chest/transfer">{t.transfer.link}</a></p>}
     </div>

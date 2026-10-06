@@ -1,25 +1,24 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
 import { chestEvents } from "../src/calls.ts";
 import { eventKey, syncEvent } from "../src/lib/agenda.ts";
 import { everyone as everyoneWithNews, tally } from "../src/lib/audience.ts";
 import { forgetViewer, freezeViews, recordView, shown, views } from "../src/lib/views.ts";
 import { AppError } from "@argentic/chest-app";
 import { chestGroups, forgetGroups } from "../src/lib/groups.ts";
-import { setDigestEmail } from "../src/lib/preferences.ts";
 import * as posts from "../src/lib/posts.ts";
 import { search } from "../src/lib/search.ts";
-import { learned, mailConnected, mailNow } from "../src/lib/state.ts";
+import { learned } from "../src/lib/state.ts";
 import * as tell from "../src/lib/tell.ts";
-import { startDigest } from "../src/lib/digest.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, groups, hugo, ines, lea, nora, sofia, stranger, workshop } from "./support/members.ts";
 
-// What makes a post reach people: email beside the bell (Proposal (studio):
-// mail), the 10 seconds of "Undo" before anything leaves, audiences of any
-// group (Proposal (studio): groups read) and of people picked by hand, two
+// What makes a post reach people: notifications in each one's language
+// (Proposal (studio): a notice's translations), the 10 seconds of "Undo"
+// before anything leaves, audiences of any group (Proposal (studio):
+// members.groups) and of people picked by hand, two
 // languages, the Chest's calendar (Proposal (studio): calendar), and what a
 // publisher sees of it — counts only.
 let database: TestDatabase;
@@ -31,7 +30,7 @@ after(async () => {
   await database.close();
 });
 beforeEach(async () => {
-  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs, post_views, preferences, chest_state restart identity cascade`;
+  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, post_views, chest_state restart identity cascade`;
   forgetGroups();
 });
 
@@ -39,21 +38,20 @@ const zone = "Europe/Paris";
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const withWorkshop = (m: FakeMember, into: boolean) => ({ ...m, groups: into ? [...m.groups, groups.workshop] : m.groups.filter(g => g !== groups.workshop) });
 
-async function open(options: { members?: FakeMember[]; mail?: boolean; calendar?: boolean; groupsRead?: boolean; perDay?: number } = {}) {
-  const { mail = true, calendar = true, groupsRead = true } = options;
+async function open(options: { members?: FakeMember[]; calendar?: boolean; groupsRead?: boolean } = {}) {
+  const { calendar = true, groupsRead = true } = options;
   const members = options.members ?? everyone;
   chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" },
     members,
     groups: [...fakeGroups, { ...workshop, members: members.filter(m => m.groups.includes(groups.workshop)).map(m => m.id) }],
-    capabilities: ["members", "files", "notifications", ...(mail ? ["mail"] : []), ...(calendar ? ["calendar"] : []), ...(groupsRead ? ["groups"] : [])],
-    mail: { domain: "atelier.test", ...(options.perDay ? { perDay: options.perDay } : {}) },
+    capabilities: ["members", "files", "notifications", ...(calendar ? ["calendar"] : []), ...(groupsRead ? ["members.groups"] : [])],
     calendar: { domain: "atelier.test", toolTitle: "News", company: "Atelier" },
   });
   return chest;
 }
 const pub = asMember(camille);
 
-test("an Important post goes by email to its audience, once, in each person's language, with its text and a link", async () => {
+test("an Important post is told to its audience, once, each in their language — a notification, never an email", async () => {
   await open();
   try {
     const p = await posts.createPost(database.sql, pub, {
@@ -63,81 +61,24 @@ test("an Important post goes by email to its audience, once, in each person's la
     await posts.confirm(database.sql, asMember(lea), p.id);
     await tell.announce(database.sql);
     // Everyone with a role but the author and Léa (she confirmed already).
-    const to = chest.outbox.map(m => m.to[0]).sort();
-    assert.deepEqual(to, [hugo, ines, nora, sofia].map(m => m.email).sort());
-    const english = chest.outbox.find(m => m.to[0] === hugo.email)!;
-    assert.equal(english.subject, "Important: Office move");
-    assert.match(english.text, /We move on 2 November\.\n\n• Pack your desk/u);
-    assert.match(english.text, /click “I have read it”/u);
-    assert.match(english.text, /Camille Martin marked this post Important/u);
-    const french = chest.outbox.find(m => m.to[0] === ines.email)!;
-    assert.equal(french.subject, "Important\u202f: Déménagement");
-    assert.match(french.text, /Nous déménageons le 2 novembre\./u);
-    // The bell speaks each language too.
-    assert.equal(chest.notifications.find(n => n.member === ines.id)!.title, "Important\u202f: Déménagement");
-    assert.equal(chest.notifications.find(n => n.member === hugo.id)!.title, "Important: Office move");
-    // Told again (its audience changed): nobody is emailed twice.
+    const told = () => chest.notifications.filter(n => n.key === `post:${p.id}:important`);
+    assert.deepEqual(told().map(n => n.member).sort(), [hugo.id, ines.id, nora.id, sofia.id].sort());
+    // One notice, written in each language of the post: the Chest shows each member theirs.
+    const toInes = told().find(n => n.member === ines.id)!;
+    assert.deepEqual(shownTo(toInes, "fr"), { title: "Important\u202f: Déménagement", body: "Nous déménageons le 2 novembre." });
+    assert.equal(shownTo(toInes, "en").title, "Important: Office move");
+    assert.equal(toInes.path, `/chest/posts/${p.id}`);
+    assert.equal(chest.outbox.length, 0, "members are never emailed by News");
+    // Told again (its audience changed): the item is replaced, never doubled.
     await database.sql`update posts set announced_at = null where id = ${p.id}`;
     await tell.announce(database.sql);
-    assert.equal(chest.outbox.length, 4);
-    assert.equal((await posts.post(database.sql, pub, p.id, { zone })).emailed, 4);
-    assert.equal(await learned(database.sql, "mail"), "on");
-    // A reminder goes by email too, to those who have not confirmed.
+    assert.equal(told().length, 4);
+    // A reminder to those who have not confirmed: the same item, its words a reminder's.
     const { confirmed } = await posts.confirmations(database.sql, pub, p.id);
     const pending = tally({ ...p, author: camille.id, people: [] }, confirmed, (await everyoneWithNews()).people).pending;
-    await tell.remind(database.sql, { id: p.id, title: "Office move", body: "We move.", locale: "en", versions: [], author: camille.id }, pending, "2026-10-01");
-    assert.equal(chest.outbox.filter(m => m.subject === "Reminder: Office move").length, 2, "Hugo and Sofia (English)");
-  } finally {
-    await chest.close();
-  }
-});
-
-test("the day's email quota or a Chest without email never stops the bell; the composer learns it", async () => {
-  await open({ perDay: 2 });
-  try {
-    const p = await posts.createPost(database.sql, pub, { kind: "announcement", title: "Fire drill", important: true }, { zone });
-    await tell.announce(database.sql);
-    assert.equal(chest.outbox.length, 2);
-    assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5, "everyone told in the bell");
-    const seen = await posts.post(database.sql, pub, p.id, { zone });
-    assert.equal(seen.emailed, 2);
-    assert.equal(seen.emailShort, true);
-  } finally {
-    await chest.close();
-  }
-  await open({ mail: false });
-  try {
-    const p = await posts.createPost(database.sql, pub, { kind: "announcement", title: "Fire drill again", important: true }, { zone });
-    await tell.announce(database.sql);
-    assert.equal(chest.outbox.length, 0);
-    assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5);
-    assert.equal(await learned(database.sql, "mail"), "off");
-  } finally {
-    await chest.close();
-  }
-});
-
-test("studio.16: the composer asks the Chest whether email would go now — ready, spent for today, not connected, paused, none", async () => {
-  await open({ perDay: 1 });
-  try {
-    assert.equal(await mailNow(database.sql), "on");
-    await posts.createPost(database.sql, pub, { kind: "announcement", title: "Spent", important: true }, { zone });
-    await tell.announce(database.sql);
-    assert.equal(await mailNow(database.sql), "off", "the day's email is used");
-    assert.equal(await mailConnected(database.sql), true, "the weekly digest still offers email");
-    chest.delivery.mail = "not_connected";
-    assert.equal(await mailNow(database.sql), "off");
-    assert.equal(await mailConnected(database.sql), false, "no email switch on the front page");
-    chest.delivery.mail = "suspended";
-    assert.equal(await mailNow(database.sql), "off");
-    assert.equal(await mailConnected(database.sql), true);
-  } finally {
-    await chest.close();
-  }
-  await open({ mail: false });
-  try {
-    assert.equal(await mailNow(database.sql), "off");
-    assert.equal(await mailConnected(database.sql), false);
+    await tell.remind({ id: p.id, title: "Office move", body: "We move.", locale: "en", versions: [] }, pending);
+    assert.ok(told().every(n => n.title === "Reminder: Office move"));
+    assert.equal(told().length, 4);
   } finally {
     await chest.close();
   }
@@ -160,11 +101,11 @@ test("a new Important post waits 10 seconds: Undo takes it back and nothing leav
     await posts.recall(database.sql, pub, held.id, new Date(now.getTime() + 5_000));
     await assert.rejects(posts.post(database.sql, pub, held.id, { zone }), refused("not_found"));
     assert.equal((await posts.fileFor(database.sql, pub, doc.id)).fileName, "plan.pdf");
-    assert.equal(chest.notifications.length + chest.outbox.length, 0);
+    assert.equal(chest.notifications.length, 0);
     // Left alone, it goes out when its seconds are over.
     const sent = await posts.createPost(database.sql, pub, { kind: "announcement", title: "Right title", important: true }, { zone, now, hold: true });
     assert.deepEqual(await tell.announce(database.sql, new Date(now.getTime() + 10_000)), { told: [sent.id], waiting: [] });
-    assert.equal(chest.outbox.length, 5);
+    assert.equal(chest.notifications.filter(n => n.key === `post:${sent.id}:important`).length, 5);
     await assert.rejects(posts.recall(database.sql, pub, sent.id, new Date(now.getTime() + 11_000)), refused("too_late"));
     // A post that tells nobody is not held; nor is one scheduled.
     const plain = await posts.createPost(database.sql, pub, { kind: "info", title: "Coffee" }, { zone, now, hold: true });
@@ -188,14 +129,13 @@ test("any group of the Chest, even one that does not give News, and people picke
     }
     await tell.announce(database.sql);
     assert.deepEqual(chest.notifications.filter(n => n.key === `post:${p.id}:important`).map(n => n.member).sort(), [lea.id, nora.id].sort());
-    assert.deepEqual(chest.outbox.map(m => m.to[0]).sort(), [lea.email, nora.email].sort());
     // Someone without News cannot be picked; one who left stays on the post.
     await assert.rejects(posts.createPost(database.sql, pub, { kind: "info", title: "x", people: [stranger.id.replace("tom", "zed")] }, { zone }), refused("no_person"));
     await assert.rejects(posts.createPost(database.sql, pub, { kind: "info", title: "x", people: ["lea"] }, { zone }), refused("no_person"));
   } finally {
     await chest.close();
   }
-  // Without the "groups" permission, only the groups that give News.
+  // Without members.groups, only the groups that give News.
   await open({ groupsRead: false });
   try {
     await assert.rejects(posts.createPost(database.sql, pub, { kind: "info", title: "x", groups: [groups.workshop] }, { zone }), refused("no_group"));
@@ -383,7 +323,6 @@ test("a changed text keeps its earlier version; asked to confirm again, earlier 
     assert.equal(seen.confirmedEarlier, true);
     await tell.announce(database.sql);
     assert.ok(chest.notifications.some(n => n.member === hugo.id && n.key === `post:${p.id}:important`), "Hugo is told again");
-    assert.ok(chest.outbox.filter(m => m.to[0] === hugo.email).length === 2, "and emailed the new version");
     await posts.confirm(database.sql, asMember(hugo), p.id);
     assert.equal((await posts.confirmations(database.sql, pub, p.id)).confirmed[0]!.version, 3);
   } finally {
@@ -434,25 +373,6 @@ test("pinned until a day: then it is no longer first", async () => {
   }
 });
 
-test("the weekly digest by email too, unless the person turned it off", async () => {
-  await open();
-  try {
-    const run = { scheduledAt: new Date().toISOString(), timeZone: zone };
-    await posts.createPost(database.sql, pub, { kind: "info", title: "Canteen menu", locale: "en", versions: [{ locale: "fr", title: "Menu de la cantine", body: "" }] }, { zone, now: new Date(Date.now() - 864e5) });
-    await setDigestEmail(database.sql, asMember(hugo), false);
-    await assert.rejects(setDigestEmail(database.sql, asMember(stranger), false), refused("forbidden"));
-    await startDigest(database.sql, run);
-    const to = chest.outbox.map(m => m.to[0]);
-    assert.ok(!to.includes(hugo.email), "Hugo turned it off");
-    assert.ok(to.includes(ines.email) && to.includes(sofia.email));
-    const french = chest.outbox.find(m => m.to[0] === ines.email)!;
-    assert.match(french.subject, /Cette semaine dans les Actualités\u202f: 1 publication/u);
-    assert.match(french.text, /• Menu de la cantine/u);
-  } finally {
-    await chest.close();
-  }
-});
-
 test("an older post made Important later is told to its audience then, once", async () => {
   await open();
   try {
@@ -460,23 +380,23 @@ test("an older post made Important later is told to its audience then, once", as
     const p = await posts.createPost(database.sql, pub, { kind: "announcement", title: "Parking rules", body: "Park on the left." }, { zone, now: new Date(Date.now() - 10 * 864e5) });
     await tell.announce(database.sql);
     assert.equal(chest.notifications.length, 0);
-    // Made Important today: its audience is told now, in the bell and by email.
+    // Made Important today: its audience is told now.
     const saved = await posts.updatePost(database.sql, pub, p.id, { kind: "announcement", title: "Parking rules", body: "Park on the left.", important: true }, { zone });
     assert.equal(saved.importantChanged, true);
     assert.deepEqual(await tell.announce(database.sql), { told: [p.id], waiting: [] });
     const told = chest.notifications.filter(n => n.key === `post:${p.id}:important`).map(n => n.member).sort();
     assert.deepEqual(told, [hugo.id, ines.id, lea.id, nora.id, sofia.id].sort());
-    assert.equal(chest.outbox.length, 5);
     assert.equal(chest.badges.get(hugo.id), 1);
     // Once: the next passes send nothing more.
+    const before = chest.notifications.length;
     assert.deepEqual(await tell.announce(database.sql), { told: [], waiting: [] });
-    assert.equal(chest.outbox.length, 5);
-    // A later change of its audience tells the new audience only by email
-    // (the bell item is replaced, never doubled), and still after 7 days.
+    assert.equal(chest.notifications.length, before);
+    // A later change of its audience tells the new audience (the item is
+    // replaced, never doubled; Hugo confirmed), and still after 7 days.
     await posts.confirm(database.sql, asMember(hugo), p.id);
     await posts.updatePost(database.sql, pub, p.id, { kind: "announcement", title: "Parking rules", body: "Park on the left.", important: true, people: [hugo.id, nora.id] }, { zone });
     assert.deepEqual(await tell.announce(database.sql), { told: [p.id], waiting: [] });
-    assert.equal(chest.outbox.length, 5, "Nora was emailed already; Hugo confirmed");
+    assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5, "replaced, never doubled");
     // A post made Important long after, then left for more than 7 days
     // without the Chest being reached, is no longer told: as a new one.
     await database.sql`update posts set announced_at = null, announce_due = now() - interval '8 days' where id = ${p.id}`;
@@ -486,19 +406,3 @@ test("an older post made Important later is told to its audience then, once", as
   }
 });
 
-test("each person's email preference in the Chest is honoured: none is not emailed, nor counted", async () => {
-  await open({ members: everyone.map(m => (m.id === hugo.id ? { ...m, mailPreference: "none" as const } : m.id === sofia.id ? { ...m, mailPreference: "digest" as const } : m)) });
-  try {
-    const p = await posts.createPost(database.sql, pub, { kind: "announcement", title: "Fire drill", important: true }, { zone });
-    await tell.announce(database.sql);
-    const to = chest.outbox.map(m => m.to[0]).sort();
-    assert.deepEqual(to, [ines, lea, nora].map(m => m.email).sort());
-    assert.deepEqual(chest.held.map(h => [h.member, h.reason]).sort(), [[hugo.id, "none"], [sofia.id, "digest"]].sort());
-    // Everyone is still told in the bell.
-    assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5);
-    // Sofia gets it in the Chest's daily email; Hugo chose none.
-    assert.equal((await posts.post(database.sql, pub, p.id, { zone })).emailed, 4);
-  } finally {
-    await chest.close();
-  }
-});

@@ -9,7 +9,6 @@ import { chestGroups } from "../lib/groups.ts";
 import { composerLanguages } from "../lib/languages.ts";
 import { nameOf, people as lookup } from "../lib/people.ts";
 import { draftOf, type Draft } from "../lib/posts.ts";
-import { mailNow } from "../lib/state.ts";
 import { local, today } from "../lib/time.ts";
 import { chestZone } from "../lib/zone.ts";
 import { isKind } from "../shared/model.ts";
@@ -17,7 +16,7 @@ import { isKind } from "../shared/model.ts";
 // The composer (publishers): a new post (?kind= starts it as that kind),
 // or a post to edit. The island (src/islands/Composer.tsx) holds the whole
 // form; the page gives it who has News, the Chest's groups, the languages,
-// what News knows of the Chest's email, and the days it starts from.
+// and the days it starts from.
 export async function newPostPage({ member, locale: language, t, query }: PageContext): Promise<View> {
   const locale = localeOf(language);
   if (!can(member, "publish")) return notFound();
@@ -39,7 +38,6 @@ export async function newPostPage({ member, locale: language, t, query }: PageCo
           people,
           groups: groups === "unavailable" ? [] : groups.map(g => ({ id: g.id, name: g.name })),
           languages: composerLanguages(locale),
-          mail: await mailNow(db()),
           defaults: { day: tomorrow.day, time: "09:00", today: today(zone) },
           locale,
           t: { composer: t.composer, kinds: t.kinds, errors: t.errors, date: t.kit.date, peoplePicker: t.kit.peoplePicker },
@@ -79,7 +77,7 @@ export async function editPostPage({ member, locale: language, t, param }: PageC
     title: t.composer.editTitle,
     body: (
       <div className="desk">
-        <Island name="Composer" props={{ postId: id, initial: draft, author: draft.author, people, groups, languages: composerLanguages(locale), mail: await mailNow(sql), defaults: { day: tomorrow.day, time: "09:00", today: today(zone) }, locale, t: { composer: t.composer, kinds: t.kinds, errors: t.errors, date: t.kit.date, peoplePicker: t.kit.peoplePicker } }} />
+        <Island name="Composer" props={{ postId: id, initial: draft, author: draft.author, people, groups, languages: composerLanguages(locale), defaults: { day: tomorrow.day, time: "09:00", today: today(zone) }, locale, t: { composer: t.composer, kinds: t.kinds, errors: t.errors, date: t.kit.date, peoplePicker: t.kit.peoplePicker } }} />
       </div>
     ),
   };

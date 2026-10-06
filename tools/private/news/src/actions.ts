@@ -7,12 +7,10 @@ import { syncEvent } from "./lib/agenda.ts";
 import * as answering from "./lib/answering.ts";
 import { everyone, tally } from "./lib/audience.ts";
 import { db } from "./lib/db.ts";
-import { setDigestEmail } from "./lib/preferences.ts";
 import * as posts from "./lib/posts.ts";
 import * as proposals from "./lib/proposals.ts";
 import { removeObjects } from "./lib/storage.ts";
 import * as tell from "./lib/tell.ts";
-import { today } from "./lib/time.ts";
 import { undoImport } from "./lib/transfer.ts";
 import { chestZone } from "./lib/zone.ts";
 import { fileName } from "./lib/input.ts";
@@ -175,20 +173,14 @@ export const actions = {
   }),
 
   // A reminder to those who have not confirmed an Important post (once a
-  // day), in the bell and by email.
+  // day): a notification (the Chest emails it to those who chose so).
   remind: action(post, async ({ postId }, { member }) => {
     const sql = db();
     const reminded = await posts.claimReminder(sql, member, postId);
     const { confirmed } = await posts.confirmations(sql, member, postId);
     const { pending } = tally(reminded, confirmed, (await everyone()).people);
-    await tell.remind(sql, reminded, pending, today(chestZone()));
+    await tell.remind(reminded, pending);
     return { count: pending.length };
-  }),
-
-  // The weekly digest by email, or only in the bell.
-  digestByEmail: action({ on: as<boolean>() }, async ({ on }, { member }) => {
-    await setDigestEmail(db(), member, on);
-    return null;
   }),
 
   // An import from Slack taken back (src/lib/transfer.ts). The import

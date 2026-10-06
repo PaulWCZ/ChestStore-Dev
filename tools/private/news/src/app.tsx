@@ -4,7 +4,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import { stream } from "hono/streaming";
 import { actions } from "./actions.ts";
-import { answerLink, chestEvents, chestSchedules } from "./calls.ts";
+import { chestEvents, chestSchedules } from "./calls.ts";
 import { catalogue, format, intl, localeOf, locales, words } from "./i18n/index.ts";
 import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
@@ -12,7 +12,6 @@ import { can, roleOf } from "./lib/access.ts";
 import { everyone, tally } from "./lib/audience.ts";
 import { toCsv } from "./lib/csv.ts";
 import { db } from "./lib/db.ts";
-import { withGroups } from "./lib/groups.ts";
 import { calendar } from "./lib/ics.ts";
 import { nameOf, people } from "./lib/people.ts";
 import { confirmations, eventFor, fileFor } from "./lib/posts.ts";
@@ -30,18 +29,16 @@ import { plain } from "./shared/markdown.ts";
 import { lookFor } from "./theme.ts";
 
 // News's routes. createApp() already serves /assets/, the actions
-// (src/actions.ts), the look (/chest/look.css), the member of every /chest request — with every group
-// they are in, asked of the Chest once per request (src/lib/groups.ts: the
-// assertion names only the groups that give News, and a post may be kept
-// to any) —, /lang/<code>, the error pages, and answers 404 to anything
-// else.
+// (src/actions.ts), the look (/chest/look.css), the member of every /chest
+// request — with every group they are in, as the Chest names them with
+// "members.groups" (src/lib/groups.ts) —, /lang/<code>, the error pages,
+// and answers 404 to anything else.
 export const app = createApp({
   actions,
   islands,
   locales,
   words,
   layouts: { members: MembersLayout, public: PublicLayout },
-  complete: withGroups,
   // The look: the company's choice, else Newsprint (src/theme.ts), served
   // by the package at /chest/look.css and /look.css.
   look: lookFor,
@@ -95,9 +92,6 @@ app.get("/chest/files/:id", async c => {
     throw error;
   }
 });
-
-// "I'm coming" / "Not coming" from an email, in one tap (src/calls.ts).
-app.get("/chest/posts/:id/answer", c => answerLink(c.req.raw, c.get("viewer").member, c.req.param("id")));
 
 // "Add to my calendar": the event as an .ics file, for whoever sees it, in
 // their language when the post has it.

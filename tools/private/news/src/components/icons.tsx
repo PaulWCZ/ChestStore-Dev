@@ -39,7 +39,6 @@ export const Alarm = () => <Icon><path d="M12 3l9.5 17h-19z" /><path d="M12 10v4
 export const Heading = () => <Icon><path d="M6 5v14M16 5v14M6 12h10" /><path d="M19 17.5l1.5-1v4" /></Icon>;
 export const Numbers = () => <Icon><path d="M10 6h10M10 12h10M10 18h10" /><path d="M4 5l1.5-1v4.5M4 16.5a1.5 1.5 0 1 1 2.3 1.3L4 20h3" /></Icon>;
 export const Quote = () => <Icon><path d="M5 18v-5a5 5 0 0 1 5-5M14 18v-5a5 5 0 0 1 5-5" /><path d="M5 13h4v5H5zM14 13h4v5h-4z" /></Icon>;
-export const Mail = () => <Icon><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M3.5 6l8.5 7 8.5-7" /></Icon>;
 export const Person = () => <Icon><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></Icon>;
 export const Play = () => <Icon><path d="M8 5v14l11-7z" /></Icon>;
 export const History = () => <Icon><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" /><path d="M4 4v4.5h4.5M12 8v4l3 2" /></Icon>;

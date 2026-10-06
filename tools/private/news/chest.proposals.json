@@ -1,9 +1,8 @@
 {
-  "mail": {
-    "send": true
-  },
   "calendar": true,
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "receives": [
     "group.*"
   ],
