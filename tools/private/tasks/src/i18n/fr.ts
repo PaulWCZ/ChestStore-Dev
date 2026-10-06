@@ -90,11 +90,7 @@ export const fr: Catalogue = {
     reminder: "Me rappeler chaque matin (lun.–ven.) ce qui est à faire ou en retard",
     stepDone: "Étape cochée.",
     stepOf: "Étape de « {card} »",
-    email: "M’envoyer aussi tout cela par e-mail : tâches confiées, mentions, rappel du matin",
-    emailOff: "Votre Chest n’envoie pas encore d’e-mails : pour l’instant, tout cela arrive seulement en notification dans votre Chest. Le propriétaire de votre Chest peut activer les e-mails.",
-    emailQuota: "Votre Chest a envoyé tous ses e-mails du jour : jusqu’à demain, tout cela arrive seulement en notification dans votre Chest.",
-    emailDigest: "Vous avez choisi un seul e-mail par jour de votre Chest : ils y sont regroupés. Changez-le dans les réglages de votre Chest.",
-    emailNone: "Vous avez choisi de ne recevoir aucun e-mail de votre Chest : rien n’est envoyé. Changez-le dans les réglages de votre Chest.",
+    emailHint: "Votre Chest peut aussi vous envoyer vos notifications par e-mail : choisissez-le dans les réglages de votre Chest.",
     nothingShared: {
       title: "Aucun tableau n’est encore partagé avec vous",
       body: "Demandez à {names} de vous ajouter à un tableau.",
@@ -543,24 +539,6 @@ export const fr: Catalogue = {
     add: "Ajouter un champ",
     remove: "Supprimer le champ « {name} »",
     none: "Non renseigné",
-  },
-  mail: {
-    assigned: "{name} vous a confié une tâche : {card}",
-    assignedLine: "{name} vous a confié cette tâche dans Tâches :",
-    stepAssigned: "{name} vous a confié une étape de « {card} »",
-    stepLine: "{name} vous a confié une étape de « {card} » dans Tâches :",
-    mentionLine: "{name} vous a mentionné sur « {card} » :",
-    open: "L’ouvrir : {link}",
-    why: "Vous recevez cet e-mail parce que vous utilisez Tâches dans le Chest de votre entreprise. Pour ne plus les recevoir, décochez « M’envoyer aussi tout cela par e-mail » en bas de Mes tâches.",
-    lateHeading: "En retard :",
-    todayHeading: "Pour aujourd’hui :",
-    // Plusieurs choses d’un même moment, en un seul e-mail.
-    digest: {
-      subject: "{names} : {things}",
-      tasks: { one: "{count} tâche confiée", other: "{count} tâches confiées" },
-      steps: { one: "{count} étape", other: "{count} étapes" },
-      mentions: { one: "{count} mention", other: "{count} mentions" },
-    },
   },
   toast: {
     region: "Notifications",

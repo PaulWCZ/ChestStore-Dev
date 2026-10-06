@@ -7,7 +7,6 @@ import * as cards from "./lib/cards.ts";
 import { db } from "./lib/db.ts";
 import * as dueCalendar from "./lib/due-calendar.ts";
 import { importBoard, previewPeople } from "./lib/importers.ts";
-import * as mail from "./lib/mail.ts";
 import * as reminders from "./lib/reminders.ts";
 import * as tell from "./lib/tell.ts";
 import { colors, limits } from "./shared/model.ts";
@@ -22,17 +21,15 @@ import { repeatKinds } from "./shared/repeat.ts";
 // ones said: "Too long: 80 characters at most."), strict where a shape is
 // all there is (an id, a choice).
 //
-// After each one, once answered: the emails that waited long enough leave
-// (lib/mail.ts), the members' calendars follow what changed
+// After each one, once answered: the members' calendars follow what changed
 // (lib/due-calendar.ts), and the tools linked to Tasks hear of the cards
 // done or reopened (lib/card-events.ts); what the Chest cannot take waits
-// for the next, or for the "mail" schedule.
+// for the next, or for the "retry" schedule.
 function act<F extends Fields, R>(input: F, run: (input: InputOf<F>, context: MemberContext) => Promise<R>, options: { maxBody?: number } = {}) {
   return action(input, async (values, context) => {
     try {
       return await run(values, context);
     } finally {
-      after("mail queue", () => mail.flushMail(db()));
       after("calendar sync", () => dueCalendar.sync(db()));
       after("linked tools", () => tellLinkedTools(db()));
     }
@@ -148,7 +145,7 @@ export const actions = {
   setAssignees: act({ id: id(), people: ids(limits.assigneesPerCard * 2) }, async ({ id, people }, { member }) => {
     const sql = db();
     const change = await cards.setAssignees(sql, member, id, people);
-    await tell.assigned(member, change.added, { id, title: change.title, boardId: change.boardId }, sql);
+    await tell.assigned(member, change.added, { id, title: change.title, boardId: change.boardId });
     await tell.unassigned(change.removed, id);
     await tell.refreshBadges(sql, [...change.added, ...change.removed]);
   }),
@@ -162,7 +159,7 @@ export const actions = {
     async ({ id, ...input }, { member }) => {
       const sql = db();
       const change = await cards.updateItem(sql, member, id, input);
-      if (change.assigned) await tell.stepAssigned(member, change.assigned, { id, text: change.text }, change.card, sql);
+      if (change.assigned) await tell.stepAssigned(member, change.assigned, { id, text: change.text }, change.card);
       if (change.previous || input.done === true) await tell.stepSettled(change.card.id, id);
       await tell.refreshBadges(sql, [change.assigned, change.previous, change.assignee].filter((p): p is string => !!p));
     }),
@@ -243,9 +240,9 @@ export const actions = {
     await files.delete(object).catch(() => false);
   }),
 
-  // ---- Personal switches: the morning reminder, email beside the bell.
+  // ---- The personal switch: the morning reminder. (Email is the Chest's:
+  // each member chooses there how their notifications reach them.)
   setReminder: act({ on: field.bool() }, async ({ on }, { member }) => reminders.setReminder(db(), member, on)),
-  setEmail: act({ on: field.bool() }, async ({ on }, { member }) => mail.setEmail(db(), member, on)),
 
   // ---- Import. The page read the files to show what will come, and asks
   // which of the people named are found in the Chest; the server reads

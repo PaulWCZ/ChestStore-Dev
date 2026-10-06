@@ -93,14 +93,7 @@ export const en = {
     reminder: "Remind me each weekday morning of what is due or late",
     stepDone: "Step ticked.",
     stepOf: "Step of “{card}”",
-    email: "Also send me these by email: tasks given to me, mentions, the morning reminder",
-    // The person's own choice in the Chest (member.mailPreference), which
-    // every email follows: said under the switch, changed only there.
-    // The Chest does not send email for Tasks now (mail.available).
-    emailOff: "Your Chest does not send email yet: for now these come only as notifications in your Chest. Your Chest’s owner can turn email on.",
-    emailQuota: "Your Chest has sent all its emails for today: until tomorrow, these come only as notifications in your Chest.",
-    emailDigest: "You chose one email a day from your Chest: these come in it. Change it in your Chest settings.",
-    emailNone: "You chose no email from your Chest: none is sent. Change it in your Chest settings.",
+    emailHint: "Your Chest can also email you your notifications: choose how in your Chest settings.",
     nothingShared: {
       title: "No board is shared with you yet",
       body: "Ask {names} to add you to a board.",
@@ -554,25 +547,6 @@ export const en = {
     add: "Add a field",
     remove: "Delete the field “{name}”",
     none: "Not set",
-  },
-  mail: {
-    assigned: "{name} gave you a task: {card}",
-    assignedLine: "{name} gave you this task in Tasks:",
-    stepAssigned: "{name} gave you a step of “{card}”",
-    stepLine: "{name} gave you a step of “{card}” in Tasks:",
-    mentionLine: "{name} mentioned you on “{card}”:",
-    open: "Open it: {link}",
-    why: "You get this email because you use Tasks in your company’s Chest. To stop these emails, untick “Also send me these by email” at the bottom of My tasks.",
-    lateHeading: "Late:",
-    todayHeading: "Due today:",
-    // Several things from one moment, in one email: "Hugo Bernard: 1 task
-    // given to you, 1 step and 1 mention".
-    digest: {
-      subject: "{names}: {things}",
-      tasks: { one: "{count} task given to you", other: "{count} tasks given to you" },
-      steps: { one: "{count} step", other: "{count} steps" },
-      mentions: { one: "{count} mention", other: "{count} mentions" },
-    },
   },
   // The words of the UI kit's components (@argentic/chest-ui/components:
   // ToastWords, DialogWords, PeoplePickerWords, DateWords, FileWords,

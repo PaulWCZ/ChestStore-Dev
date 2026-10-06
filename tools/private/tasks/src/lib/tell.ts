@@ -3,7 +3,6 @@ import { urgentCounts } from "./cards.ts";
 import type { Sql } from "./db.ts";
 import { format } from "../i18n/index.ts";
 import type { CommentRef } from "./cards.ts";
-import { queue } from "./mail.ts";
 import { people } from "./people.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { settle } from "./reminders.ts";
@@ -11,28 +10,25 @@ import { settle } from "./reminders.ts";
 // What Tasks tells people through the Chest's bell, each in their own
 // language, and the number on its tile. A notification is keyed by the card
 // and its reason, so a new one replaces the old one instead of piling up.
-// Given the database (sql), being given a card or a step and being
-// mentioned also go by email (lib/mail.ts: held a minute, grouped per
-// person, read again as they leave), to those who did not turn it off.
+// Tasks sends no email: the Chest mails each member their notifications as
+// they chose in the Chest (each one, once or twice a day, or off).
 // A comment's items remember which comment they show (comment_notices):
 // deleted, the comment takes them back; edited, they say the new words.
 // A card's address by its id alone (app/chest/cards/[id]): it opens on the
-// board the card is on when it is clicked, so a bell item or an email
-// still leads to it after the card moved to another board.
+// board the card is on when it is clicked, so a bell item still leads to
+// it after the card moved to another board.
 const cardPath = (_boardId: string, cardId: string) => `/chest/cards/${cardId}`;
 
-export async function assigned(actor: Member, people: string[], card: { id: string; title: string; boardId: string }, sql?: Sql): Promise<void> {
+export async function assigned(actor: Member, people: string[], card: { id: string; title: string; boardId: string }): Promise<void> {
   const others = people.filter(p => p !== actor.id);
   if (others.length === 0) return;
   await notify(others, t => ({ title: format(t.bell.assigned, { name: actor.name }), body: cut(card.title, 280) }), { path: cardPath(card.boardId, card.id), key: `card:${card.id}:assigned` });
-  if (sql) await queue(sql, others, { kind: "assigned", actor: actor.id, cardId: card.id });
 }
 
 // A step of a checklist given to someone: a subtask.
-export async function stepAssigned(actor: Member, person: string, step: { id: string; text: string }, card: { id: string; title: string; boardId: string }, sql?: Sql): Promise<void> {
+export async function stepAssigned(actor: Member, person: string, step: { id: string; text: string }, card: { id: string; title: string; boardId: string }): Promise<void> {
   if (person === actor.id) return;
   await notify([person], t => ({ title: format(t.bell.stepAssigned, { name: actor.name, card: cut(card.title, 40) }), body: cut(step.text, 280) }), { path: cardPath(card.boardId, card.id), key: `card:${card.id}:step:${step.id}` });
-  if (sql) await queue(sql, [person], { kind: "step", actor: actor.id, cardId: card.id, stepId: step.id });
 }
 
 export async function unassigned(people: string[], cardId: string): Promise<void> {
@@ -47,10 +43,7 @@ export async function mentioned(actor: Member, people: string[], card: CardRef, 
   // Each mention is an item of its own (a question asked of someone must
   // not be replaced by the next one).
   await notify(people, t => ({ title: format(t.bell.mentioned, { name: actor.name, card: cut(card.title, 40) }), body: cut(body, 280) }), { path: cardPath(card.boardId, card.id), key: mentionKey(card.id, commentId) });
-  if (sql && commentId) {
-    await remember(sql, card.id, people, "mention", commentId);
-    await queue(sql, people, { kind: "mention", actor: actor.id, cardId: card.id, commentId });
-  }
+  if (sql && commentId) await remember(sql, card.id, people, "mention", commentId);
 }
 
 export async function commented(actor: Member, people: string[], card: CardRef, body: string, sql?: Sql, commentId?: string): Promise<void> {
@@ -76,8 +69,7 @@ async function noticesOf(sql: Sql, commentId: string): Promise<{ mention: string
 }
 
 // A comment deleted: the items in the bell that show it go at once (its
-// words must not stay in colleagues' inboxes); its email, still waiting,
-// is held while the Undo lasts and never leaves after (lib/mail.ts).
+// words must not stay in colleagues' inboxes).
 export async function commentGone(sql: Sql, ref: CommentRef): Promise<void> {
   const told = await noticesOf(sql, ref.id);
   if (told.mention.length > 0) await withdraw(mentionKey(ref.card.id, ref.id), told.mention);

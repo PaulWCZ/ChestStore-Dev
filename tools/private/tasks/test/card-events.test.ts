@@ -191,9 +191,9 @@ test("a Chest that refuses the events: the move is kept, the events wait, and th
 
   await chest.close();
   chest = await chestWith([...cardEventTypes]);
-  assert.equal(await chest.run("mail", JOB), 204);
+  assert.equal(await chest.run("retry", JOB), 204);
   assert.deepEqual(chest.published.map(e => ({ type: e.type, data: e.data })), [{ type: "tasks.card.done", data: { card: c.id, board: b.id, boardName: "Office move", assignees: [] } }]);
-  assert.equal(await chest.run("mail", JOB), 204);
+  assert.equal(await chest.run("retry", JOB), 204);
   assert.equal(chest.published.length, 1, "once");
 });
 
@@ -230,7 +230,7 @@ test("a late event carries when the card was done; one older than a day goes wit
   await sql`insert into card_events (type, card, board, at) values ('tasks.card.done', ${c2.id}, ${b.id}, now() - interval '30 hours')`;
   await chest.close();
   chest = await chestWith([...cardEventTypes]);
-  assert.equal(await chest.run("mail", JOB), 204);
+  assert.equal(await chest.run("retry", JOB), 204);
   const late = chest.published.find(e => e.data["card"] === c.id)!;
   assert.equal(late.occurredAt, doneAt.toISOString(), "the real time of the change");
   assert.match(late.key!, new RegExp(`:${doneAt.getTime()}$`, "u"));

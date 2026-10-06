@@ -22,7 +22,6 @@ await step("create a board: the dialog opens on its name field, typing names it"
 const boardUrl = page.url();
 const boardId = boardUrl.match(/\/boards\/(\d+)$/u)?.[1];
 let standId = null;
-let mentionedAt = Date.now();
 
 await step("quick-add three cards; they appear at once", async () => {
   await page.locator(".lane").nth(1).getByRole("button", { name: "Add a card" }).click();
@@ -109,7 +108,6 @@ await step("open a card; set a date, a checklist, give it to Inès, mention her"
   expect(text.includes("Choose the size"), "checklist");
   expect(text.includes("@Inès Moreau please"), "comment");
   expect(text.includes("Inès Moreau"), "assignee");
-  mentionedAt = Date.now();
 });
 
 await step("a due date typed wrong is refused as typed; the card keeps its date (nothing auto-saved)", async () => {
@@ -136,14 +134,13 @@ await step("a due date typed wrong is refused as typed; the card keeps its date 
   // The card stays open for the next step.
 });
 
-await step("SECRETX: a comment deleted leaves nothing in the bell (and, later, nothing by email)", async () => {
+await step("SECRETX: a comment deleted leaves nothing in the bell, in any language", async () => {
   await page.locator("#comment").fill("Door code is 4321 SECRETX @In");
   await page.waitForSelector(".suggestions");
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Comment", exact: true }).click();
   const bubble = page.locator(".comment", { hasText: "SECRETX" });
   await bubble.waitFor();
-  mentionedAt = Date.now();
   const before = await (await page.request.get(origin + "/_dev")).text();
   expect(before.includes("SECRETX"), "the bell showed it first");
   await bubble.getByRole("button", { name: "Delete" }).click();
@@ -225,13 +222,13 @@ await step("tick it done from My tasks, then undo", async () => {
 });
 
 await step("the morning: Inès finds one reminder in French; run again, still one; switched off, it goes", async () => {
-  // (the email of the assignment went too, in French)
   await page.request.post(origin + "/_dev/clear");
   for (let i = 0; i < 2; i++) await page.request.post(origin + "/_dev/schedule", { form: { name: "morning" } });
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  const hers = dev.match(/<b>Inès Moreau<\/b> · [^<]+/gu) ?? [];
+  const hers = dev.match(/<b>Inès Moreau<\/b> · .*?<\/li>/gu) ?? [];
   expect(hers.length === 1, "one item for Inès: " + hers.join(" | "));
-  expect(/tâches? (pour aujourd’hui|en retard)/u.test(hers[0] ?? ""), "in French: " + hers[0]);
+  // English with its French: the Chest shows Inès hers.
+  expect(/<small lang="fr">fr: \d+ tâches? (pour aujourd’hui|en retard)/u.test(hers[0] ?? ""), "in French: " + hers[0]);
   await page.goto(origin + "/chest");
   const toggle = page.getByRole("switch", { name: "Me rappeler chaque matin (lun.–ven.) ce qui est à faire ou en retard" });
   expect(await toggle.isChecked(), "on by default");
@@ -244,15 +241,10 @@ await step("the morning: Inès finds one reminder in French; run again, still on
   expect(!(await toggle.isChecked()), "stays off");
   let after = await (await page.request.get(origin + "/_dev")).text();
   expect(!after.includes("<b>Inès Moreau</b> · "), "her item went");
-  // Emails wait a quiet minute, then one person's things leave as one:
-  // the card given and the mention, in French — and never the deleted comment.
-  await page.waitForTimeout(Math.max(0, mentionedAt + 65_000 - Date.now()));
-  await page.request.post(origin + "/_dev/schedule", { form: { name: "mail" } });
-  after = await (await page.request.get(origin + "/_dev")).text();
-  expect(after.includes("Hugo Bernard\u202f: 1 tâche confiée et 1 mention"), "one email for the card and the mention");
-  expect(!after.includes("vous a confié une tâche\u202f: Book the stand"), "not one email each");
-  expect(!after.includes("SECRETX"), "the deleted comment never left by email");
-  expect(await page.getByRole("switch", { name: /M’envoyer aussi tout cela par e-mail/u }).isChecked(), "email on by default");
+  // No email switch any more: email is the Chest's, by each one's choice.
+  expect(await page.getByRole("switch", { name: /e-mail/u }).count() === 0, "no email switch in Tasks");
+  expect((await page.locator(".switches .hint").innerText()).includes("réglages de votre Chest"), "the hint says where email is chosen");
+  expect(!after.includes("SECRETX"), "the deleted comment is nowhere");
   await flip();
   expect(await toggle.isChecked(), "switched on again");
   await page.waitForTimeout(800);
@@ -349,7 +341,7 @@ await step("move a card to another board; it arrives with its comments, in the c
   expect((await page.locator(".history").innerText()).includes("moved it here from the board “Trade show”"), "history says where from");
 });
 
-await step("after the move, Inès's bell item, an old email link and the card's own address all open it on its new board", async () => {
+await step("after the move, Inès's bell item, an old link and the card's own address all open it on its new board", async () => {
   const moved = new URL(page.url()).searchParams.get("card");
   await as(context, origin, "ines");
   const dev = await (await page.request.get(origin + "/_dev")).text();
@@ -473,26 +465,12 @@ await step("a private board shared with a group that does not give Tasks: its me
   await as(context, origin, "ines");
   await page.goto(url);
   expect((await page.locator("body").innerText()).includes("Rien ici") || (await page.locator("body").innerText()).includes("Nothing here"), "Inès (Sales) does not");
-  await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "remove" });
+  await control(page, origin, "group", { "member": id("tom"), group: "grp_tech" + "a".repeat(22), action: "remove" });
   await as(context, origin, "tom");
   await page.goto(url);
   expect((await page.locator("body").innerText()).includes("Nothing here"), "Tom, out of Tech, no longer does");
-  await control(page, origin, "group", { member: id("tom"), group: "grp_tech" + "a".repeat(22), action: "add" });
+  await control(page, origin, "group", { "member": id("tom"), group: "grp_tech" + "a".repeat(22), action: "add" });
   await as(context, origin, "hugo");
-});
-
-await step("My tasks says what the Chest will do with the emails: the person's own choice, the Chest's mail paused", async () => {
-  await page.goto(origin + "/chest");
-  const hints = async () => (await page.locator(".switches").innerText());
-  expect(!(await hints()).includes("one email a day"), "no hint while Hugo wants every email");
-  await control(page, origin, "member", { member: id("hugo"), mailPreference: "digest" });
-  await page.goto(origin + "/chest");
-  expect((await hints()).includes("You chose one email a day"), "his digest choice: " + await hints());
-  await control(page, origin, "delivery", { mail: "suspended" });
-  await page.goto(origin + "/chest");
-  expect(!(await hints()).includes("one email a day") && (await page.locator(".switches .hint").count()) === 1, "paused mail: only that is said: " + await hints());
-  await control(page, origin, "delivery", { mail: "ready" });
-  await control(page, origin, "member", { member: id("hugo"), mailPreference: "all" });
 });
 
 await step("a Trello export: the check says who is found and what stays behind; private by default", async () => {

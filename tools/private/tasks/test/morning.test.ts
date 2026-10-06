@@ -14,7 +14,7 @@ import * as reminders from "../src/lib/reminders.ts";
 import { addDays } from "../src/shared/repeat.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, seen } from "./support/members.ts";
 
 // The weekday morning: one reminder per person, in their language, of what
 // is due today and late — replaced, never doubled; taken back when nothing
@@ -47,7 +47,7 @@ const run = (scheduledAt: string, timeZone: string): Run => {
   process.env["CHEST_TIME_ZONE"] = timeZone;
   return { id: "run_" + "a".repeat(26), name: "morning", scheduledAt, attempt: 1 };
 };
-const bell = () => chest.notifications.map(n => [n.member, n.title, n.body, n.key, n.path]);
+const bell = () => chest.notifications.map(n => [n.member, seen(n).title, seen(n).body, n.key, n.path]);
 
 async function board(options: { visibility?: "team" | "private" } = {}) {
   const b = await boards.createBoard(database.sql, asMember(hugo), { name: "Morning", ...options }, en.templates.columns);

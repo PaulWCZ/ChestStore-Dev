@@ -17,7 +17,7 @@ import type { Query } from "./db.ts";
 //
 // The migration's trigger (0006_card_events.sql) writes each change in
 // the same transaction as the card; publish() tells them after each
-// action (app/chest/actions.ts), and the "mail" schedule (every quarter
+// action (app/chest/actions.ts), and the "retry" schedule (every quarter
 // of an hour) again while the Chest cannot take them. A Chest without
 // events between tools, or before an admin approved them, refuses: they
 // wait, and the morning forgets those a week old (Goals cannot count what

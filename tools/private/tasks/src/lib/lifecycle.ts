@@ -21,14 +21,13 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
       where a.member_id = ${memberId} and c.archived_at is null and not k.done`;
     for (const { card_id } of open) {
       await tx`delete from card_assignees where card_id = ${card_id} and member_id = ${memberId}`;
-      await tx`insert into activity (card_id, actor, kind, data) values (${card_id}, 'chest', 'unassigned_left', ${tx.json({ member: memberId })})`;
+      await tx`insert into activity (card_id, actor, kind, data) values (${card_id}, 'chest', 'unassigned_left', ${tx.json({ "member": memberId })})`;
     }
     // Their open steps are freed too; ticked ones keep who did them.
     await tx`update checklist_items set assignee = null where assignee = ${memberId} and not done`;
     await tx`delete from board_people where member_id = ${memberId}`;
     await tx`delete from reminders where member_id = ${memberId}`;
-    // Emails waiting for them, and what their bell showed, go.
-    await tx`delete from mail_queue where member_id = ${memberId}`;
+    // What their bell showed goes.
     await tx`delete from comment_notices where member_id = ${memberId}`;
   });
 }
@@ -39,10 +38,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update checklist_items set assignee = null where assignee = ${memberId}`;
     await tx`delete from board_people where member_id = ${memberId}`;
     await tx`delete from reminders where member_id = ${memberId}`;
-    await tx`delete from mail_queue where member_id = ${memberId}`;
     await tx`delete from comment_notices where member_id = ${memberId}`;
-    // What they did to others, still waiting to be emailed, leaves unsigned: it goes.
-    await tx`delete from mail_queue where actor = ${memberId}`;
     await tx`update card_blockers set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update boards set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update cards set created_by = 'erased' where created_by = ${memberId}`;
@@ -55,9 +51,9 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
 
 export function handlers(sql: Sql): events.Handlers {
   return {
-    // Someone moved between groups, or a group changed (Proposal (studio),
-    // "groups": "read"): who sees a private board shared with a group is
-    // asked again.
+    // A group changed (Proposal (studio), the capability "members.groups",
+    // announced for 0.5): the groups a board may be shared with are read
+    // again. Who is in a group comes with each member, asked each time.
     "member.updated": async event => { if (event.data.changed.includes("groups")) forgetGroups(); },
     "group.changed": async () => { forgetGroups(); },
     "group.removed": async () => { forgetGroups(); },

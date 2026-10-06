@@ -86,21 +86,17 @@ for the work of a small company's teams — the 80 % they use every day.
 - **The bell**: whoever is given a card or a step, mentioned, or has a
   card commented on hears of it in the Chest's inbox, in their own
   language; the tile's number is their tasks and steps late or due today.
-- **Email** (Proposal (studio) `mail`): being given a card or a step, being
-  mentioned, and the morning reminder also come by email, in each person's
-  language, with the link to the card; the Chest sends it to their address
-  (the tool never knows it). One switch at the bottom of *My tasks* turns
-  email off for oneself, and each person's own choice in the Chest (every
-  email, one a day, or none) is followed too: *My tasks* says so under the
-  switch when it is "one a day" or "none". **What one person does in one go leaves as one
-  email**: the emails wait until the person has had nothing new for a
-  minute (ten at most), then "Hugo Bernard: 1 task given to you, 1 step
-  and 1 mention", each with its link. What an email names is read again
-  as it leaves (a card taken back, a step ticked are left out).
+- **Email is the Chest's, not Tasks'** (the owner's decision of 6 October
+  2026): Tasks sends no email. Every item above is a notification, written
+  in English and French (`translations`), and **the Chest mails each member
+  their notifications by their own choice in the Chest** (each one, once or
+  twice a day, or off; off for Tasks alone). *My tasks* says so in one line
+  under the reminder switch. What changed: the email switch of *My tasks*,
+  the emails grouped per person (`mail_queue`) and the morning email are
+  gone; the moments people are told are the same.
 - **A deleted comment leaves nothing behind**: its items in colleagues'
   bells go at once (each mention is an item of its own; the card's comment
-  item shows it only if it was the last), and its mention email, still
-  waiting, is held while the *Undo* lasts and never sent after. *Undo*
+  item shows it only if it was the last), in every language. *Undo*
   brings the items back; an edited comment's items show its new words.
 - **Import**: Trello boards (JSON export; several at once), an Asana
   project (CSV export) or any spreadsheet (CSV with a title column; French
@@ -116,7 +112,7 @@ for the work of a small company's teams — the 80 % they use every day.
   the check, which the person may change column by column); a Trello card
   *marked complete* on its due date (`dueComplete`) and an Asana task with
   *Completed At* go to that column (or to a *Done* column of their own).
-  So nothing finished last spring rings the bell, the morning email or the
+  So nothing finished last spring rings the bell, the morning reminder or the
   tile's number the first morning. **Archived Trello lists come archived**,
   with their cards (the check says which, and how many). A sheet's
   statuses are put in a workflow's order (*À faire → En cours → À valider
@@ -138,7 +134,7 @@ for the work of a small company's teams — the 80 % they use every day.
   that leaves done (every *Undo* included) is taken back. Goals' key
   results "Cards done" count them. Cards an import brings in already done
   are history, not told. See *With the other tools*.
-- **Links that follow the card**: bell items, emails and calendar events
+- **Links that follow the card**: bell items and calendar events
   open `/chest/cards/<id>`, which finds the card's board when clicked; an
   older link to the previous board opens the card where it is now, and a
   card that is gone says so.
@@ -185,7 +181,7 @@ the tool's builders come in with the first role, `manager`.
 |---|---|---|
 | `/chest` | members | My tasks and my boards |
 | `/chest/boards` (`?archived=1`) | members | all boards I see |
-| `/chest/cards/<id>` | members who see the card's board | opens the card on the board it is on now (bell, email and calendar links) |
+| `/chest/cards/<id>` | members who see the card's board | opens the card on the board it is on now (bell and calendar links) |
 | `/chest/boards/<id>` (`?card=`, `?view=list\|calendar\|timeline`, `?month=YYYY-MM`, `?from=YYYY-MM-DD`, `?who=`, `?label=`) | members who see the board | the board, its list, calendar or timeline, a card open beside it |
 | `/chest/boards/<id>/settings` | idem (changes: owners, managers) | settings, archive, export |
 | `/chest/boards/<id>/export?format=csv\|json` | idem | a download |
@@ -196,7 +192,7 @@ the tool's builders come in with the first role, `manager`.
 | `/chest/look.css?v=…` | members | the look of the page: the company's choice, else Workshop (a stylesheet, never inline) |
 | `/chest/files/<id>` (`?download`) | who sees the card | a 15-minute link to the file, signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-schedules` | the Chest only (signed `Chest-Schedule`) | the runs of `chest.json`'s schedules: `morning` (weekdays 07:30) and `mail` (every 15 minutes: the emails that waited — also sent after each action and page —, and the cards done or reopened the Chest could not take yet) |
+| `/chest-schedules` | the Chest only (signed `Chest-Schedule`) | the runs of `chest.json`'s schedules: `morning` (weekdays 07:30) and `retry` (every 15 minutes: the cards done or reopened the Chest could not take yet — also sent after each action) |
 | `/` | anyone | "Tasks lives in your Chest" |
 
 ## On a Chest
@@ -204,10 +200,12 @@ the tool's builders come in with the first role, `manager`.
 - `capabilities`: `database`; `files` (card attachments, 25 MB each,
   browser → Chest uploads); `members` (names, photos, who sees a board);
   `notifications` (the bell and the tile's number); `receives: ["member.*"]`;
-  and, Proposal (studio) in `chest.proposals.json`, `mail: {send: true}`
-  (email to members, by their id), `calendar: true` (each person's due
+  and, Proposal (studio) in `chest.proposals.json`, `capabilities:
+  ["members.groups"]` (a private board shared with any group of the
+  Chest), `receives: ["group.*"]`, `calendar: true` (each person's due
   dates in their Chest calendar feed) and `emits: ["tasks.card.done",
-  "tasks.card.reopened"]` (Goals' "Cards done").
+  "tasks.card.reopened"]` (Goals' "Cards done"). No `mail`: Tasks mails no
+  one (see "Mail to people outside the company").
 - **Someone leaves** (or loses access): their open cards and steps are
   unassigned (the history says so), they leave the boards' people; done
   cards keep them. A board whose last owner left is managed by the
@@ -216,7 +214,7 @@ the tool's builders come in with the first role, `manager`.
   team, signed "Former member". Then the erasure is acknowledged.
 - **Schedules** (contract 0.4, `chest.json`): `morning`,
   weekdays at 07:30 in the Chest's time zone, posted to
-  `POST /chest-schedules` (with `mail`, every quarter of an hour). It makes any missing next card of a repeating
+  `POST /chest-schedules` (with `retry`, every quarter of an hour, for the linked tools). It makes any missing next card of a repeating
   card, sends the reminders (and takes back those no longer true), and sets
   every tile's number, since dates moved overnight, and checks every due
   date in the members' calendars again. A run delivered twice
@@ -262,7 +260,7 @@ told at 00:10; older (a Chest down for a night), the Chest refuses a time
 that far back and the event goes without it (its time still in the key). **Reliable**: a trigger
 (`migrations/0006_card_events.sql`) writes each change in the same
 transaction as the card, whatever made it; `src/lib/card-events.ts` publishes
-after the action (`after()` of `@argentic/chest-app`), and the `mail` schedule every quarter
+after the action (`after()` of `@argentic/chest-app`), and the `retry` schedule every quarter
 of an hour again while the Chest cannot take them (a Chest without events
 between tools, before an admin approved them); a key the Chest already
 holds is one event, never two. What waits a week is forgotten (Goals
@@ -273,44 +271,45 @@ cards an import brings in already done (history), a done card archived or
 deleted (the work was done), a card moved from one "done" column to
 another.
 
+## Mail to people outside the company
+
+None. Tasks has no public part and writes to no one outside the company:
+every message is a notification to a member (above). It declares no `mail`.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| — | — | — | — | — | — |
+
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (`0.4.1-studio.3`), in `vendor/`,
+Built on SDK 0.4.1 + studio proposals (`0.4.1-studio.6`), in `vendor/`,
 with `@argentic/chest-app` (the studio's server and browser machinery) and
 `@argentic/chest-ui` (the kit), packed beside it.
 
 - `member.language`: the interface in each member's language;
-  `members.*` `language` for the bell and the emails in the recipient's.
+  notices carry their French as `translations` (Proposal (studio),
+  announced for 0.5): the Chest shows each member their language.
 - `chest`: `chest.timeZone` and `chest.today()`, for "today" (and the day of
-  a schedule's run); `chest.tool.teamUrl` (0.4.1) the address in an email;
+  a schedule's run);
   `members.lookup`'s `no_access` (0.4.1): "Léa Dubois (no access)".
-- `groups` — **Proposal (studio)** (`"groups": "read"`,
-  `chest.proposals.json`): a private board may be shared with any group of
-  the Chest (`members.groups.all()`), not only those that give Tasks —
-  usually none, as Tasks is open to everyone. Whether someone is in the
-  group is asked of the Chest (`members.groups.of` for the person signed in,
-  `groups.members` for a list; `src/lib/groups.ts`), since 0.3.0's
-  `member.groups` lists only the groups that give the tool. Kept a minute,
-  forgotten on `member.updated` / `group.*`. Without the permission: the
-  groups that give Tasks, as before.
+- `members.groups` — **Proposal (studio)**, announced for 0.5
+  (`"capabilities": ["members.groups"]` in `chest.proposals.json`): a
+  private board may be shared with any group of the Chest
+  (`members.groups.all()`), not only those that give Tasks — usually none,
+  as Tasks is open to everyone. Every member the Chest gives Tasks
+  (`member(request)`, `members.list` / `lookup`) then carries every group
+  they are in (`member.groups`): who sees a board is read from the member,
+  never kept. The list of groups is kept a minute, forgotten on `group.*`.
+  Without the capability: the groups that give Tasks, as before. Limit of
+  the official 0.4.1 parser: a member in more than 16 groups is refused
+  (`Unavailable`) — the page then answers "unavailable"; 0.5 lifts it.
 - `schedules` (0.4.1, official): the morning run (reminders, the repeats'
-  safety net, the tiles' numbers) and the mail run; each run's id is kept
+  safety net, the tiles' numbers) and the `retry` run; each run's id is kept
   in the database (`chest_events`, 30 days), so a run delivered twice is
   handled once.
-- `mail` — **Proposal (studio)**: `mail.send({to: {member}})` for the
-  emails of assignment, mention and the morning. Keys are passed whole
-  (studio.15 hashes a long one: before, `slice(0, 64)` could give two
-  people one key); the person's own choice in the Chest
-  (`members.get(id).mailPreference`, which *My tasks* reads to say it) is
-  applied by `mail.send` — none of these
-  emails is transactional. The grouping and the
-  hold are the tool's own (`mail_queue`), sent after each request
-  (`after()`) and by a `mail` schedule every 15 minutes; with no schedule
-  and nobody using the tool, a waiting email leaves at the next visit. On a Chest without mail,
-  `CapabilityNotGranted`: nothing is sent, nothing fails, the bell says it.
-  `mail.available()` (studio.16): under the email switch, *My tasks* says
-  when the Chest does not send email yet (not granted, not connected,
-  paused) or has spent its day's emails, instead of promising them.
+- `notifications` (0.4.1) with `translations` (Proposal (studio)): every
+  item in English and French in one call; a key per card and reason
+  replaces or withdraws it.
 - `calendar` — **Proposal (studio)**: `calendar.putMany` (studio.15:
   100 events a call, so the first sync of a board full of due dates is a
   few writes; studio.16 answers each event: one the Chest refuses — a
@@ -386,13 +385,9 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
 
 ## What it does not do (yet)
 
-- **Email** needs the `mail` proposal on the Chest: until then the bell
-  alone tells people. No push to a phone (the Chest has none), no email at
-  a time each person chooses (07:30 on weekdays), no email for plain
-  comments on one's cards (the bell only). The emails are plain text (no
-  button). A comment deleted more than a minute after it was posted may
-  already have left by email: the hold covers the minute of grouping and
-  any comment deleted before its email left.
+- **No email of its own**: Tasks tells people through the Chest's
+  notifications only; when and whether they also come by email is each
+  member's choice in the Chest. No push to a phone (the Chest has none).
 - **Timeline**: one board at a time; no zoom (six weeks of days; on a
   phone, a list of those weeks, read only — dates move on a wider screen or
   in the card); no

@@ -3,7 +3,6 @@ import { ChestError, RateLimited, Unavailable } from "@argentic/chest-sdk/errors
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { boardAccess } from "./access.ts";
-import { withGroupsAmong } from "./groups.ts";
 import { membership } from "./boards.ts";
 import { zone } from "./clock.ts";
 import type { Sql } from "./db.ts";
@@ -87,8 +86,7 @@ async function allowed(sql: Sql, rows: Eligible[]): Promise<Map<string, string[]
   let who: Map<string, Member> | null = new Map();
   const ids = [...new Set(privateRows.flatMap(r => r.people))];
   try {
-    const groups = [...shapes.values()].flatMap(s => s.groups);
-    for (let i = 0; i < ids.length; i += 500) for (const m of await withGroupsAmong((await members.lookup(ids.slice(i, i + 500))).members, groups)) who.set(m.id, m);
+    for (let i = 0; i < ids.length; i += 500) for (const m of (await members.lookup(ids.slice(i, i + 500))).members) who.set(m.id, m);
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
     who = null;

@@ -4,7 +4,6 @@ import { log } from "@argentic/chest-app";
 import { forgetCardEvents, publishCardEvents } from "./card-events.ts";
 import { db } from "./db.ts";
 import { forgetSeen, handlers, seen } from "./lifecycle.ts";
-import { flushMail } from "./mail.ts";
 import { morning } from "./morning.ts";
 
 // What the Chest posts by itself, signed, at least once (src/app.tsx routes
@@ -22,9 +21,8 @@ export async function onEvent(request: Request): Promise<Response> {
 // The runs of chest.json's "schedules", read on the Chest's clock:
 // "morning" (weekdays 07:30: reminders, repeats' safety net, the tiles'
 // numbers, the calendars checked again, the delivered ids of more than 30
-// days forgotten) and "mail" (every quarter of an
-// hour: the emails that waited, and the cards done or reopened the Chest
-// could not take yet for the linked tools).
+// days forgotten) and "retry" (every quarter of an hour: the cards done or
+// reopened the Chest could not take yet for the linked tools).
 export async function onSchedule(request: Request): Promise<Response> {
   const sql = db();
   return new Response(null, {
@@ -34,11 +32,9 @@ export async function onSchedule(request: Request): Promise<Response> {
         const forgotten = await forgetSeen(sql);
         log.info("morning run", { run: run.id, attempt: run.attempt, forgotten });
       },
-      mail: async run => {
-        const sent = await flushMail(sql);
+      retry: async () => {
         await publishCardEvents(sql);
         await forgetCardEvents(sql);
-        if (sent > 0) log.info("mail run", { run: run.id, sent });
       },
     }, { seen: seen(sql) }),
   });

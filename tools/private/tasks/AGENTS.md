@@ -11,9 +11,9 @@ islands, actions, refresh and words work. Here, what is Tasks' own.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest (contract 0.4): roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives`; schedules `morning`, `mail`; `build.static: ["/assets/"]`. Proposals in `chest.proposals.json` (`calendar`, `mail`, `emits`, `groups`, `translations`) |
-| `src/app.tsx` | Every route: `createApp` (actions, islands, words, layouts, `complete` = every group of the member, `look` = the company's choice, `head`), the pages, the downloads, `/chest/files/<id>`, `/chest-events`, `/chest-schedules` |
-| `src/actions.ts` | Every change, by name (`act()` = an action, then the mail queue, the calendars and the linked tools after the answer) |
+| `chest.json` | Manifest (contract 0.4): roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives`; schedules `morning`, `retry`; `build.static: ["/assets/"]`. Proposals in `chest.proposals.json` (`calendar`, `emits`, `capabilities: ["members.groups"]`, `receives`, `translations`) |
+| `src/app.tsx` | Every route: `createApp` (actions, islands, words, layouts, `look` = the company's choice, `head`), the pages, the downloads, `/chest/files/<id>`, `/chest-events`, `/chest-schedules` |
+| `src/actions.ts` | Every change, by name (`act()` = an action, then the calendars and the linked tools after the answer) |
 | `src/pages/` | `MyTasks`, `Boards`, `Board` (the board and the open card; the calendar's month and the timeline's window written here; `/chest/cards/<id>`), `Settings`, `Search`, `Import` |
 | `src/islands/` | `BoardView` (dnd-kit; with `ListView`, `CalendarView`, `TimelineView` inside it), `CardPanel`, `BoardSettings`, `Importer`, `TaskGroups`, `NewBoard`, `Switches`, `SearchBox`, `AutoRefresh`; `index.ts` lists them |
 | `src/components/` | Shared by pages and islands: icons, the mark, Markdown, board tiles |
@@ -22,12 +22,11 @@ islands, actions, refresh and words work. Here, what is Tasks' own.
 | `src/lib/access.ts` | **Who may do what**: tool abilities (`can`) and a board's access (`boardAccess`: none, read, comment, write, own) |
 | `src/lib/boards.ts` | Boards (shared at creation), columns (archived with or after moving their cards), labels, fields, board people and groups |
 | `src/lib/cards.ts` | Cards, assignees, checklists and steps (subtasks), field values, comments (removed with Undo, purged after 10 min), files, history, moving and copying to another board, My tasks and my steps, search, the tile's count |
-| `src/lib/mail.ts` | Email beside the bell (Proposal (studio) `mail`): the per-person switch, `email()` now (the morning), `queue()` + `flushMail()`; `mailPreference()` = `mail.preference` |
 | `src/lib/due-calendar.ts` | Due dates in each person's Chest calendar (Proposal (studio) `calendar`) |
-| `src/lib/tell.ts`, `src/lib/notify.ts` | The bell (each recipient's language) and badges |
+| `src/lib/tell.ts`, `src/lib/notify.ts` | The bell (`notice()`: English with its French as `translations`; the Chest shows each member theirs) and badges |
 | `src/lib/repeats.ts`, `src/lib/morning.ts`, `src/lib/reminders.ts` | A repeating card's series; the weekday morning; the reminder's switch |
 | `src/lib/deliveries.ts` | What the Chest posts: events (`onEvent`) and schedule runs (`onSchedule`), each id kept (`chest_events`, 30 days) |
-| `src/lib/lifecycle.ts`, `src/lib/groups.ts`, `src/lib/audience.ts`, `src/lib/people.ts`, `src/lib/export.ts`, `src/lib/importers.ts`, `src/lib/card-events.ts`, `src/lib/clock.ts`, `src/lib/db.ts` | Leaving and erasure; groups asked of the Chest (kept a minute); who sees a board; names (former, no access, erased); exports; writing an import; events to Goals; "today" in the Chest's zone; the database |
+| `src/lib/lifecycle.ts`, `src/lib/groups.ts`, `src/lib/audience.ts`, `src/lib/people.ts`, `src/lib/export.ts`, `src/lib/importers.ts`, `src/lib/card-events.ts`, `src/lib/clock.ts`, `src/lib/db.ts` | Leaving and erasure; the Chest's groups that may share a board (`members.groups`, kept a minute); who sees a board; names (former, no access, erased); exports; writing an import; events to Goals; "today" in the Chest's zone; the database |
 | `src/shared/` | Rules used by the server **and** the islands, pure: `repeat.ts`, `calendar.ts` (and the month/timeline window types), `parse-import.ts`, `csv.ts`, `model.ts`, `markdown.ts`, `position.ts`. They refuse with `fail`/`AppError` from `@argentic/chest-app/client` |
 | `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` (kept Intl objects, for pages and islands) |
 | `migrations/` | Schema. Never edit a shipped file; add the next number |
@@ -47,10 +46,9 @@ npm ci && npm test && npm run build   # all three must pass
   `{ force: true }`; every caller that marks done offers the toast action
   "Mark done anyway". Links join cards of one board (`addBlocker` checks
   the board and loops).
-- **Emails of people to people go through `queue()`**, never `email()`
-  directly: the hold and the grouping depend on it. A new kind of email →
-  a `mail_queue.kind`, its liveness rule in `flushMail`, its line in
-  `letterOf`.
+- **Tasks sends no email** (the owner's decision, 6 October 2026): members
+  are told by notifications only, and the Chest mails them by each one's
+  choice. Never `mail.send`, never a digest or an "email me" setting.
 - **Column names**: read columns with `{ words: t.templates.columns }` (a
   template's column has a `key`, named in the reader's language).
 - **Identity only from the Chest**: `member` in `page()`/`action()`; store `mbr_…` ids.
@@ -134,9 +132,9 @@ npm ci && npm test && npm run build   # all three must pass
 - **The keyboard opens cards**: the board's `KeyboardSensor` starts on
   Space only; Enter is the card's own (it opens it). Keep it so.
 - **A new sender of news** (a card or step given, a mention) goes through
-  `src/lib/tell.ts` with the database, which rings the bell and sends the email
-  to those who did not turn it off; never `mail.send` directly.
-- **Links to a card from outside a page** (bell, email, calendar) are
+  `src/lib/tell.ts`, which rings the bell in every language (`notify.ts`'s
+  `notice()`: the words of both catalogues).
+- **Links to a card from outside a page** (bell, calendar) are
   `/chest/cards/<id>`, never a board's path: a card moves between boards.
 - **What makes a card or step due for someone** (its column done, archived,
   its board's people) is read by `src/lib/due-calendar.ts`'s `eligible()` too:

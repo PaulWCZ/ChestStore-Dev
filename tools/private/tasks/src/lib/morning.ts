@@ -1,18 +1,16 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
-import { localeOf, type Member } from "@argentic/chest-sdk/member";
+import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import * as notifications from "@argentic/chest-sdk/notifications";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import { boardAccess } from "./access.ts";
 import { membership } from "./boards.ts";
-import { withGroupsAmong } from "./groups.ts";
 import { purgeComments, urgentCounts } from "./cards.ts";
 import type { Sql } from "./db.ts";
-import { catalogue, format, plural, type Catalogue } from "../i18n/index.ts";
-import { email } from "./mail.ts";
+import { format, plural, type Catalogue } from "../i18n/index.ts";
 import { today } from "../shared/model.ts";
-import { badges, cut, withdraw } from "./notify.ts";
+import { badges, cut, notice, withdraw } from "./notify.ts";
+import * as notifications from "@argentic/chest-sdk/notifications";
 import { reminderKey } from "./reminders.ts";
 import { catchUp } from "./repeats.ts";
 import { sync } from "./due-calendar.ts";
@@ -27,9 +25,8 @@ import { sync } from "./due-calendar.ts";
 //    key per person), and is taken back once nothing is due (here, or as
 //    soon as their last one is done: tell.refreshBadges). Cards done or
 //    archived never remind; a person who turned the reminder off is not
-//    reminded;
-//    The same goes by email to those who did not turn email off (Proposal
-//    (studio) "mail"); steps given to them (subtasks) count as tasks;
+//    reminded; steps given to them (subtasks) count as tasks. The Chest
+//    mails it to those who chose email for their notifications;
 // 3. every tile's number is set right, since dates moved overnight;
 // 4. comments removed yesterday are deleted for good (the Undo is long past);
 // 5. the due dates in the members' calendars are checked again, asking the
@@ -84,7 +81,9 @@ async function remind(sql: Sql, rows: Due[], day: string): Promise<Set<string>> 
   const boardIds = [...new Set(rows.map(r => String(r.board_id)))];
   const boards = await sql<{ id: string; visibility: "team" | "private" }[]>`select id, visibility from boards where id in ${sql(boardIds)}`;
   const people = await membership(sql, boardIds);
-  const who = new Map((await withGroupsAmong(found, [...people.values()].flatMap(p => p.groups))).map(m => [m.id, m]));
+  // Each member carries every group of the Chest they are in (the
+  // capability "members.groups"): a board shared with a group is seen.
+  const who = new Map(found.map(m => [m.id, m]));
   const shape = new Map(boards.map(b => [String(b.id), { visibility: b.visibility, ...people.get(String(b.id))! }]));
   const lists = new Map<string, { late: string[]; today: string[] }>();
   for (const r of rows) {
@@ -97,23 +96,12 @@ async function remind(sql: Sql, rows: Due[], day: string): Promise<Set<string>> 
     lists.set(m.id, list);
   }
   for (const [id, list] of lists) {
-    const m = who.get(id)!;
-    const locale = localeOf(m.language);
-    const t = catalogue(locale);
     try {
-      await notifications.notify([id], { ...reminder(t, locale, list), path: "/chest", key: reminderKey });
+      await notifications.notify([id], notice((t, locale) => reminder(t, locale, list), { path: "/chest", key: reminderKey }));
       reminded.add(id);
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
     }
-    // The email says it in full: every title, one per line.
-    await email(sql, [id], words => ({
-      subject: reminder(words, locale, list).title,
-      lines: [
-        ...(list.late.length > 0 ? [words.mail.lateHeading, ...list.late.map(x => "• " + x), ""] : []),
-        ...(list.today.length > 0 ? [words.mail.todayHeading, ...list.today.map(x => "• " + x)] : []),
-      ],
-    }), { path: "/chest", key: `d:${day}` });
   }
   if (reminded.size > 0) {
     await sql`insert into reminders ${sql([...reminded].map(member_id => ({ member_id, sent_on: day })), "member_id", "sent_on")}

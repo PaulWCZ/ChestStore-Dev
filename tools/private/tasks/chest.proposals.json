@@ -1,13 +1,12 @@
 {
   "calendar": true,
-  "mail": {
-    "send": true
-  },
   "emits": [
     "tasks.card.done",
     "tasks.card.reopened"
   ],
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "receives": [
     "group.*"
   ],

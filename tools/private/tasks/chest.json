@@ -11,7 +11,7 @@
   "receives": ["member.*"],
   "schedules": [
     {"name": "morning", "cron": "30 7 * * 1-5"},
-    {"name": "mail", "cron": "*/15 * * * *"}
+    {"name": "retry", "cron": "*/15 * * * *"}
   ],
   "build": {"runtime": "node", "install": "npm ci", "command": "npm run build", "start": "npm start", "port": 3000, "static": ["/assets/"]}
 }

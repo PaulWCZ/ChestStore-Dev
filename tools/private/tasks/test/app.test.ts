@@ -173,7 +173,7 @@ test("downloads and a card's own address", async () => {
 test("the Chest's own deliveries: schedules and events, signed, each handled once", async () => {
   const to = (request: Request) => app.fetch(request);
   assert.equal(await chest.run("morning", to), 204);
-  assert.equal(await chest.run("mail", to), 204);
+  assert.equal(await chest.run("retry", to), 204);
   assert.equal(await chest.run("nothing", to), 404);
   const unsigned = await app.fetch(new Request(url("/chest-schedules"), { method: "POST", body: "{}", headers: { "content-type": "application/json" } }));
   assert.equal(unsigned.status, 401);

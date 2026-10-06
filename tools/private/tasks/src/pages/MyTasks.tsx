@@ -14,7 +14,6 @@ import { mySteps, myTasks } from "../lib/cards.ts";
 import { chestToday } from "../lib/clock.ts";
 import { db } from "../lib/db.ts";
 import { calendarPage, calendarWorks, sync as syncCalendar } from "../lib/due-calendar.ts";
-import { emailOn, mailPreference, mailState } from "../lib/mail.ts";
 import { reminderOn } from "../lib/reminders.ts";
 import { refreshBadges } from "../lib/tell.ts";
 import { dueState, type DueState } from "../shared/model.ts";
@@ -25,7 +24,7 @@ export async function myTasksPage({ member, locale: language, t }: PageContext):
   const locale = localeOf(language);
   const sql = db();
   const creates = can(member, "boards.create");
-  const [boards, tasks, steps, reminder, emails, sharing, feed, delivery, preference] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), emailOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] }), calendarWorks(sql), mailState(), mailPreference(member.id)]);
+  const [boards, tasks, steps, reminder, sharing, feed] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] }), calendarWorks(sql)]);
   // The tile's number may have gone stale overnight (nothing runs in the
   // background but the schedules): set it right whenever its owner comes
   // home.
@@ -114,13 +113,9 @@ export async function myTasksPage({ member, locale: language, t }: PageContext):
             </section>
             <div className="switches">
               <Island name="ReminderSwitch" props={{ on: reminder, label: t.home.reminder }} />
-              <Island name="EmailSwitch" props={{ on: emails, label: t.home.email }} />
-              {/* What the Chest will do with them (mail.available): said
-                  before the person counts on an email that will not come. */}
-              {emails && delivery === "off" && <p className="hint">{t.home.emailOff}</p>}
-              {emails && delivery === "quota" && <p className="hint">{t.home.emailQuota}</p>}
-              {delivery !== "off" && preference === "digest" && <p className="hint">{t.home.emailDigest}</p>}
-              {delivery !== "off" && preference === "none" && <p className="hint">{t.home.emailNone}</p>}
+              {/* Email is the Chest's: each member chooses there how
+                  their notifications reach them (Tasks sends none). */}
+              <p className="hint">{t.home.emailHint}</p>
             </div>
             {/* The Chest's calendar holds my due dates (lib/due-calendar.ts):
                 said only once the Chest took one. */}
