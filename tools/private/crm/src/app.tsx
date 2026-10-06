@@ -13,6 +13,7 @@ import { checkExport } from "./lib/settings.ts";
 import { fileObject } from "./lib/attachments.ts";
 import { contact } from "./lib/contacts.ts";
 import { db } from "./lib/db.ts";
+import { changeStamp } from "@argentic/chest-app/db";
 import { onEvent, onSchedule } from "./lib/deliveries.ts";
 import { companiesCsv, contactJson, contactsCsv, contactsVcf, dealsCsv, everything, fileName } from "./lib/export.ts";
 import { fieldFilterOf } from "./lib/fields.ts";
@@ -43,11 +44,13 @@ export const app = createApp({
 });
 
 // A page of Clients: a member whose role gives nothing sees why (the
-// layout says it), and the page reads nothing. (No page version for now:
-// migrations/0008 took back 0007's counter, which made big imports slow
-// and held every other write; the package's change stamp will replace it.)
+// layout says it), and the page reads nothing. Every page has a version —
+// the package's change stamp (migrations/0009), the day and the quarter
+// hour (what is due, overdue): a refresh with nothing new is a 304.
 const clients = (render: (p: PageContext) => Promise<View | Response> | View | Response) =>
-  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }));
+  page(p => (roleOf(p.member) ? render(p) : { title: p.t.noAccess.title, body: <NoAccess labels={{ noAccessTitle: p.t.noAccess.title, noAccessBody: p.t.noAccess.body }} /> }), {
+    version: async ({ member }) => (roleOf(member) ? `${await changeStamp()}.${chest.today()}.${Math.floor(Date.now() / 900_000)}` : null),
+  });
 
 // ---- The members' part (/chest…).
 app.get("/chest", clients(myDayPage));

@@ -194,7 +194,7 @@ and every service test.
 - Owners are member ids of people who have the tool with the `manager` or
   `sales` role (checked with `members.lookup`); names are resolved when
   rendering.
-- No WebSocket: an open page reads itself again when its reader comes back to it, and every 30–60 s only while they were active lately (the package's `useAutoRefresh`; a tab left open lets the Chest put Clients to sleep); each refresh renders the page (the former `book_version` counter was dropped by migration 0008: it could hand a stale 304; the package's change stamp will replace it).
+- No WebSocket: an open page reads itself again when its reader comes back to it, and every 30–60 s only while they were active lately (the package's `useAutoRefresh`; a tab left open lets the Chest put Clients to sleep); a refresh with nothing new is a 304, nothing rendered: each page's version is the package's change stamp (`migrations/0009`: one log row per transaction that changed rows, seen at its commit — a 5,000-row import does not hold other writes, and a late commit always shows), with the day and the quarter hour.
 - Money is whole cents (`bigint`) in the company's currency (`chest.currency`, given to each new deal), read as people write it (the package's `field.money`: "12 500,50", "12,500.50"; "1,250" alone asks *thousands or cents?*), formatted with kept `Intl` objects.
 
 ## GDPR
@@ -469,7 +469,7 @@ gzipped) for the browser, one server file.
 | `src/lib/` | Rules and SQL (services take the connection first) |
 | `src/shared/` | Rules the browser and the server share (amounts, CSV, vCard, import mapping) |
 | `src/i18n/` | Every word (`en.ts` source, `fr.ts`), `format.ts` the kept `Intl` objects |
-| `migrations/` | The schema; `0008_page_version_off.sql` drops the former page-version counter and adds `settings` |
+| `migrations/` | The schema; `0008_page_version_off.sql` drops the former page-version counter and adds `settings`; `0009_chest_changes.sql` the package's change log, which the pages' versions read |
 
 ## Develop
 

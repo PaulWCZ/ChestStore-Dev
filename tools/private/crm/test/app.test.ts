@@ -257,9 +257,15 @@ test("a big client book still renders in time: 5,000 contacts, 2,000 deals", asy
   assert.ok(csv.split("\r\n").length > 5000);
 });
 
-test("no page version for now: a refresh renders the page again (the package's change stamp will come)", async () => {
-  const page = await (await get(hugo, "/chest/deals")).text();
-  assert.doesNotMatch(page, /<meta name="chest-version"/u);
+test("a page's version: a refresh with nothing new is a 304; a write — even another's, committed late — moves it; an empty statement does not", async () => {
+  const versionOf = (html: string) => /<meta name="chest-version" content="([^"]+)"/u.exec(html)?.[1];
+  const version = versionOf(await (await get(hugo, "/chest/deals")).text());
+  assert.ok(version);
+  assert.equal((await get(hugo, "/chest/deals", { "x-tool-version": version! })).status, 304);
+  await database.sql`delete from deals where id < 0`;
+  assert.equal((await get(hugo, "/chest/deals", { "x-tool-version": version! })).status, 304, "an empty statement changes nothing");
+  await database.sql`update stages set name = name where id = (select min(id) from stages)`;
+  assert.equal((await get(hugo, "/chest/deals", { "x-tool-version": version! })).status, 200);
 });
 
 test("the static files: under /assets/ only, cached", async () => {
