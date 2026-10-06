@@ -31,7 +31,8 @@ import { sheetOf } from "./theme.ts";
 // they are in, asked of the Chest once per request (src/lib/groups.ts: the
 // assertion names only the groups that give Polls) —, /lang/<code>, the
 // error pages, and answers 404 to anything else.
-export const app = createApp({ complete: withAllGroups });
+// The look's stylesheet needs no groups: it skips the question.
+export const app = createApp({ complete: (who, path) => (path === "/chest/look.css" ? Promise.resolve(who) : withAllGroups(who)) });
 
 // ---- The members' part (/chest…).
 

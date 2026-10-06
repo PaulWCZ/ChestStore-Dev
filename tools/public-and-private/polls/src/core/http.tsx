@@ -33,7 +33,9 @@ type Env = { Variables: { viewer: MemberContext } };
 
 // What a page handler gets, and gives back.
 export type PageContext<V extends Viewer = MemberContext> = V & { url: URL; param(name: string): string; query(name: string): string | undefined };
-export type View = { title: string; body: ReactNode };
+// publicTop: on the public part, the layout draws the brand and the
+// language switch above the body (a page that draws no top of its own).
+export type View = { title: string; body: ReactNode; publicTop?: boolean };
 
 const firstSegment = (path: string) => path.split("/")[1]?.toLowerCase() ?? "";
 const isMembers = (c: Context) => firstSegment(c.req.path) === "chest";
@@ -88,7 +90,7 @@ async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 
       <body>
         {viewer.member !== null
           ? <MembersLayout viewer={viewer} look={sheet.look} path={c.req.path} notice={notice}>{view.body}</MembersLayout>
-          : <PublicLayout viewer={viewer} look={sheet.look} path={c.req.path} notice={notice}>{view.body}</PublicLayout>}
+          : <PublicLayout viewer={viewer} look={sheet.look} path={c.req.path} notice={notice} top={view.publicTop === true}>{view.body}</PublicLayout>}
       </body>
     </html>,
   );
@@ -103,6 +105,7 @@ function errorView(t: Catalogue, status: 403 | 404 | 500, members: boolean): Vie
   const body = status === 404 && !members ? t.pages.notFound.publicBody : words.body;
   return {
     title: words.title,
+    publicTop: !members,
     body: (
       <div className="ck-empty">
         <h1 className="ck-empty-title">{words.title}</h1>
@@ -205,9 +208,16 @@ export const publicActionsAt = () => [limit, (c: Context<Env>) => runAction(c, f
 
 // complete: what the tool adds to the member the Chest asserts, once per
 // request, before any page or action reads it (Polls: every group the
-// member is in, src/lib/groups.ts).
-export function createApp({ complete }: { complete?: (who: Member) => Promise<Member> } = {}) {
+// member is in, src/lib/groups.ts); it receives the path, to skip what
+// needs no more (a stylesheet).
+// logPaths: what the log line of each request names — "route", the
+// default, the route's pattern ("/p/:link", "/chest/polls/:id"): a path
+// may hold a secret (a guest's link) and the Chest keeps logs 7 days;
+// "raw", the path as asked.
+export function createApp({ complete, logPaths = "route" }: { complete?: (who: Member, path: string) => Promise<Member>; logPaths?: "route" | "raw" } = {}) {
   const app = new Hono<Env>();
+  // The route that answered (not a middleware's "/*"); "(none)" for a 404.
+  const pathOf = (c: Context) => (logPaths === "raw" ? c.req.path : c.req.matchedRoutes.filter(r => r.method !== "ALL").at(-1)?.path ?? "(none)");
 
   // Every answer: the policy, the headers that go with it, a log line.
   app.use(async (c, next) => {
@@ -218,7 +228,7 @@ export function createApp({ complete }: { complete?: (who: Member) => Promise<Me
     c.header("Referrer-Policy", "same-origin");
     c.header("Cross-Origin-Opener-Policy", "same-origin");
     if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
-    if (!c.req.path.startsWith("/assets/") || c.res.status >= 400) log.info("request", { method: c.req.method, path: c.req.path, status: c.res.status, ms: Math.round(performance.now() - started) });
+    if (!c.req.path.startsWith("/assets/") || c.res.status >= 400) log.info("request", { method: c.req.method, path: pathOf(c), status: c.res.status, ms: Math.round(performance.now() - started) });
   });
 
   // The browser's files (dist/client/assets, from src/ and public/assets/):
@@ -237,7 +247,7 @@ export function createApp({ complete }: { complete?: (who: Member) => Promise<Me
     if (!isMembers(c)) return next();
     const asserted = member(c.req.raw);
     if (!asserted) return c.text(visitor(c).t.pages.signIn, 401);
-    const who = complete ? await complete(asserted) : asserted;
+    const who = complete ? await complete(asserted, c.req.path) : asserted;
     const locale = localeOf(who.language);
     c.set("viewer", { member: who, locale, t: words(locale), f: formatter(locale, who.timeZone, chest.currency), request: c.req.raw, cookies: cookiesOf(c) });
     return next();
@@ -262,8 +272,8 @@ export function createApp({ complete }: { complete?: (who: Member) => Promise<Me
   app.onError((error, c) => {
     if (error instanceof HttpStatus && error.to) return c.redirect(error.to, c.req.method === "GET" ? 302 : 303);
     if (error instanceof HttpStatus) return errorPage(c, error.status === 403 ? 403 : 404);
-    if (chestDown(error)) log.warn("the Chest did not answer", { path: c.req.path, error: error.name });
-    else log.error("page failed", error, { path: c.req.path });
+    if (chestDown(error)) log.warn("the Chest did not answer", { path: pathOf(c), error: error.name });
+    else log.error("page failed", error, { path: pathOf(c) });
     return errorPage(c, 500);
   });
   return app;

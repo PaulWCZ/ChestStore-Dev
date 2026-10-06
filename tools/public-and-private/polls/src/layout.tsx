@@ -5,6 +5,7 @@ import { Mark } from "./components/mark.tsx";
 import { Island } from "./core/island.tsx";
 import type { MemberContext, VisitorContext } from "./core/tool.ts";
 import { roleOf } from "./lib/access.ts";
+import { PublicTop } from "./pages/PublicTop.tsx";
 
 // What goes around every page: the kit's shell for members (the mark or
 // the company's logo, who is signed in), a plain header for visitors; the
@@ -17,7 +18,7 @@ import { roleOf } from "./lib/access.ts";
 // The toasts sit outside the page's main region, under an id: a page met
 // by navigate() (src/core/client.tsx) keeps them, and a toast's Undo with
 // them ("Poll deleted", then the home page).
-type Props<V> = { viewer: V; look: Look; path: string; notice: string | null; children: ReactNode };
+type Props<V> = { viewer: V; look: Look; path: string; notice: string | null; top?: boolean; children: ReactNode };
 
 export function MembersLayout({ viewer: { member, t }, look, notice, children }: Props<MemberContext>) {
   const role = roleOf(member);
@@ -41,12 +42,14 @@ export function MembersLayout({ viewer: { member, t }, look, notice, children }:
 
 // The public host: the page's main region, the toasts. Each public page
 // draws its own top — the brand (the company's logo, or Polls' mark) and
-// the language switch — as its words differ (src/pages/PublicTop.tsx).
-export function PublicLayout({ viewer: { t }, notice, children }: Props<VisitorContext>) {
+// the language switch — as its words differ (src/pages/PublicTop.tsx);
+// for a page that draws none (an error page: top), the layout draws it.
+export function PublicLayout({ viewer: { t, locale }, look, path, notice, top = false, children }: Props<VisitorContext>) {
   return (
     <>
       <a className="ck-skip" href="#main">{t.shell.skip}</a>
       <main id="main" className="page public" tabIndex={-1}>
+        {top && <PublicTop look={look} name={t.tool.name} locale={locale} back={path} t={t} />}
         {notice && <p className="notice" role="alert">{notice}</p>}
         {children}
       </main>

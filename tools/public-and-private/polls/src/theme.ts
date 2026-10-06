@@ -7,7 +7,7 @@ import { log } from "./core/log.ts";
 // The tool's own identity (DESIGN.md), "Confetti": playful and quick —
 // coral, deep navy and mint on warm paper, chunky rounded shapes that press
 // down like real buttons, Fredoka and Plus Jakarta Sans. It is a theme of
-// the kit's contract, checked like the catalogue's (test/units.test.ts),
+// the kit's contract, checked like the catalogue's (test/theme.test.ts),
 // and the same as the catalogue's "confetti" (the test holds them equal): a
 // company that picks Confetti for all its tools gets exactly this. Every
 // colour of the tool is here; its CSS names only the contract's tokens

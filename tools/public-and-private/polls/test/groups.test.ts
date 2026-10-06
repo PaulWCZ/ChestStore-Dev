@@ -4,7 +4,7 @@ import { fakeChest } from "@argentic/chest-sdk/testing";
 import { answer } from "../src/lib/answers.ts";
 import { AppError } from "../src/core/tool.ts";
 import { all, everyone as everyoneWithPolls, inAudience } from "../src/lib/audience.ts";
-import { withAllGroups } from "../src/lib/groups.ts";
+import { forgetGroups, withAllGroups } from "../src/lib/groups.ts";
 import * as polls from "../src/lib/polls.ts";
 import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -53,7 +53,7 @@ test("a poll put to a group that does not give Polls asks exactly its members: t
     const counts = await polls.pendingCounts(sql, [as(hugo), as(lea)], now);
     assert.deepEqual([counts.get(hugo.id), counts.get(lea.id)], [1, 0]);
     assert.equal((await polls.pendingCounts(sql, [as(hugo)], now)).get(hugo.id), 1, "one person: all their groups at once");
-    // Answering: Hugo as the request carries him (lib/session.ts adds his
+    // Answering: Hugo as the request carries him (createApp({ complete }) adds his
     // groups); Léa is not asked.
     const q = poll.questions[0]!;
     await answer(sql, await withAllGroups(as(hugo)), made.id, { [q.id]: { options: [q.options[0]!.id] } }, now);
@@ -74,5 +74,29 @@ test("without the groups permission, a member's groups are those the Chest gave 
     assert.deepEqual((await withAllGroups(as(hugo))).groups, [], "nothing invented");
   } finally {
     await chest.close();
+  }
+});
+
+test("a member's groups are asked once a minute (pages refresh every 20 s), read again after a group event, and a kept answer serves when the Chest cannot say", async () => {
+  const chest = await fakeChest({ network: {}, members: bare, groups: noneGrant, capabilities: ["members", "notifications", "groups"], chest: { timeZone: zone } });
+  const realNow = Date.now;
+  try {
+    assert.deepEqual((await withAllGroups(as(hugo))).groups, [groups.sales]);
+    // Hugo moves to Tech: the answer kept a minute stands…
+    chest.groups = noneGrant.map(g => ({ ...g, members: g.id === groups.sales ? g.members.filter(m => m !== hugo.id) : g.id === groups.tech ? [...g.members, hugo.id] : g.members }));
+    assert.deepEqual((await withAllGroups(as(hugo))).groups, [groups.sales], "kept: not asked again");
+    // …until the Chest says a group changed (group.changed, member.updated).
+    forgetGroups();
+    assert.deepEqual((await withAllGroups(as(hugo))).groups, [groups.tech]);
+    // A minute later, the Chest unreachable: the answer kept serves.
+    const api = process.env["CHEST_API"];
+    await chest.close();
+    process.env["CHEST_API"] = api; // the same Chest, now silent
+    Date.now = () => realNow() + 61_000;
+    assert.deepEqual((await withAllGroups(as(hugo))).groups, [groups.tech]);
+  } finally {
+    Date.now = realNow;
+    await chest.close().catch(() => undefined);
+    forgetGroups();
   }
 });

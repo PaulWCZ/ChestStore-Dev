@@ -11,7 +11,7 @@ import { visitorKey } from "./public-origin.ts";
 // the Chest's counting of what a visitor does — per visitor, for everyone,
 // and across the Chest's tools. On a Chest without it, Polls counts in its
 // own table (guest_counts). A field only robots fill is checked by the
-// action (app/p/[link]/actions.ts).
+// action (src/actions.ts, answerGuest).
 
 export const formToken = (now?: number) => visitors.formToken(now);
 
