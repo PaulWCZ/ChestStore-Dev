@@ -30,8 +30,9 @@ import { locales, localeOf, type Locale } from "./member.js";
 // the public host; being a Chest-* header, the client cannot send it (the
 // front removes those first). address() reads that header only; without it
 // (a Chest that does not set it yet), it is null, visitor() is "unknown",
-// and count() counts every such visitor together — the per-hour ceiling
-// for everyone still holds, the per-visitor one becomes a global one.
+// and count() applies to such a visitor only the per-hour ceiling for
+// everyone: never perVisitor, which would make a few unknown visitors
+// close the form for everybody.
 export const addressHeader = "chest-visitor-address";
 
 type Headers_ = Headers | { get(name: string): string | null };
@@ -91,7 +92,11 @@ export async function count(request: Request | Headers_, name: string, limits: {
   if (!namePattern.test(name)) throw new ChestError("invalid_name", 400, "a name is a-z 0-9 -");
   const within = (n: number, max: number) => Number.isInteger(n) && n >= 1 && n <= max;
   if (!within(limits.perVisitor, 1000) || !within(limits.perHour, 100000)) throw new ChestError("invalid_limits", 400, "perVisitor 1 to 1,000, perHour 1 to 100,000");
-  const response = await chest("visitors", "POST", "/visitors/count", { body: JSON.stringify({ name, address: address(request), per_visitor: limits.perVisitor, per_hour: limits.perHour }), type: "application/json" });
+  // A visitor whose address is unknown is nobody in particular: counting
+  // all of them as one would let a few requests close the form for
+  // everybody. Only the ceiling for everyone (perHour) applies to them.
+  const who = address(request);
+  const response = await chest("visitors", "POST", "/visitors/count", { body: JSON.stringify({ name, address: who, per_visitor: who === null ? null : limits.perVisitor, per_hour: limits.perHour }), type: "application/json" });
   if (response.status !== 200) throw await refusal(response, "visitors");
   const answer = (await json(response)) as { allowed?: unknown; retry_after?: unknown } | null;
   if (!answer || typeof answer.allowed !== "boolean" || typeof answer.retry_after !== "number") throw new Unavailable();

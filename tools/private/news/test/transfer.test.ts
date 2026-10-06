@@ -6,7 +6,10 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "@argentic/chest-app";
 import * as posts from "../src/lib/posts.ts";
 import { exportAll, fromSlack, headline, importSlack, readSlack, undoImport } from "../src/lib/transfer.ts";
-import { readZip, writeZip } from "../src/lib/zip.ts";
+import { randomBytes } from "node:crypto";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
+import { readZip, zipLimits, zipped } from "../src/lib/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, sofia } from "./support/members.ts";
@@ -52,10 +55,11 @@ test("a real Slack export: its channels, top-level messages only, by their autho
   await assert.rejects(importSlack(database.sql, asMember(hugo), fixture, enrique.id), refused("forbidden"));
   await assert.rejects(importSlack(database.sql, asMember(camille), fixture, "C_NOPE"), refused("not_found"));
   assert.throws(() => readSlack(new TextEncoder().encode("not a zip")), refused("not_export"));
-  assert.throws(() => readSlack(writeZip([{ name: "notes.json", data: "[]" }])), refused("not_export"));
+  const notes = await zipped([{ name: "notes.json", data: "[]" }]);
+  assert.throws(() => readSlack(notes), refused("not_export"));
 });
 
-test("Slack's marks, links and mentions become News's; threads stay out; a long first line is cut", () => {
+test("Slack's marks, links and mentions become News's; threads stay out; a long first line is cut", async () => {
   const users = new Map([["U1", { id: "U1", name: "Inès Moreau" }]]);
   assert.equal(fromSlack("*Office move* on _Monday_, see <https://example.com/plan|the plan> &amp; ask <@U1> in <#C9|general> <!here>", users),
     "**Office move** on _Monday_, see [the plan](https://example.com/plan) & ask @Inès Moreau in #general @here");
@@ -63,7 +67,7 @@ test("Slack's marks, links and mentions become News's; threads stay out; a long 
   assert.deepEqual(headline("**Office move** on Monday\nBring boxes."), { title: "Office move on Monday", body: "Bring boxes." });
   const long = headline("word ".repeat(60).trim());
   assert.ok([...long.title].length <= 140 && long.title.endsWith("…") && long.body.startsWith("word word"));
-  const zip = writeZip([
+  const zip = await zipped([
     { name: "channels.json", data: JSON.stringify([{ id: "C1", name: "announcements" }]) },
     { name: "users.json", data: JSON.stringify([{ id: "U1", name: "ines", profile: { real_name: "Inès Moreau" } }]) },
     { name: "announcements/2026-09-01.json", data: JSON.stringify([
@@ -82,7 +86,7 @@ test("download all posts: what the publisher sees, as JSON and Markdown, with co
   const doc = await posts.recordUpload(database.sql, asMember(camille), { object, fileName: "plan.txt", type: "text/plain", size: 8, role: "attachment" });
   const p = await posts.createPost(database.sql, asMember(camille), { kind: "announcement", title: "Office move", body: "We **move**.", locale: "en", versions: [{ locale: "fr", title: "Déménagement", body: "Nous déménageons." }], attachments: [doc.id] }, { zone });
   await posts.addComment(database.sql, asMember(hugo), p.id, `Thanks @[${sofia.id}]!`);
-  const zip = await exportAll(database.sql, asMember(camille), zone);
+  const zip = await collect(await exportAll(database.sql, asMember(camille), zone));
   const entries = new Map(readZip(zip).map(e => [e.name, new TextDecoder().decode(e.data)]));
   const json = JSON.parse(entries.get("posts.json")!) as { posts: { title: string; versions: unknown[]; author: string; comments: { author: string; text: string }[]; files: { path: string | null }[] }[] };
   assert.equal(json.posts[0]!.title, "Office move");
@@ -94,4 +98,56 @@ test("download all posts: what the publisher sees, as JSON and Markdown, with co
   const file = json.posts[0]!.files[0]!.path!;
   assert.equal(entries.get(file), "the plan");
   await assert.rejects(exportAll(database.sql, asMember(hugo), zone), refused("forbidden"));
+});
+
+// The archive as the server streams it, gathered (small archives only).
+async function collect(write: (out: (chunk: Uint8Array) => void) => Promise<void>): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  await write(chunk => { chunks.push(chunk); });
+  return Buffer.concat(chunks);
+}
+
+test("download all posts streams: 160 MB of files go out with one file at a time in memory", async () => {
+  // Eight files of 20 MB, incompressible, the same bytes in the fake Chest
+  // (held once there): the archive holds 160 MB; what the export keeps in
+  // memory while writing it is measured (ArrayBuffers: Buffers, Uint8Arrays).
+  const bytes = randomBytes(20 << 20);
+  const ids: string[] = [];
+  for (let i = 0; i < 8; i++) {
+    const object = `uploads/${String(i).padStart(20, "c")}.bin`;
+    chest.files.set(object, { data: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), type: "application/octet-stream", updated: new Date().toISOString() } as never);
+    ids.push((await posts.recordUpload(database.sql, asMember(camille), { object, fileName: `big-${i}.bin`, type: "application/octet-stream", size: 20 << 20, role: "attachment" })).id);
+  }
+  await posts.createPost(database.sql, asMember(camille), { kind: "info", title: "Big files", body: "Eight.", locale: "en", attachments: ids }, { zone });
+  // What is live, not what the collector has not swept yet: a full GC
+  // before each measure (the flag set at run time, as node --expose-gc).
+  setFlagsFromString("--expose-gc");
+  const gc = runInNewContext("gc") as () => void;
+  gc();
+  const base = process.memoryUsage().arrayBuffers;
+  let peak = 0;
+  let last = 0;
+  let written = 0;
+  await (await exportAll(database.sql, asMember(camille), zone))(chunk => {
+    written += chunk.byteLength;
+    if (chunk.byteLength > 1 << 20) {
+      gc();
+      last = process.memoryUsage().arrayBuffers - base;
+      peak = Math.max(peak, last);
+    }
+  });
+  assert.ok(written > 160_000_000, `the archive holds the files (${written} bytes)`);
+  // The fake Chest serves the files from this very process: its sockets'
+  // buffers count here too (measured: 40 to 120 MiB, up and down). An
+  // archive kept whole would grow past 160 MiB and stay there.
+  assert.ok(peak < 140 << 20, `held while writing: at most ${Math.round(peak / 2 ** 20)} MiB`);
+  assert.ok(last < 64 << 20, `held at the last file: ${Math.round(last / 2 ** 20)} MiB — nothing piles up`);
+});
+
+test("an archive that would inflate past 64 MiB is refused before anything is inflated", async () => {
+  const blank = " ".repeat(30 << 20);
+  const bomb = await zipped([{ name: "a.json", data: blank }, { name: "b.json", data: blank }, { name: "c.json", data: blank }]);
+  assert.ok(bomb.byteLength < 1 << 20, "a small archive");
+  assert.equal(zipLimits.total, 64 << 20);
+  assert.throws(() => readSlack(bomb), refused("file_too_large"));
 });

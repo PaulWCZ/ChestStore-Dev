@@ -108,7 +108,7 @@ function DayCard({ card, labels, late, writable, href, t }: { card: CardSummary;
   }, [transform]);
   return (
     <li ref={el => { item.current = el; setNodeRef(el); }} className={transform ? "moving" : undefined}>
-      <a href={href} onClick={e => onLinkClick(e, { top: false })} {...(writable ? listeners : {})} {...(writable ? attributes : {})} aria-roledescription={undefined}
+      <a href={href} data-card={card.id} onClick={e => onLinkClick(e, { top: false })} {...(writable ? listeners : {})} {...(writable ? attributes : {})} aria-roledescription={undefined}
         className={`cal-card${card.done ? " is-done" : ""}${late ? " late" : ""}${isDragging ? " dragging" : ""}${color ? " c-" + color : ""}`}>
         {color && <span className="bar" aria-hidden="true" />}
         {late && <Alert />}

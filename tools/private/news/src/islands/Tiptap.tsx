@@ -3,6 +3,7 @@ import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ToolbarFrame } from "./EditorFrame.tsx";
 import { Bold, Heading, Italic, LinkIcon, List, Numbers, Picture, Quote } from "../components/icons.tsx";
 import { fromDoc, pictureSrc, toDoc, type DocNode } from "../shared/editor-doc.ts";
 import type { Catalogue } from "../i18n/index.ts";
@@ -97,9 +98,9 @@ export default function Tiptap({ id, value, onChange, onPicture, placeholder, de
 
   return (
     <div className="text-editor">
-      {editor && <Toolbar editor={editor} t={t} onLink={() => setLinking(true)} onPicture={() => fileInput.current?.click()} />}
+      {editor ? <Toolbar editor={editor} t={t} onLink={() => setLinking(true)} onPicture={() => fileInput.current?.click()} /> : <ToolbarFrame t={t} />}
       {editor && linking && <LinkForm editor={editor} t={t} onClose={() => setLinking(false)} />}
-      <EditorContent editor={editor} className="editor-area" />
+      {editor ? <EditorContent editor={editor} className="editor-area" /> : <div className="editor-area"><div className="prose editable waiting" aria-hidden="true"><p data-placeholder={placeholder} /></div></div>}
       <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden onChange={e => { const list = [...(e.target.files ?? [])]; e.target.value = ""; void addPictures(list); }} />
     </div>
   );

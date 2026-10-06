@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import type { PageContext, View } from "@argentic/chest-app";
 import { Island } from "@argentic/chest-app";
 import { AppError, notFound, redirect } from "@argentic/chest-app";
-import { dateFormat, dayText, format, formatDate, listFormat, plural, relative, type Catalogue, type Locale, localeOf } from "../i18n/index.ts";
+import { dateFormat, dayText, numberFormat, format, formatDate, listFormat, plural, relative, type Catalogue, type Locale, localeOf } from "../i18n/index.ts";
 import type { RepeatView, Target } from "../islands/CardPanel.tsx";
 import { boardAudience } from "../lib/audience.ts";
 import { board as readBoard, columnName, columns as readColumns, fields as readFields, labels as readLabels, listBoards } from "../lib/boards.ts";
@@ -74,6 +74,14 @@ export async function boardPage({ member, locale: language, t, param, query, url
   const calendar = view === "calendar" ? calendarOf(monthOf(query("month"), day), day, locale) : null;
   const timeline = view === "timeline" ? timelineOf(timelineStart(query("from"), day), day, locale, cards, t.board.timeline.week) : null;
   const path = url.pathname;
+  // The board's dates and numbers, written here (never in the browser).
+  const written = { short: {} as Record<string, string>, long: {} as Record<string, string>, numbers: {} as Record<string, string> };
+  for (const day of new Set(cards.flatMap(c => [c.due, c.start]).filter((d): d is string => !!d))) {
+    written.short[day] = dayText(day, locale);
+    written.long[day] = dayText(day, locale, { day: "numeric", month: "short", year: "numeric" });
+  }
+  const numberFields = new Set(own.filter(f => f.kind === "number").map(f => f.id));
+  for (const c of cards) for (const [field, value] of Object.entries(c.values)) if (numberFields.has(field) && value !== "" && Number.isFinite(Number(value))) written.numbers[value] = numberFormat(locale).format(Number(value));
   return {
     title: panel ? `${panel.title} · ${b.name}` : b.name,
     body: (
@@ -96,11 +104,15 @@ export async function boardPage({ member, locale: language, t, param, query, url
           calendar,
           timeline,
           filter: { who: query("who") ?? "", label: query("label") ?? "" },
+          written,
           t: { board: t.board, card: t.card, colors: t.colors, dialog: t.dialog },
         }} />
         {panel && (
-          <Island name="CardPanel" props={{
+          // One root per card: another card opened is a new panel (its
+          // drafts, its focus), never the last one with new props.
+          <Island name="CardPanel" id={`card-panel-${panel.id}`} props={{
             path,
+            view: (() => { const q = new URLSearchParams(url.search); q.delete("card"); return q.toString(); })(),
             card: panel,
             board: { id: b.id, name: b.name, color: b.color, archived: b.archived, writable: canWrite && !b.archived },
             columns: cols,

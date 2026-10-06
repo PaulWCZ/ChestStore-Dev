@@ -42,8 +42,10 @@ type People = Record<string, { name: string; photo: string | null }>;
 type Person = { id: string; name: string; photo: string | null };
 type Props = {
   // The board's address (/chest/boards/<id>): closing the panel goes back
-  // there, with the view and filters of the moment.
+  // there, with the view and filters of the moment; view: that query
+  // without the card (a linked card opens in the same view).
   path: string;
+  view: string;
   card: PanelCard;
   board: { id: string; name: string; color: string; archived: boolean; writable: boolean };
   columns: Column[];
@@ -68,7 +70,7 @@ type Run = (step: () => Promise<Outcome<unknown>>, after?: () => void) => void;
 
 // A card, in full, beside the board. Each change is saved at once; the
 // page refreshes itself from the server after it.
-export function CardPanel({ path, card, board, columns, labels, fields, targets, linkable, people, audience, me, repeat, locale, t }: Props) {
+export function CardPanel({ path, view, card, board, columns, labels, fields, targets, linkable, people, audience, me, repeat, locale, t }: Props) {
   const [, start] = useTransition();
   const writable = board.writable && !card.archived;
   const canComment = card.access !== "read" && !board.archived;
@@ -76,7 +78,13 @@ export function CardPanel({ path, card, board, columns, labels, fields, targets,
   const close = () => {
     const params = new URLSearchParams(window.location.search);
     params.delete("card");
-    void navigate(`${path}${params.size ? "?" + params.toString() : ""}`, { top: false });
+    const opener = card.id;
+    void navigate(`${path}${params.size ? "?" + params.toString() : ""}`, { top: false }).then(() => {
+      // Back to the card that was opened (on the board, the list, the
+      // calendar or the timeline), not the top of the page.
+      // The one shown (the list has a table and, on a phone, cards).
+      [...document.querySelectorAll<HTMLElement>(`[data-card="${opener}"]`)].find(el => el.offsetParent !== null)?.focus();
+    });
   };
   useEffect(() => {
     panel.current?.focus();
@@ -202,7 +210,7 @@ export function CardPanel({ path, card, board, columns, labels, fields, targets,
 
           {(writable || card.blockers.length > 0 || card.blocking.length > 0) && (
             <Section icon={<Blocked />} title={t.card.blockedBy}>
-              <Blockers path={path} card={card} linkable={linkable} writable={writable} t={t}
+              <Blockers path={path} view={view} card={card} linkable={linkable} writable={writable} t={t}
                 onAdd={id => run(() => call("addBlocker", { id: card.id, blocker: id }))} onRemove={id => run(() => call("removeBlocker", { id: card.id, blocker: id }))} />
             </Section>
           )}
@@ -558,6 +566,8 @@ function ChecklistBlock({ list, items: given, card, writable, choices, people, m
   useEffect(() => setItems(given), [given]);
   const [open, setOpen] = useState<string | null>(null);
   const search = useMemo(() => localSearch(choices), [choices]);
+  // Steps typed fast leave in the order typed, one after the other.
+  const steps = useRef<Promise<unknown>>(Promise.resolve());
   const done = items.filter(i => i.done).length;
   const key = list.id ?? "main";
   const nameOf = (id: string) => (id === me ? t.card.you : people[id]?.name ?? choices.find(p => p.id === id)?.name ?? "?");
@@ -611,7 +621,7 @@ function ChecklistBlock({ list, items: given, card, writable, choices, people, m
         ))}
       </ul>
       {writable && (
-        <form className="row" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const text = String(new FormData(form).get("item") ?? "").trim(); if (!text) return; run(() => call("addItem", { id: card.id, text, ...(list.id ? { checklist: list.id } : {}) })); form.reset(); }}>
+        <form className="row" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const text = String(new FormData(form).get("item") ?? "").trim(); if (!text) return; steps.current = steps.current.then(() => call("addItem", { id: card.id, text, ...(list.id ? { checklist: list.id } : {}) })); form.reset(); }}>
           <label htmlFor={`new-item-${key}`} className="visually-hidden">{t.card.addItem}</label>
           <input id={`new-item-${key}`} name="item" className="field grow" maxLength={300} placeholder={t.card.itemPlaceholder} />
           <button type="submit" className="button small quiet"><Plus />{t.card.addItem}</button>
@@ -796,8 +806,8 @@ function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmi
 // "Blocked by": the cards this one waits for (each opens; done ones say
 // so), one more chosen from the board's open cards; and the cards that
 // wait for this one.
-function Blockers({ path, card, linkable, writable, t, onAdd, onRemove }: { path: string; card: PanelCard; linkable: { id: string; title: string }[]; writable: boolean; t: Words; onAdd: (id: string) => void; onRemove: (id: string) => void }) {
-  const open = (id: string) => `${path}?card=${id}`;
+function Blockers({ path, view, card, linkable, writable, t, onAdd, onRemove }: { path: string; view: string; card: PanelCard; linkable: { id: string; title: string }[]; writable: boolean; t: Words; onAdd: (id: string) => void; onRemove: (id: string) => void }) {
+  const open = (id: string) => `${path}?${view ? view + "&" : ""}card=${id}`;
   const choices = linkable.filter(c => !card.blockers.some(b => b.id === c.id) && !card.blocking.some(b => b.id === c.id));
   const line = (l: CardLink, remove: boolean) => (
     <li key={l.id} className={`link-line${l.done || l.archived ? " is-done" : ""}`}>

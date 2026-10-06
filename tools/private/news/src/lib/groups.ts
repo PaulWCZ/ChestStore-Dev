@@ -1,7 +1,7 @@
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import { catalogue, intl, plural } from "../i18n/index.ts";
+import { andList, catalogue, plural } from "../i18n/index.ts";
 
 // The Chest's groups a post may be kept to, by name. With the "groups"
 // permission (Proposal (studio): "groups": "read") News sees every group of
@@ -117,6 +117,6 @@ export function audienceLabel(audience: { groups: readonly string[]; people: rea
   const t = catalogue(locale);
   const written = [...new Set(audience.groups.map(g => names.get(g) ?? t.front.formerGroup))];
   if (audience.people.length > 0) written.push(plural(t.front.people, audience.people.length, locale));
-  return new Intl.ListFormat(intl(locale), { type: "conjunction" }).format(written);
+  return andList(written, locale);
 }
 

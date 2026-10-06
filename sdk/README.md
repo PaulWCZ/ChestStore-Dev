@@ -1736,8 +1736,12 @@ new visitor each time. The proposal: the front sets
 on the public host's requests; as a `Chest-*` header, no client can send
 it. `visitors.address()` reads it and nothing else; without it (a Chest
 that does not set it yet) it is null, `visitor()` is `"unknown"`, and
-`count()` counts all such visitors together: the ceiling per hour for
-everyone holds, the ceiling per visitor becomes a global one.
+`count()` applies to such a visitor only the ceiling per hour for
+everyone (`perHour`), never `perVisitor` nor the Chest's ceiling per
+address: counting every unknown visitor as one would let a few requests
+close a public form for everybody (found by the Booking review,
+0.4.1-studio.2). A tool that needs a per-visitor limit before the front
+gives addresses keeps its own (a token per form, a code by email).
 
 
 ## `checks` — web addresses the Chest checks for the tool (Proposal (studio))

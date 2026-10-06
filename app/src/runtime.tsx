@@ -120,7 +120,10 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
   attributes(document.body, next.body);
   children(document.body, next.body);
   // The focused element went with what changed: the page's main region.
-  if (focused && focused !== document.body && !focused.isConnected) document.getElementById("main")?.focus({ preventScroll: true });
+  // The focused element went with what changed: the page's main region —
+  // unless an island the change brought took the focus itself (a panel
+  // opened in place focuses its own first element).
+  if (focusMain(focused, document.activeElement, document.body)) document.getElementById("main")?.focus({ preventScroll: true });
   return true;
 }
 
@@ -134,6 +137,14 @@ function setForm(token: string): void {
   }
   meta.content = token;
   for (const input of document.querySelectorAll<HTMLInputElement>('input[name="chest_form"]')) input.value = token;
+}
+
+// Whether a change put in place should move the focus to <main>: the
+// element focused before went with it, and nothing new took the focus.
+type Focusable = { isConnected: boolean } | null;
+export function focusMain(before: Focusable, now: Focusable, body: Focusable): boolean {
+  if (!before || before === body || before.isConnected) return false;
+  return !now || now === body || !now.isConnected;
 }
 
 // ---- navigate(): another page of the same part without loading it again:

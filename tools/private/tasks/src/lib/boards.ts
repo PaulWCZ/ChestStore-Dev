@@ -236,6 +236,7 @@ export async function archiveColumn(sql: Sql, actor: Member | null, columnId: un
     const held = await tx<{ id: string; repeat: unknown }[]>`select id, repeat from cards where column_id = ${c.id} and archived_at is null order by position, id`;
     let moved = 0;
     if (target) {
+      await tx`select id from columns where id = ${target.id} for update`; // lockColumn (lib/cards.ts)
       const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${target.id} order by position desc limit 1`;
       const keys = sequence(held.length, edge?.position ?? null);
       for (const [i, card] of held.entries()) {

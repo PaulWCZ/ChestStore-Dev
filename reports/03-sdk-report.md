@@ -557,10 +557,14 @@ addresses**:
   `Chest-Visitor-Address` — the address of the connection it accepted —
   on the public host's requests; being a `Chest-*` header, no client can
   send it (the front removes those first). `visitors.address()` reads it
-  and nothing else; without it (every Chest today) it is null,
-  `visitor()` is `"unknown"`, and `count()` counts such visitors together:
-  the per-hour ceiling for everyone holds, the per-visitor one becomes
-  global. The 7 public tools' own copies (`lib/public-origin.ts`) must
+  and nothing else; without it (every Chest today) it is null and
+  `visitor()` is `"unknown"`. **Such a visitor is counted only in the
+  ceiling for everyone (`perHour`)**, never per visitor nor in the Chest's
+  ceiling per address: counting all unknown visitors as one turned a
+  per-visitor limit into a company-wide one — 8 attempts an hour closed
+  Booking's public form for everybody, a denial of service for every
+  public tool (found by the Booking review, 6 October 2026; fixed in
+  0.4.1-studio.2 without a version change, no public name changed). The 7 public tools' own copies (`lib/public-origin.ts`) must
   change the same way.
 - **Approval**: none new. **Risks**: shared addresses behind one NAT (the
   owner may raise the ceiling; tools say "try again in an hour").

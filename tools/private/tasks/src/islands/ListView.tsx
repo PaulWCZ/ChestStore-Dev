@@ -2,12 +2,12 @@ import { AvatarStack } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { Alert, Blocked } from "../components/icons.tsx";
 import { onLinkClick } from "@argentic/chest-app/client";
-import { dayText, intl, numberFormat, plural } from "../i18n/format.ts";
+import { intl, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import type { Column, Field, Label } from "../lib/boards.ts";
 import type { CardSummary } from "../lib/cards.ts";
 import { addDays } from "../shared/repeat.ts";
-import type { People } from "./BoardView.tsx";
+import type { People, Written } from "./BoardView.tsx";
 
 type Words = { board: Catalogue["board"]; card: Catalogue["card"]; colors: Catalogue["colors"] };
 type SortKey = "title" | "column" | "people" | "start" | "due";
@@ -15,7 +15,7 @@ type GroupKey = "none" | "column" | "person" | "due";
 
 // The board as a table: sort by any heading, group by column, person or
 // due date, done cards hidden unless asked. Each title opens its card.
-export function ListView({ query, columns, cards, labels, fields, people, today, locale, t }: { query: (change: Record<string, string>) => string; columns: Column[]; cards: CardSummary[]; labels: Label[]; fields: Field[]; people: People; today: string; locale: Locale; t: Words }) {
+export function ListView({ query, written, columns, cards, labels, fields, people, today, locale, t }: { query: (change: Record<string, string>) => string; written: Written; columns: Column[]; cards: CardSummary[]; labels: Label[]; fields: Field[]; people: People; today: string; locale: Locale; t: Words }) {
   const [sort, setSort] = useState<{ key: SortKey; up: boolean } | null>(null);
   const [group, setGroup] = useState<GroupKey>("none");
   const [showDone, setShowDone] = useState(false);
@@ -23,7 +23,7 @@ export function ListView({ query, columns, cards, labels, fields, people, today,
   const order = new Map(columns.map((c, i) => [c.id, i]));
   const columnOf = (c: CardSummary) => columns.find(k => k.id === c.columnId);
   const nameOf = (id: string) => people[id]?.name ?? "";
-  const dateOf = (day: string, year = false) => dayText(day, locale, { day: "numeric", month: "short", ...(year ? { year: "numeric" } : {}) });
+  const dateOf = (day: string, year = false) => (year ? written.long : written.short)[day] ?? day;
   const hidden = cards.filter(c => c.done).length;
 
   const rows = (() => {
@@ -114,13 +114,13 @@ export function ListView({ query, columns, cards, labels, fields, people, today,
                 const state = !card.due || card.done ? "" : card.due < today ? "due-late" : card.due === today ? "due-today" : "";
                 return (
                   <tr key={card.id} className={card.done ? "is-done" : undefined}>
-                    <td><a href={href(card.id)} onClick={e => onLinkClick(e, { top: false })}>{card.title}</a></td>
+                    <td><a href={href(card.id)} data-card={card.id} onClick={e => onLinkClick(e, { top: false })}>{card.title}</a></td>
                     <td>{columnOf(card)?.name}</td>
                     <td><AvatarStack people={card.assignees.map(a => ({ id: a, name: nameOf(a) || "?", photo: people[a]?.photo ?? null }))} max={4} size="s" labels={{ more: t.board.othersAssigned }} lang={locale} /></td>
                     <td>{card.start && dateOf(card.start)}</td>
                     <td>{card.due && <Due card={card} state={state} text={dateOf(card.due, true)} t={t} />}</td>
                     <td><span className="row">{card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l).map(l => <span key={l.id} className={`chip label-chip c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}</span></td>
-                    {fields.map(f => <td key={f.id} className={f.kind === "number" ? "number" : undefined}>{f.kind === "number" && card.values[f.id] ? numberFormat(locale).format(Number(card.values[f.id])) : card.values[f.id] ?? ""}</td>)}
+                    {fields.map(f => <td key={f.id} className={f.kind === "number" ? "number" : undefined}>{f.kind === "number" && card.values[f.id] ? written.numbers[card.values[f.id]!] ?? card.values[f.id] : card.values[f.id] ?? ""}</td>)}
                   </tr>
                 );
               })}

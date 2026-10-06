@@ -8,7 +8,7 @@ import type { Query, Sql } from "./db.ts";
 import { AppError } from "@argentic/chest-app";
 import { chestToday } from "./clock.ts";
 import { clean, day, fieldValue, id, limits, memberIds, memberPattern, time } from "../shared/model.ts";
-import { between } from "../shared/position.ts";
+import { between, sequence } from "../shared/position.ts";
 import { firstDue, parseRepeat, type Repeat } from "../shared/repeat.ts";
 import { makeNext, takeBack } from "./repeats.ts";
 
@@ -197,6 +197,24 @@ async function liveColumn(sql: Sql, boardId: string, columnId: unknown): Promise
   return { id: String(c.id), done: c.done };
 }
 
+// One writer of a column's order at a time: whatever reads the column's
+// edge or a neighbour's position to place a card does it in a transaction
+// that first locks the column's row. Two quick adds sent at once (a person
+// typing fast) or a move beside them would otherwise read the same edge and
+// give two cards one position, or put them out of the order typed.
+export async function lockColumn(tx: Query, columnId: string): Promise<void> {
+  await tx`select id from columns where id = ${columnId} for update`;
+}
+
+// The positions of a column written again in their present order (by key,
+// then id), apart from one card being placed. Heals a column where two
+// cards share a key (left by an earlier version's quick adds sent at once).
+async function respace(tx: Query, columnId: string, except: string): Promise<void> {
+  const rows = await tx<{ id: string }[]>`select id from cards where column_id = ${columnId} and id <> ${except} order by position, id`;
+  const keys = sequence(rows.length);
+  for (const [i, r] of rows.entries()) await tx`update cards set position = ${keys[i]!} where id = ${r.id}`;
+}
+
 // addCard puts a new card at the bottom of a column (or the top).
 export async function addCard(sql: Sql, actor: Member | null, boardId: unknown, columnId: unknown, title: unknown, options: { top?: boolean } = {}): Promise<CardSummary> {
   const b = await board(sql, actor, boardId, "write");
@@ -204,14 +222,15 @@ export async function addCard(sql: Sql, actor: Member | null, boardId: unknown, 
   const text = clean(title, limits.title);
   const [counted] = await sql<{ count: number }[]>`select count(*)::int as count from cards where board_id = ${b.id} and archived_at is null`;
   if ((counted?.count ?? 0) >= limits.cardsPerBoard) throw new AppError("too_many", { max: limits.cardsPerBoard });
-  const [edge] = options.top
-    ? await sql<{ position: string }[]>`select position from cards where column_id = ${c.id} and archived_at is null order by position asc limit 1`
-    : await sql<{ position: string }[]>`select position from cards where column_id = ${c.id} order by position desc limit 1`;
-  const position = options.top ? between(null, edge?.position ?? null) : between(edge?.position ?? null, null);
-  const created = await sql.begin(async tx => {
+  const { created, position } = await sql.begin(async tx => {
+    await lockColumn(tx, c.id);
+    const [edge] = options.top
+      ? await tx<{ position: string }[]>`select position from cards where column_id = ${c.id} and archived_at is null order by position asc limit 1`
+      : await tx<{ position: string }[]>`select position from cards where column_id = ${c.id} order by position desc limit 1`;
+    const position = options.top ? between(null, edge?.position ?? null) : between(edge?.position ?? null, null);
     const [row] = await tx<{ id: string }[]>`insert into cards (board_id, column_id, title, position, created_by, completed_at) values (${b.id}, ${c.id}, ${text}, ${position}, ${actor!.id}, ${c.done ? tx`now()` : null}) returning id`;
     await record(tx, String(row!.id), actor!.id, "created");
-    return String(row!.id);
+    return { created: String(row!.id), position };
   });
   return { id: created, columnId: c.id, title: text, position, due: null, dueTime: null, start: null, done: c.done, assignees: [], labels: [], checklist: { done: 0, total: 0 }, comments: 0, attachments: 0, hasDescription: false, repeats: false, values: {}, blockedBy: [], waiting: 0 };
 }
@@ -283,25 +302,38 @@ export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, 
   const { row, board: b } = await card(sql, actor, cardId, "write");
   if (row.archived_at) throw new AppError("forbidden");
   const c = await liveColumn(sql, b.id, columnId);
-  const neighbour = async (value: unknown): Promise<string | null> => {
-    if (value === null || value === undefined) return null;
-    const [n] = await sql<{ position: string }[]>`select position from cards where id = ${id(value)} and column_id = ${c.id} and archived_at is null and id <> ${row.id}`;
-    if (!n) throw new AppError("invalid");
-    return n.position;
+  const after = afterId === null || afterId === undefined ? null : id(afterId);
+  const before = beforeId === null || beforeId === undefined ? null : id(beforeId);
+  // The place between the two neighbours named, read with the column
+  // locked (lockColumn).
+  const place = async (tx: Query): Promise<string> => {
+    const neighbour = async (key: string | null): Promise<string | null> => {
+      if (key === null) return null;
+      const [n] = await tx<{ position: string }[]>`select position from cards where id = ${key} and column_id = ${c.id} and archived_at is null and id <> ${row.id}`;
+      if (!n) throw new AppError("invalid");
+      return n.position;
+    };
+    let low = await neighbour(after);
+    let high = await neighbour(before);
+    // Two neighbours with one key: the column's keys are written again.
+    if (low !== null && low === high) {
+      await respace(tx, c.id, row.id);
+      [low, high] = [await neighbour(after), await neighbour(before)];
+    }
+    // A stale page may name neighbours that moved: fall back to the bottom.
+    if (low !== null && high !== null && low >= high) {
+      const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${c.id} and id <> ${row.id} order by position desc limit 1`;
+      [low, high] = [edge?.position ?? null, null];
+    }
+    return between(low, high);
   };
-  let low = await neighbour(afterId);
-  let high = await neighbour(beforeId);
-  // A stale page may name neighbours that moved: fall back to the bottom.
-  if (low !== null && high !== null && low >= high) {
-    const [edge] = await sql<{ position: string }[]>`select position from cards where column_id = ${c.id} and id <> ${row.id} order by position desc limit 1`;
-    [low, high] = [edge?.position ?? null, null];
-  }
-  const position = between(low, high);
   const [was] = await sql<{ done: boolean }[]>`select done from columns where id = ${row.column_id}`;
   const completed = was?.done === c.done ? null : c.done;
   const open = completed === true ? await openBlockers(sql, row.id) : [];
   if (open.length > 0 && !options.force) throw new AppError("blocked", { count: open.length, title: open[0]! });
   const series = await sql.begin(async tx => {
+    await lockColumn(tx, c.id);
+    const position = await place(tx);
     await tx`update cards set column_id = ${c.id}, position = ${position}, updated_at = now(), completed_at = ${c.done ? (completed === null ? tx`completed_at` : tx`now()`) : null} where id = ${row.id}`;
     if (row.column_id !== c.id) await record(tx, row.id, actor!.id, completed === true ? (open.length > 0 ? "completed_anyway" : "completed") : completed === false ? "reopened" : "moved", { from: row.column_id, to: c.id });
     // A repeating card done makes its next one; reopened, it takes it back.
@@ -378,6 +410,7 @@ export async function moveToBoard(sql: Sql, actor: Member | null, cardId: unknow
   const completed = was?.done === to.column.done ? null : to.column.done;
   const result = await sql.begin(async tx => {
     const kept = await carry(tx, row.id, from, to.board);
+    await lockColumn(tx, to.column.id);
     const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${to.column.id} order by position desc limit 1`;
     await tx`update cards set board_id = ${to.board.id}, column_id = ${to.column.id}, position = ${between(edge?.position ?? null, null)}, updated_at = now(),
       completed_at = ${to.column.done ? (completed === null ? tx`completed_at` : tx`now()`) : null} where id = ${row.id}`;
@@ -415,6 +448,7 @@ export async function duplicateCard(sql: Sql, actor: Member | null, cardId: unkn
     const [source] = await tx<{ title: string; description: string; position: string; due_on: string | null; due_time: string | null; start_on: string | null }[]>`
       select title, description, position, to_char(due_on, 'YYYY-MM-DD') as due_on, due_time, to_char(start_on, 'YYYY-MM-DD') as start_on from cards where id = ${row.id}`;
     let position: string;
+    await lockColumn(tx, to.column.id);
     if (to.column.id === row.column_id) {
       const [next] = await tx<{ position: string }[]>`select position from cards where column_id = ${row.column_id} and position > ${source!.position} order by position limit 1`;
       position = between(source!.position, next?.position ?? null);
@@ -508,9 +542,15 @@ export async function addItem(sql: Sql, actor: Member | null, cardId: unknown, t
   const checklistId = await listOf(sql, row.id, options.checklist);
   const [counted] = await sql<{ count: number }[]>`select count(*)::int as count from checklist_items where card_id = ${row.id}`;
   if ((counted?.count ?? 0) >= limits.checkItemsPerCard) throw new AppError("too_many", { max: limits.checkItemsPerCard });
-  const [last] = await sql<{ position: string }[]>`select position from checklist_items where card_id = ${row.id} order by position desc limit 1`;
-  const position = between(last?.position ?? null, null);
-  const [created] = await sql<{ id: string }[]>`insert into checklist_items (card_id, text, position, checklist_id) values (${row.id}, ${value}, ${position}, ${checklistId}) returning id`;
+  // Steps typed fast are sent at once: one at a time per card (its row
+  // locked), so they keep the order typed.
+  const { created, position } = await sql.begin(async tx => {
+    await tx`select id from cards where id = ${row.id} for update`;
+    const [last] = await tx<{ position: string }[]>`select position from checklist_items where card_id = ${row.id} order by position desc limit 1`;
+    const position = between(last?.position ?? null, null);
+    const [created] = await tx<{ id: string }[]>`insert into checklist_items (card_id, text, position, checklist_id) values (${row.id}, ${value}, ${position}, ${checklistId}) returning id`;
+    return { created, position };
+  });
   return { id: String(created!.id), text: value, done: false, position, checklistId, assignee: null, due: null };
 }
 
@@ -718,16 +758,31 @@ export async function restoreComment(sql: Sql, actor: Member | null, commentId: 
 // the board; deleted for good only from the archive.
 export async function archiveCard(sql: Sql, actor: Member | null, cardId: unknown, archived: boolean): Promise<{ boardId: string; assignees: string[] }> {
   const { row, board: b } = await card(sql, actor, cardId, "write");
+  // Back into its column, or the board's first column if that one went.
+  let back: string | null = null;
   if (!archived) {
-    // Back into its column, or the board's first column if that one went.
     const [c] = await sql<{ id: string }[]>`select id from columns where id = ${row.column_id} and archived_at is null`;
-    if (!c) {
+    if (c) back = String(c.id);
+    else {
       const [first] = await sql<{ id: string }[]>`select id from columns where board_id = ${b.id} and archived_at is null order by position limit 1`;
       if (!first) throw new AppError("not_found");
-      await sql`update cards set column_id = ${first.id} where id = ${row.id}`;
+      back = String(first.id);
     }
   }
   await sql.begin(async tx => {
+    if (back !== null) {
+      // Its old key may have been given to another card meanwhile (keys
+      // are made between the cards shown): then it goes just after it.
+      await lockColumn(tx, back);
+      const [me] = await tx<{ position: string }[]>`select position from cards where id = ${row.id}`;
+      const [same] = await tx<{ id: string }[]>`select id from cards where column_id = ${back} and position = ${me!.position} and id <> ${row.id} limit 1`;
+      let position = me!.position;
+      if (same) {
+        const [next] = await tx<{ position: string }[]>`select position from cards where column_id = ${back} and position > ${position} order by position limit 1`;
+        position = between(position, next?.position ?? null);
+      }
+      await tx`update cards set column_id = ${back}, position = ${position} where id = ${row.id}`;
+    }
     await tx`update cards set archived_at = ${archived ? tx`now()` : null} where id = ${row.id}`;
     await record(tx, row.id, actor!.id, archived ? "archived" : "restored");
   });

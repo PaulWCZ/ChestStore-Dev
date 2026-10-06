@@ -2,6 +2,7 @@ import { AppError, createApp, dateFormat, log, page, publicPage, type ErrorCode 
 import { chest } from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
+import { stream } from "hono/streaming";
 import { actions } from "./actions.ts";
 import { answerLink, chestEvents, chestSchedules } from "./calls.ts";
 import { catalogue, format, intl, localeOf, locales, words } from "./i18n/index.ts";
@@ -144,20 +145,35 @@ app.get("/chest/posts/:id/confirmations", async c => {
     ];
     return download(toCsv(rows), "text/csv; charset=utf-8", `${t.csv.file}-${list.post.id}.csv`);
   } catch (error) {
-    if (error instanceof AppError) return c.body(null, error.code === "forbidden" ? 403 : 404);
+    if (error instanceof AppError) return c.body(null, 404);
     throw error;
   }
 });
 
-// "Download all posts": the posts the publisher sees, as one ZIP.
+// "Download all posts": the posts the publisher sees, as one ZIP written
+// while it is sent (one file of the Chest at a time in memory: the export
+// may hold 200 MB of files, a tool has 256 MiB). Who asks is checked
+// before the first byte; a failure halfway cuts the download (the browser
+// says it failed) and is logged.
 app.get("/chest/transfer/export", async c => {
+  let write: Awaited<ReturnType<typeof exportAll>>;
   try {
-    const zip = await exportAll(db(), c.get("viewer").member, chestZone());
-    return new Response(zip, { headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="news-${chest.today()}.zip"`, "Cache-Control": "private, no-store" } });
+    write = await exportAll(db(), c.get("viewer").member, chestZone());
   } catch (error) {
-    if (error instanceof AppError) return c.body(null, error.code === "forbidden" ? 403 : 404);
+    if (error instanceof AppError) return c.body(null, 404);
     throw error;
   }
+  c.header("Content-Type", "application/zip");
+  c.header("Content-Disposition", `attachment; filename="news-${chest.today()}.zip"`);
+  c.header("Cache-Control", "private, no-store");
+  return stream(c, async out => {
+    try {
+      await write(chunk => out.write(chunk).then(() => undefined));
+    } catch (error) {
+      log.error("export failed", error);
+      await out.abort();
+    }
+  });
 });
 
 // A Slack export, sent by the browser as it is (application/zip), read in
@@ -171,9 +187,8 @@ app.post("/chest/transfer/import", async c => {
   try {
     const actor = c.get("viewer").member;
     if (!can(actor, "publish")) throw new AppError("forbidden");
-    if (Number(c.req.header("content-length") ?? "0") > importLimits.size) return refuse("file_too_large", 413);
-    const bytes = new Uint8Array(await c.req.arrayBuffer());
-    if (bytes.byteLength > importLimits.size) return refuse("file_too_large", 413);
+    const bytes = await readAtMost(c.req.raw, importLimits.size);
+    if (!bytes) return refuse("file_too_large", 413);
     const channel = c.req.query("channel");
     if (!channel) return c.json({ channels: readSlack(bytes).channels }, 200, { "Cache-Control": "no-store" });
     const done = await importSlack(db(), actor, bytes, channel);
@@ -197,6 +212,36 @@ app.post("/chest-schedules", c => chestSchedules(c.req.raw));
 
 // ---- Helpers of the routes above.
 
+// A request's body, counted while it is read: null past `max` bytes (a
+// Content-Length that says more is refused before reading; a chunked body
+// stops at the limit, never read whole first).
+async function readAtMost(request: Request, max: number): Promise<Uint8Array | null> {
+  const declared = Number(request.headers.get("content-length") ?? "-1");
+  if (declared > max) return null;
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  // Known length: one buffer, filled in place; else the pieces, joined once.
+  const into = declared >= 0 ? new Uint8Array(declared) : null;
+  const pieces: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (size + value.byteLength > (into ? into.byteLength : max)) {
+      await reader.cancel();
+      return null;
+    }
+    if (into) into.set(value, size);
+    else pieces.push(value);
+    size += value.byteLength;
+  }
+  if (into) return size === into.byteLength ? into : into.subarray(0, size);
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const p of pieces) { all.set(p, at); at += p.byteLength; }
+  return all;
+}
+
 // A file to download, kept by no cache.
 function download(body: string, type: string, name: string): Response {
   return new Response(body, { headers: { "Content-Type": type, "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "private, no-store" } });
@@ -204,7 +249,7 @@ function download(body: string, type: string, name: string): Response {
 
 // A request the page itself sent: the browser says so (Sec-Fetch-Site),
 // or, for an older one, its Origin is this host (the rule of the actions,
-// src/core/http.tsx).
+// @argentic/chest-app; to move into the package).
 function sameOrigin(request: Request): boolean {
   const site = request.headers.get("sec-fetch-site");
   if (site) return site === "same-origin";

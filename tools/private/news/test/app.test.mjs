@@ -148,6 +148,16 @@ test("the Slack import: a ZIP read in memory, refused in the reader's words when
   assert.equal(notZip.status, 400);
   assert.match((await notZip.json()).message, /pas un export Slack/u);
   assert.equal((await send(hugo, archive)).status, 403);
+  // Past 50 MB: refused while it is read — a chunked body (no length said)
+  // stops at the limit, never read whole first.
+  let sent = 0;
+  const endless = new ReadableStream({ pull(controller) { sent += 1 << 20; controller.enqueue(new Uint8Array(1 << 20)); if (sent > 80 << 20) controller.close(); } });
+  const chunked = withMember(new Request(url("/chest/transfer/import"), { method: "POST", body: endless, duplex: "half", headers: { "content-type": "application/zip", "sec-fetch-site": "same-origin" } }), camille);
+  const big = await app.fetch(chunked);
+  assert.equal(big.status, 413);
+  assert.ok(sent <= 52 << 20, `read ${sent >> 20} MiB, not all 80`);
+  const declared = withMember(new Request(url("/chest/transfer/import"), { method: "POST", body: "x", headers: { "content-type": "application/zip", "content-length": String(60 << 20), "sec-fetch-site": "same-origin" } }), camille);
+  assert.equal((await app.fetch(declared)).status, 413, "a length said too large: refused before reading");
 });
 
 test("downloads: who confirmed as CSV, the event as .ics, every post as a ZIP; a file through a fresh link", async () => {
@@ -155,7 +165,7 @@ test("downloads: who confirmed as CSV, the event as .ics, every post as a ZIP; a
   assert.equal(csv.status, 200);
   assert.equal(csv.headers.get("content-type"), "text/csv; charset=utf-8");
   assert.match(csv.headers.get("content-disposition"), /^attachment; filename="read-confirmations-4\.csv"$/u);
-  assert.equal((await get(hugo, "/chest/posts/4/confirmations")).status, 403);
+  assert.equal((await get(hugo, "/chest/posts/4/confirmations")).status, 404, "a publisher's download does not exist for a reader, as the composer");
   const ics = await get(hugo, "/chest/posts/3/calendar");
   assert.equal(ics.status, 200);
   assert.match(await ics.text(), /^BEGIN:VCALENDAR\r\n/u);
@@ -163,7 +173,7 @@ test("downloads: who confirmed as CSV, the event as .ics, every post as a ZIP; a
   const zip = await get(camille, "/chest/transfer/export");
   assert.equal(zip.status, 200);
   assert.equal(zip.headers.get("content-type"), "application/zip");
-  assert.equal((await get(hugo, "/chest/transfer/export")).status, 403);
+  assert.equal((await get(hugo, "/chest/transfer/export")).status, 404);
   assert.equal((await get(hugo, "/chest/files/999")).status, 404);
 });
 
