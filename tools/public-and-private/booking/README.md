@@ -205,7 +205,9 @@ or confirm their hours.
 | `/lang/<code>` | The public part's language switch |
 | `/chest`, `/chest/bookings/<id>`, `/chest/new`, `/chest/types…`, `/chest/hours`, `/chest/settings`, `/chest/export` | The team's part |
 | `/chest/api/slots` | The free times a host sees (booking for a guest, moving a meeting) |
-| `/chest-events`, `/chest-jobs/<name>` | Deliveries from the Chest (signed) |
+| `/chest-events`, `/chest-schedules` | Deliveries from the Chest (signed): the members' lifecycle and other tools' events; the runs of `chest.json`'s schedules |
+| `/chest/look.css`, `/look.css` | The look of the team's and of the public pages, a stylesheet (src/theme.ts) |
+| `POST /chest/actions/<name>`, `POST /actions/<name>` | The team's and the public part's actions (`src/actions.ts`) |
 
 ## Looks
 
@@ -220,7 +222,7 @@ the company's own. **The public pages** (a host's page, a guest's booking,
 that button) wear the company's brand when it has one and Booking's own
 identity otherwise — never a catalogue theme chosen for the team, never
 the Chest's sheet (kit 0.2.3, `surface: "public"`). The look is resolved on
-the server (`lib/theme.ts`, `lib/look.ts`, `chest.theme()`), written in one `<style>` with the page's nonce; every
+the server (`src/theme.ts`, `chest.theme()`) and served as a stylesheet of its own — `/chest/look.css` for the team's pages, `/look.css` for the public ones, linked with its hash, never an inline `<style>`; every
 text stays readable (WCAG AA) in every look. Screens:
 `docs/screens/*-chest-*`, `*-theme-*`, `*-brand-*`.
 
@@ -283,7 +285,7 @@ visitor), `host` (a host for them), `import`. `company` is null: the form
 does not ask it (a host may ask it as one of their questions; answers are
 not sent). Never the guest's note, their answers or their link. `path`
 opens the booking for a member who may see it:
-`chest.toolLink("booking", path)`.
+`chest.tools.link("booking", path)`.
 
 What a receiver (Clients) does: declare `"receives": ["booking.confirmed",
 "booking.cancelled"]`; on each, find or create the contact by
@@ -305,7 +307,7 @@ does).
 
 ## On a Chest
 
-- `public: true`, `csp: "tool"`; `capabilities`: `database`, `members`
+- `public: true` (no `csp` permission: no inline script nor style, the Chest's default policy holds); `capabilities`: `database`, `members`
   (names, roles), `notifications`; `receives: ["member.*"]`; `network`:
   the four calendar hosts (the owner approves "Can reach
   calendar.google.com", …). Nothing else leaves the tool. Proposals:
@@ -334,10 +336,13 @@ does).
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), a packed copy in
-`vendor/`. The member's `language` and the Chest's `organization.name`,
-`timeZone` and `language` are the released 0.3.0; what follows is not in
-it yet.
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), a packed copy in
+`vendor/`, tool contract 0.4 (`"chest": "0.4"`; `chest check` says OK).
+The member's `language`, the Chest's `organization.name`, `timeZone`,
+`language`, the tool's addresses (`chest.tool.publicUrl`,
+`chest.tool.teamUrl`: the company's own domain once connected) and the
+schedules (`chest.json` `schedules`, posted to `/chest-schedules`) are the
+released 0.4.1; what follows is not in it yet.
 
 - **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`).
   Without it the tool works: the guest keeps their page's link (shown
@@ -349,19 +354,24 @@ it yet.
   Every email's key carries its recipient, and each event's key the guest
   (studio.16): after a restore from a backup, a booking's id can name
   another guest's meeting.
-- **Scheduled tasks** — **Proposal (studio)**: `reminders` (hourly) and
-  `cleanup` (nightly). Without them, no reminder is sent and bookings are
-  kept until an administrator erases them.
+- **Scheduled tasks** (0.4.1, `chest.json`): `reminders` (hourly),
+  `cleanup` (nightly) and `calendars` (every 15 minutes); each run is
+  handled once (`chest_events`, the same store as the events).
 - **Photos on the public host**: the Chest's photo links work on the team
   host only; public pages show initials.
-- **The Chest's addresses** — **Proposal (studio)** (`chest.publicUrl`,
-  `chest.teamUrl`): the public host's address; on a Chest that does not
-  give it yet, the address is derived from the request (remembered for
-  emails sent by a schedule). The company's name (an administrator may
+- **The Chest's addresses** (0.4.1, `chest.tool.publicUrl`,
+  `chest.tool.teamUrl`): outside a Chest (they throw there) the public
+  address is derived from the request, and the last one seen is
+  remembered for emails sent by a schedule. The company's name (an administrator may
   name it otherwise for visitors) and the default time zone of new hosts
   are the Chest's (`chest.organization.name`, `chest.timeZone`, 0.3.0).
-- **The visitor's address** for the booking form's counters is read from
-  `X-Forwarded-For`, assumed set by the Chest's front.
+- **The visitor's address** for the booking form's counters —
+  **Proposal (studio)** (`visitors.address()`, the header
+  `Chest-Visitor-Address` the front would set; never `X-Forwarded-For`,
+  which the visitor writes). Without it every visitor counts together:
+  the form is then bounded by its counters for everyone — 200 bookings
+  and changes an hour, 1,000 over the last 24 hours, kept in the database
+  (`form_counts`) — not per visitor.
 - **`calendar`** — **Proposal (studio)** (`chest.proposals.json`:
   `"calendar": true`): each booking in its host's Chest calendar feed.
   Without it, the tool's own private feed (Settings) remains.
@@ -384,8 +394,9 @@ it yet.
   reminder and the host's own notice honour the choice, beside the
   host's "Email me" setting.
 - **Being shown in another website**: the Chest's front adds
-  `frame-ancestors 'none'` to every public response, even with `csp:
-  "tool"` (contract, "Public host", `FloorCSP`), and two policies combine,
+  `frame-ancestors 'none'` to every public response (its default policy,
+  and its floor even with `csp: "tool"`: contract, "Public host"), and two
+  policies combine,
   so **the frame code cannot work on a Chest today**: the Chest needs a
   permission that lets an administrator allow the company's websites
   (see the SDK report). The button code works today.
@@ -399,16 +410,34 @@ it yet.
 
 ## Develop
 
+Hono and React rendered on the server, a few islands in the browser, built
+by Vite — the studio's starter, its machinery the package
+`@argentic/chest-app` (`vendor/`). `AGENTS.md` says where things are.
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build
+npm run dev       # rebuilds on every change and restarts the server
+npm run build     # tsc, then the browser's files and the server (dist/)
+npm test          # tsc, the server built into dist/test, then test/*.test.*:
+                  # PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+npm start         # the built server, as the Chest runs it
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --reset --port 5100`
+In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --reset --prod --port 5100`
 (the `/_dev` page shows the outbox, the bell, and runs the schedules),
 `node lab/chest-dev/flows/booking.mjs 5100`,
 `node lab/chest-dev/screens.mjs tools/public-and-private/booking --port 5100`.
+
+## Measured
+
+`lab/measure/` (6 October 2026, Node 24.21, the studio's 4-CPU container;
+12 pages of `lab/measure/pages/booking.json`, then 30 s at rest, median of
+5; results in `lab/measure/results/after-hono/booking.json`), Next.js 16
+before → this stack: memory at rest (PSS of the tree, `npm` included)
+140 → 79 MiB, the server alone 119 → 58 MiB PSS (176 → 117 MiB RSS);
+first page after a cold start 679 → 369 ms; image 461 → 31 MiB; the build
+fits the Chest's 512 MiB / 1 CPU container (it did not: OOM), peak
+255 MiB PSS, 1.4 s.
 
 ## What it does not do (yet)
 
