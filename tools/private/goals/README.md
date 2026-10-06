@@ -68,7 +68,7 @@ Weekdone, 15Five OKRs — or the OKR spreadsheet** — for a company of 10 to
   results wait for your weekly update") in the bell **and by email** —
   unless the person unticks *Also email me…* at the bottom of *My goals*,
   and as they chose in their Chest settings for every tool (all, one a
-  day, none: `mailPreference`, studio.15, applied by the Chest; *My goals*
+  day, none: `mail.preference()`, applied by the Chest; *My goals*
   says so under the switch when it holds emails back). When the Chest
   cannot send email (`mail.available()`, studio.16: mail not granted, the
   company's mail not connected, sending suspended), *My goals* says
@@ -190,19 +190,19 @@ owner, the admins and the tool's builders come in with the first role.
 | `/chest/import` (`?cycle=`), `/chest/import/example` | admins | import a spreadsheet; an example file to fill |
 | `/chest/settings` | admins | personal objectives, teams, needs a new owner |
 | `/chest-events` | the Chest only (signed) | members' lifecycle; deals won or reopened in Clients (the CRM) |
-| `/chest-jobs/<name>` | the Chest only (signed) | scheduled tasks (proposal) |
+| `/chest-schedules` | the Chest only (signed) | the runs of `chest.json`'s schedules |
 | `/` | anyone | "Goals lives in your Chest" |
 
 ## On a Chest
 
 - `capabilities`: `database`; `members` (names, photos, groups for teams);
-  `notifications` (the bell and the tile's number); `receives: ["member.*"]`.
+  `notifications` (the bell and the tile's number); `receives: ["member.*"]`;
+  `schedules` `reminder` (Friday 08:45) and `week` (Monday 06:50).
   Proposals (studio, `chest.proposals.json`): `mail.send` (the Friday
   reminder and *Remind* by email, to `{member}`: the tool never knows an
   address), `groups: "read"` with `receives` `group.*` (every group of the
   Chest may become a team; without it, only the groups that give Goals),
-  `receives` of the other tools' events (see *With the other tools*),
-  `schedules`.
+  `receives` of the other tools' events (see *With the other tools*).
 - **Fed by Clients (the CRM)**: once an admin links Clients to Goals in the
   Chest, each deal won or reopened there reaches Goals; a key result fed by
   it shows the amount won (in its currency; deals in another currency are
@@ -240,7 +240,7 @@ and ignores any other; an event of another shape is accepted and ignored,
 never half-kept. References are 1–64 of `A-Z a-z 0-9 . _ : -`; people are
 member ids (`mbr_…`). Goals keeps only what a count needs — a reference,
 the people named, a board, when — never a title, a customer's words or a
-candidate's name (`lib/sources.ts`, `lib/crm.ts`; table `fed_events`).
+candidate's name (`src/lib/sources.ts`, `src/lib/crm.ts`; table `fed_events`).
 
 | Event (sender) | Data Goals reads | Feeds | Status |
 |---|---|---|---|
@@ -287,13 +287,13 @@ form from then on) — both need a query between tools (below).
 ## Needs from the SDK
 
 The tool runs on the SDK working copy vendored in `vendor/`: SDK 0.3.0 +
-studio proposals (0.3.1-studio.1).
+studio proposals (0.4.1-studio.4), on the tool contract 0.4 (`"chest": "0.4"` in `chest.json`).
 
 - `member.language` (0.3.0): the interface and the bell in each member's
   language.
 - `chest` (0.3.0): `chest.timeZone`, `chest.today()`, `chest.language`;
   `chest.currency` is a **Proposal (studio)**.
-- **Scheduled tasks** — **Proposal (studio)**, in `chest.proposals.json`:
+- **Schedules** (contract 0.4, in `chest.json`, posted to `/chest-schedules`):
   `reminder` (Friday 08:45: the weekly update reminder) and `week` (Monday
   06:50: every tile's number for the new week). **Without schedules** the
   tool works: badges are set whenever someone updates, changes an owner or
@@ -301,8 +301,8 @@ studio proposals (0.3.1-studio.1).
   the Chest to run schedules.
 - `mail` — **Proposal (studio)**: the Friday reminder and *Remind* by email.
   Keys `reminder:<day>:<member>` / `nudge:<day>:<member>`, passed whole
-  (studio.15); not transactional: the member's `mailPreference` applies
-  (read with `members.get`: the assertion never carries it).
+  not transactional: the member's Chest-wide email choice applies
+  (read with `mail.preference()`: the assertion never carries it).
   Without it, nothing fails: the bell still says it. `mail.available()`
   (studio.16) says beforehand whether email can go, so the page never
   promises one the Chest cannot send.
@@ -311,7 +311,7 @@ studio proposals (0.3.1-studio.1).
 - `groups: "read"` — **Proposal (studio)**: every group of the Chest may
   become a team (`members.groups.all`, `members.groups.members`, `group.*`
   events), and a member's groups are `members.groups.of(id)`
-  (`lib/groups.ts`: who writes for a team, who reads its confidential
+  (`src/lib/groups.ts`: who writes for a team, who reads its confidential
   objectives); without it, only the groups that give Goals.
 - `chest.theme()` — **Proposal (studio)**: the company's look (a catalogue
   theme or its brand); outside a Chest that has it, Goals wears its own.
@@ -330,12 +330,30 @@ studio proposals (0.3.1-studio.1).
     while the Chest refuses) cannot say when the card was done, so one done
     at a cycle's last minute and told after midnight counts in the next.
 
+## How it is made
+
+Hono and React rendered on the server, a few islands in the browser, built
+by Vite — the studio's starter, its machinery the vendored package
+`@argentic/chest-app` (`node_modules/@argentic/chest-app/AGENTS.md`).
+Pages are `src/pages/`, every change an action of `src/actions.ts` read
+field by field, the rules and SQL in `src/lib/`. The look is served as its
+own stylesheet (`/chest/look.css`): no inline script or style, the strict
+policy on every page. A page read again with nothing changed answers 304
+(its version: `src/lib/stamp.ts`), and pages read themselves again only
+while their reader is active (`useAutoRefresh`): the Chest can put Goals
+to sleep. Measured on the studio's machine (lab/measure, 6 October 2026,
+Node 24.21, the same 12 pages): at rest 68 MiB PSS (Next.js: 126), first
+answer after a cold start 501 ms (913), image 29 MiB (457), `npm ci` and
+the build fit 512 MiB.
+
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm test          # types, the server built into dist/test, node:test; TEST_DATABASE_URL for a real PostgreSQL, else PGlite
+npm run build     # types, the browser's files and the server (Vite), as the Chest does
+npm start         # the built server, as the Chest runs it
+npm run dev       # rebuilds on every change
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/goals --reset --port 5600`

@@ -1,19 +1,20 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { POST } from "../app/chest-events/route.ts";
-import { addComment } from "../lib/comments.ts";
-import { checkIn } from "../lib/key-results.ts";
-import { createObjective } from "../lib/objectives.ts";
-import { orphans, reassign } from "../lib/orphans.ts";
-import { cycleObjectives } from "../lib/read.ts";
-import { clockAt, tellAdminsOfOrphans } from "../lib/tell.ts";
-import { AppError } from "../lib/app-error.ts";
+import { addComment } from "../src/lib/comments.ts";
+import { checkIn } from "../src/lib/key-results.ts";
+import { createObjective } from "../src/lib/objectives.ts";
+import { orphans, reassign } from "../src/lib/orphans.ts";
+import { cycleObjectives } from "../src/lib/read.ts";
+import { clockAt, tellAdminsOfOrphans } from "../src/lib/tell.ts";
+import { AppError } from "../src/lib/app-error.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, sofia } from "./support/members.ts";
+import { server, type Server } from "./support/server.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";
 
 let w: World;
-before(async () => { w = await world(); });
+let POST: Server;
+before(async () => { w = await world(); POST = await server(); });
 after(async () => { await w.close(); });
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
@@ -29,6 +30,7 @@ test("someone leaves: their goals stay, marked as needing a new owner, and the a
   assert.deepEqual(await orphans(sql), []);
   // The Chest now reads Inès as a former member.
   w.chest.members.splice(w.chest.members.findIndex(m => m.id === ines.id), 1);
+  w.chest.clearCaches();
   const event = { type: "member.removed" as const, id: "evt_" + "r".repeat(26), data: { id: ines.id } };
   assert.equal(await w.chest.emit(event, POST), 204);
   assert.equal(await w.chest.emit(event, POST), 204);

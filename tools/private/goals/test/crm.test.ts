@@ -1,20 +1,21 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { createObjective } from "../lib/objectives.ts";
-import { checkIns, objectiveById } from "../lib/read.ts";
-import { clockAt } from "../lib/tell.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
+import { createObjective } from "../src/lib/objectives.ts";
+import { checkIns, objectiveById } from "../src/lib/read.ts";
+import { clockAt } from "../src/lib/tell.ts";
 import { asMember } from "./support/member.ts";
 import { camille, ines } from "./support/members.ts";
+import { server, type Server } from "./support/server.ts";
 import { running, world, type World } from "./support/world.ts";
 
 // Key results fed by Clients (the CRM), through the events it publishes
 // (Proposal (studio): events between tools): "Amount won" and "Deals won"
 // follow each deal won or reopened in the cycle's dates; nobody types them.
 let w: World;
-before(async () => { w = await world(); });
+let POST: Server;
+before(async () => { w = await world(); POST = await server(); });
 after(async () => { await w.close(); });
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
