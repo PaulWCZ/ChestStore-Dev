@@ -177,9 +177,10 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
     setPending(null);
     if (!r.ok) return;
     const from = r.value.from;
+    const notAll = r.value.failed > 0 ? " " + plural(t.board.notAll, r.value.failed, locale) : "";
     toast({
       id: `move-many-${Object.keys(from).sort().join("-")}`,
-      text: plural(t.board.movedMany, Object.keys(from).length, locale, { stage: stageName(to) }),
+      text: plural(t.board.movedMany, Object.keys(from).length, locale, { stage: stageName(to) }) + notAll,
       undo: async () => {
         const back = await call("bulkMoveBack", Object.fromEntries(Object.entries(from).map(([id, stage]) => [`c${id}`, stage])) as never, { quiet: true });
         return back.ok || back.message;
@@ -192,8 +193,12 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
     stopSelecting();
     const r = await call("bulkReject", { ids, reason, send });
     if (!r.ok) return;
-    const { done, seconds, at } = r.value;
-    if (done.length === 0) return;
+    const { done, failed, seconds, at } = r.value;
+    const notAll = failed > 0 ? " " + plural(t.board.notAll, failed, locale) : "";
+    if (done.length === 0) {
+      if (notAll) toast({ id: `reject-many-failed`, text: notAll.trim() });
+      return;
+    }
     const emailed = send && !isCandidateReason(reason);
     const id = `reject-many-${done.join("-")}`;
     let undone = false;
@@ -201,7 +206,7 @@ export function BoardView({ jobId, stages, cards, rejected, perStage, manage, lo
     // over, the toast says they left.
     toast({
       id,
-      text: plural(emailed ? t.board.rejectedManyEmailed : t.board.rejectedMany, done.length, locale, { seconds }),
+      text: plural(emailed ? t.board.rejectedManyEmailed : t.board.rejectedMany, done.length, locale, { seconds }) + notAll,
       ...(emailed ? { duration: seconds * 1000 } : {}),
       undo: async () => {
         undone = true;

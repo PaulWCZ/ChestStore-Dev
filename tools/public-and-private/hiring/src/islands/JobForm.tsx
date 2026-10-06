@@ -147,6 +147,7 @@ export function JobForm({ job, start: from, defaultLanguage, defaultCountry, cou
       <fieldset className="salary questions-editor">
         <legend className="label">{w.questions} <span className="optional">{w.optional}</span></legend>
         <p className="hint tight-top">{w.questionsHint}</p>
+        <p className="hint">{w.questionsForbidden}</p>
         {questions.map((q, i) => (
           <div key={q.id || i} className="question-row">
             <div className="question-top">

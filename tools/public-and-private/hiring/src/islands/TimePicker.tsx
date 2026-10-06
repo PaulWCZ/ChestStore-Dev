@@ -2,7 +2,7 @@ import { Honeypot, send } from "@argentic/chest-app/client";
 import { useState, type FormEvent } from "react";
 import { format } from "../shared/format.ts";
 
-type Words = { legend: string; confirm: string; confirming: string; choose: string; more: string };
+type Words = { legend: string; confirm: string; confirming: string; choose: string; more: string; gone: string };
 
 // The free times, a group of radio buttons per day (the arrows move within
 // a day); the chosen one is said on the one button that confirms it. On a
@@ -22,9 +22,10 @@ export function TimePicker({ token, days, zoneNote, t }: { token: string; days: 
     if (!chosen) return setError(t.choose);
     setError(null);
     setPending(true);
-    const outcome = await send<null>("/actions/chooseTime", {}, new FormData(event.currentTarget), { quiet: true });
+    const outcome = await send<{ gone: true } | null>("/actions/chooseTime", {}, new FormData(event.currentTarget), { quiet: true });
     setPending(false);
-    if (!outcome.ok) {
+    if (outcome.ok && outcome.value?.gone) setError(t.gone);
+    else if (!outcome.ok) {
       setError(outcome.message);
       // Taken meanwhile: the times are read again (the refresh), the choice cleared.
       if (outcome.error === "taken") setChosen(null);

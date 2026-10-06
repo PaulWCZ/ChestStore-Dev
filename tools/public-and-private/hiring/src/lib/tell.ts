@@ -62,9 +62,15 @@ export async function withdrawAsk(candidateId: string, memberId: string): Promis
   await withdraw(`candidate:${candidateId}:asked`, [memberId]);
 }
 
-// A candidate settled (rejected, erased): nothing about them waits.
+// A candidate settled (rejected): nothing about them waits.
 export async function settled(candidateId: string): Promise<void> {
   for (const reason of ["new", "asked", "reply"]) await withdraw(`candidate:${candidateId}:${reason}`);
+}
+
+// Candidates gone (erased, past the retention): every bell item that
+// named them is withdrawn, for everyone (the keys candidates.forget read).
+export async function forgotten(keys: Iterable<string>): Promise<void> {
+  for (const key of new Set(keys)) await withdraw(key);
 }
 
 export async function refreshBadges(sql: Sql): Promise<void> {
@@ -135,4 +141,13 @@ export async function emailInterviewers(list: Today[], time: (start: string) => 
 // sent the link hear of it.
 export async function chosen(people: string[], c: { id: string; name: string }, i: { id: string; start: string }, time: (start: string, locale: string) => string): Promise<void> {
   await notify(people, (t, locale) => ({ title: format(t.bell.chosen, { name: cut(c.name, 40), time: time(i.start, locale) }) }), { path: path(c.id), key: `interview:${i.id}:chosen` });
+}
+
+// The candidate gave back their time (to choose another) or called the
+// interview off: the people who meet them and who sent the link hear it;
+// the items about that time go.
+export async function released(people: string[], c: { id: string; name: string }, i: { id: string; start: string }, what: "another" | "off", time: (start: string, locale: string) => string): Promise<void> {
+  await withdraw(`interview:${i.id}:chosen`);
+  await withdraw(`interview:${i.id}:today`);
+  await notify(people, (t, locale) => ({ title: format(what === "another" ? t.bell.rechose : t.bell.declined, { name: cut(c.name, 40), time: time(i.start, locale) }) }), { path: path(c.id), key: `interview:${i.id}:${what === "another" ? "rechose" : "declined"}` });
 }

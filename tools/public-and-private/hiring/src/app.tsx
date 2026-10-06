@@ -24,7 +24,7 @@ import { feedData, salaryWords, xml } from "./lib/public-feed.ts";
 import { publicOrigin } from "./lib/public-origin.ts";
 import { indeedFeed, rssFeed, sitemap } from "./lib/reach.ts";
 import { shareDueBusy, takeBusy } from "./lib/share.ts";
-import { interviewsToday, refreshBadges } from "./lib/tell.ts";
+import { forgotten, interviewsToday, refreshBadges } from "./lib/tell.ts";
 import { zipStream } from "./lib/zip.ts";
 import { candidatePage, candidateVersion } from "./pages/candidate.tsx";
 import { applyPage, careersPage, jobPage, thanksPage } from "./pages/careers.tsx";
@@ -198,6 +198,9 @@ routes.post("/chest-schedules", async c => new Response(null, {
       const at = new Date(run.scheduledAt);
       const gone = await cleanup(sql, at);
       await cv.remove(gone.objects);
+      await forgotten(gone.notices);
+      // Files the Chest could not delete before: tried again.
+      await cv.removeLeft(sql);
       await cv.sweep(at);
       // Template files no template holds any more (taken off, deleted).
       await sweepTemplateFiles(sql, at);
@@ -244,7 +247,9 @@ export const app = {
     const headers = new Headers(response.headers);
     headers.set("X-Robots-Tag", "noindex, nofollow");
     if (first === "interview") {
-      headers.set("Referrer-Policy", "no-referrer");
+      // The secret leaves no other site: sent only back to this one (a
+      // form without JavaScript returns to its page, its refusal said).
+      headers.set("Referrer-Policy", "same-origin");
       headers.set("Cache-Control", "no-store");
     }
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });

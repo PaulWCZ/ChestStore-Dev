@@ -20,6 +20,7 @@ import { publicOrigin } from "./lib/public-origin.ts";
 import * as selfSchedule from "./lib/self-schedule.ts";
 import * as share from "./lib/share.ts";
 import * as tell from "./lib/tell.ts";
+import { AppError } from "./shared/app-error.ts";
 import { meetingTime } from "./shared/format.ts";
 import { isCandidateReason, jobStates, languages, limits, memberPattern, recommendations, rejectReasons } from "./shared/model.ts";
 import { timeOf } from "./shared/time.ts";
@@ -67,6 +68,39 @@ async function isTeam(memberId: string, jobId: string): Promise<boolean> {
 
 // The tile's numbers, once the answer is sent (never in an action's way).
 const badges = () => after("badges", () => tell.refreshBadges(db()));
+
+// each runs one change per candidate of a bulk action: one refused (an
+// AppError: erased meanwhile, not the reader's) is counted and the others
+// go on; anything else stops the rest, which are counted as failed too —
+// unless nothing was done yet, then it is the action's error.
+async function each(list: readonly string[], done: readonly string[], run: (id: string) => Promise<void>): Promise<number> {
+  let failed = 0;
+  for (const [i, id] of list.entries()) {
+    try {
+      await run(id);
+    } catch (error) {
+      if (error instanceof AppError) failed++;
+      else if (done.length === 0) throw error;
+      else return failed + list.length - i;
+    }
+  }
+  return failed;
+}
+
+// The public actions' bounds, a day in the Chest's zone (the package's
+// bound: per visitor — a cookie, no Chest names visitors yet —, per
+// subject and for everyone). Per job: a flood on one job's form closes
+// that job for the day and leaves the others open, until everyone's total;
+// the numbers are the most a company of up to 200 people reads in a day,
+// not what a busy day brings (README "Visitors").
+export const publicBounds = {
+  upload: { perVisitor: 20, perSubject: 120, perDay: 1500 },
+  apply: { perVisitor: 20, perSubject: 60, perDay: 600 },
+  choose: { perVisitor: 30, perSubject: 10, perDay: 500 },
+  release: { perVisitor: 10, perSubject: 4, perDay: 200 },
+  // A secret that names no link: its own budget, never a link's.
+  unknown: { perVisitor: 30, perDay: 1000 },
+} as const;
 
 // Tells People of a hire (or of one taken back): Proposal (studio), events
 // between tools; nothing is told when the Chest cannot take it.
@@ -188,15 +222,17 @@ export const actions = {
   // bulkReject rejects several candidates of a job with one reason, each
   // with the rejection email in their own language when asked — every
   // email waiting for the Undo like one rejection's. Says who was rejected.
-  bulkReject: action({ ids: ids(), reason: field.choice(rejectReasons), send: field.bool() }, async ({ ids: list, reason, send }, { member }): Promise<{ done: string[]; seconds: number; at: string }> => {
+  // One that cannot be rejected (erased meanwhile, no longer the
+  // reader's) does not undo the others: the answer says how many failed.
+  bulkReject: action({ ids: ids(), reason: field.choice(rejectReasons), send: field.bool() }, async ({ ids: list, reason, send }, { member }): Promise<{ done: string[]; failed: number; seconds: number; at: string }> => {
     const sql = db();
     const at = new Date(Date.now() - 1000).toISOString();
     if (list.length === 0) fail("invalid");
     const s = await jobs.settings(sql);
     const done: string[] = [];
-    for (const id of list) {
+    const failed = await each(list, done, async id => {
       const before = await candidates.load(sql, member, id);
-      if (before.candidate.status !== "active") continue;
+      if (before.candidate.status !== "active") return;
       const c = await candidates.reject(sql, member, id, reason, "");
       if (await candidates.isHiredStage(sql, c.stageId)) await share.hireCancelled(c.id);
       await interviews.requeue(sql, { candidate: c.id });
@@ -206,10 +242,10 @@ export const actions = {
         await messages.queue(sql, member, c.id, { kind: "rejection", subject: draft.subject, text: draft.text, delaySeconds: messages.undoSeconds });
       }
       done.push(c.id);
-    }
+    });
     after("rejected told", async () => { for (const id of done) await tell.settled(id); });
     badges();
-    return { done, seconds: messages.undoSeconds, at };
+    return { done, failed, seconds: messages.undoSeconds, at };
   }),
   // undoReject: the Undo of a rejection, of one candidate or several. They
   // are back where they were, and their rejection emails still waiting
@@ -231,17 +267,19 @@ export const actions = {
   }),
   // bulkMove moves several candidates of a job to one stage (never into
   // "hired": each hire asks its first day). Says where each was, for Undo.
-  bulkMove: action({ ids: ids(), stage: ref() }, async ({ ids: list, stage }, { member }): Promise<{ from: Record<string, string> }> => {
+  bulkMove: action({ ids: ids(), stage: ref() }, async ({ ids: list, stage }, { member }): Promise<{ from: Record<string, string>; failed: number }> => {
     const sql = db();
     if (list.length === 0 || (await candidates.isHiredStage(sql, stage))) fail("invalid");
     const from: Record<string, string> = {};
-    for (const id of list) {
+    const moved: string[] = [];
+    const failed = await each(list, moved, async id => {
       const done = await candidates.move(sql, member, id, stage);
       if (done.from.id !== done.to.id) from[id] = done.from.id;
+      moved.push(id);
       if (done.from.hired && !done.to.hired) await share.hireCancelled(done.candidate.id);
-    }
+    });
     badges();
-    return { from };
+    return { from, failed };
   }),
   // bulkMoveBack: the Undo of a bulk move (candidate → the stage it left).
   bulkMoveBack: action({ from: field.keyed(/^c([1-9][0-9]{0,17})$/u, ref(), limits.bulk) }, async ({ from }, { member }): Promise<null> => {
@@ -346,7 +384,7 @@ export const actions = {
     if (gone.wasHired) await share.hireCancelled(id);
     after("erased told", async () => {
       await interviews.flushCalendars(db());
-      await tell.settled(id);
+      await tell.forgotten(gone.notices);
     });
     badges();
     return { jobId: gone.jobId };
@@ -441,6 +479,9 @@ export const actions = {
   }, { maxBody: 1 << 20 }),
 
   // ---- The careers page (public): anyone on the Internet may call these.
+  // Their bounds (publicBounds, below the actions) are per job and per
+  // interview link: a robot that floods one job's form closes that job's
+  // form for the day, never the others' (README "Visitors").
   // They hold no member and reveal nothing but "received". The package
   // bounds each (publicAction's bound): the page's single-use form token,
   // the field only robots fill (<Honeypot />), so many calls a day per
@@ -452,16 +493,17 @@ export const actions = {
   // the browser is a claim (Proposal (studio): files.publicUploadUrl).
   // Without public uploads on this Chest: cv_off — the form asks for a
   // link instead.
-  publicCvUpload: publicAction({ slug: field.text({ max: 80 }), ...upload }, async ({ slug, type, size }): Promise<{ url: string }> => {
+  publicCvUpload: publicAction({ slug: field.text({ max: 80 }), ...upload }, async ({ slug, type, size }, { charge }): Promise<{ url: string }> => {
     const sql = db();
-    await candidates.openJob(sql, slug);
+    const job = await candidates.openJob(sql, slug);
+    await charge("upload", { subject: `job:${job.id}` });
     try {
       return { url: (await cv.publicGrant(type, size)).url };
     } catch (error) {
       if (error instanceof CapabilityNotGranted) fail("cv_off");
       throw error;
     }
-  }, { bound: { perVisitor: 20, perDay: 500, formSeconds: 3 }, parallel: true }),
+  }, { bound: { budgets: { upload: publicBounds.upload }, formSeconds: 3 }, parallel: true }),
 
   // The application. Sent, the thank-you page (nothing of the candidate in
   // its address); a confirmation email in the candidate's language.
@@ -469,9 +511,10 @@ export const actions = {
     slug: field.text({ max: 80 }), name: words(limits.name), email: words(limits.email), phone: words(limits.phone), link: words(limits.link), coverLetter: words(limits.coverLetter),
     cv: field.optional(field.text({ max: 200 })), cvName: words(limits.fileName), pool: field.bool(), lang: words(5),
     answers: field.keyed(/^answer:(q[a-z0-9]{1,12})$/u, words(limits.answer), limits.questions),
-  }, async (input): Promise<null> => {
+  }, async (input, { charge }): Promise<null> => {
     const sql = db();
     const job = await candidates.openJob(sql, input.slug);
+    await charge("apply", { subject: `job:${job.id}` });
     const file = input.cv ? await cv.take(input.cv, input.cvName) : null;
     const { candidate } = await candidates.apply(sql, {
       slug: job.slug, name: input.name, email: input.email, phone: input.phone, link: input.link, coverLetter: input.coverLetter,
@@ -492,16 +535,21 @@ export const actions = {
       await tell.refreshBadges(db());
     });
     redirect(`/${job.slug}/thanks${mailed ? "?mailed=1" : ""}`);
-  }, { bound: { perVisitor: 20, perDay: 500, formSeconds: 3 } }),
+  }, { bound: { budgets: { apply: publicBounds.apply }, formSeconds: 3 } }),
 
   // A candidate chooses their interview time, from the link they received
   // (/interview/<secret>): the secret is the only key; counted per link
   // once it is known. Then the page says when ("taken": the times left).
-  chooseTime: publicAction({ token: field.text({ max: 64 }), slot: field.text({ max: 20 }) }, async ({ token, slot }, { charge }): Promise<null> => {
+  // A secret that names no link spends a budget of its own and answers
+  // "gone" without a refusal: guessing secrets never closes a real link.
+  chooseTime: publicAction({ token: field.text({ max: 64 }), slot: field.text({ max: 20 }) }, async ({ token, slot }, { charge }): Promise<{ gone: true } | null> => {
     const sql = db();
     const link = await selfSchedule.known(sql, token);
-    if (!link) fail("not_found");
-    await charge("choose", { subject: link!.id });
+    if (!link) {
+      await charge("unknown");
+      return { gone: true };
+    }
+    await charge("choose", { subject: link.id });
     const [day, time] = slot.split(" ");
     const done = await selfSchedule.choose(sql, token, { day, time }, async id => {
       const person = (await peopleOf([id])).get(id);
@@ -515,5 +563,26 @@ export const actions = {
       await tell.chosen([...new Set([...done.request.people, done.request.createdBy])].filter(id => id.startsWith("mbr_")), done.candidate, done.interview, (start, locale) => meetingTime(start, zone, locale));
     });
     return null;
-  }, { bound: { budgets: { choose: { perVisitor: 30, perDay: 500, perSubject: 10 } } } }),
+  }, { bound: { budgets: { choose: publicBounds.choose, unknown: publicBounds.unknown } } }),
+
+  // The candidate gives back the time they chose — to choose another, or
+  // to call the interview off — from the same link, until it starts. The
+  // people who meet them and who sent the link hear it.
+  releaseTime: publicAction({ token: field.text({ max: 64 }), what: field.choice(["another", "off"] as const) }, async ({ token, what }, { charge }): Promise<{ gone: true } | null> => {
+    const sql = db();
+    const link = await selfSchedule.known(sql, token);
+    if (!link) {
+      await charge("unknown");
+      return { gone: true };
+    }
+    await charge("release", { subject: link.id });
+    const done = await selfSchedule.release(sql, token, what);
+    after("interview given back told", async () => {
+      await interviews.flushCalendars(db());
+      await share.shareBusy(db(), done.interview.people);
+      const zone = chest.timeZone;
+      await tell.released([...new Set([...done.interview.people, done.request.createdBy])].filter(id => id.startsWith("mbr_")), done.candidate, done.interview, what, (start, locale) => meetingTime(start, zone, locale));
+    });
+    return null;
+  }, { bound: { budgets: { release: publicBounds.release, unknown: publicBounds.unknown } } }),
 };

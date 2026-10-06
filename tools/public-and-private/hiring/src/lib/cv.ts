@@ -4,7 +4,8 @@ import * as files from "@argentic/chest-sdk/files";
 import { AppError } from "../shared/app-error.ts";
 import type { Cv } from "./candidates.ts";
 import { sign, verify } from "./signature.ts";
-import { clean, cvTypes, isCvType, limits, sniff, type CvType } from "../shared/model.ts";
+import { clean, cvTypes, isCvType, limits, type CvType } from "../shared/model.ts";
+import { db, type Query } from "./db.ts";
 
 // CVs, in three steps around the browser's own upload to the Chest:
 //
@@ -21,9 +22,12 @@ import { clean, cvTypes, isCvType, limits, sniff, type CvType } from "../shared/
 // 3. accept (a ticket) or take (a claim): with the application, the ticket
 //    or the claim comes back; the tool checks the signature, or trades the
 //    claim once (a visitor can only attach what they sent themselves),
-//    then the file itself — of a CV's type, 10 MiB at most, its first
-//    bytes of that type — and moves it to cv/. A file that fails is
-//    deleted. A visitor's upload nobody claims is deleted by the Chest
+//    then what the Chest says of the file — of a CV's type, 10 MiB at
+//    most — and moves it to cv/. Its first bytes were checked by the
+//    Chest when it took the upload (an address names its types; a file
+//    whose first bytes are not of its type is refused, type_mismatch): the
+//    tool never reads a CV to accept it, so a burst of applications costs
+//    no memory. A file that fails is deleted. A visitor's upload nobody claims is deleted by the Chest
 //    after a day (expiresUnclaimedAfter); a recruiter's, by the nightly
 //    cleanup (sweep).
 // A ticket names a recruiter's upload (team); a visitor's is a claim.
@@ -93,8 +97,9 @@ export async function take(claim: unknown, fileName: unknown): Promise<Cv> {
   }
 }
 
-// keep checks a file the Chest holds (its declared type, its size, its
-// first bytes) and moves it to the folder; refused, it is deleted.
+// keep checks a file the Chest holds (its type and size, as the Chest
+// says them: it checked the first bytes at upload) and moves it to the
+// folder; refused, it is deleted.
 async function keep(name: string, type: string, size: number, fileName: unknown, folder: Folder): Promise<Cv> {
   const refuse = async (code: "cv_invalid" | "cv_too_large") => {
     await files.delete(name).catch(() => false);
@@ -103,8 +108,6 @@ async function keep(name: string, type: string, size: number, fileName: unknown,
   if (size > limits.cvSize) throw await refuse("cv_too_large");
   const declared = type.split(";")[0]!.trim().toLowerCase();
   if (!isCvType(declared)) throw await refuse("cv_invalid");
-  const body = await files.get(name);
-  if (!body || sniff(body.data.subarray(0, 16)) !== declared) throw await refuse("cv_invalid");
   const extension = cvTypes[declared];
   const kept = `${folder}/${randomBytes(10).toString("hex")}.${extension}`;
   await files.move(name, kept);
@@ -160,14 +163,46 @@ export async function accept(ticket: unknown, kind: Kind, fileName: unknown, fol
 // remove deletes the tool's files from the Chest (erasure, a replaced CV,
 // the retention): CVs, the files received emails brought (mail/, stored
 // by the Chest), the careers page's images (public/brand/). A file
-// already gone is fine; nothing else of the tool's files is ever deleted.
+// already gone is fine; one the Chest could not delete now is kept in
+// files_gone and tried again by the nightly cleanup (removeLeft) — an
+// erased CV never survives silently. Nothing else of the tool's files is
+// ever deleted.
+export const isOurs = (object: string): boolean =>
+  /^(cv|sent|templates|uploads\/(public|team))\/[0-9a-f]{20}\.(pdf|docx?|jpg|png|heic)$/u.test(object)
+  || /^public\/brand\/[0-9a-f]{20}\.(png|jpg|webp)$/u.test(object)
+  || (/^mail\/[^\s]{1,400}$/u.test(object) && !object.includes(".."));
+
 export async function remove(objects: Iterable<string>): Promise<void> {
+  const left: string[] = [];
   for (const object of objects) {
-    const ours = /^(cv|sent|templates|uploads\/(public|team))\/[0-9a-f]{20}\.(pdf|docx?|jpg|png|heic)$/u.test(object)
-      || /^public\/brand\/[0-9a-f]{20}\.(png|jpg|webp)$/u.test(object)
-      || (/^mail\/[^\s]{1,400}$/u.test(object) && !object.includes(".."));
-    if (ours) await files.delete(object).catch(() => false);
+    if (!isOurs(object)) continue;
+    try {
+      await files.delete(object);
+    } catch {
+      left.push(object);
+    }
   }
+  if (left.length > 0) {
+    await db()`insert into files_gone (object) select unnest(${db().array(left)}::text[]) on conflict do nothing`;
+  }
+}
+
+// removeLeft tries again the files the Chest could not delete; each gone
+// (or already gone) leaves the list. Run by the nightly cleanup.
+export async function removeLeft(sql: Query, max = 500): Promise<{ removed: number; left: number }> {
+  const rows = await sql<{ object: string }[]>`select object from files_gone order by since limit ${max}`;
+  let removed = 0;
+  for (const { object } of rows) {
+    try {
+      await files.delete(object);
+      await sql`delete from files_gone where object = ${object}`;
+      removed++;
+    } catch {
+      await sql`update files_gone set tries = tries + 1 where object = ${object}`;
+    }
+  }
+  const [count] = await sql<{ n: number }[]>`select count(*)::int as n from files_gone`;
+  return { removed, left: count?.n ?? 0 };
 }
 
 // copy gives a CV a second file (the same person considered for another

@@ -143,8 +143,12 @@ decides together.
 - **GDPR / CNIL**: candidates are deleted with their CV and their emails'
   files 2 years (or 1 year, 6 months: *Settings*) after their last news
   (an answer by email is news), every night (Proposal *schedules*); CVs
-  sent but never claimed go after a day; a recruiter erases a candidate
-  on request, or gives them their data (a ZIP: what they sent, what the
+  sent but never claimed go after a day; every bell item that named a
+  deleted candidate is withdrawn (new, asked, answered, bounced, feedback
+  given, an interview today, chosen, given back or called off); a file
+  the Chest could not delete then is kept in `files_gone` and deleted by
+  the next night's cleanup — an erased CV never survives silently; a
+  recruiter erases a candidate on request, or gives them their data (a ZIP: what they sent, what the
   team wrote, the emails, and the files of those emails both ways — the
   offer letter sent, what they attached — under `emails/<email>/`, named
   in `data.json`); the form and each job page say it. Each job's
@@ -237,13 +241,15 @@ A member with no role sees why, not an error.
 Every route is in `src/app.tsx`; every action in `src/actions.ts`, posted
 by the pages' islands (or a plain form without JavaScript) to
 `/chest/actions/<name>` (members) or `/actions/<name>` (visitors:
-`publicCvUpload`, `apply`, `chooseTime`, each bounded per visitor and per
-day, a form older than 3 s, a honeypot).
+`publicCvUpload`, `apply`, `chooseTime`, `releaseTime`, each bounded per
+visitor, per job or link and per day, a form older than 3 s, a honeypot:
+"Visitors" below).
 
 | Route | Who | What |
 |---|---|---|
 | `/`, `/<job>`, `/<job>/apply`, `/<job>/thanks` | anyone | The careers page |
 | `POST /actions/publicCvUpload` | anyone (bounded) | Ask for one CV upload: the Chest's upload address; the file is claimed when the application is sent |
+| `POST /actions/releaseTime` | the candidate who got the link (bounded) | Give back a booked time: choose another, or call the interview off |
 | `/lang/<code>` | anyone | The language switch |
 | `/interview/<secret>` | the candidate who got the link | Choose an interview time (never indexed, `no-store`, no referrer) |
 | `/jobs.xml`, `/feed.xml`, `/sitemap.xml`, `/robots.txt` | anyone | Indeed's feed, RSS, sitemap, robots |
@@ -354,9 +360,31 @@ them as if shipped and keeps working without them:
   page a recruiter opens after its Undo, and there is no morning reminder.
 - **Visitors**: a contract-0.4 Chest names no visitor. The public
   actions are bounded by the package's `bound` in the tool's own table
-  (`chest_bounds`): per visitor (a cookie key), per day, per interview
-  link, a form at least 3 s old and a honeypot; never a call to the Chest
-  per public request (the mail state and the look are kept a minute).
+  (`chest_bounds`), a day in the Chest's zone (`publicBounds` in
+  `src/actions.ts`), with a form at least 3 s old and a honeypot; never a
+  call to the Chest per public request (the mail state and the look are
+  kept a minute).
+
+  | | Per browser (cookie) | Per job or link | Everyone |
+  |---|--:|--:|--:|
+  | Applications | 20 | 60 per job | 600 |
+  | CVs sent | 20 | 120 per job | 1,500 |
+  | Choosing an interview time | 30 | 10 per link | 500 |
+  | Giving a time back | 10 | 4 per link | 200 |
+  | A link secret that names nothing | 30 | — | 1,000 |
+
+  **What this does not stop, said plainly:** a robot that throws its
+  cookie away can send 60 junk applications a day to one job; that job's
+  form then says "This job has received all the applications it can take
+  today. Try again tomorrow, or contact the company: <website>" (the
+  website from Settings, when there is one) until midnight, and every
+  other job stays open. Flooding ten jobs reaches everyone's total and
+  closes the careers page's forms for the day. Each junk application is a
+  card, a bell item and a confirmation email (greeted "Hello," when the
+  name holds a link or an address). A guessed interview link spends a
+  budget of its own and is never a refusal: it never closes a real link.
+  Naming visitors by their address (the studio's proposal
+  `Chest-Visitor-Address`) would make all of this per person.
 - **Events between tools** (`events.publish`, `receives`): without them,
   People is not told of hires, Booking does not see interviews, and free
   times come from Hiring's interviews only (no Booking, no days off).
@@ -411,8 +439,11 @@ upload one.
   still waiting is not a day off). An interviewer who is not a Booking host, or has not connected
   a calendar there, is known by Hiring's interviews only; Booking's own
   reading lags up to about 15 minutes. Lunch is fixed at 12:00–14:00 (not
-  per company yet). The candidate cannot move a time they chose (they
-  answer the email; the recruiter moves it), and the recruiter cannot
+  per company yet). A candidate who booked can give the time back on
+  their link — to choose another while the link's days last, or to call
+  the interview off — until it starts (the people who meet them and who
+  sent the link are told in their bell); after the link's last day they
+  answer the email instead. The recruiter cannot
   offer hand-picked times. The `.ics` is a PUBLISH file ("add to my
   calendar", same UID for every version), not an iTIP invitation with
   Accept/Decline buttons.

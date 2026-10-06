@@ -367,6 +367,8 @@ function line(a: Activity, t: Catalogue, name: (id: string | null) => string, zo
     case "interview_link": return format(w.interviewLink, { actor, names: list("people") });
     case "interview_link_cancelled": return format(w.interviewLinkCancelled, { actor });
     case "interview_chosen": return format(w.interviewChosen, { when: meetingTime(String(d["at"] ?? ""), zone, locale), names: list("people") });
+    case "interview_rechosen": return format(w.interviewRechosen, { when: meetingTime(String(d["at"] ?? ""), zone, locale) });
+    case "interview_declined": return format(w.interviewDeclined, { when: meetingTime(String(d["at"] ?? ""), zone, locale) });
     case "interview_cancelled": return format(w.interviewCancelled, { actor, when: meetingTime(String(d["at"] ?? ""), zone, locale) });
     case "considered": return d["to"] ? format(w.proposed, { actor, job: String(d["job"] ?? "") }) : format(w.considered, { actor });
     case "imported": return format(w.imported, { actor, origin: String(d["origin"] || t.candidate.anotherTool) });

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, jobAccess, roleOf, type JobAccess } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
@@ -114,26 +113,6 @@ export async function manageable(sql: Query, actor: Member | null, candidateId: 
 }
 
 // ---- The careers page's form -----------------------------------------------
-
-// The form's guard: 10 applications an hour from one address (a hash of it),
-// 200 an hour from everyone; a honeypot field; a form sent faster than a
-// person can type is refused (lib/form-token.ts).
-export const formLimits = { perVisitorHour: 10, perHour: 200, uploadsPerVisitorHour: 10, minimumSeconds: 3 } as const;
-
-export async function guard(sql: Query, visitor: string, kind: "apply" | "upload" = "apply"): Promise<void> {
-  const hour = new Date(Math.floor(Date.now() / 3600000) * 3600000);
-  const key = (kind === "apply" ? "v:" : "u:") + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
-  const all = kind === "apply" ? "all" : "all-uploads";
-  const counts = await sql<{ key: string; count: number }[]>`
-    insert into form_counts (key, hour, count) values (${key}, ${hour}, 1), (${all}, ${hour}, 1)
-    on conflict (key, hour) do update set count = form_counts.count + 1
-    returning key, count`;
-  const mine = counts.find(c => c.key === key)?.count ?? 0;
-  const everyone = counts.find(c => c.key === all)?.count ?? 0;
-  const perVisitor = kind === "apply" ? formLimits.perVisitorHour : formLimits.uploadsPerVisitorHour;
-  if (mine > perVisitor || everyone > formLimits.perHour) throw new AppError("too_many");
-  await sql`delete from form_counts where hour < ${new Date(hour.getTime() - 86400000)}`;
-}
 
 // pool: the optional box "keep me in mind for other jobs". Applying needs
 // no consent (the application is handled to take steps before a contract,
@@ -539,45 +518,55 @@ export async function waitingOn(sql: Sql, actor: Member | null): Promise<Waiting
 // erase deletes everything of one candidate (their right to erasure: they
 // are not members, the company answers for them). Says the CV's file, to
 // delete from the Chest.
-export async function erase(sql: Sql, actor: Member | null, candidateId: unknown): Promise<{ objects: string[]; wasHired: boolean; jobId: string }> {
+export async function erase(sql: Sql, actor: Member | null, candidateId: unknown): Promise<{ objects: string[]; notices: string[]; wasHired: boolean; jobId: string }> {
   if (!can(actor, "candidates.erase")) throw new AppError("forbidden");
   return sql.begin(async tx => {
     const { candidate: c, cvObject } = await manageable(tx, actor, candidateId, true);
     const wasHired = c.status === "active" && (await isHiredStage(tx, c.stageId));
-    const objects = [...(cvObject ? [cvObject] : []), ...(await forget(tx, [c.id]))];
+    const left = await forget(tx, [c.id]);
     await tx`delete from candidates where id = ${c.id}`;
-    return { objects, wasHired, jobId: c.jobId };
+    return { objects: [...(cvObject ? [cvObject] : []), ...left.objects], notices: left.notices, wasHired, jobId: c.jobId };
   });
 }
 
 // forget prepares candidates' deletion: the files of their emails (what
-// they brought, the originals, what the team sent them), and their
-// interviews' calendar events, which
-// leave the interviewers' calendars at the next flush.
-async function forget(tx: Query, ids: string[]): Promise<string[]> {
-  if (ids.length === 0) return [];
+// they brought, the originals, what the team sent them), their
+// interviews' calendar events, which leave the interviewers' calendars at
+// the next flush, and the keys of every bell item that names them (read
+// before the rows go: who gave feedback, which interviews) — withdrawn
+// by tell.forgotten, so no name stays in a member's bell.
+async function forget(tx: Query, ids: string[]): Promise<{ objects: string[]; notices: string[] }> {
+  if (ids.length === 0) return { objects: [], notices: [] };
   await tx`insert into calendar_gone (key) select 'interview:' || i.id from interviews i where i.candidate_id in ${tx(ids)} and i.calendar <> 'off' on conflict do nothing`;
   const files = await tx<{ attachments: { file?: string }[]; original: string | null }[]>`select attachments, original from messages where candidate_id in ${tx(ids)}`;
-  return files.flatMap(f => [...(Array.isArray(f.attachments) ? f.attachments.map(a => a.file).filter((x): x is string => typeof x === "string") : []), ...(f.original ? [f.original] : [])]);
+  const authors = await tx<{ candidate_id: string; author: string }[]>`select candidate_id::text, author from feedback where candidate_id in ${tx(ids)} and author <> 'erased'`;
+  const held = await tx<{ id: string }[]>`select id::text from interviews where candidate_id in ${tx(ids)}`;
+  const notices = [
+    ...ids.flatMap(id => noticeKinds.map(kind => `candidate:${id}:${kind}`)),
+    ...authors.map(a => `candidate:${a.candidate_id}:gave:${a.author.slice(4, 20)}`),
+    ...held.flatMap(i => ["today", "chosen", "rechose", "declined"].map(kind => `interview:${i.id}:${kind}`)),
+  ];
+  return { objects: files.flatMap(f => [...(Array.isArray(f.attachments) ? f.attachments.map(a => a.file).filter((x): x is string => typeof x === "string") : []), ...(f.original ? [f.original] : [])]), notices };
 }
+// The bell items keyed by the candidate alone (src/lib/tell.ts).
+export const noticeKinds = ["new", "asked", "reply", "bounced"] as const;
 
 // cleanup deletes the candidates whose last activity is older than the
 // retention (CNIL: two years after the last contact by default), with
 // their CVs and the files of their emails; emails never filed to a
 // candidate go after the same time. Run every night by the "cleanup"
 // schedule; safe to run twice.
-export async function cleanup(sql: Sql, now = new Date()): Promise<{ candidates: number; objects: string[] }> {
+export async function cleanup(sql: Sql, now = new Date()): Promise<{ candidates: number; objects: string[]; notices: string[] }> {
   const { retentionMonths } = await settings(sql);
   const before = new Date(now);
   before.setUTCMonth(before.getUTCMonth() - retentionMonths);
   return sql.begin(async tx => {
     const old = (await tx<{ id: string }[]>`select id from candidates where last_activity_at < ${before}`).map(r => String(r.id));
-    const extra = await forget(tx, old);
+    const left = await forget(tx, old);
     const stray = await tx<{ attachments: { file?: string }[]; original: string | null }[]>`delete from messages where candidate_id is null and created_at < ${before} returning attachments, original`;
     const gone = old.length ? await tx<{ cv_object: string | null }[]>`delete from candidates where id in ${tx(old)} returning cv_object` : [];
-    await tx`delete from form_counts where hour < ${new Date(now.getTime() - 86400000)}`;
     const strayFiles = stray.flatMap(f => [...(Array.isArray(f.attachments) ? f.attachments.map(a => a.file).filter((x): x is string => typeof x === "string") : []), ...(f.original ? [f.original] : [])]);
-    return { candidates: gone.length, objects: [...gone.map(r => r.cv_object).filter((o): o is string => o !== null), ...extra, ...strayFiles] };
+    return { candidates: gone.length, objects: [...gone.map(r => r.cv_object).filter((o): o is string => o !== null), ...left.objects, ...strayFiles], notices: left.notices };
   });
 }
 

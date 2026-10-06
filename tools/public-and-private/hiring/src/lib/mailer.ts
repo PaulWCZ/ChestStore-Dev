@@ -77,10 +77,23 @@ export function values(c: { name: string; language: string }, job: { title: stri
 }
 
 // confirm: the application arrived, in the language of the careers page
-// the candidate applied on.
+// the candidate applied on. Anyone may type any name and any address on
+// the form: the email greets with the first word of the name only, and
+// only when it reads as a name (letters, an apostrophe or a hyphen, 30 at
+// most), and never for a name holding a link or an address, so the company's mail cannot carry
+// a stranger's message to someone else.
+export function greeted(name: string): string | null {
+  // A name that holds a link or an address anywhere is no name.
+  if (/@|:\/\/|www\.|\.\p{L}{2,}/iu.test(name)) return null;
+  const first = name.trim().split(/\s+/u)[0] ?? "";
+  return /^\p{L}[\p{L}\p{M}'’-]{0,29}$/u.test(first) ? first : null;
+}
+
 export function confirmation(c: { name: string; language: string }, job: { title: string }, company: string, careers: string | null): { subject: string; text: string } {
   const t = wordsFor(c.language).mail;
-  const v = { ...values(c, job, company, ""), careers: careers ?? "" };
+  const first = greeted(c.name);
+  const hello = first ? format(t.confirmHello, { firstName: first }) : t.confirmHelloBare;
+  const v = { ...values(c, job, company, ""), name: "", firstName: first ?? "", hello, careers: careers ?? "" };
   return { subject: format(t.confirmSubject, v), text: format(careers ? t.confirmBody : t.confirmBodyNoLink, v) };
 }
 
