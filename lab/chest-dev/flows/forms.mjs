@@ -191,7 +191,9 @@ await step("on a phone, a French visitor: the English form speaks English, one q
   await visitor.locator(".button.form-button", { hasText: "OK" }).click();
   expect((await visitor.locator(".q-error").innerText()).includes("Check the email address"), "email refused");
   await visitor.locator("input.answer-input").fill("nina@example.com");
-  await visitor.keyboard.press("Enter");
+  // A copy goes only when the visitor asks for it, under the email question.
+  await visitor.getByLabel("Email me a copy of my answers").check();
+  await visitor.locator(".button.form-button", { hasText: "OK" }).click();
   expect(/^\d+% done$/u.test(await visitor.locator(".step-count").innerText()), "a percentage, not a total that changes");
   await visitor.locator("label.pill", { hasText: "Yes" }).tap();
   await visitor.waitForSelector("text=Which dessert?");
@@ -312,6 +314,25 @@ await step("a form in two languages: French visitors read the French version, ot
   await g.goto(origin + "/p4x8vn2c");
   expect((await g.locator(".runner-title").innerText()).startsWith("Open day") && (await g.locator(".form-button").innerText()).includes("Send"), "English for an English visitor");
   expect((await g.locator(".ck-languages a").count()) === 2, "the switch offers the form's two languages");
+  await en.close();
+});
+
+await step("the keyboard from the page: Enter on the start page starts (as it says); a page of questions sent empty says so in one alert, a link to each", async () => {
+  const en = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  await en.addCookies([{ name: "lang", value: "en", url: origin }]);
+  const v = await en.newPage();
+  await v.goto(origin + "/k7m2fq9d");
+  await v.waitForSelector(".runner-start");
+  await v.keyboard.press("Enter");
+  await v.waitForSelector(".step", { timeout: 5000 });
+  expect(await v.locator(".step [role=heading][aria-level='1']").count() === 1, "the question is the page's heading");
+  await v.goto(origin + "/p4x8vn2c");
+  await v.locator(".classic-page button[type=submit]").click();
+  await v.waitForSelector(".fix-list a");
+  // (The kit's empty live regions — toasts, a file's problems — say nothing.)
+  const said = v.locator("[role=alert]").filter({ hasText: /\S/u });
+  expect(await said.count() === 1, "one alert: " + (await said.allInnerTexts()).join(" | "));
+  expect(await v.locator(".fix-list a").count() >= 1, "a link to each question");
   await en.close();
 });
 

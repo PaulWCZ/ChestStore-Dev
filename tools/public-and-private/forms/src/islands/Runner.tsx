@@ -1,7 +1,7 @@
 import { DateField, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import type { DateWords, FileWords } from "@argentic/chest-ui/components/logic";
 import { call, Honeypot, type ErrorCode } from "@argentic/chest-app/client";
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Arrow, Back, Check, Down, StarIcon, Up } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, plural } from "../shared/format.ts";
@@ -427,8 +427,8 @@ export function Runner(props: RunnerProps) {
   }, [picked]);
 
   const field = (q: Question, number: number | null, autofocus: boolean) => (
-    <Fragment key={q.id}>
     <QuestionField
+      key={q.id}
       q={q.title.includes("{") || q.help.includes("{") ? { ...q, title: say(q.title), help: say(q.help) } : q}
       number={number}
       value={raw[q.id]}
@@ -448,14 +448,15 @@ export function Runner(props: RunnerProps) {
       preview={mode === "preview"}
       pictures={props.pictures ?? {}}
       today={props.today}
+      {...(q.id === copyAt ? {
+        after: (
+          <label className="check copy-ask">
+            <input type="checkbox" checked={wantCopy} onChange={e => setWantCopy(e.target.checked)} />
+            {w.copyAsk}
+          </label>
+        ),
+      } : {})}
     />
-    {q.id === copyAt && (
-      <label className="check copy-ask">
-        <input type="checkbox" checked={wantCopy} onChange={e => setWantCopy(e.target.checked)} />
-        {w.copyAsk}
-      </label>
-    )}
-    </Fragment>
   );
 
   const shell = (children: ReactNode, progress: number | null) => (
@@ -660,6 +661,8 @@ type FieldProps = {
   preview: boolean;
   pictures: Record<string, string>;
   today: string;
+  // Under the field, inside the question (a public form's "Email me a copy").
+  after?: ReactNode;
 };
 
 function QuestionField(p: FieldProps) {
@@ -754,6 +757,7 @@ function QuestionField(p: FieldProps) {
         {control}
         {q.kind === "long" && q.max && <p className="q-count" aria-hidden="true">{format(w.lengthMax, { count: [...text].length, max: q.max })}</p>}
         {error}
+        {p.after}
       </div>
     );
   }

@@ -25,6 +25,8 @@ React rendered on the server, islands, Vite): read it first. Forms' own:
 | `src/lib/access.ts`, `creators.ts` | **Who may do what** — roles, a member's level on a form (`owner`, `editor`, `viewer`; others `not_found`), who may create |
 | `src/lib/forms.ts` | Forms: open (with level), list, team forms, create, save draft (revision), publish (versions), discard, close/reopen, settings, share, duplicate, delete/restore |
 | `src/lib/answers.ts` | Taking an answer (`submit`: version, files, limit, once, the anonymous rewrite in one statement), reading (neighbours by window), filters, follow-up under a row lock, delete/restore, find and erase a person, retention cleanup |
+| `src/lib/flood.ts` | **What anyone on the Internet can make a form do**: the public budgets (`publicLimits`; a form whose answers reach Clients, Support, a web address or an email spends `reaching`), the log lines when a form's day runs low |
+| `src/lib/reach.ts` | Views of a form's page (`form_views`), the completion rate and the answers per day on the summary |
 | `src/lib/stats.ts`, `export.ts`, `csv.ts`, `downloads.ts` | The summary's counts in SQL (`answerStats`), a bounded sample of anonymous texts; CSV rows (formula-safe, `;` in French), the CSV and the ZIP streamed by batches of 500 |
 | `src/lib/respond.ts` | The one path from a respondent's page: `take()` = submit + events + web addresses + copy by email (none when Support took it: `supportConfirms`) + `answers.sent` + bell |
 | `src/lib/uploads.ts`, `signature.ts`, `images.ts` | Files: grant (public claim via `files.publicUploadUrl` / team signed ticket), accept (claim, type, size, first bytes, move to `answers/<form>/`), sweep, signed links; covers and pictures (`files.publicPath`) |
@@ -33,7 +35,7 @@ React rendered on the server, islands, Vite): read it first. Forms' own:
 | `src/lib/hooks.ts` | Each answer to web addresses (Proposal webhooks): add/remove/retry, `told()` on `webhook.disabled` |
 | `src/lib/embed.ts`, `settings.ts`, `public-origin.ts` | The websites allowed to frame the public forms; the tool's settings; the two hosts' addresses (`chest.tool.publicUrl`/`teamUrl`, never built by hand) |
 | `src/lib/importer.ts`, `templates.ts`, `lifecycle.ts`, `people.ts`, `versions.ts` | Google Forms / Typeform → a draft (pure); templates; members leaving or erased; names from the Chest (`no_access`, `erased`); page versions |
-| `migrations/` | 0001 to 0005 (`0005_chest.sql`: the package's `chest_bounds` and `chest_seen`): never edit one that shipped |
+| `migrations/` | 0001 to 0006 (`0005_chest.sql`: the package's `chest_bounds` and `chest_seen`; `0006_reach.sql`: the shared-device switch, hidden fields, views): never edit one that shipped |
 | `test/` | The services (`*.test.ts` on a real database or PGlite), the built server (`app.test.mjs`), the scale test (`scale.test.ts`: 10,000 answers, the server in its own process, peak memory from `/proc`), the stack's rules (`sources.test.ts`); `support/` |
 | `seed/sample.sql`, `docs/` | Sample forms of the studio's cast; screens (`docs/screens.json`) |
 
@@ -104,6 +106,15 @@ npm run dev                               # scripts/dev.mjs: Vite and the server
 - Every page saves by itself (one model): a new editing island calls
   `guardLinks(waiting, flush)` and `sendOnLeave` (`src/shared/leave.ts`),
   so a link or a closed tab never loses what waits.
+- **A public copy is not a relay**: off by default, sent only when the
+  visitor ticks it, holding only the form's own words (`copyText`
+  `ownWordsOnly`), one an address a day and `copyLimits` a form an hour
+  (`src/lib/mailer.ts`, `test/abuse.test.ts`). Never put a typed text or
+  a link in it.
+- An anonymous form's answers keep the form's language and the latest
+  version; its questions are locked once answered (`skeleton()`, publish).
+- A form takes `limits.maxAnswers` (10,000) at most, in the statement
+  that takes the place.
 - The public part never asks the Chest per request (addresses, names,
   members are read where a member is), never lists members, and its two
   actions stay `bound`; a new public action is `bound` too.
