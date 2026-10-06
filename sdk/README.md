@@ -909,7 +909,7 @@ MIT (`LICENSE`), © 2026 Argentic.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the README of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.5**: that release,
+0.4.1, word for word. This package is **0.4.1-studio.6**: that release,
 unchanged, plus the studio's proposals — what the store's tools needed that
 0.4.1 does not give. Each is designed as it would ship: a module or an
 export, its route on the Chest's API, a fake in `testing`, its tests. On a
@@ -918,7 +918,14 @@ real Chest these routes do not exist yet: a call throws
 the tool's own look), and the tool stays useful without them. Nothing here
 is published.
 
-Studio versions: **studio.5** — the owner's mail decisions of 6 October
+Studio versions: **studio.6** — studio.5 with its refusals tightened, no
+name or signature changed: `mail.send` refuses any control character (not
+only CR/LF) in a subject, `fromName` and an attachment's name and type,
+malformed attachments, and `MBR_…` in any case as a member; the fake Chest
+refuses the same (a tool that bypassed the SDK) and an attachment of a
+file the tool does not have; `broadcast` refuses a `to` naming neither
+roles nor groups (`to: {}` was everyone), and the fake's broadcast to a
+group the tool does not know tells nobody. **studio.5** — the owner's mail decisions of 6 October
 2026: `mail` is for people **outside** the company only (`{member}` and
 `mbr_…` recipients refused, `invalid_recipient`; no mailboxes, no received
 mail, no threads, no `preference`, no `transactional`; `available()` says
@@ -1220,14 +1227,17 @@ language the store does not speak, `en` as a translation, another field.
 const { delivered } = await notifications.broadcast(
   { title: "Please read: we move on 2 November", path: "/chest/posts/4", key: "post:4",
     translations: { fr: { title: "À lire : nous déménageons le 2 novembre" } } },
-  { to: { roles: ["reader"], groups: ["grp_…"] },   // optional: either matches; none = everyone with the tool
+  { to: { roles: ["reader"], groups: ["grp_…"] },   // optional: either matches; to left out = everyone with the tool
     except: [author] },                              // optional: the author, those who already answered
 );
 ```
 
 One call tells everyone who has the tool (or the members of some roles or
 groups — any group the tool knows: those that give it, or every group
-with `members.groups`). The Chest resolves the members and delivers in the
+with `members.groups`; another group tells nobody). Leave `to` out to tell
+everyone; a `to` that names neither roles nor groups (`to: {}`, or `{
+groups: undefined }` from a setting not filled in) is refused
+(`invalid_body`), never read as everyone. The Chest resolves the members and delivers in the
 background; a key replaces each member's earlier item of that key. **No
 fixed cap on members or groups** — `except` and `to.groups` take any
 number; the request is bounded by its size (1 MiB: about 30,000
@@ -1293,7 +1303,10 @@ await mail.send({
 
 Refusals: `ChestError` `invalid_recipient` (a member: notify them),
 `invalid_address`, `invalid_message` (before anything is sent: recipients
-1–50, a subject without line breaks, an unknown field — `mailbox`,
+1–50; a subject, `fromName` and an attachment's name and type without a
+line break or a control character but the tab — no header injection; an
+attachment `{file, name?}` of a file the tool has, or `{name, type,
+content}`; an unknown field — `mailbox`,
 `thread`, `inReplyTo`, `references`, `transactional` are gone), `suppressed`
 (every recipient bounced or complained before), `key_conflict` (409),
 `TooLarge` (10 MiB), `QuotaExceeded` (500 a day unless the owner raises

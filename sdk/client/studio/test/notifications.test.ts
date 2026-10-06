@@ -89,10 +89,33 @@ test("broadcast refuses the earlier shape and bad audiences before sending", asy
     await assert.rejects(notifications.broadcast({ title: "x" }, { except: ["ada"] }), code("invalid_id"));
     await assert.rejects(notifications.broadcast({ title: "x" }, { except: "mbr_" + "a".repeat(26) } as never), code("invalid_body"));
     await assert.rejects(notifications.broadcast({ title: "x" }, { everyone: true } as never), code("invalid_body"));
+    // A to that names nobody is refused, never read as everyone (a setting left undefined).
+    await assert.rejects(notifications.broadcast({ title: "x" }, { to: {} }), code("invalid_body"));
+    await assert.rejects(notifications.broadcast({ title: "x" }, { to: { groups: undefined } } as never), code("invalid_body"));
+    const raw = await fetch(process.env["CHEST_API"] + "/notifications/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "x", to: {} }) });
+    assert.deepEqual([raw.status, await raw.json()], [400, { error: "invalid_body" }]);
     await assert.rejects(notifications.broadcast({ title: "x", translations: { fr: { title: "" } } }), code("invalid_title"));
     assert.equal(fake.notifications.length, 0);
   } finally {
     await fake.close();
+  }
+});
+
+test("broadcast to a group: one the tool does not know tells nobody; with members.groups, every group", async () => {
+  const sales = { id: "grp_" + "s".repeat(26), name: "Sales", members: [ada.id], grants: false };
+  const without = await fakeChest({ members: [ada, bo], groups: [sales], capabilities: ["notifications", "members"] });
+  try {
+    assert.deepEqual(await notifications.broadcast({ title: "Sales" }, { to: { groups: [sales.id] } }), { delivered: 0 }, "Sales does not give the tool");
+    assert.deepEqual(await notifications.broadcast({ title: "Sales or publishers" }, { to: { groups: [sales.id], roles: ["publisher"] } }), { delivered: 1 });
+  } finally {
+    await without.close();
+  }
+  const withGroups = await fakeChest({ members: [ada, bo], groups: [sales], capabilities: ["notifications", "members", "members.groups"] });
+  try {
+    assert.deepEqual(await notifications.broadcast({ title: "Sales" }, { to: { groups: [sales.id] } }), { delivered: 1 });
+    assert.equal(withGroups.notifications[0]?.member, ada.id);
+  } finally {
+    await withGroups.close();
   }
 });
 
