@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { hydrateRoot } from "react-dom/client";
-import { busyText, refresh, send, startIslands, toast } from "./client.tsx";
+import { busyText, refresh, send, startIslands, toast } from "./runtime.tsx";
 
 // The browser's start, called once by the tool's src/entry.tsx:
 //   start(islands)

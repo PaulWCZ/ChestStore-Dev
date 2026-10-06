@@ -48,7 +48,7 @@
   ],
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
-    "test": "npm run build && tsc -p tsconfig.json --noEmit && node --test --test-force-exit test/*.test.ts test/*.test.mjs",
+    "test": "npm run build && tsc -p tsconfig.json --noEmit && node scripts/test.mjs",
     "prepack": "npm run build"
   },
   "peerDependencies": {

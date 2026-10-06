@@ -35,13 +35,25 @@ export const notFound = (): never => { throw new HttpStatus(404); };
 export const forbidden = (): never => { throw new HttpStatus(403); };
 
 // A path of this tool ("/chest/notes/12?tab=2"), as the browser will read
-// it — or null for anything that would leave the tool: "//evil", "/\evil",
-// "/\t/evil", "https://…". The only way a redirect target is accepted.
+// it — or null for anything that could leave the tool or reach another
+// path than it reads: "//evil", "/\evil", "/<tab>/evil", "https://…", and
+// any "." or ".." segment, raw or encoded ("/..//evil" would become
+// "//evil"). The only way a redirect target is accepted.
 export function toolPath(to: unknown): string | null {
-  if (typeof to !== "string" || !to.startsWith("/") || to.length > 2048) return null;
+  if (typeof to !== "string" || !to.startsWith("/") || to.startsWith("//") || to.length > 2048) return null;
+  if (/[\\\u0000-\u001f\u007f]/u.test(to)) return null;
+  const path = to.split(/[?#]/u)[0] ?? "";
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+  if (decoded.startsWith("//") || /[\\\u0000-\u001f\u007f]/u.test(decoded) || decoded.split("/").some(segment => segment === "." || segment === "..")) return null;
   try {
     const url = new URL(to, "https://tool.invalid");
-    return url.origin === "https://tool.invalid" ? url.pathname + url.search + url.hash : null;
+    const result = url.pathname + url.search + url.hash;
+    return url.origin === "https://tool.invalid" && !result.startsWith("//") ? result : null;
   } catch {
     return null;
   }
@@ -63,10 +75,32 @@ export function after(name: string, task: () => Promise<unknown>): void {
 // ---- The fields of an action's input. Each reads what a form sends
 // (text) and what fetch sends (JSON) alike, and refuses with a code.
 // read(value, all): its own value, and every value sent (for keyed()).
-export type Field<T> = { read(value: unknown, all?: Record<string, unknown>): T };
+// Two types: what run() receives (T, read) and what call() may send (W,
+// on the wire): field.money() reads 1250 from "12,50", "12.50" or 12.5.
+export type Field<T, W = T> = { read(value: unknown, all?: Record<string, unknown>): T; readonly wire?: W };
 // A field the sender may leave out (a box not ticked, an empty list).
-type Omissible<T> = Field<T> & { readonly omissible: true };
-const text = (value: unknown) => (typeof value === "string" ? value : typeof value === "number" ? String(value) : fail("invalid"));
+type Omissible<T, W = T> = Field<T, W> & { readonly omissible: true };
+const text = (value: unknown) => (typeof value === "string" ? value : typeof value === "number" && Number.isFinite(value) ? String(value) : fail("invalid"));
+const spaces = /[\s\u00a0\u202f]/gu;
+
+// An amount as people write it, to cents: "1234.5", "1 234,50" (any
+// space), "1,234.50", "1.234,50", "1,234" (English thousands). A lone "."
+// or "," followed by one or two digits is the decimal mark; "12.345" and
+// "1.234" are refused (which one was meant?).
+function cents(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? Math.round(value * 100) : null;
+  const s = text(value).replace(spaces, "");
+  const m = /^(-?)(\d+(?:([.,])\d{3})*)(?:([.,])(\d{1,2}))?$/u.exec(s);
+  if (!m) return null;
+  const [, sign, whole = "", group, mark, decimals = ""] = m;
+  if (group && (group === mark || (group === "." && mark !== ","))) return null;
+  if (group && !/^\d{1,3}([.,]\d{3})+$/u.test(whole)) return null;
+  const digits = whole.replace(/[.,]/gu, "");
+  if (digits.length > 13) return null;
+  const n = Number(digits) * 100 + Number(decimals.padEnd(2, "0"));
+  return sign ? -n : n;
+}
+
 export const field = {
   // Trimmed text, from min (1: required) to max characters.
   text: ({ min = 1, max }: { min?: number; max: number }): Field<string> => ({
@@ -77,40 +111,50 @@ export const field = {
       return s.length > max ? fail("too_long", { max }) : s;
     },
   }),
-  // A whole number between min and max.
-  int: ({ min, max }: { min: number; max: number }): Field<number> => ({
+  // A whole number between min and max, written in digits ("", "0x5",
+  // "1e1" refused: an empty required number is not 0).
+  int: ({ min, max }: { min: number; max: number }): Field<number, number | string> => ({
     read(value) {
-      const n = Number(text(value));
-      return Number.isSafeInteger(n) && n >= min && n <= max ? n : fail("invalid");
+      const s = typeof value === "number" ? String(value) : text(value).trim();
+      if (s === "") fail("empty");
+      if (!/^-?\d{1,15}$/u.test(s)) fail("invalid");
+      const n = Number(s);
+      return n >= min && n <= max ? n : fail("invalid");
     },
   }),
-  // An amount, read in cents ("12,50", "1 234.5", 12.5 → 1250, 123450,
-  // 1250): store it as bigint cents, write it with f.money(cents, { cents: true }).
-  money: ({ min = 0, max }: { min?: number; max: number }): Field<number> => ({
+  // An amount, read in cents (above): store it as bigint cents, write it
+  // with f.money(cents, { cents: true }). min and max are in cents.
+  money: ({ min = 0, max }: { min?: number; max: number }): Field<number, number | string> => ({
     read(value) {
-      const s = typeof value === "number" ? value.toFixed(2) : text(value).replace(/[\s  ]/gu, "").replace(",", ".");
-      if (!/^-?\d{1,13}(\.\d{1,2})?$/u.test(s)) fail("invalid");
-      const cents = Math.round(Number(s) * 100);
-      return cents >= min && cents <= max ? cents : fail("invalid");
+      if (typeof value === "string" && value.trim() === "") fail("empty");
+      const n = cents(value);
+      return n !== null && n >= min && n <= max ? n : fail("invalid");
     },
   }),
   // A row's id (a bigint column), kept as text.
-  id: (): Field<string> => ({ read: value => { const s = text(value); return /^[1-9][0-9]{0,17}$/u.test(s) ? s : fail("invalid"); } }),
+  id: (): Field<string, string | number> => ({ read: value => { const s = text(value); return /^[1-9][0-9]{0,17}$/u.test(s) ? s : fail("invalid"); } }),
   // A checkbox: absent or "" is false.
-  bool: (): Omissible<boolean> => ({ omissible: true, read: value => value === true || value === "true" || value === "on" || value === "1" }),
+  bool: (): Omissible<boolean, boolean | string> => ({ omissible: true, read: value => value === true || value === "true" || value === "on" || value === "1" }),
   // One of a closed list.
   choice: <const T extends string>(values: readonly T[]): Field<T> => ({ read: value => ((values as readonly unknown[]).includes(value) ? value as T : fail("invalid")) }),
-  // A calendar day, YYYY-MM-DD.
-  day: (): Field<string> => ({ read: value => { const s = text(value); return /^\d{4}-\d{2}-\d{2}$/u.test(s) && !Number.isNaN(Date.parse(s)) ? s : fail("invalid"); } }),
+  // A calendar day that exists, YYYY-MM-DD (2026-02-31 refused).
+  day: (): Field<string> => ({
+    read: value => {
+      const s = text(value).trim();
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(s);
+      const at = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : null;
+      return at && at.toISOString().slice(0, 10) === s ? s : fail("invalid");
+    },
+  }),
   // Absent, null or "": undefined.
-  optional: <T>(inner: Field<T>): Field<T | undefined> => ({ read: (value, all) => (value === undefined || value === null || value === "" ? undefined : inner.read(value, all)) }),
+  optional: <T, W>(inner: Field<T, W>): Field<T | undefined, W | "" | null | undefined> => ({ read: (value, all) => (value === undefined || value === null || value === "" ? undefined : inner.read(value, all)) }),
   // A change that may also clear: absent is "unchanged" (undefined), null
   // or "" is "none" (null) — a due date removed.
-  nullable: <T>(inner: Field<T>): Field<T | null | undefined> => ({ read: (value, all) => (value === undefined ? undefined : value === null || value === "" ? null : inner.read(value, all)) }),
+  nullable: <T, W>(inner: Field<T, W>): Field<T | null | undefined, W | "" | null | undefined> => ({ read: (value, all) => (value === undefined ? undefined : value === null || value === "" ? null : inner.read(value, all)) }),
   // Absent is "unchanged" (undefined); anything sent is read, "" included.
-  sent: <T>(inner: Field<T>): Field<T | undefined> => ({ read: (value, all) => (value === undefined ? undefined : inner.read(value, all)) }),
+  sent: <T, W>(inner: Field<T, W>): Field<T | undefined, W | undefined> => ({ read: (value, all) => (value === undefined ? undefined : inner.read(value, all)) }),
   // Up to max values (a form's checkboxes of one name, a JSON array).
-  list: <T>(inner: Field<T>, max: number): Omissible<T[]> => ({
+  list: <T, W>(inner: Field<T, W>, max: number): Omissible<T[], readonly W[]> => ({
     omissible: true,
     read(value, all) {
       const values = value === undefined ? [] : Array.isArray(value) ? value : [value];
@@ -119,7 +163,8 @@ export const field = {
   }),
   // Every value sent under a name the pattern matches, by its first group:
   // keyed(/^d([1-9][0-9]*)$/u, field.int(…), 40) reads d12, d13… as { "12": …, "13": … }.
-  keyed: <T>(pattern: RegExp, inner: Field<T>, max: number): Omissible<Record<string, T>> => ({
+  // From call(), send the names themselves beside the other fields.
+  keyed: <T, W>(pattern: RegExp, inner: Field<T, W>, max: number): Omissible<Record<string, T>, never> => ({
     omissible: true,
     read(_value, all) {
       const found: Record<string, T> = {};
@@ -134,13 +179,15 @@ export const field = {
   // of src/lib/ check it. Never from a form (a string is refused).
   json: (): Field<unknown> => ({ read: value => (value !== null && typeof value === "object" ? value : fail("invalid")) }),
 };
-export type Fields = Record<string, Field<unknown>>;
-type Read<F> = F extends Field<infer T> ? T : never;
+export type Fields = Record<string, Field<unknown, any>>;
+type Read<F> = F extends Field<infer T, unknown> ? T : never;
+type Wire<F> = F extends { readonly wire?: infer W } ? W : never;
 // What run() receives: every field, read.
 export type InputOf<F extends Fields> = { [K in keyof F]: Read<F[K]> };
-// What call() sends: a field that may be absent may be left out.
-type Leavable<F extends Fields> = { [K in keyof F]: F[K] extends { omissible: true } ? K : unknown extends Read<F[K]> ? never : undefined extends Read<F[K]> ? K : never }[keyof F];
-export type SentOf<F extends Fields> = { [K in Exclude<keyof F, Leavable<F>>]: Read<F[K]> } & { [K in Leavable<F>]?: Read<F[K]> };
+// What call() sends: the wire types; a field that may be absent may be
+// left out.
+type Leavable<F extends Fields> = { [K in keyof F]: F[K] extends { omissible: true } ? K : unknown extends Wire<F[K]> ? never : undefined extends Wire<F[K]> ? K : never }[keyof F];
+export type SentOf<F extends Fields> = { [K in Exclude<keyof F, Leavable<F>>]: Wire<F[K]> } & { [K in Leavable<F>]?: Wire<F[K]> };
 
 export function readInput<F extends Fields>(fields: F, raw: Record<string, unknown>): InputOf<F> {
   const input: Record<string, unknown> = {};

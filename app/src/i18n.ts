@@ -49,8 +49,6 @@ export const dateFormat = (tag: string, timeZone: string, style: Intl.DateTimeFo
 export const numberFormat = (tag: string, style: Intl.NumberFormatOptions = {}): Intl.NumberFormat =>
   once(`n|${tag}|${JSON.stringify(style)}`, () => new Intl.NumberFormat(tag, style));
 
-// A calendar day: "2026-10-05", or the Date a driver made of a date column.
-const isoDay = (day: string | Date) => (typeof day === "string" ? day.slice(0, 10) : day.toISOString().slice(0, 10));
 
 // How a reader writes dates, times, numbers, amounts and plurals: their
 // language, their time zone (a member's own; the Chest's for a visitor),
@@ -60,16 +58,25 @@ export type Format = ReturnType<typeof formatter>;
 export function formatter(locale: string, timeZone: string, currency = "EUR") {
   // English as written in Europe (day month year, 24-hour clock).
   const tag = locale === "en" ? "en-GB" : locale;
-  const instant = (value: Date | string) => (typeof value === "string" ? new Date(value) : value);
   return {
     locale,
     timeZone,
-    // An instant (a timestamptz): in the reader's zone.
-    date: (value: Date | string) => dateFormat(tag, timeZone, { day: "numeric", month: "short", year: "numeric" }).format(instant(value)),
-    time: (value: Date | string) => dateFormat(tag, timeZone, { hour: "2-digit", minute: "2-digit" }).format(instant(value)),
-    dateTime: (value: Date | string) => dateFormat(tag, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(instant(value)),
-    // A calendar day (a date column): the same day everywhere.
-    day: (day: string | Date) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${isoDay(day)}T00:00:00Z`)),
+    // An instant (a timestamptz, a Date): in the reader's zone. A calendar
+    // day ("2026-10-05", a date column) is f.day's, never these: a day read
+    // as an instant shifts in zones west of UTC.
+    date: (value: Date) => dateFormat(tag, timeZone, { day: "numeric", month: "short", year: "numeric" }).format(value),
+    time: (value: Date) => dateFormat(tag, timeZone, { hour: "2-digit", minute: "2-digit" }).format(value),
+    dateTime: (value: Date) => dateFormat(tag, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(value),
+    // A calendar day, "YYYY-MM-DD" (a date column, a field.day): the same
+    // day everywhere.
+    day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)),
+    // Today in the reader's zone, "YYYY-MM-DD" (a member's own day; the
+    // company's is chest.today(), and SQL's current_date and now()::date are
+    // the company's too — the database session runs in the Chest's zone).
+    today: (at: Date = new Date()) => {
+      const parts = Object.fromEntries(dateFormat("en-US", timeZone, { year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at).map(p => [p.type, p.value]));
+      return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
+    },
     number: (n: number) => numberFormat(tag).format(n),
     // An amount in cents (field.money stores cents) or units: money(1250, { cents: true }).
     money: (amount: number, options: { cents?: boolean } = {}) => numberFormat(tag, { style: "currency", currency }).format(options.cents ? amount / 100 : amount),

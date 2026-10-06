@@ -40,11 +40,14 @@ export function chestConfig({ theme, bundle = [] }: { theme?: Theme; bundle?: st
   };
   return defineConfig(({ isSsrBuild, mode }) => ({
     plugins: [look],
-    oxc: { jsx: { runtime: "automatic" } },
+    // The JSX runtime and React's build follow the Vite mode, never the
+    // shell's NODE_ENV (the Perseus workbench sets development: a build's
+    // JSX must still be the production runtime its React provides).
+    oxc: { jsx: { runtime: "automatic", development: mode === "development" } },
     // Bundled in a build only: npm run dev keeps them in node_modules (a
     // watcher holding them all costs ~100 MiB more).
     ssr: { noExternal: mode === "development" ? [] : ["hono", "@hono/node-server", "react", "react-dom", "scheduler", "postgres", "@argentic/chest-sdk", "@argentic/chest-ui", "@argentic/chest-app", ...bundle] },
-    define: isSsrBuild ? { "process.env.NODE_ENV": JSON.stringify(mode) } : {},
+    define: { "process.env.NODE_ENV": JSON.stringify(mode === "development" ? "development" : "production") },
     build: isSsrBuild ? server : browser,
   })) as UserConfig;
 }

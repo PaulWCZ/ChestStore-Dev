@@ -3,13 +3,11 @@ import type { ToastWords } from "@argentic/chest-ui/components/logic";
 import { createElement, useEffect, type ComponentType } from "react";
 import type { hydrateRoot, Root } from "react-dom/client";
 import type { RegisteredActions } from "./register.ts";
-export { fill, plural, type Plural } from "./i18n.ts";
 import type { Action, Outcome, SentOf } from "./tool.ts";
 
-// The browser's side, for islands: call() an action, refresh() the page in
-// place, navigate() to another page in place, toast() a message. Nothing
-// here runs on import (and nothing loads react-dom/client): the tool's
-// src/entry.tsx starts it with start() from "@argentic/chest-app/browser".
+// The browser's side (its public part is ./client.ts, for islands; the
+// rest is for ./browser.tsx). Nothing here runs on import, and nothing
+// loads react-dom/client.
 
 // ---- Islands: hydrated on load, kept (state, focus) across refreshes.
 let registry: Record<string, ComponentType<object>> = {};
@@ -63,7 +61,22 @@ async function load(href: string, push: false | "push" | "replace"): Promise<boo
     return false;
   }
   if (ticket !== latest || !settled || sending > 0) return false;
-  if (response.status === 401 || response.status === 403 || html === null) {
+  // Signed out (401), access removed (403): the page loaded again, as the
+  // Chest shows it.
+  if (response.status === 401 || response.status === 403) {
+    if (push) location.assign(href);
+    else location.reload();
+    return false;
+  }
+  // The server or the Chest failed (5xx — "Waking up…" included): the page
+  // stays as it is, with what is typed; another page is loaded plainly.
+  if (response.status >= 500) {
+    if (push) location.assign(href);
+    else toast({ id: "refresh", text: words.unavailable, tone: "error" });
+    return false;
+  }
+  // Not a page (a file?): loaded plainly.
+  if (html === null) {
     if (push) location.assign(href);
     else location.reload();
     return false;
@@ -183,8 +196,9 @@ export async function send<T>(url: string, headers: Record<string, string>, body
   try {
     const response = await fetch(url, { method: "POST", headers: { ...headers, "x-tool-action": "1" }, body });
     if (response.headers.get("content-type")?.startsWith("application/json")) outcome = await response.json() as typeof outcome;
-    else if (response.status === 401) {
-      location.reload(); // signed out: the Chest signs in again
+    else if (response.status === 401 || response.status === 403) {
+      // Signed out, or the Chest's "Access removed": its page, loaded again.
+      location.reload();
       outcome = { ok: false, error: "unavailable", message: words.unavailable } as typeof outcome;
     } else outcome = { ok: false, error: "unavailable", message: words.unavailable } as typeof outcome;
   } catch {

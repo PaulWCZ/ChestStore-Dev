@@ -11,7 +11,7 @@ import { routePath } from "hono/route";
 import type { ComponentType, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { fill, formatter, localeIn, publicLocale } from "./i18n.ts";
-import { setIslands, startRender } from "./island.tsx";
+import { startRender } from "./island.tsx";
 import { log } from "./log.ts";
 import type { ErrorCode, Words } from "./register.ts";
 import { AppError, HttpStatus, readInput, toolPath, type Action, type Cookies, type MemberContext, type VisitorContext } from "./tool.ts";
@@ -63,11 +63,13 @@ export type AppOptions = {
   complete?: (who: Member) => Promise<Member>;
 };
 
-type Env = { Variables: { viewer: MemberContext } };
+type Env = { Variables: { viewer: MemberContext; app: AppOptions } };
 const firstSegment = (path: string) => path.split("/")[1]?.toLowerCase() ?? "";
 const isMembers = (path: string) => firstSegment(path) === "chest";
 
-let options: AppOptions;
+// Each app keeps its options on its requests (two apps in one process
+// never share them).
+const optionsOf = (c: Context): AppOptions => (c as Context<Env>).get("app");
 
 function cookiesOf(c: Context): Cookies {
   return {
@@ -76,6 +78,7 @@ function cookiesOf(c: Context): Cookies {
   };
 }
 function visitor(c: Context): VisitorContext {
+  const options = optionsOf(c);
   const locale = publicLocale(options.locales, getCookie(c, "lang"), c.req.header("accept-language"), chest.language);
   return { member: null, locale, t: options.words(locale), f: formatter(locale, chest.timeZone, chest.currency), request: c.req.raw, cookies: cookiesOf(c) };
 }
@@ -103,19 +106,23 @@ function noticeOf(c: Context, t: Words): string | null {
   let values: Record<string, string | number> = {};
   try {
     const raw = JSON.parse(c.req.query("values") ?? "{}") as unknown;
-    if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && (typeof v === "number" || (typeof v === "string" && v.length < 100))));
+    // Numbers only: a value in the address is anyone's to write.
+    if (raw && typeof raw === "object") values = Object.fromEntries(Object.entries(raw).filter(([k, v]) => /^\w{1,32}$/u.test(k) && typeof v === "number" && Number.isFinite(v)));
   } catch { /* no values */ }
-  return fill(t.errors[code as ErrorCode], values);
+  const said = fill(t.errors[code as ErrorCode], values);
+  // A value missing (an address written by hand): the plain refusal.
+  return /\{\w+\}/u.test(said) ? t.errors.invalid : said;
 }
 
-async function html(c: Context, view: View, viewer: Viewer, status: 200 | 401 | 403 | 404 | 500 = 200) {
+async function html(c: Context, view: View, viewer: Viewer, status: 200 | 400 | 401 | 403 | 404 | 500 = 200) {
+  const options = optionsOf(c);
   const v = assetVersion();
   const look = options.look ? await options.look(viewer) : null;
   const lookTag = look ? createHash("sha256").update(look.css).digest("base64url").slice(0, 16) : "";
   const name = viewer.t.tool.name;
   const notice = noticeOf(c, viewer.t);
   const { members: Members, public: Public } = options.layouts;
-  startRender();
+  startRender(options.islands);
   const page = renderToString(
     <html lang={viewer.locale}>
       <head>
@@ -211,16 +218,21 @@ const chestDown = (e: unknown) => e instanceof Unavailable || e instanceof RateL
 // Fetched (call(), an enhanced form: x-tool-action: 1): JSON. A plain
 // form: a redirect back (303).
 async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
+  const options = optionsOf(c);
   const name = c.req.param("name") ?? "";
   const definition = Object.hasOwn(options.actions, name) ? options.actions[name] : undefined;
   const viewer = members ? c.get("viewer") : visitor(c);
   const fetched = c.req.header("x-tool-action") === "1";
-  const refuse = (status: 400 | 403 | 404 | 413 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
+  const refuse = (status: 400 | 403 | 404 | 413 | 415 | 500, code: ErrorCode, values?: Record<string, string | number>) =>
     fetched ? c.json({ ok: false, error: code, message: fill(viewer.t.errors[code], values) }, status) : c.redirect(back(c, members, code, values), 303);
   if (!sameOrigin(c.req.raw)) return fetched ? refuse(403, "forbidden") : c.text("Cross-site request refused.", 403);
   if (!definition || definition.access !== (members ? "member" : "public")) return refuse(404, "not_found");
-  const json = c.req.header("content-type")?.startsWith("application/json") === true;
+  const type = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+  const json = type === "application/json";
   if (json && !fetched) return c.text("Cross-site request refused.", 403);
+  // What a form or call() sends, nothing else (no error logged: anyone may
+  // post anything to a public action).
+  if (!json && type !== "application/x-www-form-urlencoded" && type !== "multipart/form-data") return refuse(415, "invalid");
   let answer: Response | undefined;
   const refused = await bodyLimit({ maxSize: definition.maxBody, onError: () => refuse(413, "too_large") })(c, async () => {
     try {
@@ -231,7 +243,7 @@ async function runAction(c: Context<Env>, members: boolean): Promise<Response> {
       if (error instanceof HttpStatus && error.to) answer = fetched ? c.json({ ok: true, value: null, redirect: error.to }) : c.redirect(error.to, 303);
       else if (error instanceof HttpStatus) answer = refuse(error.status === 403 ? 403 : 404, error.status === 403 ? "forbidden" : "not_found");
       else if (error instanceof AppError) answer = refuse(error.code === "forbidden" ? 403 : error.code === "not_found" ? 404 : 400, error.code, error.values);
-      else if (error instanceof SyntaxError) answer = refuse(400, "invalid");
+      else if (error instanceof SyntaxError || (error instanceof TypeError && /form|body|parse/iu.test(error.message))) answer = refuse(400, "invalid");
       else if (chestDown(error)) {
         log.warn("the Chest did not answer", { action: name, error: (error as Error).name });
         answer = refuse(500, "unavailable");
@@ -272,10 +284,12 @@ function stylesheet(c: Context, css: string) {
 // them. call(name, input, { at: "/p/abc" }) sends there.
 export const publicActionsAt = () => (c: Context<Env>) => runAction(c, false);
 
-export function createApp(appOptions: AppOptions) {
-  options = appOptions;
-  setIslands(appOptions.islands);
+export function createApp(options: AppOptions) {
   const app = new Hono<Env>();
+  app.use(async (c, next) => {
+    c.set("app", options);
+    await next();
+  });
 
   // Every answer: the policy, the headers that go with it, a log line.
   app.use(async (c, next) => {
@@ -339,6 +353,9 @@ export function createApp(appOptions: AppOptions) {
   app.onError((error, c) => {
     if (error instanceof HttpStatus && error.to) return c.redirect(error.to, c.req.method === "GET" ? 302 : 303);
     if (error instanceof HttpStatus) return html(c, errorView(viewerOf(c), error.status === 403 ? 403 : 404), viewerOf(c), error.status === 403 ? 403 : 404);
+    // fail() in a page: forbidden is 403, any other refusal 404 (the page
+    // cannot be shown as asked) — never a 500.
+    if (error instanceof AppError) return html(c, errorView(viewerOf(c), error.code === "forbidden" ? 403 : 404), viewerOf(c), error.code === "forbidden" ? 403 : 404);
     if (chestDown(error)) log.warn("the Chest did not answer", { route: routePath(c, -1), error: error.name });
     else log.error("page failed", error, { route: routePath(c, -1) });
     return html(c, errorView(viewerOf(c), 500), viewerOf(c), 500);

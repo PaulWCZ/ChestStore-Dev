@@ -153,7 +153,7 @@ export function checkSources({ root = "." }: { root?: string } = {}): void {
       for (const name of literals.flatMap(l => l.split(/\s+/u)).filter(Boolean)) if (!known.has(name)) problems.push(`${file}: the class "${name}" is in no stylesheet (the tool's or the kit's)`);
     }
   }
-  const manifest = JSON.parse(readFileSync(join(root, "chest.json"), "utf8")) as { capabilities?: string[]; receives?: string[]; schedules?: { name: string }[] };
+  const manifest = JSON.parse(readFileSync(join(root, "chest.json"), "utf8")) as { capabilities?: string[]; receives?: string[]; schedules?: { name: string }[]; public?: boolean };
   const all = code.map(c => c.text).join("\n");
   const uses: Record<string, RegExp> = {
     database: /from "@argentic\/chest-(app\/db|sdk\/database)"/u,
@@ -166,6 +166,17 @@ export function checkSources({ root = "." }: { root?: string } = {}): void {
   for (const [capability, use] of Object.entries(uses)) {
     if (declared.has(capability) && !use.test(all)) problems.push(`chest.json asks "${capability}" and src/ never uses it: remove it (the owner approves each one)`);
     if (!declared.has(capability) && use.test(all)) problems.push(`src/ uses "${capability}": declare it in chest.json "capabilities"`);
+  }
+  const manifestPublic = (manifest as { public?: boolean }).public === true;
+  const code_ = all.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
+  const servesPublic = /\bpublic(Page|Action|ActionsAt)\(/u.test(code_);
+  if (servesPublic && !manifestPublic) problems.push(`src/ serves a public part (publicPage, publicAction) without "public": true in chest.json: the Chest would never route to it`);
+  if (manifestPublic && !servesPublic) problems.push(`chest.json asks "public": true and src/ serves no publicPage nor publicAction: remove it`);
+  // Every rule module is tested: a test file imports it.
+  const tests = walk(join(root, "test")).filter(f => /\.test\.(m?[jt]s|tsx)$/u.test(f)).map(f => readFileSync(f, "utf8")).join("\n");
+  for (const file of walk(join(root, "src", "lib")).filter(f => /\.tsx?$/u.test(f))) {
+    const base = file.split(/[/\\]/u).pop()!.replace(/\.tsx?$/u, "");
+    if (!new RegExp(`from "[^"]*lib/${base}(\\.tsx?|\\.js)?"`, "u").test(tests)) problems.push(`${file}: no test imports it — a rule without a test (test/units.test.ts)`);
   }
   const handlesEvents = /events\.handle\(/u.test(all);
   if ((manifest.receives?.length ?? 0) > 0 && !handlesEvents) problems.push(`chest.json "receives" without events.handle on /chest-events`);

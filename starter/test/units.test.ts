@@ -23,10 +23,9 @@ test("the look passes the kit's contract", () => {
 });
 
 // EXAMPLE (Notes)
-test("a note is changed by its author, an admin, or anyone for a visitor's", () => {
+test("a note is changed by its author or an admin", () => {
   const camille = { id: "mbr_camillecamillecamillecami", isAdmin: false } as Parameters<typeof mayChange>[0];
   assert.equal(mayChange(camille, { author: camille.id }), true);
   assert.equal(mayChange(camille, { author: "mbr_someoneelsesomeoneelsesom" }), false);
   assert.equal(mayChange({ ...camille, isAdmin: true }, { author: "mbr_someoneelsesomeoneelsesom" }), true);
-  assert.equal(mayChange(camille, { author: null }), true);
 });

@@ -5,13 +5,10 @@ import { db } from "@argentic/chest-app/db";
 // EXAMPLE (Notes): the rules and the SQL, nothing about pages. A function
 // that changes something takes who does it, checks they may, and refuses
 // with a code (fail), never a sentence.
-export type Note = { id: string; body: string; author: string | null; pinned: boolean; createdAt: Date };
+export type Note = { id: string; body: string; author: string; pinned: boolean; createdAt: Date };
 export const maxLength = 2000;
-// Messages from the public page, at most this many a day: anyone on the
-// Internet can write there, so the table is bounded.
-export const visitorsPerDay = 50;
 
-type Row = { id: string; body: string; author: string | null; pinned: boolean; created_at: Date };
+type Row = { id: string; body: string; author: string; pinned: boolean; created_at: Date };
 const shown = (r: Row): Note => ({ id: r.id, body: r.body, author: r.author, pinned: r.pinned, createdAt: r.created_at });
 
 export async function listNotes(): Promise<Note[]> {
@@ -19,25 +16,22 @@ export async function listNotes(): Promise<Note[]> {
   return rows.map(shown);
 }
 
+// One note, or fail("not_found"): a page that asks for one answers 404.
+export async function getNote(id: string): Promise<Note> {
+  const [row] = /^[1-9][0-9]{0,17}$/u.test(id) ? await db()<Row[]>`select id, body, author, pinned, created_at from notes where id = ${id} and deleted_at is null` : [];
+  return row ? shown(row) : fail("not_found");
+}
+
 export async function addNote(author: Member, body: string): Promise<string> {
   const [row] = await db()<{ id: string }[]>`insert into notes (body, author) values (${body}, ${author.id}) returning id`;
   return row!.id;
 }
 
-// A visitor's message: refused once the day's are counted ("busy").
-export async function addVisitorNote(body: string): Promise<void> {
-  const [row] = await db()<{ id: string }[]>`
-    insert into notes (body, author) select ${body}, null
-    where (select count(*) from notes where author is null and created_at > now() - interval '1 day') < ${visitorsPerDay}
-    returning id`;
-  if (!row) fail("busy");
-}
-
-// Its author, an admin of the Chest, or anyone for a visitor's note.
-export const mayChange = (actor: Member, note: { author: string | null }) => note.author === null || note.author === actor.id || actor.isAdmin;
+// Its author, or an admin of the Chest.
+export const mayChange = (actor: Member, note: { author: string }) => note.author === actor.id || actor.isAdmin;
 
 async function changeable(actor: Member, id: string, deleted: boolean): Promise<void> {
-  const [note] = await db()<{ author: string | null }[]>`select author from notes where id = ${id} and (deleted_at is not null) = ${deleted}`;
+  const [note] = await db()<{ author: string }[]>`select author from notes where id = ${id} and (deleted_at is not null) = ${deleted}`;
   if (!note) fail("not_found");
   else if (!mayChange(actor, note)) fail("forbidden");
 }

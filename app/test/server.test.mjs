@@ -39,6 +39,9 @@ app.get("/chest/day", page(async () => {
   const [{ day }] = await db()`select date '2026-10-05' as day`;
   return { title: "Day", body: h("p", null, typeof day + " " + day) };
 }));
+app.get("/chest/refused", page(() => fail("forbidden")));
+app.get("/chest/missing", page(() => fail("not_found")));
+app.get("/chest/invalid", page(() => fail("invalid")));
 app.get("/", publicPage(() => ({ title: "Public", body: h("p", null, "hello") })));
 
 const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
@@ -48,7 +51,7 @@ after(async () => { await database.close(); await chest.close(); });
 
 const url = path => `https://tool.test${path}`;
 const get = (path, who = member) => app.fetch(who ? withMember(new Request(url(path)), who) : new Request(url(path)));
-const post = (path, body, headers = {}, who = member) => app.fetch(withMember(new Request(url(path), { method: "POST", body, headers: { "sec-fetch-site": "same-origin", host: "tool.test", ...headers } }), who));
+const post = (path, body, headers = {}, who = member) => { const request = new Request(url(path), { method: "POST", body, headers: { "sec-fetch-site": "same-origin", host: "tool.test", ...headers } }); return app.fetch(who ? withMember(request, who) : request); };
 const json = (path, input, who) => post(path, JSON.stringify(input), { "content-type": "application/json", "x-tool-action": "1" }, who);
 
 test("a page: islands rendered each as its own root (ids that match the browser's), the policy", async () => {
@@ -141,4 +144,30 @@ test("layouts receive the look (its logo) and the page's status; a visitor's 404
   assert.match(text, /data-status="404"/u);
   assert.match(text, /Ask whoever sent the link\./u);
   assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
+});
+
+test("fail() in a page is a 403 or 404 page; a body neither form nor JSON is a 415; notices take numbers only", async () => {
+  assert.equal((await get("/chest/refused")).status, 403);
+  assert.equal((await get("/chest/missing")).status, 404);
+  assert.equal((await get("/chest/invalid")).status, 404);
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    const plain = await post("/actions/shout", "text=x", { "content-type": "text/plain", "x-tool-action": "1" }, null);
+    assert.equal(plain.status, 415);
+  } finally {
+    console.error = write;
+  }
+  assert.deepEqual(lines, [], "no error logged for a visitor's odd body");
+  const injected = await (await get(`/chest?error=too_long&values=${encodeURIComponent('{"max":"Call +33 6… now"}')}`)).text();
+  assert.doesNotMatch(injected, /Call/u);
+  assert.match(injected, /role="alert">Invalid\./u);
+});
+
+test("two apps keep their own options", async () => {
+  const other = createApp({ actions: {}, islands: {}, locales: ["en"], words: () => ({ ...words, tool: { name: "Other" } }), layouts: { members: layout, public: layout } });
+  other.get("/chest", page(({ t }) => ({ title: t.tool.name, body: "x" })));
+  assert.match(await (await other.fetch(withMember(new Request(url("/chest")), member))).text(), /<title>Other<\/title>/u);
+  assert.match(await (await get("/chest")).text(), /Probe/u);
 });
