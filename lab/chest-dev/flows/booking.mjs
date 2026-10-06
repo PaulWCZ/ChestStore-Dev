@@ -3,7 +3,7 @@
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5100);
-const { browser, context, page, origin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
 let guestPage = "";
 // The team's pages speak each member's language (Inès and Camille: French
 // in the cast): these steps read them in English.
@@ -21,10 +21,10 @@ await step("a visitor finds Inès on the company's page and opens a kind of meet
   await page.goto(origin + "/");
   expect((await page.locator("h1").innerText()).includes("Atelier Martin"), "company");
   await page.locator(".host-card", { hasText: "Inès Moreau" }).click();
-  await page.waitForURL(origin + "/ines-moreau");
+  await page.waitForURL(publicOrigin + "/ines-moreau");
   expect((await page.locator(".offers").innerText()).includes("Project call"), "types listed");
   await page.locator(".offer", { hasText: "Project call" }).click();
-  await page.waitForURL(origin + "/ines-moreau/project-call");
+  await page.waitForURL(publicOrigin + "/ines-moreau/project-call");
 });
 
 await step("they pick a day and a time, fill three fields and the host's questions, and are booked (with an email)", async () => {
@@ -727,8 +727,9 @@ await step("email is promised only because this Chest sends it (SDK studio.16, m
 
 await step("the company's page speaks the visitor's language, else the Chest's (English here)", async () => {
   const lang = async (headers) => {
-    // A visitor without the harness's cookies.
-    const html = await (await fetch(origin + "/", { headers })).text();
+    // A visitor without the harness's cookies, on the public host (a
+    // redirect from the team host to another origin drops the cookie).
+    const html = await (await fetch(publicOrigin + "/", { headers })).text();
     return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
   };
   expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");
