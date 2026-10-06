@@ -217,8 +217,9 @@ Wiki's spaces kept to groups).
   of away, and their number. Without the capability, only the groups that
   **give** News are offered (the Chest shows a tool no other group). A
   group the Chest no longer has stays on the posts it was on (read *a
-  former group*). Known limit of the official 0.4.1: `member()` refuses an
-  assertion with more than 16 groups (lifted by 0.5).
+  former group*). The official 0.4.1's `member()` refuses an
+  assertion with more than 16 groups; the vendored SDK 0.4.1-studio.7
+  lifts it (an assertion up to 16 KiB, about 300 groups).
 - **Notifications, never email** (the owner's decisions of 6 October
   2026): every notice is written once, in English with its French
   `translations` (Proposal (studio), announced for 0.5) — an Important
