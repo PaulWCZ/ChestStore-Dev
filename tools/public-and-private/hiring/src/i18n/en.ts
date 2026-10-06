@@ -186,6 +186,7 @@ export const en = {
     too_large: "Too large to send.",
     limit: "Too many sent today. Try again tomorrow, or write to the company.",
     expired: "This form expired: send it again.",
+    needs_javascript: "This form needs JavaScript: turn it on in your browser, then send it again.",
   },
   // ---- The team's part -------------------------------------------------
   roles: {

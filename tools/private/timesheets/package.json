@@ -12,7 +12,7 @@
     "build": "tsc && vite build && vite build --ssr",
     "start": "node --optimize-for-size dist/server/main.js",
     "typecheck": "tsc",
-    "test": "tsc && vite build --ssr --outDir dist/test && node --test --test-concurrency=1 --test-force-exit --disable-warning=ExperimentalWarning test/*.test.*"
+    "test": "tsc && vite build && vite build --ssr --outDir dist/test && node --test --test-concurrency=1 --test-force-exit --disable-warning=ExperimentalWarning test/*.test.*"
   },
   "dependencies": {
     "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.4.1-studio.4.tgz",
@@ -22,7 +22,7 @@
     "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "@argentic/chest-app": "file:vendor/argentic-chest-app-0.1.0-studio.7.tgz"
+    "@argentic/chest-app": "file:vendor/argentic-chest-app-0.1.0-studio.8.tgz"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

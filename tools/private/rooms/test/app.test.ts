@@ -125,6 +125,8 @@ test("a page read again while nothing changed is a 304 (its version); a change a
   const version = first.headers.get("x-tool-version") ?? /<meta name="chest-version" content="([^"]+)"/u.exec(await first.text())?.[1];
   assert.ok(version, "the page has a version");
   assert.equal((await get(hugo, "/chest/rooms", { "x-tool-version": version })).status, 304);
+  await database.sql`delete from presence where false`;
+  assert.equal((await get(hugo, "/chest/rooms", { "x-tool-version": version })).status, 304, "an empty statement changes nothing");
   assert.equal((await call(sofia, "setPresence", { day: workday(5), status: "remote", officeId: null })).ok, true);
   assert.equal((await get(hugo, "/chest/rooms", { "x-tool-version": version })).status, 200, "someone else's change shows");
 });

@@ -181,6 +181,7 @@ export const fr: Catalogue = {
     too_large: "Trop volumineux pour être envoyé.",
     limit: "Trop d’envois aujourd’hui. Réessayez demain, ou écrivez à l’entreprise.",
     expired: "Ce formulaire a expiré : envoyez-le de nouveau.",
+    needs_javascript: "Ce formulaire a besoin de JavaScript : activez-le dans votre navigateur, puis renvoyez-le.",
   },
   roles: {
     recruiter: "Recruteur",

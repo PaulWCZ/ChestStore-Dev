@@ -653,6 +653,7 @@ export const en = {
     too_many: "Too many requests right now. Try again in an hour.",
     limit: "Too many messages for now. Try again later, or tomorrow.",
     expired: "This form expired: send it again.",
+    needs_javascript: "This form needs JavaScript: turn it on in your browser, then send it again.",
     invalid_rule: "Write an address (name@company.com) or a domain (company.com).",
     rule_empty: "Choose what the rule does: a tag, a priority or someone.",
     invalid_origin: "Write each website as https://www.example.com, without a page.",

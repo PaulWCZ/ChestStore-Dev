@@ -91,7 +91,7 @@ async function broadcastTo(poll: Poll, kind: "ask" | "final", key: string): Prom
 
 // tellPages tells a page of those asked at a time, from a cursor, keeping
 // those `keep` says.
-async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: string | null, keep: (p: Person) => boolean): Promise<Told> {
+async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: string | null, keep: (p: Person) => boolean, now: Date): Promise<Told> {
   const zone = chestZone();
   const name = await organiserName(poll);
   let cursor = after;
@@ -120,7 +120,7 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
       }
       if (kind === "remind" || kind === "nudge") await emailReminders(poll, group, catalogue(locale), locale, name(locale), zone);
     }
-    if (kind === "ask") await badges(await pendingCounts(sql, people));
+    if (kind === "ask") await badges(await pendingCounts(sql, people, now));
     if (!found.next) return { done: true };
     cursor = found.next;
     await sql`update tellings set after = ${cursor} where poll_id = ${poll.id} and kind = ${kind}`;
@@ -185,10 +185,10 @@ async function withdrawFrom(key: string, ids: Iterable<string>): Promise<void> {
   for (let i = 0; i < list.length; i += 500) await withdraw(key, list.slice(i, i + 500));
 }
 
-async function tell(sql: Sql, poll: Poll, kind: Kind, after: string | null): Promise<Told> {
+async function tell(sql: Sql, poll: Poll, kind: Kind, after: string | null, now: Date): Promise<Told> {
   if (kind === "remind" || kind === "nudge") {
     const done = await answeredBy(sql, poll.id);
-    return tellPages(sql, poll, kind, askKey(poll.id), after, p => p.id !== poll.organiser && !done.has(p.id));
+    return tellPages(sql, poll, kind, askKey(poll.id), after, p => p.id !== poll.organiser && !done.has(p.id), now);
   }
   const key = kind === "ask" ? askKey(poll.id) : finalKey(poll.id);
   if (after === null) {
@@ -198,12 +198,12 @@ async function tell(sql: Sql, poll: Poll, kind: Kind, after: string | null): Pro
       // The broadcast reached everyone asked: not the organiser's business,
       // nor, for 'ask', of those who answered already.
       await withdrawFrom(key, [poll.organiser, ...(kind === "ask" ? await answeredBy(sql, poll.id) : [])]);
-      if (kind === "ask") await refreshAsked(sql, poll);
+      if (kind === "ask") await refreshAsked(sql, poll, now);
       return { done: true };
     }
   }
   const done = kind === "ask" ? await answeredBy(sql, poll.id) : new Set<string>();
-  return tellPages(sql, poll, kind, key, after, p => p.id !== poll.organiser && !done.has(p.id));
+  return tellPages(sql, poll, kind, key, after, p => p.id !== poll.organiser && !done.has(p.id), now);
 }
 
 // runTellings sends what is queued, oldest first. Two passes never tell the
@@ -222,7 +222,7 @@ export async function runTellings(sql: Sql, now = new Date()): Promise<{ told: s
     if (!row) continue;
     const poll = await load(sql, poll_id);
     const valid = kind === "final" ? poll.status === "closed" && poll.finalOption !== null : poll.status === "open" && (poll.closesAt === null || new Date(poll.closesAt) > now);
-    const result: Told = valid ? await tell(sql, poll, kind, row.after) : { done: true };
+    const result: Told = valid ? await tell(sql, poll, kind, row.after, now) : { done: true };
     const name = `${poll.id}:${kind}`;
     if (result.done) {
       await sql`delete from tellings where poll_id = ${poll.id} and kind = ${kind}`;
@@ -240,7 +240,7 @@ export async function runTellings(sql: Sql, now = new Date()): Promise<{ told: s
 // it opens, closes, is reopened, deleted or restored). The Chest takes 600
 // badge writes a minute: in a larger company the rest are set at each
 // member's next visit.
-export async function refreshAsked(sql: Sql, poll: Pick<Poll, "everyone" | "groups" | "people">): Promise<void> {
+export async function refreshAsked(sql: Sql, poll: Pick<Poll, "everyone" | "groups" | "people">, now = new Date()): Promise<void> {
   let after: string | null = null;
   const known = await audienceGroups(poll);
   if (known === null) return;
@@ -252,7 +252,7 @@ export async function refreshAsked(sql: Sql, poll: Pick<Poll, "everyone" | "grou
       if (error instanceof ChestError) return;
       throw error;
     }
-    await badges(await pendingCounts(sql, found.people));
+    await badges(await pendingCounts(sql, found.people, now));
     if (!found.next) return;
     after = found.next;
   }
@@ -275,7 +275,7 @@ export async function settle(sql: Sql, now = new Date()): Promise<string[]> {
     const poll = await load(sql, id);
     await withdraw(askKey(poll.id));
     await sql`delete from tellings where poll_id = ${poll.id} and kind in ('ask', 'remind', 'nudge')`;
-    await refreshAsked(sql, poll);
+    await refreshAsked(sql, poll, now);
     if (poll.closedByDate && poll.organiser !== "erased") {
       await notify([poll.organiser], t => ({ title: cut(fill(t.bell.closed, { title: poll.title }), 80), body: poll.kind === "date" ? t.bell.closedDate : t.bell.closedBody }), { path: pollPath(poll.id), key: closedKey(poll.id) });
     }

@@ -544,6 +544,7 @@ export const en = {
     too_many: "Too many at once. Try again in an hour.",
     limit: "Too many requests today. Please try again tomorrow.",
     expired: "This form was open too long. Send it again.",
+    needs_javascript: "This form needs JavaScript: turn it on in your browser, then send it again.",
     too_fast: "That was fast. Wait two seconds and send again.",
     no_components: "Choose at least one service.",
     in_use: "It has a history: hide it instead.",

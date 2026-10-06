@@ -369,8 +369,12 @@ released 0.4.1; what follows is not in it yet.
   (`Chest-Visitor-Address`, which the front would set; never
   `X-Forwarded-For`, which the visitor writes). The public writes are
   bounded by the package (`@argentic/chest-app`'s `publicAction({ bound })`):
-  a form token that serves once and lasts two hours, the field only robots
-  fill, and budgets a day per visitor (the front's address, else a
+  a form token that serves once, for its action only, and lasts two hours,
+  a proof of work on `bookTime` (it stops robots that run no JavaScript; a
+  native script pays about a millisecond — reasoned, not measured — so the
+  budgets below are what hold; booking needs JavaScript, and a browser
+  without it is told so), the field only robots fill, and budgets a day
+  per visitor (the front's address, else a
   `chest_v` cookie of the browser's) and for everyone — bookings (10 / 1,000)
   and changes (20 / 1,000) apart — spent only once a request is valid
   (the type exists, the time is well-formed, the guest's link opens a

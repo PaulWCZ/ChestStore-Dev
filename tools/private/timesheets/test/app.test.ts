@@ -62,6 +62,8 @@ test("a page left open: a read with nothing new is a 304, any write changes its 
     const version = versionOf(await (await get(who, path)).text());
     assert.ok(version, `${path} has a version`);
     assert.equal((await get(who, path, { "x-tool-version": version })).status, 304, `${path}: nothing new`);
+    await database.sql`update settings set locked_until = locked_until where false`;
+    assert.equal((await get(who, path, { "x-tool-version": version })).status, 304, `${path}: an empty statement changes nothing`);
     await database.sql`update settings set locked_until = locked_until`;
     const again = await get(who, path, { "x-tool-version": version });
     assert.equal(again.status, 200, `${path}: a write since`);
