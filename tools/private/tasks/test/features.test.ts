@@ -4,18 +4,18 @@ import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import type { Run } from "@argentic/chest-sdk/schedules";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { chestToday } from "../lib/clock.ts";
-import { AppError } from "../lib/errors.ts";
-import { boardCsv, everything } from "../lib/export.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fromCsv, fromTrello, importBoard, importedCounts, previewPeople } from "../lib/importers.ts";
-import { leave } from "../lib/lifecycle.ts";
-import * as mail from "../lib/mail.ts";
-import { morning } from "../lib/morning.ts";
-import { addDays } from "../lib/repeat.ts";
-import * as tell from "../lib/tell.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { chestToday } from "../src/lib/clock.ts";
+import { AppError } from "@argentic/chest-app";
+import { boardCsv, everything } from "../src/lib/export.ts";
+import { en } from "../src/i18n/en.ts";
+import { fromCsv, fromTrello, importBoard, importedCounts, previewPeople } from "../src/lib/importers.ts";
+import { leave } from "../src/lib/lifecycle.ts";
+import * as mail from "../src/lib/mail.ts";
+import { morning } from "../src/lib/morning.ts";
+import { addDays } from "../src/shared/repeat.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora } from "./support/members.ts";
@@ -31,7 +31,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
 });
 after(async () => {
   await chest.close();
@@ -305,7 +305,7 @@ test("email beside the bell: given a card, mentioned, the morning; in each one's
   // The morning: what is due, by email too (Inès; Hugo turned it off).
   await cards.updateCard(sql, asMember(hugo), c.id, { due: addDays(chestToday(), -1) });
   chest.outbox.length = 0;
-  const run: Run = { id: "run_" + "b".repeat(26), name: "morning", scheduledAt: new Date().toISOString(), attempt: 1, timeZone: "Europe/Paris" };
+  const run: Run = { id: "run_" + "b".repeat(26), name: "morning", scheduledAt: new Date().toISOString(), attempt: 1 };
   await morning(sql, run);
   assert.deepEqual(chest.outbox.map(m => m.subject), ["1 tâche en retard"]);
   assert.match(chest.outbox[0]!.text, /En retard :\n• Order boxes/u);

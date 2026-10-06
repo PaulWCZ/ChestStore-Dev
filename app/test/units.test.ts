@@ -112,6 +112,12 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   fails("src/styles.css", ".note { color: #fff; }", /colour/u);
   write("src/styles.css", ".note { color: var(--ink); }");
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = () => <div className="note ck-field-group" />;', /ck-field-group/u);
+  // A family completed by the code (`c-${color}`): some class starts with it.
+  write("src/styles.css", ".note { color: var(--ink); } .c-sky { --c: var(--ink); }");
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = ({ c }: { c: string }) => <div className={`note c-${c}`} />;');
+  checkSources({ root: dir });
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = ({ c }: { c: string }) => <div className={`note x-${c}`} />;', /"x-"/u);
+  write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const A = () => <div className="note" />;');
   fails("src/app.tsx", "export const A = () => null;", /asks "database"/u);
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nimport * as m from "@argentic/chest-sdk/members";', /declare it/u);
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\napp.get("/", publicPage(() => null));', /without "public": true/u);

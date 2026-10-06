@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { en } from "../lib/i18n/en.ts";
-import * as mail from "../lib/mail.ts";
-import * as tell from "../lib/tell.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { en } from "../src/i18n/en.ts";
+import * as mail from "../src/lib/mail.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
 
-// Each person's email choice in the Chest (members.get(id).mailPreference, SDK
+// Each person's email choice in the Chest (mail.preference(id), SDK
 // studio.15), which mail.send applies beside Tasks' own switch: "none" is
 // not emailed, "digest" waits for the Chest's one email a day. And keys
 // are passed whole: two people emailed under one long key each get theirs.
@@ -20,7 +20,7 @@ let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
   chest = await fakeChest({
-    tool: "tasks",
+    tool: "tasks", network: {},
     members: everyone.map(p => ({ ...p, email: `${p.id.slice(4, 10)}@atelier.test`, ...(p.id === ines.id ? { mailPreference: "none" as const } : p.id === lea.id ? { mailPreference: "digest" as const } : {}) })),
     capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" },
   });
@@ -66,7 +66,7 @@ test("the email switch tells the truth: the Chest sends, does not send yet, or h
   chest.delivery.mail = "suspended";
   assert.equal(await mail.mailState(), "off");
   chest.delivery.mail = "ready";
-  const bare = await fakeChest({ tool: "tasks", members: everyone, capabilities: ["members", "files", "notifications"] });
+  const bare = await fakeChest({ network: {}, tool: "tasks", members: everyone, capabilities: ["members", "files", "notifications"] });
   try {
     assert.equal(await mail.mailState(), "off", "mail not granted to Tasks");
   } finally {
@@ -75,8 +75,8 @@ test("the email switch tells the truth: the Chest sends, does not send yet, or h
   assert.equal(en.home.emailOff.includes("owner"), true);
 });
 
-// 0.3.0: the assertion carries no email choice; the home page reads it from
-// the members API.
+// The assertion carries no email choice; the home page reads it from the
+// Chest (mail.preference, Proposal (studio), SDK 0.4.1-studio.2).
 test("the home page's hint reads each person's choice from the Chest", async () => {
   assert.equal(await mail.mailPreference(ines.id), "none");
   assert.equal(await mail.mailPreference(lea.id), "digest");

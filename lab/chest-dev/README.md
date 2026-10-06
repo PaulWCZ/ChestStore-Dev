@@ -171,7 +171,9 @@ Paul Lefèvre (`mbr_paulaaaa…`) is a former member who left three weeks ago
 
 ## Flags
 
-`--port N` (the team host; the tool runs on N+1, the public host on N+2),
+`--port N` (the team host; the tool runs on N+1, the public host on N+2;
+the database is `t_<tool>` on 4000, `t_<tool>_<N>` on another port, so two
+harnesses of one tool never share it),
 `--reset` (a new database), `--seed` (load `seed/sample.sql` again),
 `--empty` (never load it), `--prod` (serve the last `build.command` output
 with `build.start`; refused when sources are newer, unless `--stale-ok`),

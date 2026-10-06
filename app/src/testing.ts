@@ -150,7 +150,10 @@ export function checkSources({ root = "." }: { root?: string } = {}): void {
   for (const { file, text } of code.filter(c => c.file.endsWith(".tsx"))) {
     for (const m of text.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/gu)) {
       const literals = m[1] !== undefined ? [m[1]] : [...(m[2] ?? "").matchAll(/"([^"]*)"|'([^']*)'|`([^`$]*)/gu)].map(x => x[1] ?? x[2] ?? x[3] ?? "");
-      for (const name of literals.flatMap(l => l.split(/\s+/u)).filter(Boolean)) if (!known.has(name)) problems.push(`${file}: the class "${name}" is in no stylesheet (the tool's or the kit's)`);
+      // A name ending with "-" is a family the code completes
+      // (`c-${color}`): some class of the stylesheets must start with it.
+      const defined = (name: string) => (name.endsWith("-") ? [...known].some(k => k !== undefined && k.startsWith(name) && k.length > name.length) : known.has(name));
+      for (const name of literals.flatMap(l => l.split(/\s+/u)).filter(Boolean)) if (!defined(name)) problems.push(`${file}: the class "${name}" is in no stylesheet (the tool's or the kit's)`);
     }
   }
   const manifest = JSON.parse(readFileSync(join(root, "chest.json"), "utf8")) as { capabilities?: string[]; receives?: string[]; schedules?: { name: string }[]; public?: boolean };

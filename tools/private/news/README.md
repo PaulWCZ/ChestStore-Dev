@@ -15,7 +15,7 @@ channel where announcements drown.
 - **A post**: a headline and a text formatted as it will read — a toolbar
   (bold, italic, subheading, lists, numbered lists, quote, link, picture)
   and the usual shortcuts (Ctrl+B, Ctrl+I); nobody types marks. News keeps
-  the text as plain text with a few marks (`lib/markdown.ts`, never HTML),
+  the text as plain text with a few marks (`src/shared/markdown.ts`, never HTML),
   which search, the bell and email read. A **cover picture**, **pictures
   inside the text**, a **gallery** of up to 20 pictures and videos (MP4,
   WebM up to 25 MB, played as they are) and up to 10 attached files.
@@ -207,13 +207,15 @@ Wiki's spaces kept to groups).
 | `/chest/propose` | members with a role | share something: a shout-out or news, for a publisher to approve; one's own proposals |
 | `/chest/proposals` | publishers | what waits for approval: Publish, Decline |
 | `/chest/posts/<id>/confirmations` | publishers | who confirmed, as CSV |
-| `/chest/api/uploads` | publishers (anyone, for a proposal's picture) | authorise (POST) then record (PUT) a picture, a video or a file |
+| `/chest/actions/requestUpload`, `/chest/actions/recordUpload` | publishers (anyone, for a proposal's picture) | authorise, then record a picture, a video or a file the browser sent to the Chest |
 | `/chest/transfer` | publishers | import a Slack channel; download all posts |
-| `/chest/api/import` | publishers | a Slack export (POST, the ZIP): its channels, or (`?channel=`) one imported |
+| `/chest/transfer/import` | publishers | a Slack export (POST, the ZIP, from the page itself): its channels, or (`?channel=`) one imported |
 | `/chest/transfer/export` | publishers | every post they see, as a ZIP |
 | `/chest/files/<id>` (`?size=256\|1024`, `?download`) | who sees the post (or its uploader, before saving) | a 15-minute link signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle; groups (`group.changed`, `group.removed`) |
-| `/chest-jobs/publish`, `/chest-jobs/digest` | the Chest only (signed) | the "publish" and "digest" schedules (Proposal) |
+| `/chest-schedules` | the Chest only (signed) | the runs of the "publish" and "digest" schedules of `chest.json` |
+| `/chest/actions/<name>` | members (the page itself) | every change (`src/actions.ts`) |
+| `/chest/look.css` | members | the look: the company's choice, else Newsprint (a stylesheet, cached by its hash) |
 | `/` | anyone | "News lives in your Chest" |
 
 ## On a Chest
@@ -228,7 +230,7 @@ Wiki's spaces kept to groups).
   member's groups are all of theirs, asked of the Chest (0.3.0's
   `member.groups` lists only the groups that give News:
   `members.groups.of(id)` for the reader signed in, every group's members
-  for the list of readers, kept a minute; `lib/groups.ts`) — a company that opens News to
+  for the list of readers, kept a minute; `src/lib/groups.ts`) — a company that opens News to
   everyone can still write for Sales. It receives `group.*`: someone who
   leaves a group (`member.updated`, `group.changed`) or a group removed
   (`group.removed`) takes the bell item of the Important posts they are no
@@ -240,8 +242,8 @@ Wiki's spaces kept to groups).
   your company's name"): one message per person, `to: {member}` — News
   never knows an address — in their language, keyed so a retry never sends
   twice (the whole key: the SDK sends a long one as its SHA-256). Each
-  person's email choice in their Chest (Proposal (studio.15):
-  `members.get(id).mailPreference`) is applied by the Chest: *none* gets no email
+  person's email choice in their Chest (Proposal (studio):
+  `mail.preference(id)`) is applied by the Chest: *none* gets no email
   from News (the bell still tells them, and *sent by email* does not count
   them), *one a day* gets it in the Chest's daily email. Nothing News sends
   is marked transactional. News's own *Stop the email* (the weekly digest)
@@ -252,8 +254,8 @@ Wiki's spaces kept to groups).
   keeps in its database (`chest_state`), never shown. On a Chest
   that cannot send email yet, nothing fails; News remembers it
   (`chest_state`), and a post's page says who was emailed. Before
-  publishing, the composer asks the Chest (`mail.available()`, studio.16;
-  `lib/state.ts`, `mailNow`): when it would not send now (no mail, not
+  publishing, the composer asks the Chest (`mail.available()`, Proposal (studio);
+  `src/lib/state.ts`, `mailNow`): when it would not send now (no mail, not
   connected, paused, the day's emails used) it says *Publish and tell 6
   people in their bell*. The front page offers the digest's *By email too*
   only on a Chest that sends email at all (`mailConnected`). When the
@@ -327,13 +329,14 @@ Wiki's spaces kept to groups).
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`, and the
+studio's app machinery `@argentic/chest-app` (0.1.0-studio.1).
 
-- `member.language` (SDK 0.3.0): the interface in each member's language;
+- `member.language` (SDK 0.3.0 and later): the interface in each member's language;
   `members.*` `language` for the bell and emails in the recipient's.
-- **Scheduled tasks** (`schedules`) — **Proposal (studio)**, in `vendor/`:
-  `chest.proposals.json` declares `publish` every 15 minutes and `digest`
-  on Monday at 08:30 (`app/chest-jobs/[name]/route.ts`). Without it News
+- **Scheduled tasks** (`schedules`, SDK 0.4.0): `chest.json` declares
+  `publish` every 15 minutes and `digest` on Monday at 08:30, run on
+  `POST /chest-schedules` (`src/calls.ts`). Without them News
   still works — the publish pass runs when someone opens the front page —
   but **there is no weekly digest** (a visit never sends one). The digest
   shares the Chest's 1,000 recipients an hour with Important posts (they
@@ -368,25 +371,44 @@ News wears **any look the company chooses in its Chest**: its own identity
 — the default), any theme of the store's catalogue (the 17 identities,
 "Chest", "High contrast"), or the company's brand imported from its
 guidelines — for all tools or for News alone, with the same features. The
-look arrives with the page (one `<style>` with the page's nonce, no
+look is a stylesheet News answers itself (`/chest/look.css`, linked with
+its hash and cached until the company chooses another: no inline style, no
 script); in brand mode the company's logo stands beside the name, on the
 members' pages and the public root. The newspaper's heavier weights are
-steps above the theme's own (`app/tokens.css`), so a theme whose hierarchy
+steps above the theme's own (`src/tokens.css`), so a theme whose hierarchy
 is size alone (the "Chest" theme) stays at one weight. Screens:
 `docs/screens/*-chest-*`, `*-theme-*` (Workshop, Library), `*-brand-*` (the
 sample brand); `important-undo-*` and `important-sent-*` show the Undo of an
 Important post and the same toast once it went out.
 
+## How it is made
+
+TypeScript on the studio's starter stack: a **Hono** server that renders
+**React** pages, with a few **islands** that also run in the browser (the
+composer, comments, reactions, "I have read it"…), built by **Vite**; the
+machinery (actions, islands, refresh, words, formats, the policy, logs, the
+database) is the studio's package `@argentic/chest-app`, vendored in
+`vendor/`. The pages carry no inline script and no inline style: the
+strict policy the Chest gives a public part holds on every page. The text
+editor (Tiptap) is a script of its own, fetched when the composer opens.
+Measured with the studio's bench (`lab/measure`, 6 October 2026, Node
+24.21, the same 15 pages): at rest 72 MiB PSS (125 on Next.js 16), the
+first page 0.47 s after a cold start (0.82), an image of 28 MiB (475), a
+build that fits the Chest's 512 MiB build container in 3.5 s (40 s).
+
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm test          # types, the server built into dist/test, then node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+npm run build     # types, then the browser's files and the server (Vite), as the Chest does
+npm start         # the built server (dist/server/main.js), as the Chest starts it
+npm run dev       # rebuilds on every change and restarts the server
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/news --prod --reset
---port 4500` (a seven-person company's last month, from `seed/sample.sql`),
+--port 4500` (a seven-person company's last month, from `seed/sample.sql`;
+`npm run build` first),
 `node lab/chest-dev/flows/news.mjs 4500` (browser flows),
 `node lab/chest-dev/screens.mjs tools/private/news --port 4500`
 (screenshots; run after the flows, which add the cover pictures — the seed

@@ -62,8 +62,11 @@ kit (`@argentic/chest-ui`, its `AGENTS.md`) the look.
   `data-key`) so they keep their place. On a 401/403 the page is loaded
   again (the Chest signs in or says "Access removed"); on another error a
   toast says so and the page stays, with what is typed (the Chest's 5xx,
-  "Waking up…" included). `refresh()` and `navigate(path)` by hand;
-  `useAutoRefresh(refresh, 30)` (kit) on a timer.
+  "Waking up…" included). `refresh()` and `navigate(path)` by hand
+  (`{ top: false }`: the scroll and the focus stay — a panel opened beside
+  a list); `useAutoRefresh(refresh, 30)` (kit) on a timer. A navigation is
+  never lost to a refresh or an action on its way; an island it brings is
+  live the moment it shows.
 - **Refusals are codes**, one way everywhere: `fail("not_found")`,
   `fail("too_long", { max })`; each code is a sentence in `t.errors`. In an
   action the caller gets the code and the sentence; in a page,
@@ -175,7 +178,8 @@ location.pathname })` or a form `action="/p/abc/actions/answer"`.
 /chest request (not for /assets/ nor the look); a hook that asks the Chest
 must cache its answer a minute (600 members calls a minute per tool).
 **A look chosen at run time** (a theme the company picks) —
-`createApp({ look: viewer => ({ css, colors }) })`: pages link
+`createApp({ look: viewer => ({ css, colors, logo }) })` (the layout
+receives it as `look`: a brand's logo beside the name): pages link
 `/chest/look.css?v=<hash>` or `/look.css?v=<hash>`, served by the package;
 `chestConfig()` without `theme`. The layouts receive `look` (its `logo` in brand mode) and the page's
 `status` (an error page's public layout may draw its frame); a visitor's

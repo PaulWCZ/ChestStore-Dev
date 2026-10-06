@@ -69,7 +69,9 @@ export const redirect = (to: string): never => {
 // rejection would stop the server. Nothing here may take minutes (that is
 // a schedule's work): the tool may sleep.
 export function after(name: string, task: () => Promise<unknown>): void {
-  setImmediate(() => task().catch(error => log.error(`${name} failed`, error)));
+  // Started in a promise: a task that throws before its first await is
+  // logged too (an uncaught throw would stop the server).
+  setImmediate(() => void Promise.resolve().then(task).catch(error => log.error(`${name} failed`, error)));
 }
 
 // ---- The fields of an action's input. Each reads what a form sends
