@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { atOffice, presenceOf, setPresence } from "../lib/presence.ts";
+import { atOffice, presenceOf, setPresence } from "../src/lib/presence.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines } from "./support/members.ts";

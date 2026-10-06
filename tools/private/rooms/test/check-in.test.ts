@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import { checkIn } from "../lib/check-in.ts";
-import * as places from "../lib/places.ts";
-import { setRules } from "../lib/settings.ts";
+import { builtServer, type Handler } from "./support/server.ts";
+import { checkIn } from "../src/lib/check-in.ts";
+import * as places from "../src/lib/places.ts";
+import { setRules } from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
@@ -13,9 +13,11 @@ import { office } from "./support/places.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 let o: Awaited<ReturnType<typeof office>>;
+let POST: Handler;
 before(async () => {
+  POST = await builtServer();
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "quarter", cron: "*/15 * * * *" }] });
+  chest = await fakeChest({ members: everyone });
   o = await office(database.sql);
 });
 after(async () => {
