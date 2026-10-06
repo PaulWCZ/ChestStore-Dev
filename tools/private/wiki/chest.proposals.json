@@ -1,10 +1,4 @@
 {
-  "schedules": [
-    {
-      "name": "reviews",
-      "cron": "40 7 * * 1-5"
-    }
-  ],
   "mail": {
     "send": true
   },

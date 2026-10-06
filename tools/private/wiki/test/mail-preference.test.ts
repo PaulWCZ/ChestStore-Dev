@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { email, mailNow } from "../lib/mail.ts";
+import { email, mailNow } from "../src/lib/mail.ts";
 import { camille, hugo, lea, tom } from "./support/members.ts";
 
 // SDK studio.15: the wiki's letters honour each person's Chest email
@@ -12,6 +12,7 @@ import { camille, hugo, lea, tom } from "./support/members.ts";
 let chest: FakeChest;
 before(async () => {
   chest = await fakeChest({
+    network: {},
     tool: "wiki",
     members: [
       { ...tom, email: "tom@lumen.test" },
@@ -66,7 +67,7 @@ test("studio.16: the dialogs ask the Chest whether email would go now (mail.avai
   } finally {
     chest.delivery.mail = "ready";
   }
-  const bare = await fakeChest({ tool: "wiki", members: [tom], capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ network: {}, tool: "wiki", members: [tom], capabilities: ["members", "notifications"] });
   try {
     assert.equal(await mailNow(), false, "a Chest without email");
   } finally {

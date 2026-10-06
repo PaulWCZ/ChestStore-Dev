@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { forgetGroups, membersOfTool, withGroups } from "../lib/groups.ts";
-import * as pages from "../lib/pages.ts";
-import * as reads from "../lib/reads.ts";
-import * as spaces from "../lib/spaces.ts";
-import * as tell from "../lib/tell.ts";
+import { forgetGroups, membersOfTool, withGroups } from "../src/lib/groups.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as reads from "../src/lib/reads.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, tom } from "./support/members.ts";
@@ -27,7 +27,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: bare, groups: [office, sales, tech], capabilities: ["members", "files", "notifications", "groups"] });
+  chest = await fakeChest({ network: {}, members: bare, groups: [office, sales, tech], capabilities: ["members", "files", "notifications", "groups"] });
   forgetGroups();
 });
 after(async () => {
@@ -66,7 +66,7 @@ test("a page Sales must confirm: only Sales is told, and it is on their home pag
 
 test("without the permission: only the groups that give the wiki, as the assertion says", async () => {
   await chest.close();
-  chest = await fakeChest({ members: everyone, groups: [{ ...tech, grants: true }, sales], capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ network: {}, members: everyone, groups: [{ ...tech, grants: true }, sales], capabilities: ["members", "files", "notifications"] });
   forgetGroups();
   const s = await spaces.createSpace(database.sql, asMember(camille), { name: "Tech only", visibility: "groups", groups: [groups.tech] });
   assert.deepEqual((await withGroups(asMember(lea))).groups, [groups.tech]);

@@ -4,7 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4300);
 const { browser, context, page, origin, problems } = await open(port, "tom", { allow404: /\/chest\/(pages\/(16|999)|pages\/\d+\/edit)$/u });
@@ -261,17 +261,22 @@ await step("idle for 15 minutes, a lock can be taken over; the first editor keep
   await as(context, origin, "tom");
   await page.goto(origin + "/chest/pages/5/edit");
   await page.locator(".ProseMirror").waitFor();
-  // Tom walks away: his lock grows old (the harness's database, as the tool's role).
-  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
-  await sql`update page_locks set active_at = now() - interval '20 minutes' where page_id = 5`;
-  await sql.end();
-  await as(context, origin, "sofia");
-  await page.goto(origin + "/chest/pages/5/edit");
-  await page.waitForSelector("text=has not typed for 20 minutes");
-  await page.getByRole("button", { name: "Take over" }).click();
-  await page.locator(".ProseMirror").waitFor();
-  await page.getByRole("button", { name: "Stop editing" }).click();
-  await page.waitForURL(/\/chest\/pages\/5$/u);
+  // Tom walks away: his lock grows old (this harness's database, as the
+  // tool's role); whatever happens, no aged lock is left behind.
+  const sql = postgres(toolDatabase("wiki", port), { max: 1, onnotice: () => {} });
+  try {
+    await sql`update page_locks set active_at = now() - interval '20 minutes' where page_id = 5`;
+    await as(context, origin, "sofia");
+    await page.goto(origin + "/chest/pages/5/edit");
+    await page.waitForSelector("text=has not typed for 20 minutes");
+    await page.getByRole("button", { name: "Take over" }).click();
+    await page.locator(".ProseMirror").waitFor();
+    await page.getByRole("button", { name: "Stop editing" }).click();
+    await page.waitForURL(/\/chest\/pages\/5$/u);
+  } finally {
+    await sql`update page_locks set active_at = now() where page_id = 5`;
+    await sql.end();
+  }
 });
 
 await step("an editor drags a page in the sidebar to put it inside another", async () => {
@@ -471,7 +476,7 @@ await step("leaving the editor without a word frees the page at once: another ed
   // Tom goes elsewhere through the browser (no "Stop editing").
   await page.goto(origin + "/chest");
   await page.waitForTimeout(600);
-  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
+  const sql = postgres(toolDatabase("wiki", port), { max: 1, onnotice: () => {} });
   const locks = await sql`select member_id from page_locks where page_id = 3`;
   const drafts = await sql`select doc::text as doc from drafts where page_id = 3 and member_id = ${"mbr_tom" + "a".repeat(23)}`;
   await sql.end();
@@ -531,7 +536,7 @@ await step("the “/” menu inserts a table, a checklist, found by typing", asy
 await step("per-space edit rights: Sales is edited by the sales group; Tom (tech) reads it and is told why", async () => {
   // Each member in their own language again; Sales open to everyone again (a step above kept it to the office).
   await context.addCookies([{ name: "dev_locale", value: "", url: origin }]);
-  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
+  const sql = postgres(toolDatabase("wiki", port), { max: 1, onnotice: () => {} });
   await sql`update spaces set visibility = 'everyone' where id = 2`;
   await sql`delete from space_groups where space_id = 2`;
   await sql.end();
@@ -739,6 +744,10 @@ await step("round 3: a picture pasted from the web becomes a note in its place, 
   expect((await note.innerText()).includes("Picture from the web not kept (“schema”): download it, then drop it here."), "the note: " + (await note.innerText()));
   expect(await page.locator(".ProseMirror img[src^='https://']").count() === 0, "no picture from the web left in the editor");
   expect((await body.innerText()).includes("Point suivant"), "the rest of the paste came");
+  // Google Docs says bold with a style attribute, which the page's policy
+  // refuses: the editor keeps it as bold, and the wrapper <b> marked
+  // "normal" bolds nothing else.
+  expect((await page.locator(".ProseMirror strong").allInnerTexts()).join("|") === "Budget validé", "bold kept, and only it: " + (await page.locator(".ProseMirror strong").allInnerTexts()).join("|"));
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForURL(/\/chest\/pages\/\d+(\?saved=\d+)?$/u);
   await page.waitForSelector(".ck-toast:has-text('Saved.')");
