@@ -2,14 +2,14 @@
    defined from them): the page wears "Workshop" (src/theme.ts), or the
    theme or brand the company chose (a stylesheet of its own, /chest/look.css).
    The shell, toasts, dialogs, pickers, date fields and empty states are
-   the UI kit's (@argentic/chest-ui, imported first in src/core/entry.tsx);
+   the UI kit's (@argentic/chest-ui, imported first in src/entry.tsx);
    a few of its classes are given Workshop's ink edges below. No style=""
    in a page: the policy refuses it (a size from data is a class, an SVG
    attribute or <progress>). */
 @import "./tokens.css";
 @import "./timeline-grid.css";
 *, *::before, *::after { box-sizing: border-box; }
-/* An island (src/core/island.tsx) is a box of its own for the browser's
+/* An island (@argentic/chest-app's Island) is a box of its own for the browser's
    scripts only: the page is laid out as if it were not there. */
 .island { display: contents; }
 form[aria-busy="true"] { opacity: 0.7; }

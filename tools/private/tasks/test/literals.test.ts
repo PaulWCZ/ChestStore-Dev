@@ -9,7 +9,7 @@ const root = join(import.meta.dirname, "..");
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", "dist", "vendor", "test", "core"].includes(name)) return []; // src/core: machinery, no words
+    if (["node_modules", "dist", "vendor", "test"].includes(name)) return [];
     return statSync(path).isDirectory() ? files(path) : path.endsWith(".tsx") ? [path] : [];
   });
 }
