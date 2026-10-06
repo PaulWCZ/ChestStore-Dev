@@ -365,13 +365,16 @@ released 0.4.1; what follows is not in it yet.
   remembered for emails sent by a schedule. The company's name (an administrator may
   name it otherwise for visitors) and the default time zone of new hosts
   are the Chest's (`chest.organization.name`, `chest.timeZone`, 0.3.0).
-- **The visitor's address** for the booking form's counters —
+- **The visitor's address** for the public forms' counters —
   **Proposal (studio)** (`visitors.address()`, the header
   `Chest-Visitor-Address` the front would set; never `X-Forwarded-For`,
-  which the visitor writes). Without it every visitor counts together:
-  the form is then bounded by its counters for everyone — 200 bookings
-  and changes an hour, 1,000 over the last 24 hours, kept in the database
-  (`form_counts`) — not per visitor.
+  which the visitor writes). Without it a browser is known by a cookie of
+  its own (`chest_v`). The public writes are counted only once valid (the
+  type exists, the time is well-formed, the guest's link opens a booking
+  still to come — junk is refused uncounted): bookings and changes apart,
+  per visitor (8 an hour), per form or link (10 an hour), for everyone
+  (200 an hour, 1,000 over the last 24 hours), in `form_counts`. A form
+  is good for two hours and one booking (`form_tokens`).
 - **`calendar`** — **Proposal (studio)** (`chest.proposals.json`:
   `"calendar": true`): each booking in its host's Chest calendar feed.
   Without it, the tool's own private feed (Settings) remains.
@@ -381,7 +384,7 @@ released 0.4.1; what follows is not in it yet.
 - **Declared network** (real contract, `network`): the calendars are read
   with plain `fetch`, which follows the Chest's proxy through
   `NODE_USE_ENV_PROXY=1` (Node ≥ 24.5 in the Chest's image; the tool's
-  `engines` allow Node 22 for local work, where fetch goes out directly).
+  `engines` ask Node 24).
   Tests answer the declared hosts with `fakeChest({ network })` (SDK
   studio.15: a read, a 404, a redirect between declared hosts, a refused
   host). The local harness runs the tool in its own process and does not

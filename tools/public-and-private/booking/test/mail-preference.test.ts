@@ -24,7 +24,7 @@ before(async () => {
     chest: { timeZone: "Europe/Paris" },
     tool: "booking",
     members: [
-      camille,
+      { ...camille, email: "camille@atelier.test" },
       // Inès hosts and chose no email from tools; Nora, a colleague who
       // books a meeting with her as a guest, chose none too.
       { ...ines, email: "ines@atelier.test", mailPreference: "none" },
@@ -104,4 +104,44 @@ test("whether mail goes out, as the Chest says it: ready, not connected, suspend
   } finally {
     await plain.close();
   }
+});
+
+test("calendar files: a UID of each booking's own (id and its link's hash), the former UID for bookings made before", async () => {
+  const { sql } = database;
+  const [row] = await sql<{ id: string }[]>`select id::text as id from bookings where status = 'confirmed' limit 1`;
+  const made = (await b.bookingsByIds(sql, [row!.id]))[0]!;
+  assert.match(made.uid, new RegExp(`^booking-${made.id}-[0-9a-f]{12}@booking\\.chest$`, "u"));
+  // The guest's invitation (the email's attachment, /b/<secret>/ics).
+  assert.ok(mailer.invitation(made, context).includes(`\r\nUID:${made.uid}\r\n`), "the invitation carries it");
+  // Two bookings never share one (another company, a restored backup).
+  const other = await sql<{ id: string }[]>`select id::text as id from bookings where id <> ${made.id} limit 1`;
+  if (other[0]) assert.notEqual((await b.bookingsByIds(sql, [other[0].id]))[0]!.uid.split("-").at(-1), made.uid.split("-").at(-1));
+  // Made before this version: the UID its invitations already carry.
+  await sql`update bookings set legacy_uid = true where id = ${made.id}`;
+  assert.equal((await b.bookingsByIds(sql, [made.id]))[0]!.uid, `booking-${made.id}@chest`);
+  await sql`update bookings set legacy_uid = false where id = ${made.id}`;
+});
+
+test("the host's copy of a phone call tells them to call, in their language", async () => {
+  const { sql } = database;
+  const [row] = await sql<{ id: string }[]>`select id::text as id from bookings limit 1`;
+  const made = { ...(await b.bookingsByIds(sql, [row!.id]))[0]!, memberId: camille.id, locationKind: "phone" as const, guestName: "Kenji Sato", guestPhone: "+81 3 1234 5678" };
+  chest.outbox.length = 0;
+  await mailer.toHost("booked", made, { locale: "fr", zone: "Europe/Paris", link: "https://booking-chest.atelier.test/chest/bookings/1" });
+  await mailer.toHost("moved", made, { locale: "en", zone: "Europe/Paris", link: "https://booking-chest.atelier.test/chest/bookings/1" });
+  const texts = chest.outbox.map(m => m.text);
+  assert.ok(texts[0]!.includes("Appelez Kenji Sato au +81 3 1234 5678."), texts[0]);
+  assert.ok(texts[1]!.includes("Call Kenji Sato at +81 3 1234 5678."), texts[1]);
+  assert.ok(texts.every(t => !/vous appellera|will call you/u.test(t)));
+});
+
+test("a reminder says today, tomorrow or reminder, as the day is in the guest's zone", async () => {
+  const { sql } = database;
+  const [row] = await sql<{ id: string }[]>`select id::text as id from bookings limit 1`;
+  const made = { ...(await b.bookingsByIds(sql, [row!.id]))[0]!, startsAt: new Date("2026-10-08T20:00:00Z"), guestZone: "Europe/Paris", guestLanguage: "en" };
+  chest.held.length = 0;
+  await mailer.reminder({ ...made, moves: 11 }, context, Date.parse("2026-10-08T08:00:00Z"));
+  await mailer.reminder({ ...made, moves: 12 }, context, Date.parse("2026-10-07T08:00:00Z"));
+  await mailer.reminder({ ...made, moves: 13 }, context, Date.parse("2026-10-05T08:00:00Z"));
+  assert.deepEqual(chest.held.map(h => h.subject.split(":")[0]), ["Today", "Tomorrow", "Reminder"]);
 });
