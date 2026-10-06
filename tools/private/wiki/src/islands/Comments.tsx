@@ -277,6 +277,20 @@ function QuoteOffer({ offer, label, onChoose }: { offer: { text: string; top: nu
     el.style.top = `${offer.top}px`;
     el.style.left = `${offer.left}px`;
   }, [offer.top, offer.left]);
+  // It sits at the end of the page (over the text, where the words were
+  // selected): Tab from the selection comes to it first.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || e.shiftKey || !button.current) return;
+      // From the selection only: focus still on the page itself, or in its text.
+      const active = document.activeElement;
+      if (active && active !== document.body && !active.closest(".prose")) return;
+      e.preventDefault();
+      button.current.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   return (
     <button ref={button} type="button" className="button small quote-offer" onMouseDown={e => e.preventDefault()} onClick={() => onChoose(offer.text)}>
       <Chat />{label}
@@ -304,7 +318,14 @@ function findInPage(quote: string): boolean {
   const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
   const nodes: { node: Text; start: number }[] = [];
   let all = "";
+  // Between two blocks (paragraphs, items, cells) a space, as the
+  // selection the quote came from has a line break there.
+  const blockOf = (n: Node) => n.parentElement?.closest("p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th, aside, figcaption, div") ?? null;
+  let block: Element | null = null;
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const here = blockOf(n);
+    if (block !== null && here !== block) all += " ";
+    block = here;
     nodes.push({ node: n as Text, start: all.length });
     all += (n as Text).data;
   }

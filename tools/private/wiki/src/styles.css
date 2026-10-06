@@ -468,6 +468,12 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 0.1em; border
 .synonym-line.new { display: grid; }
 .synonym-line.new .row-actions { display: flex; gap: var(--space-2); }
 @media (max-width: 760px) {
+  /* Writing on a phone: the editor's bar and toolbar are what stay in
+     sight — the app's header and tabs scroll away (the bar's "Stop
+     editing" is the way out), leaving the text room above the keyboard. */
+  :root:has(.editing-page) { --bar-h: 0px; }
+  .ck-shell:has(.editing-page) .ck-bar { position: static; }
+  .ck-shell:has(.editing-page) .ck-bar-nav { display: none; }
   .replies, .conversation-actions, .reply-box { margin-left: var(--space-3); }
   .synonym-line { flex-wrap: wrap; }
 }

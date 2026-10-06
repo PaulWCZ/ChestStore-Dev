@@ -1,12 +1,13 @@
 import { call, fill as format, toast } from "@argentic/chest-app/client";
-import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import type { Catalogue } from "../i18n/index.ts";
 import { Chevron, Plus } from "./icons.tsx";
 import type { PageTarget } from "./new-page.tsx";
 
 // private: the member's own "My pages" (only they see it).
 export type TreeSpace = { id: string; name: string; color: string; access: "read" | "write"; private?: boolean };
-export type TreeNode = { id: string; spaceId: string; parentId: string | null; title: string };
+// more: it holds pages; those not sent yet come when it opens (treeBranch).
+export type TreeNode = { id: string; spaceId: string; parentId: string | null; title: string; more: boolean };
 export type TreeWords = { shell: Catalogue["shell"] };
 
 type Drop = { id: string; zone: "before" | "after" | "inside" } | { space: string } | null;
@@ -15,10 +16,27 @@ type Drop = { id: string; zone: "before" | "after" | "inside" } | { space: strin
 // (wide screens) and on the "Pages" page (every screen). Editors drag a
 // page to arrange it — above a row puts it before, below after, on its
 // middle inside — or use "Move" on the page (keyboard, phone). The current
-// page's branch opens by itself.
-export function PageTree({ spaces, nodes, path, t, onNewPage, openAll = false }: { spaces: TreeSpace[]; nodes: TreeNode[]; path: string; t: TreeWords; onNewPage: (target: PageTarget) => void; openAll?: boolean }) {
+// page's branch opens by itself. The sidebar is sent only the top pages
+// and the current branch: a branch opened is asked for then, and kept until
+// the page's next tree comes (a refresh, another page).
+export function PageTree({ spaces, nodes: sent, path, t, onNewPage, openAll = false }: { spaces: TreeSpace[]; nodes: TreeNode[]; path: string; t: TreeWords; onNewPage: (target: PageTarget) => void; openAll?: boolean }) {
   const [dragged, setDragged] = useState<string | null>(null);
   const [drop, setDrop] = useState<Drop>(null);
+  const [fetched, setFetched] = useState<{ sent: TreeNode[]; branches: Map<string, TreeNode[]> }>({ sent, branches: new Map() });
+  // A new tree from the server: the branches asked before are asked again.
+  const branches = fetched.sent === sent ? fetched.branches : new Map<string, TreeNode[]>();
+  const nodes = useMemo(() => {
+    const ids = new Set(sent.map(n => n.id));
+    return [...sent, ...[...branches.values()].flat().filter(n => !ids.has(n.id))];
+  }, [sent, branches]);
+  const asking = useRef(new Set<string>());
+  async function fetchBranch(id: string) {
+    if (asking.current.has(id)) return;
+    asking.current.add(id);
+    const r = await call("treeBranch", { pageId: id }, { refresh: false, quiet: true, parallel: true });
+    asking.current.delete(id);
+    if (r.ok) setFetched(f => ({ sent, branches: new Map(f.sent === sent ? f.branches : []).set(id, r.value) }));
+  }
 
   const byId = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
   const below = useMemo(() => {
@@ -50,6 +68,13 @@ export function PageTree({ spaces, nodes, path, t, onNewPage, openAll = false }:
     if (next.has(id)) next.delete(id);
     else next.add(id);
     return next;
+  });
+  // An open branch whose pages were not sent: asked for.
+  useEffect(() => {
+    for (const id of open) {
+      const n = byId.get(id);
+      if (n?.more && kids(n.spaceId, n.id).length === 0 && !branches.has(id)) void fetchBranch(id);
+    }
   });
 
   // Never into itself or its own pages.
@@ -104,7 +129,7 @@ export function PageTree({ spaces, nodes, path, t, onNewPage, openAll = false }:
     return (
       <ul className="tree">
         {list.map(n => {
-          const has = kids(space.id, n.id).length > 0;
+          const has = n.more || kids(space.id, n.id).length > 0;
           const shown = open.has(n.id);
           const zone = drop && "id" in drop && drop.id === n.id ? drop.zone : null;
           return (

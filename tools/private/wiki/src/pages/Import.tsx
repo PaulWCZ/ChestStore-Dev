@@ -16,7 +16,7 @@ export async function importPage({ member, locale, t, query }: PageContext<Membe
     <div className="page narrow">
       <h1>{t.importer.title}</h1>
       <p className="lead">{t.importer.lead}</p>
-      <Island name="Importer" props={{ spaces, initialSpace: spaces.some(s => s.id === wanted) ? wanted! : null, locale, t: { importer: t.importer, files: t.kit.files, unavailable: t.errors.unavailable, unknown: t.errors.unknown } }} />
+      <Island name="Importer" props={{ spaces, initialSpace: spaces.some(s => s.id === wanted) ? wanted! : null, locale, t: { importer: t.importer, files: t.kit.files, unavailable: t.errors.unavailable, unknown: t.errors.unknown, tooLarge: t.errors.file_too_large } }} />
     </div>
   ) };
 }

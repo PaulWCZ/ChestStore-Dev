@@ -1,5 +1,4 @@
-import { createApp, page, publicPage } from "@argentic/chest-app";
-import { bodyLimit } from "hono/body-limit";
+import { createApp, download, page, publicPage, rawRoute } from "@argentic/chest-app";
 import { actions } from "./actions.ts";
 import { chestEvents, chestSchedules, exportAll, exportPage, exportSpace, importUpload, leaveEditor, openFile, readsCsv } from "./calls.ts";
 import { framed } from "./frame.tsx";
@@ -70,14 +69,14 @@ app.get("/chest/trash", members(trashPage));
 // fresh link of the Chest; a page, a space, everything as Markdown, HTML
 // or zip; who confirmed reading a page, as a table.
 app.get("/chest/files/:id", c => openFile(c.req.raw, c.get("viewer").member, c.req.param("id")));
-app.get("/chest/pages/:id/export", c => exportPage(c.req.raw, c.get("viewer").member, c.req.param("id")));
-app.get("/chest/pages/:id/reads/csv", c => readsCsv(c.get("viewer").member, c.req.param("id")));
-app.get("/chest/spaces/:id/export", c => exportSpace(c.req.raw, c.get("viewer").member, c.req.param("id")));
-app.get("/chest/export", c => exportAll(c.req.raw, c.get("viewer").member));
+app.get("/chest/pages/:id/export", download(p => exportPage(p.request, p.member, p.param("id"))));
+app.get("/chest/pages/:id/reads/csv", download(p => readsCsv(p.member, p.param("id"))));
+app.get("/chest/spaces/:id/export", download(p => exportSpace(p.request, p.member, p.param("id"))));
+app.get("/chest/export", download(p => exportAll(p.request, p.member)));
 
 // What the pages send that is not an action: the import's files (a form
 // of up to 60 MB, read in memory) and the editor's beacon as it closes.
-app.post("/chest/api/import", bodyLimit({ maxSize: limits.importBytes + (1 << 20), onError: c => c.json({ error: "file_too_large" }, 413) }), c => importUpload(c.req.raw, c.get("viewer").member));
+app.post("/chest/api/import", rawRoute({ maxBytes: limits.importBytes + (1 << 20) }, (body, { c }) => importUpload(body, c.req.header("content-type"), c.get("viewer").member)));
 app.post("/chest/api/pages/:id/leave", c => leaveEditor(c.req.raw, c.get("viewer").member, c.req.param("id")));
 
 // ---- The host's root: the wiki has no public part (a Chest answers 404

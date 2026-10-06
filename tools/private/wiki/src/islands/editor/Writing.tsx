@@ -3,7 +3,7 @@ import { Dialog } from "@argentic/chest-ui/components";
 import { matches } from "@argentic/chest-ui/components/logic";
 import { NodeSelection } from "@tiptap/pm/state";
 import { EditorContent, useEditor, useEditorState, type Editor as TiptapEditor } from "@tiptap/react";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import type { Holder } from "../../actions.ts";
 import * as I from "../../components/icons.tsx";
 import { safeHref } from "../../shared/doc.ts";
@@ -20,7 +20,7 @@ import { matching, SlashMenu, slashItems, type Slash, type SlashItem } from "./s
 // page loads the editor, and the server never renders it.
 type Words = EditorWords;
 
-type Status = { kind: "clean" } | { kind: "nothing" } | { kind: "saving" } | { kind: "draft"; at: string } | { kind: "offline" };
+type Status = { kind: "clean" } | { kind: "typing" } | { kind: "nothing" } | { kind: "saving" } | { kind: "draft"; at: string } | { kind: "offline" };
 
 export default function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; start: Start; pages: PickPage[]; fresh: boolean; locale: string; t: Words }) {
   const [title, setTitle] = useState(start.title);
@@ -37,6 +37,7 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
   // Leaving through "Save" or "Stop editing": the lock is given back there.
   const closing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const beat = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const titleRef = useRef(title);
   const fileInput = useRef<HTMLInputElement>(null);
   const titles = useMemo(() => new Map(pages.map(p => [p.id, p.title])), [pages]);
@@ -48,9 +49,14 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
   // Pictures in pasted or dropped HTML (paste.ts): the web's become notes
   // in their place (said in a toast), the clipboard's own are uploaded.
   const picturesRef = useRef<(html: string) => string>(html => html);
+  // A paste: the files the clipboard carries (read when the paste starts),
+  // and what its HTML held (words? pictures of the computer taken out?).
+  const pasting = useRef<{ files: File[]; text: boolean; local: number }>({ files: [], text: false, local: 0 });
   picturesRef.current = (html: string) => {
     const words = { note: (alt: string) => (alt ? format(t.editor.webPictureNamed, { alt }) : t.editor.webPicture), open: t.editor.webPictureOpen, name: t.editor.pastedPicture };
-    const done = pastedPictures(html, window.location.origin, words);
+    const pictures = pasting.current.files.filter(f => f.type.startsWith("image/")).length;
+    const done = pastedPictures(html, window.location.origin, words, pictures);
+    pasting.current = { ...pasting.current, text: done.text, local: done.local };
     if (done.web > 0) toast({ id: "web-pictures", text: plural(locale, t.editor.webPictures, done.web) });
     for (const f of done.files) void uploadRef.current(f);
     return done.html;
@@ -101,9 +107,14 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
     };
     window.addEventListener("scroll", follow, { passive: true });
     window.addEventListener("resize", follow);
+    // A phone's keyboard opening or closing moves the visual viewport.
+    window.visualViewport?.addEventListener("resize", follow);
+    window.visualViewport?.addEventListener("scroll", follow);
     return () => {
       window.removeEventListener("scroll", follow);
       window.removeEventListener("resize", follow);
+      window.visualViewport?.removeEventListener("resize", follow);
+      window.visualViewport?.removeEventListener("scroll", follow);
     };
   }, [open, setSlash]);
 
@@ -119,7 +130,7 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
     // editor's base styles are in globals.css instead.
     injectCSS: false,
     editorProps: {
-      attributes: { class: "prose editable", "aria-label": t.editor.bodyPlaceholder, spellcheck: "true" },
+      attributes: { class: "prose editable", role: "textbox", "aria-multiline": "true", "aria-label": t.editor.bodyPlaceholder, spellcheck: "true" },
       handleTextInput: (view, from, _to, text) => {
         if (text !== "/") return false;
         const $from = view.state.doc.resolve(from);
@@ -152,9 +163,25 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
         }
         return false;
       },
+      handleDOMEvents: {
+        paste: (_view, event) => {
+          pasting.current = { files: [...(event.clipboardData?.files ?? [])], text: false, local: 0 };
+          return false;
+        },
+      },
       transformPastedHTML: html => picturesRef.current(html),
+      // Words and pictures together (Word desktop: the HTML, and its
+      // pictures as files beside it): the words go in as they came, and
+      // the pictures the HTML named as files of the computer are uploaded
+      // in their place. Only files (a screenshot, a copied image): each is
+      // uploaded.
       handlePaste: (_view, event) => {
-        const files = [...(event.clipboardData?.files ?? [])];
+        const files = pasting.current.files;
+        const html = event.clipboardData?.getData("text/html") ?? "";
+        if (html && pasting.current.text) {
+          for (const f of files.filter(x => x.type.startsWith("image/")).slice(0, pasting.current.local)) void uploadRef.current(f);
+          return false;
+        }
         if (files.length === 0) return false;
         for (const f of files) void uploadRef.current(f);
         return true;
@@ -172,12 +199,36 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
     onBlur: () => setSlash(null),
   });
   useEffect(() => { editorRef.current = editor; }, [editor]);
+  // The "/" menu, as a screen reader hears it: the text field controls the
+  // list while it is open, and the item the arrows chose is the active one.
+  const shownItems = slash ? matching(items, slash.query) : [];
+  const activeKey = slash ? shownItems[slash.index]?.key ?? null : null;
+  useEffect(() => {
+    const dom = editor?.view.dom;
+    if (!dom) return;
+    // (A textbox takes no aria-expanded: the list it controls and its
+    // active option say it.)
+    if (activeKey) dom.setAttribute("aria-controls", "slash-list");
+    else dom.removeAttribute("aria-controls");
+    if (activeKey) dom.setAttribute("aria-activedescendant", `slash-${activeKey}`);
+    else dom.removeAttribute("aria-activedescendant");
+  }, [editor, slash, activeKey]);
 
-  // The draft: saved a few seconds after the last change.
+  // The lock as the server answered: someone else's shows; ours gone with
+  // nobody holding it (it lapsed: a laptop asleep) is asked for again —
+  // only while the editor is open, never once it closes.
+  const lockAnswer = useCallback(async (answer: { holder: Holder | null; held: boolean }) => {
+    if (closing.current) return;
+    if (answer.held || answer.holder) return setLost(answer.holder);
+    const again = await call("openEditor", { pageId: page.id }, { refresh: false, quiet: true });
+    if (!closing.current && again.ok) setLost(again.value.status === "locked" ? again.value.holder : null);
+  }, [page.id]);
+  // The draft: saved a few seconds after the last change. Nothing once the
+  // editor closes ("Save", "Stop editing"): the lock is given back there.
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
     const current = editorRef.current;
-    if (!dirty.current || !current) return;
+    if (closing.current || !dirty.current || !current) return;
     dirty.current = false;
     setStatus({ kind: "saving" });
     const result = await call("saveDraft", { pageId: page.id, title: titleRef.current, doc: JSON.stringify(current.getJSON()), baseVersion: start.base }, { refresh: false, quiet: true });
@@ -187,11 +238,13 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
       return;
     }
     setStatus({ kind: "draft", at: result.value.time });
-    setLost(result.value.holder);
-  }, [page.id, start.base]);
+    await lockAnswer(result.value);
+  }, [page.id, start.base, lockAnswer]);
   const changed = useCallback(() => {
     dirty.current = true;
     touched.current = true;
+    // Typed, not kept yet: never "No changes" while the draft waits.
+    setStatus(s => (s.kind === "saving" ? s : { kind: "typing" }));
     clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), draftEverySeconds * 1000);
   }, [flush]);
@@ -215,10 +268,13 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
       dirty.current = false;
     };
     // Back from the browser's cache: the editor is open again.
-    const keep = () => void call("keepEditing", { pageId: page.id }, { refresh: false, quiet: true }).then(r => { if (r.ok) setLost(r.value.holder); });
+    const keep = () => {
+      if (closing.current) return;
+      void call("keepEditing", { pageId: page.id }, { refresh: false, quiet: true }).then(r => { if (r.ok) void lockAnswer(r.value); });
+    };
     const back = (e: PageTransitionEvent) => { if (e.persisted) keep(); };
     // Still here: the lock stays, and a lock someone else took shows.
-    const beat = setInterval(keep, heartbeatSeconds * 1000);
+    beat.current = setInterval(keep, heartbeatSeconds * 1000);
     document.addEventListener("visibilitychange", hide);
     window.addEventListener("beforeunload", warn);
     window.addEventListener("pagehide", leave);
@@ -228,10 +284,24 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
       window.removeEventListener("beforeunload", warn);
       window.removeEventListener("pagehide", leave);
       window.removeEventListener("pageshow", back);
-      clearInterval(beat);
+      clearInterval(beat.current);
       leave();
     };
-  }, [flush, page.id, start.base, t.editor.leave]);
+  }, [flush, lockAnswer, page.id, start.base, t.editor.leave]);
+
+  // The editor closes: no draft, no heartbeat after this — the save or the
+  // stop gives the lock back, and nothing may take it again on the way out.
+  // reopen(): the save was refused, the editor stays open.
+  function closeNow() {
+    closing.current = true;
+    clearTimeout(timer.current);
+    clearInterval(beat.current);
+  }
+  function reopen() {
+    closing.current = false;
+    clearInterval(beat.current);
+    beat.current = setInterval(() => void call("keepEditing", { pageId: page.id }, { refresh: false, quiet: true }).then(r => { if (r.ok) void lockAnswer(r.value); }), heartbeatSeconds * 1000);
+  }
 
   // Just created: the cursor waits in the page, so the first words land.
   useEffect(() => {
@@ -248,25 +318,26 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
       return;
     }
     startSave(async () => {
-      clearTimeout(timer.current);
+      const wasDirty = dirty.current;
+      closeNow();
       const result = await call("publishPage", { pageId: page.id, title: titleRef.current, doc: JSON.stringify(editor.getJSON()), baseVersion: start.base }, { refresh: false, quiet: true });
       if (!result.ok) {
+        reopen();
+        dirty.current = wasDirty || result.error === "locked";
         if (result.error === "locked") await flush();
         return setError(result.message);
       }
       dirty.current = false;
-      closing.current = true;
       await navigate(`/chest/pages/${page.id}?saved=${result.value.version}${result.value.replaced ? `&over=${result.value.replaced}` : ""}${result.value.dropped > 0 ? `&dropped=${result.value.dropped}` : ""}`);
     });
   }
 
   async function stop() {
     if (!editor) return;
-    clearTimeout(timer.current);
+    closeNow();
     const hadChanges = dirty.current || status.kind !== "clean" || start.restored !== null;
     const keep = { title: titleRef.current, doc: JSON.stringify(editor.getJSON()), baseVersion: start.base };
     dirty.current = false;
-    closing.current = true;
     await call("stopEditing", { pageId: page.id, keepDraft: false }, { refresh: false, quiet: true });
     await navigate(`/chest/pages/${page.id}`);
     if (hadChanges) {
@@ -315,7 +386,7 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
 
   uploadRef.current = upload;
 
-  const statusText = status.kind === "nothing" ? t.editor.status.nothing : status.kind === "saving" ? t.editor.status.saving : status.kind === "draft" ? format(t.editor.status.draft, { time: status.at }) : status.kind === "offline" ? t.editor.status.offline : t.editor.status.clean;
+  const statusText = status.kind === "nothing" ? t.editor.status.nothing : status.kind === "saving" ? t.editor.status.saving : status.kind === "draft" ? format(t.editor.status.draft, { time: status.at }) : status.kind === "offline" ? t.editor.status.offline : status.kind === "typing" ? t.editor.status.typing : t.editor.status.clean;
 
   return (
     <div className="writer" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); } }}>
@@ -356,10 +427,48 @@ export default function Writing({ page, start, pages, fresh, locale, t }: { page
 
 // Where the "/" menu goes for the "/" at this box: below the line, or above
 // it when the screen ends first.
+// The screen is what the visual viewport shows: on a phone, above the
+// keyboard.
 function placeAt(box: { left: number; top: number; bottom: number }): { x: number; y: number } {
-  const x = Math.max(8, Math.min(box.left, window.innerWidth - 272));
-  const tall = Math.min(340, window.innerHeight / 2);
-  return { x, y: box.bottom + 6 + tall > window.innerHeight ? Math.max(8, box.top - 6 - tall) : box.bottom + 6 };
+  const vv = window.visualViewport;
+  const top = vv?.offsetTop ?? 0;
+  const bottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  const x = Math.max(8, Math.min(box.left, (vv?.width ?? window.innerWidth) - 272));
+  const tall = Math.min(340, (bottom - top) / 2);
+  return { x, y: box.bottom + 6 + tall > bottom ? Math.max(top + 8, box.top - 6 - tall) : box.bottom + 6 };
+}
+
+// A toolbar is one Tab stop (the pattern of ARIA's toolbar): the arrows,
+// Home and End move between its controls; Tab leaves it, and comes back to
+// the control last used. Set on the elements themselves after each render.
+function useRoving() {
+  const bar = useRef<HTMLDivElement>(null);
+  const active = useRef(0);
+  const controls = () => [...(bar.current?.querySelectorAll<HTMLElement>("button:not([disabled]), select") ?? [])];
+  useLayoutEffect(() => {
+    const list = controls();
+    const at = Math.min(active.current, list.length - 1);
+    list.forEach((el, i) => { el.tabIndex = i === at ? 0 : -1; });
+  });
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const list = controls();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    if (at < 0) return;
+    const next = e.key === "ArrowRight" ? (at + 1) % list.length : e.key === "ArrowLeft" ? (at - 1 + list.length) % list.length : e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    list.forEach((el, i) => { el.tabIndex = i === next ? 0 : -1; });
+    active.current = next;
+    list[next]!.focus();
+  };
+  const onFocus = (e: FocusEvent<HTMLDivElement>) => {
+    const list = controls();
+    const at = list.indexOf(e.target as HTMLElement);
+    if (at < 0) return;
+    active.current = at;
+    list.forEach((el, i) => { el.tabIndex = i === at ? 0 : -1; });
+  };
+  return [bar, onKeyDown, onFocus] as const;
 }
 
 // The formatting bar: what most pages need, in plain words for screen
@@ -386,6 +495,8 @@ function Toolbar({ editor, t, onLink, onPick, onFile }: { editor: TiptapEditor; 
     }),
   });
   const c = () => editor.chain().focus();
+  const [main, mainKeys, mainFocus] = useRoving();
+  const [sub, subKeys, subFocus] = useRoving();
   const tool = (label: string, icon: ReactNode, run: () => void, pressed?: boolean, disabled?: boolean) => (
     <button type="button" className="tool" title={label} aria-pressed={pressed} disabled={disabled} onMouseDown={e => e.preventDefault()} onClick={run}>
       {icon}<span className="visually-hidden">{label}</span>
@@ -393,7 +504,7 @@ function Toolbar({ editor, t, onLink, onPick, onFile }: { editor: TiptapEditor; 
   );
   return (
     <div className="toolbar-wrap">
-      <div className="toolbar" role="toolbar" aria-label={t.editor.toolbar}>
+      <div ref={main} className="toolbar" role="toolbar" aria-label={t.editor.toolbar} onKeyDown={mainKeys} onFocus={mainFocus}>
         <label className="visually-hidden" htmlFor="text-style">{t.editor.style}</label>
         <select id="text-style" className="style-select" value={s.style} onChange={e => {
           const v = e.target.value;
@@ -428,7 +539,7 @@ function Toolbar({ editor, t, onLink, onPick, onFile }: { editor: TiptapEditor; 
         {tool(t.editor.redo, <I.Redo />, () => c().redo().run(), undefined, !s.redo)}
       </div>
       {(s.table || s.callout) && (
-        <div className="toolbar sub" role="toolbar" aria-label={s.table ? t.editor.tableTools : t.editor.calloutTone}>
+        <div ref={sub} className="toolbar sub" role="toolbar" onKeyDown={subKeys} onFocus={subFocus} aria-label={s.table ? t.editor.tableTools : t.editor.calloutTone}>
           {s.table && (
             <>
               <button type="button" className="chip" onClick={() => c().addRowAfter().run()}>{t.editor.addRow}</button>
