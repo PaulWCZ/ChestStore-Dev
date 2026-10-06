@@ -576,6 +576,7 @@ export const fr: Catalogue = {
     file_too_large: "Ce fichier est trop lourd.",
     import_invalid: "Ce fichier n’a pas pu être lu. Utilisez un zip exporté de Confluence, de Notion ou de Google Docs, ou des fichiers .docx, .md ou .html.",
     import_empty: "Aucune page n’a été trouvée dans ces fichiers.",
+    reminded: "Une relance est partie il y a moins de {hours} heures. Réessayez plus tard.",
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     unknown: "Quelque chose s’est mal passé. Réessayez.",
     synonyms_few: "Écrivez au moins deux mots ou expressions, séparés par des virgules.",

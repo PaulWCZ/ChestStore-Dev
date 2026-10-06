@@ -580,6 +580,7 @@ export const en = {
     file_too_large: "This file is too large.",
     import_invalid: "This file could not be read. Use a zip from Confluence, Notion or Google Docs, or .docx, .md or .html files.",
     import_empty: "No page was found in these files.",
+    reminded: "They were reminded less than {hours} hours ago. Try again later.",
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
     synonyms_few: "Write at least two words or phrases, separated by commas.",

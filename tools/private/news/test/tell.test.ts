@@ -122,3 +122,19 @@ test("beyond the Chest's 1,000 recipients an hour, the telling stops and goes on
     await chest.close();
   }
 });
+
+test("the weekly digest item an earlier version left in a bell is withdrawn at the next pass, once", async () => {
+  await open();
+  try {
+    const notifications = await import("@argentic/chest-sdk/notifications");
+    await notifications.notify([hugo.id, ines.id], { title: "3 posts this week", path: "/chest", key: tell.oldDigestKey });
+    await database.sql`insert into digests (member, sent_at) values (${hugo.id}, now()), (${ines.id}, now())`;
+    await tell.pass(database.sql);
+    assert.equal(chest.notifications.filter(n => n.key === tell.oldDigestKey).length, 0);
+    assert.equal((await database.sql`select 1 from digests`).length, 0);
+    // Nothing left: nothing asked of the Chest again.
+    await tell.clearDigests(database.sql);
+  } finally {
+    await chest.close();
+  }
+});

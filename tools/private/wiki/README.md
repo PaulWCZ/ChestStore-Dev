@@ -154,7 +154,8 @@ intranet — on the company's own server, for no fee per seat.
   and **download it as a table** (CSV, for the company's records). After a
   change, *Ask again for the current version*; *Stop asking* keeps what
   was confirmed. **Reminders**: *Remind those who have not confirmed*
-  (a notification again, once a day at most per person), and by itself a week
+  (a notification again, at most once every 12 hours per page: the Chest
+  may email each one), and by itself a week
   after the ask (the `reviews` schedule, twice at most).
 - **Templates**: an editor marks a page "Use as a template"; *New page*
   then offers, in the same dialog, *Blank page* (chosen), the space's
@@ -338,8 +339,7 @@ enforced on the server in `src/lib/access.ts`, `src/lib/comments.ts` and
 
 Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`, on
 the tool contract 0.4: `member.language` and `member.timeZone` (the
-interface in each member's language, times in their zone), `chest.today()`
-in the Chest's zone for the day of a reminder's key, **schedules**
+interface in each member's language, times in their zone), **schedules**
 (`reviews`, weekday mornings, on `POST /chest-schedules`) for review
 reminders and read reminders, `chest.tool.teamUrl` for the links an export
 writes back to the wiki, and lookup's `no_access` (someone still in the
@@ -350,7 +350,7 @@ Chest who lost the wiki is named "Léa Dubois (no access)"). Bell items need `no
 - **Knowing whether a notification was delivered** per member (today
   `notify` is fire-and-forget in the tool): a review reminder is marked
   "told" even if the Chest was briefly unreachable.
-- **Group changes as events**: with the `groups` proposal the wiki
+- **Group changes as events**: with the `members.groups` proposal the wiki
   receives `group.changed`, `group.removed` and `member.updated`
   (`groups`): a page to confirm leaves the bell of whoever it no longer
   concerns. Watchers who lose a space through a group change still keep
@@ -454,7 +454,10 @@ notifications, by their choice). It declares no `mail`.
   reminders are gone: each is a notification (one notice with its French
   translation), which the Chest emails to those who chose so. The dialog
   and the toast no longer say "in the bell and by email"; the `mail`
-  proposal is removed.
+  proposal is removed. *Remind those who have not confirmed* works at
+  most once every 12 hours per page (the emails used to be limited to one
+  a day per person; a notification the Chest may email must not repeat
+  at each click).
 - Groups use the capability `members.groups` (the earlier groups read
   proposal is gone): a member's groups come with the member, no extra
   question to the Chest.

@@ -279,3 +279,21 @@ test("the Chest's events and schedule runs, signed, each handled once", async ()
   assert.equal(await chest.run("nothing", to), 404);
   assert.equal((await app.fetch(new Request(url("/chest-schedules"), { method: "POST", body: "{}" }))).status, 401, "unsigned");
 });
+
+test("how guests learn the chosen date, said to the organiser and to the guest: by email, or on the link's page when the Chest cannot send", async () => {
+  const link = "maisonleroykickoffxyzabcde";
+  const on = await (await get(sofia, "/chest/polls/11")).text();
+  assert.match(on, /data-island="GuestsCard"[^>]*&quot;mail&quot;:&quot;on&quot;/u);
+  assert.match(await (await get(null, `/p/${link}`)).text(), /id="guest-email"|&quot;mailOn&quot;:true/u, "the form asks an email");
+  chest.delivery.mail = "not_connected";
+  try {
+    const off = await (await get(sofia, "/chest/polls/11")).text();
+    assert.match(off, /data-island="GuestsCard"[^>]*&quot;mail&quot;:&quot;off&quot;/u);
+    assert.match(off, /Guests are not emailed/u);
+    const guest = await (await get(null, `/p/${link}`)).text();
+    assert.match(guest, /&quot;mailOn&quot;:false/u, "no email asked");
+    assert.match(guest, /Open this link again to see the date chosen/u);
+  } finally {
+    chest.delivery.mail = "ready";
+  }
+});

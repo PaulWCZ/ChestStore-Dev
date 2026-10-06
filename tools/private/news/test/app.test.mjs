@@ -177,8 +177,11 @@ test("downloads: who confirmed as CSV, the event as .ics, every post as a ZIP; a
   assert.equal((await get(hugo, "/chest/files/999")).status, 404);
 });
 
-test("the one-tap answer links of the old emails are gone: nothing answers at that address", async () => {
-  assert.equal((await get(hugo, "/chest/posts/3/answer?a=yes&t=forged")).status, 404);
+test("the one-tap answer links of the old emails answer nothing: they open the post", async () => {
+  const old = await get(hugo, "/chest/posts/3/answer?a=yes&t=whatever");
+  assert.equal(old.status, 303);
+  assert.equal(old.headers.get("location"), "/chest/posts/3");
+  assert.equal((await get(hugo, "/chest/posts/x/answer?a=yes")).status, 404);
 });
 
 test("the host's root, the language switch, the error pages, the browser's files", async () => {

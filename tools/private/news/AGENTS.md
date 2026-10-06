@@ -37,6 +37,7 @@ the studio's `app/`.
 | `src/lib/audience.ts`, `groups.ts` | Who has News (500 a page); the Chest's groups (kept a minute; a member's groups come with the member, `members.groups`) |
 | `src/lib/search.ts`, `highlight.ts`, `views.ts`, `ics.ts`, `time.ts`, `zone.ts`, `dates.ts`, `lifecycle.ts`, `people.ts`, `db.ts` | Search; view counts (a number only); `.ics`; days and times on the Chest's clock; leaving and erasure; names; the package's `db()` |
 | `migrations/` | Schema. Never edit a shipped file; add `0008_…` |
+| (to drop) | `preferences`, `digests`, `digest_runs`, `emails` and `posts.email_short` are read by no code since the mail decisions of 6 October 2026 (only `lib/lifecycle.ts` deletes a member's rows, `clearDigests` empties `digests`). A migration must leave the previous version working (a rollback runs none), so drop them in a migration of the **release after** the one that stopped reading them, and remove those deletes in the same change |
 | `seed/sample.sql` | A small company's month, for local runs |
 | `test/` | `node:test`: services with `fakeChest` and PostgreSQL (`support/db.ts`: TEST_DATABASE_URL, else PGlite with `unaccent` and `pg_trgm`); `app.test.mjs` asks the built server (`dist/test`); `stack.test.ts` the package's `checkSources()`; `i18n.test.ts` its `checkWords()` |
 

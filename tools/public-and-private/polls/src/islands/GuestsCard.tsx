@@ -11,11 +11,15 @@ import { fill as format, plural, type Plural } from "./words.ts";
 // for good: there is nothing to undo it with).
 type Words = { guests: Catalogue["guests"] };
 
-export function GuestsCard({ pollId, url, open, list, locale, t }: {
+export function GuestsCard({ pollId, url, open, list, mail, locale, t }: {
   pollId: string;
   url: string | null;
   open: boolean;
   list: { id: string; name: string; email: string | null }[];
+  // How guests learn the date chosen: by email ("on"), or only on the
+  // link's page — the Chest cannot send email now ("off"); null: nothing to
+  // say (a sign-up sheet, the link off).
+  mail: "on" | "off" | null;
   locale: string;
   t: Words;
 }) {
@@ -58,6 +62,7 @@ export function GuestsCard({ pollId, url, open, list, locale, t }: {
           <label className="label" htmlFor="guest-url">{t.guests.link}</label>
           <input id="guest-url" className="field" readOnly value={link} onFocus={e => e.currentTarget.select()} />
           <div className="row"><button type="button" className="button small" onClick={() => void copy()}>{t.guests.copy}</button></div>
+          {mail && <p className="hint">{mail === "on" ? t.guests.mailOn : t.guests.mailOff}</p>}
         </div>
       )}
       {list.length > 0 && (

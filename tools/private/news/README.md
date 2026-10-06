@@ -345,8 +345,12 @@ notifications, by their choice). It declares no `mail`.
   proposal is gone): a member's groups come with the member.
 - The tables only these used (`preferences`, `digests`, `digest_runs`,
   `emails`, `posts.email_short`) stay until no version in service reads
-  them (a Chest runs the new migrations before switching versions); a
-  leaving or erased member's rows in them are still deleted.
+  them (a Chest runs the new migrations before switching versions, and a
+  rollback to the previous version runs none): they are dropped in the
+  next release. A leaving or erased member's rows in them are still
+  deleted. The digest item an earlier version left in a bell is withdrawn
+  at the first pass. The one-tap links of emails already sent
+  (`/chest/posts/<id>/answer`) answer nothing: they open the post.
 
 ## Looks
 

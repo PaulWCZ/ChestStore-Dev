@@ -285,11 +285,13 @@ export const actions = {
     return { asked: state.asked ? await tell.readAsked(member, p, state.asked) : 0 };
   }),
 
-  // "Remind those who have not confirmed": the notification again.
+  // "Remind those who have not confirmed": the notification again, at most
+  // once every 12 hours (reads.claimReminder).
   remindRead: action(page, async ({ pageId }, { member }) => {
     const p = await pages.page(db(), member, pageId, "write");
     const state = await reads.readState(db(), member, p.id);
     if (!state.asked) fail("invalid");
+    await reads.claimReminder(db(), p.id);
     return { reminded: await tell.remindReaders(db(), p, state.asked!) };
   }),
 

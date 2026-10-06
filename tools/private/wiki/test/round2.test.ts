@@ -138,6 +138,14 @@ test("asked to confirm: a notification in each one's language, never an email; r
   assert.equal(await tell.remindReaders(sql, page, ask), 3);
   assert.deepEqual(asked().map(n => n.member).sort(), [ines.id, lea.id, tom.id].sort());
   assert.match(shownTo(asked().find(n => n.member === tom.id)!, "en").title, /^Reminder: please read/u);
+  // An editor's reminder: once every 12 hours per page (each one may be
+  // an email from the Chest); two clicks never both pass.
+  await sql`update pages set read_reminded_at = null where id = ${p.id}`;
+  const clicks = await Promise.allSettled([reads.claimReminder(sql, p.id), reads.claimReminder(sql, p.id)]);
+  assert.deepEqual(clicks.map(c => c.status).sort(), ["fulfilled", "rejected"]);
+  await assert.rejects(reads.claimReminder(sql, p.id), (e: { code?: string }) => e.code === "reminded");
+  await sql`update pages set read_reminded_at = now() - interval '13 hours' where id = ${p.id}`;
+  await reads.claimReminder(sql, p.id);
   // The morning schedule reminds a week after the ask, twice at most.
   chest.notifications.splice(0);
   await sql`update pages set read_asked_at = now() - interval '8 days', read_reminded_at = null, read_reminders = 0 where id = ${p.id}`;
