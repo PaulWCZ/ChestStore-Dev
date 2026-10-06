@@ -30,12 +30,6 @@ export function fileNameOf(title: string): string {
   return name || "page";
 }
 
-// Content-Disposition for a download named in any language.
-export function attachment(name: string): string {
-  const ascii = name.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^\x20-\x7e]|["\\]/gu, "_");
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
-}
-
 type Words = { missing: string };
 
 

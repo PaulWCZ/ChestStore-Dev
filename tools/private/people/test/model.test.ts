@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arriving, newcomers, tenure, thisMonth } from "../lib/calendar.ts";
-import { AppError } from "../lib/errors.ts";
-import { addDays, birthday, clean, day, dueState, fold, offset, phone, skills } from "../lib/model.ts";
-import { orgChart } from "../lib/tree.ts";
+import { arriving, newcomers, tenure, thisMonth } from "../src/shared/calendar.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { addDays, birthday, clean, day, dueState, fold, offset, phone, skills } from "../src/shared/model.ts";
+import { orgChart } from "../src/shared/tree.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
@@ -69,9 +69,9 @@ test("newcomers, arrivals, this month's birthdays and anniversaries", () => {
 });
 
 test("zones: a member's own day, the Chest's when they have none", async () => {
-  const { todayOf, zoneOf } = await import("../lib/zone.ts");
+  const { todayOf, zoneOf } = await import("../src/lib/zone.ts");
   const { fakeChest } = await import("@argentic/chest-sdk/testing");
-  const chest = await fakeChest({ chest: { timeZone: "Europe/Paris" } });
+  const chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" } });
   try {
     assert.equal(zoneOf(null), "Europe/Paris");
     assert.equal(zoneOf({ timeZone: "America/Montreal" }), "America/Montreal");

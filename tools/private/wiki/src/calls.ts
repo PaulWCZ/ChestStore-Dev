@@ -3,13 +3,13 @@ import * as events from "@argentic/chest-sdk/events";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import { AppError, log, sameOrigin } from "@argentic/chest-app";
+import { AppError, log, sameOrigin, type Download } from "@argentic/chest-app";
 import { catalogue, format, formatDate, localeOf } from "./i18n/index.ts";
 import { can } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
 import { leave } from "./lib/editing.ts";
 import { boundaryOf, parseMultipart } from "./lib/multipart.ts";
-import { attachment, exportZip, pageHtml, pageMarkdown } from "./lib/export.ts";
+import { exportZip, pageHtml, pageMarkdown } from "./lib/export.ts";
 import { fileOf } from "./lib/files.ts";
 import { importFiles } from "./lib/importer.ts";
 import { handlers, seen } from "./lib/lifecycle.ts";
@@ -134,85 +134,71 @@ export async function openFile(request: Request, actor: Member, fileId: string):
   }
 }
 
-const download = (body: BodyInit, name: string, type: string) => new Response(body, { headers: { "Content-Type": type, "Content-Disposition": attachment(name), "Cache-Control": "no-store" } });
+// The downloads below answer what to send (the package's download():
+// an attachment, never cached; a refusal is a page in the reader's words).
+// A page, space or anything the actor cannot see is "not_found".
 
 // GET /chest/pages/<id>/export?format=md|html|zip: a page to keep —
 // Markdown, a web page of its own (images inside, ready to print), or a
 // zip with the pages inside it.
-export async function exportPage(request: Request, actor: Member, pageId: string): Promise<Response> {
-  try {
-    const locale = localeOf(actor.language);
-    const t = catalogue(locale);
-    const sql = db();
-    const kind = new URL(request.url).searchParams.get("format");
-    const base = origin(request);
-    if (kind === "html") {
-      const p = await page(sql, actor, pageId);
-      const author = nameOf((await people([p.updatedBy])).get(p.updatedBy), locale);
-      const meta = format(t.export.meta, { date: formatDate(new Date(), locale, { dateStyle: "long", timeZone: actor.timeZone }), version: p.version, name: author });
-      const out = await pageHtml(sql, actor, pageId, base, { missing: t.page.missing, lang: locale, meta });
-      return download(out.html, out.name, "text/html; charset=utf-8");
-    }
-    if (kind === "zip") {
-      const out = await exportZip(sql, actor, { pageId }, base, { missing: t.page.missing });
-      return download(out.stream, out.name, "application/zip");
-    }
-    const out = await pageMarkdown(sql, actor, pageId, base, { missing: t.page.missing });
-    return download(out.text, out.name, "text/markdown; charset=utf-8");
-  } catch (error) {
-    if (error instanceof AppError) return done(404);
-    throw error;
+export async function exportPage(request: Request, actor: Member, pageId: string): Promise<Download> {
+  const locale = localeOf(actor.language);
+  const t = catalogue(locale);
+  const sql = db();
+  const kind = new URL(request.url).searchParams.get("format");
+  const base = origin(request);
+  if (kind === "html") {
+    const p = await page(sql, actor, pageId);
+    const author = nameOf((await people([p.updatedBy])).get(p.updatedBy), locale);
+    const meta = format(t.export.meta, { date: formatDate(new Date(), locale, { dateStyle: "long", timeZone: actor.timeZone }), version: p.version, name: author });
+    const out = await pageHtml(sql, actor, pageId, base, { missing: t.page.missing, lang: locale, meta });
+    return { name: out.name, type: "text/html; charset=utf-8", body: out.html };
   }
+  if (kind === "zip") {
+    const out = await exportZip(sql, actor, { pageId }, base, { missing: t.page.missing });
+    return { name: out.name, type: "application/zip", body: out.stream };
+  }
+  const out = await pageMarkdown(sql, actor, pageId, base, { missing: t.page.missing });
+  return { name: out.name, type: "text/markdown; charset=utf-8", body: out.text };
 }
 
 // GET /chest/spaces/<id>/export: a whole space as a zip of Markdown files
 // in folders, with its images and files.
-export async function exportSpace(request: Request, actor: Member, spaceId: string): Promise<Response> {
-  try {
-    const t = catalogue(localeOf(actor.language));
-    const out = await exportZip(db(), actor, { spaceId }, origin(request), { missing: t.page.missing });
-    return download(out.stream, out.name, "application/zip");
-  } catch (error) {
-    if (error instanceof AppError) return done(404);
-    throw error;
-  }
+export async function exportSpace(request: Request, actor: Member, spaceId: string): Promise<Download> {
+  const t = catalogue(localeOf(actor.language));
+  const out = await exportZip(db(), actor, { spaceId }, origin(request), { missing: t.page.missing });
+  return { name: out.name, type: "application/zip", body: out.stream };
 }
 
 // GET /chest/export: every space the member sees, one zip (a folder per
 // space) — a backup, or everything to take along. Named by the day in the
 // member's zone and language ("Wiki 06-10-2026").
-export async function exportAll(request: Request, actor: Member): Promise<Response> {
-  try {
-    const locale = localeOf(actor.language);
-    const t = catalogue(locale);
-    const name = `${t.tool.name} ${formatDate(new Date(), locale, { year: "numeric", month: "2-digit", day: "2-digit", timeZone: actor.timeZone }).replace(/\//gu, "-")}`;
-    const out = await exportZip(db(), actor, { all: name }, origin(request), { missing: t.page.missing });
-    return download(out.stream, out.name, "application/zip");
-  } catch (error) {
-    if (error instanceof AppError) return done(404);
-    throw error;
-  }
+export async function exportAll(request: Request, actor: Member): Promise<Download> {
+  const locale = localeOf(actor.language);
+  const t = catalogue(locale);
+  const name = `${t.tool.name} ${formatDate(new Date(), locale, { year: "numeric", month: "2-digit", day: "2-digit", timeZone: actor.timeZone }).replace(/\//gu, "-")}`;
+  const out = await exportZip(db(), actor, { all: name }, origin(request), { missing: t.page.missing });
+  return { name: out.name, type: "application/zip", body: out.stream };
 }
 
 // GET /chest/pages/<id>/reads/csv: who confirmed reading a page, as a
-// table for the company's records (the page's editors only): one line per
-// person asked, with the version they confirmed and when (UTC, ISO 8601).
-export async function readsCsv(actor: Member, pageId: string): Promise<Response> {
-  try {
-    const locale = localeOf(actor.language);
-    const t = catalogue(locale);
-    const { page: p, ask, rows } = await report(db(), actor, pageId);
-    const who = await people(rows.map(r => r.memberId));
-    const status = (r: (typeof rows)[number]) => (r.version === null ? t.reads.notYet : r.current ? t.reads.done : format(t.reads.older, { version: r.version }));
-    const lines = [
-      [t.reads.csv.page, t.reads.csv.asked, t.reads.csv.person, t.reads.csv.status, t.reads.csv.version, t.reads.csv.at],
-      ...rows.map(r => [p.title, String(ask.version), nameOf(who.get(r.memberId), locale), status(r), r.version === null ? "" : String(r.version), r.at ? r.at.toISOString() : ""]),
-    ];
-    const text = "﻿" + lines.map(l => l.map(csvCell).join(",")).join("\r\n") + "\r\n";
-    const name = `${p.title.replace(/[\\/:*?"<>|\p{Cc}]+/gu, " ").trim() || "page"} - ${t.reads.menuSeen}.csv`;
-    return download(text, name, "text/csv; charset=utf-8");
-  } catch (error) {
-    if (error instanceof AppError) return done(404);
+// table for the company's records (the page's editors only; others: not
+// found): one line per person asked, with the version they confirmed and
+// when (UTC, ISO 8601).
+export async function readsCsv(actor: Member, pageId: string): Promise<Download> {
+  const locale = localeOf(actor.language);
+  const t = catalogue(locale);
+  const { page: p, ask, rows } = await report(db(), actor, pageId).catch(error => {
+    if (error instanceof AppError && error.code === "forbidden") throw new AppError("not_found");
     throw error;
-  }
+  });
+  const who = await people(rows.map(r => r.memberId));
+  const status = (r: (typeof rows)[number]) => (r.version === null ? t.reads.notYet : r.current ? t.reads.done : format(t.reads.older, { version: r.version }));
+  const lines = [
+    [t.reads.csv.page, t.reads.csv.asked, t.reads.csv.person, t.reads.csv.status, t.reads.csv.version, t.reads.csv.at],
+    ...rows.map(r => [p.title, String(ask.version), nameOf(who.get(r.memberId), locale), status(r), r.version === null ? "" : String(r.version), r.at ? r.at.toISOString() : ""]),
+  ];
+  const text = "\ufeff" + lines.map(l => l.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  const name = `${p.title.replace(/[\\/:*?"<>|\p{Cc}]+/gu, " ").trim() || "page"} - ${t.reads.menuSeen}.csv`;
+  return { name, type: "text/csv; charset=utf-8", body: text };
 }

@@ -203,7 +203,7 @@ export const actions = {
     } catch (error) {
       return fileRefusal(error);
     }
-  }),
+  }, { parallel: true }),
 
   recordUpload: action({ ...page, name: as<string>(), fileName: as<string>() }, async ({ pageId, name, fileName }, { member }) => {
     const p = await pages.page(db(), member, pageId, "write");
@@ -217,7 +217,7 @@ export const actions = {
     } catch (error) {
       return fileRefusal(error);
     }
-  }),
+  }, { parallel: true }),
 
   // ---- History.
   restoreVersion: action({ ...page, number: as<number>() }, async ({ pageId, number }, { member }) => {

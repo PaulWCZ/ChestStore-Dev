@@ -7,6 +7,9 @@ import { as, done, expect, open, step } from "./lib.mjs";
 const port = Number(process.argv[2] ?? 4900);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, allow404: /\/chest\/expenses\/1$|\/chest\/receipts\/\d+\?size=256$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
+// The steps save and pay on the day they run: the exports ask for that month.
+const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+const thisMonthFr = new Intl.DateTimeFormat("fr", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(thisMonth + "-15T12:00:00Z"));
 
 // A photo of a till receipt, drawn by the browser itself.
 const receipt = tmp + "/expenses-receipt.png";
@@ -433,8 +436,9 @@ await step("the accounting entries (FEC layout) and the export by month of payme
   const lines = entries.split("\r\n");
   expect(lines[0] === "JournalCode\tJournalLib\tEcritureNum\tEcritureDate\tCompteNum\tCompteLib\tCompAuxNum\tCompAuxLib\tPieceRef\tPieceDate\tEcritureLib\tDebit\tCredit\tEcritureLet\tDateLet\tValidDate\tMontantdevise\tIdevise", "FEC header");
   expect(entries.includes("\t421BERNARD\tHugo Bernard\t"), "Hugo's own account");
-  await page.goto(origin + "/chest/export?by=paid");
-  expect(/remboursées en septembre 2026/iu.test(await page.locator("main").innerText()), "by month of payment");
+  // Paid today (the steps above): the month of payment is this one.
+  await page.goto(origin + "/chest/export?by=paid&month=" + thisMonth);
+  expect(new RegExp(`remboursées en ${thisMonthFr}`, "iu").test(await page.locator("main").innerText()), "by month of payment");
   expect(await page.locator("a.download").count() === 3, "three downloads");
 });
 
@@ -457,7 +461,8 @@ await step("Camille imports Expensify's history: columns guessed, the unknown pe
 });
 
 await step("the export: a French CSV and a ZIP of the receipts", async () => {
-  await page.goto(origin + "/chest/export");
+  // Hugo's lunch of the first step is dated as its photo says (28 September).
+  await page.goto(origin + "/chest/export?month=2026-09");
   const csvHref = await page.locator("a.download").first().getAttribute("href");
   const zipHref = await page.locator("a.download").nth(1).getAttribute("href");
   const csv = await (await page.request.get(origin + csvHref)).text();

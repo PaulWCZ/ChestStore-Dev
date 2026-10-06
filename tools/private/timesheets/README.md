@@ -18,8 +18,8 @@ the hour and wants to know where its time goes.
   A stop under a minute records nothing: *Undo* puts the timer back, or the
   timer's line offers *Keep 1 min*.
 - **My week**: a grid of projects/tasks × 7 days where one types hours —
-  `1:30`, `1.5`, `1,5`, `90m`, `1h30` are all understood (`lib/duration.ts`,
-  tested). Totals per day, row and week; *Copy last week's rows*; rows
+  `1:30`, `1.5`, `1,5`, `90m`, `1h30` are all understood (`src/shared/duration.ts`,
+  tested; the cell sends what was typed, the server reads it again). Totals per day, row and week; *Copy last week's rows*; rows
   added and removed (with *Undo*). Enter and the arrows move down and up the
   column, Tab to the right. A cell holding several entries opens the day.
   **Each cell has its note** (the note icon, or Shift+Enter): what the
@@ -116,7 +116,7 @@ the hour and wants to know where its time goes.
   page asks. Harvest's Billable/Cost Rate and Clockify's rate columns (and
   Toggl's Amount) come along when in the Chest's currency, so past amounts
   match the old invoices; Harvest rows marked invoiced come in invoiced.
-- **Friday reminder** (optional, a schedules proposal): on Friday at 15:30,
+- **Friday reminder** (optional, the schedule `friday` of `chest.json`): on Friday at 15:30,
   whoever is short of their usual week and has not sent it gets one bell
   item in their language — "Your week has 22 h — fill in the rest?". It can
   be turned off; everything else works without it (the Team page's
@@ -130,7 +130,7 @@ signal, tabular figures — `DESIGN.md`), any theme of the UI kit's catalogue
 (the store's identities, *Chest*, *High contrast*), or the **company's
 brand** (its colours, fonts, corners — and its logo in the header where
 the tool shows its stopwatch). The choice is for all tools or for this one;
-the page follows it on the next request (`lib/theme.ts`, `chest.theme()`),
+the page follows it on the next request (`src/theme.ts`, `chest.theme()`, served as the stylesheet `/chest/look.css`),
 light and dark, every text readable (the kit checks every pair). The
 instrument panel (header and timer) keeps its own dark colour in light and
 dark (the theme's `--inverse`). Its components — shell and tabs, toasts with an
@@ -149,7 +149,7 @@ no idle detection.
 | `manager` (Manager / Responsable) | Everything a member can; clients, projects, tasks, rates and cost rates, usual weeks, budgets, who works on what; approving weeks and reminding; everyone's reports, amounts, costs, margins and CSV; marking time invoiced; locking; import; settings |
 | `member` (Member / Membre) | Their own time (timer, week, day, notes) on the projects open to them; sending their week; their own reports and CSV (never a rate or an amount) |
 
-Nobody changes another person's time. The rules live in `lib/access.ts`;
+Nobody changes another person's time. The rules live in `src/lib/access.ts`;
 every service checks them on the server.
 
 ## First minute
@@ -180,7 +180,7 @@ there is a project" (a member reads that a manager opens projects).
 
 | Route | What |
 |---|---|
-| `/` | Public host: says the tool lives in the Chest (language switch) |
+| `/` | Outside a Chest: says the tool lives in the Chest (language switch); a Chest answers 404 on the public host itself |
 | `/chest` | My week (`?week=` a Monday, `?day=` the day listed) |
 | `/chest/reports` | Reports (`preset`, `from`, `to`, `group`, `person`, `kind`: `all`, `billable`, `non`, `uninvoiced`; `q`: words of the notes) |
 | `/chest/reports/export` | The report's entries as CSV (the same parameters; `preset` alone works) |
@@ -190,16 +190,20 @@ there is a project" (a member reads that a manager opens projects).
 | `/chest/people` | Rates, cost rates and usual weeks of each person; former people of imports (managers) |
 | `/chest/settings` | Locked period, weekly approval, usual week and Friday reminder, hours style (managers) |
 | `/chest/import` | Import from Toggl, Clockify, Harvest (managers) |
-| `/chest-events` | Members' lifecycle (signed by the Chest) |
-| `/chest-jobs/friday` | The Friday reminder (schedules proposal, signed) |
+| `/chest-events` | Members' lifecycle, and Quotes' `quotes.invoiced` (signed by the Chest) |
+| `/chest-schedules` | The runs of `chest.json`'s schedules: `friday`, the Friday reminder (signed `Chest-Schedule`) |
 
 ## On a Chest
 
-- `capabilities`: `database`, `members` (names; people for projects and
-  imports), `notifications` (the Friday reminder); `receives: ["member.*"]`.
+- `chest.json` (contract 0.4, `chest check` OK): `capabilities`:
+  `database`, `members` (names; people for projects and imports),
+  `notifications` (the Friday reminder); `receives: ["member.*"]`;
+  `schedules: [{"name": "friday", "cron": "30 15 * * 5"}]` (the Chest's
+  zone); `build.static: ["/assets/"]` (the script, the stylesheet, the
+  fonts, the icon — everything the tool serves outside `/chest`).
   Proposals (`chest.proposals.json`): `mail: {send: true}`, `emits:
   ["timesheets.billable", "timesheets.billable_cancelled"]`, `receives:
-  ["quotes.invoiced"]`, the `friday` schedule.
+  ["quotes.invoiced"]`, the French `translations`.
 - **Someone leaves** (or loses access): their running timer stops and
   becomes an entry when plausible (under 10 hours, in an open day; dropped
   otherwise), they leave the projects they were named on, their grid rows
@@ -221,22 +225,24 @@ there is a project" (a member reads that a manager opens projects).
 
 ## Needs from the SDK
 
-Timesheets runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in
-`vendor/`. From 0.3.0: `member(request)` with the member's `language` (the
+Timesheets runs on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in
+`vendor/`. Official: `member(request)` with the member's `language` (the
 interface and the bell in each member's language) and `timeZone` (when a
 week was sent, approved or locked, shown at their own hour);
 `chest.timeZone` and `chest.today()` — the day an entry belongs to, "this
-week", the hours of an entry. The database's `current_date` is that day
+week", the hours of an entry; the database's `current_date` is that day
 too: the Chest makes its zone the TimeZone of the tool's database
-sessions.
+sessions. `chest.currency` — rates and amounts (EUR when the Chest does
+not say). `schedules` — the Friday reminder on `POST /chest-schedules`;
+without it the tool is complete; the setting says so. `chest.tool.teamUrl`
+— the link in an email.
 
-- `chest.currency` — **Proposal (studio)**: rates and amounts (EUR when
-  the Chest does not say).
-- `schedules` — **Proposal (studio)**, `chest.proposals.json`: the Friday
-  reminder. Without it the tool is complete; the setting says so.
+- **`members.leftAt(ids)`** — **Proposal (studio)**: "Left the Chest on
+  30 September 2026" on a former member's week. Nothing on a Chest that
+  does not say it.
 - **Events between tools** — **Proposal (studio)**: billable time to Quotes
-  (below). Without it the page says Quotes cannot be told; *Mark invoiced*
-  by hand still works.
+  (below), `chest.tools.get/link`. Without it the page says Quotes cannot
+  be told; *Mark invoiced* by hand still works.
 - `mail` — **Proposal (studio)**: Remind, the Friday reminder and a week
   sent to approve also go by email. Without it, the bell only. Keys are
   given whole (`week:<member>:<monday>:<sent at>:<recipient>`; the SDK
@@ -297,20 +303,70 @@ with `chest.toolLink("timesheets", source.path)`; on
 was not issued (else ignore it); and when the invoice is **issued**, publish
 **`quotes.invoiced`** `{ handoff: "12", invoice: "F2026-014", path:
 "/chest/invoices/14", by?: "mbr_…" }` (key `quotes:invoiced:<handoff>`).
-Timesheets receives it (`app/chest-events/route.ts`): the hand-off's
+Timesheets receives it (`src/calls.ts`, `/chest-events`): the hand-off's
 entries become invoiced, their rates written on them, the report shows
 "Invoiced: F2026-014" with a link; delivered twice, nothing more.
+
+## How it is made
+
+The studio's starter stack (`starter/`, `reports/06-perseus-starter.md`):
+a Hono server that renders React pages (`src/pages/`), with islands
+(`src/islands/`: the week's grid and day list, the timer, every form) that
+call typed actions (`src/actions.ts`); the machinery is the vendored
+package `@argentic/chest-app` (its `AGENTS.md`). The rules and the SQL
+are `src/lib/` (every service `(sql, actor, …input)`), the pure rules the
+browser shares are `src/shared/`, every word is `src/i18n/`. Vite builds
+the browser's script and stylesheet into `dist/client/assets/` (served at
+`/assets/`) and the server into `dist/server/`.
+
+- **Typed input goes as typed**: a cell's `1,5` or `1.5`, a rate's
+  `80,50`, a usual week's `35:30` are read again on the server
+  (`src/shared/duration.ts`, `src/shared/amounts.ts` — the amount grammar
+  is `field.money`'s, tested to agree).
+- **No inline style or script**: bars and budget gauges are SVG shapes
+  (`src/components/gauges.tsx`); the look is a stylesheet the tool serves
+  (`/chest/look.css`, an ETag and a hash in its address). No `"csp"`
+  permission.
+- **The CSV streams** (`src/downloads.ts`): the rows are read through a
+  cursor, 500 at a time, the names resolved once before.
+- **Nothing kept in memory between requests** but cached `Intl` formatters
+  (`src/i18n/format.ts`, the only place that makes one).
+
+### Measured
+
+By the studio's bench (`lab/measure/`, Node 24.21, the same way for
+every tool: the repository as the Chest receives it, `npm ci` and the
+build under 512 MiB and 1 CPU, 10 cold starts, 5 rests of 30 s with the
+12 pages of `lab/measure/pages/timesheets.json`), 6 October 2026, before
+(Next.js 16, 5 October) → after (this stack):
+
+| | Before | After |
+|---|--:|--:|
+| Memory at rest, PSS of the process tree (median) | 138.8 MiB | 64.7 MiB |
+| Peak PSS | 171.6 MiB | 69.0 MiB |
+| First 200 after a cold start (median) | 676 ms | 573 ms |
+| Image (repository + node_modules + build) | 458 MiB | 29 MiB |
+| `npm ci` under 512 MiB, 1 CPU | killed (OOM) | 3.0 s, peak 289 MiB |
+| Build under 512 MiB, 1 CPU | 35.4 s, peak 441 MiB | 3.8 s, peak 275 MiB |
+
+The rests ran beside other agents' builds (load average up to 9.9): the
+cold start is the noisiest number.
 
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run build     # tsc, the browser's files, the server (no CHEST_* variable needed)
+npm test          # tsc, the server built into dist/test, then the tests:
+                  # PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
+npm start         # the built server, as the Chest runs it (PORT)
+npm run dev       # rebuilds on every change
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --reset --port 5200`
-(Atelier Martin from `seed/sample.sql`), `node lab/chest-dev/flows/timesheets.mjs 5200`,
+In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --build --reset --port 5200`
+(Atelier Martin from `seed/sample.sql`; `--tools quotes --linked` for the
+hand-off to Quotes), `node lab/chest-dev/flows/timesheets.mjs 5200`,
 `node lab/chest-dev/screens.mjs tools/private/timesheets --port 5200`,
 `node lab/chest-dev/audit.mjs tools/private/timesheets --port 5200`.
 

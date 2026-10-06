@@ -48,8 +48,13 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   costs, the balance after, who else is away then — with *Approve* and
   *Refuse* (an optional word). "Balance after" counts the person's other
   waiting requests of the kind that come before it ("counting 1 earlier
-  request still waiting"). An answer can be taken back for 10 minutes
-  (*Undo*). The bell brings the approver to the request, and the answer to
+  request still waiting"). **Approving never re-checks the balance, by
+  design**: a request was checked when asked (a kind that may not go below
+  zero refuses it then), and if HR removed days since, the card shows the
+  balance after in red — approving is then the approver's informed choice
+  (an advance), refusing is one tap. An answer can be taken back for 10
+  minutes (*Undo*); a refusal taken back waits again only if the person
+  has not asked for those days meanwhile. The bell brings the approver to the request, and the answer to
   the requester, **each in their own language**. The tile's number is the
   requests waiting for that approver.
 - **Cancelling**: a waiting request is cancelled by its person at once; an
@@ -86,6 +91,10 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   lost, as HR chose for the kind** (a line "End of the year" in the
   history, computed when read). RTT live by calendar year (a setting); any
   kind may keep one running balance instead.
+  A leave across a year's start (RTT over New Year, paid leave over 31
+  May) is cut there: each year pays the days in it, counted like payroll's
+  month split; payroll's "balances on" file counts the days after its day
+  as booked, not taken.
 - **People** (HR): everyone's approver (changed in place), employee
   number, balances and waiting days; **Former**: those who left, with their
   last day and final balance. **Setting a last day cancels the leave
@@ -231,8 +240,8 @@ server (`src/lib/access.ts`), tested for each role (`test/access.test.ts`,
 | `/chest/people/export?month=YYYY-MM` | HR | the month's absences CSV |
 | `/chest/people/balances?on=YYYY-MM-DD` | HR | everyone's balances CSV |
 | `/chest/settings` | HR | rules and kinds of leave |
-| `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-jobs/morning` | the Chest only (signed; Proposal) | the weekday reminder |
+| `/chest-events` | the Chest only (signed) | members' lifecycle; People's events (proposal) |
+| `/chest-schedules` | the Chest only (signed) | the runs of `chest.json`'s schedule `morning` (weekdays 08:30, the Chest's zone): the reminder, the tiles, feeds and busy times kept in line |
 | `/` | anyone | "Leave lives in your Chest" |
 
 ## French rules — what is built in, what is configurable, what is not verified
@@ -338,7 +347,7 @@ comparison of ouvrés with ouvrables.
   the tile's numbers, the calendar feeds and the busy times are set right
   after a request changes (after the answer is sent: `after()` in
   `src/actions.ts`), after the Chest's and People's events, and each
-  weekday morning with the schedule proposal (the busy times' 90-day window
+  weekday morning with the `morning` schedule of `chest.json` (the busy times' 90-day window
   moves on; a month-old leave leaves the feeds).
 - No WebSocket: the pages re-read themselves every 30–60 s while visible.
 
@@ -435,7 +444,7 @@ once, in People's HR record:
 
 ## Needs from the SDK
 
-Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.2), in `vendor/`,
+Leave runs on SDK 0.4.1 + studio proposals (0.4.1-studio.3), in `vendor/`,
 with a manifest of contract 0.4 (`"chest": "0.4"`; `chest check` says OK).
 Official: `member(request)` with the member's `language` (the interface
 and the bell in each member's language) and `timeZone`; `chest.today()`,

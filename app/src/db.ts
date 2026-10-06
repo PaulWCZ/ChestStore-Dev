@@ -9,12 +9,19 @@ import postgres from "postgres";
 // zone; f.day() writes it), bigint as text, timestamptz as Date.
 // TEST_DATABASE_SCHEMA (set by testDatabase() of ./testing, never in
 // service) puts the tests in a throwaway schema of the preview's database.
+// DATABASE_POOL_MAX: connections (1 to 10, 4 by default); testDatabase()
+// sets 1 on PGlite, which serves every connection from one session (two
+// would mix their transactions: after()'s work and a page's).
 let pool: postgres.Sql<{ date: string }> | undefined;
+function poolMax(): number {
+  const max = Number(process.env["DATABASE_POOL_MAX"]);
+  return Number.isInteger(max) && max >= 1 && max <= 10 ? max : 4;
+}
 export function db(): postgres.Sql<{ date: string }> {
   const schema = process.env["TEST_DATABASE_SCHEMA"];
   const zone = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/u.test(process.env["CHEST_TIME_ZONE"] ?? "") ? process.env["CHEST_TIME_ZONE"] : undefined;
   return (pool ??= postgres(databaseUrl(), {
-    max: 4,
+    max: poolMax(),
     idle_timeout: 60,
     connect_timeout: 10,
     onnotice: () => {},

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
@@ -90,7 +90,9 @@ test("the look: the company's choice as a stylesheet, its address the hash of it
   forgetTheme();
 });
 
-test("the browser's files are served to anyone under /assets/, cached; the icon too", async () => {
+// The browser's files are the client build's (npm run build; npm test
+// builds the server only).
+test("the browser's files are served to anyone under /assets/, cached; the icon too", { skip: existsSync("dist/client/assets") ? false : "no client build: npm run build first" }, async () => {
   const icon = await get(null, "/assets/icon.svg");
   assert.equal(icon.status, 200);
   assert.match(icon.headers.get("cache-control") ?? "", /public/u);

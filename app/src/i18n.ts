@@ -1,6 +1,17 @@
+import { AppError } from "./tool.ts";
+
 // Words and formats, without the tool's catalogues: fill a text, choose a
 // plural form, write dates, numbers and amounts in a reader's language and
 // time zone, find a visitor's language. Safe in the browser too.
+
+// A calendar day "YYYY-MM-DD" (a timestamp's day part too) as a Date at
+// UTC midnight; one that does not exist is a refusal.
+function dayOf(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/u.exec(typeof iso === "string" ? iso : "");
+  const at = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : null;
+  if (!m || !at || at.getUTCFullYear() !== Number(m[1]) || at.getUTCMonth() + 1 !== Number(m[2]) || at.getUTCDate() !== Number(m[3])) throw new AppError("invalid");
+  return at;
+}
 
 // fill puts values in a text's {placeholders}.
 export const fill = (text: string, values: Record<string, string | number> = {}): string =>
@@ -83,7 +94,10 @@ export function formatter(locale: string, timeZone: string, currency = "EUR") {
     dateTime: (value: Date) => dateFormat(tag, timeZone, { day: "numeric", month: "short", ...(otherYear(yearOf(value)) ? { year: "numeric" } : {}), ...clockStyle(value) }).format(value),
     // A calendar day, "YYYY-MM-DD" (a date column, a field.day): the same
     // day everywhere; its year when it is not the reader's current one.
-    day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short", ...(otherYear(iso.slice(0, 4)) ? { year: "numeric" } : {}) }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`)),
+    // A day that does not exist ("2026-02-31", "") is refused (fail
+    // "invalid": the page answers as for an address it cannot show), never
+    // written as another day.
+    day: (iso: string) => dateFormat(tag, "UTC", { weekday: "short", day: "numeric", month: "short", ...(otherYear(iso.slice(0, 4)) ? { year: "numeric" } : {}) }).format(dayOf(iso)),
     // Today in the reader's zone, "YYYY-MM-DD" (a member's own day; the
     // company's is chest.today(), and SQL's current_date and now()::date are
     // the company's too — the database session runs in the Chest's zone).

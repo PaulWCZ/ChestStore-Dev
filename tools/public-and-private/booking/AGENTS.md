@@ -141,16 +141,13 @@ npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_U
 - **Dates in islands**: written on the server (the page's props carry
   them as text), or with `src/i18n/format.ts` (one Intl object per
   language, zone and style — never one per row).
-- **The public part's writes are bounded, and only valid ones count**:
-  `src/actions.ts` refuses what could never write anything (honeypot,
-  the form's token — two hours, one booking, `claimForm` —, the type
-  found, a well-formed time, `changeAllowed` for a guest's link) before
-  `admit()` counts it, by kind (`new`, `change`) and subject (the token,
-  the link), per visitor (`visitors.address()`, else the `chest_v`
-  cookie; never `X-Forwarded-For`), for everyone per hour and a daily cap
-  (`form_counts`). A new public action does the same. (The package's
-  `bound`/`charge()` of chest-app studio.3 is the same design: switch to
-  it when it is vendored.)
+- **The public part's writes are bounded by the package, and only valid
+  ones count**: every `publicAction` has `bound` (budgets `new`/`change`
+  of `formLimits.perKind`), its form carries `<Honeypot />` (the token;
+  `call()` sends it from the page), and its run refuses what could never
+  write anything (the type found, a well-formed time, `changeAllowed` for
+  a guest's link, `perLink`) **before** `await charge(kind)`. A new public
+  action does the same.
 - **Calendar UIDs** are `Booking.uid` (`calendarUid`): never build one by
   hand; bookings made before migration 0007 keep `booking-<id>@chest`.
 - Identity from `member()` only (the package's `page()`/`action()`);
