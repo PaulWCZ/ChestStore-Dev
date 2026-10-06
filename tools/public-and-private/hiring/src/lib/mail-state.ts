@@ -30,3 +30,13 @@ export async function mailState(): Promise<MailState> {
     throw error;
   }
 }
+
+// The same, kept a minute, for the public pages (a candidate's link): a
+// flood of visitors never becomes a flood of questions to the Chest.
+let kept: { state: MailState; at: number } | null = null;
+export async function mailStateKept(now = Date.now()): Promise<MailState> {
+  if (kept && now - kept.at < 60_000) return kept.state;
+  const state = await mailState();
+  kept = { state, at: now };
+  return state;
+}

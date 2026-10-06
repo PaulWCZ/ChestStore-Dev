@@ -85,7 +85,9 @@ export async function* everything(sql: Sql, actor: Member | null, t: Catalogue):
 }
 
 // theirData: one candidate's archive, for their right of access.
-export async function theirData(sql: Sql, actor: Member | null, candidateId: unknown, t: Catalogue): Promise<{ name: string; entries: Entry[] }> {
+// The rights and the data are read first (a refusal is a status, before
+// any byte); the files then come one at a time, as the archive is sent.
+export async function theirData(sql: Sql, actor: Member | null, candidateId: unknown, t: Catalogue): Promise<{ name: string; entries: AsyncGenerator<Entry> }> {
   if (!can(actor, "export")) throw new AppError("forbidden");
   const { cvObject } = await manageable(sql, actor, candidateId);
   const d = await readCandidate(sql, actor, candidateId);
@@ -105,11 +107,13 @@ export async function theirData(sql: Sql, actor: Member | null, candidateId: unk
     emails: mails.map(m => ({ direction: m.direction, subject: m.subject, text: m.body, at: m.createdAt, status: m.status, files: (filesOf.get(m.id) ?? []).map(f => f.path) })),
     history: d.activity.map(a => ({ kind: a.kind, at: a.at })),
   };
-  const entries: Entry[] = [{ name: "data.json", data: new TextEncoder().encode(JSON.stringify(data, null, 2)) }];
-  if (cvObject && c.cv) {
-    const file = await files.get(cvObject).catch(() => null);
-    if (file) entries.push({ name: c.cv.fileName || `cv.${extension(c.cv.type)}`, data: file.data });
+  async function* entries(): AsyncGenerator<Entry> {
+    yield { name: "data.json", data: new TextEncoder().encode(JSON.stringify(data, null, 2)) };
+    if (cvObject && c.cv) {
+      const file = await files.get(cvObject).catch(() => null);
+      if (file) yield { name: c.cv.fileName || `cv.${extension(c.cv.type)}`, data: file.data };
+    }
+    for (const m of mails) yield* read(filesOf.get(m.id) ?? []);
   }
-  for (const m of mails) for await (const entry of read(filesOf.get(m.id) ?? [])) entries.push(entry);
-  return { name: `${slugify(c.name)}.zip`, entries };
+  return { name: `${slugify(c.name)}.zip`, entries: entries() };
 }

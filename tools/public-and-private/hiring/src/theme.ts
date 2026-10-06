@@ -1,8 +1,8 @@
 import { chest } from "@argentic/chest-sdk/chest";
 import { defineTheme, identityOf, themeCss, type Theme, type ThemeSource } from "@argentic/chest-ui";
-import { resolveTheme, type Look } from "@argentic/chest-ui/runtime";
-import { cache } from "react";
-import type { Accent } from "./jobs.ts";
+import { lookColors, lookCss, resolveTheme, type Look } from "@argentic/chest-ui/runtime";
+import { log } from "@argentic/chest-app";
+import { accents, type Accent } from "./lib/jobs.ts";
 
 // Hiring's own identity (DESIGN.md), "Magazine": an editorial careers
 // magazine — warm cream paper, deep cobalt ink, one tomato accent, a
@@ -60,25 +60,40 @@ export function accentCss(accent: Accent, selector: string): string {
   return themeCss(accentThemes[accent], { selector, faces: false });
 }
 
-// The look of this request: the company's choice as the Chest tells it
-// (for all its tools, or for this one), else the identity above. Never
-// throws: the Chest unreachable, or a choice the kit cannot honour, is the
-// identity. Asked once per request, however many components need it.
 // The look of a surface: the team's pages wear what the company chose
 // (for all its tools, or for Hiring), else the identity; the public pages
 // (the careers page, a job, the form, a candidate's link) wear the
-// company's brand when it has one, else Hiring's own look — never a
-// catalogue theme chosen for the team's tools (kit 0.2.3, surface
-// "public"; critique round 2, N7).
-export async function lookOf(surface: "team" | "public"): Promise<Look> {
-  const look = resolveTheme(await chest.theme(), identity, { surface });
-  if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);
-  return look;
+// company's brand when it has one, else Hiring's own look in the accent
+// chosen in Settings — never a catalogue theme chosen for the team's tools
+// (kit surface "public"). Never throws: the Chest unreachable, or a
+// choice the kit cannot honour, is the identity.
+//
+// The look is a stylesheet the tool serves itself — /chest/look.css for
+// the team's pages, /look.css for the public ones (createApp's look,
+// src/app.tsx) —, never an inline <style>: the strict policy admits it.
+// Its link carries the sheet's hash, so a browser keeps it until the look
+// changes. chest.theme() keeps the Chest's answer a minute (never a call
+// per public request); the sheet of one answer is written once and kept
+// beside it. The team's sheet also carries each accent's swatch (Settings
+// → Colour), scoped to its class.
+export type Sheet = { look: Look; css: string; colors: { media: string; color: string }[] };
+const written = new WeakMap<object, Map<string, Sheet>>();
+
+export async function sheetOf(surface: "team" | "public", accent: Accent = "cobalt"): Promise<Sheet> {
+  const choice = await chest.theme();
+  const kept = written.get(choice) ?? new Map<string, Sheet>();
+  const key = surface === "team" ? "team" : `public:${accent}`;
+  const found = kept.get(key);
+  if (found) return found;
+  const look = resolveTheme(choice, surface === "team" ? identity : accentThemes[accent], { surface, ownFonts: "/assets/fonts" });
+  if (look.problem) log.warn("theme not usable: the tool's own look is used", { problem: look.problem });
+  const swatches = surface === "team" ? "\n" + accents.map(a => accentCss(a, `.swatch-${a}`)).join("\n") : "";
+  const sheet: Sheet = { look, css: lookCss(look) + swatches, colors: lookColors(look) };
+  kept.set(key, sheet);
+  written.set(choice, kept);
+  return sheet;
 }
 
-// The look of this request: a member is asserted on the team's pages only.
-// (session.ts is loaded here: it needs a request; the tests read lookOf.)
-export const currentLook = cache(async (): Promise<Look> => {
-  const { currentMember } = await import("./session.ts");
-  return lookOf((await currentMember()) ? "team" : "public");
-});
+export async function lookOf(surface: "team" | "public", accent: Accent = "cobalt"): Promise<Look> {
+  return (await sheetOf(surface, accent)).look;
+}

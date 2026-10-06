@@ -166,6 +166,14 @@ export type Offer = {
   interview: Interview | null;
 };
 
+// known: the link a secret names (its id), or null — the public action
+// counts its calls per link once it knows it.
+export async function known(sql: Query, token: unknown): Promise<{ id: string } | null> {
+  if (typeof token !== "string" || !tokenPattern.test(token)) return null;
+  const [row] = await sql<{ id: string }[]>`select id from interview_requests where token_hash = ${hashOf(token)}`;
+  return row ? { id: String(row.id) } : null;
+}
+
 // offer reads a link for the candidate's page: null for a link that does
 // not exist (a wrong address names nothing, as for a job).
 export async function offer(sql: Query, token: unknown, now = new Date()): Promise<Offer | null> {

@@ -1,3 +1,4 @@
+import type { KitWords } from "@argentic/chest-ui/components/logic";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -12,7 +13,7 @@ export const defaultLocale: Locale = "en";
 // the kit's words (their own types: a date's parts, plurals, the first
 // day of the week).
 type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
-export type Catalogue = Shape<Omit<typeof en, "kit">> & { readonly kit: typeof en.kit };
+export type Catalogue = Shape<Omit<typeof en, "kit">> & { readonly kit: KitWords };
 
 const catalogues: Record<Locale, Catalogue> = { en, fr };
 // Every catalogue, by language (the tests read them all).

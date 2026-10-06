@@ -260,27 +260,48 @@ export type CandidateCard = {
   createdAt: string;
 };
 
-export async function board(sql: Sql, actor: Member | null, jobId: unknown, now = new Date()): Promise<CandidateCard[]> {
+// The board shows each stage's first cards (the longest waiting first) and
+// how many there are: a job with two thousand candidates sends a page of
+// each, never all of them (the island's props are sent twice in a page).
+// open: one stage shown further (its "Show more", ?more=<stage>); the
+// rejected are counted, and listed only when asked (?rejected=1), a page
+// at a time.
+export const boardLimits = { perStage: 40, more: 400, rejected: 100 } as const;
+export type Board = { cards: CandidateCard[]; counts: Record<string, number>; rejected: number };
+
+export async function board(sql: Sql, actor: Member | null, jobId: unknown, options: { open?: string | null; rejected?: boolean } = {}, now = new Date()): Promise<Board> {
   const key = id(jobId);
   const access = await jobAccess(sql, actor, key);
   if (!actor || !access) throw new AppError("not_found");
+  const open = options.open && /^[1-9][0-9]{0,17}$/u.test(options.open) ? options.open : null;
   const rows = await sql<{ id: string; name: string; stage_id: string; status: Status; source: Source; stage_entered_at: Date; cv: boolean; unseen: boolean; asked: boolean; mine: boolean; rating: string | null; ratings: number; reject_reason: RejectReason | null; created_at: Date }[]>`
+    with shown as (
+      select c.*, row_number() over (partition by c.status, case when c.status = 'active' then c.stage_id end order by c.stage_entered_at, c.id) as n
+      from candidates c where c.job_id = ${key} and (c.status = 'active' or ${options.rejected === true})
+    )
     select c.id, c.name, c.stage_id, c.status, c.source, c.stage_entered_at, c.cv_object is not null as cv, c.reject_reason, c.created_at,
       (c.status = 'active' and c.source = 'careers' and c.stage_id = ${firstStage(sql)} and not exists (select 1 from candidate_seen s where s.candidate_id = c.id and s.member_id = ${actor.id})) as unseen,
       exists (select 1 from feedback_requests r where r.candidate_id = c.id and r.member_id = ${actor.id}) as asked,
       exists (select 1 from feedback f where f.candidate_id = c.id and f.author = ${actor.id}) as mine,
       (select avg(f.rating)::numeric(3,1)::text from feedback f where f.candidate_id = c.id) as rating,
       (select count(*)::int from feedback f where f.candidate_id = c.id) as ratings
-    from candidates c where c.job_id = ${key}
-    order by c.stage_entered_at, c.id
-    limit ${limits.page}`;
+    from shown c
+    where (c.status = 'active' and c.n <= case when c.stage_id::text = ${open ?? ""} then ${boardLimits.more} else ${boardLimits.perStage} end)
+      or (c.status = 'rejected' and c.n <= ${boardLimits.rejected})
+    order by c.stage_entered_at, c.id`;
+  const counts = await sql<{ stage_id: string; status: Status; n: number }[]>`
+    select stage_id, status, count(*)::int as n from candidates where job_id = ${key} group by stage_id, status`;
   const recruiter = access === "manage";
-  return rows.map(r => ({
-    id: String(r.id), name: r.name, stageId: String(r.stage_id), status: r.status, source: r.source,
-    rating: (recruiter || r.mine) && r.rating !== null ? Number(r.rating) : null,
-    ratings: recruiter || r.mine ? r.ratings : 0,
-    days: daysBetween(r.stage_entered_at, now), hasCv: r.cv, unseen: recruiter && r.unseen, askedOfMe: r.asked, rejectReason: r.reject_reason, createdAt: r.created_at.toISOString(),
-  }));
+  return {
+    cards: rows.map(r => ({
+      id: String(r.id), name: r.name, stageId: String(r.stage_id), status: r.status, source: r.source,
+      rating: (recruiter || r.mine) && r.rating !== null ? Number(r.rating) : null,
+      ratings: recruiter || r.mine ? r.ratings : 0,
+      days: daysBetween(r.stage_entered_at, now), hasCv: r.cv, unseen: recruiter && r.unseen, askedOfMe: r.asked, rejectReason: r.reject_reason, createdAt: r.created_at.toISOString(),
+    })),
+    counts: Object.fromEntries(counts.filter(c => c.status === "active").map(c => [String(c.stage_id), c.n])),
+    rejected: counts.filter(c => c.status === "rejected").reduce((n, c) => n + c.n, 0),
+  };
 }
 
 // ---- One candidate ---------------------------------------------------------
@@ -518,14 +539,14 @@ export async function waitingOn(sql: Sql, actor: Member | null): Promise<Waiting
 // erase deletes everything of one candidate (their right to erasure: they
 // are not members, the company answers for them). Says the CV's file, to
 // delete from the Chest.
-export async function erase(sql: Sql, actor: Member | null, candidateId: unknown): Promise<{ objects: string[]; wasHired: boolean }> {
+export async function erase(sql: Sql, actor: Member | null, candidateId: unknown): Promise<{ objects: string[]; wasHired: boolean; jobId: string }> {
   if (!can(actor, "candidates.erase")) throw new AppError("forbidden");
   return sql.begin(async tx => {
     const { candidate: c, cvObject } = await manageable(tx, actor, candidateId, true);
     const wasHired = c.status === "active" && (await isHiredStage(tx, c.stageId));
     const objects = [...(cvObject ? [cvObject] : []), ...(await forget(tx, [c.id]))];
     await tx`delete from candidates where id = ${c.id}`;
-    return { objects, wasHired };
+    return { objects, wasHired, jobId: c.jobId };
   });
 }
 

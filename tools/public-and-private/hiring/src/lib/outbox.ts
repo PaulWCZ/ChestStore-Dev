@@ -45,7 +45,7 @@ export async function flush(sql: Sql, limit = 20): Promise<number> {
         subject: d.subject,
         text: d.body,
         candidateId: String(d.candidate_id),
-        fromName: sender ? mailer.fromName(sender, s.companyName) : s.companyName || undefined,
+        ...(sender || s.companyName ? { fromName: sender ? mailer.fromName(sender, s.companyName) : s.companyName } : {}),
         key: `message:${d.id}:${d.email.toLowerCase()}`,
         // The invitation's calendar file, and the files the recruiter sent
         // (the tool's own files: the Chest reads them itself).
