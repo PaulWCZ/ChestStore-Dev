@@ -56,3 +56,23 @@ Weak: the long list (Minor 11), and adding items one by one.
 6. Consumables with quantity and minimum stock — M
 7. Repair log with cost; invoice attachment — S
 8. French wording fixes; placeholders; list grouping — S
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Equipment's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **126.2 → 69.4 MiB**;
+  image 459 → 30 MiB; first members' page 942 →
+  434 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: inventory and person pages bounded (the first 200 of each list, a link to the rest); Give dialogs read the stock when they open; an import previewed with its limits said (5 MB, 5,000 rows); give and take back refused "moved" when someone moved the item meanwhile; CSV in ";" for French; Intune's matched member kept through the import (`6fb9d60`). A scale test at 20,000 items and a 5 MB import peaks at 159–177 MiB (`c713478`, `eb7c777`); flow 35/35 and axe 0 on 38 screens (`20a8b15`).
+- **Pending**: Nothing listed as pending in its commits.

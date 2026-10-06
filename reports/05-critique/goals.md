@@ -83,3 +83,23 @@ Good: Undo everywhere, closed cycles frozen but readable, the "needs a new owner
 8. Email Friday reminders via the SDK outbox. **M**
 9. Confidential objectives. **M**
 10. Automatic values from the CRM through an SDK inter-tool API (SDK report). **L**
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Goals's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **126.1 → 68 MiB**;
+  image 457 → 29 MiB; first members' page 913 →
+  501 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: a value another tool feeds is never overwritten by a member's update, and its Undo counts again instead of restoring an older value; owners who left or lost access are not reminded; fed values recounted when a cycle changes; the 500-objective limit counted under the cycle's lock; Settings bounded (20 people, 25 goals each) (`6365ad8`: 104 tests on PostgreSQL and PGlite, flow 33/33, axe 0 on 29 screens, `chest check` OK).
+- **Pending**: Its page version is not exact under concurrent writes (`src/lib/stamp.ts` says what it does not cover): to be replaced by the package's change stamp (studio.7, under way).
