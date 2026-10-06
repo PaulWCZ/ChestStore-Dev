@@ -562,7 +562,3 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 0.1em; border
 /* Hooks the browser flows find the editor and the home page's "Pages to
    read" by (lab/chest-dev/flows/wiki.mjs): no look of their own. */
 .writer, .to-read { min-width: 0; }
-
-/* An island's HTML sits in a <div class="island">: it takes no box of its
-   own, so the page's layout is the components'. */
-.island { display: contents; }

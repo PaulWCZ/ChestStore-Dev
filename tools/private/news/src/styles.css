@@ -33,7 +33,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ck-bar { background: var(--bg); }
 .ck-brand { font-weight: var(--weight-heavy); font-size: 1.25rem; letter-spacing: -0.01em; }
 .ck-brand .mark { width: 30px; height: 30px; }
-.ck-bar-end > .island { flex: 0 1 280px; } /* the search, an island */
+.ck-bar-end > .island { display: block; flex: 0 1 280px; } /* the search, an island: a box of its own (the package gives islands display: contents) */
 .ck-bar-end > .island .ck-search { width: 100%; max-width: none; }
 .ck-bar-end .write { flex: none; }
 .ck-bar-end .ck-member-text { white-space: nowrap; }

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Check, Cross, Maybe, Party } from "../components/icons.tsx";
-import { send } from "@argentic/chest-app/client";
+import { Honeypot, send } from "@argentic/chest-app/client";
 import type { Catalogue } from "../i18n/index.ts";
 import { fill as format, plural, type Plural } from "./words.ts";
 
@@ -16,10 +16,9 @@ import { fill as format, plural, type Plural } from "./words.ts";
 type Words = { guest: Catalogue["guest"]; poll: Catalogue["poll"] };
 export type GuestOption = { id: string; month: string; day: string; weekday: string; text: string; hours: string; left: number | null };
 
-export function GuestForm({ link, pollId, token, options, signup, mailOn, mine, sent, locale, t }: {
+export function GuestForm({ link, pollId, options, signup, mailOn, mine, sent, locale, t }: {
   link: string;
   pollId: string;
-  token: string;
   options: GuestOption[];
   signup: boolean;
   // Whether the Chest can email the chosen date (mail.available()): off,
@@ -71,9 +70,8 @@ export function GuestForm({ link, pollId, token, options, signup, mailOn, mine, 
     <form className="card answer-card guest-form" method="post" action={`/p/${link}/actions/answerGuest`} onSubmit={e => void submit(e)} noValidate>
       <input type="hidden" name="link" value={link} />
       <input type="hidden" name="poll" value={pollId} />
-      <input type="hidden" name="started" value={token} />
-      {/* A field people never see: only robots fill it. */}
-      <div className="honey" aria-hidden="true"><label htmlFor="website">{t.guest.honey}</label><input id="website" name="website" tabIndex={-1} autoComplete="off" /></div>
+      {/* The field only robots fill, and the form's token (the package's guard). */}
+      <Honeypot />
       <h2>{t.guest.title}</h2>
       <p className="hint">{t.guest.intro}</p>
       <div className="guest-fields">

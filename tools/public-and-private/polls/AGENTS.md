@@ -37,7 +37,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test 
 `readAnswer`), `polls.ts` (services), `answers.ts` (the anonymous
 rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
 (bell, tile, email, `pass`/`catchUp`), `groups.ts`, `teams.ts`,
-`audience.ts`, `guests.ts`, `guard.ts`, `public-origin.ts`,
+`audience.ts`, `guests.ts`, `public-origin.ts`,
 `guest-cookie.ts`, `replies.ts`, `agenda.ts` (calendar, guests' email),
 `export.ts` (CSV), `ics.ts`, `csv.ts`, `time.ts`, `zone.ts`, `dates.ts`,
 `people.ts`, `notify.ts`, `lifecycle.ts`, `db.ts`.
@@ -103,8 +103,9 @@ rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
 - **Guests** answer only through `src/lib/guests.ts`: the link opens a named
   date poll; a guest is a participant `guest` (never a member id); their
   secret's hash only; the public page never shows other answers or the
-  team's names; the public action checks the honeypot, `checkForm` and
-  `admit` first. Counts of members (`x of y answered`) exclude guests.
+  team's names; the public action is guarded by the package's `bound`
+  (its form token, `<Honeypot />` in the form, counts a day: see
+  `@argentic/chest-app`'s AGENTS.md). Counts of members (`x of y answered`) exclude guests.
 - **Replies** never tie a member to a text: no member id or time in
   `texts` or on an author's reply; `src/lib/replies.ts` reads keys and keeps
   nothing of the request; conversations only for managers and key holders.

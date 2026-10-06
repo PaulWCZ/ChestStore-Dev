@@ -1,6 +1,6 @@
 {
   "name": "@argentic/chest-sdk",
-  "version": "0.4.1-studio.2",
+  "version": "0.4.1-studio.3",
   "description": "The client a Chest server tool embeds — the official @argentic/chest-sdk 0.4.1 (the member the Chest asserts, the Chest itself, its members, database, files, notifications, members' events, schedules, AI, a fake Chest for tests), unchanged, with the studio's proposals on top: mail, calendar, webhooks, visitors, checks, events between tools, every group of the Chest, broadcast, public uploads and files, the addresses of the other tools, the company's look.",
   "keywords": [
     "chest",

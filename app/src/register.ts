@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 //
 //   declare module "@argentic/chest-app" {
 //     interface Register { words: Catalogue; actions: typeof actions; islands: typeof islands }
+//   (and, when a page tells its layout something: layout: { trash: boolean })
 //   }
 //
 // Every page, action, call() and <Island> is then typed with the tool's own
@@ -35,12 +36,22 @@ export type CoreWords = {
     readonly not_found: string;
     readonly unavailable: string;
     readonly unknown: string;
+    // A public action past its bound (optional: "unavailable" otherwise).
+    readonly limit?: string;
+    // A public form open too long, or sent twice (optional: "unavailable"
+    // otherwise): "This form expired: send it again."
+    readonly expired?: string;
   };
   readonly kit: KitWords;
 };
 
 type Registered<K extends string, Fallback> = Register extends { [P in K]: infer T } ? T : Fallback;
 export type Words = Registered<"words", CoreWords> & CoreWords;
-export type ErrorCode = Extract<keyof Words["errors"], string>;
+// The codes of the tool's own catalogue (a code it does not say, as the
+// optional "limit" and "expired", is not one it may use).
+export type ErrorCode = Extract<keyof Registered<"words", CoreWords>["errors"], string>;
 export type RegisteredActions = Registered<"actions", Record<string, unknown>>;
 export type RegisteredIslands = Registered<"islands", Record<string, ComponentType<any>>>;
+// What a page may tell its layout (View.layout → LayoutProps.data): the
+// tool's own shape, registered as layout (a plain object type).
+export type LayoutData = Registered<"layout", Record<string, never>>;

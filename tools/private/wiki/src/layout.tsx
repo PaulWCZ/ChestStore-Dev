@@ -20,7 +20,7 @@ import { roleOf } from "./lib/access.ts";
 
 const editing = (path: string) => /^\/chest\/pages\/\d+\/edit$/u.test(path);
 
-export function MembersLayout({ viewer: { member, t }, path, notice, look, children }: LayoutProps<MemberContext>) {
+export function MembersLayout({ viewer: { member, t }, path, notice, look, data, children }: LayoutProps<MemberContext>) {
   const role = roleOf(member);
   // A reader's trash holds their own private pages: the section shows for
   // whoever writes, and for a reader with "My pages" (src/frame.tsx).
@@ -30,7 +30,7 @@ export function MembersLayout({ viewer: { member, t }, path, notice, look, child
     // says so there too.
     { href: "/chest/pages", label: t.shell.pages, icon: <Book />, also: ["/chest/spaces"] },
     { href: "/chest/search", label: t.shell.searchShort, icon: <Search /> },
-    ...(trashShown(member) ? [{ href: "/chest/trash", label: t.shell.trash, icon: <Trash /> }] : []),
+    ...(trashShown(member, data) ? [{ href: "/chest/trash", label: t.shell.trash, icon: <Trash /> }] : []),
   ];
   const tools = role === null || editing(path) ? null : <div className="bar-search"><Island name="Search" props={{ labels: t.kit.search, placeholder: t.shell.search }} /></div>;
   return (
