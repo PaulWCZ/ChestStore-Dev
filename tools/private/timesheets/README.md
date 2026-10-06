@@ -334,7 +334,23 @@ the browser's script and stylesheet into `dist/client/assets/` (served at
 
 ### Measured
 
-See the end of this file's section "Memory" (filled by `lab/measure/`).
+By the studio's bench (`lab/measure/`, Node 24.21, the same way for
+every tool: the repository as the Chest receives it, `npm ci` and the
+build under 512 MiB and 1 CPU, 10 cold starts, 5 rests of 30 s with the
+12 pages of `lab/measure/pages/timesheets.json`), 6 October 2026, before
+(Next.js 16, 5 October) → after (this stack):
+
+| | Before | After |
+|---|--:|--:|
+| Memory at rest, PSS of the process tree (median) | 138.8 MiB | 64.7 MiB |
+| Peak PSS | 171.6 MiB | 69.0 MiB |
+| First 200 after a cold start (median) | 676 ms | 573 ms |
+| Image (repository + node_modules + build) | 458 MiB | 29 MiB |
+| `npm ci` under 512 MiB, 1 CPU | killed (OOM) | 3.0 s, peak 289 MiB |
+| Build under 512 MiB, 1 CPU | 35.4 s, peak 441 MiB | 3.8 s, peak 275 MiB |
+
+The rests ran beside other agents' builds (load average up to 9.9): the
+cold start is the noisiest number.
 
 ## Develop
 
