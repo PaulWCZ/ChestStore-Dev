@@ -14,9 +14,9 @@ import { clockAt } from "./tell.ts";
 //
 // What it does not cover (a page may show it up to ten minutes late, or
 // until something is written): what the Chest holds and Goals does not —
-// a member's name or photo, their Chest-wide email choice, the company's
-// look (its sheet changes address, the page does not), the groups as kept
-// a minute (lib/groups.ts).
+// a member's name or photo, the company's look (its sheet changes
+// address, the page does not), a team's groups and members as kept a
+// minute (lib/teams.ts).
 export async function stamp(sql: Query, reader: Member, now: Date = new Date()): Promise<string> {
   const [n, groups] = await Promise.all([changeStamp(sql as Parameters<typeof changeStamp>[0]), groupsOf(reader)]);
   return [n, clockAt(now).today, Math.floor(now.getTime() / 600_000), reader.role ?? "", [...groups].sort().join(",")].join(":");

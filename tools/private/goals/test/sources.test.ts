@@ -9,7 +9,7 @@ import { cycleObjectives, objectiveById } from "../src/lib/read.ts";
 import * as members from "@argentic/chest-sdk/members";
 import { groupsOf, readerFor } from "../src/lib/groups.ts";
 import { knownBoards } from "../src/lib/sources.ts";
-import { addGroupTeam, chestGroups, forgetGroups } from "../src/lib/teams.ts";
+import { addGroupTeam, chestGroups, forgetGroups, groupMembers, teams } from "../src/lib/teams.ts";
 import { clockAt } from "../src/lib/tell.ts";
 import { unitFor, valueText } from "../src/shared/values.ts";
 import { asMember } from "./support/member.ts";
@@ -138,9 +138,12 @@ test("every group of the Chest may become a team, not only those that give Goals
   forgetGroups();
   const groups = await chestGroups();
   assert.deepEqual(groups.map(g => g.name).sort(), ["Office", "Sales", "Warehouse"]);
-  assert.deepEqual(groups.find(g => g.name === "Warehouse")!.members, [hugo.id]);
+  assert.deepEqual(await groupMembers("grp_warehouseaaaaaaaaaaaaaaaaa"), [hugo.id]);
   const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
   assert.equal(team.name, "Warehouse");
+  assert.deepEqual(team.members, [hugo.id]);
+  // Only the groups that are teams are asked for their members.
+  assert.deepEqual((await teams(sql)).map(x => [x.name, x.members]), [["Warehouse", [hugo.id]]]);
   await sql`delete from teams`;
 });
 

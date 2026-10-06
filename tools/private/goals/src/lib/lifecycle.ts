@@ -12,8 +12,8 @@ import { tellAdminsOfOrphans } from "./tell.ts";
 //   the owner reads "(former member)" and what they owned in cycles still
 //   open waits for a new owner — the admins hear of it in the bell.
 // - Erasure: their id is replaced by 'erased' everywhere (owner, author,
-//   who wrote a retrospective, who changed a key result…); their email
-//   choice, the reminders they got and the confidential objectives
+//   who wrote a retrospective, who changed a key result…); the
+//   reminders they got and the confidential objectives
 //   opened to them are forgotten. Check-ins and comments stay, signed
 //   "Former member". Then the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
