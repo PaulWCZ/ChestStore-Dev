@@ -1,3 +1,4 @@
+import { log } from "@argentic/chest-app";
 import * as calendar from "@argentic/chest-sdk/calendar";
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import { addDays } from "../shared/calendar.ts";
@@ -119,7 +120,7 @@ export async function putAll(sql: Query, rows: Row[], zones: ZoneOf | string): P
       const r = batch[result.index];
       if (!r) continue;
       if (!result.ok) {
-        console.warn(`calendar: an event not put: ${result.reason}`);
+        log.warn("calendar: an event not put", { reason: result.reason });
         continue;
       }
       await kept(sql, r, zoneOf(r.member_id));
@@ -159,7 +160,7 @@ export async function sync(sql: Sql, options: { max?: number; recheck?: boolean;
     const todo = (s?.calendar === "on" ? rows.filter(r => known.get(eventKey(r.id)) !== raw(r, zoneOf(r.member_id))) : rows).slice(0, Math.max(0, max - done.removed));
     done.put = await putAll(sql, todo, zoneOf);
   } catch (error) {
-    if (!(error instanceof Stop)) console.error("calendar: not in line", error instanceof Error ? error.name : "error");
+    if (!(error instanceof Stop)) log.error("calendar: not in line", error);
   }
   return done;
 }

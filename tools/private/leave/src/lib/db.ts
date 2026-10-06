@@ -12,10 +12,13 @@ let pool: Sql | undefined;
 
 // A date column comes back as its "YYYY-MM-DD" text (a calendar day has no
 // time zone), as @argentic/chest-app/db answers it; Leave's queries also
-// write their days with to_char.
+// write their days with to_char. DATABASE_POOL_MAX (1 to 10, 4 by
+// default): the tests set 1 on PGlite, which serves every connection from
+// one session (two transactions at once would mix there).
 export function db(): Sql {
+  const max = Number(process.env["DATABASE_POOL_MAX"]);
   pool ??= postgres(databaseUrl(), {
-    max: 4,
+    max: Number.isInteger(max) && max >= 1 && max <= 10 ? max : 4,
     idle_timeout: 30,
     connect_timeout: 10,
     onnotice: () => {},

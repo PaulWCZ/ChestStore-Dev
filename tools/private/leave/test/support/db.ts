@@ -76,6 +76,8 @@ export async function testDatabase(options: { timeZone?: string } = {}): Promise
   const port = address?.port ?? 0;
   // The shape of the Chest's address (lib/db.ts checks it through the SDK).
   const url = `postgres://t_test:test@127.0.0.1:${port}/t_test?sslmode=disable`;
+  // One connection for the built server too: PGlite is one session.
+  process.env["DATABASE_POOL_MAX"] = "1";
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   await migrate(sql);
   process.env["DATABASE_URL"] = url;

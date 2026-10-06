@@ -1,3 +1,4 @@
+import { log } from "@argentic/chest-app";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as events from "@argentic/chest-sdk/events";
 import { shareBusy } from "./busy.ts";
@@ -164,10 +165,10 @@ export async function publish(sql: Query, now: () => number = Date.now): Promise
       // A key the Chest already holds for another event would be refused
       // for ever: a bug, said, and not tried again.
       if (error.code !== "key_conflict") {
-        console.warn(`${row.type} not published yet: ${error.code}`);
+        log.warn("leave event not published yet", { type: row.type, code: error.code });
         return told;
       }
-      console.error(`${row.type} refused: key_conflict`);
+      log.warn("leave event refused", { type: row.type, code: "key_conflict" });
     }
     await sql`update leave_outbox set published_at = now() where id = ${row.id}`;
     told++;
@@ -209,12 +210,12 @@ export async function keepInLine(sql: Sql, options: { recheck?: boolean } = {}):
   try {
     await shareLeave(sql);
   } catch (error) {
-    console.error("leave events: not in line", error instanceof Error ? error.name : "error");
+    log.error("leave events: not in line", error);
   }
   try {
     await sync(sql, options.recheck ? { recheck: true, max: 2000 } : {});
     await shareBusy(sql);
   } catch (error) {
-    console.error("calendar and busy times: not in line", error instanceof Error ? error.name : "error");
+    log.error("calendar and busy times: not in line", error);
   }
 }
