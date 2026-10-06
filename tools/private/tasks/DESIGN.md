@@ -8,13 +8,13 @@ cards, not a spreadsheet.
 ## Tokens
 
 The identity is a **theme of the UI kit**: "Workshop" (French *Atelier*),
-imported in `lib/theme.ts` from the kit's catalogue (`identityOf("tasks")`,
+imported in `src/theme.ts` from the kit's catalogue (`identityOf("tasks")`,
 the catalogue's `workshop` theme — imported, not copied, since kit 0.2.2:
 a copy had kept the black label inks the kit fixed in 0.2.1;
 `test/theme.test.ts` holds the two equal and checks every contrast pair of
 `ui/tokens/CONTRACT.md`, light and dark). The
 company may give Tasks another look (a catalogue theme, its brand); the CSS
-names **only contract tokens**, so every screen follows. `app/tokens.css`
+names **only contract tokens**, so every screen follows. `src/tokens.css`
 holds the tool's own tokens, defined from contract tokens: the column
 width, and the board and label colours by name.
 
@@ -32,7 +32,7 @@ width, and the board and label colours by name.
 | `--shadow-1` / `--shadow-2` | hard 3 px / 5 px ink offset | black | resting / lifted |
 
 **Board and label colours** are slots of the theme's categorical palette
-(`app/tokens.css`): sky 1, leaf 2, tomato 3, grape 4, berry 5, sea 6, sun 7,
+(`src/tokens.css`): sky 1, leaf 2, tomato 3, grape 4, berry 5, sea 6, sun 7,
 slate 8 — in Workshop the slots' soft grounds are exactly the old fills
 (grape is `#b9a3ff`, slate `#c3cad2`), each with a deep ink of its own
 family on it (slate keeps the plain ink; kit 0.2.1: a label in black lost
@@ -54,7 +54,7 @@ hover and tilts while dragged.
 ## Components
 
 From the UI kit (`@argentic/chest-ui/components`, restyled with Workshop's
-ink edges in `app/globals.css`): the app shell (labelled sections, a row of
+ink edges in `src/styles.css`): the app shell (labelled sections, a row of
 their own on a phone), the card search box ("/"), toasts with an *Undo*
 that tells the truth, dialogs and the *Confirm* of "Delete for good", the
 people picker (card, step — emptied with its own remove button —, new
@@ -79,7 +79,7 @@ phone.
 
 `chest/icon.svg`: a white card with a tick, on a sun square outlined in ink
 with a hard shadow — the tool's shape language in 48 units. The header's
-mark (`components/mark.tsx`) is the same drawing in the look's accent and
+mark (`src/components/mark.tsx`) is the same drawing in the look's accent and
 the ink measured on it; in brand mode the company's logo stands before it. No letters;
 readable at 24 px on light and dark tiles (the ink outline carries it on
 dark).
