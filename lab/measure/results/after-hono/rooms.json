@@ -2,7 +2,7 @@
  "tool": "rooms",
  "label": "after-hono",
  "source": "/home/user/wt/rooms/tools/private/rooms",
- "date": "2026-10-06T04:42:23.037Z",
+ "date": "2026-10-06T07:12:24.730Z",
  "machine": {
   "host": "vm",
   "cpu": "Intel(R) Xeon(R) Processor",
@@ -13,88 +13,88 @@
  },
  "node": "v24.21.0",
  "npm": "11.19.0",
- "commit": "0a4006e 2026-10-06",
+ "commit": "6c7f0fb 2026-10-06",
  "load": {
   "atStart": {
-   "one": 7.63,
-   "five": 7.56,
-   "fifteen": 7.42
+   "one": 6.06,
+   "five": 4.98,
+   "fifteen": 3.99
   },
   "busiestAtStart": [
    {
-    "cpu": 163,
-    "rssMiB": 557,
+    "cpu": 143,
+    "rssMiB": 238,
     "command": "MainThread"
    },
    {
-    "cpu": 41.2,
-    "rssMiB": 156,
+    "cpu": 100,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 44.4,
+    "rssMiB": 64,
     "command": "MainThread"
    },
    {
-    "cpu": 35,
-    "rssMiB": 63,
+    "cpu": 27.2,
+    "rssMiB": 135,
     "command": "MainThread"
    },
    {
-    "cpu": 15,
-    "rssMiB": 685,
+    "cpu": 12.4,
+    "rssMiB": 595,
     "command": "claude"
-   },
-   {
-    "cpu": 5.7,
-    "rssMiB": 60,
-    "command": "postgres"
    }
   ],
   "atEnd": {
-   "one": 3.47,
-   "five": 5.75,
-   "fifteen": 6.73
+   "one": 5.39,
+   "five": 4.3,
+   "fifteen": 3.91
   },
   "busiestAtEnd": [
    {
-    "cpu": 15,
-    "rssMiB": 632,
-    "command": "claude"
-   },
-   {
-    "cpu": 2.5,
-    "rssMiB": 119,
+    "cpu": 95.6,
+    "rssMiB": 523,
     "command": "MainThread"
    },
    {
-    "cpu": 1.6,
-    "rssMiB": 113,
-    "command": "MainThread"
+    "cpu": 90.5,
+    "rssMiB": 92,
+    "command": "postgres"
    },
    {
-    "cpu": 1.2,
-    "rssMiB": 0,
-    "command": "MainThread"
+    "cpu": 48,
+    "rssMiB": 176,
+    "command": "chrome"
    },
    {
-    "cpu": 0.9,
-    "rssMiB": 103,
+    "cpu": 28.8,
+    "rssMiB": 139,
+    "command": "chrome"
+   },
+   {
+    "cpu": 26.8,
+    "rssMiB": 90,
     "command": "MainThread"
    }
   ]
  },
  "notes": [],
  "repository": {
-  "diskMiB": 12.6,
-  "apparentMiB": 12,
-  "files": 213
+  "diskMiB": 12.7,
+  "apparentMiB": 12.1,
+  "files": 215
  },
  "install": {
   "code": 0,
   "signal": null,
-  "ms": 2189,
-  "peakRssMiB": 221.2,
-  "peakPssMiB": 172.4,
+  "ms": 2480,
+  "peakRssMiB": 220,
+  "peakPssMiB": 171.9,
   "processes": 1,
   "cgroup": {
-   "peakMiB": 288.5,
+   "peakMiB": 286.9,
    "failcnt": 0,
    "oomKills": 0
   },
@@ -103,9 +103,9 @@
    "cpus": 1
   },
   "load": {
-   "one": 7.63,
-   "five": 7.56,
-   "fifteen": 7.42
+   "one": 6.06,
+   "five": 4.98,
+   "fifteen": 3.99
   },
   "fits": true
  },
@@ -116,7 +116,7 @@
    "files": 2509
   },
   "pruned": {
-   "diskMiB": 16.4,
+   "diskMiB": 16.5,
    "apparentMiB": 12.5,
    "files": 1151
   }
@@ -125,12 +125,12 @@
   "limited": {
    "code": 0,
    "signal": null,
-   "ms": 4056,
-   "peakRssMiB": 345.3,
-   "peakPssMiB": 287.7,
+   "ms": 4838,
+   "peakRssMiB": 345.6,
+   "peakPssMiB": 291.7,
    "processes": 3,
    "cgroup": {
-    "peakMiB": 273.1,
+    "peakMiB": 278.4,
     "failcnt": 0,
     "oomKills": 0
    },
@@ -139,29 +139,29 @@
     "cpus": 1
    },
    "load": {
-    "one": 7.42,
-    "five": 7.52,
-    "fifteen": 7.41
+    "one": 6.22,
+    "five": 5.03,
+    "fifteen": 4.01
    },
    "fits": true
   },
   "free": {
    "code": 0,
    "signal": null,
-   "ms": 3275,
-   "peakRssMiB": 345.7,
-   "peakPssMiB": 293,
+   "ms": 3324,
+   "peakRssMiB": 344.7,
+   "peakPssMiB": 277.2,
    "processes": 3,
    "cgroup": {
-    "peakMiB": 278.2,
+    "peakMiB": 287.2,
     "failcnt": 0,
     "oomKills": 0
    },
    "limits": {},
    "load": {
-    "one": 7.38,
-    "five": 7.51,
-    "fifteen": 7.41
+    "one": 6.28,
+    "five": 5.06,
+    "fifteen": 4.02
    }
   }
  },
@@ -175,9 +175,9 @@
   "cacheMiB": 0
  },
  "image": {
-  "diskMiB": 31.2
+  "diskMiB": 31.4
  },
- "sdk": "0.4.1-studio.3",
+ "sdk": "0.4.1-studio.4",
  "pages": {
   "source": "lab/measure/pages/rooms.json",
   "list": [
@@ -222,95 +222,95 @@
   "main": "/chest",
   "runs": [
    {
-    "portMs": 349,
-    "firstMs": 596.8,
+    "portMs": 312.8,
+    "firstMs": 503,
     "statuses": [
      200
     ],
-    "load": 7.38
+    "load": 6.28
    },
    {
-    "portMs": 298.7,
-    "firstMs": 506.1,
+    "portMs": 267.6,
+    "firstMs": 437.5,
     "statuses": [
      200
     ],
-    "load": 7.61
+    "load": 5.55
    },
    {
-    "portMs": 391.3,
-    "firstMs": 724.4,
+    "portMs": 250.3,
+    "firstMs": 498.9,
     "statuses": [
      200
     ],
-    "load": 7.98
+    "load": 4.46
    },
    {
-    "portMs": 282.6,
-    "firstMs": 419.3,
+    "portMs": 381.6,
+    "firstMs": 528.7,
     "statuses": [
      200
     ],
-    "load": 7.46
+    "load": 3.93
    },
    {
-    "portMs": 569.3,
-    "firstMs": 992.7,
+    "portMs": 336.3,
+    "firstMs": 480.1,
     "statuses": [
      200
     ],
-    "load": 7.53
+    "load": 3.32
    },
    {
-    "portMs": 554.4,
-    "firstMs": 764.9,
+    "portMs": 295.5,
+    "firstMs": 423.1,
     "statuses": [
      200
     ],
-    "load": 7.32
+    "load": 3.45
    },
    {
-    "portMs": 331.9,
-    "firstMs": 474.8,
+    "portMs": 324.9,
+    "firstMs": 464.7,
     "statuses": [
      200
     ],
-    "load": 7.44
+    "load": 2.92
    },
    {
-    "portMs": 247.9,
-    "firstMs": 387.2,
+    "portMs": 282.8,
+    "firstMs": 441,
     "statuses": [
      200
     ],
-    "load": 7.17
+    "load": 2.63
    },
    {
-    "portMs": 379,
-    "firstMs": 518,
+    "portMs": 312,
+    "firstMs": 445.2,
     "statuses": [
      200
     ],
-    "load": 6.44
+    "load": 3.13
    },
    {
-    "portMs": 396.7,
-    "firstMs": 536.9,
+    "portMs": 456.2,
+    "firstMs": 657,
     "statuses": [
      200
     ],
-    "load": 6.47
+    "load": 4.01
    }
   ],
   "port": {
-   "median": 364,
-   "min": 247.9,
-   "max": 569.3
+   "median": 312.4,
+   "min": 250.3,
+   "max": 456.2
   },
   "first200": {
-   "median": 527.45,
-   "min": 387.2,
-   "max": 992.7
+   "median": 472.4,
+   "min": 423.1,
+   "max": 657
   }
  },
  "memory": {
@@ -319,199 +319,23 @@
    {
     "afterStartMiB": {
      "rss": 167.4,
-     "pss": 66
+     "pss": 63.1
     },
     "peakMiB": {
-     "rss": 175.5,
-     "pss": 72.1,
-     "cgroup": 66.1
+     "rss": 174.9,
+     "pss": 68.8,
+     "cgroup": 65.7
     },
     "afterRequestsMiB": {
-     "rss": 175.5,
-     "pss": 72.1
+     "rss": 172.9,
+     "pss": 66.8
     },
     "restMiB": {
-     "rss": 171.1,
-     "pss": 73.4,
-     "pssAnon": 58.5,
-     "pssFile": 14.9,
-     "cgroupAnon": 58.4,
-     "cgroupCache": 0
-    },
-    "processes": [
-     {
-      "command": "npm start",
-      "rssMiB": 67,
-      "pssMiB": 23.7
-     },
-     {
-      "command": "sh -c node --optimize-for-size dist/server/main.js",
-      "rssMiB": 1.9,
-      "pssMiB": 0.2
-     },
-     {
-      "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 102.2,
-      "pssMiB": 49.5
-     }
-    ],
-    "pages": [
-     {
-      "path": "/chest",
-      "status": 200,
-      "bytes": 61546,
-      "ms": 27
-     },
-     {
-      "path": "/chest/desks",
-      "status": 200,
-      "bytes": 25572,
-      "ms": 17.6
-     },
-     {
-      "path": "/chest/rooms",
-      "status": 200,
-      "bytes": 45028,
-      "ms": 17.2
-     },
-     {
-      "path": "/chest/people",
-      "status": 200,
-      "bytes": 15289,
-      "ms": 14.9
-     },
-     {
-      "path": "/chest/places",
-      "status": 200,
-      "bytes": 42382,
-      "ms": 14.1
-     },
-     {
-      "path": "/chest/places/export",
-      "status": 200,
-      "bytes": 12490,
-      "ms": 14.4
-     },
-     {
-      "path": "/chest/visitors",
-      "status": 200,
-      "bytes": 20634,
-      "ms": 9.9
-     }
-    ],
-    "load": {
-     "mean": 5.61,
-     "max": 6.12
-    }
-   },
-   {
-    "afterStartMiB": {
-     "rss": 168,
-     "pss": 69.1
-    },
-    "peakMiB": {
-     "rss": 175.6,
-     "pss": 74.8,
-     "cgroup": 72.5
-    },
-    "afterRequestsMiB": {
-     "rss": 175.6,
-     "pss": 74.8
-    },
-    "restMiB": {
-     "rss": 171.3,
-     "pss": 65.7,
-     "pssAnon": 58.6,
-     "pssFile": 7.1,
-     "cgroupAnon": 58.5,
-     "cgroupCache": 0
-    },
-    "processes": [
-     {
-      "command": "npm start",
-      "rssMiB": 67,
-      "pssMiB": 20.3
-     },
-     {
-      "command": "sh -c node --optimize-for-size dist/server/main.js",
-      "rssMiB": 1.9,
-      "pssMiB": 0.1
-     },
-     {
-      "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 102.4,
-      "pssMiB": 45.2
-     }
-    ],
-    "pages": [
-     {
-      "path": "/chest",
-      "status": 200,
-      "bytes": 61546,
-      "ms": 39.9
-     },
-     {
-      "path": "/chest/desks",
-      "status": 200,
-      "bytes": 25572,
-      "ms": 25.2
-     },
-     {
-      "path": "/chest/rooms",
-      "status": 200,
-      "bytes": 45028,
-      "ms": 20.4
-     },
-     {
-      "path": "/chest/people",
-      "status": 200,
-      "bytes": 15289,
-      "ms": 25.7
-     },
-     {
-      "path": "/chest/places",
-      "status": 200,
-      "bytes": 42382,
-      "ms": 28.7
-     },
-     {
-      "path": "/chest/places/export",
-      "status": 200,
-      "bytes": 12490,
-      "ms": 14.8
-     },
-     {
-      "path": "/chest/visitors",
-      "status": 200,
-      "bytes": 20634,
-      "ms": 14.4
-     }
-    ],
-    "load": {
-     "mean": 4.76,
-     "max": 5.11
-    }
-   },
-   {
-    "afterStartMiB": {
-     "rss": 168.6,
-     "pss": 65.6
-    },
-    "peakMiB": {
-     "rss": 173.9,
-     "pss": 69.2,
-     "cgroup": 65.3
-    },
-    "afterRequestsMiB": {
-     "rss": 173.2,
-     "pss": 68.6
-    },
-    "restMiB": {
-     "rss": 170.3,
-     "pss": 64.6,
-     "pssAnon": 57.9,
-     "pssFile": 6.7,
-     "cgroupAnon": 57.8,
+     "rss": 170.8,
+     "pss": 64.7,
+     "pssAnon": 58.1,
+     "pssFile": 6.6,
+     "cgroupAnon": 58.1,
      "cgroupCache": 0
     },
     "processes": [
@@ -527,270 +351,446 @@
      },
      {
       "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 101.5,
-      "pssMiB": 44.4
+      "rssMiB": 102.1,
+      "pssMiB": 44.6
      }
     ],
     "pages": [
      {
       "path": "/chest",
       "status": 200,
-      "bytes": 61546,
-      "ms": 35.7
+      "bytes": 61703,
+      "ms": 24.8
      },
      {
       "path": "/chest/desks",
       "status": 200,
-      "bytes": 25572,
-      "ms": 32.7
+      "bytes": 25689,
+      "ms": 25.7
      },
      {
       "path": "/chest/rooms",
       "status": 200,
-      "bytes": 45028,
-      "ms": 22.6
+      "bytes": 43077,
+      "ms": 26.3
      },
      {
       "path": "/chest/people",
       "status": 200,
-      "bytes": 15289,
-      "ms": 16.4
+      "bytes": 15399,
+      "ms": 17.3
      },
      {
       "path": "/chest/places",
       "status": 200,
-      "bytes": 42382,
-      "ms": 13.5
+      "bytes": 42438,
+      "ms": 12.6
      },
      {
       "path": "/chest/places/export",
       "status": 200,
-      "bytes": 12490,
-      "ms": 26
+      "bytes": 12731,
+      "ms": 14.2
      },
      {
       "path": "/chest/visitors",
       "status": 200,
-      "bytes": 20634,
-      "ms": 16.9
+      "bytes": 20751,
+      "ms": 19.8
      }
     ],
     "load": {
-     "mean": 6.42,
-     "max": 6.6
+     "mean": 4.77,
+     "max": 5.39
     }
    },
    {
     "afterStartMiB": {
-     "rss": 168.2,
-     "pss": 65.7
+     "rss": 163.3,
+     "pss": 59.7
     },
     "peakMiB": {
-     "rss": 176,
-     "pss": 72.3,
-     "cgroup": 66.8
+     "rss": 178.2,
+     "pss": 74.6,
+     "cgroup": 72.9
     },
     "afterRequestsMiB": {
-     "rss": 176,
-     "pss": 72.3
-    },
-    "restMiB": {
-     "rss": 172,
-     "pss": 68.7,
-     "pssAnon": 59.4,
-     "pssFile": 9.3,
-     "cgroupAnon": 59.3,
-     "cgroupCache": 0
-    },
-    "processes": [
-     {
-      "command": "npm start",
-      "rssMiB": 67.4,
-      "pssMiB": 21.5
-     },
-     {
-      "command": "sh -c node --optimize-for-size dist/server/main.js",
-      "rssMiB": 1.9,
-      "pssMiB": 0.2
-     },
-     {
-      "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 102.7,
-      "pssMiB": 47
-     }
-    ],
-    "pages": [
-     {
-      "path": "/chest",
-      "status": 200,
-      "bytes": 61546,
-      "ms": 100.7
-     },
-     {
-      "path": "/chest/desks",
-      "status": 200,
-      "bytes": 25572,
-      "ms": 35.5
-     },
-     {
-      "path": "/chest/rooms",
-      "status": 200,
-      "bytes": 45028,
-      "ms": 26.8
-     },
-     {
-      "path": "/chest/people",
-      "status": 200,
-      "bytes": 15289,
-      "ms": 19.2
-     },
-     {
-      "path": "/chest/places",
-      "status": 200,
-      "bytes": 42382,
-      "ms": 27.1
-     },
-     {
-      "path": "/chest/places/export",
-      "status": 200,
-      "bytes": 12490,
-      "ms": 20.5
-     },
-     {
-      "path": "/chest/visitors",
-      "status": 200,
-      "bytes": 20634,
-      "ms": 12
-     }
-    ],
-    "load": {
-     "mean": 5.38,
-     "max": 5.83
-    }
-   },
-   {
-    "afterStartMiB": {
-     "rss": 167.5,
-     "pss": 65.1
-    },
-    "peakMiB": {
-     "rss": 174.2,
-     "pss": 70.1,
-     "cgroup": 65
-    },
-    "afterRequestsMiB": {
-     "rss": 174.2,
+     "rss": 175.9,
      "pss": 70.1
     },
     "restMiB": {
-     "rss": 169.8,
-     "pss": 66.2,
-     "pssAnon": 57.2,
-     "pssFile": 8.9,
-     "cgroupAnon": 57.2,
+     "rss": 171.8,
+     "pss": 65.7,
+     "pssAnon": 59,
+     "pssFile": 6.6,
+     "cgroupAnon": 59,
      "cgroupCache": 0
     },
     "processes": [
      {
       "command": "npm start",
-      "rssMiB": 66.9,
-      "pssMiB": 21
+      "rssMiB": 67,
+      "pssMiB": 20.1
      },
      {
       "command": "sh -c node --optimize-for-size dist/server/main.js",
       "rssMiB": 1.9,
-      "pssMiB": 0.2
+      "pssMiB": 0.1
      },
      {
       "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 101.1,
-      "pssMiB": 45
+      "rssMiB": 102.9,
+      "pssMiB": 45.4
      }
     ],
     "pages": [
      {
       "path": "/chest",
       "status": 200,
-      "bytes": 61546,
-      "ms": 34.7
+      "bytes": 61703,
+      "ms": 63
      },
      {
       "path": "/chest/desks",
       "status": 200,
-      "bytes": 25572,
-      "ms": 26.5
+      "bytes": 25689,
+      "ms": 28.9
      },
      {
       "path": "/chest/rooms",
       "status": 200,
-      "bytes": 45028,
-      "ms": 24.2
+      "bytes": 42953,
+      "ms": 22
      },
      {
       "path": "/chest/people",
       "status": 200,
-      "bytes": 15289,
-      "ms": 15.2
+      "bytes": 15399,
+      "ms": 16.6
      },
      {
       "path": "/chest/places",
       "status": 200,
-      "bytes": 42382,
-      "ms": 13.7
+      "bytes": 42438,
+      "ms": 14.1
      },
      {
       "path": "/chest/places/export",
       "status": 200,
-      "bytes": 12490,
-      "ms": 15.7
+      "bytes": 12731,
+      "ms": 12.8
      },
      {
       "path": "/chest/visitors",
       "status": 200,
-      "bytes": 20634,
-      "ms": 11.9
+      "bytes": 20751,
+      "ms": 10.7
      }
     ],
     "load": {
-     "mean": 4.53,
-     "max": 4.83
+     "mean": 3.07,
+     "max": 3.63
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 178.8,
+     "pss": 74.9
+    },
+    "peakMiB": {
+     "rss": 178.8,
+     "pss": 74.9,
+     "cgroup": 72.6
+    },
+    "afterRequestsMiB": {
+     "rss": 176.1,
+     "pss": 70
+    },
+    "restMiB": {
+     "rss": 171.7,
+     "pss": 66.3,
+     "pssAnon": 59,
+     "pssFile": 7.3,
+     "cgroupAnon": 59,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 20.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103,
+      "pssMiB": 45.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 61703,
+      "ms": 25
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 25689,
+      "ms": 18.6
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 42953,
+      "ms": 18.5
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 15399,
+      "ms": 12.2
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 42438,
+      "ms": 12.4
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 12731,
+      "ms": 15.6
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 20751,
+      "ms": 15.4
+     }
+    ],
+    "load": {
+     "mean": 2.8,
+     "max": 3.15
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 177.6,
+     "pss": 74.9
+    },
+    "peakMiB": {
+     "rss": 177.6,
+     "pss": 74.9,
+     "cgroup": 72.4
+    },
+    "afterRequestsMiB": {
+     "rss": 173.7,
+     "pss": 68.8
+    },
+    "restMiB": {
+     "rss": 170.7,
+     "pss": 65.2,
+     "pssAnon": 58.1,
+     "pssFile": 7.1,
+     "cgroupAnon": 58.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 20.4
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 101.8,
+      "pssMiB": 44.7
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 61703,
+      "ms": 74.1
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 25689,
+      "ms": 39.4
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 42953,
+      "ms": 29.4
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 15399,
+      "ms": 43.6
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 42438,
+      "ms": 21.9
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 12731,
+      "ms": 19.7
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 20751,
+      "ms": 15.8
+     }
+    ],
+    "load": {
+     "mean": 2.83,
+     "max": 3.26
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 168.3,
+     "pss": 64.6
+    },
+    "peakMiB": {
+     "rss": 175.2,
+     "pss": 69.7,
+     "cgroup": 65.9
+    },
+    "afterRequestsMiB": {
+     "rss": 175.2,
+     "pss": 69.7
+    },
+    "restMiB": {
+     "rss": 171.1,
+     "pss": 65,
+     "pssAnon": 58.4,
+     "pssFile": 6.6,
+     "cgroupAnon": 58.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 20.1
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.2,
+      "pssMiB": 44.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 61703,
+      "ms": 79
+     },
+     {
+      "path": "/chest/desks",
+      "status": 200,
+      "bytes": 25689,
+      "ms": 31
+     },
+     {
+      "path": "/chest/rooms",
+      "status": 200,
+      "bytes": 42953,
+      "ms": 22.3
+     },
+     {
+      "path": "/chest/people",
+      "status": 200,
+      "bytes": 15399,
+      "ms": 27.3
+     },
+     {
+      "path": "/chest/places",
+      "status": 200,
+      "bytes": 42438,
+      "ms": 25.8
+     },
+     {
+      "path": "/chest/places/export",
+      "status": 200,
+      "bytes": 12731,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest/visitors",
+      "status": 200,
+      "bytes": 20751,
+      "ms": 15.4
+     }
+    ],
+    "load": {
+     "mean": 4.5,
+     "max": 5.13
     }
    }
   ],
   "rest": {
    "rss": {
     "median": 171.1,
-    "min": 169.8,
-    "max": 172
+    "min": 170.7,
+    "max": 171.8
    },
    "pss": {
-    "median": 66.2,
-    "min": 64.6,
-    "max": 73.4
+    "median": 65.2,
+    "min": 64.7,
+    "max": 66.3
    }
   },
   "peak": {
    "rss": {
-    "median": 175.5,
-    "min": 173.9,
-    "max": 176
+    "median": 177.6,
+    "min": 174.9,
+    "max": 178.8
    },
    "pss": {
-    "median": 72.1,
-    "min": 69.2,
-    "max": 74.8
+    "median": 74.6,
+    "min": 68.8,
+    "max": 74.9
    }
   },
   "restWithoutNpm": {
    "rss": {
     "median": 104.1,
-    "min": 103,
-    "max": 104.6
+    "min": 103.7,
+    "max": 104.9
    },
    "pss": {
-    "median": 45.3,
-    "min": 44.5,
-    "max": 49.7
+    "median": 44.9,
+    "min": 44.7,
+    "max": 46
    }
   }
  }
