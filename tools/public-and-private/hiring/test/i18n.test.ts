@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { en } from "../lib/i18n/en.ts";
-import { salaryText } from "../lib/facts.ts";
-import { catalogue, fileSize, format, locales, plural, publicLocale } from "../lib/i18n/index.ts";
+import { en } from "../src/i18n/en.ts";
+import { salaryText } from "../src/shared/facts.ts";
+import { publicLocale as packagePublicLocale } from "@argentic/chest-app";
+import { catalogue, fileSize, format, locales, plural } from "../src/i18n/index.ts";
+
+// A visitor's language: the package's reading, with Hiring's languages.
+const publicLocale = (cookie: string | undefined, accept: string | null) => packagePublicLocale(locales, cookie, accept ?? undefined);
 
 // Every catalogue has exactly the keys of the English one, no empty word,
 // and the same {placeholders} in each word.

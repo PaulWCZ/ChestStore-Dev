@@ -76,3 +76,23 @@ Strength, one line: "My week" answers "who's in Thursday and where do I sit" in 
 7. Rooms/desk-assignment CSV import (S/M); "Download my bookings" (S).
 8. Check-in + no-show release + "starts in 10 min" bell, once `schedules` ships (M).
 9. Occupancy per weekday chart (S).
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Rooms's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **119.2 → 65.2 MiB**;
+  image 461 → 31 MiB; first members' page 785 →
+  472 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: My week writes nothing and answers 304; the change stamp moves only when a row changes (row triggers); "I'm here" by the reader's clock; a check-in on a room just freed says it was released; reminders marked once the bell took them; changing a weekly booking changes this one and the next; the usual week booked under the desk's group check and the desk-day lock; visitors kept 30 days by a rule (`11bb094`). The occupancy bar drawn as an SVG (no `style` attribute on a policy that forbids it, `0a4006e`).
+- **Pending**: Nothing listed as pending in its commits.

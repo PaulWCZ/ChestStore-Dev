@@ -5,90 +5,91 @@ must not break.
 
 ## Map
 
+How the tool is built — pages, islands, actions, words, the database,
+tests, recipes, rules of the stack — is
+`node_modules/@argentic/chest-app/AGENTS.md` (the studio's package, Hono +
+React rendered on the server, islands, Vite): read it first. Forms' own:
+
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (roles `manager`, `creator`, `member`; public part) and the proposals it uses (`mail`, `files.publicUploads`, `schedules` bell/cleanup, tile translations) |
-| `lib/access.ts` | Roles, abilities, a member's level on a form (`owner`, `editor`, `viewer`) — others are `not_found` |
-| `lib/model.ts` | Browser-safe: the shape of a form (pages, questions, conditions, jumps), limits, `definition()` (structure, always), `problems()` (what blocks publishing), settings, ids, file types and first-bytes sniffing |
-| `lib/logic.ts` | Browser-safe: the logic engine — `walk()` (pages visited, questions asked), `read()` (one answer by kind), `check()` (what the server keeps), `prefill()`, `answerText()` |
-| `lib/forms.ts` | Forms: open (with level), list, team forms, create, save draft (revision), publish (versions), discard, close/reopen, settings, share, duplicate, delete/restore |
-| `lib/answers.ts` | Taking an answer (`submit`: version, files, limit, once, anonymity rewrite), reading, filters, delete/restore, find and erase a person, retention cleanup |
-| `lib/respond.ts` | The one path from a respondent's page: `take()` = submit + events + web addresses + copy by email (none when Support took it: `supportConfirms`) + `answers.sent` + bell |
-| `lib/uploads.ts`, `lib/upload-client.ts`, `lib/signature.ts` | Files: grant (public claim / team signed ticket), browser PUT, accept (claim, type, size, first bytes, move to `answers/<form>/`), sweep, signed links |
-| `lib/guard.ts` | The public form's guard (SDK `visitors`, fallback to `form_counts`) |
-| `lib/tell.ts`, `lib/notify.ts` | The bell (batched, keyed `answers:<form>`), badges, the team broadcast |
-| `lib/mailer.ts` | The copy of an answer (mail proposal) |
-| `lib/alerts.ts` | New answers by email to the people told, in the bell's batches (`mailed_at`) |
-| `lib/answered.ts` | Publishing to the other tools (events between tools): `answered()` (`forms.answered`) and `routed()` (`forms.contact`, `forms.request`); never anonymous, never blocks an answer |
-| `lib/linked.ts` | Which receivers are installed (`chest.toolUrl`: `crm`, `helpdesk`) and what a template's new form starts with (`startOf`: its links on, the owner's email alerts on for a public form) |
-| `lib/hooks.ts`, `app/chest-webhooks`, `settings/hooks-box.tsx` | Each answer to web addresses (Proposal webhooks): add/remove/retry per form (editors), `sendHooks` from `lib/respond.ts`, `stopped` on `webhook.disabled`; `form_hooks` (migration 0004) |
-| `lib/routes.ts` | Pure: the author's mapping (which question gives a contact's name, email…, a ticket's subject…) — `cleanRoutes`, `readRoutes` — and the events' contract v1 (`contactEvent`, `requestEvent`); README "With the other tools" |
-| `lib/images.ts` | Covers and picture-choice pictures: grant, check, publish under `public/`, addresses, sweep |
-| `lib/embed.ts`, `lib/settings.ts` | The websites allowed to frame the public forms (proxy.ts), the tool's settings table |
-| `lib/importer.ts` | Google Forms / Typeform definitions → a draft (pure) |
-| `lib/zip.ts` | A streaming ZIP writer (the "Everything (ZIP)" export) and a reader for tests |
-| `lib/leave-guard.ts` | Unsaved changes are saved before the tool's tabs and links leave (builder, settings) |
-| `lib/theme.ts`, `lib/look.ts` | Forms' identity ("Invitation"), `teamLook()` and `publicLook()` (kit 0.2.3 surfaces: a public form wears the brand or Forms' own look, never a catalogue theme), `ownLook()`; `lib/look.ts` `currentLook()` picks the surface by the member assertion |
-| `app/tokens.css` | Forms' own tokens, made of contract tokens only: sizes, the kinds' colours, the marigold, **a form's colour** (`[data-accent]` → `--form*`) |
-| `components/guarded-link.tsx` | The link of the kit's tabs inside a form: saves what waits before leaving |
-| `components/state-badge.tsx` | A form's state and an answer's follow-up as the kit's `StatusBadge` |
-| `lib/summary.ts`, `lib/export.ts`, `lib/csv.ts` | Summary per question across versions, NPS; CSV rows and the formula-safe writer |
-| `lib/templates.ts` | Templates; their words are in the catalogues (`templates.*`) |
-| `lib/lifecycle.ts` | Members leaving or erased |
-| `components/runner.tsx` | The respondent's form (public page, team page, builder preview) |
-| `app/[slug]`, `app/public-actions.ts`, `app/api/upload` | The public part (anonymous visitors) |
-| `app/chest/(work)/…`, `app/chest/actions.ts` | The team's part: home, templates, the form's tabs (answers: `answers-table.tsx` — cards on a phone —, `filter-fold.tsx` — the filters behind one button on a phone), privacy |
-| `app/chest/f/[slug]` | A team form, answered in the Chest |
-| `app/chest-jobs/[name]`, `app/chest-events` | Deliveries from the Chest (signed) |
+| `chest.json`, `chest.proposals.json` | The manifest (contract 0.4: roles `manager`, `creator`, `member`; the public part; the schedules `bell` and `cleanup`; `/assets/` static) and the SDK proposals it uses (`mail`, `files.publicUploads`/`publicFiles`, events between tools, webhooks, the tile's French) |
+| `src/app.tsx` | Every route: the team's pages (`members()`: the database, the language, the zone; a role is needed), the public ones (`visitors()`), page versions for a cheap refresh (`lib/versions.ts`), the CSV and ZIP downloads (`/export`, `/archive`), a file's signed link, `/chest-events`, `/chest-schedules`, `/chest-webhooks`; `framed()` names the company's websites in a public form's `frame-ancestors` |
+| `src/actions.ts` | Every change, by name (`call("publishForm", …)` from an island), its fields checked at the boundary, the rights read before any write; the two public ones (`answerPublic`, `visitorUpload`) are `bound` (budgets per visitor, per form, per day; a time floor; the honeypot) and charged only once the answer is valid |
+| `src/pages/` | The pages, rendered on the server: `Home`, `New` (templates, import), `Trash`, `Privacy`, `Sent`, a form's tabs in `form-frame.tsx` (`Build`, `Share`, `Settings`, `Answers`, `Summary`, `Answer`), `Respond` (the public form, the team form, the public host's root) |
+| `src/islands/` | What runs in the browser (`index.ts` lists them): `Builder`, `Runner` (the respondent's form, also the builder's preview), `Settings`, `Share`, `AnswersTable` (cards on a phone), `AnswersFilters` (behind one button on a phone), `ColumnsPick`, `AnswerActions`, `FollowUp`, `ImportForm`, `EraseForm`, `Picker`, `StatusControl`, `FormTitle`, `KeepInView`, `AutoRefresh` (the package's `useAutoRefresh`: on focus only), `ToastHost` |
+| `src/components/` | Shared by pages and islands: icons, the mark, state badges, the copy button, the web addresses' box, the respond frame |
+| `src/shared/` | Browser-safe and pure: `model.ts` (a form's shape, limits, `definition()`, `problems()`, file types and first-bytes sniffing), `logic.ts` (`walk()`, `read()`, `check()`, `prefill()`, `answerText()`), `summary.ts` (`summarise()` of the database's counts, NPS, columns), `format.ts` (**the only place an `Intl` object is made**, cached; a year shown only when not this year), `zone.ts`, `leave.ts` (unsaved changes saved before a link leaves; `sendOnLeave` when the page goes), `upload-client.ts` (grant, PUT with progress) |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts` (same keys); the kit's words (`kit`) |
+| `src/register.ts`, `main.ts`, `entry.tsx`, `layout.tsx` | The package's register (words, actions, islands, the layout's data), the server's start, the browser's entry, the two layouts (team: `AppShell`; public: the form's own frame) |
+| `src/tokens.css`, `src/styles.css`, `src/lib/theme.ts` | Forms' identity "Invitation" (`identityOf("forms")`), `teamLook()`/`publicLook()` served as `/chest/look.css` and `/look.css`; the tool's own tokens, made of contract tokens; a form's colour (`[data-accent]` → `--form*`) |
+| `src/lib/access.ts`, `creators.ts` | **Who may do what** — roles, a member's level on a form (`owner`, `editor`, `viewer`; others `not_found`), who may create |
+| `src/lib/forms.ts` | Forms: open (with level), list, team forms, create, save draft (revision), publish (versions), discard, close/reopen, settings, share, duplicate, delete/restore |
+| `src/lib/answers.ts` | Taking an answer (`submit`: version, files, limit, once, the anonymous rewrite in one statement), reading (neighbours by window), filters, follow-up under a row lock, delete/restore, find and erase a person, retention cleanup |
+| `src/lib/flood.ts` | **What anyone on the Internet can make a form do**: the public budgets (`publicLimits`; a form whose answers reach Clients, Support, a web address or an email spends `reaching`), the log lines when a form's day runs low |
+| `src/lib/reach.ts` | Views of a form's page (`form_views`), the completion rate and the answers per day on the summary |
+| `src/lib/stats.ts`, `export.ts`, `csv.ts`, `downloads.ts` | The summary's counts in SQL (`answerStats`), a bounded sample of anonymous texts; CSV rows (formula-safe, `;` in French), the CSV and the ZIP streamed by batches of 500 |
+| `src/lib/respond.ts` | The one path from a respondent's page: `take()` = submit + events + web addresses + copy by email (none when Support took it: `supportConfirms`) + `answers.sent` + bell |
+| `src/lib/uploads.ts`, `signature.ts`, `images.ts` | Files: grant (public claim via `files.publicUploadUrl` / team signed ticket), accept (claim, type, size, first bytes, move to `answers/<form>/`), sweep, signed links; covers and pictures (`files.publicPath`) |
+| `src/lib/tell.ts`, `notify.ts`, `mailer.ts`, `alerts.ts` | The bell (batched, keyed `answers:<form>`), badges, the copy of an answer, new answers by email |
+| `src/lib/answered.ts`, `routes.ts`, `linked.ts` | Publishing to the other tools (`forms.answered`, `forms.contact`, `forms.request`; never anonymous, never blocks an answer), the author's mapping (contract v1), which receivers are installed and linked (`chest.tools.get`, `events.receivers`) |
+| `src/lib/hooks.ts` | Each answer to web addresses (Proposal webhooks): add/remove/retry, `told()` on `webhook.disabled` |
+| `src/lib/embed.ts`, `settings.ts`, `public-origin.ts` | The websites allowed to frame the public forms; the tool's settings; the two hosts' addresses (`chest.tool.publicUrl`/`teamUrl`, never built by hand) |
+| `src/lib/importer.ts`, `templates.ts`, `lifecycle.ts`, `people.ts`, `versions.ts` | Google Forms / Typeform → a draft (pure); templates; members leaving or erased; names from the Chest (`no_access`, `erased`); page versions |
+| `migrations/` | 0001 to 0006 (`0005_chest.sql`: the package's `chest_bounds` and `chest_seen`; `0006_reach.sql`: the shared-device switch, hidden fields, views): never edit one that shipped |
+| `test/` | The services (`*.test.ts` on a real database or PGlite), the built server (`app.test.mjs`), the scale test (`scale.test.ts`: 10,000 answers, the server in its own process, peak memory from `/proc`), the stack's rules (`sources.test.ts`); `support/` |
+| `seed/sample.sql`, `docs/` | Sample forms of the studio's cast; screens (`docs/screens.json`) |
 
-## The UI kit (`@argentic/chest-ui` 0.2.3-studio.1, `vendor/`)
+## The UI kit (`@argentic/chest-ui` 0.2.6-studio.1, `vendor/`)
 
-Used: `AppShell`, `BrandMark`, `NoAccess`, `Toasts`/`useToast` (Undo for
-deleting a question, a page, an answer, a form, taking someone off a
-form, closing/reopening; `sent` once a bell item left), `Dialog` (the form
-is live), `Confirm` (erasing a person's answers), `Tabs` (a form's tabs,
+Used: `AppShell`, `BrandMark`, `NoAccess`, `Dialog` (the form is live),
+`Confirm` (erasing a person's answers), `Tabs` (a form's tabs,
 answers/summary), `Segmented`, `PeoplePicker` (sharing), `DateField`
 (closing day, answers' days, a share link's prefill, the date question),
-`TimeSelect` (closing hour), `Switch` (every on/off of the builder and the settings: they save at once), `FilePicker` (the file question, importing a
+`TimeSelect` (closing hour), `Switch` (every on/off of the builder and the
+settings: they save at once), `FilePicker` (the file question, importing a
 form), `DataTable` (answers, a person's answers), `Filters` (where an
 answer stands), `SearchBox`, `EmptyState`, `Avatar`, `StatusBadge`,
-`LanguageSwitch`, `useAutoRefresh`. The identity is the catalogue's `identityOf("forms")` (`lib/theme.ts`, held equal by `test/theme.test.ts`); chips and badges take `--radius-chip`, fields `--field-pad-x`, a form's description and help `--font-read`. Words: the kit's sections in the
-catalogues (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`,
-`filters`, `search`), checked by `node scripts/lint-words.mjs`.
+`LanguageSwitch`, `putWithProgress`. Toasts (with Undo) and the refresh on
+focus are the package's (`toast`, `useAutoRefresh` from
+`@argentic/chest-app/client`). The identity is the catalogue's
+`identityOf("forms")` (`src/lib/theme.ts`, held equal by
+`test/theme.test.ts`). The kit's words are the catalogues' `kit` section,
+checked by `node scripts/lint-words.mjs`.
 
 Kept on purpose: the runner's own choice pills, stars, scales, matrix and
 ranking (the product's heart, in the form's colour); the answers' "where"
 filter as a `<select>` with one group per question (`Filters`' select has
 no option groups) and its own "Clear filters" (it keeps the chosen
-columns); the answers' two days as two `DateField`s (a filter's range: the
-`DateRangeField` keeps the length when the first day moves); the picture slot of a
-picture-choice option and the cover picker (a thumbnail, stored at once);
-the privacy lookup form (at least 3 characters, a *Find* button); the
-first-visit card (three templates in one click).
+columns); the answers' two days as two `DateField`s; the picture slot of a
+picture-choice option and the cover picker; the privacy lookup form (at
+least 3 characters, a *Find* button); the first-visit card (three templates
+in one click). Bars and shares are SVG and classes (`share-0`…`share-10`):
+the strict CSP allows no inline style.
 
 ## Commands
 
 ```sh
-npm ci && npm test && npm run build   # all three must pass
-TEST_DATABASE_URL=postgres://… npm test
+npm ci && npm test && npm run build   # all three must pass (tests run on PGlite)
+TEST_DATABASE_URL=postgres://… npm test   # on PostgreSQL, with the scale test
+npm run dev                               # scripts/dev.mjs: Vite and the server
 ```
 
 ## Rules
 
 - **Events to other tools keep their contract** (README "With the other
-  tools", `lib/routes.ts`, v1): add fields, never change or remove one;
+  tools", `src/lib/routes.ts`, v1): add fields, never change or remove one;
   never for an anonymous form (`anonymous_no_routes` in the database); a
   new route is mapped by the author in Settings and tested with
   `chest.published`.
 - **One message, one email**: no respondent copy for an answer Support
-  took (`supportConfirms` in `lib/respond.ts`) — Support confirms it.
+  took (`supportConfirms` in `src/lib/respond.ts`) — Support confirms it.
   Keep the rule in step with Support's README.
-- Web addresses (`lib/hooks.ts`) get only what Settings says (the form,
+- Web addresses (`src/lib/hooks.ts`) get only what Settings says (the form,
   its questions and answers as text, a link, the email) — never a file,
   never an anonymous form's answer. The tool keeps only the target's id.
 
-- Identity only from `member(request)` (`lib/session.ts`); store `mbr_…`
-  ids, names at render (`lib/people.ts`). A public respondent is never a
+- Identity only from the package's `member` (the Chest's assertion); store `mbr_…`
+  ids, names at render (`src/lib/people.ts`). A public respondent is never a
   member: never trust an id or email from a request as identity.
 - Every answer is checked on the server by `check()` against **the
   version it answered**; answers to questions not asked are dropped. Never
@@ -102,10 +103,24 @@ TEST_DATABASE_URL=postgres://… npm test
   person's row (no table, no single answer, no row filter, no per-row CSV,
   no event, no answer content in an email). Tests in `test/answers.test.ts`
   and `test/followup.test.ts` guard it.
-- Every page saves by itself (one model): a new editing page registers
-  its flush with `holdLeaving` and links go through `GuardedLink` (the
-  kit's `Tabs` take it as `link`).
-- CSS names only contract tokens and `app/tokens.css`'s own; never a
+- Every page saves by itself (one model): a new editing island calls
+  `guardLinks(waiting, flush)` and `sendOnLeave` (`src/shared/leave.ts`),
+  so a link or a closed tab never loses what waits.
+- **A public copy is not a relay**: off by default, sent only when the
+  visitor ticks it, holding only the form's own words (`copyText`
+  `ownWordsOnly`), one an address a day and `copyLimits` a form an hour
+  (`src/lib/mailer.ts`, `test/abuse.test.ts`). Never put a typed text or
+  a link in it.
+- An anonymous form's answers keep the form's language and the latest
+  version; its questions are locked once answered (`skeleton()`, publish).
+- A form takes `limits.maxAnswers` (10,000) at most, in the statement
+  that takes the place.
+- The public part never asks the Chest per request (addresses, names,
+  members are read where a member is), never lists members, and its two
+  actions stay `bound`; a new public action is `bound` too.
+- Exports and summaries stay bounded at 10,000 answers: counts in SQL,
+  rows streamed by batches, island props bounded (`test/scale.test.ts`).
+- CSS names only contract tokens and `src/tokens.css`'s own; never a
   colour (`test/theme.test.ts`). A form's colour is `--form`, `--form-ink`,
   `--form-text`, `--form-line`, `--form-soft`, `--form-ground`: text on
   a form's page uses `--form-text`, fills `--form` with `--form-ink`.
@@ -118,8 +133,8 @@ TEST_DATABASE_URL=postgres://… npm test
   (`update … where answer_count < max_answers`); keep it there.
 - A public upload is attached only through its claim (or the tool's
   signed ticket on a team form), and checked (type, size, first bytes).
-- Words only in `lib/i18n/en.ts` and `fr.ts` (same keys; tests check);
+- Words only in `src/i18n/en.ts` and `fr.ts` (same keys; tests check);
   services return codes. The CSV separator is a catalogue word.
-- Migrations that shipped are never edited: add `0005_…` (`0002_follow_up.sql`: follow-up, email alerts, events, cover, settings; `0003_routes.sql`: the links; `0004_sent_and_hooks.sql`: where an answer went, web addresses).
+- Migrations that shipped are never edited: add `0006_…` (`0005_chest.sql`: the package's tables; `0002_follow_up.sql`: follow-up, email alerts, events, cover, settings; `0003_routes.sql`: the links; `0004_sent_and_hooks.sql`: where an answer went, web addresses).
 - Anything the Chest does not give goes through the SDK working copy's
   proposals, caught when absent — never faked inside the tool.

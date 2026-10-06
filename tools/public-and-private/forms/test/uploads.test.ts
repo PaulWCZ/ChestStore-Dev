@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { CapabilityNotGranted } from "@argentic/chest-sdk/errors";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as answers from "../lib/answers.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as forms from "../lib/forms.ts";
-import { take } from "../lib/respond.ts";
-import * as uploads from "../lib/uploads.ts";
+import * as answers from "../src/lib/answers.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as forms from "../src/lib/forms.ts";
+import { take } from "../src/lib/respond.ts";
+import * as uploads from "../src/lib/uploads.ts";
+import { everyAnswer } from "./support/answers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { form, q } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -15,8 +16,8 @@ import { everyone, hugo, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], storage: { publicUploads: true }, mail: { domain: "atelier.test" }, chest: { organization: "Atelier Martin" } });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -45,10 +46,15 @@ test("a visitor's file is claimed only once, by the answer that sent it, and che
   assert.ok(chest.files.has(kept.file));
   await refused(uploads.accept("public", "7", cv, { ref: claim, name: "again" }), "file_missing");
   await refused(uploads.accept("public", "7", cv, { ref: "made-up-claim-value.claim", name: "x" }), "file_missing");
-  // A file that says PDF but is not one is refused and deleted.
-  const fake = await visitorSends(cv, new TextEncoder().encode("<script>alert(1)</script>"));
+  // A file that says PDF but is not one: the Chest's front refuses it.
+  const { url } = await uploads.grant("public", cv, "application/pdf", 25);
+  assert.equal((await chest.upload(url, new TextEncoder().encode("<script>alert(1)</script>"), "application/pdf")).status, 400);
+  // One whose kind the Chest does not read (a Word file that is not one):
+  // the tool reads its first bytes, refuses it and deletes it.
+  const docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const fake = await visitorSends(cv, new TextEncoder().encode("<script>alert(1)</script>"), docx);
   const before = chest.files.size;
-  await refused(uploads.accept("public", "7", cv, { ref: fake, name: "cv.pdf" }), "file_invalid");
+  await refused(uploads.accept("public", "7", cv, { ref: fake, name: "cv.docx" }), "file_invalid");
   assert.equal(chest.files.size, before - 1);
   // A type the question does not take is refused before any upload.
   await refused(uploads.grant("public", cv, "image/png", 10), "file_invalid");
@@ -78,20 +84,22 @@ test("an answer with a file, end to end: kept under the form, copy emailed in th
   await forms.publish(sql, asMember(ines), f0.id);
   const f = (await forms.bySlug(sql, f0.slug))!.form;
   const claim = await visitorSends(cv, pdf);
-  const taken = await take(sql, f, { version: 1, answers: { [email.id]: "nina@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "fr");
-  assert.deepEqual(taken, { ok: true, copy: true });
-  const [a] = (await answers.allAnswers(sql, asMember(ines), f.id)).answers;
+  const taken = await take(sql, f, { version: 1, answers: { [email.id]: "nina@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "fr", { copyAsked: true });
+  assert.deepEqual(taken, { copy: true });
+  const [a] = (await everyAnswer(sql, f.id)).answers;
   assert.match((a!.data[cv.id] as { file: string }).file, new RegExp(`^answers/${f.id}/`, "u"));
   const mail = chest.outbox.at(-1)!;
   assert.deepEqual(mail.to, ["nina@example.com"]);
   assert.equal(mail.subject, "Vos réponses — Apply");
-  assert.ok(mail.text.includes("cv.pdf") && mail.text.includes("Atelier Martin"));
+  // A public form's copy repeats only the form's own words: not the
+  // address, not the file's name the visitor gave.
+  assert.ok(mail.text.includes("Atelier Martin") && mail.text.includes("Apply"));
+  assert.ok(!mail.text.includes("cv.pdf") && !mail.text.includes("nina@example.com"), mail.text);
+  assert.ok(mail.text.includes("2 réponses écrites ne sont pas reprises"), mail.text);
   // The same claim cannot be used by a second answer.
-  const again = await take(sql, f, { version: 1, answers: { [email.id]: "bob@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "en");
-  assert.deepEqual(again, { ok: false, error: "file_missing" });
+  await refused(take(sql, f, { version: 1, answers: { [email.id]: "bob@example.com", [cv.id]: { ref: claim, name: "cv.pdf" } } }, null, "en"), "file_missing");
   // Answers with errors come back per question.
-  const wrong = await take(sql, f, { version: 1, answers: { [email.id]: "nope" } }, null, "en");
-  assert.deepEqual(wrong, { ok: false, error: "answers", fields: { [email.id]: "email", [cv.id]: "required" } });
+  await assert.rejects(take(sql, f, { version: 1, answers: { [email.id]: "nope" } }, null, "en"), (e: unknown) => e instanceof AppError && e.code === "answers" && e.values[email.id] === "email" && e.values[cv.id] === "required");
 });
 
 test("a team form's copy goes to the member, whose address the tool never sees", async () => {
@@ -102,7 +110,7 @@ test("a team form's copy goes to the member, whose address the tool never sees",
   await forms.publish(sql, asMember(ines), f0.id);
   const f = (await forms.bySlug(sql, f0.slug))!.form;
   const taken = await take(sql, f, { version: 1, answers: { [note.id]: "Hello" } }, asMember(hugo), "en");
-  assert.deepEqual(taken, { ok: true, copy: true });
+  assert.deepEqual(taken, { copy: true });
   assert.equal(chest.outbox.at(-1)!.subject, "Your answers — Team note");
 });
 

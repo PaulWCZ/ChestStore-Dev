@@ -469,6 +469,8 @@ export const en = {
     giveAll: "Give everything of {name} to",
     giveOne: "Give “{title}” to",
     given: { one: "{count} goal handed over.", other: "{count} goals handed over." },
+    moreItems: { one: "And {count} more, handed over with everything above.", other: "And {count} more, handed over with everything above." },
+    morePeople: { one: "And {count} more person: their goals show once these are handed over.", other: "And {count} more people: their goals show once these are handed over." },
     objectiveTag: "Objective",
     keyResultTag: "Key result",
     in: "in {objective}",

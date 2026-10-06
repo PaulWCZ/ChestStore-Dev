@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as jobs from "../lib/jobs.ts";
+import * as jobs from "../src/lib/jobs.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { label, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";

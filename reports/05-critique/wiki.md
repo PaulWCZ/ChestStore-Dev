@@ -91,3 +91,23 @@ Strong: every save is a version with restore, drafts are never lost, the trash h
 8. Phone editor toolbar; a label on Watch. **S**
 9. Page-level restrictions. **M**
 10. Export everything; pin pages to home; TOC at 1200 px; links in the diff; seed author. **S**
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Wiki's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-package`; PSS of the
+  server's process tree at rest, median of 5): **155.5 → 74.1 MiB**;
+  image 485 → 38 MiB; first members' page 730 →
+  402 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: the edit lock stays free after Save; pastes from Word desktop and Google Docs keep their words, lists and links; a comment on a passage across paragraphs finds it again; writing on a phone (the header scrolls away, the "/" menu in the visual viewport); the editable area and toolbars for screen readers; lighter pages (the sidebar sent the open branch only) (`206d997`). Imports and exports kept within 256 MiB, a malformed Confluence index no longer fails an import (`fc7420d`; measured: imports of 37 and 54 MiB peak at 118 and 146 MiB, exports 147–168 MiB, `2116a75`). The page's own stamp check became the package's page versions (`40af5cc`).
+- **Pending**: Nothing listed as pending in its commits.

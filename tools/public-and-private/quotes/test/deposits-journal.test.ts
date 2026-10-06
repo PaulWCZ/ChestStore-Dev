@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { decideQuote, finalise, invoiceFromQuote, sendQuote, startCreditNote } from "../src/lib/documents.ts";
+import { decideQuote, finalise, getDocument, invoiceFromQuote, saveDraft, sendQuote, startCreditNote } from "../src/lib/documents.ts";
 import { period } from "../src/lib/export.ts";
 import { exportJournal } from "../src/lib/journal.ts";
 import { revenue } from "../src/lib/revenue.ts";
@@ -96,4 +96,23 @@ test("a deposit cancelled, then the whole quote invoiced: 4191 at zero, the sale
   const all = await journal();
   const r = (await revenue(sql, asMember(lea), today, "EUR"))!;
   assert.equal(r.thisMonth, balance(all, "706000") + balance(all, "707000"));
+});
+
+test("a credit note of the final invoice, edited before it is issued: its lines taking the deposit back keep their mark, 4191 moves, 706 by the whole sale", async () => {
+  const { sql } = database;
+  const q = await acceptedQuote("Acompte Puis Avoir SARL");
+  const deposit = await finalise(sql, asMember(sofia), (await invoiceFromQuote(sql, asMember(sofia), q, 3000)).id, today);
+  const final = await finalise(sql, asMember(sofia), (await invoiceFromQuote(sql, asMember(sofia), q, null)).id, today);
+  const started = await startCreditNote(sql, asMember(sofia), final.id);
+  // The paper's autosave sends every line back, marks included.
+  const shown = await getDocument(sql, asMember(sofia), started.id, today);
+  assert.ok(shown.lines.some(l => l.depositOf === deposit.id), "the credit note's copy of the deposit line is marked");
+  await saveDraft(sql, asMember(sofia), started.id, { title: "Avoir", lines: shown.lines.map(l => ({ ...l })) });
+  const credit = await finalise(sql, asMember(sofia), started.id, today);
+  const kept = await getDocument(sql, asMember(sofia), credit.id, today);
+  assert.ok(kept.lines.some(l => l.depositOf === deposit.id), "kept through the edit");
+  const rows = (await journal()).filter(r => r.piece === credit.number);
+  assert.equal(rows.reduce((s, r) => s + r.debit, 0), rows.reduce((s, r) => s + r.credit, 0), "balanced");
+  assert.equal(balance(rows, "706000"), -200000, "the whole sale reversed, not 1,400.00");
+  assert.equal(balance(rows, "419100"), 60000, "the deposit taken back is owed again");
 });

@@ -69,3 +69,23 @@ Weak: native date inputs with no range calendar showing holidays or colleagues w
 10. iCal feed and email (SDK proposals) — M
 11. Default French family-event and telework kinds; overlap warning — S/M
 12. Fix initials of former members — S
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Leave's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **121.3 → 68.2 MiB**;
+  image 455 → 27 MiB; first members' page 749 →
+  474 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: an answer taken back waits again only without an overlapping request; nothing asked or recorded after the person's last day; a leave across a year's start or payroll's day is cut there; "cannot go below zero" checked again under the staff row's lock (two requests at once are never both covered); balances for 2,000 people and 80,000 lines in 0.6–0.7 s instead of 8.7 s; a midnight the clocks skip moves on (`94c1332`, each with its test).
+- **Pending**: Nothing listed as pending in its commits.

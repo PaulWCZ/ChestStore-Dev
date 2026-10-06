@@ -4,7 +4,7 @@ import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { bic, clean, country, email, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "../shared/model.ts";
-import { parseAmount, parsePercent } from "../shared/money.ts";
+import { ambiguousAmount, parseAmount, parsePercent } from "../shared/money.ts";
 import type { Seller } from "../shared/parties.ts";
 
 // The seller: the company's legal details, which every document prints
@@ -157,69 +157,84 @@ const bool = (value: unknown): boolean => {
 // updateCompany changes the fields given, checked; the rest stays.
 export async function updateCompany(sql: Sql, actor: Member | null, input: CompanyInput): Promise<Company> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
-  const current = await company(sql);
-  const text = (key: keyof CompanyInput, max: number, multiline = false) => (input[key] === undefined ? undefined : clean(input[key], max, { optional: true, multiline }));
-  const sirenValue = input.siren === undefined ? current.siren : siren(input.siren);
-  const siretValue = input.siret === undefined ? current.siret : siret(input.siret);
-  if (siretValue && sirenValue && !siretValue.startsWith(sirenValue)) throw new AppError("siret_invalid");
-  let capital = current.capital;
-  if (input.capital !== undefined) {
-    if (input.capital === null || input.capital === "") capital = null;
-    else {
-      const parsed = parseAmount(input.capital);
-      if (parsed === null || parsed < 0 || parsed > limits.total) throw new AppError("capital_invalid");
-      capital = parsed;
+  return sql.begin(async tx => {
+    // The company row locked: two changes of the prefixes never cross.
+    await tx`select 1 from company where id = 1 for update`;
+    const current = await company(tx);
+    const text = (key: keyof CompanyInput, max: number, multiline = false) => (input[key] === undefined ? undefined : clean(input[key], max, { optional: true, multiline }));
+    const sirenValue = input.siren === undefined ? current.siren : siren(input.siren);
+    const siretValue = input.siret === undefined ? current.siret : siret(input.siret);
+    if (siretValue && sirenValue && !siretValue.startsWith(sirenValue)) throw new AppError("siret_invalid");
+    let capital = current.capital;
+    if (input.capital !== undefined) {
+      if (input.capital === null || input.capital === "") capital = null;
+      else {
+        if (ambiguousAmount(input.capital)) throw new AppError("amount_ambiguous");
+        const parsed = parseAmount(input.capital);
+        if (parsed === null || parsed < 0 || parsed > limits.total) throw new AppError("capital_invalid");
+        capital = parsed;
+      }
     }
-  }
-  let penalty = current.penaltyRate;
-  if (input.penaltyRate !== undefined) {
-    if (input.penaltyRate === null || input.penaltyRate === "") penalty = null;
-    else {
-      const parsed = typeof input.penaltyRate === "number" ? input.penaltyRate : parsePercent(input.penaltyRate);
-      if (parsed === null || !Number.isInteger(parsed) || parsed < 0 || parsed > 10_000) throw new AppError("penalty_invalid");
-      penalty = parsed;
+    let penalty = current.penaltyRate;
+    if (input.penaltyRate !== undefined) {
+      if (input.penaltyRate === null || input.penaltyRate === "") penalty = null;
+      else {
+        const parsed = typeof input.penaltyRate === "number" ? input.penaltyRate : parsePercent(input.penaltyRate);
+        if (parsed === null || !Number.isInteger(parsed) || parsed < 0 || parsed > 10_000) throw new AppError("penalty_invalid");
+        penalty = parsed;
+      }
     }
-  }
-  const next = {
-    legal_name: text("legalName", limits.name) ?? current.legalName,
-    trade_name: text("tradeName", limits.name) ?? current.tradeName,
-    legal_form: text("legalForm", 60) ?? current.legalForm,
-    capital,
-    address: text("address", limits.address, true) ?? current.address,
-    postcode: text("postcode", limits.postcode) ?? current.postcode,
-    city: text("city", limits.city) ?? current.city,
-    country: input.country === undefined ? current.country : country(input.country),
-    siren: sirenValue,
-    siret: siretValue,
-    rcs_city: text("rcsCity", limits.city) ?? current.rcsCity,
-    vat_number: input.vatNumber === undefined ? current.vatNumber : vatNumber(input.vatNumber),
-    vat_regime: input.franchise === undefined ? (current.franchise ? "franchise" : "standard") : bool(input.franchise) ? "franchise" : "standard",
-    vat_on_debits: input.vatOnDebits === undefined ? current.vatOnDebits : bool(input.vatOnDebits),
-    email: input.email === undefined ? current.email : email(input.email),
-    phone: text("phone", limits.phone) ?? current.phone,
-    website: text("website", 120) ?? current.website,
-    bank: text("bank", limits.name) ?? current.bank,
-    iban: input.iban === undefined ? current.iban : iban(input.iban),
-    bic: input.bic === undefined ? current.bic : bic(input.bic),
-    payment_days: input.paymentDays === undefined ? current.paymentDays : wholeDays(input.paymentDays, 0, limits.paymentDays, "terms_invalid"),
-    validity_days: input.validityDays === undefined ? current.validityDays : wholeDays(input.validityDays, 1, limits.validityDays),
-    penalty_rate: penalty,
-    early_discount: text("earlyDiscount", limits.terms) ?? current.earlyDiscount,
-    footer: text("footer", limits.terms, true) ?? current.footer,
-    quote_prefix: input.quotePrefix === undefined ? current.quotePrefix : prefix(input.quotePrefix),
-    invoice_prefix: input.invoicePrefix === undefined ? current.invoicePrefix : prefix(input.invoicePrefix),
-    credit_prefix: input.creditPrefix === undefined ? current.creditPrefix : prefix(input.creditPrefix),
-    payment_link: input.paymentLink === undefined ? current.paymentLink ?? "" : paymentLink(input.paymentLink),
-    reminders_on: input.remindersOn === undefined ? current.reminders.on : bool(input.remindersOn),
-    reminder_days: sql.array(input.reminderDays === undefined ? current.reminders.days : reminderDays(input.reminderDays), 23) as never,
-    reminders_email: input.remindersEmail === undefined ? current.reminders.email : bool(input.remindersEmail),
-    accounts: sql.json((input.accounts === undefined ? current.accounts : accounts(input.accounts, current.accounts)) as never),
-  };
-  // Three sequences, three prefixes: a number never reads as another kind.
-  if (new Set([next.quote_prefix, next.invoice_prefix, next.credit_prefix]).size !== 3) throw new AppError("prefix_invalid");
-  const [row] = await sql<Row[]>`
-    update company set ${sql(next)}, updated_by = ${actor!.id}, updated_at = now() where id = 1 returning *`;
-  return toCompany(row!);
+    const next = {
+      legal_name: text("legalName", limits.name) ?? current.legalName,
+      trade_name: text("tradeName", limits.name) ?? current.tradeName,
+      legal_form: text("legalForm", 60) ?? current.legalForm,
+      capital,
+      address: text("address", limits.address, true) ?? current.address,
+      postcode: text("postcode", limits.postcode) ?? current.postcode,
+      city: text("city", limits.city) ?? current.city,
+      country: input.country === undefined ? current.country : country(input.country),
+      siren: sirenValue,
+      siret: siretValue,
+      rcs_city: text("rcsCity", limits.city) ?? current.rcsCity,
+      vat_number: input.vatNumber === undefined ? current.vatNumber : vatNumber(input.vatNumber),
+      vat_regime: input.franchise === undefined ? (current.franchise ? "franchise" : "standard") : bool(input.franchise) ? "franchise" : "standard",
+      vat_on_debits: input.vatOnDebits === undefined ? current.vatOnDebits : bool(input.vatOnDebits),
+      email: input.email === undefined ? current.email : email(input.email),
+      phone: text("phone", limits.phone) ?? current.phone,
+      website: text("website", 120) ?? current.website,
+      bank: text("bank", limits.name) ?? current.bank,
+      iban: input.iban === undefined ? current.iban : iban(input.iban),
+      bic: input.bic === undefined ? current.bic : bic(input.bic),
+      payment_days: input.paymentDays === undefined ? current.paymentDays : wholeDays(input.paymentDays, 0, limits.paymentDays, "terms_invalid"),
+      validity_days: input.validityDays === undefined ? current.validityDays : wholeDays(input.validityDays, 1, limits.validityDays),
+      penalty_rate: penalty,
+      early_discount: text("earlyDiscount", limits.terms) ?? current.earlyDiscount,
+      footer: text("footer", limits.terms, true) ?? current.footer,
+      quote_prefix: input.quotePrefix === undefined ? current.quotePrefix : prefix(input.quotePrefix),
+      invoice_prefix: input.invoicePrefix === undefined ? current.invoicePrefix : prefix(input.invoicePrefix),
+      credit_prefix: input.creditPrefix === undefined ? current.creditPrefix : prefix(input.creditPrefix),
+      payment_link: input.paymentLink === undefined ? current.paymentLink ?? "" : paymentLink(input.paymentLink),
+      reminders_on: input.remindersOn === undefined ? current.reminders.on : bool(input.remindersOn),
+      reminder_days: tx.array(input.reminderDays === undefined ? current.reminders.days : reminderDays(input.reminderDays), 23) as never,
+      reminders_email: input.remindersEmail === undefined ? current.reminders.email : bool(input.remindersEmail),
+      accounts: tx.json((input.accounts === undefined ? current.accounts : accounts(input.accounts, current.accounts)) as never),
+    };
+    // Three sequences, three prefixes: a number never reads as another kind.
+    if (new Set([next.quote_prefix, next.invoice_prefix, next.credit_prefix]).size !== 3) throw new AppError("prefix_invalid");
+    // A kind's new prefix may not be one another kind's documents already
+    // carry: its next numbers would repeat theirs (an invoice A-2027-0002
+    // beside the credit note A-2027-0002). Each change is kept.
+    for (const [type, before, after] of [["quote", current.quotePrefix, next.quote_prefix], ["invoice", current.invoicePrefix, next.invoice_prefix], ["credit", current.creditPrefix, next.credit_prefix]] as const) {
+      if (before === after) continue;
+      const like = after.replace(/[\\%_]/gu, m => "\\" + m) + "-%";
+      const [taken] = await tx<{ number: string }[]>`select number from documents where type <> ${type} and number like ${like} limit 1`;
+      if (taken) throw new AppError("prefix_taken", { prefix: after, number: taken.number });
+      await tx`insert into numbering_changes (type, prefix, changed_by) values (${type}, ${after}, ${actor!.id})`;
+    }
+    const [row] = await tx<Row[]>`
+      update company set ${tx(next)}, updated_by = ${actor!.id}, updated_at = now() where id = 1 returning *`;
+    return toCompany(row!);
+  });
 }
 
 // The Chest said whether it can send email: remembered, so the next

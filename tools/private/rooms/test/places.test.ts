@@ -91,7 +91,7 @@ test("giving a desk to someone cancels others' coming bookings on it, and one pe
 test("the rules: bounds checked, admins only", async () => {
   const { sql } = database;
   const set = await setRules(sql, admin, { daysAhead: 30, maxDeskDays: 3, repeatWeeks: 8, dayStart: 480, dayEnd: 1140, weekdays: [5, 1, 2, 3, 4], keepMonths: 6 });
-  assert.deepEqual(set, { daysAhead: 30, maxDeskDays: 3, repeatWeeks: 8, dayStart: 480, dayEnd: 1140, weekdays: [1, 2, 3, 4, 5], keepMonths: 6, checkIn: false });
+  assert.deepEqual(set, { daysAhead: 30, maxDeskDays: 3, repeatWeeks: 8, dayStart: 480, dayEnd: 1140, weekdays: [1, 2, 3, 4, 5], keepMonths: 6, visitorDays: 30, checkIn: false });
   await assert.rejects(setRules(sql, admin, { daysAhead: 0 }), { code: "invalid" });
   await assert.rejects(setRules(sql, admin, { dayStart: 600, dayEnd: 540 }), { code: "invalid" });
   await assert.rejects(setRules(sql, admin, { dayStart: 450 }), { code: "invalid" });

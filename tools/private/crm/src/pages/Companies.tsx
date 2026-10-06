@@ -17,6 +17,7 @@ import { fieldFilterOf, listFields } from "../lib/fields.ts";
 import { countryChoices, currency, dealFormProps, formChoices, shownFields, shownFiles, withWhen } from "../lib/page-data.ts";
 import { directory } from "../lib/people.ts";
 import { shownName } from "../lib/seed-words.ts";
+import { exportSetting, mayExport } from "../lib/settings.ts";
 import { team as teamOf } from "../lib/team.ts";
 import { today } from "../lib/zone.ts";
 import { phoneHref, websiteHref } from "../shared/model.ts";
@@ -44,6 +45,8 @@ export async function companiesPage({ member, locale: lang, t, query }: PageCont
   const exportQuery = new URLSearchParams(Object.entries(kept).filter(([k]) => k !== "sort")).toString();
   const team = people.map(p => ({ id: p.id, name: p.name, photo: p.photo }));
   const writes = can(member, "records.write");
+  // The lists leave only for whom the managers allow it (Settings).
+  const exports = mayExport(member, await exportSetting(sql));
   const now = today();
   const list: CompanyRow[] = rows.map(c => ({
     id: c.id,
@@ -71,7 +74,7 @@ export async function companiesPage({ member, locale: lang, t, query }: PageCont
           <Island name="ListFilters" props={{
             address: { path: "/chest/companies", query: kept }, label: t.companies.filter, tags: tags.map(tag => ({ value: tag, label: shownName("tags", tag, t) })), team, me: member.id, fields, today: now,
             sorts: [{ value: "name", label: t.companies.sorts.name }, { value: "recent", label: t.companies.sorts.recent }, { value: "created", label: t.companies.sorts.created }],
-            exports: total > 0 ? [{ href: `/chest/export/companies${exportQuery ? "?" + exportQuery : ""}`, label: t.common.exportCsv, kind: "csv" as const }] : [],
+            exports: total > 0 && exports ? [{ href: `/chest/export/companies${exportQuery ? "?" + exportQuery : ""}`, label: t.common.exportCsv, kind: "csv" as const }] : [],
             t: words.listFilters(t),
           }} />
         )}
@@ -169,7 +172,7 @@ export async function companyPage({ member, locale: lang, t, param }: PageContex
             <section className="panel" aria-labelledby="deals-title">
               <div className="panel-head">
                 <h2 id="deals-title" className="label-mono">{t.company.deals} <span className="count num">{deals.total}</span></h2>
-                {can(member, "deals.create") && <Island name="NewDealButton" props={{ className: "link-button", label: t.company.addDeal, initial: emptyDeal(member.id, choices.openStages[0]?.id ?? "", self), ...dealFormProps(choices, member.id), t: words.deal(t) }} />}
+                {can(member, "deals.create") && <Island name="NewDealButton" props={{ className: "link-button", label: t.company.addDeal, initial: emptyDeal(member.id, choices.openStages[0]?.id ?? "", self), ...dealFormProps(choices, member.id, locale), t: words.deal(t) }} />}
               </div>
               {deals.rows.length === 0 ? <p className="muted">{t.company.noDeals}</p> : (
                 <ul className="mini-list">

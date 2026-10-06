@@ -18,8 +18,8 @@ terminal, made plain enough for a salesperson between two meetings.
     { "name": "Today", "value": "#9a5200" }
   ],
   "fonts": {
-    "display": { "family": "IBM Plex Sans", "file": "public/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 600 },
-    "body": { "family": "IBM Plex Mono", "file": "public/fonts/ibm-plex-mono-latin-500-normal.woff2", "weight": 500 }
+    "display": { "family": "IBM Plex Sans", "file": "public/assets/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 600 },
+    "body": { "family": "IBM Plex Mono", "file": "public/assets/fonts/ibm-plex-mono-latin-500-normal.woff2", "weight": 500 }
   },
   "specimen": "Head office fit-out — €48,500 · Proposal 50%"
 }
@@ -64,7 +64,7 @@ theme, or its own brand (then its logo stands where the mark is,
 `tabular-nums`) for every figure — amounts, dates, counts, column totals —
 and for the small spaced capital labels (`.label-mono`: *NEXT STEP*,
 *HISTORY*, *OWNER*) that give the tool its terminal touch. Both OFL-1.1,
-self-hosted (`public/fonts/`, the kit writes their `@font-face` from the
+self-hosted (`public/assets/fonts/`, the kit writes their `@font-face` from the
 theme). Sizes 12–36 px; body 15 px.
 
 **Spacing** 4 · 8 · 12 · 16 · 24 · 32 · 48 px. **Radii** small: 3, 6,

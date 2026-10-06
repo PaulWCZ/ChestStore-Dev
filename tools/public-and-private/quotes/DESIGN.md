@@ -34,7 +34,7 @@ stylesheet (tested).
 **Type**: *Libre Caslon Text* (display: headings, the document's name, the
 subject, totals; Impallari, OFL-1.1) and *Hanken Grotesk* (body: everything
 you click and read; OFL-1.1, variable), the tool's own files in
-`public/fonts/` (the kit writes their `@font-face`). Figures tabular and
+`public/assets/fonts/` (the kit writes their `@font-face`). Figures tabular and
 right-aligned wherever they are compared. **Space**: 4…72. **Radii**:
 3/6/10 px — paper is almost square. **Motion**: the look's, none with
 reduced motion.
@@ -105,8 +105,8 @@ paper, the precision from the aligned figures.
     { "name": "Grey ink", "value": "#4f5468" }
   ],
   "fonts": {
-    "display": { "family": "Libre Caslon Text", "file": "public/fonts/libre-caslon-text-latin-400-normal.woff2", "weight": 400 },
-    "body": { "family": "Hanken Grotesk", "file": "public/fonts/hanken-grotesk-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Libre Caslon Text", "file": "public/assets/fonts/libre-caslon-text-latin-400-normal.woff2", "weight": 400 },
+    "body": { "family": "Hanken Grotesk", "file": "public/assets/fonts/hanken-grotesk-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Facture N° F-2026-0042 — Total TTC 2 752,75 €"
 }

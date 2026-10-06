@@ -53,10 +53,6 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
   if (input.kind !== undefined || input.start !== undefined || input.target !== undefined || input.unit !== undefined) {
     const kind = input.kind ?? k.kind;
     m = measure({ kind, unit: input.unit ?? k.unit, start: input.start ?? k.start_value, target: input.target ?? k.target_value });
-    if (m.kind !== k.kind) {
-      const [some] = await sql`select 1 from check_ins where key_result_id = ${k.id} limit 1`;
-      if (some) throw new AppError("invalid");
-    }
   }
   // Every change after the key result was written is kept, with who made
   // it: a target lowered in week 10 shows in its history.
@@ -74,6 +70,13 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
     }
   }
   await sql.begin(async tx => {
+    // Its kind changes only while nobody updated it: asked with its row
+    // locked (an update cannot slip in between: checkIn locks it too).
+    await tx`select id from key_results where id = ${k.id} for update`;
+    if (m && m.kind !== k.kind) {
+      const [some] = await tx`select 1 from check_ins where key_result_id = ${k.id} limit 1`;
+      if (some) throw new AppError("invalid");
+    }
     await tx`update key_results set title = ${title}, owner = ${owner}, weight = coalesce(${weight ?? null}::smallint, weight) where id = ${k.id}`;
     if (m) {
       const [{ checked }] = (await tx<{ checked: boolean }[]>`select exists (select 1 from check_ins where key_result_id = ${k.id}) as checked`) as unknown as [{ checked: boolean }];
@@ -113,20 +116,22 @@ export async function checkIn(sql: Sql, actor: Member | null, keyResultId: unkno
   const k = await load(sql, keyResultId);
   if (!mayCheckIn(actor, k)) throw new AppError("forbidden");
   await openCycle(sql, String(k.cycle_id));
-  // A value fed by another tool is that tool's: the update keeps it, and says
-  // how sure its owner is.
-  const value = k.source ? Number(k.current_value) : checkValue(k.kind, input.value);
+  // A value fed by another tool is that tool's: the update records it as
+  // it is when the row is locked (an event may land meanwhile), says how
+  // sure its owner is, and never writes the value.
+  const typed = k.source ? null : checkValue(k.kind, input.value);
   if (!isConfidence(input.confidence)) throw new AppError("invalid");
   const note = clean(input.note ?? "", limits.note, { multiline: true, optional: true });
   // One check-in at a time per key result (two people at once, two tabs):
   // its row is locked, the check-in is timed when the lock is held, and
   // the value kept is the latest check-in's — never an older one written
   // last.
-  const made = await sql.begin(async tx => {
-    await tx`select id from key_results where id = ${k.id} for update`;
+  const { made, value } = await sql.begin(async tx => {
+    const [locked] = await tx<{ current_value: string }[]>`select current_value from key_results where id = ${k.id} for update`;
+    const value = typed ?? Number(locked!.current_value);
     const [row] = await tx<{ id: string }[]>`insert into check_ins (key_result_id, value, confidence, note, author, created_at) values (${k.id}, ${value}, ${input.confidence as Confidence}, ${note}, ${actor.id}, clock_timestamp()) returning id`;
-    await tx`update key_results set current_value = (select value from check_ins where key_result_id = ${k.id} order by created_at desc, id desc limit 1) where id = ${k.id}`;
-    return String(row!.id);
+    if (!k.source) await tx`update key_results set current_value = (select value from check_ins where key_result_id = ${k.id} order by created_at desc, id desc limit 1) where id = ${k.id}`;
+    return { made: String(row!.id), value };
   });
   return { id: made, keyResultId: String(k.id), objectiveId: String(k.objective_id), owner: k.owner, value, confidence: input.confidence as Confidence, progress: progress(Number(k.start_value), Number(k.target_value), value) };
 }
@@ -147,7 +152,10 @@ export async function undoCheckIn(sql: Sql, actor: Member | null, checkInId: unk
     const [latest] = await tx<{ id: string }[]>`select id from check_ins where key_result_id = ${k.id} order by created_at desc, id desc limit 1`;
     if (String(latest?.id) !== String(c.id)) throw new AppError("too_late");
     await tx`delete from check_ins where id = ${c.id}`;
-    await tx`
+    // A fed value is the other tool's: counted again, never taken from the
+    // updates (they only said how sure its owner was).
+    if (k.source) await refreshFed(tx, [String(k.id)]);
+    else await tx`
       update key_results set current_value = coalesce((select value from check_ins where key_result_id = ${k.id} order by created_at desc, id desc limit 1), start_value)
       where id = ${k.id}`;
   });

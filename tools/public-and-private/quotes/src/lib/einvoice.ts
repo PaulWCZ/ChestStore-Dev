@@ -1,7 +1,7 @@
 import type { Doc, Line } from "./documents.ts";
 import { noVat, operationOf } from "./documents.ts";
 import { catalogue, format, locales, type Locale } from "../i18n/index.ts";
-import { formatMoney, formatRate, minorDigits } from "../shared/money.ts";
+import { facturxCurrency, formatMoney, formatRate, inEuros, minorDigits } from "../shared/money.ts";
 import { spacedSiren, type Buyer, type Seller } from "../shared/parties.ts";
 import { lineNet, totals } from "../shared/totals.ts";
 import { unitCodes, unitKey } from "../shared/units.ts";
@@ -49,7 +49,7 @@ import { unitCodes, unitKey } from "../shared/units.ts";
 //   IBAN and BIC; due date and terms.
 
 export type EInvoiceInput = {
-  doc: Pick<Doc, "type" | "number" | "issueDate" | "dueDate" | "deliveryDate" | "currency" | "title" | "notes" | "vatTreatment" | "franchise" | "depositPercent" | "paymentDays" | "language">;
+  doc: Pick<Doc, "type" | "number" | "issueDate" | "dueDate" | "deliveryDate" | "currency" | "title" | "notes" | "vatTreatment" | "franchise" | "depositPercent" | "paymentDays" | "language"> & { eurRate?: number | null };
   lines: readonly Line[];
   seller: Seller;
   buyer: Buyer;
@@ -114,6 +114,11 @@ export function einvoiceXml(input: EInvoiceInput): string {
   const locale: Locale = doc.language;
   const t = catalogue(locale).pdf;
   const digits = minorDigits(doc.currency);
+  // EN 16931 writes amounts with two decimals at most (BR-DEC-*): a
+  // currency of three is issued without e-invoice data (src/lib/archive.ts).
+  if (!facturxCurrency(doc.currency)) throw new Error("a Factur-X cannot carry amounts of three decimals");
+  // Outside the euro, the VAT in euros too (BT-6, BT-111: BR-FR-CO-12).
+  if (doc.currency !== "EUR" && !doc.eurRate) throw new Error("an e-invoice outside the euro states its VAT in euros: its rate is missing");
   const amount = (minor: number) => decimal(minor, digits, digits);
   const withoutVat = noVat(doc);
   const lines = input.lines.filter(l => l.kind === "line");
@@ -232,6 +237,7 @@ export function einvoiceXml(input: EInvoiceInput): string {
     `<ram:LineTotalAmount>${amount(sums.net)}</ram:LineTotalAmount>` +
     `<ram:TaxBasisTotalAmount>${amount(sums.net)}</ram:TaxBasisTotalAmount>` +
     `<ram:TaxTotalAmount currencyID="${esc(doc.currency)}">${amount(sums.vat)}</ram:TaxTotalAmount>` +
+    (doc.currency !== "EUR" ? `<ram:TaxTotalAmount currencyID="EUR">${decimal(inEuros(sums.vat, doc.currency, doc.eurRate!), 2, 2)}</ram:TaxTotalAmount>` : "") +
     `<ram:GrandTotalAmount>${amount(sums.gross)}</ram:GrandTotalAmount>` +
     `<ram:DuePayableAmount>${amount(sums.gross)}</ram:DuePayableAmount>` +
     `</ram:SpecifiedTradeSettlementHeaderMonetarySummation>`;
@@ -240,6 +246,7 @@ export function einvoiceXml(input: EInvoiceInput): string {
     : "";
   const settlement = `<ram:ApplicableHeaderTradeSettlement>` +
     (doc.type !== "credit" ? `<ram:PaymentReference>${esc(doc.number)}</ram:PaymentReference>` : "") +
+    (doc.currency !== "EUR" ? `<ram:TaxCurrencyCode>EUR</ram:TaxCurrencyCode>` : "") +
     `<ram:InvoiceCurrencyCode>${esc(doc.currency)}</ram:InvoiceCurrencyCode>` +
     payment + taxes + terms + summation + corrected +
     `</ram:ApplicableHeaderTradeSettlement>`;

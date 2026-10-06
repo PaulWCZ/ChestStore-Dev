@@ -14,7 +14,8 @@ import { byIds, cancelRoomBookings, type RoomBooking } from "./room-bookings.ts"
 // every quarter of an hour (Proposal (studio): schedules, "quarter"), so a
 // room is freed between 15 and 30 minutes after its start. A room booked
 // on the spot (within ten minutes of its start) is taken as checked in.
-export const checkInOpens = 10; // minutes before the start
+export { checkInOpens } from "../shared/model.ts";
+import { checkInOpens } from "../shared/model.ts";
 export const releaseAfter = 15; // minutes after the start
 
 export async function checkIn(sql: Sql, actor: Member | null, bookingId: unknown): Promise<void> {
@@ -28,19 +29,22 @@ export async function checkIn(sql: Sql, actor: Member | null, bookingId: unknown
   if (b.member_id !== actor.id && !b.guest && !can(actor, "bookings.any")) throw new AppError("forbidden");
   if (b.over) throw new AppError("past");
   if (!b.opens) throw new AppError("too_early", { minutes: checkInOpens });
-  await sql`update room_bookings set checked_in_at = coalesce(checked_in_at, now()) where id = ${bid}`;
+  // Freed meanwhile by the quarter's run (nobody had checked in): said so.
+  const done = await sql`update room_bookings set checked_in_at = coalesce(checked_in_at, now()) where id = ${bid} and cancelled_at is null returning id`;
+  if (done.length === 0) throw new AppError("released");
 }
 
-// The quarter's work: who is reminded, which rooms are freed. Answers both,
-// for the caller to tell (lib/tell.ts), then the calendars hear of it.
+// The quarter's work: who is to be reminded, which rooms are freed.
+// Answers both, for the caller to tell (lib/tell.ts) — then remind() marks
+// the reminders sent, so a run whose telling failed reminds them again at
+// the next run, while the meeting is still to come — and the calendars
+// hear of it.
 export async function quarter(sql: Sql, zone: string): Promise<{ reminded: RoomBooking[]; released: RoomBooking[] }> {
   const [s] = await sql<{ check_in: boolean }[]>`select check_in from settings`;
   const ids = (await sql<{ id: string }[]>`
-    update room_bookings b set reminded_at = now()
-    from rooms r where r.id = b.room_id and r.archived_at is null
-      and b.cancelled_at is null and b.reminded_at is null
-      and lower(b.during) > now() and lower(b.during) <= now() + interval '15 minutes'
-    returning b.id`).map(r => String(r.id));
+    select b.id from room_bookings b join rooms r on r.id = b.room_id and r.archived_at is null
+    where b.cancelled_at is null and b.reminded_at is null
+      and lower(b.during) > now() and lower(b.during) <= now() + interval '15 minutes'`).map(r => String(r.id));
   const reminded = await byIds(sql, ids, zone);
   const released = s?.check_in
     ? await sql.begin(tx => cancelRoomBookings(tx, "chest", zone, tx`checked_in_at is null and lower(during) <= now() - make_interval(mins => ${releaseAfter}) and upper(during) > now()
@@ -48,4 +52,9 @@ export async function quarter(sql: Sql, zone: string): Promise<{ reminded: RoomB
     : [];
   await flush(sql, zone);
   return { reminded, released };
+}
+
+// The reminders told: not again.
+export async function remind(sql: Sql, ids: readonly string[]): Promise<void> {
+  if (ids.length > 0) await sql`update room_bookings set reminded_at = now() where id = any(${ids as string[]}::bigint[]) and reminded_at is null`;
 }

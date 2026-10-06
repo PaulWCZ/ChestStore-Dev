@@ -3,7 +3,6 @@ import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { Door } from "../components/icons.tsx";
 import { can, mayChange } from "../lib/access.ts";
 import { feedPage } from "../lib/calendar.ts";
-import { checkInOpens } from "../lib/check-in.ts";
 import { bookableDays, context, formDays, lockOf, shownDay } from "../lib/context.ts";
 import { directory } from "../lib/directory.ts";
 import { chestGroups, groupsOf } from "../lib/groups.ts";
@@ -49,7 +48,8 @@ export async function roomsPage(p: PageContext): Promise<View> {
   const person = (id: string) => place(id, () => (id === member.id ? t.people.you : nameOf(who.get(id), locale)), who.get(id)?.photo ?? null);
   const shown: SentBooking[] = bookings.map(b => {
     const mine = b.memberId === member.id || b.attendees.includes(member.id);
-    const checkable = c.rules.checkIn && !b.checkedIn && mine && day === c.today && nowMinutes >= b.start - checkInOpens && nowMinutes < b.end;
+    // May check in today; the reader's clock decides from when (the island).
+    const checkable = c.rules.checkIn && !b.checkedIn && mine && day === c.today && b.end > nowMinutes;
     const flags = (mine ? 1 : 0) | (mayChange(member, b.memberId) ? 2 : 0) | (b.checkedIn ? 4 : 0) | (checkable ? 8 : 0);
     return [b.id, b.roomId, b.start, b.end, b.title, person(b.memberId), b.attendees.map(person), flags, b.series];
   });
@@ -87,6 +87,7 @@ export async function roomsPage(p: PageContext): Promise<View> {
             days: formDays(c, exempt).map(d => ({ value: d, label: formatDay(d, locale, long) })),
             today: c.today,
             now: day === c.today ? nowMinutes : null,
+            zone: c.zone,
             locked: lock ? { why: lock.why, ...(lock.opens ? { opensOn: formatDay(lock.opens, locale, long) } : {}) } : null,
             open: c.rules.dayStart,
             close: c.rules.dayEnd,

@@ -78,13 +78,13 @@ function Owner({ id, owners, t }: { id: string | null; owners: People; t: ListWo
 
 // The deals as a list (the board's other view): the kit's table, its rows
 // ticked to give many to someone at once.
-export function DealList({ rows, writes, team, me, canAssign, locale, labels, words, t, summary }: Selecting & { rows: DealRow[]; labels: Parameters<typeof DealTable>[0]["labels"]; words: Parameters<typeof DealTable>[0]["words"]; summary: { text: string; exportHref: string; exportLabel: string }; t: BulkWords }) {
+export function DealList({ rows, writes, team, me, canAssign, locale, labels, words, t, summary }: Selecting & { rows: DealRow[]; labels: Parameters<typeof DealTable>[0]["labels"]; words: Parameters<typeof DealTable>[0]["words"]; summary: { text: string; exportHref: string | null; exportLabel: string }; t: BulkWords }) {
   return (
     <BulkProvider>
       {writes && <BulkBar table="deals" team={team} me={me} canAssign={canAssign} canDelete={false} locale={locale} t={t} />}
       <div className="list-summary">
         <span className="num">{summary.text}</span>
-        <a className="link-button" href={summary.exportHref} download><Download />{summary.exportLabel}</a>
+        {summary.exportHref && <a className="link-button" href={summary.exportHref} download><Download />{summary.exportLabel}</a>}
       </div>
       {rows.length > 0 && <DealTable writes={writes} labels={labels} words={words} rows={rows} />}
     </BulkProvider>

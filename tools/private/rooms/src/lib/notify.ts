@@ -7,9 +7,12 @@ import { people } from "./people.ts";
 // Items in the Chest's bell, each written in its recipient's language. A
 // notification is a courtesy: when the Chest cannot take it (not granted,
 // quota, unreachable), the action that sent it still succeeds.
-export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<void> {
+// Answers whether every item reached the Chest (false: a reminder to try
+// again later).
+export async function notify(recipients: Iterable<string>, message: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key?: string }): Promise<boolean> {
   const ids = [...new Set(recipients)];
-  if (ids.length === 0) return;
+  if (ids.length === 0) return true;
+  let all = true;
   const byLocale = new Map<Locale, string[]>();
   for (const person of (await people(ids)).values()) {
     if (person.status !== "member") continue;
@@ -21,8 +24,10 @@ export async function notify(recipients: Iterable<string>, message: (t: Catalogu
       await notifications.notify(group, { title: cut(title, 80), ...(body ? { body: cut(body, 280) } : {}), path: options.path, ...(options.key ? { key: options.key } : {}) });
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
+      all = false;
     }
   }
+  return all;
 }
 
 export async function withdraw(key: string, members?: string[]): Promise<void> {

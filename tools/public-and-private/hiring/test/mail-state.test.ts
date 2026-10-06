@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { mailState, stateOf } from "../lib/mail-state.ts";
+import { mailState, stateOf } from "../src/lib/mail-state.ts";
 import { everyone } from "./support/members.ts";
 
 // Whether a page may promise an email to a candidate (mail.available(),

@@ -72,3 +72,25 @@ Sources for the reform and PA facts (read 2026-09-28, through search snippets; i
 8. Accounting-entries export; monthly archive to Chest files; accountant delivery. **M**
 9. Link clients to Clients companies. **M**
 10. The phone navigation, primary action by state, the unit plural, and the document language default. **S**
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Quotes's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **138.1 → 67.8 MiB**;
+  image 464 → 34 MiB; first members' page 771 →
+  500 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: a credit note taking back a deposit keeps its accounting mark, and takes back VAT only at the invoice's rates; outside the euro the exchange rate is asked, stated on the PDF and carried in Factur-X; a prefix another kind of document already uses is refused; amounts with letters refused, groups of three checked (`a462903`); "1,234" typed in a form refused as ambiguous, files read with their own decimal mark (`56553e6`). Axe 0 on 34 screens (`f07a8df`).
+- **Pending**: Nothing listed as pending in its commits.
+
+**Verdict, updated.** Custom domains now exist on the Chest (brief/08): the page where a client reads and accepts a quote can live on the company's own domain, which a client trusts more than a Chest address. The blockers that stay are not the address: transmission to an approved e-invoicing platform (PA), supplier invoices, bank matching. **Cancel tomorrow: unchanged — not yet.**

@@ -112,12 +112,20 @@ export const actions = {
       return { ids: done.bookings.map(b => b.id), days: done.bookings.map(b => b.day), taken: done.taken, roomName: done.bookings[0]?.roomName ?? "" };
     }),
 
-  updateRoomBooking: action({ bookingId: id(), roomId: id(), day: field.day(), start: given<number>(), end: given<number>(), title: given<string>(), attendees: given<string[]>() },
-    async ({ bookingId, ...input }, { member }): Promise<null> => {
+  // scope "following": this occurrence of a weekly booking and the later
+  // ones (taken: the days that could not change).
+  updateRoomBooking: action({ bookingId: id(), roomId: id(), day: field.day(), start: given<number>(), end: given<number>(), title: given<string>(), attendees: given<string[]>(), scope: field.optional(field.choice(["one", "following"] as const)) },
+    async ({ bookingId, scope, ...input }, { member }): Promise<{ changed: number; taken: string[] }> => {
+      if (scope === "following") {
+        const { changes, taken } = await rooms.updateFollowing(db(), member, bookingId, input, zone());
+        told("series changed", () => tell.changedSeries(member, changes));
+        calendars();
+        return { changed: changes.length, taken };
+      }
       const { before, after: changed } = await rooms.updateRoomBooking(db(), member, bookingId, input, zone());
       told("room changed", () => tell.changed(member, before, changed));
       calendars();
-      return null;
+      return { changed: 1, taken: [] };
     }),
 
   cancelRoomBooking: action({ bookingId: id(), scope: field.choice(["one", "following"] as const) }, async (input, { member }): Promise<{ ids: string[] }> => {

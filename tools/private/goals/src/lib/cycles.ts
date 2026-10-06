@@ -4,6 +4,7 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, cycleDates, id, limits, objectiveProgress, percent, progress } from "./model.ts";
 import { generatedName, periodName } from "./cycle-names.ts";
+import { refreshFed } from "./sources.ts";
 import { cycleById, visibleTo, type Cycle, type Reader } from "./read.ts";
 
 // Cycles: a period (a quarter, usually) the company sets its objectives
@@ -61,6 +62,8 @@ export async function updateCycle(sql: Sql, actor: Member | null, cycleId: unkno
   const name = kept ? periodName(startsOn, endsOn, "en") : typed ?? cycle.name;
   const generated = kept || generatedName(name, startsOn, endsOn);
   await sql`update cycles set name = ${name}, generated = ${generated}, starts_on = ${startsOn}, ends_on = ${endsOn} where id = ${cycle.id}`;
+  // Values fed by other tools count what happened in the cycle's dates.
+  await refreshCycle(sql, cycle.id);
   return (await cycleById(sql, cycle.id))!;
 }
 
@@ -87,6 +90,14 @@ export async function reopenCycle(sql: Sql, actor: Member | null, cycleId: unkno
   manage(actor);
   const cycle = await readCycle(sql, actor, cycleId);
   await sql`update cycles set closed_at = null, closed_by = null where id = ${cycle.id}`;
+  // Closed, its fed values were left as they were: counted again now.
+  await refreshCycle(sql, cycle.id);
+}
+
+// Every fed key result of a cycle, counted again (src/lib/sources.ts).
+async function refreshCycle(sql: Query, cycleId: string): Promise<void> {
+  const ids = (await sql<{ id: string }[]>`select k.id::text from key_results k join objectives o on o.id = k.objective_id where o.cycle_id = ${cycleId} and k.source is not null`).map(r => r.id);
+  if (ids.length > 0) await refreshFed(sql, ids);
 }
 
 // A cycle made by mistake goes away while nothing is written in it.

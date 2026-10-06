@@ -5,11 +5,11 @@ import { Check, Coins, Upload } from "../components/icons.tsx";
 import { format, formatDay, plural } from "../i18n/format.ts";
 import type { Catalogue, Locale } from "../i18n/index.ts";
 import { AppError } from "../shared/app-error.ts";
-import { bankFields, bankLimits, bankMappingReady, decodeStatement, guessBankMapping, readStatement, type BankField, type BankMapping, type Statement } from "../shared/bank-parse.ts";
+import { bankMarkOf, bankFields, bankLimits, bankMappingReady, decodeStatement, guessBankMapping, readStatement, type BankField, type BankMapping, type Statement } from "../shared/bank-parse.ts";
 import type { Proposal, Reading } from "../lib/bank.ts";
 import { formatMoney } from "../shared/money.ts";
 
-export type BankWords = Pick<Catalogue, "bank" | "errors" | "kit"> & { importer: Pick<Catalogue["importer"], "column" | "example" | "field" | "fieldOf" | "ignore"> };
+export type BankWords = Pick<Catalogue, "bank" | "errors" | "kit"> & { importer: Pick<Catalogue["importer"], "column" | "example" | "field" | "fieldOf" | "ignore" | "markComma" | "markPoint" | "markNone"> };
 
 type Picked = { text: string; statement: Statement; mapping: BankMapping; fileName: string };
 
@@ -77,6 +77,10 @@ export function BankView({ t, locale, currency }: { t: BankWords; locale: Locale
         <section className="panel" aria-labelledby="bank-columns">
           <h2 id="bank-columns">{w.columns}</h2>
           <p className="hint">{picked.fileName} · {w.columnsHint}</p>
+          {(() => {
+            const mark = bankMarkOf(picked.statement, picked.mapping);
+            return <p className="hint">{mark === "," ? t.importer.markComma : mark === "." ? t.importer.markPoint : t.importer.markNone}</p>;
+          })()}
           <div className="mapping compact-table">
             <DataTable
               caption={w.columns}

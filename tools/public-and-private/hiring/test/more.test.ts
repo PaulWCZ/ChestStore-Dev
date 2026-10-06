@@ -2,21 +2,28 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as chestFiles from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as candidates from "../lib/candidates.ts";
-import { parseCsv } from "../lib/csv.ts";
-import { emailFiles, everything, theirData } from "../lib/export-all.ts";
-import { en } from "../lib/i18n/en.ts";
-import { dateOf, emailInName, guess, rowsOf } from "../lib/import-map.ts";
-import { importRows, undoImport } from "../lib/import.ts";
-import * as jobs from "../lib/jobs.ts";
-import { answers, questions } from "../lib/model.ts";
-import { report } from "../lib/reports.ts";
-import { labelOf, stageLabel } from "../lib/stages.ts";
-import { readZip, zipStream, type Entry } from "../lib/zip.ts";
+import * as candidates from "../src/lib/candidates.ts";
+import { parseCsv } from "../src/shared/csv.ts";
+import { emailFiles, everything, theirData } from "../src/lib/export-all.ts";
+import { en } from "../src/i18n/en.ts";
+import { dateOf, emailInName, guess, rowsOf } from "../src/shared/import-map.ts";
+import { importRows, undoImport } from "../src/lib/import.ts";
+import * as jobs from "../src/lib/jobs.ts";
+import { answers, questions } from "../src/shared/model.ts";
+import { report } from "../src/lib/reports.ts";
+import { labelOf, stageLabel } from "../src/shared/stages.ts";
+import { readZip, zipStream, type Entry } from "../src/lib/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, label, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
+
+// A candidate's archive, its entries read one after the other.
+const gathered = async (archive: { entries: AsyncIterable<{ name: string; data: Uint8Array }> }) => {
+  const entries: { name: string; data: Uint8Array }[] = [];
+  for await (const entry of archive.entries) entries.push(entry);
+  return { entries };
+};
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -123,7 +130,7 @@ test("duplicating a job: a draft with its words, stages and interviewers, no can
   assert.deepEqual([d.job.state, d.job.title, d.job.slug], ["draft", "Duplicate test", "duplicate-test-2"]);
   assert.deepEqual(d.stages.map(label), ["New", "Screening", "Interview", "Offer", "Trial day", "Hired"]);
   assert.deepEqual(d.interviewers, [hugo.id]);
-  assert.deepEqual(await candidates.board(sql, recruiter(), copy.id), []);
+  assert.deepEqual((await candidates.board(sql, recruiter(), copy.id)).cards, []);
   await assert.rejects(jobs.duplicateJob(sql, asMember(hugo), job.id), { code: "forbidden" });
 });
 
@@ -186,7 +193,7 @@ test("importing: rows land in the matched stages with their date; errors, duplic
   const again = await importRows(sql, recruiter(), job.id, { rows: [{ line: 2, name: "Iris", email: "iris.i@example.com" }, { line: 3, name: "Noé", email: "noe.i@example.com" }], stages: {}, origin: "", language: "en" }, today);
   await candidates.addNote(sql, recruiter(), again.added[1]!.id, "Called him");
   await undoImport(sql, recruiter(), again.added.map(a => a.id));
-  const left = await candidates.board(sql, recruiter(), job.id);
+  const left = (await candidates.board(sql, recruiter(), job.id)).cards;
   assert.deepEqual(left.map(x => x.name).sort(), ["Lucie Garnier", "Noé"]);
 });
 
@@ -224,7 +231,7 @@ test("a ZIP the tool writes opens; everything exports; a candidate's own data", 
   for (const name of ["jobs.csv", "candidates.csv", "notes.csv", "feedback.csv", "emails.csv", "interviews.csv", "history.csv", "README.txt"]) assert.ok(inside.has(name), name);
   assert.match(new TextDecoder().decode(inside.get("candidates.csv")), /Eve Export/u);
   await assert.rejects(everything(sql, asMember(hugo), en).next(), { code: "forbidden" });
-  const theirs = await theirData(sql, recruiter(), c.id, en);
+  const theirs = await gathered(await theirData(sql, recruiter(), c.id, en));
   const data = JSON.parse(new TextDecoder().decode(theirs.entries[0]!.data));
   assert.equal(data.candidate.email, "export@example.com");
   await assert.rejects(theirData(sql, asMember(hugo), c.id, en), { code: "forbidden" });
@@ -244,7 +251,7 @@ test("the files of a candidate's emails, sent and received, are in their data an
   const sent = `emails/${out!.id}/Offer.pdf`, second = `emails/${out!.id}/2-Offer.pdf`, signed = `emails/${back!.id}/__.._signed_offer.pdf`;
   assert.deepEqual(emailFiles({ id: back!.id, attachments: [{ file: "x", name: "../../signed/offer.pdf", type: "", size: 0 }] }).map(f => f.path), [signed], "one path segment per name");
   // The candidate's own archive: the files beside data.json, named in it.
-  const theirs = await theirData(sql, recruiter(), c.id, en);
+  const theirs = await gathered(await theirData(sql, recruiter(), c.id, en));
   const names = theirs.entries.map(e => e.name);
   for (const name of [sent, second, signed]) assert.ok(names.includes(name), name);
   assert.ok(!names.some(n => n.includes("gone")), "a file the Chest no longer has is left out");

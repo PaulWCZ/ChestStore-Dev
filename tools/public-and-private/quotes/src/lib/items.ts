@@ -3,7 +3,7 @@ import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, id, limits } from "../shared/model.ts";
-import { isVatRate, parseAmount } from "../shared/money.ts";
+import { isVatRate, ambiguousAmount, parseAmount } from "../shared/money.ts";
 import { foldedLike, likeOf } from "./clients.ts";
 
 // The catalogue: what the company sells, with its price excluding VAT and
@@ -42,6 +42,7 @@ function fields(input: ItemInput, currency: string, current?: Item) {
   if (!name) throw new AppError("empty");
   let unitPrice = current?.unitPrice ?? 0;
   if (input.unitPrice !== undefined) {
+    if (ambiguousAmount(input.unitPrice, currency, { negative: true })) throw new AppError("amount_ambiguous");
     const parsed = parseAmount(input.unitPrice, currency, { negative: true });
     if (parsed === null || Math.abs(parsed) > limits.unitPrice) throw new AppError("amount_invalid");
     unitPrice = parsed;

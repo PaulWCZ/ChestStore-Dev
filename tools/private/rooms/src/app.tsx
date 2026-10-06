@@ -8,7 +8,7 @@ import { islands } from "./islands/index.ts";
 import { MembersLayout, PublicLayout } from "./layout.tsx";
 import { leaveApproved, leaveCancelled } from "./lib/away.ts";
 import { flush } from "./lib/calendar.ts";
-import { quarter } from "./lib/check-in.ts";
+import { quarter, remind } from "./lib/check-in.ts";
 import { db } from "./lib/db.ts";
 import { bookingsCsv, occupancyCsv } from "./lib/export.ts";
 import { forgetSeen, handlers, seen } from "./lib/lifecycle.ts";
@@ -16,7 +16,7 @@ import { teamOrigin } from "./lib/mail.ts";
 import { bookingIcs, myCsv, myIcs, origin } from "./lib/mine.ts";
 import { photoLink } from "./lib/photos.ts";
 import { stamp } from "./lib/stamp.ts";
-import { rules } from "./lib/settings.ts";
+import { purge, rules } from "./lib/settings.ts";
 import * as tell from "./lib/tell.ts";
 import { zone } from "./lib/zone.ts";
 import { desksPage } from "./pages/Desks.tsx";
@@ -131,8 +131,8 @@ app.post("/chest-events", async c => {
 
 // chest.json's "schedules": every quarter of an hour, "quarter" — the
 // reminders before meetings and, with check-in on, the rooms nobody
-// checked in to freed (their people told); deliveries older than the
-// Chest's retries forgotten.
+// checked in to freed (their people told); what the rules no longer keep
+// purged; deliveries older than the Chest's retries forgotten.
 app.post("/chest-schedules", async c => {
   const sql = db();
   return new Response(null, {
@@ -140,8 +140,11 @@ app.post("/chest-schedules", async c => {
       quarter: async () => {
         const { reminded, released } = await quarter(sql, zone());
         const { checkIn } = await rules(sql);
-        await tell.startsSoon(reminded, checkIn);
+        // Marked reminded once the bell took it (else: the next run).
+        await remind(sql, await tell.startsSoon(reminded, checkIn));
         await tell.cancelled(null, released, "noShow");
+        // What the rules no longer keep goes (past bookings, visitors).
+        await purge(sql, zone());
         await flush(sql, zone());
         const forgotten = await forgetSeen(sql);
         log.info("quarter", { reminded: reminded.length, released: released.length, forgotten });

@@ -6,6 +6,8 @@ import { orphans } from "../lib/orphans.ts";
 import { everyone, nameOf, people } from "../lib/people.ts";
 import { chestGroups, settings, teams } from "../lib/teams.ts";
 
+const peopleShown = 20, itemsShown = 25;
+
 // Admins only: personal objectives on or off, the teams, and what needs a
 // new owner.
 export async function settingsPage({ member, t, locale: language }: PageContext): Promise<View> {
@@ -22,6 +24,9 @@ export async function settingsPage({ member, t, locale: language }: PageContext)
     if (!entry) byOwner.set(o.owner, (entry = { owner: o.owner, name: nameOf(who.get(o.owner), locale), items: [] }));
     entry.items.push(o);
   }
+  // Bounded: the first people and the first goals of each are listed (the
+  // page's island stays small); "Give everything" hands over the rest.
+  const groupsShown = [...byOwner.values()].slice(0, peopleShown);
   return {
     title: t.settings.title,
     body: (
@@ -31,7 +36,8 @@ export async function settingsPage({ member, t, locale: language }: PageContext)
           personal: s.personal,
           teams: list.map(x => ({ id: x.id, name: x.name, group: x.groupId !== null, archived: x.archived, members: x.members?.length ?? null })),
           groups: groups.filter(g => !taken.has(g.id)).map(g => ({ id: g.id, name: g.name })),
-          orphans: [...byOwner.values()].map(g => ({ owner: g.owner, name: g.name, items: g.items.map(i => ({ kind: i.kind, id: i.id, title: i.title, objectiveTitle: i.objectiveTitle, objectiveId: i.objectiveId, cycle: i.cycle })) })),
+          orphans: groupsShown.map(g => ({ owner: g.owner, name: g.name, more: Math.max(0, g.items.length - itemsShown), items: g.items.slice(0, itemsShown).map(i => ({ kind: i.kind, id: i.id, title: i.title, objectiveTitle: i.objectiveTitle, objectiveId: i.objectiveId, cycle: i.cycle })) })),
+          morePeople: byOwner.size - groupsShown.length,
           owners,
           locale,
           t: { settings: t.settings, errors: t.errors, teams: t.teams, peoplePicker: t.peoplePicker },

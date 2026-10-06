@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatMoney, formatQuantity, formatRate, parseAmount, parsePercent, parseQuantity, plainAmount } from "../src/shared/money.ts";
+import { ambiguousAmount, dominantMark, formatEurRate, formatMoney, formatQuantity, formatRate, inEuros, parseAmount, parsePercent, parseQuantity, plainAmount } from "../src/shared/money.ts";
 import { depositBases, lineNet, roundDiv, share, totals, vatOf, type LineAmounts } from "../src/shared/totals.ts";
 
 const l = (quantity: number, unitPrice: number, vatRate = 2000, discount = 0): LineAmounts => ({ kind: "line", quantity, unitPrice, vatRate, discount });
@@ -63,13 +63,54 @@ test("amounts, quantities and percentages as people type them", () => {
   assert.equal(parseAmount("1,234.56"), 123456);
   assert.equal(parseAmount("12,5"), 1250);
   assert.equal(parseAmount("€ 42"), 4200);
-  assert.equal(parseAmount("1.234"), 123400);
+  // "1.234", "1,234": a thousand, or one twenty-three? Typed: refused, said.
+  assert.equal(parseAmount("1.234"), null);
+  assert.equal(ambiguousAmount("1.234"), true);
+  assert.equal(ambiguousAmount("1,234"), true);
+  assert.equal(ambiguousAmount("0,500"), true);
+  assert.equal(ambiguousAmount("12,50"), false);
+  assert.equal(ambiguousAmount("12a50"), false, "not an amount at all");
+  // From a file: its own decimal mark, or thousands without a clue.
+  assert.equal(parseAmount("1.234", "EUR", { reading: "," }), 123400);
+  assert.equal(parseAmount("1,234", "EUR", { reading: "," }), null, "three decimals of euros");
+  assert.equal(parseAmount("1,234", "EUR", { reading: "." }), 123400);
+  assert.equal(parseAmount("1,234", "EUR", { reading: "thousands" }), 123400);
+  assert.equal(parseAmount("12,5", "EUR", { reading: "." }), 1250, "a mark before one or two digits is a decimal mark whatever the file");
+  assert.equal(dominantMark(["1 234,56", "12,5", "1.234", "40"]), ",");
+  assert.equal(dominantMark(["1,234.56", "3.40", "1,234"]), ".");
+  assert.equal(dominantMark(["1,234", "40"]), null);
   assert.equal(parseAmount("-100"), null);
   assert.equal(parseAmount("-100", "EUR", { negative: true }), -10000);
   assert.equal(parseAmount("−12,50", "EUR", { negative: true }), -1250);
-  assert.equal(parseAmount("12,345"), 1234500);
+  assert.equal(parseAmount("12,345"), null);
   assert.equal(parseAmount("abc"), null);
   assert.equal(parseAmount("1,2,3"), null);
+  // Letters are refused, never dropped (review S5).
+  for (const typed of ["12a50", "1e3", "0x10", "1O0", "12x5", "1O,50", "12,5O", "EUR", "€", "12 €€", "12 XYZ", "1-2", "--5", "+5", "1,2.34", "12 34", "1 2345", "1,23,456", "1.234.56", ".5", "5.", "1 234 ,50"]) {
+    assert.equal(parseAmount(typed), null, typed);
+  }
+  // Spaces of every kind, apostrophes, a sign or a code at either end.
+  assert.equal(parseAmount("1\u202f234,56"), 123456);
+  assert.equal(parseAmount("1\u00a0234,56 €"), 123456);
+  assert.equal(parseAmount("1'234.50"), 123450);
+  assert.equal(parseAmount("42 EUR"), 4200);
+  assert.equal(parseAmount("CHF 42"), 4200);
+  assert.equal(parseAmount("1.234,56"), 123456);
+  assert.equal(parseAmount("1,234,567"), 123456700);
+  assert.equal(parseAmount("-€42", "EUR", { negative: true }), -4200);
+  assert.equal(parseAmount("€ -42", "EUR", { negative: true }), -4200);
+  assert.equal(parseAmount("-€42"), null);
+  assert.equal(parseAmount(-500), null, "a negative number too, unless allowed");
+  assert.equal(parseAmount(-500, "EUR", { negative: true }), -500);
+  // 0, 2 and 3 decimals.
+  assert.equal(parseAmount("1 234", "JPY"), 1234);
+  assert.equal(parseAmount("1,5", "JPY"), null);
+  assert.equal(parseAmount("1,234", "KWD"), null, "ambiguous in three decimals too");
+  assert.equal(parseAmount("1,234", "KWD", { reading: "," }), 1234);
+  assert.equal(parseAmount("1,234", "JPY"), 1234, "no decimals: no doubt");
+  assert.equal(parseAmount("12,5", "KWD"), 12500);
+  assert.equal(parseAmount("1.234,567", "KWD"), 1234567);
+  assert.equal(parseAmount("1,2345", "KWD"), null);
   assert.equal(parseQuantity("1,5"), 1500);
   assert.equal(parseQuantity("1.500"), 1500);
   assert.equal(parseQuantity("0,125"), 125);
@@ -89,4 +130,14 @@ test("money, quantities and rates written in each language", () => {
   assert.equal(formatQuantity(1500, "en"), "1.5");
   assert.equal(formatRate(550, "fr").replace(/\s/gu, " "), "5,5 %");
   assert.equal(formatRate(2000, "en"), "20%");
+});
+
+test("an amount in another currency, in euro cents at the ECB's rate: rounded once, half away from zero", () => {
+  assert.equal(inEuros(20000, "USD", 1_082_300), 18479); // 200.00 / 1.0823 = 184.7916…
+  assert.equal(inEuros(-20000, "USD", 1_082_300), -18479);
+  assert.equal(inEuros(16243, "JPY", 162_430_000), 10000); // 16,243 yen at 162.43: 100.00 €
+  assert.equal(inEuros(100, "USD", 2_000_000), 50);
+  assert.equal(inEuros(1, "USD", 2_000_000), 1, "0.5 cent: away from zero");
+  assert.equal(formatEurRate(1_082_300, "fr"), "1,0823");
+  assert.equal(formatEurRate(162_430_000, "en"), "162.43");
 });

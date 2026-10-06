@@ -11,11 +11,11 @@ time, keys to press, a seal when it is sent.
 ## Tokens — the identity is a theme
 
 Forms' identity is a theme of the UI kit's contract, **"Invitation"** —
-the catalogue's 20th theme since 0.2.2 (`lib/theme.ts` is
+the catalogue's 20th theme since 0.2.2 (`src/lib/theme.ts` is
 `identityOf("forms")`, one source): every colour lives there, light and dark,
 checked by `checkTheme` and `checkPalette` (`test/theme.test.ts`). The CSS
 names only contract tokens (`--bg`, `--ink`, `--accent`, `--cat-5-ink`…)
-and Forms' own tokens, made of them (`app/tokens.css`). The company may
+and Forms' own tokens, made of them (`src/tokens.css`). The company may
 give Forms another look in its Chest — a catalogue theme or its brand —
 and everything below follows.
 
@@ -32,7 +32,7 @@ and everything below follows.
 | `--font-display` / `--font-body` | DM Serif Display / DM Sans | | titles and questions / everything else |
 | `--radius-*` | 8 / 12 / 20 px | | soft cards, pill buttons |
 
-Forms' own tokens (`app/tokens.css`): `--text-hero` and `--text-q` (the big
+Forms' own tokens (`src/tokens.css`): `--text-hero` and `--text-q` (the big
 serif sizes, from the theme's scale), `--radius-xl`, `--radius-round`
 (pills, square in a square theme), `--shadow-card`, `--marigold` (the
 mark's dot, the summary's stars: the marker, or the ochre slot in dark
@@ -88,7 +88,7 @@ choose is readable, in every look (measured in the tests).
 
 `chest/icon.svg`: a berry card with a folded corner holding two answers —
 an empty circle and a marigold one chosen. No text; readable at 24 px on a
-light or dark tile. `app/icon.svg` (the favicon) is the same drawing.
+light or dark tile. `public/assets/icon.svg` (the favicon) is the same drawing.
 
 ## Why
 

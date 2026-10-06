@@ -5,6 +5,7 @@ import type { Sql } from "./db.ts";
 import { format, plural } from "../i18n/index.ts";
 import { email } from "./mail.ts";
 import { memberId } from "./model.ts";
+import { people } from "./people.ts";
 import { cut, notify } from "./notify.ts";
 import { waitingList, type Waiting } from "./read.ts";
 import type { clockAt } from "./tell.ts";
@@ -22,8 +23,11 @@ type Clock = ReturnType<typeof clockAt>;
 // My goals shows those).
 export async function waitingFor(sql: Sql, actor: Member | null, clock: Clock): Promise<Waiting[]> {
   if (!actor || !can(actor, "read")) throw new AppError("forbidden");
-  const rows = can(actor, "any.write") ? await waitingList(sql, clock) : await waitingList(sql, clock, { objectiveOwner: actor.id });
-  return rows.filter(r => r.owner !== actor.id);
+  const rows = (can(actor, "any.write") ? await waitingList(sql, clock) : await waitingList(sql, clock, { objectiveOwner: actor.id })).filter(r => r.owner !== actor.id);
+  // Only people here: someone who left (the Chest says so before its event
+  // arrives) is nobody to remind — what they owned waits for a new owner.
+  const here = await people(rows.map(r => r.owner));
+  return rows.filter(r => here.get(r.owner)?.status === "member");
 }
 
 // Who was reminded today already.

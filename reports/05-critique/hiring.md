@@ -75,3 +75,25 @@ Strength, one line: blind structured feedback (you see others' ratings only afte
 7. Careers page brand: logo, photos, colour, intro per language (M).
 8. Import CSV + CVs (M); full export + per-candidate export (S).
 9. Reports: time to hire, sources, conversion (M).
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Hiring's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **135.1 → 66.6 MiB**;
+  image 463 → 33 MiB; first members' page 857 →
+  528 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: applications bounded **per job**, so a flood closes one job's form for the day and says so with the company's website (before, one cookieless robot closed every job's); guessed interview secrets spend their own budget; CVs accepted on the Chest's word (`files.stat`'s type) instead of a full read (+149 → +23 MiB for 20 at once); the confirmation greets with a first name only; erasure and retention withdraw every bell item naming the candidate; files the Chest could not delete retried nightly; a booked candidate can choose another time or call the interview off; forbidden interview questions said (`0f274f4`). Flow 39 steps, axe clean on 45 screens (`abe143d`).
+- **Pending**: Platform: the per-job budget is the best a tool can do without the visitor's address (`reports/03-sdk-report.md` §4.17).
+
+**Verdict, updated.** Custom domains now exist on the Chest (brief/08): the careers site can live at `careers.<company>.com`, and the links it writes follow `chest.tool.publicUrl` (`src/lib/public-origin.ts`). What remains is reach (job boards) and writing to candidates (email). **Cancel tomorrow: unchanged** — Teamtailor for a few hires a year: yes on the proposals; Welcome to the Jungle: no.

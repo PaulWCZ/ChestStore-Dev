@@ -45,7 +45,7 @@ slot 7, done = slot 2 (each also said in words); a done column wears the
 "ok" state's soft ground; a mention is the marker (`--highlight`).
 
 **Type**: *Space Grotesk* (display: headings, board and column names) and
-*Inter* (everything else), both OFL-1.1, self-hosted in `public/fonts/`.
+*Inter* (everything else), both OFL-1.1, self-hosted in `public/assets/fonts/`.
 16 px body. **Shape**: 2 px ink outlines, radii 6/10/14 px, a hard offset
 shadow (3 px, 5 px when lifted) — no blur. **Space**: 4, 8, 12, 16, 24, 32,
 48. **Motion**: 120 and 220 ms, none with reduced motion; a card lifts on
@@ -104,8 +104,8 @@ is exactly what a non-technical team expects from "a board".
     { "name": "Leaf", "value": "#7bd05b" }
   ],
   "fonts": {
-    "display": { "family": "Space Grotesk", "file": "public/fonts/space-grotesk-latin-wght-normal.woff2", "weight": 700 },
-    "body": { "family": "Inter", "file": "public/fonts/inter-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "Space Grotesk", "file": "public/assets/fonts/space-grotesk-latin-wght-normal.woff2", "weight": 700 },
+    "body": { "family": "Inter", "file": "public/assets/fonts/inter-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Book the moving truck — due today"
 }

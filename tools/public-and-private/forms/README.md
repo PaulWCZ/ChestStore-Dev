@@ -22,9 +22,25 @@ built again from the studio's template to stand next to Tally and Typeform.
   New options are empty with "Option 1" as a placeholder; one left empty
   blocks publishing. Duplicate, move, change the kind, delete with *Undo*.
 - **Pages and logic**: *Show only if…* an earlier answer is / is not /
-  includes / is more than / is less than / is answered; after a page,
-  rules *If … go to page N* or *the end*. Rules only go forward, so a form
-  can never loop. The same engine runs in the browser and on the server.
+  includes / is more than / is less than / is answered — up to five
+  conditions joined by *and* or *or*; after a page, rules *If … go to page
+  N* or *the end*. Rules only go forward, so a form can never loop. A page
+  no answer can reach (the page before always jumps elsewhere) is said in
+  the builder. The same engine runs in the browser and on the server.
+- **Repeat an answer**: a question named in links (`first_name`) is
+  repeated by `{first_name}` in a later question, its help or the
+  thank-you message ("Thanks, {first_name}!").
+- **Values from the link** (hidden fields): Settings names what the
+  form's link may carry (`utm_source, ref`, ten at most); each answer keeps
+  them (200 characters each), shown on its page and as CSV columns, and
+  `{utm_source}` repeats one in a text. Never on an anonymous form.
+- **A shared device** (Settings): a tablet at an event keeps nothing typed,
+  and the form starts again for the next person after each answer.
+  Elsewhere, what is typed waits on the device for 12 hours at most.
+- **Who it reached** (Summary): how many times the form's page was opened,
+  how many answers came since, the share that answered, and the answers
+  of the last 30 days, a column a day (not for an anonymous form: a day
+  would say when someone answered).
 - **Live preview**: the real respondent's page beside the builder (a tab on
   a phone), following the question you edit.
 - **Everything saves by itself** — questions and settings alike, one model
@@ -154,10 +170,15 @@ built again from the studio's template to stand next to Tally and Typeform.
   manager, brings one back); deleting a form with answers asks first and
   says how many go. Forms started and never touched go after a day.
 - **Search** on the forms list (title words, accents aside).
-- **A copy by email** of their answers to the person who gave an address
-  (public forms) or to the member (team forms), in their language
-  (Proposal *mail*). Never for anonymous forms. **Not when Support took
-  the answer** (see "One message, one email" below).
+- **A copy by email** of their answers, off unless the form's editor
+  turns it on: to the member (team forms), or — on a public form — to the
+  address given, **only when the visitor ticks *Email me a copy of my
+  answers***, and holding **only the form's own words** (the questions,
+  the options picked, numbers and dates; never a text the visitor typed,
+  so no link and no message goes out in the company's name), one an
+  address a day and 20 a form an hour. In their language (Proposal
+  *mail*). Never for anonymous forms. **Not when Support took the answer**
+  (see "One message, one email" below).
 - **Privacy**: answers deleted after 1–36 months if chosen (every night,
   with their files: Proposal *schedules*); a manager finds a person's
   answers by email address or name and erases them (*Erase a person's
@@ -200,7 +221,7 @@ installed, or for an answer that opens no ticket (no email given), the
 copy goes as usual. Support's side needs nothing new (it already
 confirms every `forms.request`); should Support ever stop confirming, it
 must say so in its README and Forms must drop this rule
-(`lib/respond.ts`, `supportConfirms`).
+(`src/lib/respond.ts`, `supportConfirms`).
 
 ### `forms.contact` — make or update a contact (Clients)
 
@@ -256,7 +277,7 @@ numbers as numbers, yes/no as `true`/`false`; `key` is the question's
 name in links (`?nps=9`). For a receiver that wants everything (Tasks, a
 future sheet).
 
-What the mapping holds (`forms.routes`, `lib/routes.ts`): question ids per
+What the mapping holds (`forms.routes`, `src/lib/routes.ts`): question ids per
 piece, checked against the form's questions when Settings save (a piece
 whose question is gone or changed kind is dropped; a contact without an
 email or a phone question, a public ticket without an email question, is
@@ -269,9 +290,9 @@ mapping (its questions get new ids). Tests: `test/routes.test.ts`
 
 Forms wears any look, with the same features: its own identity
 (*Invitation*: lavender mist, aubergine ink, one berry, DM Serif Display
-and DM Sans — `lib/theme.ts`), any theme of the kit's catalogue, or the
+and DM Sans — `src/lib/theme.ts`), any theme of the kit's catalogue, or the
 company's brand imported in its Chest — for all its tools or for Forms
-alone. The Chest chooses (`chest.theme()`, `lib/theme.ts`, `lib/look.ts`);
+alone. The Chest chooses (`chest.theme()`, `src/lib/theme.ts`; the package serves it as `/chest/look.css` and `/look.css`);
 Forms has no switch of its own. **A public form** wears the company's
 brand when it has one and Forms' own look otherwise — never a catalogue
 theme chosen for the team's pages, never the Chest's sheet (kit 0.2.3); a
@@ -319,8 +340,13 @@ SDK*.
   *Summary* and CSV are aggregates. Nothing at all under five answers, to
   anyone (owner and managers included).
 - An anonymous form **cannot ask for files** (an upload goes through the
-  member's own session), sends **no copies**, and **cannot change its
-  anonymity once someone answered**.
+  member's own session), sends **no copies**, reads **nothing from its
+  link**, and **cannot change its anonymity once someone answered**.
+- **No version, no language gives anyone away**: every answer is kept in
+  the form's own language (not the reader's), and once an anonymous form
+  has answers **its questions cannot change** — its words can, and every
+  answer moves to the new version — so no answer says it came before or
+  after a change. To ask other questions, duplicate it.
 - What it does **not** protect against, honestly: someone watching the
   bell's count right after a colleague answered (the bell is batched every
   10 minutes, which blurs it); a free text that gives its author away; the
@@ -343,9 +369,9 @@ With it on, a Member makes forms exactly as a Creator does — owns them,
 shares them, publishes them, public ones included — and still opens only
 the forms they own or that are shared with them: only managers open every
 form. It fits the access model without a new level: on one form, its
-maker is its owner whatever their role (`lib/access.ts` `levelOn`); the
+maker is its owner whatever their role (`src/lib/access.ts` `levelOn`); the
 switch only answers "may this person start a new form?"
-(`lib/creators.ts` `mayCreate`). Turned off again, nobody loses a form: a
+(`src/lib/creators.ts` `mayCreate`). Turned off again, nobody loses a form: a
 Member keeps owning, editing and sharing what they made (and its
 *Deleted forms*), and starts no new one. The Creator role stays for a
 company that keeps the switch off.
@@ -384,32 +410,56 @@ an error.
 |---|---|---|
 | `/` | anyone | Says forms are opened by their link |
 | `/<form>` | anyone | A public form (8 letters and digits) |
-| `POST /api/upload` | anyone (form token, counters) | Authorise one file upload (public) |
-| `/lang/<code>` | anyone | The language switch |
+| `POST /actions/answerPublic`, `/actions/visitorUpload` | anyone (bound: a form token, budgets per visitor, per form and per day, the honeypot) | Send an answer; authorise one file upload |
+| `/lang/<code>` | anyone | The language switch (the package's) |
 | `/chest` | members | Forms to answer, mine, shared with me, everyone's (managers) |
 | `/chest/new` | manager, creator | Start a form |
-| `/chest/forms/<id>` (+ `/share`, `/settings`, `/answers`, `/answers/<answer>`, `/summary`, `/export`, `/archive`, `/files/<answer>/<question>`) | owner, editors, viewers of that form | Build, share, settings (editors), answers, summary, CSV, ZIP, a file (a fresh signed link) |
-| `POST /chest/forms/<id>/draft` | editors (same origin) | The builder's last save when the page goes away (keepalive) |
-| `POST /chest/api/image` | editors of the form | Authorise one picture upload (a cover, a picture choice) |
+| `/chest/forms/<id>` (+ `/share`, `/settings`, `/answers`, `/answers/<answer>`, `/summary`, `/export`, `/archive`, `/files/<answer>/<question>`) | owner, editors, viewers of that form | Build, share, settings (editors), answers, summary, CSV, ZIP (both streamed), a file (a fresh signed link) |
+| `POST /chest/actions/<name>` | members (the package's same-origin check) | Every change of the team's part (`src/actions.ts`): the builder's saves (also its last one, keepalive, when the page goes), pictures, sharing, settings, follow-up, the team form's answer and upload… |
 | `/chest/sent/<answer>` | the member who sent it | What I sent, and where it stands |
 | `/chest/trash` | owners, managers | Deleted forms, 30 days |
 | `/chest/f/<form>` | members | Answer a team form |
-| `POST /chest/api/upload` | members | Authorise one file upload (team form) |
 | `/chest/privacy` | manager | Find and erase a person's answers |
-| `POST /chest-events` | the Chest | Members' lifecycle |
+| `POST /chest-events` | the Chest (signed) | Members' lifecycle |
 | `POST /chest-webhooks` | the Chest (signed) | A web address the Chest stopped (`webhook.disabled`) — Proposal |
-| `POST /chest-jobs/bell`, `/chest-jobs/cleanup` | the Chest | The bell's batches (every 15 min), retention (03:20) — Proposal |
+| `POST /chest-schedules` | the Chest (signed) | `bell` (the bell's batches, every 15 min) and `cleanup` (retention, 03:20) — `chest.json` `schedules` |
+
+## Stack
+
+Hono and React rendered on the server, with islands for what runs in the
+browser, built by Vite — through the studio's package
+`@argentic/chest-app` (studio.6, `vendor/`), on SDK 0.4.1-studio.4 and the
+UI kit 0.2.6-studio.1. Contract 0.4: the Chest's strict CSP (no inline
+script or style: bars are SVG, widths are classes). `npm start` runs
+`dist/server/main.js`; the browser's files are `/assets/` (`build.static`).
+Measured on the studio's bench (`lab/measure`, 2026-10-06, against the
+Next.js 16 version): image 469 → 39 MiB, memory at rest (PSS) 137 → 67
+MiB, first page after a cold start 949 → 582 ms, and the build fits the
+Chest's 512 MiB (310 MiB peak).
 
 ## On a Chest
 
 Capabilities: `database`, `files`, `members`, `notifications`; receives
 `member.*`. Proposals (in `chest.proposals.json` until a Chest accepts
 them): `mail.send`, `files.publicUploads`, `files.publicFiles` (covers and
-pictures), `emits: ["forms.answered"]`, `schedules` (`bell`, `cleanup`),
-and the tile's French words; the tool also calls `visitors`, `chest`
-(company, time zone, addresses, `theme()` for the look and the logo) and
-`notifications.broadcast`.
-When a member loses access or leaves, they are taken off the forms shared
+pictures), `emits: ["forms.answered"]`, webhooks, and the tile's French
+words; `schedules` (`bell`, `cleanup`) are in `chest.json` (contract 0.4).
+The tool also calls `chest` (company, time zone, `tool.publicUrl` and
+`tool.teamUrl` for its addresses, `tools.get` for the others', `theme()`
+for the look and the logo) and `notifications.broadcast`.
+The public part never asks the Chest at each visitor's request, and never
+lists members. **What anyone on the Internet can make a form do**, a day
+(`src/lib/flood.ts`, said in Settings): 2,000 answers a form (100 a
+visitor, 20,000 for all forms); a form whose answers go further — a
+contact in Clients, a ticket in Support, a web address, a copy by email —
+200 (20 a visitor, 2,000 for all); 200 files a form (30 a visitor, 1,000
+for all, 10 MiB each). Each answer waits for the page's single-use token
+and three seconds, and a robot that fills the hidden field is answered
+"sent" with nothing kept. The tool's log says when a form's day is half,
+four fifths and fully spent (counts and the form's id only). Answers to
+questions a form does not ask, and link values it does not name, are
+dropped, never kept. The Chest checks the first bytes of images and PDFs
+itself; the tool reads the others' (Office, text), two at a time. When a member loses access or leaves, they are taken off the forms shared
 with them and the bell; forms they own stay (managers open them). On
 erasure, their answers to team forms are deleted with their files, their
 mark in anonymous forms becomes "erased" (counted, never named), forms they
@@ -417,15 +467,16 @@ owned are owned by "erased", then the erasure is acknowledged.
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1). All exist as
-proposals in the studio's working copy; the tool calls them as
-if shipped and keeps working without them:
+Built on SDK 0.4.1-studio.4 and the studio's package `@argentic/chest-app`
+(studio.6). All exist as proposals in the studio's working copy; the tool
+calls them as if shipped and keeps working without them:
 
-- **Public uploads with claim** (`files.uploadUrl(…, {public, expiresUnclaimedAfter})`,
+- **Public uploads with claim** (`files.publicUploadUrl(prefix, {types, maxSize, expiresUnclaimedAfter})`,
   `files.claim`): without them, a public file question says files cannot be
   sent yet.
-- **Visitors** (`formToken`, `checkForm`, `count`, `language`, `visitor`):
-  without the Chest's counting, the tool counts in its own table.
+- **Visitors**: the package's `bound` public actions (a form token, a
+  time floor, the honeypot, budgets per visitor, per form and per day kept
+  in `chest_bounds`) — charged only once an answer is valid.
 - **Mail** (`mail.send`, to an address or `{member}`): without it, no copy
   is sent and the thank-you page does not mention one. A copy is the
   person's own answer: it is sent `transactional` (Proposal (studio.15)),
@@ -438,24 +489,24 @@ if shipped and keeps working without them:
   next answer; retention does not run by itself (see below).
 - **Broadcast** (`notifications.broadcast`): without it, a team form's
   opening is not announced; its link is shared by hand.
-- **Chest settings** (`chest.publicUrl`, `chest.teamUrl`, `chest.theme()`:
+- **Chest settings** (`chest.tool.publicUrl`, `chest.tool.teamUrl`, `chest.theme()`:
   the look the company chose, and its logo; official in 0.3.0:
   `chest.organization.name`, `chest.timeZone` — the day of a closing date
   and of the answers' filter, and of the database's `current_date` —,
   `chest.language`).
-- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.3-studio.1; public
+- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.6-studio.1; public
   forms wear the company's brand or Forms' own look, never a catalogue
   theme chosen for the team — `surface: "public"`):
   Forms' identity is its 20th theme, `forms` ("Invitation"), with the
-  fonts `dm-sans` and `dm-serif-display` in its registry: `lib/theme.ts`
+  fonts `dm-sans` and `dm-serif-display` in its registry: `src/lib/theme.ts`
   is `identityOf("forms")`, so any other tool may wear it and a company
   that picks it gets exactly Forms' own look.
-- **Public files** (`files.publicUrl`): covers and picture choices; without
+- **Public files** (`files.publicPath`): covers and picture choices; without
   them, the pictures do not show on the public page.
 - **Events between tools** (`events.publish("forms.answered" |
   "forms.contact" | "forms.request")`): without them, the switches are
   harmless — nothing leaves, the answer is kept.
-- **The other tools' addresses** (`chest.toolUrl`, `toolLink`, studio.14):
+- **The other tools' addresses** (`chest.tools.get`, `chest.tools.link`):
   whether Clients (`crm`) and Support (`helpdesk`) are installed, and the
   links from an answer to them; **who listens** (`events.receivers`,
   studio.16): whether an admin linked them to Forms' `forms.contact` and
@@ -494,11 +545,18 @@ Not in the working copy yet (see the SDK report):
 
 ```sh
 npm ci
-npm test                                   # PGlite; TEST_DATABASE_URL=… for PostgreSQL
+npm test                                   # PGlite; TEST_DATABASE_URL=… for PostgreSQL (and the scale test)
 npm run build
-node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 6800 --tools crm,helpdesk   # from the studio: harness with seed data, Clients and Support "installed" beside it
+npm run dev                                # Vite and the server, reloaded on change
+node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 6800 --tools crm,helpdesk --linked   # from the studio: harness with seed data, Clients and Support installed and linked
 node ../../../lab/chest-dev/flows/forms.mjs 6800
 ```
+
+The scale test (`test/scale.test.ts`, PostgreSQL only) fills a form with
+10,000 answers and 300 files and runs the server in its own process: pages
+measure under 120 KB (island props under 45 KB; the test fails past 600 KB and 256 KB), the CSV (4.1 MiB) and the
+ZIP (32.8 MiB) are streamed, an anonymous answer is taken in ~0.4 s, and
+the server's peak stays at 110–130 MiB (limit 256 MiB).
 
 `seed/sample.sql` fills Atelier Martin's forms, each written in English
 with its French version (the form's second language: a French reader
@@ -510,10 +568,14 @@ seeded (files are the Chest's): the flow uploads one.
 
 ## What it does not do yet
 
-- No payments, quizzes or scores, calculated fields, recall of an earlier
-  answer in a question ("Thanks, {name}"), signature question.
+- No payments, no quizzes or scores, no calculated fields, no signature
+  question.
 - No partial answers (what someone typed but did not send stays on their
-  device) — a privacy decision to take first.
+  device, 12 hours at most) — a privacy decision to take first.
+- A robot can still fill a public form up to its day's budget (above):
+  without a visitor's identity, the budgets bound the harm but do not stop
+  it. A proof of work in the page (the package's next `bound` option) is
+  the next step.
 - **Not shown in another website yet** (the Chest's frame policy, above);
   the button code works. Web addresses get each answer (webhooks), but
   there is **no two-way spreadsheet sync** and no Google Sheets
@@ -547,6 +609,8 @@ seeded (files are the Chest's): the flow uploads one.
 - Files over 10 MB are not taken (the public upload proposal caps at 10
   MiB). Pictures of a team form are published files too (random names,
   never listed).
-- The summary reads the latest 20,000 answers of a form; the CSV 100,000.
+- **10,000 answers a form at most** (taken in the same statement as the
+  form's own limit; Settings says it): the summary counts them in the
+  database, the CSV and the ZIP are streamed (`test/scale.test.ts`).
 - On a Chest without schedules, retention does not run by itself;
   answers are still erased by hand.

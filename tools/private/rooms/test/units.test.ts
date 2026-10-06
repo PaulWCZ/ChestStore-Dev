@@ -16,7 +16,7 @@ import { everyone, hugo, nora } from "./support/members.ts";
 // The small rules the pages, the files and the bell share, alone.
 atLeast(8);
 
-const rules = { daysAhead: 14, maxDeskDays: null, repeatWeeks: 12, dayStart: 420, dayEnd: 1200, weekdays: [1, 2, 3, 4, 5], keepMonths: 12, checkIn: false };
+const rules = { daysAhead: 14, maxDeskDays: null, repeatWeeks: 12, dayStart: 420, dayEnd: 1200, weekdays: [1, 2, 3, 4, 5], keepMonths: 12, visitorDays: 30, checkIn: false };
 
 test("the day a page shows: ?day= within a year either side, else the next working day; the strip and the form's days", () => {
   const c = { today: "2026-10-09", rules };

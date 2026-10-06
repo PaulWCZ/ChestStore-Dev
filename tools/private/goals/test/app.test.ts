@@ -11,7 +11,7 @@ import { world, type World } from "./support/world.ts";
 // services have their own tests; these check what the server adds: routes,
 // pages, islands, actions at their boundary, the look, the policy, the
 // downloads, the Chest's own deliveries.
-atLeast(13);
+atLeast(14);
 let w: World, app: Server;
 before(async () => {
   w = await world({ groups: true });
@@ -202,4 +202,17 @@ test("a page read again with nothing changed is a 304; after a change, the page"
   await call(ines, "checkIn", { id: krId, value: "7", confidence: "at_risk", note: "" });
   const changed = await app(withMember(new Request(url("/chest/company"), { headers: { "x-tool-version": version } }), hugo));
   assert.equal(changed.status, 200);
+});
+
+test("Settings lists what waits for a new owner a few at a time: its island stays small", async () => {
+  const paul = "mbr_paul" + "a".repeat(22);
+  await w.database.sql`
+    insert into key_results (objective_id, title, kind, target_value, owner, created_by)
+    select ${objectiveId}, 'Measure by Paul ' || i, 'number', 10, ${paul}, ${camille.id} from generate_series(1, 30) i`;
+  const { status, html } = await get(camille, "/chest/settings");
+  assert.equal(status, 200);
+  assert.match(html, /Et 5 autres, confiés avec tout le reste ci-dessus/u);
+  assert.equal((html.match(/Measure by Paul \d+</gu) ?? []).length, 25, "25 shown, the rest counted");
+  // And nobody reminds Paul: he left.
+  assert.doesNotMatch((await get(camille, "/chest/company")).html, /Paul Lefèvre<\/span><\/span><ul class="chase-items">/u);
 });

@@ -6,7 +6,7 @@ import { company, missing, type Company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "../i18n/index.ts";
 import { addDays, clean, day, documentNumber, id, limits, oneOf, periodOf, vatTreatments, versioned, wholeDays, type DocumentType, type Status, type VatTreatment } from "../shared/model.ts";
-import { formatRate, isVatRate } from "../shared/money.ts";
+import { formatMoney, formatRate, isVatRate, parseDecimal } from "../shared/money.ts";
 import { buyerOf, sellerOf, type Buyer, type Seller } from "../shared/parties.ts";
 import { lineNet, totals, depositBases, type RateTotal, type Totals } from "../shared/totals.ts";
 
@@ -59,6 +59,9 @@ export type Doc = {
   title: string;
   language: Locale;
   currency: string;
+  // Outside the euro: the exchange rate, units of the currency for one
+  // euro in millionths (the VAT is also stated in euros); null in euros.
+  eurRate: number | null;
   issueDate: string | null;
   deliveryDate: string | null;
   validUntil: string | null;
@@ -110,7 +113,7 @@ export type State =
   | "final"; // credit notes
 
 type Row = {
-  id: number; type: DocumentType; status: Status; number: string | null; client_id: number | null; title: string; language: string; currency: string;
+  id: number; type: DocumentType; status: Status; number: string | null; client_id: number | null; title: string; language: string; currency: string; eur_rate?: number | null;
   issue_date: string | null; delivery_date: string | null; valid_until: string | null; due_date: string | null; payment_days: number; vat_treatment: VatTreatment;
   franchise: boolean; notes: string; quote_id: number | null; deposit_percent: number | null; invoice_id: number | null; net: number; vat: number; gross: number;
   rates: RateTotal[]; seller: Seller | null; buyer: Buyer | null; created_by: string; created_at: Date; updated_at: Date; ready_at: Date | null; sent_at: Date | null;
@@ -124,7 +127,7 @@ const str = (n: number | null) => (n === null ? null : String(n));
 
 export const toDoc = (r: Row): Doc => ({
   id: String(r.id), type: r.type, status: r.status, number: r.number, clientId: str(r.client_id), title: r.title, language: isLocale(r.language) ? r.language : "en",
-  currency: r.currency, issueDate: r.issue_date, deliveryDate: r.delivery_date, validUntil: r.valid_until, dueDate: r.due_date, paymentDays: r.payment_days,
+  currency: r.currency, eurRate: r.eur_rate ?? null, issueDate: r.issue_date, deliveryDate: r.delivery_date, validUntil: r.valid_until, dueDate: r.due_date, paymentDays: r.payment_days,
   vatTreatment: r.vat_treatment, franchise: r.franchise, notes: r.notes, quoteId: str(r.quote_id), depositPercent: r.deposit_percent, invoiceId: str(r.invoice_id),
   net: r.net, vat: r.vat, gross: r.gross, rates: r.rates, seller: r.seller, buyer: r.buyer, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
   updatedAt: r.updated_at.toISOString(), readyAt: iso(r.ready_at), sentAt: iso(r.sent_at), sentBy: r.sent_by, emailedTo: r.emailed_to, decidedAt: iso(r.decided_at),
@@ -362,7 +365,7 @@ async function recompute(sql: Query, documentId: string): Promise<Doc> {
 // --- Editing a draft -------------------------------------------------------
 
 export type LineInput = Partial<Record<"kind" | "itemId" | "description" | "quantity" | "unit" | "unitPrice" | "discount" | "vatRate" | "goods" | "depositOf", unknown>>;
-export type DraftInput = Partial<Record<"clientId" | "title" | "language" | "deliveryDate" | "validUntil" | "paymentDays" | "vatTreatment" | "notes", unknown>> & { lines?: unknown };
+export type DraftInput = Partial<Record<"clientId" | "title" | "language" | "deliveryDate" | "validUntil" | "paymentDays" | "vatTreatment" | "notes" | "eurRate", unknown>> & { lines?: unknown };
 
 const int = (value: unknown, min: number, max: number, code: "quantity_invalid" | "amount_invalid" | "discount_invalid"): number => {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max) throw new AppError(code);
@@ -434,6 +437,10 @@ export async function saveDraft(sql: Sql, actor: Member | null, documentId: unkn
     if (input.deliveryDate !== undefined) set["delivery_date"] = input.deliveryDate === null || input.deliveryDate === "" ? null : day(input.deliveryDate);
     if (input.validUntil !== undefined && d.type === "quote") set["valid_until"] = day(input.validUntil);
     if (input.paymentDays !== undefined && d.type === "invoice") set["payment_days"] = wholeDays(input.paymentDays, 0, limits.paymentDays, "terms_invalid");
+    if (input.eurRate !== undefined) {
+      if (d.type === "quote" || d.currency === "EUR") throw new AppError("invalid");
+      set["eur_rate"] = eurRateOf(input.eurRate);
+    }
     if (input.vatTreatment !== undefined) {
       if (d.type === "credit") throw new AppError("invalid");
       set["vat_treatment"] = oneOf(vatTreatments, input.vatTreatment);
@@ -451,10 +458,16 @@ export async function saveDraft(sql: Sql, actor: Member | null, documentId: unkn
     if (Object.keys(set).length > 0) await tx`update documents set ${tx(set)} where id = ${docId}`;
     if (lines !== undefined) {
       // A line may only take back a deposit invoice of this invoice's own
-      // quote; any other mark is dropped.
+      // quote — or, on a credit note, of the credited invoice's quote (its
+      // lines reverse those of the invoice, deposits taken back included:
+      // the entries then debit 4191 again, lib/journal.ts); any other mark
+      // is dropped.
       const marked = [...new Set(lines.map(l => l.depositOf).filter((x): x is string => !!x))];
-      const deposits = marked.length === 0 || d.type !== "invoice" || !d.quoteId ? new Set<string>()
-        : new Set((await tx<{ id: number }[]>`select id from documents where id = any(${marked.map(Number)}::bigint[]) and type = 'invoice' and quote_id = ${d.quoteId} and deposit_percent is not null`).map(r => String(r.id)));
+      const quoteId = d.type === "invoice" ? d.quoteId
+        : d.type === "credit" && d.invoiceId ? String((await tx<{ quote_id: number | null }[]>`select quote_id from documents where id = ${d.invoiceId}`)[0]?.quote_id ?? "") || null
+        : null;
+      const deposits = marked.length === 0 || !quoteId ? new Set<string>()
+        : new Set((await tx<{ id: number }[]>`select id from documents where id = any(${marked.map(Number)}::bigint[]) and type = 'invoice' and quote_id = ${quoteId} and deposit_percent is not null`).map(r => String(r.id)));
       for (const l of lines) if (l.depositOf && !deposits.has(l.depositOf)) l.depositOf = null;
       await tx`delete from lines where document_id = ${docId}`;
       await insertLines(tx, docId, lines);
@@ -499,7 +512,12 @@ export async function nextNumber(tx: Query, type: DocumentType, period: number, 
   await tx`insert into counters (type, year, last) values (${type}, ${period}, 0) on conflict (type, year) do nothing`;
   const [row] = await tx<{ last: number }[]>`update counters set last = last + 1 where type = ${type} and year = ${period} returning last`;
   const seq = row!.last;
-  return { seq, number: documentNumber(prefixText, period, seq) };
+  const number = documentNumber(prefixText, period, seq);
+  // Never a number another kind of document already carries (prefixes are
+  // checked when they change, src/lib/company.ts; this holds the rest).
+  const [taken] = await tx`select 1 from documents where number = ${number} and type <> ${type} limit 1`;
+  if (taken) throw new AppError("prefix_taken", { prefix: prefixText, number });
+  return { seq, number };
 }
 
 export const prefixOf = (c: Pick<Company, "quotePrefix" | "invoicePrefix" | "creditPrefix">, type: DocumentType): string =>
@@ -615,7 +633,7 @@ export async function invoiceFromQuote(sql: Sql, actor: Member | null, quoteId: 
       const alreadyFull = invoices.some(i => i.deposit_percent === null);
       const used = invoices.filter(i => i.deposit_percent !== null).reduce((s, i) => s + (i.deposit_percent ?? 0), 0);
       if (alreadyFull) throw new AppError("nothing_left");
-      if (used + percent > 10_000) throw new AppError("deposit_invalid", { left: 10_000 - used });
+      if (used + percent > 10_000) throw new AppError("deposit_invalid", { left: formatRate(10_000 - used, quote.language) });
       const bases = depositBases(quoteTotals, percent);
       const multi = bases.length > 1;
       lines = bases.map(b => ({
@@ -697,15 +715,26 @@ export async function finalise(sql: Sql, actor: Member | null, documentId: unkno
     const lines = await linesOf(tx, docId);
     ready(c, client, lines, d.vatTreatment);
     const franchise = d.type === "credit" ? d.franchise : c.franchise;
+    // Outside the euro, the VAT is stated in euros too: the rate is asked.
+    if (d.currency !== "EUR" && d.eurRate === null) throw new AppError("eur_rate_missing", { currency: d.currency });
     const t = totals(lines, { noVat: franchise || d.vatTreatment === "reverse_charge" });
     if (d.type === "invoice" && t.gross < 0) throw new AppError("negative_total");
     if (d.type === "credit") {
       if (t.gross <= 0) throw new AppError("negative_total");
       const invoice = d.invoiceId ? toDoc(await loadRow(tx, d.invoiceId, true)) : null;
       if (!invoice || invoice.status !== "final") throw new AppError("not_final");
-      const [done] = await tx<{ gross: number }[]>`select coalesce(sum(gross), 0)::bigint as gross from documents where type = 'credit' and status = 'final' and invoice_id = ${invoice.id}`;
-      const left = invoice.gross - (done?.gross ?? 0);
-      if (t.gross > left) throw new AppError("credit_too_large", { left });
+      const credited = await tx<{ gross: number; rates: RateTotal[] }[]>`select gross, rates from documents where type = 'credit' and status = 'final' and invoice_id = ${invoice.id}`;
+      const money = (minor: number) => formatMoney(minor, invoice.currency, invoice.language);
+      const left = invoice.gross - credited.reduce((n, c) => n + c.gross, 0);
+      if (t.gross > left) throw new AppError("credit_too_large", { left: money(left) });
+      // Rate by rate: a credit note takes back VAT the invoice charged, at
+      // the invoice's rates and no more than what is left at each.
+      for (const r of t.rates) {
+        const charged = invoice.rates.find(x => x.rate === r.rate);
+        if (!charged) throw new AppError("credit_rate", { rate: formatRate(r.rate, invoice.language) });
+        const back = credited.reduce((n, c) => n + (c.rates.find(x => x.rate === r.rate)?.base ?? 0), 0);
+        if (r.base > charged.base - back) throw new AppError("credit_rate_too_large", { rate: formatRate(r.rate, invoice.language), left: money(Math.max(0, charged.base - back)) });
+      }
     }
     // Numbers follow the dates: never a date before the last one issued.
     const [last] = await tx<{ day: string | null }[]>`select max(issue_date) as day from documents where type = ${d.type} and status = 'final'`;
@@ -742,6 +771,8 @@ export async function startCreditNote(sql: Sql, actor: Member | null, invoiceId:
       insert into documents ${tx({
         type: "credit", client_id: invoice.clientId === null ? null : Number(invoice.clientId), title: invoice.title, language: invoice.language, currency: invoice.currency,
         payment_days: 0, vat_treatment: invoice.vatTreatment, franchise: invoice.franchise, invoice_id: Number(iid), created_by: actor!.id,
+        // The invoice's rate: the VAT taken back is the VAT charged.
+        eur_rate: invoice.eurRate,
       })} returning *`;
     await insertLines(tx, row!.id, await linesOf(tx, iid));
     return recompute(tx, String(row!.id));
@@ -788,3 +819,12 @@ export async function issuerCount(sql: Query, today: string): Promise<number> {
 }
 
 export type { Totals };
+
+// The exchange rate a member types ("1,0823": units of the currency for
+// one euro, as the ECB publishes it), in millionths; null clears it.
+export function eurRateOf(value: unknown): number | null {
+  if (value === null || value === "") return null;
+  const rate = typeof value === "number" ? value : parseDecimal(value, 6);
+  if (rate === null || !Number.isSafeInteger(rate) || rate <= 0 || rate > 1_000_000 * 1_000_000) throw new AppError("eur_rate_invalid");
+  return rate;
+}

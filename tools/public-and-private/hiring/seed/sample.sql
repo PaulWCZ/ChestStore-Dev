@@ -169,6 +169,14 @@ insert into activity (candidate_id, actor, kind, data, created_at) values
 insert into templates (name, language, subject, body, created_by) values
   ('Showroom day invitation', 'en', 'A day in our showroom — {job}', E'Hello {firstName},\n\nWe would like you to spend a day with us in the showroom, rue Mercière: you will meet the team and a few of our clients. Which day suits you next week?\n\n{sender}\n{company}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa');
 
+-- A link a candidate (Hélène, interview 2) already booked from: the page a
+-- candidate sees after choosing, with "Choose another time" and "Call off
+-- the interview" (docs/screens.json). Sample data only: its secret,
+-- sample-booked-link-of-the-screens-000000000, is written here.
+insert into interview_requests (candidate_id, token_hash, minutes, first_day, last_day, day_start, day_end, place, created_by, interview_id, booked_at) values
+  (13, '-tQ6DopuVh4QD-Vrsp0hSHyXwnjt3wDE_W2N3NzzuZ4', 60, current_date + 1, current_date + 10, 540, 1080, 'Atelier Martin, 14 rue des Tanneurs, Lyon', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 2, now() - interval '1 day');
+insert into interview_request_people (request_id, member_id) select id, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa' from interview_requests where token_hash = '-tQ6DopuVh4QD-Vrsp0hSHyXwnjt3wDE_W2N3NzzuZ4';
+
 select setval(pg_get_serial_sequence('jobs', 'id'), 100);
 select setval(pg_get_serial_sequence('interviews', 'id'), 100);
 select setval(pg_get_serial_sequence('stages', 'id'), 100);

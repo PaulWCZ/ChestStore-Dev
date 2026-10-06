@@ -29,12 +29,15 @@ import { Lost, Trophy } from "./icons.tsx";
 import { ReasonDialog } from "./reason-dialog.tsx";
 import type { People, Words } from "./shared.ts";
 
-export type BoardStage = { id: string; name: string; kind: "open" | "won" | "lost"; probability: number; total: string };
+// A column: its deals and totals counted by the database (the cards shown
+// are the first ones only), the total written by the server; `more` the
+// deals past the cards shown, `list` the list view of the column.
+export type BoardStage = { id: string; name: string; kind: "open" | "won" | "lost"; probability: number; count: number; totals: { currency: string; value: number }[]; total: string; more: number; list: string };
 // A deal as its card shows it, written by the server (its amount, its
 // expected close, what its dot means).
 export type BoardDeal = {
   id: string; title: string; stageId: string; value: number; valueText: string; company: string | null; closeLabel: string | null;
-  owner: string | null; open: boolean; state: "none" | "late" | "today" | "planned"; stateLabel: string; editable: boolean;
+  owner: string | null; open: boolean; state: "none" | "late" | "today" | "planned"; stateLabel: string; editable: boolean; currency: string;
 };
 export type BoardWords = Words<"deals" | "deal" | "common" | "dialog">;
 type Props = { stages: BoardStage[]; deals: BoardDeal[]; people: People; me: string; closedDays: number; currency: string; locale: Locale; t: BoardWords };
@@ -225,16 +228,26 @@ export function DealBoard({ stages, deals, people, me, closedDays, currency, loc
   }
 
   const open = (id: string) => void navigate(`/chest/deals/${id}`);
-  // While a deal moves, the totals follow the screen (written here); else
-  // they are the server's.
-  const totalOf = (stage: BoardStage, ids: string[]) => (moving ? money(ids.reduce((n, id) => n + (byId.get(id)?.value ?? 0), 0), locale, { currency }) : stage.total);
+  // While a deal moves, a column's count and total follow the screen: the
+  // server's, with the deals that came in or left (written here); else
+  // they are the server's as they are.
+  const figures = (stage: BoardStage, ids: string[]): { count: number; total: string } => {
+    if (!moving) return { count: stage.count, total: stage.total };
+    const before = new Set(served[stage.id] ?? []), now = new Set(ids);
+    const totals = new Map(stage.totals.map(x => [x.currency, x.value]));
+    let count = stage.count;
+    for (const id of now) if (!before.has(id)) { const d = byId.get(id)!; count++; totals.set(d.currency, (totals.get(d.currency) ?? 0) + d.value); }
+    for (const id of before) if (!now.has(id)) { const d = byId.get(id); if (!d) continue; count--; totals.set(d.currency, (totals.get(d.currency) ?? 0) - d.value); }
+    const shown = [...totals].filter(([, v]) => v !== 0);
+    return { count, total: shown.length === 0 ? money(0, locale, { currency }) : shown.map(([c, v]) => money(v, locale, { currency: c })).join(" · ") };
+  };
   return (
     <>
       <DndContext id={dndId} sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setMoving(null); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.deals.moveHint } }}>
         <div className={`board${dragging ? " is-dragging" : ""}`} role="list">
           {stages.map(stage => {
             const ids = (lanes[stage.id] ?? []).filter(id => byId.has(id));
-            return <Lane key={stage.id} stage={stage} ids={ids} total={totalOf(stage, ids)} byId={byId} people={people} me={me} closedDays={closedDays} locale={locale} onOpen={open} t={t} />;
+            return <Lane key={stage.id} stage={stage} ids={ids} {...figures(stage, ids)} byId={byId} people={people} me={me} closedDays={closedDays} locale={locale} onOpen={open} t={t} />;
           })}
         </div>
         <DragOverlay>{dragging && byId.get(dragging) ? <DealTile deal={byId.get(dragging)!} people={people} me={me} overlay t={t} /> : null}</DragOverlay>
@@ -252,7 +265,7 @@ export function DealBoard({ stages, deals, people, me, closedDays, currency, loc
   );
 }
 
-function Lane({ stage, ids, total, byId, people, me, closedDays, locale, onOpen, t }: { stage: BoardStage; ids: string[]; total: string; byId: Map<string, BoardDeal>; people: People; me: string; closedDays: number; locale: Locale; onOpen: (id: string) => void; t: BoardWords }) {
+function Lane({ stage, ids, count, total, byId, people, me, closedDays, locale, onOpen, t }: { stage: BoardStage; ids: string[]; count: number; total: string; byId: Map<string, BoardDeal>; people: People; me: string; closedDays: number; locale: Locale; onOpen: (id: string) => void; t: BoardWords }) {
   const { setNodeRef, isOver } = useDroppable({ id: stageKey(stage.id) });
   return (
     <section className={`lane k-${stage.kind}`} role="listitem" aria-labelledby={`lane-${stage.id}`}>
@@ -260,7 +273,7 @@ function Lane({ stage, ids, total, byId, people, me, closedDays, locale, onOpen,
         <h2 id={`lane-${stage.id}`}>
           {stage.kind === "won" && <Trophy />}{stage.kind === "lost" && <Lost />}
           <span>{stage.name}</span>
-          <span className="count num" aria-label={plural(t.deals.count, ids.length, locale)}>{ids.length}</span>
+          <span className="count num" aria-label={plural(t.deals.count, count, locale)}>{count}</span>
         </h2>
         <p className="lane-total">
           <span className="num strong">{total}</span>
@@ -272,6 +285,7 @@ function Lane({ stage, ids, total, byId, people, me, closedDays, locale, onOpen,
           {ids.map(id => <SortableDeal key={id} deal={byId.get(id)!} people={people} me={me} onOpen={onOpen} t={t} />)}
         </ul>
       </SortableContext>
+      {stage.more > 0 && <a className="lane-more link-button" href={stage.list}>{plural(t.deals.more, stage.more, locale)}</a>}
     </section>
   );
 }

@@ -62,6 +62,31 @@ export async function changed(actor: Member, before: RoomBooking, after: RoomBoo
 // Bookings cancelled: their people hear it; the organiser too when someone
 // else cancelled it (an admin, the room removed, the organiser left).
 export type Why = "none" | "admin" | "left" | "room" | "noShow";
+// A weekly booking changed from one occurrence on: told once for the
+// series (its key), the email carrying every occurrence; those added are
+// invited to them, those removed hear they are cancelled for them.
+export async function changedSeries(actor: Member, changes: { before: RoomBooking; after: RoomBooking }[]): Promise<void> {
+  const first = changes[0];
+  if (!first) return;
+  if (changes.length === 1 || !first.after.series) {
+    for (const c of changes) await changed(actor, c.before, c.after);
+    return;
+  }
+  const { before, after } = first;
+  const added = after.attendees.filter(a => !before.attendees.includes(a));
+  const removed = before.attendees.filter(a => !after.attendees.includes(a));
+  const kept = after.attendees.filter(a => before.attendees.includes(a) && a !== actor.id);
+  if (kept.length > 0) {
+    await mailGuests(db(), actor, "changed", changes.map(c => c.after.id), kept, zone());
+    await notify(kept, (t, locale) => ({
+      title: format(t.bell.changed, { title: cut(titleOf(after, t), 40) }),
+      body: format(t.bell.whereWeekly, { room: after.roomName, time: formatSpan(after.start, after.end, locale), count: changes.length, date: formatDay(after.day, locale, { day: "numeric", month: "long" }) }),
+    }), { path: pathOf(after), key: `series:${after.series}` });
+  }
+  await invited(actor, added, changes.map(c => c.after));
+  if (removed.length > 0) await cancelled(actor, changes.map(c => ({ ...c.before, attendees: removed })), "none");
+}
+
 export async function cancelled(actor: Member | null, bookings: RoomBooking[], why: Why): Promise<void> {
   const bySeries = new Map<string, RoomBooking[]>();
   for (const b of bookings) {
@@ -139,14 +164,20 @@ export async function holderBack(actor: Member, day: string, borrowed: readonly 
 
 // A quarter of an hour before a meeting: its people hear it starts soon
 // (with check-in on, that they tap "I'm here" when they arrive).
-export async function startsSoon(bookings: RoomBooking[], checkIn: boolean): Promise<void> {
+// Answers the bookings whose reminder reached the Chest (the others are
+// tried again at the next run; the item's key makes a second one replace
+// the first).
+export async function startsSoon(bookings: RoomBooking[], checkIn: boolean): Promise<string[]> {
+  const told: string[] = [];
   for (const b of bookings) {
     const people = [b.memberId, ...b.attendees].filter(p => p.startsWith("mbr_"));
-    await notify(people, (t, locale) => ({
+    const ok = await notify(people, (t, locale) => ({
       title: format(t.bell.startsSoon, { time: formatSpan(b.start, b.end, locale).split("–")[0] ?? "", title: cut(titleOf(b, t), 40) }),
       body: b.roomName + (checkIn ? " · " + t.bell.checkInHint : ""),
     }), { path: pathOf(b), key: `room:${b.id}` });
+    if (ok) told.push(b.id);
   }
+  return told;
 }
 
 // Visitors (lib/visits.ts): the host hears that their visitor is here, and

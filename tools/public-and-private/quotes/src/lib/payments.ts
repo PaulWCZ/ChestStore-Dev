@@ -3,7 +3,7 @@ import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Sql } from "./db.ts";
 import { clean, day, id, limits, oneOf, paymentMethods } from "../shared/model.ts";
-import { parseAmount } from "../shared/money.ts";
+import { ambiguousAmount, parseAmount } from "../shared/money.ts";
 
 // Payments received for finalised invoices: a date, an amount, a method.
 // Several make a partial payment; an invoice is paid once they (and its
@@ -27,6 +27,7 @@ export async function addPayment(sql: Sql, actor: Member | null, invoiceId: unkn
     if (!doc || doc.deleted_at || doc.type !== "invoice") throw new AppError("not_found");
     // Issued here, or imported from the previous tool.
     if (doc.status !== "final" && doc.status !== "imported") throw new AppError("not_final");
+    if (ambiguousAmount(input.amount, doc.currency)) throw new AppError("amount_ambiguous");
     const amount = parseAmount(input.amount, doc.currency);
     if (amount === null || amount <= 0 || amount > limits.total) throw new AppError("payment_invalid");
     const [sums] = await tx<{ paid: number; credited: number }[]>`

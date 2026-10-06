@@ -1,7 +1,8 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, canUndoImport } from "./access.ts";
 import { record } from "./activities.ts";
-import { parseAmount } from "../shared/amount.ts";
+import { chest } from "@argentic/chest-sdk/chest";
+import { decimalMark, parseAmount } from "../shared/amount.ts";
 import { forget } from "./contacts.ts";
 import { countryCode } from "./countries.ts";
 import { fieldValue, guessKind, type Custom, type FieldDef, type FieldObject } from "../shared/custom.ts";
@@ -239,7 +240,7 @@ async function contactFor(ctx: Context, who: string, address: string, companyId:
   return found;
 }
 
-async function importDeal(ctx: Context, m: Mapped, stages: Stage[], words: Record<StageKey, string>, positions: Map<string, string | null>): Promise<"created"> {
+async function importDeal(ctx: Context, m: Mapped, stages: Stage[], words: Record<StageKey, string>, positions: Map<string, string | null>, decimal: "," | "." | null): Promise<"created"> {
   const title = clean(m.title, limits.dealTitle);
   let companyId = await companyFor(ctx, m.company);
   let contactId: string | null = null;
@@ -263,8 +264,8 @@ async function importDeal(ctx: Context, m: Mapped, stages: Stage[], words: Recor
   positions.set(stage.id, position);
   const at = createdAt(m);
   const [row] = await ctx.tx<{ id: string }[]>`
-    insert into deals (title, company_id, contact_id, value_cents, stage_id, position, expected_close, owner, reason, custom, created_by, closed_at, import_id, created_at)
-    values (${title}, ${companyId}, ${contactId}, ${parseAmount(m.value ?? "")}, ${stage.id}, ${position}, ${dayOf(m.closeDate)}, ${ownerOf(ctx, m.owner)},
+    insert into deals (title, company_id, contact_id, value_cents, currency, stage_id, position, expected_close, owner, reason, custom, created_by, closed_at, import_id, created_at)
+    values (${title}, ${companyId}, ${contactId}, ${parseAmount(m.value ?? "", decimal ?? undefined)}, ${chest.currency}, ${stage.id}, ${position}, ${dayOf(m.closeDate)}, ${ownerOf(ctx, m.owner)},
       ${stage.kind === "open" ? "" : clean(m.reason ?? "", limits.reason, { optional: true })}, ${ctx.tx.json(custom)}, ${ctx.actor.id}, ${stage.kind === "open" ? null : ctx.tx`now()`},
       ${ctx.importId}, ${at ?? ctx.tx`now()`})
     returning id`;
@@ -435,6 +436,11 @@ export async function importTable(sql: Sql, actor: Member | null, kind: unknown,
       positions.set(s.id, last?.position ?? null);
     }
     const rows = table.rows.map(r => mapRow(r, map, table.head));
+    // The file's decimal mark, from the amounts that say it ("12,50"): a
+    // lone "1,250" is then read as the file writes (1.25 in a file of
+    // decimal commas); a file that never says reads it as thousands, as a
+    // spreadsheet's money columns write it.
+    const decimal = decimalMark(rows.map(r => r.value ?? ""));
     await each(ctx, tx, rows, 2, async m => {
       if (kind === "companies") return importCompany(ctx, m);
       if (kind === "contacts") {
@@ -442,7 +448,7 @@ export async function importTable(sql: Sql, actor: Member | null, kind: unknown,
         return importContact(ctx, m);
       }
       if (kind === "activities") return importActivity(ctx, m);
-      return importDeal(ctx, m, stages, words, positions);
+      return importDeal(ctx, m, stages, words, positions, decimal);
     });
     return finish(tx, ctx);
   });

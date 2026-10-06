@@ -233,7 +233,9 @@ export async function ownedBy(sql: Query, memberId: string, clock: Clock): Promi
 
 // The key results waiting for their owners' check-in this week, per owner:
 // in a cycle not closed that runs today, not done, created before this
-// week, and nothing checked in since Monday.
+// week, and nothing checked in since Monday. Not a value fed by another
+// tool (its owner cannot change it), and not someone who left or lost
+// access (their key results wait for a new owner instead: lib/orphans.ts).
 export async function waitingCounts(sql: Query, owners: string[] | null, clock: Clock & { today: string }): Promise<Map<string, number>> {
   const rows = owners === null
     ? await sql<{ owner: string; n: string }[]>`${waitingQuery(sql, clock)} group by k.owner`
@@ -249,6 +251,7 @@ function waitingQuery(sql: Query, clock: Clock & { today: string }) {
     join objectives o on o.id = k.objective_id and o.archived_at is null
     join cycles y on y.id = o.cycle_id and y.closed_at is null and y.starts_on <= ${clock.today} and y.ends_on >= ${clock.today}
     where k.archived_at is null and k.owner like 'mbr\\_%'
+      and k.source is null and not exists (select 1 from departed d where d.member_id = k.owner)
       and k.created_at < ${clock.weekStart}
       and not (case when k.target_value > k.start_value then k.current_value >= k.target_value else k.current_value <= k.target_value end)
       and not exists (select 1 from check_ins c where c.key_result_id = k.id and c.created_at >= ${clock.weekStart})`;
@@ -261,6 +264,7 @@ export async function waitingTitles(sql: Query, owner: string, clock: Clock & { 
     join objectives o on o.id = k.objective_id and o.archived_at is null
     join cycles y on y.id = o.cycle_id and y.closed_at is null and y.starts_on <= ${clock.today} and y.ends_on >= ${clock.today}
     where k.archived_at is null and k.owner = ${owner}
+      and k.source is null
       and k.created_at < ${clock.weekStart}
       and not (case when k.target_value > k.start_value then k.current_value >= k.target_value else k.current_value <= k.target_value end)
       and not exists (select 1 from check_ins c where c.key_result_id = k.id and c.created_at >= ${clock.weekStart})
@@ -299,6 +303,7 @@ export async function waitingList(sql: Query, clock: Clock & { today: string }, 
     join objectives o on o.id = k.objective_id and o.archived_at is null
     join cycles y on y.id = o.cycle_id and y.closed_at is null and y.starts_on <= ${clock.today} and y.ends_on >= ${clock.today}
     where k.archived_at is null and k.owner like 'mbr\\_%'
+      and k.source is null and not exists (select 1 from departed d where d.member_id = k.owner)
       ${options.objectiveOwner ? sql`and o.owner = ${options.objectiveOwner}` : sql``}
       and k.created_at < ${clock.weekStart}
       and not (case when k.target_value > k.start_value then k.current_value >= k.target_value else k.current_value <= k.target_value end)

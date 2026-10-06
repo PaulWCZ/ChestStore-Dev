@@ -6,7 +6,7 @@ import { Down, Plus, Section, Trash, Up, Box, Copy } from "../../components/icon
 import { format, formatDay, languageNames } from "../../i18n/format.ts";
 import type { Catalogue, Locale } from "../../i18n/index.ts";
 import type { Line } from "../../lib/documents.ts";
-import { formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parsePercent, parseQuantity, vatRates } from "../../shared/money.ts";
+import { ambiguousAmount, formatEurRate, formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parseDecimal, parsePercent, parseQuantity, vatRates } from "../../shared/money.ts";
 import { addressLines, spacedSiren } from "../../shared/parties.ts";
 import { lineNet, totals } from "../../shared/totals.ts";
 import { unitText } from "../../shared/units.ts";
@@ -22,7 +22,9 @@ import { ItemPicker } from "./item-picker.tsx";
 // server's (lib/totals.ts).
 
 type EditLine = { key: string; kind: "line" | "section"; itemId: string | null; description: string; quantity: string; unit: string; unitPrice: string; discount: string; vatRate: number; goods: boolean; depositOf?: string | null };
-type Header = { clientId: string | null; title: string; language: Locale; deliveryDate: string; validUntil: string; paymentDays: string; vatTreatment: "standard" | "reverse_charge"; notes: string };
+type Header = { clientId: string | null; title: string; language: Locale; deliveryDate: string; validUntil: string; paymentDays: string; vatTreatment: "standard" | "reverse_charge"; notes: string; eurRate: string };
+// The exchange rate typed ("1,0823"), in millionths; null when empty, NaN when unreadable.
+const rateOf = (text: string): number | null => (text.trim() === "" ? null : (parseDecimal(text, 6) ?? Number.NaN) || Number.NaN);
 export type SaveState = "saved" | "pending" | "saving" | "invalid" | "error";
 
 let counter = 0;
@@ -72,9 +74,12 @@ export type PaperProps = {
 
 export function Paper(props: PaperProps) {
   const { doc, t, words, locale, editing, dates } = props;
+  // Outside the euro, an invoice or credit note gives its exchange rate.
+  const foreign = doc.type !== "quote" && doc.currency !== "EUR";
   const [header, setHeader] = useState<Header>({
     clientId: doc.clientId, title: doc.title, language: doc.language, deliveryDate: doc.deliveryDate ?? "", validUntil: doc.validUntil ?? "",
     paymentDays: String(doc.paymentDays), vatTreatment: doc.vatTreatment, notes: doc.notes,
+    eurRate: doc.eurRate ? formatEurRate(doc.eurRate, locale) : "",
   });
   const [lines, setLines] = useState<EditLine[]>(() => doc.lines.map(l => editLine(l, doc.currency, doc.language)));
   const [clients, setClients] = useState(props.clients);
@@ -107,7 +112,7 @@ export function Paper(props: PaperProps) {
   const buyer = editing ? client : doc.buyer;
   const noVat = doc.franchise || header.vatTreatment === "reverse_charge";
   const parsed = useMemo(() => lines.map(l => parse(l, doc.currency)), [lines, doc.currency]);
-  const invalid = parsed.some(p => p.quantity === null || p.unitPrice === null || p.discount === null) || (doc.type === "invoice" && !/^\d{1,3}$/u.test(header.paymentDays.trim())) || (doc.type === "quote" && editing && header.validUntil === "") || (editing && Object.keys(dateProblems).length > 0);
+  const invalid = parsed.some(p => p.quantity === null || p.unitPrice === null || p.discount === null) || (doc.type === "invoice" && !/^\d{1,3}$/u.test(header.paymentDays.trim())) || (doc.type === "quote" && editing && header.validUntil === "") || (editing && Object.keys(dateProblems).length > 0) || Number.isNaN(rateOf(header.eurRate));
   const sums = useMemo(() => totals(lines.map((l, i) => ({ kind: l.kind, quantity: parsed[i]!.quantity ?? 0, unitPrice: parsed[i]!.unitPrice ?? 0, discount: parsed[i]!.discount ?? 0, vatRate: l.vatRate })), { noVat }), [lines, parsed, noVat]);
   const money = (minor: number) => formatMoney(minor, doc.currency, header.language);
   const anyDiscount = parsed.some((p, i) => lines[i]!.kind === "line" && (p.discount ?? 0) !== 0);
@@ -141,6 +146,7 @@ export function Paper(props: PaperProps) {
       title: h.title, language: h.language, notes: h.notes, deliveryDate: h.deliveryDate || null,
       ...(doc.type === "quote" && h.validUntil ? { validUntil: h.validUntil } : {}),
       ...(doc.type === "invoice" ? { paymentDays: Number(h.paymentDays) } : {}),
+      ...(foreign ? { eurRate: rateOf(h.eurRate) } : {}),
       lines: ls.map((l, i) => ({ kind: l.kind, itemId: l.itemId, description: l.description, unit: l.unit, vatRate: l.vatRate, goods: l.goods, quantity: values[i]!.quantity ?? 0, unitPrice: values[i]!.unitPrice ?? 0, discount: values[i]!.discount ?? 0, depositOf: l.depositOf ?? null })),
     } }, { refresh: false, quiet: true });
     if (!result.ok) {
@@ -233,14 +239,18 @@ export function Paper(props: PaperProps) {
             <input className="ink num" inputMode="decimal" value={l.quantity} aria-invalid={p.quantity === null ? true : undefined} aria-label={format(e.quantity, { n: i + 1 })} onChange={ev => setLine(l.key, { quantity: ev.target.value })} />
           </label>
           <label className="mini unit">
-            <span>{e.unit}</span>
+            {/* The paper's words are the document's language, like its other columns. */}
+            <span>{w.unitColumn}</span>
             <input className="ink" list="units" value={l.unit} maxLength={20} placeholder={e.unitPlaceholder} aria-label={format(e.unitOf, { n: i + 1 })} onChange={ev => setLine(l.key, { unit: ev.target.value })} />
           </label>
           <span className="times" aria-hidden="true">×</span>
           <label className="mini price">
             <span>{w.unitPrice}</span>
-            <input className="ink num" inputMode="decimal" value={l.unitPrice} placeholder="0" aria-invalid={p.unitPrice === null ? true : undefined} aria-label={format(e.unitPrice, { n: i + 1 })} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
+            <input className="ink num" inputMode="decimal" value={l.unitPrice} placeholder="0" aria-invalid={p.unitPrice === null ? true : undefined} aria-label={format(e.unitPrice, { n: i + 1 })}
+              aria-describedby={ambiguousAmount(l.unitPrice, doc.currency, { negative: true }) ? `ambiguous-${l.key}` : undefined} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
           </label>
+          {/* "1,234": a thousand, or one twenty-three? Said, not guessed. */}
+          {ambiguousAmount(l.unitPrice, doc.currency, { negative: true }) && <p className="amount-problem" id={`ambiguous-${l.key}`} role="alert">{t.errors.amount_ambiguous}</p>}
           <label className="mini disc">
             <span>{w.discount}</span>
             <input className="ink num" inputMode="decimal" value={l.discount} placeholder="%" aria-invalid={p.discount === null ? true : undefined} aria-label={format(e.discount, { n: i + 1 })} onChange={ev => setLine(l.key, { discount: ev.target.value })} />
@@ -320,6 +330,14 @@ export function Paper(props: PaperProps) {
                 <dd>{editing ? <DateField id="delivery" label={w.deliveryDate} hideLabel value={header.deliveryDate || null} onChange={v => setH({ deliveryDate: v ?? "" })} onProblem={dateProblem("delivery")} today={props.today} chips={false} labels={props.dateWords} /> : dates.delivery}</dd>
               </>
             )}
+            {foreign && (editing || doc.eurRate) && (
+              <>
+                <dt>{editing ? <label htmlFor="eur-rate">{t.editor.eurRate}</label> : t.editor.eurRate}</dt>
+                <dd>{editing ? (
+                  <span className="eur-rate"><input id="eur-rate" className="ink num" inputMode="decimal" value={header.eurRate} placeholder="1,0823" aria-invalid={Number.isNaN(rateOf(header.eurRate)) || undefined} onChange={ev => setH({ eurRate: ev.target.value })} /> {doc.currency}</span>
+                ) : `${formatEurRate(doc.eurRate!, locale)} ${doc.currency}`}</dd>
+              </>
+            )}
             {doc.reference && (
               <>
                 <dt>{doc.type === "credit" ? w.invoiceRef : w.quoteRef}</dt>
@@ -371,7 +389,8 @@ export function Paper(props: PaperProps) {
         {editing ? (
           <>
             <label htmlFor="title">{t.editor.subject}</label>
-            <input id="title" className="ink serif" value={header.title} maxLength={200} placeholder={t.editor.subjectPlaceholder} onChange={ev => setH({ title: ev.target.value })} />
+            {/* One line of text that wraps as it grows (a long subject stays readable on a phone). */}
+            <textarea id="title" className="ink serif" rows={1} value={header.title} maxLength={200} placeholder={t.editor.subjectPlaceholder} onChange={ev => setH({ title: ev.target.value.replace(/[\r\n]+/gu, " ") })} />
           </>
         ) : header.title ? <span>{format(w.subject, { title: header.title })}</span> : null}
       </div>

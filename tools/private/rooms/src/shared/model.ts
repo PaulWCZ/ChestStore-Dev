@@ -214,3 +214,6 @@ export function nextNames(existing: readonly string[], count: number, prefix = "
   }
   return Array.from({ length: count }, (_, i) => stem + String(highest + i + 1).padStart(width, "0"));
 }
+
+// "I'm here" opens this many minutes before a meeting's start (lib/check-in.ts).
+export const checkInOpens = 10;

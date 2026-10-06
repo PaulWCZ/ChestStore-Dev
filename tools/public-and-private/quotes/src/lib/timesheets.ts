@@ -8,6 +8,7 @@ import type { Query, Sql } from "./db.ts";
 import { fold } from "../shared/fold.ts";
 import { catalogue, format, formatDay, isLocale, type Locale } from "../i18n/index.ts";
 import { limits } from "../shared/model.ts";
+import { accentedLetters, plainLetters } from "./clients.ts";
 import { formatMoney } from "../shared/money.ts";
 import { notify, withdraw } from "./notify.ts";
 import { holders } from "./people.ts";
@@ -112,10 +113,12 @@ export async function billableReceived(sql: Sql, event: ToolEvent, context: { lo
     }
     const c = await company(tx);
     // The client, by its name as Timesheets wrote it: one match, or none.
-    const wanted = fold(b.client);
-    const candidates = wanted ? await tx<{ id: number; name: string; language: string; reverse_charge: boolean }[]>`
-      select id, name, language, reverse_charge from clients where archived_at is null order by id limit 20000` : [];
-    const matches = candidates.filter(x => fold(x.name) === wanted);
+    // The name's key is the database's (migration 0015: indexed), worked
+    // out there for Timesheets' name too, so both are read alike.
+    const matches = fold(b.client) ? await tx<{ id: number; name: string; language: string; reverse_charge: boolean }[]>`
+      select id, name, language, reverse_charge from clients
+      where archived_at is null and name_key = (select btrim(regexp_replace(lower(translate(${b.client}::text, ${accentedLetters}, ${plainLetters})), '[^a-z0-9]+', ' ', 'g')))
+      order by id limit 2` : [];
     const client = matches.length === 1 ? matches[0]! : null;
     const language: Locale = client && isLocale(client.language) ? client.language : context.locale;
     const w = catalogue(language);

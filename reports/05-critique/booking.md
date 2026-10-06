@@ -65,3 +65,25 @@ Used on 2026-09-29 in the harness (port 7300, `--prod --reset`, the fake Chest h
 7. Calendly CSV import of upcoming events. **M**
 8. Payment-link field; limits per week and across types. **S–M**
 9. Full OAuth free/busy (Google/Microsoft) in the SDK. **L**
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Booking's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **140 → 78.7 MiB**;
+  image 461 → 31 MiB; first members' page 679 →
+  369 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: public writes counted only once valid, bookings and changes apart, per token and per link; a single-use two-hour form; unique calendar UIDs; today/tomorrow reminders; blocks serialised with bookings; a short cache on the slots (`92bb7dc`); the per-link cap moved to the package's per-subject budget (20 changes a day, `7ebaeea`). 113 tests on PGlite and PostgreSQL (`17861d4`).
+- **Pending**: Nothing listed as pending in its commits.
+
+**Verdict, updated.** Custom domains now exist on the Chest (brief/08): the booking pages can live at `book.<company>.com`, and the links it writes follow `chest.tool.publicUrl` (`src/lib/public-origin.ts`). That was one of the platform gaps the summary named for Booking; what remains is email (confirmations and reminders), the host's own calendar, and the website embed (the frame code is built, and every Chest refuses it: `frame-ancestors 'none'`). **Cancel tomorrow: unchanged** — individual pages yes on the proposals, not yet on today's Chest.

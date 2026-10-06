@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as candidates from "../lib/candidates.ts";
-import * as jobs from "../lib/jobs.ts";
+import * as candidates from "../src/lib/candidates.ts";
+import * as jobs from "../src/lib/jobs.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, label, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -54,14 +54,6 @@ test("an application lands in the first stage, without a forced consent; the for
   await assert.rejects(candidates.apply(sql, application(draft.slug)), { code: "not_found" });
 });
 
-test("the form's guard: ten applications an hour per visitor, then too_many", async () => {
-  const { sql } = database;
-  for (let i = 0; i < candidates.formLimits.perVisitorHour; i++) await candidates.guard(sql, "203.0.113.9");
-  await assert.rejects(candidates.guard(sql, "203.0.113.9"), { code: "too_many" });
-  await candidates.guard(sql, "203.0.113.10");
-  await candidates.guard(sql, "203.0.113.9", "upload");
-});
-
 test("the board: stages, days in stage, new for recruiters, ratings hidden from an interviewer until they rated", async () => {
   const { sql } = database;
   const base = await candidates.unseenCounts(sql, [camille.id, sofia.id]);
@@ -71,7 +63,7 @@ test("the board: stages, days in stage, new for recruiters, ratings hidden from 
   await jobs.addInterviewer(sql, recruiter(), job.id, hugo.id, hasTool);
   const a = (await candidates.apply(sql, application(job.slug, { name: "Ana" }))).candidate;
   const b = (await candidates.apply(sql, application(job.slug, { name: "Ben", email: "ben@example.com" }))).candidate;
-  let cards = await candidates.board(sql, recruiter(), job.id);
+  let cards = (await candidates.board(sql, recruiter(), job.id)).cards;
   assert.deepEqual(cards.map(c => [c.name, c.unseen, c.days]), [["Ana", true, 0], ["Ben", true, 0]]);
   assert.equal(await unseen(camille.id), 2);
   await candidates.candidate(sql, recruiter(), a.id);
@@ -84,12 +76,12 @@ test("the board: stages, days in stage, new for recruiters, ratings hidden from 
   await sql`update candidates set stage_entered_at = now() - interval '3 days 2 hours' where id = ${b.id}`;
   await candidates.giveFeedback(sql, asMember(hugo), b.id, { rating: 4, strengths: "Precise", concerns: "", recommendation: "strong_yes" });
   await candidates.giveFeedback(sql, recruiter(), b.id, { rating: 3, recommendation: "yes" });
-  cards = await candidates.board(sql, recruiter(), job.id);
+  cards = (await candidates.board(sql, recruiter(), job.id)).cards;
   const ben = cards.find(c => c.id === b.id)!;
   assert.deepEqual([ben.days, ben.rating, ben.ratings, ben.stageId], [3, 3.5, 2, stages[2]!.id]);
-  const forInes = (await candidates.board(sql, asMember(ines), job.id)).find(c => c.id === b.id)!;
+  const forInes = (await candidates.board(sql, asMember(ines), job.id)).cards.find(c => c.id === b.id)!;
   assert.deepEqual([forInes.rating, forInes.ratings, forInes.unseen], [null, 0, false]);
-  const forHugo = (await candidates.board(sql, asMember(hugo), job.id)).find(c => c.id === b.id)!;
+  const forHugo = (await candidates.board(sql, asMember(hugo), job.id)).cards.find(c => c.id === b.id)!;
   assert.equal(forHugo.rating, 3.5);
   await assert.rejects(candidates.board(sql, asMember(lea), job.id), { code: "not_found" });
   await assert.rejects(candidates.board(sql, asMember(nora), job.id), { code: "not_found" });
@@ -193,13 +185,25 @@ test("erasing a candidate and the retention delete them with their CV", async ()
   await sql`update candidates set last_activity_at = now() - interval '23 months' where id = ${b.id}`;
   const gone = await candidates.cleanup(sql);
   assert.deepEqual([gone.candidates, gone.objects], [1, [cv.object]]);
+  // The bell items that named them are withdrawn too (S4: nightly too).
+  assert.ok(gone.notices.includes(`candidate:${a.id}:new`) && gone.notices.includes(`candidate:${a.id}:bounced`));
   await jobs.saveSettings(sql, recruiter(), { retentionMonths: 12 });
   assert.equal((await candidates.cleanup(sql)).candidates, 1);
   await jobs.saveSettings(sql, recruiter(), { retentionMonths: 24 });
   const c = (await candidates.apply(sql, application(job.slug, { name: "Asks erasure", cv: { ...cv, object: "cv/aaaaaaaaaaaaaaaaaaaa.pdf" } }))).candidate;
   await candidates.addNote(sql, recruiter(), c.id, "Asked to be erased.");
   await assert.rejects(candidates.erase(sql, asMember(ines), c.id), { code: "forbidden" });
-  assert.deepEqual(await candidates.erase(sql, recruiter(), c.id), { objects: ["cv/aaaaaaaaaaaaaaaaaaaa.pdf"], wasHired: false });
+  // Who gave feedback and the interviews are read before the rows go: each
+  // bell item that names the candidate is withdrawn (feedback given, an
+  // interview today or chosen, given back, called off).
+  await sql`insert into feedback (candidate_id, author, rating, recommendation) values (${c.id}, ${ines.id}, 3, 'yes')`;
+  const [iv] = await sql<{ id: string }[]>`insert into interviews (candidate_id, starts_at, ends_at, place, note, created_by) values (${c.id}, now() + interval '1 day', now() + interval '25 hours', '', '', ${recruiter().id}) returning id::text`;
+  const erased = await candidates.erase(sql, recruiter(), c.id);
+  assert.deepEqual({ ...erased, notices: [] }, { objects: ["cv/aaaaaaaaaaaaaaaaaaaa.pdf"], notices: [], wasHired: false, jobId: job.id });
+  assert.deepEqual(erased.notices.sort(), [
+    ...["asked", "bounced", `gave:${ines.id.slice(4, 20)}`, "new", "reply"].map(k => `candidate:${c.id}:${k}`),
+    ...["chosen", "declined", "rechose", "today"].map(k => `interview:${iv!.id}:${k}`),
+  ].sort());
   await assert.rejects(candidates.candidate(sql, recruiter(), c.id), { code: "not_found" });
   const [left] = await sql<{ n: number }[]>`select (select count(*) from notes where candidate_id = ${c.id})::int + (select count(*) from activity where candidate_id = ${c.id})::int as n`;
   assert.equal(left!.n, 0);

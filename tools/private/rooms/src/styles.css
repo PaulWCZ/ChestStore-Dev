@@ -375,7 +375,9 @@ a.booking-text:hover { text-decoration: underline; }
 .room-chip { font-family: var(--font-body); }
 @media (max-width: 560px) {
   .finder { padding: var(--space-3); }
-  .finder-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+  /* How many people takes a row of its own: "Toutes tailles" is never cut. */
+  .finder-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .finder-fields > label:first-child { grid-column: 1 / -1; }
   .finder-fields .select { padding: var(--space-2); }
 }
 .kept { display: inline-flex; align-items: center; gap: 3px; color: var(--mine-text); font-weight: var(--weight-strong); }
