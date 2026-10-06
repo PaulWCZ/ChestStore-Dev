@@ -379,7 +379,7 @@ before opening a pull request.
 # Studio proposals (not in 0.4.1)
 
 Everything above is the guide of the published `@argentic/chest-sdk`
-0.4.1, word for word. This package is **0.4.1-studio.2**: 0.4.1 unchanged,
+0.4.1, word for word. This package is **0.4.1-studio.3**: 0.4.1 unchanged,
 plus the studio's proposals — primitives the store's tools need that no
 Chest gives yet, in files of their own (`client/studio/`). `README.md`,
 "Studio proposals", is their reference; this is the short path.
