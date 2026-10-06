@@ -535,9 +535,28 @@ export function rawRoute(options: { maxBytes: number }, handler: (body: Uint8Arr
     if (!sameOrigin(c.req.raw)) return c.text("Cross-site request refused.", 403);
     const declared = Number(c.req.header("content-length") ?? NaN);
     if (Number.isFinite(declared) && declared > options.maxBytes) return c.text("Too large.", 413);
+    // With a Content-Length (a browser's upload has one), the body is read
+    // straight into one buffer of that size: the tool holds it once, never
+    // twice (chunks, then their copy) — a 40 MB import is 40 MB, not 80.
+    // A body longer than it said is refused; a chunked one is gathered.
+    const reader = c.req.raw.body?.getReader();
+    if (Number.isFinite(declared) && declared >= 0) {
+      const body = new Uint8Array(declared);
+      let at = 0;
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (at + value.byteLength > declared) {
+          await reader.cancel();
+          return c.text("The body is longer than its Content-Length.", 400);
+        }
+        body.set(value, at);
+        at += value.byteLength;
+      }
+      return handler(at === declared ? body : body.subarray(0, at), { viewer: viewerOf(c), c });
+    }
     const chunks: Uint8Array[] = [];
     let size = 0;
-    const reader = c.req.raw.body?.getReader();
     while (reader) {
       const { done, value } = await reader.read();
       if (done) break;

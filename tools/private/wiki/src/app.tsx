@@ -1,5 +1,4 @@
-import { createApp, page, publicPage } from "@argentic/chest-app";
-import { bodyLimit } from "hono/body-limit";
+import { createApp, page, publicPage, rawRoute } from "@argentic/chest-app";
 import { actions } from "./actions.ts";
 import { chestEvents, chestSchedules, exportAll, exportPage, exportSpace, importUpload, leaveEditor, openFile, readsCsv } from "./calls.ts";
 import { framed } from "./frame.tsx";
@@ -77,7 +76,7 @@ app.get("/chest/export", c => exportAll(c.req.raw, c.get("viewer").member));
 
 // What the pages send that is not an action: the import's files (a form
 // of up to 60 MB, read in memory) and the editor's beacon as it closes.
-app.post("/chest/api/import", bodyLimit({ maxSize: limits.importBytes + (1 << 20), onError: c => c.json({ error: "file_too_large" }, 413) }), c => importUpload(c.req.raw, c.get("viewer").member));
+app.post("/chest/api/import", rawRoute({ maxBytes: limits.importBytes + (1 << 20) }, (body, { c }) => importUpload(body, c.req.header("content-type"), c.get("viewer").member)));
 app.post("/chest/api/pages/:id/leave", c => leaveEditor(c.req.raw, c.get("viewer").member, c.req.param("id")));
 
 // ---- The host's root: the wiki has no public part (a Chest answers 404

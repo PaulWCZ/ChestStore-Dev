@@ -21,7 +21,8 @@ type Nd = El | Tx | { type: string; parent: El | null; children?: Nd[] };
 
 const isEl = (n: Nd | null | undefined): n is El => !!n && (n.type === "tag" || n.type === "script" || n.type === "style");
 const isText = (n: Nd): n is Tx => n.type === "text";
-const classes = (e: El): string[] => (e.attribs["class"] ?? "").split(/\s+/u).filter(Boolean);
+// The document itself (the root above <html>) has no attributes.
+const classes = (e: El): string[] => (e.attribs?.["class"] ?? "").split(/\s+/u).filter(Boolean);
 const hasClass = (e: El, c: string) => classes(e).includes(c);
 
 export function parseHtml(source: string): El {
@@ -377,9 +378,11 @@ export function confluencePage(root: El): ConfluencePage | null {
 export function confluenceTree(root: El): { file: string; parent: string | null }[] | null {
   const heading = byId(root, "pagetree") ?? find(root, e => /^h[1-6]$/u.test(e.name) && /available pages/iu.test(textOf(e)));
   if (!heading) return null;
+  // Up to the section around the tree — never above an element (a
+  // malformed index has none: the heading's parent is the scope then).
   let section: El | null = heading;
-  while (section && !hasClass(section, "pageSection")) section = section.parent;
-  const scope = section ?? heading.parent;
+  while (section && isEl(section) && !hasClass(section, "pageSection")) section = section.parent;
+  const scope = section && isEl(section) ? section : heading.parent;
   if (!scope) return null;
   const out: { file: string; parent: string | null }[] = [];
   // An item's own link: not one of the items inside it.

@@ -3,16 +3,16 @@ import * as events from "@argentic/chest-sdk/events";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as schedules from "@argentic/chest-sdk/schedules";
-import { AppError, log } from "@argentic/chest-app";
+import { AppError, log, sameOrigin } from "@argentic/chest-app";
 import { catalogue, format, formatDate, localeOf } from "./i18n/index.ts";
 import { can } from "./lib/access.ts";
 import { db } from "./lib/db.ts";
 import { leave } from "./lib/editing.ts";
+import { boundaryOf, parseMultipart } from "./lib/multipart.ts";
 import { attachment, exportZip, pageHtml, pageMarkdown } from "./lib/export.ts";
 import { fileOf } from "./lib/files.ts";
 import { importFiles } from "./lib/importer.ts";
 import { handlers, seen } from "./lib/lifecycle.ts";
-import { limits } from "./lib/model.ts";
 import { origin } from "./lib/origin.ts";
 import { page } from "./lib/pages.ts";
 import { nameOf, people } from "./lib/people.ts";
@@ -51,20 +51,6 @@ export async function chestSchedules(request: Request): Promise<Response> {
   });
 }
 
-// A request the page itself sent: the browser says so (Sec-Fetch-Site),
-// or, for an older one, its Origin is this host (the rule of the actions).
-// A beacon sent while the tab closes carries the same headers.
-export function sameOrigin(request: Request): boolean {
-  const site = request.headers.get("sec-fetch-site");
-  if (site) return site === "same-origin";
-  const from = request.headers.get("origin");
-  try {
-    return from !== null && new URL(from).host === request.headers.get("host");
-  } catch {
-    return false;
-  }
-}
-
 const done = (status: number) => new Response(null, { status, headers: { "Cache-Control": "no-store" } });
 
 // POST /chest/api/pages/<id>/leave: the editor closing without "Save" or
@@ -94,28 +80,30 @@ export async function leaveEditor(request: Request, actor: Member, pageId: strin
   }
 }
 
-// POST /chest/api/import: the import's files, sent by the page as a form,
-// read in memory (the Chest gives no disk), bounded before they are read.
-// Answers what was imported, or a code and its sentence.
-export async function importUpload(request: Request, actor: Member): Promise<Response> {
+// POST /chest/api/import: the import's files, sent by the page as a form
+// (rawRoute in src/app.tsx: same-origin, bounded while read, held once).
+// The form is read from those bytes without copying them
+// (src/lib/multipart.ts), the zips inside opened one entry at a time
+// (src/lib/zip.ts). Answers what was imported, or a code and its sentence.
+export async function importUpload(body: Uint8Array, contentType: string | undefined, actor: Member): Promise<Response> {
   const t = catalogue(localeOf(actor.language));
-  const answer = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+  const answer = (value: unknown, status = 200) => Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
   const refuse = (error: keyof typeof t.errors, status: number, values?: Record<string, string | number>) => answer({ error, message: format(t.errors[error], values) }, status);
-  if (!sameOrigin(request)) return refuse("forbidden", 403);
   if (!can(actor, "import")) return refuse("forbidden", 403);
-  if (Number(request.headers.get("content-length") ?? "0") > limits.importBytes + (1 << 20)) return refuse("file_too_large", 413);
   try {
-    const form = await request.formData();
-    const sent = [];
-    for (const entry of form.getAll("files")) {
-      if (typeof entry === "string") continue;
-      sent.push({ name: entry.name, data: new Uint8Array(await entry.arrayBuffer()) });
-    }
+    const boundary = boundaryOf(contentType);
+    const parts = boundary ? parseMultipart(body, boundary) : null;
+    if (!parts) return refuse("import_invalid", 400);
+    const sent = parts.filter(p => p.name === "files" && p.fileName !== null).map(p => ({ name: p.fileName!, data: p.data }));
     if (sent.length === 0) return refuse("import_empty", 400);
-    const space = form.get("space");
-    const name = form.get("name");
+    const field = (name: string) => {
+      const part = parts.find(p => p.name === name && p.fileName === null);
+      return part ? new TextDecoder().decode(part.data) : null;
+    };
+    const space = field("space");
+    const name = field("name");
     const result = await importFiles(db(), actor, {
-      ...(typeof space === "string" && space ? { spaceId: space } : { spaceName: typeof name === "string" && name.trim() ? name : t.importer.defaultName }),
+      ...(space ? { spaceId: space } : { spaceName: name && name.trim() ? name : t.importer.defaultName }),
       files: sent,
       words: { untitled: t.importer.untitled, attachments: t.importer.attachments },
     });
@@ -167,7 +155,7 @@ export async function exportPage(request: Request, actor: Member, pageId: string
     }
     if (kind === "zip") {
       const out = await exportZip(sql, actor, { pageId }, base, { missing: t.page.missing });
-      return download(out.data, out.name, "application/zip");
+      return download(out.stream, out.name, "application/zip");
     }
     const out = await pageMarkdown(sql, actor, pageId, base, { missing: t.page.missing });
     return download(out.text, out.name, "text/markdown; charset=utf-8");
@@ -183,7 +171,7 @@ export async function exportSpace(request: Request, actor: Member, spaceId: stri
   try {
     const t = catalogue(localeOf(actor.language));
     const out = await exportZip(db(), actor, { spaceId }, origin(request), { missing: t.page.missing });
-    return download(out.data, out.name, "application/zip");
+    return download(out.stream, out.name, "application/zip");
   } catch (error) {
     if (error instanceof AppError) return done(404);
     throw error;
@@ -199,7 +187,7 @@ export async function exportAll(request: Request, actor: Member): Promise<Respon
     const t = catalogue(locale);
     const name = `${t.tool.name} ${formatDate(new Date(), locale, { year: "numeric", month: "2-digit", day: "2-digit", timeZone: actor.timeZone }).replace(/\//gu, "-")}`;
     const out = await exportZip(db(), actor, { all: name }, origin(request), { missing: t.page.missing });
-    return download(out.data, out.name, "application/zip");
+    return download(out.stream, out.name, "application/zip");
   } catch (error) {
     if (error instanceof AppError) return done(404);
     throw error;

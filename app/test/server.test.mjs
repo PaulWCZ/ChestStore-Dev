@@ -288,6 +288,10 @@ test("rawRoute: the body counted while read, 413 past the cap (chunked too), 403
   assert.equal(request.headers.get("content-length"), null);
   assert.equal((await app.fetch(request)).status, 413);
   assert.equal((await post("/chest/import", "x", { "sec-fetch-site": "cross-site" })).status, 403);
+  // A Content-Length is the buffer's size: a body longer than it is refused.
+  const longer = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode("x".repeat(30))); controller.close(); } });
+  const lying = withMember(new Request(url("/chest/import"), { method: "POST", body: longer, duplex: "half", headers: { "sec-fetch-site": "same-origin", "content-length": "10" } }), member);
+  assert.equal((await app.fetch(lying)).status, 400);
 });
 
 test("zipStream: a zip any reader opens, written as it is read", async () => {

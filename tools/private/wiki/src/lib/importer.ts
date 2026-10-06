@@ -7,13 +7,13 @@ import { mapDoc, normalize, type Doc, type DocNode } from "./doc.ts";
 import { AppError } from "./errors.ts";
 import { attach, folderOf, imageTypes } from "./files.ts";
 import { fromDocx } from "./docx.ts";
-import { classMarks, confluencePage, confluenceTree, find, htmlToDoc, parseHtml, textOf } from "./html.ts";
+import { classMarks, confluencePage, confluenceTree, find, htmlToDoc, parseHtml, textOf, type ConfluencePage } from "./html.ts";
 import { fromMarkdown, takeTitle } from "./markdown.ts";
 import { clean, limits } from "./model.ts";
 import { writeContent } from "./pages.ts";
 import { between } from "./position.ts";
 import { createSpace, space } from "./spaces.ts";
-import { readZip, type ZipEntry } from "./zip.ts";
+import { readZip, zipBudget, type ZipBudget, type ZipEntry } from "./zip.ts";
 
 // Imports: Markdown files, or a zip of them — a Notion export ("Markdown &
 // CSV"), an Obsidian vault, any folder of .md files; a Confluence space
@@ -54,17 +54,19 @@ const stripId = (segment: string): string => segment.replace(/\s+[0-9a-f]{32}(?=
 const keyOf = (path: string): string => path.split("/").map(stripId).join("/").replace(pageExtensions, "").toLowerCase();
 const titleOf = (path: string): string => stripId(path.split("/").at(-1)!.replace(pageExtensions, "")).replace(/[_]+/gu, " ").trim();
 
-// expand opens the zips (and the zips a Notion export puts in its zip).
-function expand(files: ImportFile[]): { entries: ZipEntry[]; skipped: string[] } {
+// expand opens the zips (and the zips a Notion export puts in its zip):
+// their directories only — an entry is inflated when it is read, and one
+// budget (zipLimits.total) covers the archives and those inside them.
+function expand(files: ImportFile[], budget: ZipBudget): { entries: ZipEntry[]; skipped: string[] } {
   const entries: ZipEntry[] = [];
   const skipped: string[] = [];
   for (const f of files) {
     if (/\.zip$/iu.test(f.name)) {
-      for (const e of readZip(f.data)) {
-        if (/\.zip$/iu.test(e.name)) entries.push(...readZip(e.data));
+      for (const e of readZip(f.data, undefined, budget)) {
+        if (/\.zip$/iu.test(e.name)) entries.push(...readZip(e.data, undefined, budget));
         else entries.push(e);
       }
-    } else entries.push({ name: f.name.split(/[\\/]/u).at(-1) ?? f.name, data: f.data });
+    } else entries.push({ name: f.name.split(/[\\/]/u).at(-1) ?? f.name, size: f.data.byteLength, data: f.data });
   }
   const kept: ZipEntry[] = [];
   for (const e of entries) {
@@ -97,69 +99,90 @@ function resolve(from: string, href: string): string | null {
 // without showing them (Confluence), linked at its end.
 // `at`: when the page was last changed where it comes from (Confluence
 // says it): its version keeps that date, so "Recently updated" is not
-// flooded with a migration.
-type Planned = { key: string; path: string | null; title: string; parent: string | null; doc: Doc | null; order: number; attachments?: { href: string; name: string }[]; id?: string; at?: Date };
+// flooded with a migration. `content` reads the page's document when its
+// turn comes (its file inflated and parsed again then): a 500-page import
+// never holds every page's document at once.
+type Planned = { key: string; path: string | null; title: string; parent: string | null; content: (() => Doc) | null; order: number; attachments?: { href: string; name: string }[]; id?: string; at?: Date };
 
 // The pages of HTML files: a Confluence space export (its pages, its tree
 // from index.html or the breadcrumbs), or web pages of their own (a Google
-// Docs download…), each a page whose folder is its parent.
+// Docs download…), each a page whose folder is its parent. One file at a
+// time: inflated, parsed, turned into the wiki's document, dropped — a
+// 500-page export never holds more than one page's DOM.
+type Read = { entry: ZipEntry; confluence: Omit<ConfluencePage, "content"> | null; index: ReturnType<typeof confluenceTree>; plain: { title: string } | null };
 function htmlPages(entries: ZipEntry[], skipped: string[]): Planned[] {
-  const decoded = entries.filter(e => htmlFile.test(e.name)).flatMap(e => {
-    if (e.data.byteLength > limits.importHtml) {
-      skipped.push(e.name.split("/").at(-1)!);
-      return [];
-    }
-    return [{ entry: e, root: parseHtml(new TextDecoder().decode(e.data)) }];
-  });
-  const confluence = new Map(decoded.map(d => [d.entry.name, confluencePage(d.root)]));
-  const isConfluence = [...confluence.values()].some(Boolean);
   // Confluence's page ids, from its file names ("Title_12345.html", "12345.html").
   const byPageId = new Map<string, string>();
-  for (const d of decoded) {
-    const m = /(?:^|[_/])(\d{3,})\.html?$/iu.exec(d.entry.name);
-    if (m) byPageId.set(m[1]!, d.entry.name);
+  for (const e of entries.filter(x => htmlFile.test(x.name))) {
+    const m = /(?:^|[_/])(\d{3,})\.html?$/iu.exec(e.name);
+    if (m) byPageId.set(m[1]!, e.name);
   }
-  const tree = new Map<string, { parent: string | null; order: number }>();
-  // The export's index (the space's details and its tree) is not a page.
-  const indexes = new Set<string>();
-  if (isConfluence) {
-    for (const d of decoded.filter(x => /(^|\/)index\.html?$/iu.test(x.entry.name))) {
-      const items = confluenceTree(d.root);
-      if (items) indexes.add(d.entry.name);
-      for (const [order, item] of (items ?? []).entries()) {
-        const file = resolve(d.entry.name, item.file);
-        if (file) tree.set(file, { parent: item.parent === null ? null : resolve(d.entry.name, item.parent), order });
-      }
-    }
-  }
-  const out: Planned[] = [];
-  for (const d of decoded) {
-    const name = d.entry.name;
-    const page = confluence.get(name);
-    if (isConfluence && (!page || indexes.has(name))) continue; // index.html and other furniture of the export
-    const relative = (id: string) => {
+  // A page's document from its file, read again (its DOM dropped after).
+  const relativeTo = (name: string) => (id: string) => {
       const file = byPageId.get(id);
       if (!file) return null;
       const from = name.split("/").slice(0, -1);
       const to = file.split("/");
       return from.every((part, i) => to[i] === part) ? to.slice(from.length).join("/") : null;
-    };
+  };
+  const plainDoc = (root: ReturnType<typeof parseHtml>) => takeTitle(htmlToDoc(find(root, x => x.name === "body") ?? root, { classes: classMarks(root) }));
+  const contentOf = (e: ZipEntry, confluence: boolean) => (): Doc => {
+    const root = parseHtml(new TextDecoder().decode(e.data));
+    const page = confluence ? confluencePage(root) : null;
+    return page ? htmlToDoc(page.content, { pageFile: relativeTo(e.name) }) : plainDoc(root).doc;
+  };
+  const read: Read[] = [];
+  for (const e of entries.filter(x => htmlFile.test(x.name))) {
+    if (e.size > limits.importHtml) {
+      skipped.push(e.name.split("/").at(-1)!);
+      continue;
+    }
+    const name = e.name;
+    const root = parseHtml(new TextDecoder().decode(e.data));
+    const page = confluencePage(root);
+    const index = /(^|\/)index\.html?$/iu.test(name) ? confluenceTree(root) : null;
+    let plain: Read["plain"] = null;
+    let confluence: Read["confluence"] = null;
+    // Only what the plan needs is kept: the DOM goes with this turn.
+    if (page) confluence = { title: page.title, crumbs: page.crumbs, attachments: page.attachments, updated: page.updated };
+    else {
+      const lead = plainDoc(root);
+      const named = find(root, x => x.name === "title");
+      plain = { title: lead.title ?? (named ? textOf(named).replace(/\s+/gu, " ").trim() : "") ?? "" };
+    }
+    read.push({ entry: e, confluence, index, plain });
+  }
+  const confluence = new Map(read.filter(r => r.confluence).map(r => [r.entry.name, r.confluence!]));
+  const isConfluence = confluence.size > 0;
+  const tree = new Map<string, { parent: string | null; order: number }>();
+  // The export's index (the space's details and its tree) is not a page.
+  const indexes = new Set<string>();
+  if (isConfluence) {
+    for (const r of read.filter(x => x.index)) {
+      indexes.add(r.entry.name);
+      for (const [order, item] of r.index!.entries()) {
+        const file = resolve(r.entry.name, item.file);
+        if (file) tree.set(file, { parent: item.parent === null ? null : resolve(r.entry.name, item.parent), order });
+      }
+    }
+  }
+  const out: Planned[] = [];
+  for (const r of read) {
+    const name = r.entry.name;
+    const page = r.confluence;
+    if (isConfluence && (!page || indexes.has(name))) continue; // index.html and other furniture of the export
     if (page) {
       const placed = tree.get(name);
       // Without the index: the last breadcrumb that is a page of the export.
       const crumb = [...page.crumbs].reverse().map(c => resolve(name, c)).find(c => c !== null && c !== name && confluence.get(c));
       const above = placed ? placed.parent : crumb ?? null;
       const parent = above && confluence.get(above) ? keyOf(above) : null;
-      out.push({ key: keyOf(name), path: name, title: page.title || titleOf(name), parent, doc: htmlToDoc(page.content, { pageFile: relative }), order: placed?.order ?? Number.MAX_SAFE_INTEGER, attachments: page.attachments, ...(page.updated ? { at: page.updated } : {}) });
+      out.push({ key: keyOf(name), path: name, title: page.title || titleOf(name), parent, content: contentOf(r.entry, true), order: placed?.order ?? Number.MAX_SAFE_INTEGER, attachments: page.attachments, ...(page.updated ? { at: page.updated } : {}) });
       continue;
     }
-    const body = find(d.root, e => e.name === "body") ?? d.root;
-    const lead = takeTitle(htmlToDoc(body, { classes: classMarks(d.root) }));
-    const named = find(d.root, e => e.name === "title");
-    const title = lead.title ?? (named ? textOf(named).replace(/\s+/gu, " ").trim() : "") ?? "";
     const key = keyOf(name);
     const parts = key.split("/");
-    out.push({ key, path: name, title: title || titleOf(name), parent: parts.length > 1 ? parts.slice(0, -1).join("/") : null, doc: lead.doc, order: 0 });
+    out.push({ key, path: name, title: r.plain!.title || titleOf(name), parent: parts.length > 1 ? parts.slice(0, -1).join("/") : null, content: contentOf(r.entry, false), order: 0 });
   }
   return out;
 }
@@ -169,7 +192,8 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
   const target = input.spaceId ? await space(sql, actor, input.spaceId, "write") : null;
   if (!target && typeof input.spaceName !== "string") throw new AppError("invalid");
   if (input.files.reduce((n, f) => n + f.data.byteLength, 0) > limits.importBytes) throw new AppError("file_too_large");
-  const { entries, skipped } = expand(input.files);
+  const budget = zipBudget();
+  const { entries, skipped } = expand(input.files, budget);
   // Word documents are pages when nothing else is (in a Notion export, a
   // .docx is a file a page links to): each becomes a page, its pictures
   // files of the import.
@@ -179,7 +203,7 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
       entries.splice(entries.indexOf(e), 1);
       let read: ReturnType<typeof fromDocx>;
       try {
-        read = fromDocx(e.name, e.data);
+        read = fromDocx(e.name, e.data, budget);
       } catch (error) {
         if (!(error instanceof AppError)) throw error;
         skipped.push(e.name.split("/").at(-1)!);
@@ -189,7 +213,7 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
       const lead = read.title === null ? takeTitle(read.doc) : { title: read.title, doc: read.doc };
       const key = e.name.replace(/\.docx$/iu, "").split("/").map(stripId).join("/").toLowerCase();
       const parts = key.split("/");
-      docx.push({ key, path: e.name, title: lead.title ?? titleOf(e.name.replace(/\.docx$/iu, ".md")), parent: parts.length > 1 ? parts.slice(0, -1).join("/") : null, doc: lead.doc, order: 0 });
+      docx.push({ key, path: e.name, title: lead.title ?? titleOf(e.name.replace(/\.docx$/iu, ".md")), parent: parts.length > 1 ? parts.slice(0, -1).join("/") : null, content: () => lead.doc, order: 0 });
     }
   }
   const byPath = new Map(entries.map(e => [e.name, e]));
@@ -200,17 +224,15 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
   const planned = new Map<string, Planned>();
   for (const p of [...docx, ...htmlPages(entries, skipped)]) planned.set(p.key, p);
   for (const e of entries.filter(x => pageExtensions.test(x.name) && !htmlFile.test(x.name))) {
-    if (e.data.byteLength > limits.importFile) {
+    if (e.size > limits.importFile) {
       skipped.push(e.name.split("/").at(-1)!);
       continue;
     }
     const key = keyOf(e.name);
     const parts = key.split("/");
     const parent = parts.length > 1 ? parts.slice(0, -1).join("/") : null;
-    let doc = fromMarkdown(new TextDecoder().decode(e.data));
-    const lead = takeTitle(doc);
-    doc = lead.doc;
-    planned.set(key, { key, path: e.name, title: lead.title ?? titleOf(e.name), parent, doc, order: 0 });
+    const read = () => takeTitle(fromMarkdown(new TextDecoder().decode(e.data)));
+    planned.set(key, { key, path: e.name, title: read().title ?? titleOf(e.name), parent, content: () => read().doc, order: 0 });
   }
   // The folders above them. A lone top folder (the zip's own name) is not a page.
   for (const p of [...planned.values()]) {
@@ -219,7 +241,7 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
     let depth = raw.length - 1;
     while (parent !== null && !planned.has(parent)) {
       const parts = parent.split("/");
-      planned.set(parent, { key: parent, path: null, title: stripId(raw[depth - 1] ?? parts.at(-1)!).trim(), parent: parts.length > 1 ? parts.slice(0, -1).join("/") : null, doc: null, order: 0 });
+      planned.set(parent, { key: parent, path: null, title: stripId(raw[depth - 1] ?? parts.at(-1)!).trim(), parent: parts.length > 1 ? parts.slice(0, -1).join("/") : null, content: null, order: 0 });
       parent = parts.length > 1 ? parts.slice(0, -1).join("/") : null;
       depth--;
     }
@@ -275,7 +297,7 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
       }
       // Then their content, with links and files made local.
       for (const p of order) {
-        const source = p.doc ?? { type: "doc" as const, content: [{ type: "paragraph" }] };
+        const source = p.content?.() ?? { type: "doc" as const, content: [{ type: "paragraph" }] };
         // The files a page lists without showing them (Confluence's
         // attachments): linked under a heading at its end.
         const names = new Map<string, string>();
@@ -313,8 +335,9 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
           if (!entry) return null;
           const ext = extOf(entry.name);
           const type = fileTypes[ext] ?? "application/octet-stream";
-          if (entry.data.byteLength > limits.fileSize) return null;
+          if (entry.size > limits.fileSize) return null;
           const object = `${folderOf(p.id!)}${randomBytes(10).toString("hex")}.${ext || "bin"}`;
+          // Read (inflated) now, sent, then dropped: one file at a time.
           try {
             await chestFiles.put(object, entry.data, type);
           } catch (error) {
@@ -323,7 +346,7 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
           }
           uploaded.push(object);
           used.add(entry.name);
-          const saved = await attach(tx, actor, p.id, { object, fileName: names.get(path) ?? stripId(entry.name.split("/").at(-1)!), type, size: entry.data.byteLength });
+          const saved = await attach(tx, actor, p.id, { object, fileName: names.get(path) ?? stripId(entry.name.split("/").at(-1)!), type, size: entry.size });
           files++;
           return saved.id;
         };

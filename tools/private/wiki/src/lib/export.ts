@@ -9,7 +9,7 @@ import { toMarkdown } from "./markdown.ts";
 import { page, titles, tree, type TreeNode } from "./pages.ts";
 import { escapeHtml, render } from "./render.ts";
 import { listSpaces, space } from "./spaces.ts";
-import { writeZip } from "./zip.ts";
+import { zipStream, type ZipEntry } from "@argentic/chest-app";
 
 // Exports: nothing written in the wiki is locked in. A page as Markdown or
 // as a web page of its own (its images inside, ready to print or archive);
@@ -18,7 +18,11 @@ import { writeZip } from "./zip.ts";
 // links between the files; other links point back to the wiki.
 
 const embedLimit = 20 << 20;
-const zipFilesLimit = 200 << 20;
+// A zip is written as it is read (the package's zipStream): its files are
+// fetched from the Chest one at a time, never the whole archive in memory.
+// Its size is bounded by the zip format without ZIP64 (4 GiB): the files
+// stop at 3 GiB, pages link to the rest on the wiki.
+const zipFilesLimit = 3 * 1024 ** 3;
 
 // A title as a file name on any system.
 export function fileNameOf(title: string): string {
@@ -122,8 +126,11 @@ ${html}
 }
 
 // The zip of a branch (a page and its subpages), of a whole space, or of
-// every space the actor sees (a folder each: a backup, or leaving).
-export async function exportZip(sql: Query, actor: Member | null, what: { pageId?: unknown; spaceId?: unknown; all?: string }, origin: string, words: Words): Promise<{ name: string; data: Uint8Array<ArrayBuffer> }> {
+// every space the actor sees (a folder each: a backup, or leaving). What
+// may be exported is decided before the answer starts (a page or space the
+// actor cannot see is not_found); the archive itself is a stream, a page
+// and its files at a time.
+export async function exportZip(sql: Query, actor: Member | null, what: { pageId?: unknown; spaceId?: unknown; all?: string }, origin: string, words: Words): Promise<{ name: string; stream: ReadableStream<Uint8Array> }> {
   let nodes: TreeNode[];
   let name: string;
   // Every space: each its own top folder.
@@ -179,31 +186,37 @@ export async function exportZip(sql: Query, actor: Member | null, what: { pageId
     while (k < a.length && k < b.length - 1 && a[k] === b[k]) k++;
     return [...a.slice(k).map(() => ".."), ...b.slice(k)].map(encodeURIComponent).join("/");
   };
-  const entries: { name: string; data: Uint8Array | string }[] = [];
   const included = new Map<string, string>();
-  let total = 0;
-  for (const n of nodes) {
-    const p = await page(sql, actor, n.id);
-    const known = await titles(sql, actor, p.doc);
-    const own = paths.get(n.id)! + ".md";
-    for (const fileId of references(p.doc).files) {
-      if (included.has(fileId)) continue;
-      const f = await fileOf(sql, actor, fileId).catch(() => null);
-      if (!f || total + f.size > zipFilesLimit) continue;
-      const data = await fileData(f);
-      if (!data) continue;
-      total += data.byteLength;
-      const path = `files/${f.id}-${fileNameOf(f.fileName)}`;
-      included.set(fileId, path);
-      entries.push({ name: path, data });
+  async function* entries(): AsyncGenerator<ZipEntry> {
+    let total = 0;
+    for (const n of nodes) {
+      // A page deleted or moved out of reach since: left out.
+      const p = await page(sql, actor, n.id).catch(error => {
+        if (error instanceof AppError) return null;
+        throw error;
+      });
+      if (!p) continue;
+      const known = await titles(sql, actor, p.doc);
+      const own = paths.get(n.id)! + ".md";
+      for (const fileId of references(p.doc).files) {
+        if (included.has(fileId)) continue;
+        const f = await fileOf(sql, actor, fileId).catch(() => null);
+        if (!f || total + f.size > zipFilesLimit) continue;
+        const data = await fileData(f);
+        if (!data) continue;
+        total += data.byteLength;
+        const path = `files/${f.id}-${fileNameOf(f.fileName)}`;
+        included.set(fileId, path);
+        yield { name: path, data };
+      }
+      const text = `# ${p.title}\n\n` + toMarkdown(p.doc, {
+        title: i => known.get(i),
+        pageHref: (i, anchor) => (paths.has(i) ? relative(own, paths.get(i)! + ".md") + anchor : `${origin}/chest/pages/${i}${anchor}`),
+        fileHref: i => (included.has(i) ? relative(own, included.get(i)!) : `${origin}/chest/files/${i}`),
+        missing: words.missing,
+      });
+      yield { name: own, data: text };
     }
-    const text = `# ${p.title}\n\n` + toMarkdown(p.doc, {
-      title: i => known.get(i),
-      pageHref: (i, anchor) => (paths.has(i) ? relative(own, paths.get(i)! + ".md") + anchor : `${origin}/chest/pages/${i}${anchor}`),
-      fileHref: i => (included.has(i) ? relative(own, included.get(i)!) : `${origin}/chest/files/${i}`),
-      missing: words.missing,
-    });
-    entries.push({ name: own, data: text });
   }
-  return { name: name + ".zip", data: writeZip(entries) };
+  return { name: name + ".zip", stream: zipStream(entries()) };
 }

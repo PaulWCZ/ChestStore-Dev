@@ -16,7 +16,7 @@ import { search, stopWords, units, words } from "../src/lib/search.ts";
 import * as spaces from "../src/lib/spaces.ts";
 import { deleteSynonyms, listSynonyms, parseTerms, saveSynonyms, synonymTerms } from "../src/lib/synonyms.ts";
 import * as tell from "../src/lib/tell.ts";
-import { writeZip } from "../src/lib/zip.ts";
+import { writeZip } from "./support/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, tom } from "./support/members.ts";
