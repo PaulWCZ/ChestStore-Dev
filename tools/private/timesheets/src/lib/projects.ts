@@ -348,7 +348,7 @@ async function changeRate(tx: Query, actor: Member, projectId: string, rateCents
     const [any] = await tx`select 1 from entries where project_id = ${projectId} and deleted_at is null limit 1`;
     day = any ? now : origin;
   } else day = from === origin ? origin : checkDay(from, now);
-  if (isLocked(await settings(tx), day)) throw new AppError("rate_locked");
+  if (isLocked(await settings(tx, { share: true }), day)) throw new AppError("rate_locked");
   await tx`
     insert into rates (kind, project_id, from_day, rate_cents, set_by) values ('bill', ${projectId}, ${day}, ${rateCents}, ${actor.id})
     on conflict (kind, coalesce(project_id, 0), coalesce(member_id, ''), from_day) do update set rate_cents = excluded.rate_cents, set_by = excluded.set_by, set_at = now()`;

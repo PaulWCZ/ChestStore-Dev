@@ -7,7 +7,7 @@ import type { Query } from "./db.ts";
 import { cents, day as checkDay, id, limits, memberPattern } from "../shared/model.ts";
 import { transaction } from "./tx.ts";
 import type { RateLock } from "../shared/rate-day.ts";
-import { addDays } from "../shared/days.ts";
+import { addDays, isDay } from "../shared/days.ts";
 import { format, formatDay, type Catalogue, type Locale } from "../i18n/index.ts";
 import { isLocked, settings } from "./settings.ts";
 
@@ -31,10 +31,15 @@ export const origin = "2000-01-01";
 // The rates of an entry of alias `e`, in SQL.
 export const billRateOf = (sql: Query) => sql`(case when e.rates_fixed then e.bill_rate_cents else bill_rate(e.member_id, e.project_id, e.day) end)`;
 export const costRateOf = (sql: Query) => sql`(case when e.rates_fixed then e.cost_rate_cents else cost_rate(e.member_id, e.day) end)`;
-// Money in cents of a set of entries (a numeric, as text): billable minutes
-// at their rate; the cost of all minutes at their person's cost.
-export const revenueOf = (sql: Query) => sql`coalesce(sum(case when e.billable then e.minutes::numeric * coalesce(${billRateOf(sql)}, 0) / 60 else 0 end), 0)::text`;
-export const costOf = (sql: Query) => sql`coalesce(sum(e.minutes::numeric * coalesce(${costRateOf(sql)}, 0) / 60), 0)::text`;
+// Money in cents of a set of entries (as text): billable minutes at their
+// rate; the cost of all minutes at their person's cost. One rounding rule
+// everywhere: each entry's amount is rounded to the cent (half up), then
+// the amounts are added — so a report's total, the CSV's rows (entryAmount)
+// and the lines handed to Quotes always add up to the same cents.
+export const revenueOf = (sql: Query) => sql`coalesce(sum(case when e.billable then round(e.minutes::numeric * coalesce(${billRateOf(sql)}, 0) / 60) else 0 end), 0)::text`;
+export const costOf = (sql: Query) => sql`coalesce(sum(round(e.minutes::numeric * coalesce(${costRateOf(sql)}, 0) / 60)), 0)::text`;
+// The same rule in JavaScript: one entry's amount in cents.
+export const entryAmount = (minutes: number, rateCents: number): number => Math.round((minutes * rateCents) / 60);
 
 function target(input: { kind?: unknown; projectId?: unknown; memberId?: unknown }): RateTarget {
   const kind = input.kind;
@@ -83,7 +88,7 @@ export async function setRate(sql: Query, actor: Member | null, input: { kind?: 
       const [p] = await tx`select 1 from projects where id = ${t.projectId} for update`;
       if (!p) throw new AppError("not_found");
     }
-    const s = await settings(tx);
+    const s = await settings(tx, { share: true });
     if (isLocked(s, from)) throw new AppError("rate_locked");
     const steps = await history(tx, t);
     if (steps.length === 0 && value === null) return steps;
@@ -113,15 +118,18 @@ export async function mirror(tx: Query, projectId: string): Promise<void> {
 export async function removeStep(sql: Query, actor: Member | null, input: { kind?: unknown; projectId?: unknown; memberId?: unknown; from?: unknown }): Promise<RateStep[]> {
   if (!actor || !can(actor, "rates")) throw new AppError("forbidden");
   const t = target(input);
-  if (typeof input.from !== "string") throw new AppError("invalid");
+  if (!isDay(input.from)) throw new AppError("invalid");
   const from = input.from;
-  return transaction(sql, async tx => {
-    if (isLocked(await settings(tx), from)) throw new AppError("rate_locked");
+  const steps = await transaction(sql, async tx => {
+    if (isLocked(await settings(tx, { share: true }), from)) throw new AppError("rate_locked");
     const done = await tx`delete from rates where ${where(tx, t)} and from_day = ${from}`;
     if (done.count === 0) throw new AppError("not_found");
     if (t.kind === "bill" && t.projectId !== null && t.memberId === null) await mirror(tx, t.projectId);
     return history(tx, t);
   });
+  // A money budget follows the project's amounts, as when a rate is set.
+  if (t.kind === "bill" && t.projectId !== null) await checkBudgets(sql, [t.projectId]);
+  return steps;
 }
 
 // The histories of everyone's usual and cost rates (the People page), and

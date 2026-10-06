@@ -13,7 +13,7 @@ import * as settings from "./lib/settings.ts";
 import * as timer from "./lib/timer.ts";
 import * as weeks from "./lib/weeks.ts";
 import { catalogue, localeOf } from "./i18n/index.ts";
-import { parseHours } from "./shared/amounts.ts";
+import { parseHours, withoutCurrency } from "./shared/amounts.ts";
 import { parseDuration } from "./shared/duration.ts";
 import { maxBytes, type DateOrder } from "./shared/import-formats.ts";
 import { limits } from "./shared/model.ts";
@@ -56,9 +56,11 @@ const hours: Field<number | null, string | null> = {
 };
 // An amount of money as typed ("80", "80,50", "1 234.50"), in cents
 // (field.money); "" or nothing: none.
+// A currency sign or code typed beside it is set aside ("€80", "80 €");
+// "1,200" alone is amount_ambiguous ("write 1200 or 1,200.00").
 const money = (max: number): Field<number | null, string | null> => {
   const cents = field.money({ min: 0, max });
-  return { read: value => (value === undefined || value === null || value === "" ? null : cents.read(value)) };
+  return { read: value => (value === undefined || value === null || value === "" ? null : cents.read(typeof value === "string" ? withoutCurrency(value) : value)) };
 };
 const rateMoney = money(limits.rateCents);
 const budgetMoney = money(limits.budgetCents);
