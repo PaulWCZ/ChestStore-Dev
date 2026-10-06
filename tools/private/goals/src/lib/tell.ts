@@ -3,7 +3,6 @@ import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import type { Query } from "./db.ts";
 import { format, plural } from "../i18n/index.ts";
-import { email } from "./mail.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { orphans } from "./orphans.ts";
 import { people as lookup } from "./people.ts";
@@ -57,9 +56,6 @@ export async function weeklyReminder(sql: Query, now: Date): Promise<number> {
     if (n === 0) continue;
     const titles = await waitingTitles(sql, owner, clock);
     await notify([owner], (t, locale) => ({ title: plural(t.bell.reminder, n, locale), body: cut(titles.join(" · "), 280) }), { path: "/chest", key: "checkin" });
-    // And by email, unless they turned it off; the day in the key makes a
-    // run delivered twice send one email.
-    await email(sql, [owner], (t, locale) => ({ subject: plural(t.bell.reminder, n, locale), lines: [t.mail.reminderIntro, "", ...titles.map(x => `- ${x}`)] }), { path: "/chest", key: `reminder:${clock.today}` });
     told++;
   }
   return told;

@@ -4,10 +4,10 @@ import { Bell, Check } from "../components/icons.tsx";
 import type { Catalogue } from "../i18n/index.ts";
 import { format, plural } from "../shared/format.ts";
 
-type Words = Pick<Catalogue["chase"], "remind" | "remindName" | "reminded" | "remindedToast" | "remindedBell">;
+type Words = Pick<Catalogue["chase"], "remind" | "remindName" | "reminded" | "remindedToast">;
 
 // "Remind" beside one person of the waiting list (src/pages/chase-list.tsx):
-// one bell item and one email, once a day whoever asks; never an Undo (it
+// one notification, once a day whoever asks; never an Undo (it
 // left). Its props are one person's: the list itself is the server's.
 export function Remind({ owner, name, reminded, t }: { owner: string; name: string; reminded: boolean; t: Words }) {
   const [done, setDone] = useState(false);
@@ -20,8 +20,7 @@ export function Remind({ owner, name, reminded, t }: { owner: string; name: stri
     setPending(false);
     if (!r.ok && r.error !== "already_reminded") return toast({ text: r.message, tone: "error" });
     setDone(true);
-    // "By email" only when one left.
-    toast({ id: `remind-${owner}`, text: r.ok ? format(r.value.emailed ? t.remindedToast : t.remindedBell, { name }) : r.message, sent: true });
+    toast({ id: `remind-${owner}`, text: r.ok ? format(t.remindedToast, { name }) : r.message, sent: true });
   }
   return <button type="button" className="button quiet small" disabled={pending} aria-busy={pending} aria-label={format(t.remindName, { name })} onClick={() => void remind()}><Bell />{t.remind}</button>;
 }

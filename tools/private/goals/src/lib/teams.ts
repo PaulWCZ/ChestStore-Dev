@@ -15,8 +15,8 @@ export type Team = { id: string; name: string; groupId: string | null; archived:
 export type Group = { id: string; name: string; members: string[] };
 
 // The Chest's groups, each with its members who have the tool. With the
-// "groups" permission (Proposal (studio): "groups": "read", as News, Wiki
-// and Polls) every group of the Chest — Sales, Tech, the warehouse — even
+// capability "members.groups" (Proposal (studio), announced for 0.5, as
+// News, Wiki and Polls) every group of the Chest — Sales, Tech, the warehouse — even
 // when Goals is open to everyone; without it, only the groups that give
 // Goals (a company that gives it to everyone then has none). [] when the
 // Chest cannot say. Kept a minute (the SDK's advice), per Chest API.
@@ -32,11 +32,10 @@ export async function chestGroups(): Promise<Group[]> {
       const who: string[] = [];
       let after: string | undefined;
       do {
-        const page = await members.groups.members(g.id, { limit: 1000, ...(after ? { after } : {}) });
-        if (!page) break;
-        who.push(...page.members);
+        const page = await members.list({ group: g.id, limit: 500, ...(after ? { after } : {}) });
+        who.push(...page.members.map(m => m.id));
         after = page.next ?? undefined;
-      } while (after && who.length < 10_000);
+      } while (after);
       groups.push({ id: g.id, name: g.name, members: who });
     }
   } catch (error) {

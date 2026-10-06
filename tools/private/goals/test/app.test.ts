@@ -144,7 +144,7 @@ test("a weekly update and its Undo, from the island; the home's waiting list fol
 
 test("cross-site requests and requests without the island's header are refused", async () => {
   assert.equal((await call(ines, "checkIn", { id: krId, value: "4", confidence: "on_track", note: "" }, { "sec-fetch-site": "cross-site" })).status, 403);
-  const bare = withMember(new Request(url("/chest/actions/setEmail"), { method: "POST", body: JSON.stringify({ on: false }), headers: { "content-type": "application/json", "sec-fetch-site": "same-origin" } }), ines);
+  const bare = withMember(new Request(url("/chest/actions/remindAll"), { method: "POST", body: JSON.stringify({}), headers: { "content-type": "application/json", "sec-fetch-site": "same-origin" } }), ines);
   assert.equal((await app(bare)).status, 403);
   assert.equal((await call(ines, "noSuchAction", {})).status, 404);
 });
@@ -186,12 +186,15 @@ test("outside /chest: Goals has no public part — a page says where it lives, i
 });
 
 test("a form sent without JavaScript is read the same way, then back to its page", async () => {
-  const request = withMember(new Request(url("/chest/actions/setEmail"), { method: "POST", body: new URLSearchParams({ on: "" }), headers: { "sec-fetch-site": "same-origin", referer: url("/chest"), host: "goals-chest.chest.test" } }), ines);
+  const [was] = await w.database.sql<{ personal: boolean }[]>`select personal from settings where id`;
+  await w.database.sql`update settings set personal = true where id`;
+  const request = withMember(new Request(url("/chest/actions/saveSettings"), { method: "POST", body: new URLSearchParams({ personal: "" }), headers: { "sec-fetch-site": "same-origin", referer: url("/chest/settings"), host: "goals-chest.chest.test" } }), camille);
   const response = await app(request);
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "/chest");
-  const [row] = await w.database.sql<{ email_off: boolean }[]>`select email_off from preferences where member_id = ${ines.id}`;
-  assert.equal(row!.email_off, true);
+  assert.equal(response.headers.get("location"), "/chest/settings");
+  const [row] = await w.database.sql<{ personal: boolean }[]>`select personal from settings where id`;
+  assert.equal(row!.personal, false);
+  await w.database.sql`update settings set personal = ${was?.personal ?? false} where id`;
 });
 
 test("a page read again with nothing changed is a 304; after a change, the page", async () => {

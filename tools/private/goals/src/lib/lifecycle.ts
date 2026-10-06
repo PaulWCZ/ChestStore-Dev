@@ -1,7 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import { seenIn } from "@argentic/chest-app/db";
 import type { Sql } from "./db.ts";
-import { forgetMemberGroups } from "./groups.ts";
 import { forgetGroups } from "./teams.ts";
 import { tellAdminsOfOrphans } from "./tell.ts";
 
@@ -37,7 +36,6 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update key_result_changes set before = 'erased' where field = 'owner' and before = ${memberId}`;
     await tx`update key_result_changes set after = 'erased' where field = 'owner' and after = ${memberId}`;
     await tx`delete from objective_viewers where member_id = ${memberId}`;
-    await tx`delete from preferences where member_id = ${memberId}`;
     await tx`delete from nudges where member_id = ${memberId}`;
     await tx`update nudges set sent_by = 'erased' where sent_by = ${memberId}`;
     await tx`delete from departed where member_id = ${memberId}`;
@@ -55,13 +53,14 @@ export function handlers(sql: Sql): events.Handlers {
       await leave(sql, event.data.id);
       await tellAdminsOfOrphans(sql);
     },
-    // The Chest's groups changed (Proposal (studio): "groups": "read"):
-    // their names and members, and each member's groups, are read again.
-    "group.changed": async () => { forgetGroups(); forgetMemberGroups(); },
-    "group.removed": async () => { forgetGroups(); forgetMemberGroups(); },
+    // The Chest's groups changed (Proposal (studio): "members.groups",
+    // "receives": ["group.*"]): their names and members are read again.
+    "group.changed": async () => { forgetGroups(); },
+    "group.removed": async () => { forgetGroups(); },
     // Someone moved in or out of a group (changed: ["groups"]), or their
-    // role changed: their groups are read again.
-    "member.updated": async () => { forgetGroups(); forgetMemberGroups(); },
+    // role changed: the teams' members are read again (a member's own
+    // groups come with each request, member(request).groups).
+    "member.updated": async () => { forgetGroups(); },
     "member.erased": async event => {
       await erase(sql, event.data.id);
       await events.acknowledgeErasure(event.data.erasure);

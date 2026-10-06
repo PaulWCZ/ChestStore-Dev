@@ -4,7 +4,6 @@ import { after, before, test } from "node:test";
 import { readerFor } from "../src/lib/groups.ts";
 import { AppError } from "../src/lib/app-error.ts";
 import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
-import { emailOn, mailPreferenceOf, mailState, setEmail } from "../src/lib/mail.ts";
 import { addComment } from "../src/lib/comments.ts";
 import { createObjective, readObjective, updateObjective } from "../src/lib/objectives.ts";
 import { cycleObjectives, keyResultChanges, viewersOf } from "../src/lib/read.ts";
@@ -12,15 +11,13 @@ import { remind, remindAll, waitingFor } from "../src/lib/remind.ts";
 import { clockAt, weeklyReminder } from "../src/lib/tell.ts";
 import { cycleCsv, checkInsCsv } from "../src/lib/export.ts";
 import { catalogue } from "../src/i18n/index.ts";
-import { quarterOf } from "../src/lib/model.ts";
-import { today } from "../src/lib/time.ts";
 import { asMember } from "./support/member.ts";
-import { camille, hugo, ines, sofia } from "./support/members.ts";
+import { camille, hugo, ines, seen, sofia } from "./support/members.ts";
 import { companyObjective, running, world, type World } from "./support/world.ts";
 
-// After the critique: who has not checked in and "Remind" (bell and
-// email), the email switch, confidential objectives, and the history of a
-// key result's changes.
+// After the critique: who has not checked in and "Remind" (a
+// notification), confidential objectives, and the history of a key
+// result's changes.
 let w: World;
 before(async () => { w = await world(); });
 after(async () => { await w.close(); });
@@ -28,7 +25,7 @@ after(async () => { await w.close(); });
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const admin = asMember(camille), inesM = asMember(ines), hugoM = asMember(hugo), sofiaM = asMember(sofia);
 
-test("the admins see who has not checked in this week, an objective's owner sees its own key results; Remind reaches the bell and the inbox once a day", async () => {
+test("the admins see who has not checked in this week, an objective's owner sees its own key results; Remind reaches the person's notifications once a day, never by a mail of the tool", async () => {
   const { sql } = w.database;
   const { cycle, sales } = await running(w);
   const company = await companyObjective(w, cycle.id);
@@ -41,11 +38,12 @@ test("the admins see who has not checked in this week, an objective's owner sees
   assert.deepEqual((await waitingFor(sql, inesM, clock)).map(r => r.title), ["Shops signed"]);
   assert.deepEqual(await waitingFor(sql, sofiaM, clock), []);
   await assert.rejects(remind(sql, sofiaM, hugo.id, clock), refused("not_found"));
-  assert.deepEqual(await remind(sql, inesM, hugo.id, clock), { emailed: true }, "the page may say: by email");
-  assert.ok(w.chest.notifications.some(n => n.member === hugo.id && n.title === "Inès Moreau asks for your weekly update" && n.key === "checkin"));
-  const mail = w.chest.outbox.find(m => m.to.includes("hugo@atelier-martin.test"))!;
-  assert.equal(mail.subject, "Inès Moreau asks for your weekly update");
-  assert.ok(mail.text.includes("Shops signed") && mail.text.includes("To stop these emails"));
+  assert.equal(await remind(sql, inesM, hugo.id, clock), null);
+  const nudge = w.chest.notifications.find(n => n.member === hugo.id && n.key === "checkin")!;
+  assert.equal(nudge.title, "Inès Moreau asks for your weekly update");
+  assert.equal(nudge.translations?.fr?.title, "Inès Moreau vous demande votre point de la semaine");
+  assert.match(nudge.body!, /Shops signed/u);
+  assert.equal(w.chest.outbox.length, 0, "the tool mails nobody: the Chest mails notifications by each member's choice");
   // Once a day, whoever asks.
   await assert.rejects(remind(sql, admin, hugo.id, clock), refused("already_reminded"));
   // Remind everyone: Hugo was reminded already, Inès is.
@@ -60,82 +58,22 @@ test("the admins see who has not checked in this week, an objective's owner sees
   await sql`delete from nudges`;
 });
 
-test("Remind says the truth about email: bell only when the person turned email off, or the Chest cannot send (mail.available(), SDK studio.16)", async () => {
-  const { sql } = w.database;
-  const { cycle, sales } = await running(w);
-  await createObjective(sql, inesM, { cycleId: cycle.id, level: "team", teamId: sales.id, title: "Open 12 shops", keyResults: [{ title: "Shops signed", kind: "number", start: "0", target: "12", owner: hugo.id }] });
-  await sql`update key_results set created_at = now() - interval '10 days'`;
-  const clock = clockAt();
-  assert.equal(await mailState(), "on");
-  await setEmail(sql, hugoM, false);
-  const before = w.chest.outbox.length;
-  assert.deepEqual(await remind(sql, inesM, hugo.id, clock), { emailed: false }, "his switch is off: the bell only");
-  assert.equal(w.chest.outbox.length, before);
-  await setEmail(sql, hugoM, true);
-  // The company's mail not connected, or suspended: My goals says reminders
-  // stay in the bell rather than offering email.
-  w.chest.delivery.mail = "not_connected";
-  try {
-    assert.equal(await mailState(), "off");
-    w.chest.delivery.mail = "suspended";
-    assert.equal(await mailState(), "off");
-  } finally {
-    w.chest.delivery.mail = "ready";
-  }
-  assert.equal(await mailState(), "on");
-  await sql`delete from cycles`;
-  await sql`delete from teams`;
-  await sql`delete from nudges`;
-});
-
-test("each person may turn the reminders' email off; the Friday reminder is emailed to the others", async () => {
+test("the Friday reminder: one notice per owner, in every language, never a mail of the tool; delivered twice, still one", async () => {
   const { sql } = w.database;
   const { cycle } = await running(w);
   await companyObjective(w, cycle.id);
   await sql`update key_results set created_at = now() - interval '10 days'`;
-  assert.equal(await emailOn(sql, hugoM), true);
-  await setEmail(sql, hugoM, false);
-  assert.equal(await emailOn(sql, hugoM), false);
-  await assert.rejects(setEmail(sql, hugoM, "no"), refused("invalid"));
-  const before = w.chest.outbox.length;
+  w.chest.notifications.length = 0;
   await weeklyReminder(sql, new Date());
-  const sent = w.chest.outbox.slice(before);
-  assert.deepEqual(sent.map(m => m.to[0]), ["ines@atelier-martin.test"]);
-  assert.equal(sent[0]!.subject, "1 résultat clé attend votre point de la semaine");
-  // Delivered twice, it sends nothing again.
   await weeklyReminder(sql, new Date());
-  assert.equal(w.chest.outbox.length, before + 1);
+  const items = w.chest.notifications.filter(n => n.key === "checkin");
+  assert.deepEqual(items.map(n => [n.member, seen(n).title]).sort(), [
+    [hugo.id, "1 key result waits for your weekly update"],
+    [ines.id, "1 résultat clé attend votre point de la semaine"],
+  ].sort());
+  assert.equal(w.chest.outbox.length, 0);
   await sql`delete from cycles`;
   await sql`delete from teams`;
-});
-
-test("the Friday reminder follows each person's email choice in the Chest: none is not sent, one a day waits for the Chest's digest", async () => {
-  const { sql } = w.database;
-  const { cycle } = await running(w);
-  await companyObjective(w, cycle.id);
-  await sql`update key_results set created_at = now() - interval '10 days'`;
-  await sql`delete from preferences`;
-  const chosen = { [hugo.id]: "none", [ines.id]: "digest" } as const;
-  const people = w.chest.members.filter(m => m.id in chosen);
-  for (const m of people) m.mailPreference = chosen[m.id as keyof typeof chosen]!;
-  w.chest.clearCaches();
-  try {
-    // What My goals says under the switch: the members API's answer.
-    assert.deepEqual([await mailPreferenceOf(hugo.id), await mailPreferenceOf(ines.id), await mailPreferenceOf(sofia.id)], ["none", "digest", "all"]);
-    const before = w.chest.outbox.length, held = w.chest.held.length;
-    // Another day of the quarter than today: today's reminder was sent to
-    // Inès above, and its key would answer this one with it.
-    const firstDay = quarterOf(today()).startsOn === today();
-    await weeklyReminder(sql, new Date(Date.now() + (firstDay ? 1 : -1) * 864e5));
-    assert.equal(w.chest.outbox.length, before, "nothing sent now");
-    assert.deepEqual(w.chest.held.slice(held).map(h => [h.member, h.reason]).sort(), [[hugo.id, "none"], [ines.id, "digest"]].sort());
-    assert.ok(w.chest.notifications.some(n => n.member === hugo.id && n.key === "checkin"), "the bell still reminds");
-  } finally {
-    for (const m of people) delete m.mailPreference;
-    w.chest.clearCaches();
-    await sql`delete from cycles`;
-    await sql`delete from teams`;
-  }
 });
 
 test("a confidential objective: seen by its owner, its key results' owners, the people chosen or its team, and the admins; nobody else, anywhere", async () => {
