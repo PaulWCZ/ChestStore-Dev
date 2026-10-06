@@ -59,12 +59,16 @@ What remains, in the order the owner decided for the Chest (brief/08):
    ["member.*"]` only.
 3. **The calendar feed** — one secret feed per member for every tool's
    events; 8 tools write to it. A private tool cannot serve a feed at all.
-4. **Web push** (and a digest of the bell) — approvals wait in a bell
-   nobody opens; Chest only.
-5. **Mail, send and receive** — 17 of 18 tools send (all but Clients);
-   Support and Hiring receive. Last in the Chest's order, first in reach:
-   it is the only way to a customer, a candidate or a guest (§10 says
-   what that order costs the store).
+4. **Web push** — approvals wait in a bell nobody opens; Chest only.
+   Since the owner's decision of 6 October 2026 the Chest itself mails
+   members their notifications by each member's choice, which answers most
+   of this for members who read email.
+5. **Mail to people outside the company** — 9 of 18 tools (Booking,
+   Quotes, Forms, Polls, Status, Support, Hiring, People, Rooms), through a
+   connector to the company's own provider; members are never mailed by a
+   tool and the Chest receives no mail (§4.2: the tool-by-tool table and
+   ten needs of the connector). Last in the Chest's order, first in reach:
+   it is the only way to a customer, a candidate or a guest.
 
 Beside them: the public host's kit (public uploads with a one-time claim,
 `visitors`), the store's words in other languages, the look, webhooks,
