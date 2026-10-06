@@ -42,9 +42,9 @@ export function FormFrame({ form, level, tab, t, lang, children }: { form: Form;
             <Island id={`state-${form.id}`} name="StatusControl" props={{ formId: form.id, open: form.status === "published", t: { close: t.builder.closeForm, reopen: t.builder.reopen, closed: t.builder.closedToast, reopened: t.builder.reopened } }} />
           )}
         </div>
-        <div className="form-tabs">
+        <div>
           <Tabs items={items} current={tab} label={t.tabs.label} />
-          <Island name="KeepInView" props={{ selector: ".form-tabs [aria-current]", current: tab }} />
+          <Island name="KeepInView" props={{ selector: ".form-top .ck-tab[aria-current]", current: tab }} />
         </div>
       </div>
       {children}

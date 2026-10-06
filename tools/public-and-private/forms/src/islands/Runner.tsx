@@ -364,7 +364,7 @@ export function Runner(props: RunnerProps) {
   );
 
   const shell = (children: ReactNode, progress: number | null) => (
-    <div ref={root} className={`runner layout-${props.layout} mode-${mode}`} data-accent={props.accent}>
+    <div ref={root} className={`runner layout-${props.layout}`} data-accent={props.accent}>
       {/* The field only robots fill, and the page's form token. */}
       {mode === "public" && <Honeypot />}
       {progress !== null && (
@@ -806,7 +806,7 @@ function QuestionField(p: FieldProps) {
     return group(
       <>
         {[true, false].map(v => (
-          <label key={String(v)} className={`pill yesno${p.value === v ? " on" : ""}`} {...press}>
+          <label key={String(v)} className={`pill${p.value === v ? " on" : ""}`} {...press}>
             <input type="radio" name={name} checked={p.value === v} onChange={() => p.onChange(v)} onClick={picked} />
             <span className="pill-key" aria-hidden="true">{(v ? w.yes : w.no)[0]}</span>
             <span className="pill-label">{v ? w.yes : w.no}</span>

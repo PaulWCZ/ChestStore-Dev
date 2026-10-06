@@ -76,5 +76,5 @@ const kindPaths: Record<Kind, ReactNode> = {
   statement: (<><path d="M6 5.5h12M12 5.5V19" /><path d="M9 19h6" /></>),
 };
 export function KindIcon({ kind }: { kind: Kind }) {
-  return <Icon className={"kind-icon kind-" + kind}>{kindPaths[kind]}</Icon>;
+  return <Icon className={"kind-" + kind}>{kindPaths[kind]}</Icon>;
 }

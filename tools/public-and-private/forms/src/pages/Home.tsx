@@ -54,7 +54,7 @@ export async function homePage({ sql, member, t, lang, zone, query }: Ctx) {
   return {
     title: t.home.title,
     body: (
-      <div className="home">
+      <div>
         <Island name="AutoRefresh" props={{ seconds: 60 }} />
         {deleted !== undefined && /^[1-9][0-9]{0,17}$/u.test(deleted) && <Island id={`deleted-${deleted}`} name="DeletedToast" props={{ formId: deleted, text: t.builder.deletedForm }} />}
         <div className="home-head">
@@ -74,7 +74,7 @@ export async function homePage({ sql, member, t, lang, zone, query }: Ctx) {
                   <span className="to-answer-end">
                     {f.anonymous && <span className="tag"><Mask />{t.home.anonymous}</span>}
                     {f.answered && f.once ? <span className="tag ok">{t.home.answered}</span> : (
-                      <a className="button small form-go" href={`/chest/f/${f.slug}`}>{f.answered ? t.home.answerAgain : t.home.answer}</a>
+                      <a className="button small" href={`/chest/f/${f.slug}`}>{f.answered ? t.home.answerAgain : t.home.answer}</a>
                     )}
                   </span>
                 </li>

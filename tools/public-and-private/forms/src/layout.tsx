@@ -36,7 +36,7 @@ export function MembersLayout({ viewer: { member, t }, look, notice, data, child
           width="wide"
         >
           {notice && <p className="notice" role="alert">{notice}</p>}
-          {role ? <div className="work">{children}</div> : <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />}
+          {role ? children : <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />}
         </AppShell>
       )}
       <Island id="toasts" name="ToastHost" props={{ labels: t.kit.toast, words: { unavailable: t.errors.unavailable, busy: t.pages.busy, tooLarge: t.errors.too_large, limit: t.errors.limit } }} />

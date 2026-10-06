@@ -49,7 +49,7 @@ export function HooksBox({ formId, delivery, hooks, anonymous, canEdit, t }: { f
     if (r.ok) toast({ id: "hooks", text: s.hookRemoved });
   };
   return (
-    <fieldset className="panel hooks">
+    <fieldset className="panel">
       <legend>{s.hooksTitle}</legend>
       {anonymous ? <p className="hint">{s.hooksAnonymous}</p> : (
         <>
@@ -99,7 +99,7 @@ export function HooksBox({ formId, delivery, hooks, anonymous, canEdit, t }: { f
         footer={<button type="button" className="button" onClick={() => setSecret(null)}>{s.hookSecretDone}</button>}>
         <p>{s.hookSecretBody}</p>
         <label className="visually-hidden" htmlFor="hook-secret">{s.hookSecretTitle}</label>
-        <input id="hook-secret" className="field code" readOnly value={secret ?? ""} onFocus={e => e.currentTarget.select()} />
+        <input id="hook-secret" className="field" readOnly value={secret ?? ""} onFocus={e => e.currentTarget.select()} />
       </Dialog>
       <Confirm open={removing !== null} title={format(s.hookRemoveTitle, { label: removing?.label ?? "" })} body={s.hookRemoveBody} confirmLabel={s.hookRemove} cancelLabel={s.hookCancel}
         busy={pending} onConfirm={() => void remove()} onCancel={() => setRemoving(null)} />

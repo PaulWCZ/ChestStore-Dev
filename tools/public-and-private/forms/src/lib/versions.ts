@@ -30,7 +30,7 @@ export async function answersVersion(sql: Query, member: Member, formId: string,
     select concat_ws('|', f.updated_at::text, f.answer_count, f.status,
       (select count(*) || ':' || coalesce(sum(hashtext(a.id || a.status || a.note || coalesce(a.deleted_at::text, ''))), 0) from answers a where a.form_id = f.id),
       (select coalesce(sum(unseen), 0) from watchers w where w.form_id = f.id and w.member = ${member.id}),
-      ${view}) as v
+      ${view}::text) as v
     from forms f where f.id = ${formId}`;
   return row?.v ?? null;
 }

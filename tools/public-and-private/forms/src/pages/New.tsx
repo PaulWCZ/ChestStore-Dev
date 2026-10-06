@@ -21,7 +21,7 @@ export async function newPage({ sql, member, t, lang }: Ctx) {
   return {
     title: t.create.title,
     body: (
-      <div className="narrow wide">
+      <div className="narrow">
         <a className="back-link" href="/chest"><Back />{t.create.back}</a>
         <h1 className="page-title">{t.create.title}</h1>
         <p className="lede">{t.create.lede}</p>

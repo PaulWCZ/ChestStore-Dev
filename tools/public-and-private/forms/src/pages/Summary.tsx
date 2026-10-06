@@ -124,7 +124,7 @@ export async function summaryPage({ sql, member, t, lang, param }: Ctx) {
         );
       case "grid":
         return (
-          <div className="table-wrap grid-wrap" tabIndex={0} role="region" aria-label={x.column.question.title}>
+          <div className="ck-table-wrap" tabIndex={0} role="region" aria-label={x.column.question.title}>
             <table className="grid-table">
               <thead><tr><th scope="col"><span className="visually-hidden">{s.row}</span></th>{st.columns.map(c => <th key={c.key} scope="col">{c.label}</th>)}</tr></thead>
               <tbody>

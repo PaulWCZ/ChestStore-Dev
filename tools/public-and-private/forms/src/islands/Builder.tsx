@@ -768,7 +768,7 @@ function ListEditor({ legend, items, max, itemLabel, addLabel, ro, b, onChange, 
       <legend className="field-label">{legend}</legend>
       <ol ref={list}>
         {items.map((o, i) => (
-          <li key={o.id} className={`option-row${pictures ? " with-picture" : ""}`}>
+          <li key={o.id} className="option-row">
             {keys && <span className="option-key" aria-hidden="true">{String.fromCharCode(65 + i)}</span>}
             {pictures && (
               <label className={`picture-pick${o.image ? " has-picture" : ""}`}>
@@ -809,7 +809,7 @@ function ListEditor({ legend, items, max, itemLabel, addLabel, ro, b, onChange, 
           </li>
         ))}
         {other?.on && (
-          <li className="option-row other-row">
+          <li className="option-row">
             {keys && <span className="option-key" aria-hidden="true">{String.fromCharCode(65 + items.length)}</span>}
             <span className="other-label">{b.other}</span>
             {!ro && <button type="button" className="icon-button" onClick={() => other.set(false)}><Close /><span className="visually-hidden">{b.removeOption}</span></button>}

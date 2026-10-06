@@ -661,3 +661,7 @@ select.field { appearance: auto; }
 .hook-add { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) solid var(--line); }
 .hook-add h3 { font-size: var(--text-m); font-weight: var(--weight-strong); margin: 0; }
 .hook-add .mini.block { gap: var(--space-1); }
+
+/* The page's wrapper (src/layout.tsx): it takes no room; its data-look
+   tells the form's colours whether the look is Forms' own (tokens.css). */
+.look { display: contents; }

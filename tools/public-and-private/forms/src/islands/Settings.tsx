@@ -180,7 +180,7 @@ export function Settings(p: Props) {
   // is the kit's, and this line going moves nothing below the field.
   const said = save === "held" ? s.dayHeld : problem;
   return (
-    <form className="panel-page settings" onSubmit={e => { e.preventDefault(); void flush(); }}>
+    <form className="panel-page" onSubmit={e => { e.preventDefault(); void flush(); }}>
       {!ro && (
         <p className="settings-status">
           <span className={`save-state ${save}`} role="status" aria-live="polite">{saveLabel}</span>
@@ -227,12 +227,12 @@ export function Settings(p: Props) {
           ))}
         </div>
         {!p.own && <p className="hint">{s.colourHint}</p>}
-        <div className="cover-field">
+        <div className="mini">
           <span className="mini-label">{s.cover}</span>
           <div className="cover-row">
             <span className="cover-preview" aria-hidden="true">{cover ? <img src={cover} alt="" /> : <Picture />}</span>
             {!ro && (
-              <label className={`button quiet small file-button${sendingCover ? " busy" : ""}`}>
+              <label className="button quiet small file-button">
                 {sendingCover ? s.coverSending : cover ? s.coverChange : s.coverAdd}
                 <input type="file" accept="image/png,image/jpeg,image/webp" disabled={sendingCover} onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pickCover(f); }} />
               </label>
@@ -389,7 +389,7 @@ function RouteFields<K extends string>({ slots, route, choices, s, special = {},
           </select>
         </label>
       ))}
-      {member && <p className="hint route-member">{words["email"]}{" — "}{member}</p>}
+      {member && <p className="hint">{words["email"]}{" — "}{member}</p>}
     </div>
   );
 }
