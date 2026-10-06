@@ -4,7 +4,7 @@ import { StateBadge } from "../components/badges.tsx";
 import { Clip } from "../components/icons.tsx";
 import { fileSize, format, formatDate, isLocale, localeOf, words } from "../i18n/index.ts";
 import { db } from "../lib/db.ts";
-import { people } from "../lib/people.ts";
+import { knownPeople } from "../lib/people.ts";
 import { publicUploadsOn } from "../lib/attachments.ts";
 import { byLink, settings } from "../lib/tickets.ts";
 import { publicLook } from "../theme.ts";
@@ -31,7 +31,7 @@ export async function followUpPage({ locale: visitor, query, f }: PageContext<Vi
   const embed = query("embed") === "1";
   const logo = look.source === "brand" ? look.logo ?? null : null;
   const back = `/t/${secret}${embed ? "?embed=1" : ""}`;
-  const who = await people(ticket.messages.filter(m => m.kind === "reply" && m.author).map(m => m.author!));
+  const who = await knownPeople(ticket.messages.filter(m => m.kind === "reply" && m.author).map(m => m.author!));
   const teamWord = s.companyName ? format(t.public.team, { company: s.companyName }) : t.public.teamPlain;
   const teamName = (author: string | null) => {
     const person = author ? who.get(author) : undefined;
@@ -68,7 +68,7 @@ export async function followUpPage({ locale: visitor, query, f }: PageContext<Vi
                 <Body text={m.body} />
                 {m.attachments.length > 0 && (
                   <div className="files" aria-label={t.kit.files.list}>
-                    {m.attachments.map(a => <a key={a.id} href={`/t/${secret}/files/${a.id}`} rel="noreferrer"><Clip />{a.fileName}<span className="size">{fileSize(a.size, locale)}</span></a>)}
+                    {m.attachments.map(a => <a key={a.id} href={`/t/${secret}/files/${a.id}`} rel="noreferrer" download><Clip />{a.fileName}<span className="size">{fileSize(a.size, locale)}</span></a>)}
                   </div>
                 )}
               </div>

@@ -52,7 +52,7 @@ export async function settingsPage({ sql, member, lang: locale, t, f }: TeamCont
         {can(member, "export") && (
           <Box title={st.export} icon={<Download />}>
             <p className="hint">{st.exportHint}</p>
-            <div><a className="button quiet" href="/chest/export"><Download />{st.exportZip}</a></div>
+            <div><a className="button quiet" href="/chest/export" download><Download />{st.exportZip}</a></div>
           </Box>
         )}
         {can(member, "customers.erase") && (

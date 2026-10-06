@@ -1,3 +1,4 @@
+import type { Download } from "@argentic/chest-app";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
@@ -172,16 +173,13 @@ function pulled(source: AsyncGenerator<Uint8Array>): ReadableStream<Uint8Array> 
 }
 
 // Every ticket and every message, as a streamed ZIP (lib/export.ts): two
-// spreadsheets and one JSON file, headers in the reader's language.
-export async function exportDownload(actor: Member, t: Catalogue, locale: Locale, today: string): Promise<Response> {
-  try {
-    const data = await exportZip(db(), actor, t, locale);
-    // Sent as it is written: the body pulls the next piece when the
-    // previous one has left (backpressure), so a slow download never piles
-    // the archive up in memory.
-    return new Response(pulled(data), { headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="support-export-${today}.zip"`, "Cache-Control": "no-store" } });
-  } catch (error) {
-    if (error instanceof AppError) return none(403);
-    throw error;
-  }
+// spreadsheets and one JSON file, headers in the reader's language. Not
+// allowed: AppError("forbidden"), which download() (src/app.tsx) shows as
+// a page with its 403.
+export async function exportDownload(actor: Member, t: Catalogue, locale: Locale, today: string): Promise<Download> {
+  const data = await exportZip(db(), actor, t, locale);
+  // Sent as it is written: the body pulls the next piece when the
+  // previous one has left (backpressure), so a slow download never piles
+  // the archive up in memory.
+  return { name: `support-export-${today}.zip`, type: "application/zip", body: pulled(data) };
 }

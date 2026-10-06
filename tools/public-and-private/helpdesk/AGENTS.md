@@ -155,8 +155,13 @@ npm ci && npm run build && npm test   # all must pass (PGlite, or TEST_DATABASE_
 - **Public actions are bounded by the package** (`publicAction(…, { bound })`,
   `<Honeypot />` in each public form): the visitor is the package's to
   know (never `X-Forwarded-For`); what a follow-up link does is counted
-  per request (`tickets.linkGuard`, after the link is known, given back
-  if the call is refused). Tests send `{ chest_form: formToken() }`.
+  per request once the link is known: `charge(kind, { subject })` with
+  `perSubject` for writing again and rating, `tickets.linkGuard` (an
+  hour) for files and downloads. Tests send `{ chest_form: formToken() }`
+  and `settled()` after each request. A public page never calls the
+  Chest per visit (`knownPeople`, `publicUploadsOn`: kept a minute, ten).
+- **Downloads** are links marked `download` (never fetched in place, so
+  never made twice); the export is `download()` around a streamed ZIP.
 - **Public downloads hold a slot** until their last byte has left
   (`lib/downloads.ts`): two at once; HEAD takes none.
 - **No inline script or style**: no `style={}`, no `<style>`; the look is

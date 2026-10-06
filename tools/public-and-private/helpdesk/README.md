@@ -76,10 +76,12 @@ Intercom): there is no chat bubble.
   again (which reopens the request). The link is also emailed when the Chest
   can send email. The thank-you is said once (the address loses `?new=1`
   in the browser). A link that does not work is a 404 that says so, with
-  the way to write a new request. Each link writes again 20 times an hour,
-  rates 20 times, adds 40 files and downloads 60 — whoever holds it,
-  counted once the link is known; another request's link is its own
-  count. The files of the request (theirs, and those the team
+  the way to write a new request. Each link writes again 60 times a day
+  and rates 10 times (the package's `perSubject`), adds 40 files and
+  downloads 60 an hour — whoever holds it, counted once the link is
+  known; another request's link is its own count. The team's first
+  names on that page come from the Chest at most once a minute (never a
+  call to the Chest per visit). The files of the request (theirs, and those the team
   sent with its answers — never a note's) download from there, two at a
   time in the whole tool (a file is read whole: 10 MB at most; the others
   are told to come back in 5 seconds, `503` + `Retry-After`); a download

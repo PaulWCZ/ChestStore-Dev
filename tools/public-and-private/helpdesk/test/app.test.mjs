@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
 import { formToken } from "@argentic/chest-app";
-import { atLeast, checkPage } from "@argentic/chest-app/testing";
+import { atLeast, checkPage, settled } from "@argentic/chest-app/testing";
 import { testDatabase } from "./support/db.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 
@@ -39,6 +39,9 @@ const visitor = "https://helpdesk.chest.test";
 const lampLink = "demoLampFollowUpLinkForScreens00";
 const send = async request => {
   const response = await app.fetch(request);
+  // The work an answer left to do (after()) done before the next request:
+  // PGlite serves every connection from one session.
+  await settled();
   if (response.headers.get("content-type")?.startsWith("text/html")) checkPage(await response.clone().text());
   return response;
 };
@@ -216,11 +219,13 @@ test("the follow-up link: writing again and rating are counted per request — a
   assert.equal((await write("y".repeat(32))).status, 404);
   assert.equal((await write(flooded, "  ")).status, 400);
   const answers = [];
-  for (let i = 0; i < 21; i++) answers.push((await write(flooded, `Again ${i}`)).status);
-  assert.deepEqual(answers, [...Array(20).fill(200), 429]);
+  for (let i = 0; i < 61; i++) {
+    answers.push((await write(flooded, `Again ${i}`)).status);
+  }
+  assert.deepEqual(answers, [...Array(60).fill(200), 429]);
   assert.equal((await write(other)).status, 200, "another request's link is its own count");
   const [{ n }] = await database.sql`select count(*)::int as n from messages m join tickets t on t.id = m.ticket_id where t.customer_email = 'flood@example.com' and m.kind = 'customer'`;
-  assert.equal(n, 21, "the first message and twenty more");
+  assert.equal(n, 61, "the first message and sixty more today");
 });
 
 test("a request's files: downloads in a sandbox, only through the request's own link", async () => {
@@ -275,7 +280,13 @@ test("settings, reports and export: by role", async () => {
   assert.equal((await get(hugo, "/chest/reports")).status, 404);
   const zip = await get(hugo, "/chest/export");
   assert.equal(zip.headers.get("content-type"), "application/zip");
-  assert.match(zip.headers.get("content-disposition"), /^attachment; filename="support-export-\d{4}-\d{2}-\d{2}\.zip"$/u);
+  assert.match(zip.headers.get("content-disposition"), /^attachment; filename="support-export-\d{4}-\d{2}-\d{2}\.zip"/u);
+  const bytes = Buffer.from(await zip.arrayBuffer());
+  assert.equal(bytes.readUInt32LE(0), 0x04034b50, "a ZIP, sent whole");
+  assert.equal(bytes.readUInt32LE(bytes.length - 22), 0x06054b50);
+  // Followed in place (navigate()): no archive made, the browser loads it.
+  const inPlace = await get(hugo, "/chest/export", { "x-tool-navigate": "1" });
+  assert.equal(inPlace.status, 204);
   assert.equal((await get(lea, "/chest/export")).status, 403);
 });
 

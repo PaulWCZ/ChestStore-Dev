@@ -236,20 +236,22 @@ async function withFiles<T>(take: Take | undefined, step: (stored: Stored[]) => 
 // so many calls a day per visitor (the address the Chest's front gives,
 // else the browser's cookie) and for everyone, counted only once the call
 // is valid. On top of it, what a follow-up link may do — whoever holds the
-// link, from however many browsers: so many an hour per request, counted
-// once the link is known (linkGuard) — so a link that leaks cannot flood
-// one ticket, and a stranger's junk never spends a real customer's budget.
+// link, from however many browsers — is counted per request once the link
+// is known: writing again and rating by the package (perSubject, a day),
+// files and downloads here (linkGuard, an hour: they are no form's). So a
+// link that leaks cannot flood one ticket, and a stranger's junk never
+// spends a real customer's budget.
 export const publicLimits = {
   // The contact form, a day (package).
   requestsPerVisitor: 10, requestsPerDay: 300, formSeconds: 3,
-  // Writing again, rating, files (package), a day.
-  followPerVisitor: 60, followPerDay: 1000,
-  filesPerVisitor: 40, filesPerDay: 600,
-  // Per request (its link), an hour.
-  repliesPerLink: 20, ratingsPerLink: 20, filesPerLink: 40, downloadsPerLink: 60,
+  // Writing again and rating, a day (package): per visitor, for everyone,
+  // per request's link.
+  followPerVisitor: 60, followPerDay: 1000, repliesPerLink: 60, ratingsPerLink: 10,
+  // Files, a day (package), then per request's link, an hour (linkGuard).
+  filesPerVisitor: 40, filesPerDay: 600, filesPerLink: 40, downloadsPerLink: 60,
 } as const;
-export type LinkUse = "reply" | "rating" | "file" | "download";
-const perLink: Record<LinkUse, number> = { reply: publicLimits.repliesPerLink, rating: publicLimits.ratingsPerLink, file: publicLimits.filesPerLink, download: publicLimits.downloadsPerLink };
+export type LinkUse = "file" | "download";
+const perLink: Record<LinkUse, number> = { file: publicLimits.filesPerLink, download: publicLimits.downloadsPerLink };
 
 // linkGuard counts one use of a request's link this hour; past its bound,
 // "limit" (and the count is not kept).

@@ -49,16 +49,19 @@ test("a request's link is counted per hour and per use: a flood on one link neve
   const one = await tickets.fromForm(sql, form());
   const two = await tickets.fromForm(sql, form({ email: "two@example.com" }));
   const at = new Date("2026-10-06T10:15:00Z");
-  for (let i = 0; i < tickets.publicLimits.repliesPerLink; i++) await tickets.linkGuard(sql, one.id, "reply", at);
-  await assert.rejects(tickets.linkGuard(sql, one.id, "reply", at), refused("limit"));
-  await assert.rejects(tickets.linkGuard(sql, one.id, "reply", at), refused("limit"));
-  // A refusal is not counted: the next hour the link takes its twenty again.
+  for (let i = 0; i < tickets.publicLimits.downloadsPerLink; i++) await tickets.linkGuard(sql, one.id, "download", at);
+  await assert.rejects(tickets.linkGuard(sql, one.id, "download", at), refused("limit"));
+  await assert.rejects(tickets.linkGuard(sql, one.id, "download", at), refused("limit"));
   // Another use of the same link, another link: their own counts.
-  await tickets.linkGuard(sql, one.id, "rating", at);
-  await tickets.linkGuard(sql, two.id, "reply", at);
+  await tickets.linkGuard(sql, one.id, "file", at);
+  await tickets.linkGuard(sql, two.id, "download", at);
+  // A refusal is not counted, and a count given back is free again; the
+  // next hour the link takes its full count again.
+  const counted = await tickets.linkGuard(sql, two.id, "file", at);
+  await counted.release();
   const next = new Date("2026-10-06T11:00:00Z");
-  for (let i = 0; i < tickets.publicLimits.repliesPerLink; i++) await tickets.linkGuard(sql, one.id, "reply", next);
-  await assert.rejects(tickets.linkGuard(sql, one.id, "reply", next), refused("limit"));
+  for (let i = 0; i < tickets.publicLimits.downloadsPerLink; i++) await tickets.linkGuard(sql, one.id, "download", next);
+  await assert.rejects(tickets.linkGuard(sql, one.id, "download", next), refused("limit"));
 });
 
 test("a Chest that takes no visitors' files: the public pages know it before offering any, a grant says so plainly", async () => {

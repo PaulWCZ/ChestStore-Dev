@@ -26,6 +26,28 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   return found;
 }
 
+// knownPeople: the same, for a public page — which never asks the Chest on
+// each visit (a flood of visits would spend the tool's limits there): what
+// the Chest said is kept a minute, five hundred people at most.
+const kept = new Map<string, { person: Person; at: number }>();
+export async function knownPeople(ids: Iterable<string>, now = Date.now()): Promise<Map<string, Person>> {
+  const wanted = [...new Set(ids)];
+  const found = new Map<string, Person>();
+  const missing = wanted.filter(id => {
+    const hit = kept.get(id);
+    if (hit && now - hit.at < 60_000) found.set(id, hit.person);
+    return !found.has(id);
+  });
+  if (missing.length) {
+    for (const [id, person] of await people(missing)) {
+      found.set(id, person);
+      if (kept.size >= 500) kept.delete(kept.keys().next().value!);
+      kept.set(id, { person, at: now });
+    }
+  }
+  return found;
+}
+
 // nameOf is how a page writes a person, in the reader's language.
 export function nameOf(person: Person | undefined, locale: Locale): string {
   const t = catalogue(locale).people;

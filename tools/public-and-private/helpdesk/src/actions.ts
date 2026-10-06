@@ -252,8 +252,8 @@ export const actions = {
   // single-use form token, the field only robots fill (<Honeypot />), so
   // many calls a day per visitor and for everyone, counted only once the
   // call is valid (a refusal gives its count back). What a follow-up link
-  // does is counted per request too (tickets.linkGuard), once the link is
-  // known. ----------------------------------------------------------------
+  // does is counted per request too, once the link is known (charge with
+  // its subject; files: tickets.linkGuard). ------------------------------
 
   // The contact form. A form sent sooner than a person fills one waits the
   // seconds left (formSeconds). Sent, the request's follow-up page opens
@@ -281,16 +281,13 @@ export const actions = {
   // Writing again from the follow-up link (it reopens a closed request):
   // the link known and the words checked first, then counted for that
   // request.
-  writeAgain: publicAction({ secret: given, message: given, files: any }, async ({ secret, message, files: list }) => {
+  writeAgain: publicAction({ secret: given, message: given, files: any }, async ({ secret, message, files: list }, { charge }) => {
     const sql = db();
     const known = await tickets.byLink(sql, secret);
     if (!known) fail("not_found");
     clean(message, limits.publicBody, { multiline: true });
-    const counted = await tickets.linkGuard(sql, known!.id, "reply");
-    const t = await tickets.customerReply(sql, secret, message, visitorFiles(list)).catch(async (error: unknown) => {
-      await counted.release();
-      throw error;
-    });
+    await charge("reply", { subject: known!.id });
+    const t = await tickets.customerReply(sql, secret, message, visitorFiles(list));
     after("telling", async () => {
       await tell.customerWrote(t, message);
       await tell.refreshBadges(sql);
@@ -299,20 +296,17 @@ export const actions = {
       await tellLinkedTools(sql);
     });
     return { sent: true };
-  }, { bound: { perVisitor: tickets.publicLimits.followPerVisitor, perDay: tickets.publicLimits.followPerDay } }),
+  }, { bound: { budgets: { reply: { perVisitor: tickets.publicLimits.followPerVisitor, perDay: tickets.publicLimits.followPerDay, perSubject: tickets.publicLimits.repliesPerLink } } } }),
   // The customer's one click on a closed request ("did we solve it?").
-  rate: publicAction({ secret: given, value: given }, async ({ secret, value }) => {
+  rate: publicAction({ secret: given, value: given }, async ({ secret, value }, { charge }) => {
     const sql = db();
     const known = await tickets.byLink(sql, secret);
     if (!known) fail("not_found");
-    const counted = await tickets.linkGuard(sql, known!.id, "rating");
-    const t = await tickets.rate(sql, secret, value).catch(async (error: unknown) => {
-      await counted.release();
-      throw error;
-    });
+    await charge("rating", { subject: known!.id });
+    const t = await tickets.rate(sql, secret, value);
     after("telling", () => tell.rated(t, value as "good" | "bad"));
     return null;
-  }, { bound: { perVisitor: tickets.publicLimits.followPerVisitor, perDay: tickets.publicLimits.followPerDay } }),
+  }, { bound: { budgets: { rating: { perVisitor: tickets.publicLimits.followPerVisitor, perDay: tickets.publicLimits.followPerDay, perSubject: tickets.publicLimits.ratingsPerLink } } } }),
   // One file from a visitor, for the form (open) or for their own request
   // (its link) — nobody else. What comes back from the Chest is a claim
   // only they hold.
