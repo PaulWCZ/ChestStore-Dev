@@ -412,7 +412,7 @@ a.booking-text:hover { text-decoration: underline; }
 .load th::first-letter { text-transform: uppercase; }
 .load td { padding: var(--space-1) 0; }
 .load-bar { position: relative; }
-.load-bar .bar { display: inline-block; vertical-align: middle; width: min(60%, 360px); height: 18px; }
+.load-bar .bar { display: inline-block; vertical-align: middle; min-width: 2px; }
 .load-bar .bar rect { fill: var(--accent-line); }
 .load-value { margin-left: var(--space-2); font-variant-numeric: tabular-nums; }
 .load-desks { color: var(--ink-2); text-align: right; white-space: nowrap; padding-left: var(--space-3) !important; }
