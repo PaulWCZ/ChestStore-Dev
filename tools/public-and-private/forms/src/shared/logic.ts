@@ -118,7 +118,26 @@ export const asked = (w: Walk): Question[] => w.pages.flatMap(p => p.questions);
 
 export type AnswerError = "required" | "invalid" | "too_short" | "too_long" | "too_small" | "too_large" | "too_few" | "too_many" | "email" | "phone" | "date" | "rank_all" | "every_row";
 
-const emailPattern = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
+// An email address: the rule of @argentic/chest-app's field.email(), which
+// the server's actions use (this file runs in the browser too, where the
+// package's fields are not loaded; test/logic.test.ts holds the two to the
+// same answers). Never white space, a control, an invisible or reordering
+// character; the part before the @ a dot-atom of what mail takes unquoted
+// (64 characters at most), kept as written; the domain's labels letters,
+// digits and inner hyphens, the last with a letter, lower-cased. A display
+// name ("Ana <ana@example.com>"), quotes, brackets, an IP literal: refused.
+const emailRefused = /[\s\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
+const emailLocal = /^[^\s@<>()[\]\\,;:".]+(?:\.[^\s@<>()[\]\\,;:".]+)*$/u;
+const emailDomain = /^(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+(?=[\p{L}\p{N}-]*\p{L})[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?$/u;
+function emailOf(typed: string): string | null {
+  const text = typed.trim();
+  if (emailRefused.test(text)) return null;
+  const at = text.indexOf("@");
+  const local = text.slice(0, at);
+  const domain = text.slice(at + 1).toLowerCase();
+  if (at < 1 || [...local].length > 64 || !emailLocal.test(local) || !emailDomain.test(domain) || domain.length > 253) return null;
+  return `${local}@${domain}`;
+}
 const chars = (s: string) => [...s].length;
 // Control characters go, and the invisible format ones (\p{Cf}: bidi
 // overrides that turn a text around, zero-width spaces that hide words)
@@ -152,7 +171,12 @@ export function read(q: Question, raw: unknown): { value?: Value; error?: Answer
       const cap = q.kind === "long" ? limits.long : q.kind === "short" ? limits.short : q.kind === "email" ? limits.email : limits.phone;
       if (chars(text) > Math.min(cap, q.max ?? cap)) return { error: "too_long" };
       if (q.min !== undefined && chars(text) < q.min) return { error: "too_short" };
-      if (q.kind === "email" && !emailPattern.test(text)) return { error: "email" };
+      if (q.kind === "email") {
+        // Read from what was typed (a hidden character refuses it, as
+        // field.email does, rather than being removed).
+        const address = emailOf(raw);
+        return address ? { value: address } : { error: "email" };
+      }
       if (q.kind === "phone" && (!/^[+0-9 ().-]{4,30}$/u.test(text) || (text.match(/[0-9]/gu)?.length ?? 0) < 4)) return { error: "phone" };
       return { value: text };
     }

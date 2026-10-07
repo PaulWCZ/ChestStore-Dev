@@ -1,3 +1,4 @@
+import { field } from "@argentic/chest-app";
 import { AppError } from "./app-error.ts";
 import { catalogue, isLocale } from "../i18n/index.ts";
 import { answerText, type Answers } from "../shared/logic.ts";
@@ -128,7 +129,18 @@ export const eventLimits = { name: 120, email: 254, phone: 40, company: 120, sub
 type Answered = { id: string; data: Answers; createdAt: string | null; language: string; respondent: string | null };
 type FormLike = { id: string; anonymous: boolean };
 const cut = (text: string, max: number) => [...text].slice(0, max).join("");
-const email = /^[^\s@<>()[\]\\,;:"]{1,64}@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:"]+$/u;
+// The address an answer gives, held to the package's rule (field.email:
+// what the form itself checked), lower-cased for the tools it goes to;
+// null when there is none or it is not one.
+const emailField = field.email({ max: eventLimits.email });
+function addressOf(text: string | null): string | null {
+  if (!text) return null;
+  try {
+    return emailField.read(text).toLowerCase();
+  } catch {
+    return null;
+  }
+}
 
 // The text an answer gives for a question of the answered version, trimmed
 // (null when unanswered, removed, or the question is not there).
@@ -154,7 +166,7 @@ export function contactEvent(form: FormLike, def: Definition, answer: Answered, 
   const address = text(def, answer, route.email, eventLimits.email);
   const contact = {
     name: text(def, answer, route.name, eventLimits.name),
-    email: address && email.test(address) ? address.toLowerCase() : null,
+    email: addressOf(address),
     phone: text(def, answer, route.phone, eventLimits.phone),
     company: text(def, answer, route.company, eventLimits.company),
   };
@@ -168,7 +180,7 @@ export function requestEvent(form: FormLike, def: Definition, answer: Answered, 
   if (!route || form.anonymous) return null;
   const address = text(def, answer, route.email, eventLimits.email);
   const member = answer.respondent && isMemberId(answer.respondent) ? answer.respondent : null;
-  const requester = { name: text(def, answer, route.name, eventLimits.name), email: address && email.test(address) ? address.toLowerCase() : null, member };
+  const requester = { name: text(def, answer, route.name, eventLimits.name), email: addressOf(address), member };
   // Nobody to answer: no ticket.
   if (!requester.email && !requester.member) return null;
   const mapped = new Set([route.subject, route.details, route.email, route.name].filter((x): x is string => x !== null));
