@@ -1,0 +1,1215 @@
+{
+ "tool": "wiki",
+ "label": "after-mail",
+ "source": "/home/user/ChestStore-Dev/tools/private/wiki",
+ "date": "2026-10-07T01:14:05.524Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "b85b940 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 0.07,
+   "five": 0.11,
+   "fifteen": 0.15
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 54.1,
+    "rssMiB": 62,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 7.6,
+    "rssMiB": 387,
+    "command": "claude"
+   },
+   {
+    "cpu": 1.5,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 53,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ],
+  "atEnd": {
+   "one": 0.02,
+   "five": 0.06,
+   "fifteen": 0.11
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 7.4,
+    "rssMiB": 387,
+    "command": "claude"
+   },
+   {
+    "cpu": 1.5,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.6,
+    "rssMiB": 76,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 53,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 14.4,
+  "apparentMiB": 13.7,
+  "files": 258
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 5412,
+  "peakRssMiB": 243.5,
+  "peakPssMiB": 212.2,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 328.2,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "mean": 0.15,
+   "max": 0.15
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 131,
+   "apparentMiB": 117.4,
+   "files": 4195
+  },
+  "pruned": {
+   "diskMiB": 21.2,
+   "apparentMiB": 16.2,
+   "files": 1497
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 6788,
+   "peakRssMiB": 403.8,
+   "peakPssMiB": 332.2,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 289.6,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 0.14,
+    "max": 0.14
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 3055,
+   "peakRssMiB": 470.7,
+   "peakPssMiB": 398.8,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 355.5,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 0.2,
+    "five": 0.14,
+    "fifteen": 0.16
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 3.3,
+  "apparentMiB": 3.2,
+  "files": 26,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 38.9
+ },
+ "sdk": "0.4.1-studio.7",
+ "pages": {
+  "source": "lab/measure/pages/wiki.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pages/2",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pages/9",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/pages/2/history",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=teletravail",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/spaces/1",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pages/3",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pages/7",
+    "member": "sofia",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/pages/8",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pages/8/reads",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/spaces/2/settings",
+    "member": "ines",
+    "language": "en"
+   },
+   {
+    "path": "/chest/pages",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/trash",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search/synonyms",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=note%20de%20frais",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/pages/3/edit",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/search?q=rembours%C3%A9",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/search?q=wifi",
+    "member": "hugo",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 337,
+    "firstMs": 467.1,
+    "statuses": [
+     200
+    ],
+    "load": 0.27
+   },
+   {
+    "portMs": 301,
+    "firstMs": 383.5,
+    "statuses": [
+     200
+    ],
+    "load": 0.23
+   },
+   {
+    "portMs": 271.4,
+    "firstMs": 350.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.19
+   },
+   {
+    "portMs": 260.6,
+    "firstMs": 344.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.16
+   },
+   {
+    "portMs": 252.8,
+    "firstMs": 334,
+    "statuses": [
+     200
+    ],
+    "load": 0.14
+   },
+   {
+    "portMs": 296.9,
+    "firstMs": 395,
+    "statuses": [
+     200
+    ],
+    "load": 0.11
+   },
+   {
+    "portMs": 261.3,
+    "firstMs": 341.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.1
+   },
+   {
+    "portMs": 306.2,
+    "firstMs": 398.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.08
+   },
+   {
+    "portMs": 249.6,
+    "firstMs": 329.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.07
+   },
+   {
+    "portMs": 315.6,
+    "firstMs": 395.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.06
+   }
+  ],
+  "port": {
+   "median": 284.15,
+   "min": 249.6,
+   "max": 337
+  },
+  "first200": {
+   "median": 366.85,
+   "min": 329.8,
+   "max": 467.1
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 165.3,
+     "pss": 92.3
+    },
+    "peakMiB": {
+     "rss": 173.6,
+     "pss": 98.8,
+     "cgroup": 67
+    },
+    "afterRequestsMiB": {
+     "rss": 173.6,
+     "pss": 98.8
+    },
+    "restMiB": {
+     "rss": 170.1,
+     "pss": 95.2,
+     "pssAnon": 60.1,
+     "pssFile": 35,
+     "cgroupAnon": 60.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.4,
+      "pssMiB": 29.9
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.8,
+      "pssMiB": 65
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 25408,
+      "ms": 12
+     },
+     {
+      "path": "/chest/pages/2",
+      "status": 200,
+      "bytes": 49560,
+      "ms": 36.6
+     },
+     {
+      "path": "/chest/pages/9",
+      "status": 200,
+      "bytes": 35968,
+      "ms": 20.1
+     },
+     {
+      "path": "/chest/pages/2/history",
+      "status": 200,
+      "bytes": 28082,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/search?q=teletravail",
+      "status": 200,
+      "bytes": 28675,
+      "ms": 23.2
+     },
+     {
+      "path": "/chest/spaces/1",
+      "status": 200,
+      "bytes": 30239,
+      "ms": 8.9
+     },
+     {
+      "path": "/chest/pages/3",
+      "status": 200,
+      "bytes": 43007,
+      "ms": 14.4
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 32098,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/pages/7",
+      "status": 200,
+      "bytes": 44126,
+      "ms": 15.3
+     },
+     {
+      "path": "/chest/pages/8",
+      "status": 200,
+      "bytes": 35224,
+      "ms": 12.6
+     },
+     {
+      "path": "/chest/pages/8/reads",
+      "status": 200,
+      "bytes": 30182,
+      "ms": 9.9
+     },
+     {
+      "path": "/chest/spaces/2/settings",
+      "status": 200,
+      "bytes": 32495,
+      "ms": 8.3
+     },
+     {
+      "path": "/chest/pages",
+      "status": 200,
+      "bytes": 18849,
+      "ms": 7.3
+     },
+     {
+      "path": "/chest/trash",
+      "status": 200,
+      "bytes": 26526,
+      "ms": 6
+     },
+     {
+      "path": "/chest/search/synonyms",
+      "status": 200,
+      "bytes": 44000,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/search?q=note%20de%20frais",
+      "status": 200,
+      "bytes": 19772,
+      "ms": 9.6
+     },
+     {
+      "path": "/chest/pages/3/edit",
+      "status": 200,
+      "bytes": 4534,
+      "ms": 5.3
+     },
+     {
+      "path": "/chest/search?q=rembours%C3%A9",
+      "status": 200,
+      "bytes": 18824,
+      "ms": 11.6
+     },
+     {
+      "path": "/chest/search?q=wifi",
+      "status": 200,
+      "bytes": 19665,
+      "ms": 10.5
+     }
+    ],
+    "load": {
+     "mean": 0.03,
+     "max": 0.04
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 165.1,
+     "pss": 92
+    },
+    "peakMiB": {
+     "rss": 173.5,
+     "pss": 98.6,
+     "cgroup": 67.2
+    },
+    "afterRequestsMiB": {
+     "rss": 173.5,
+     "pss": 98.6
+    },
+    "restMiB": {
+     "rss": 170.3,
+     "pss": 95.3,
+     "pssAnon": 60.3,
+     "pssFile": 35,
+     "cgroupAnon": 60.3,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.7,
+      "pssMiB": 30.1
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.7,
+      "pssMiB": 65
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 25408,
+      "ms": 15.5
+     },
+     {
+      "path": "/chest/pages/2",
+      "status": 200,
+      "bytes": 49560,
+      "ms": 37
+     },
+     {
+      "path": "/chest/pages/9",
+      "status": 200,
+      "bytes": 35968,
+      "ms": 18.5
+     },
+     {
+      "path": "/chest/pages/2/history",
+      "status": 200,
+      "bytes": 28082,
+      "ms": 17.4
+     },
+     {
+      "path": "/chest/search?q=teletravail",
+      "status": 200,
+      "bytes": 28675,
+      "ms": 21.3
+     },
+     {
+      "path": "/chest/spaces/1",
+      "status": 200,
+      "bytes": 30239,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest/pages/3",
+      "status": 200,
+      "bytes": 43007,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 32098,
+      "ms": 10.1
+     },
+     {
+      "path": "/chest/pages/7",
+      "status": 200,
+      "bytes": 44126,
+      "ms": 15.9
+     },
+     {
+      "path": "/chest/pages/8",
+      "status": 200,
+      "bytes": 35224,
+      "ms": 12.7
+     },
+     {
+      "path": "/chest/pages/8/reads",
+      "status": 200,
+      "bytes": 30182,
+      "ms": 10.4
+     },
+     {
+      "path": "/chest/spaces/2/settings",
+      "status": 200,
+      "bytes": 32495,
+      "ms": 8.2
+     },
+     {
+      "path": "/chest/pages",
+      "status": 200,
+      "bytes": 18849,
+      "ms": 5.4
+     },
+     {
+      "path": "/chest/trash",
+      "status": 200,
+      "bytes": 26526,
+      "ms": 8.3
+     },
+     {
+      "path": "/chest/search/synonyms",
+      "status": 200,
+      "bytes": 44000,
+      "ms": 6.2
+     },
+     {
+      "path": "/chest/search?q=note%20de%20frais",
+      "status": 200,
+      "bytes": 19772,
+      "ms": 12
+     },
+     {
+      "path": "/chest/pages/3/edit",
+      "status": 200,
+      "bytes": 4534,
+      "ms": 5.1
+     },
+     {
+      "path": "/chest/search?q=rembours%C3%A9",
+      "status": 200,
+      "bytes": 18824,
+      "ms": 11
+     },
+     {
+      "path": "/chest/search?q=wifi",
+      "status": 200,
+      "bytes": 19665,
+      "ms": 11.1
+     }
+    ],
+    "load": {
+     "mean": 0.01,
+     "max": 0.02
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 165,
+     "pss": 91.9
+    },
+    "peakMiB": {
+     "rss": 173.2,
+     "pss": 98.3,
+     "cgroup": 66.7
+    },
+    "afterRequestsMiB": {
+     "rss": 173.2,
+     "pss": 98.3
+    },
+    "restMiB": {
+     "rss": 169.8,
+     "pss": 95,
+     "pssAnon": 60,
+     "pssFile": 35,
+     "cgroupAnon": 60,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.6,
+      "pssMiB": 30.1
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.4,
+      "pssMiB": 64.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 25408,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/pages/2",
+      "status": 200,
+      "bytes": 49560,
+      "ms": 33.4
+     },
+     {
+      "path": "/chest/pages/9",
+      "status": 200,
+      "bytes": 35968,
+      "ms": 19.4
+     },
+     {
+      "path": "/chest/pages/2/history",
+      "status": 200,
+      "bytes": 28082,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/search?q=teletravail",
+      "status": 200,
+      "bytes": 28675,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/spaces/1",
+      "status": 200,
+      "bytes": 30239,
+      "ms": 10.3
+     },
+     {
+      "path": "/chest/pages/3",
+      "status": 200,
+      "bytes": 43007,
+      "ms": 13.9
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 32098,
+      "ms": 16.1
+     },
+     {
+      "path": "/chest/pages/7",
+      "status": 200,
+      "bytes": 44126,
+      "ms": 16
+     },
+     {
+      "path": "/chest/pages/8",
+      "status": 200,
+      "bytes": 35224,
+      "ms": 13.3
+     },
+     {
+      "path": "/chest/pages/8/reads",
+      "status": 200,
+      "bytes": 30182,
+      "ms": 8.7
+     },
+     {
+      "path": "/chest/spaces/2/settings",
+      "status": 200,
+      "bytes": 32495,
+      "ms": 8.9
+     },
+     {
+      "path": "/chest/pages",
+      "status": 200,
+      "bytes": 18849,
+      "ms": 5.5
+     },
+     {
+      "path": "/chest/trash",
+      "status": 200,
+      "bytes": 26526,
+      "ms": 6.8
+     },
+     {
+      "path": "/chest/search/synonyms",
+      "status": 200,
+      "bytes": 44000,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/search?q=note%20de%20frais",
+      "status": 200,
+      "bytes": 19772,
+      "ms": 11.9
+     },
+     {
+      "path": "/chest/pages/3/edit",
+      "status": 200,
+      "bytes": 4534,
+      "ms": 5.7
+     },
+     {
+      "path": "/chest/search?q=rembours%C3%A9",
+      "status": 200,
+      "bytes": 18824,
+      "ms": 10
+     },
+     {
+      "path": "/chest/search?q=wifi",
+      "status": 200,
+      "bytes": 19665,
+      "ms": 12.7
+     }
+    ],
+    "load": {
+     "mean": 0.01,
+     "max": 0.01
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 165.8,
+     "pss": 92.8
+    },
+    "peakMiB": {
+     "rss": 177.5,
+     "pss": 102.7,
+     "cgroup": 71.4
+    },
+    "afterRequestsMiB": {
+     "rss": 177.5,
+     "pss": 102.7
+    },
+    "restMiB": {
+     "rss": 171,
+     "pss": 96.2,
+     "pssAnon": 61.2,
+     "pssFile": 35,
+     "cgroupAnon": 61.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.6,
+      "pssMiB": 30.1
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 103.5,
+      "pssMiB": 65.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 25408,
+      "ms": 13
+     },
+     {
+      "path": "/chest/pages/2",
+      "status": 200,
+      "bytes": 49560,
+      "ms": 35.1
+     },
+     {
+      "path": "/chest/pages/9",
+      "status": 200,
+      "bytes": 35968,
+      "ms": 19.4
+     },
+     {
+      "path": "/chest/pages/2/history",
+      "status": 200,
+      "bytes": 28082,
+      "ms": 18.8
+     },
+     {
+      "path": "/chest/search?q=teletravail",
+      "status": 200,
+      "bytes": 28675,
+      "ms": 20.4
+     },
+     {
+      "path": "/chest/spaces/1",
+      "status": 200,
+      "bytes": 30239,
+      "ms": 12
+     },
+     {
+      "path": "/chest/pages/3",
+      "status": 200,
+      "bytes": 43007,
+      "ms": 20.4
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 32098,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/pages/7",
+      "status": 200,
+      "bytes": 44126,
+      "ms": 14
+     },
+     {
+      "path": "/chest/pages/8",
+      "status": 200,
+      "bytes": 35224,
+      "ms": 13
+     },
+     {
+      "path": "/chest/pages/8/reads",
+      "status": 200,
+      "bytes": 30182,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest/spaces/2/settings",
+      "status": 200,
+      "bytes": 32495,
+      "ms": 8.7
+     },
+     {
+      "path": "/chest/pages",
+      "status": 200,
+      "bytes": 18849,
+      "ms": 5.5
+     },
+     {
+      "path": "/chest/trash",
+      "status": 200,
+      "bytes": 26526,
+      "ms": 6.9
+     },
+     {
+      "path": "/chest/search/synonyms",
+      "status": 200,
+      "bytes": 44000,
+      "ms": 6.3
+     },
+     {
+      "path": "/chest/search?q=note%20de%20frais",
+      "status": 200,
+      "bytes": 19772,
+      "ms": 11.8
+     },
+     {
+      "path": "/chest/pages/3/edit",
+      "status": 200,
+      "bytes": 4534,
+      "ms": 5.7
+     },
+     {
+      "path": "/chest/search?q=rembours%C3%A9",
+      "status": 200,
+      "bytes": 18824,
+      "ms": 10.8
+     },
+     {
+      "path": "/chest/search?q=wifi",
+      "status": 200,
+      "bytes": 19665,
+      "ms": 14
+     }
+    ],
+    "load": {
+     "mean": 0.06,
+     "max": 0.08
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 166.4,
+     "pss": 93.5
+    },
+    "peakMiB": {
+     "rss": 174.4,
+     "pss": 99.6,
+     "cgroup": 68.2
+    },
+    "afterRequestsMiB": {
+     "rss": 174.4,
+     "pss": 99.6
+    },
+    "restMiB": {
+     "rss": 170.4,
+     "pss": 95.6,
+     "pssAnon": 60.6,
+     "pssFile": 35,
+     "cgroupAnon": 60.6,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.8,
+      "pssMiB": 30.3
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.7,
+      "pssMiB": 65
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 25408,
+      "ms": 12.3
+     },
+     {
+      "path": "/chest/pages/2",
+      "status": 200,
+      "bytes": 49560,
+      "ms": 33.9
+     },
+     {
+      "path": "/chest/pages/9",
+      "status": 200,
+      "bytes": 35968,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/pages/2/history",
+      "status": 200,
+      "bytes": 28082,
+      "ms": 16.8
+     },
+     {
+      "path": "/chest/search?q=teletravail",
+      "status": 200,
+      "bytes": 28675,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/spaces/1",
+      "status": 200,
+      "bytes": 30239,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest/pages/3",
+      "status": 200,
+      "bytes": 43007,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 32098,
+      "ms": 13.9
+     },
+     {
+      "path": "/chest/pages/7",
+      "status": 200,
+      "bytes": 44126,
+      "ms": 22.1
+     },
+     {
+      "path": "/chest/pages/8",
+      "status": 200,
+      "bytes": 35224,
+      "ms": 13.2
+     },
+     {
+      "path": "/chest/pages/8/reads",
+      "status": 200,
+      "bytes": 30182,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest/spaces/2/settings",
+      "status": 200,
+      "bytes": 32495,
+      "ms": 8.7
+     },
+     {
+      "path": "/chest/pages",
+      "status": 200,
+      "bytes": 18849,
+      "ms": 7.7
+     },
+     {
+      "path": "/chest/trash",
+      "status": 200,
+      "bytes": 26526,
+      "ms": 6.7
+     },
+     {
+      "path": "/chest/search/synonyms",
+      "status": 200,
+      "bytes": 44000,
+      "ms": 6
+     },
+     {
+      "path": "/chest/search?q=note%20de%20frais",
+      "status": 200,
+      "bytes": 19772,
+      "ms": 11.2
+     },
+     {
+      "path": "/chest/pages/3/edit",
+      "status": 200,
+      "bytes": 4534,
+      "ms": 5.9
+     },
+     {
+      "path": "/chest/search?q=rembours%C3%A9",
+      "status": 200,
+      "bytes": 18824,
+      "ms": 12.7
+     },
+     {
+      "path": "/chest/search?q=wifi",
+      "status": 200,
+      "bytes": 19665,
+      "ms": 10.8
+     }
+    ],
+    "load": {
+     "mean": 0.03,
+     "max": 0.04
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 170.3,
+    "min": 169.8,
+    "max": 171
+   },
+   "pss": {
+    "median": 95.3,
+    "min": 95,
+    "max": 96.2
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 173.6,
+    "min": 173.2,
+    "max": 177.5
+   },
+   "pss": {
+    "median": 98.8,
+    "min": 98.3,
+    "max": 102.7
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 104.6,
+    "min": 104.3,
+    "max": 105.4
+   },
+   "pss": {
+    "median": 65.3,
+    "min": 64.9,
+    "max": 66.2
+   }
+  }
+ }
+}

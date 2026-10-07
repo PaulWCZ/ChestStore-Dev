@@ -71,6 +71,7 @@ export async function startFakeChest(dir, port) {
   if (typeof entry !== "string") throw new Error(`the tool's SDK (${pkg.version}) has no ./testing export`);
   const testing = await import(pathToFileURL(join(sdk, entry)).href);
   const capabilities = manifest.capabilities ?? [];
+  const allGroups = Array.isArray(proposals.capabilities) && proposals.capabilities.includes("members.groups");
   const members = castFor(manifest, dir, { zone });
   const origin = `http://127.0.0.1:${port}`;
   const teamUrl = `https://${manifest.name}-chest.atelier-martin.chest.test`;
@@ -118,7 +119,10 @@ export async function startFakeChest(dir, port) {
     // in the language given (theirs otherwise), signed now.
     assertion(key, language) {
       const member = byKey.get(key) ?? members[0];
-      return testing.signAssertion({ ...member, groups: [], ...(language ? { language } : {}) });
+      // A Chest carries the groups that give the tool — none here — or,
+      // with the capability "members.groups" (studio proposal), every group
+      // the member is in (sdk/README.md, "members.groups"), as dev.mjs.
+      return testing.signAssertion({ ...member, groups: allGroups ? member.groups : [], ...(language ? { language } : {}) });
     },
     close: () => chest.close(),
   };

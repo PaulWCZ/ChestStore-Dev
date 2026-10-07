@@ -1,0 +1,1077 @@
+{
+ "tool": "status",
+ "label": "after-mail",
+ "source": "/home/user/ChestStore-Dev/tools/public-and-private/status",
+ "date": "2026-10-07T01:51:29.643Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "6785e24 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 0.04,
+   "five": 0.06,
+   "fifteen": 0.07
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 56.2,
+    "rssMiB": 62,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 6.9,
+    "rssMiB": 387,
+    "command": "claude"
+   },
+   {
+    "cpu": 1.2,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 52,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ],
+  "atEnd": {
+   "one": 0.05,
+   "five": 0.05,
+   "fifteen": 0.06
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 6.8,
+    "rssMiB": 387,
+    "command": "claude"
+   },
+   {
+    "cpu": 2.4,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.4,
+    "rssMiB": 76,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 53,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 13.6,
+  "apparentMiB": 13,
+  "files": 236
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 2279,
+  "peakRssMiB": 217.6,
+  "peakPssMiB": 186.3,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 286.7,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 0.04,
+   "five": 0.06,
+   "fifteen": 0.07
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 111.4,
+   "apparentMiB": 103.4,
+   "files": 2514
+  },
+  "pruned": {
+   "diskMiB": 16.5,
+   "apparentMiB": 12.6,
+   "files": 1156
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 3705,
+   "peakRssMiB": 311.9,
+   "peakPssMiB": 278,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 251.5,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "one": 0.04,
+    "five": 0.06,
+    "fifteen": 0.07
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 2126,
+   "peakRssMiB": 362.3,
+   "peakPssMiB": 290.6,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 271.9,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 0.04,
+    "five": 0.06,
+    "fifteen": 0.07
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 2.2,
+  "apparentMiB": 2.1,
+  "files": 22,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 32.3
+ },
+ "sdk": "0.4.1-studio.7",
+ "pages": {
+  "source": "lab/measure/pages/status.json",
+  "list": [
+   {
+    "path": "/",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/incidents/7",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/history",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/subscribe",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/chest",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/incidents/new",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/checks",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/incidents/7",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/incidents/9",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/components",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/subscribers",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/incidents/1",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/embed",
+    "public": true,
+    "language": "en"
+   },
+   {
+    "path": "/chest/incidents/1",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "tom",
+    "language": "en"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 247.6,
+    "firstMs": 445.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.04
+   },
+   {
+    "portMs": 246.1,
+    "firstMs": 432.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.03
+   },
+   {
+    "portMs": 228,
+    "firstMs": 409.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.02
+   },
+   {
+    "portMs": 265.5,
+    "firstMs": 450.7,
+    "statuses": [
+     200
+    ],
+    "load": 0.02
+   },
+   {
+    "portMs": 264.2,
+    "firstMs": 464.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.02
+   },
+   {
+    "portMs": 256.2,
+    "firstMs": 446.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.01
+   },
+   {
+    "portMs": 252.8,
+    "firstMs": 442.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.01
+   },
+   {
+    "portMs": 250.7,
+    "firstMs": 440.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.01
+   },
+   {
+    "portMs": 252.7,
+    "firstMs": 439,
+    "statuses": [
+     200
+    ],
+    "load": 0.01
+   },
+   {
+    "portMs": 238.7,
+    "firstMs": 420.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.01
+   }
+  ],
+  "port": {
+   "median": 251.7,
+   "min": 228,
+   "max": 265.5
+  },
+  "first200": {
+   "median": 441.5,
+   "min": 409.6,
+   "max": 464.4
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 171.4,
+     "pss": 98.5
+    },
+    "peakMiB": {
+     "rss": 174.8,
+     "pss": 101.9,
+     "cgroup": 72.4
+    },
+    "afterRequestsMiB": {
+     "rss": 174.8,
+     "pss": 101.9
+    },
+    "restMiB": {
+     "rss": 169,
+     "pss": 96.1,
+     "pssAnon": 60.8,
+     "pssFile": 35.3,
+     "cgroupAnon": 60.7,
+     "cgroupCache": 0.1
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.5,
+      "pssMiB": 30.9
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 101.6,
+      "pssMiB": 64.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 138215,
+      "ms": 90.6
+     },
+     {
+      "path": "/incidents/7",
+      "status": 200,
+      "bytes": 6308,
+      "ms": 61.4
+     },
+     {
+      "path": "/history",
+      "status": 200,
+      "bytes": 8562,
+      "ms": 10.7
+     },
+     {
+      "path": "/subscribe",
+      "status": 200,
+      "bytes": 6624,
+      "ms": 6.4
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11629,
+      "ms": 111
+     },
+     {
+      "path": "/chest/incidents/new",
+      "status": 200,
+      "bytes": 18550,
+      "ms": 5.9
+     },
+     {
+      "path": "/chest/checks",
+      "status": 200,
+      "bytes": 25863,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/incidents/7",
+      "status": 200,
+      "bytes": 32599,
+      "ms": 13.4
+     },
+     {
+      "path": "/chest/incidents/9",
+      "status": 200,
+      "bytes": 48942,
+      "ms": 11.3
+     },
+     {
+      "path": "/chest/components",
+      "status": 200,
+      "bytes": 30897,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/subscribers",
+      "status": 200,
+      "bytes": 12687,
+      "ms": 6.7
+     },
+     {
+      "path": "/incidents/1",
+      "status": 200,
+      "bytes": 7165,
+      "ms": 58.9
+     },
+     {
+      "path": "/embed",
+      "status": 200,
+      "bytes": 699,
+      "ms": 61.4
+     },
+     {
+      "path": "/chest/incidents/1",
+      "status": 200,
+      "bytes": 32799,
+      "ms": 8.5
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 21457,
+      "ms": 6.7
+     }
+    ],
+    "load": {
+     "mean": 0.1,
+     "max": 0.13
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 168.5,
+     "pss": 95.5
+    },
+    "peakMiB": {
+     "rss": 175.8,
+     "pss": 102.6,
+     "cgroup": 71.2
+    },
+    "afterRequestsMiB": {
+     "rss": 175.8,
+     "pss": 102.6
+    },
+    "restMiB": {
+     "rss": 169.8,
+     "pss": 96.8,
+     "pssAnon": 61.5,
+     "pssFile": 35.3,
+     "cgroupAnon": 61.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.6,
+      "pssMiB": 31
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.3,
+      "pssMiB": 65.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 138215,
+      "ms": 88.9
+     },
+     {
+      "path": "/incidents/7",
+      "status": 200,
+      "bytes": 6308,
+      "ms": 59.1
+     },
+     {
+      "path": "/history",
+      "status": 200,
+      "bytes": 8562,
+      "ms": 11
+     },
+     {
+      "path": "/subscribe",
+      "status": 200,
+      "bytes": 6624,
+      "ms": 6.6
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11629,
+      "ms": 112.2
+     },
+     {
+      "path": "/chest/incidents/new",
+      "status": 200,
+      "bytes": 18550,
+      "ms": 6.2
+     },
+     {
+      "path": "/chest/checks",
+      "status": 200,
+      "bytes": 25863,
+      "ms": 7.6
+     },
+     {
+      "path": "/chest/incidents/7",
+      "status": 200,
+      "bytes": 32599,
+      "ms": 13.4
+     },
+     {
+      "path": "/chest/incidents/9",
+      "status": 200,
+      "bytes": 48942,
+      "ms": 11
+     },
+     {
+      "path": "/chest/components",
+      "status": 200,
+      "bytes": 30897,
+      "ms": 6.6
+     },
+     {
+      "path": "/chest/subscribers",
+      "status": 200,
+      "bytes": 12687,
+      "ms": 6.4
+     },
+     {
+      "path": "/incidents/1",
+      "status": 200,
+      "bytes": 7165,
+      "ms": 53.2
+     },
+     {
+      "path": "/embed",
+      "status": 200,
+      "bytes": 699,
+      "ms": 49.3
+     },
+     {
+      "path": "/chest/incidents/1",
+      "status": 200,
+      "bytes": 32799,
+      "ms": 16.1
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 21457,
+      "ms": 6
+     }
+    ],
+    "load": {
+     "mean": 0.11,
+     "max": 0.14
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 170,
+     "pss": 96.9
+    },
+    "peakMiB": {
+     "rss": 176.1,
+     "pss": 103,
+     "cgroup": 70.9
+    },
+    "afterRequestsMiB": {
+     "rss": 176.1,
+     "pss": 103
+    },
+    "restMiB": {
+     "rss": 168.8,
+     "pss": 95.8,
+     "pssAnon": 60.5,
+     "pssFile": 35.3,
+     "cgroupAnon": 60.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.4,
+      "pssMiB": 30.8
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 101.5,
+      "pssMiB": 64.7
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 138215,
+      "ms": 90
+     },
+     {
+      "path": "/incidents/7",
+      "status": 200,
+      "bytes": 6308,
+      "ms": 61.6
+     },
+     {
+      "path": "/history",
+      "status": 200,
+      "bytes": 8562,
+      "ms": 11.1
+     },
+     {
+      "path": "/subscribe",
+      "status": 200,
+      "bytes": 6624,
+      "ms": 7
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11629,
+      "ms": 122.9
+     },
+     {
+      "path": "/chest/incidents/new",
+      "status": 200,
+      "bytes": 18550,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/checks",
+      "status": 200,
+      "bytes": 25863,
+      "ms": 6.8
+     },
+     {
+      "path": "/chest/incidents/7",
+      "status": 200,
+      "bytes": 32599,
+      "ms": 12
+     },
+     {
+      "path": "/chest/incidents/9",
+      "status": 200,
+      "bytes": 48942,
+      "ms": 11.9
+     },
+     {
+      "path": "/chest/components",
+      "status": 200,
+      "bytes": 30897,
+      "ms": 7.7
+     },
+     {
+      "path": "/chest/subscribers",
+      "status": 200,
+      "bytes": 12687,
+      "ms": 7.4
+     },
+     {
+      "path": "/incidents/1",
+      "status": 200,
+      "bytes": 7165,
+      "ms": 54.3
+     },
+     {
+      "path": "/embed",
+      "status": 200,
+      "bytes": 699,
+      "ms": 51.2
+     },
+     {
+      "path": "/chest/incidents/1",
+      "status": 200,
+      "bytes": 32799,
+      "ms": 6.4
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 21457,
+      "ms": 7.1
+     }
+    ],
+    "load": {
+     "mean": 0.06,
+     "max": 0.08
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 170.1,
+     "pss": 97
+    },
+    "peakMiB": {
+     "rss": 174.4,
+     "pss": 101.3,
+     "cgroup": 71.7
+    },
+    "afterRequestsMiB": {
+     "rss": 174.4,
+     "pss": 101.3
+    },
+    "restMiB": {
+     "rss": 168.9,
+     "pss": 95.9,
+     "pssAnon": 60.7,
+     "pssFile": 35.3,
+     "cgroupAnon": 60.6,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.4,
+      "pssMiB": 30.9
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 101.6,
+      "pssMiB": 64.8
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 138215,
+      "ms": 92.9
+     },
+     {
+      "path": "/incidents/7",
+      "status": 200,
+      "bytes": 6308,
+      "ms": 59
+     },
+     {
+      "path": "/history",
+      "status": 200,
+      "bytes": 8562,
+      "ms": 10.6
+     },
+     {
+      "path": "/subscribe",
+      "status": 200,
+      "bytes": 6624,
+      "ms": 6.9
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11629,
+      "ms": 113.2
+     },
+     {
+      "path": "/chest/incidents/new",
+      "status": 200,
+      "bytes": 18550,
+      "ms": 6.4
+     },
+     {
+      "path": "/chest/checks",
+      "status": 200,
+      "bytes": 25863,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/incidents/7",
+      "status": 200,
+      "bytes": 32599,
+      "ms": 13.1
+     },
+     {
+      "path": "/chest/incidents/9",
+      "status": 200,
+      "bytes": 48942,
+      "ms": 11.5
+     },
+     {
+      "path": "/chest/components",
+      "status": 200,
+      "bytes": 30897,
+      "ms": 7
+     },
+     {
+      "path": "/chest/subscribers",
+      "status": 200,
+      "bytes": 12687,
+      "ms": 6.7
+     },
+     {
+      "path": "/incidents/1",
+      "status": 200,
+      "bytes": 7165,
+      "ms": 52.8
+     },
+     {
+      "path": "/embed",
+      "status": 200,
+      "bytes": 699,
+      "ms": 52.5
+     },
+     {
+      "path": "/chest/incidents/1",
+      "status": 200,
+      "bytes": 32799,
+      "ms": 6.9
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 21457,
+      "ms": 6.2
+     }
+    ],
+    "load": {
+     "mean": 0.03,
+     "max": 0.04
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 169.1,
+     "pss": 95.9
+    },
+    "peakMiB": {
+     "rss": 174.5,
+     "pss": 101.4,
+     "cgroup": 72.3
+    },
+    "afterRequestsMiB": {
+     "rss": 174.5,
+     "pss": 101.4
+    },
+    "restMiB": {
+     "rss": 168.6,
+     "pss": 95.5,
+     "pssAnon": 60.2,
+     "pssFile": 35.3,
+     "cgroupAnon": 60.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.8,
+      "pssMiB": 31.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 100.9,
+      "pssMiB": 64.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 138215,
+      "ms": 86
+     },
+     {
+      "path": "/incidents/7",
+      "status": 200,
+      "bytes": 6308,
+      "ms": 60.5
+     },
+     {
+      "path": "/history",
+      "status": 200,
+      "bytes": 8562,
+      "ms": 10.9
+     },
+     {
+      "path": "/subscribe",
+      "status": 200,
+      "bytes": 6624,
+      "ms": 7
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 11629,
+      "ms": 115.8
+     },
+     {
+      "path": "/chest/incidents/new",
+      "status": 200,
+      "bytes": 18550,
+      "ms": 6.6
+     },
+     {
+      "path": "/chest/checks",
+      "status": 200,
+      "bytes": 25863,
+      "ms": 6.5
+     },
+     {
+      "path": "/chest/incidents/7",
+      "status": 200,
+      "bytes": 32599,
+      "ms": 13.1
+     },
+     {
+      "path": "/chest/incidents/9",
+      "status": 200,
+      "bytes": 48942,
+      "ms": 12.1
+     },
+     {
+      "path": "/chest/components",
+      "status": 200,
+      "bytes": 30897,
+      "ms": 7
+     },
+     {
+      "path": "/chest/subscribers",
+      "status": 200,
+      "bytes": 12687,
+      "ms": 6.6
+     },
+     {
+      "path": "/incidents/1",
+      "status": 200,
+      "bytes": 7165,
+      "ms": 53.3
+     },
+     {
+      "path": "/embed",
+      "status": 200,
+      "bytes": 699,
+      "ms": 48.6
+     },
+     {
+      "path": "/chest/incidents/1",
+      "status": 200,
+      "bytes": 32799,
+      "ms": 5.9
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 21457,
+      "ms": 6.2
+     }
+    ],
+    "load": {
+     "mean": 0.07,
+     "max": 0.09
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 168.9,
+    "min": 168.6,
+    "max": 169.8
+   },
+   "pss": {
+    "median": 95.9,
+    "min": 95.5,
+    "max": 96.8
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 174.8,
+    "min": 174.4,
+    "max": 176.1
+   },
+   "pss": {
+    "median": 101.9,
+    "min": 101.3,
+    "max": 103
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 103.5,
+    "min": 102.8,
+    "max": 104.2
+   },
+   "pss": {
+    "median": 65.1,
+    "min": 64.4,
+    "max": 65.8
+   }
+  }
+ }
+}
