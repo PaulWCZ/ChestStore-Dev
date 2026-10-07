@@ -12,13 +12,13 @@ snapshot does not settle is marked **assumed**. Every claim about a tool
 comes from its code (`tools/private/*/`, `tools/public-and-private/*/`:
 `src/`, `chest.json`, `chest.proposals.json`) at commit `70227ed`
 (6 October 2026; versions and §4.17 rechecked at `7cc1a31`). The studio's proposals live in the SDK working copy
-`sdk/`, now **`0.4.1-studio.4`**: the official 0.4.1 byte for byte, with
+`sdk/`, now **`0.4.1-studio.7`**: the official 0.4.1 byte for byte, with
 the proposals in files of their own (`sdk/client/studio/`; §5)._
 
 _Where the tools stand (6 October 2026, `7cc1a31`): all 18 say `"chest":
 "0.4"`, keep only official keys in `chest.json`, and pass `chest check`
 (`scripts/chest-check.mjs`, the Chest's own validator); all 18 vendor SDK
-`0.4.1-studio.4`, the studio's package `@argentic/chest-app`
+`0.4.1-studio.7` (since 7 October: the owner's mail decisions, §4.2), the studio's package `@argentic/chest-app`
 `0.1.0-studio.8` and the UI kit `0.2.6-studio.1` (`node
 scripts/check-vendor.mjs`: nothing stale). None is on Next.js any more:
 each runs on the studio's stack — Hono, React rendered on the server with
