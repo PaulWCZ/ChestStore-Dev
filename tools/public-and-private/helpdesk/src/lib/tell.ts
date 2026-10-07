@@ -4,7 +4,7 @@ import * as members from "@argentic/chest-sdk/members";
 import { answering } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { format, type Catalogue } from "../i18n/index.ts";
-import { badges, broadcast, cut, notify, withdraw } from "./notify.ts";
+import { badges, broadcast, cut, notify, withdraw, cutLines } from "./notify.ts";
 import { nameOf, people, type Person } from "./people.ts";
 import { waitingCounts, type Ticket } from "./tickets.ts";
 
@@ -40,7 +40,7 @@ const path = (t: Pick<Ticket, "number">) => `/chest/tickets/${t.number}`;
 export async function newTicket(t: Pick<Ticket, "id" | "number" | "subject" | "customerName" | "customerEmail"> & { requester?: string | null }, body: string, assignee: string | null = null): Promise<void> {
   const colleague = t.requester ? (await people([t.requester])).get(t.requester) : undefined;
   const customer = (tr: Catalogue, locale: Locale) => (t.requester ? colleagueName(colleague, tr, locale) : t.customerName || t.customerEmail);
-  const words = (tr: Catalogue, locale: Locale) => ({ title: format(tr.bell.new, { customer: cut(customer(tr, locale), 40) }), body: cut(`${t.subject} — ${body}`, 280) });
+  const words = (tr: Catalogue, locale: Locale) => ({ title: format(tr.bell.new, { customer: cut(customer(tr, locale), 40) }), body: cutLines(`${t.subject} — ${body}`, 280) });
   const options = { path: path(t), key: `ticket:${t.id}:new` };
   if (assignee) await notify([assignee], words, options);
   else await broadcast(answering, () => answerers(), words, options);
@@ -62,13 +62,13 @@ export async function customerWrote(t: Pick<Ticket, "id" | "number" | "subject" 
   if (!t.assignee) return newTicket(t, body);
   const colleague = t.requester ? (await people([t.requester])).get(t.requester) : undefined;
   const customer = (tr: Catalogue, locale: Locale) => (t.requester ? colleagueName(colleague, tr, locale) : t.customerName || t.customerEmail);
-  await notify([t.assignee], (tr, locale) => ({ title: format(tr.bell.replied, { customer: cut(customer(tr, locale), 40), number: t.number }), body: cut(body, 280) }), { path: path(t), key: `ticket:${t.id}:reply` });
+  await notify([t.assignee], (tr, locale) => ({ title: format(tr.bell.replied, { customer: cut(customer(tr, locale), 40), number: t.number }), body: cutLines(body, 280) }), { path: path(t), key: `ticket:${t.id}:reply` });
 }
 
 export async function assigned(actor: Member, t: Pick<Ticket, "id" | "number" | "subject">, to: string | null): Promise<void> {
   await withdraw(`ticket:${t.id}:new`);
   if (!to || to === actor.id) return;
-  await notify([to], tr => ({ title: format(tr.bell.assigned, { name: actor.name, number: t.number }), body: cut(t.subject, 280) }), { path: path(t), key: `ticket:${t.id}:assigned` });
+  await notify([to], tr => ({ title: format(tr.bell.assigned, { name: actor.name, number: t.number }), body: cutLines(t.subject, 280) }), { path: path(t), key: `ticket:${t.id}:assigned` });
 }
 
 // A colleague's request was answered: they hear of it in the bell, in
@@ -79,7 +79,7 @@ export async function assigned(actor: Member, t: Pick<Ticket, "id" | "number" | 
 const minePath = (t: Pick<Ticket, "number">) => `/chest/mine/${t.number}`;
 export async function colleagueAnswered(t: Pick<Ticket, "id" | "number" | "subject" | "requester">, actor: Member): Promise<void> {
   if (!t.requester || t.requester === "erased" || t.requester === actor.id) return;
-  await notify([t.requester], tr => ({ title: format(tr.bell.colleagueAnswered, { name: actor.name, number: t.number }), body: cut(t.subject, 280) }), { path: minePath(t), key: `ticket:${t.id}:answered` });
+  await notify([t.requester], tr => ({ title: format(tr.bell.colleagueAnswered, { name: actor.name, number: t.number }), body: cutLines(t.subject, 280) }), { path: minePath(t), key: `ticket:${t.id}:answered` });
 }
 
 // Answered or closed: nothing waits on the team any more.
@@ -90,7 +90,7 @@ export async function answered(t: Pick<Ticket, "id">): Promise<void> {
 // An email about a ticket will never arrive (the address does not exist):
 // whoever wrote it hears of it, to call the customer or fix the address.
 export async function bounced(t: Pick<Ticket, "id" | "number">, to: string, recipient: string): Promise<void> {
-  await notify([to], tr => ({ title: format(tr.bell.bounced, { number: t.number }), body: cut(recipient, 280) }), { path: path(t), key: `ticket:${t.id}:bounced` });
+  await notify([to], tr => ({ title: format(tr.bell.bounced, { number: t.number }), body: cutLines(recipient, 280) }), { path: path(t), key: `ticket:${t.id}:bounced` });
 }
 
 // The customer rated a closed request: its agent hears of it.

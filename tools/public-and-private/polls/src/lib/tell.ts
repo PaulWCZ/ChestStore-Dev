@@ -7,7 +7,7 @@ import { all, maxPages, page, type Person } from "./audience.ts";
 import { dates, optionText } from "./dates.ts";
 import type { Sql } from "./db.ts";
 import { fill, type Catalogue } from "../i18n/index.ts";
-import { badges, cut, notice, notify, withdraw } from "./notify.ts";
+import { badges, cut, notice, notify, withdraw, cutLines } from "./notify.ts";
 import { people as lookup, nameOf } from "./people.ts";
 import { answeredBy, closeDue, load, pendingCounts, purge, type Poll } from "./polls.ts";
 import { openRounds } from "./series.ts";
@@ -50,14 +50,14 @@ function words(kind: Kind, poll: Poll, t: Catalogue, locale: Locale, organiser: 
   if (kind === "ask") {
     return {
       title: cut(fill(t.bell.ask, { name: organiser, title: poll.title }), 80),
-      body: cut(poll.closesAt ? fill(t.bell.askUntil, { date: d.at(poll.closesAt) }) : t.bell.askBody[poll.kind], 280),
+      body: cutLines(poll.closesAt ? fill(t.bell.askUntil, { date: d.at(poll.closesAt) }) : t.bell.askBody[poll.kind], 280),
     };
   }
-  if (kind === "nudge") return { title: cut(fill(t.bell.nudge, { title: poll.title }), 80), body: cut(poll.closesAt ? fill(t.bell.nudgeUntil, { name: organiser, date: d.at(poll.closesAt) }) : fill(t.bell.nudgeBody, { name: organiser }), 280) };
-  if (kind === "remind") return { title: cut(fill(t.bell.remind, { title: poll.title }), 80), body: cut(poll.closesAt ? fill(t.bell.remindBody, { date: d.at(poll.closesAt) }) : t.bell.askBody[poll.kind], 280) };
+  if (kind === "nudge") return { title: cut(fill(t.bell.nudge, { title: poll.title }), 80), body: cutLines(poll.closesAt ? fill(t.bell.nudgeUntil, { name: organiser, date: d.at(poll.closesAt) }) : fill(t.bell.nudgeBody, { name: organiser }), 280) };
+  if (kind === "remind") return { title: cut(fill(t.bell.remind, { title: poll.title }), 80), body: cutLines(poll.closesAt ? fill(t.bell.remindBody, { date: d.at(poll.closesAt) }) : t.bell.askBody[poll.kind], 280) };
   const option = poll.questions[0]?.options.find(o => o.id === poll.finalOption);
   const when = option?.day ? optionText({ day: option.day, start: option.start, end: option.end }, locale, zone, { range: t.dates.range, dayAndTime: t.dates.dayAndTime }) : "";
-  return { title: cut(fill(t.bell.final, { title: poll.title }), 80), body: cut(when, 280) };
+  return { title: cut(fill(t.bell.final, { title: poll.title }), 80), body: cutLines(when, 280) };
 }
 
 async function organiserName(poll: Poll): Promise<(locale: Locale) => string> {

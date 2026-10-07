@@ -426,7 +426,7 @@ an error.
 
 Hono and React rendered on the server, with islands for what runs in the
 browser, built by Vite — through the studio's package
-`@argentic/chest-app` (studio.6, `vendor/`), on SDK 0.4.1-studio.6 and the
+`@argentic/chest-app` (studio.6, `vendor/`), on SDK 0.4.1-studio.7 and the
 UI kit 0.2.6-studio.1. Contract 0.4: the Chest's strict CSP (no inline
 script or style: bars are SVG, widths are classes). `npm start` runs
 `dist/server/main.js`; the browser's files are `/assets/` (`build.static`).
@@ -498,7 +498,7 @@ column mailed_at`) once no instance runs the previous one.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1-studio.6 and the studio's package `@argentic/chest-app`
+Built on SDK 0.4.1-studio.7 and the studio's package `@argentic/chest-app`
 (studio.6). All exist as proposals in the studio's working copy; the tool
 calls them as if shipped and keeps working without them:
 

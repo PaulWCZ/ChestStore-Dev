@@ -66,7 +66,7 @@ test("a team form that opens tells the team once, except its author; closing wit
   assert.equal(await tell.opened("41", "abcdefgh", "Offsite", camille.id), true);
   const items = chest.notifications.filter(n => n.key === "ask:41");
   assert.ok(items.some(n => n.member === hugo.id && n.title === "New form to answer: Offsite" && n.path === "/chest/f/abcdefgh"));
-  assert.ok(items.some(n => n.member === ines.id && shownTo(n, "fr").title === "Nouveau formulaire à remplir : Offsite"));
+  assert.ok(items.some(n => n.member === ines.id && shownTo(n, "fr").title === "Nouveau formulaire à remplir\u202f: Offsite"), "the narrow no-break space kept");
   assert.ok(!items.some(n => n.member === camille.id));
   await tell.closed("41");
   assert.equal(chest.notifications.filter(n => n.key === "ask:41").length, 0);

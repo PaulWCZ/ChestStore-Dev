@@ -374,7 +374,7 @@ with its candidate and given to them in their data.
 
 ## Needs from the SDK
 
-The tool is built on SDK 0.4.1 + studio proposals (0.4.1-studio.6). The
+The tool is built on SDK 0.4.1 + studio proposals (0.4.1-studio.7). The
 needs below are proposals of the studio's working copy; the tool calls
 them as if shipped and keeps working without them:
 

@@ -450,7 +450,7 @@ says why), so that version keeps working after a rollback.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), a packed copy in
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.7), a packed copy in
 `vendor/`, and the studio's app package `@argentic/chest-app` (also in
 `vendor/`). The member's `language` and `timeZone`, the Chest's
 `organization`, `timeZone`, `language`, `chest.tool.teamUrl` and

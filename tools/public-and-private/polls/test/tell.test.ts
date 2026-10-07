@@ -47,7 +47,7 @@ test("a sent poll is told to everyone it asks, each in their language — not it
     const asked = items(tell.askKey(made.id));
     assert.deepEqual(asked.map(n => n.member).sort(), [camille.id, ines.id, hugo.id, lea.id, tom.id].sort());
     assert.equal(read(asked.find(n => n.member === hugo.id), hugo).title, "Sofia Rossi asks: Lunch on Friday?");
-    assert.equal(read(asked.find(n => n.member === ines.id), ines).title, "Sofia Rossi demande : Lunch on Friday?");
+    assert.equal(read(asked.find(n => n.member === ines.id), ines).title, "Sofia Rossi demande\u202f: Lunch on Friday?", "the narrow no-break space kept");
     assert.equal(read(asked.find(n => n.member === hugo.id), hugo).body, "Answer before Fri 9 Oct, 12:00.");
     assert.equal(asked[0]!.path, `/chest/polls/${made.id}`);
     assert.equal(chest.badges.get(hugo.id), 1);
@@ -96,7 +96,7 @@ test("the day before it closes, those who have not answered are reminded — onc
     const reminded = items(tell.askKey(made.id));
     assert.deepEqual(reminded.map(n => n.member).sort(), [camille.id, hugo.id, lea.id, tom.id].sort());
     assert.equal(read(reminded.find(n => n.member === hugo.id), hugo).title, "Closes tomorrow: Lunch on Friday?");
-    assert.equal(read(reminded.find(n => n.member === camille.id), camille).title, "Se termine demain : Lunch on Friday?");
+    assert.equal(read(reminded.find(n => n.member === camille.id), camille).title, "Se termine demain\u202f: Lunch on Friday?", "the narrow no-break space kept");
     const before = chest.notifications.length;
     await tell.pass(sql, new Date(later.getTime() + 36e5));
     assert.equal(chest.notifications.length, before, "once");

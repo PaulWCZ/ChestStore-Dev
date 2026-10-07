@@ -11,7 +11,7 @@ the browser, built by Vite, on the package `@argentic/chest-app`
 (vendored: `createApp`, `page`/`publicPage`, `download`, `action`/
 `publicAction` with `field.*` and `bound`, `Island`, `call`/`refresh`/
 `navigate`/`toast`/`useAutoRefresh` from `/client`) and the SDK
-`@argentic/chest-sdk` 0.4.1-studio.6. Never copy the package's code into
+`@argentic/chest-sdk` 0.4.1-studio.7. Never copy the package's code into
 the tool.
 
 - `src/main.ts` (the server), `src/app.tsx` (every route: the team's pages,
