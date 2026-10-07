@@ -7,9 +7,9 @@ import { readerOf, type Reader } from "./access.ts";
 // every group of the Chest the member is in — Sales, Tech — even when Goals
 // is open to everyone, the usual case. Without it (a Chest that has not
 // approved it yet), the groups that give Goals: a member then writes for a
-// group's team only when that group gives Goals. Known limit of the official
-// 0.4.1: an assertion naming more than 16 groups is refused (the member is
-// not read); 0.5 lifts it.
+// group's team only when that group gives Goals. The official 0.4.1 refuses
+// an assertion naming more than 16 groups; the vendored 0.4.1-studio.7
+// lifts it (an assertion up to 16 KiB, about 300 groups).
 export async function groupsOf(actor: Member): Promise<readonly string[]> {
   return actor.groups;
 }

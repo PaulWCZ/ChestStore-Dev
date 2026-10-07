@@ -319,8 +319,9 @@ studio proposals (0.4.1-studio.4), on the tool contract 0.4 (`"chest": "0.4"` in
   `members.list({ group })`, `group.*` events), and `member.groups` names
   every group a member is in (`src/lib/groups.ts`: who writes for a team,
   who reads its confidential objectives); without it, only the groups that
-  give Goals. Known limit of the official 0.4.1: an assertion with more than
-  16 groups is refused (lifted in 0.5).
+  give Goals. The official 0.4.1 refuses an assertion with more than 16
+  groups; the vendored SDK 0.4.1-studio.7 lifts it (an assertion up to
+  16 KiB, about 300 groups).
 - `chest.theme()` — **Proposal (studio)**: the company's look (a catalogue
   theme or its brand); outside a Chest that has it, Goals wears its own.
 - **Not in the SDK, needed** (see the final report / SDK report):

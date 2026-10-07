@@ -168,21 +168,22 @@ export type JourneyItem = { id: string; text: string; phrase: string | null; rol
 export type Journey = {
   id: string; kind: Kind;
   // The member it is about; null while it is about an arrival told by
-  // another tool (arrivalId, arrivalName) not linked to a member yet.
-  personId: string | null; arrivalId: string | null; arrivalName: string | null;
+  // another tool or written by HR (arrivalId, arrivalName) not linked to a
+  // member yet; arrivalSource says which ("hiring": told by Hiring).
+  personId: string | null; arrivalId: string | null; arrivalName: string | null; arrivalSource: "hiring" | "manual" | null;
   name: string; phrase: Kind | null; anchor: string; createdBy: string; createdAt: string;
   stopped: boolean; completedAt: string | null; managerId: string | null; items: JourneyItem[];
 };
 export type JourneySummary = Omit<Journey, "items"> & { total: number; done: number; next: string | null; late: number };
 
-type JourneyRow = { id: string; kind: Kind; person_id: string | null; arrival_id: string | null; arrival_name: string | null; name: string; phrase: Kind | null; anchor: string; created_by: string; created_at: Date; stopped_at: Date | null; completed_at: Date | null; manager_id: string | null };
+type JourneyRow = { id: string; kind: Kind; person_id: string | null; arrival_id: string | null; arrival_name: string | null; arrival_source: "hiring" | "manual" | null; name: string; phrase: Kind | null; anchor: string; created_by: string; created_at: Date; stopped_at: Date | null; completed_at: Date | null; manager_id: string | null };
 type ItemRow = { id: string; journey_id: string; text: string; phrase: string | null; role: ItemRole; assignee: string | null; due_on: string; done_at: Date | null; done_by: string | null };
 // A checklist's manager is the person's (or, for an arrival, the one HR
 // chose when starting it).
-const journeyColumns = "j.id, j.kind, j.person_id, j.arrival_id, a.name as arrival_name, j.name, j.phrase, to_char(j.anchor, 'YYYY-MM-DD') as anchor, j.created_by, j.created_at, j.stopped_at, j.completed_at, coalesce(p.manager_id, a.manager_id) as manager_id";
+const journeyColumns = "j.id, j.kind, j.person_id, j.arrival_id, a.name as arrival_name, a.source as arrival_source, j.name, j.phrase, to_char(j.anchor, 'YYYY-MM-DD') as anchor, j.created_by, j.created_at, j.stopped_at, j.completed_at, coalesce(p.manager_id, a.manager_id) as manager_id";
 const journeyFrom = "journeys j left join profiles p on p.member_id = j.person_id left join arrivals a on a.id = j.arrival_id";
 const toJourney = (r: JourneyRow) => ({
-  id: String(r.id), kind: r.kind, personId: r.person_id, arrivalId: r.arrival_id === null ? null : String(r.arrival_id), arrivalName: r.arrival_name, name: r.name, phrase: r.phrase, anchor: r.anchor, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
+  id: String(r.id), kind: r.kind, personId: r.person_id, arrivalId: r.arrival_id === null ? null : String(r.arrival_id), arrivalName: r.arrival_name, arrivalSource: r.arrival_id === null ? null : r.arrival_source, name: r.name, phrase: r.phrase, anchor: r.anchor, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
   stopped: r.stopped_at !== null, completedAt: r.completed_at?.toISOString() ?? null, managerId: r.manager_id,
 });
 const toJourneyItem = (r: ItemRow): JourneyItem => ({ id: String(r.id), text: r.text, phrase: r.phrase, role: r.role, assignee: r.assignee, due: r.due_on, done: r.done_at !== null, doneAt: r.done_at?.toISOString() ?? null, doneBy: r.done_by });

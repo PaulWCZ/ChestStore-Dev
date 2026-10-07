@@ -73,7 +73,7 @@ export type Event = {
 
 const inAll = (text: (t: Catalogue, locale: Locale) => string): Words => Object.fromEntries(locales.map(l => [l, text(catalogue(l), l)]));
 const bounded = (text: string, max: number) => {
-  const chars = [...text.replace(/\s+/gu, " ").trim()];
+  const chars = [...text.replace(/[^\S\u00a0\u2007\u202f]+/gu, " ").trim()];
   return chars.length <= max ? chars.join("") : chars.slice(0, max - 1).join("") + "…";
 };
 const place = (...parts: (string | null | undefined)[]) => bounded(parts.filter(p => p && p.trim()).join(" · "), 200);

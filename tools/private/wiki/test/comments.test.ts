@@ -158,7 +158,7 @@ test("a new comment tells the page's author, earlier commenters and watchers —
   const key = `comments:${p.id}`;
   const told = itemsOf(ines.id, key);
   assert.equal(told.length, 1);
-  assert.equal(shownTo(told[0]!, "fr").title, "Hugo Bernard a commenté « Expenses »"); // Inès reads French
+  assert.equal(shownTo(told[0]!, "fr").title, "Hugo Bernard a commenté «\u202fExpenses\u202f»"); // Inès reads French
   assert.equal(told[0]!.body, "Is the limit per day?");
   assert.equal(told[0]!.path, `/chest/pages/${p.id}#comment-${first.comment.id}`);
   assert.equal(itemsOf(hugo.id, key).length, 0);
@@ -274,7 +274,7 @@ test("a comment naming someone with @ tells them on their own — once, only if 
   const c = await comments.addComment(sql, asMember(tom), p.id, "@Hugo Bernard can you check the bikes? cc @Léa Dubois");
   const told = await tell.commented(sql, asMember(tom), c.page, c.comment, [hugo.id, lea.id, tom.id]);
   assert.deepEqual(itemsOf(hugo.id, `mention:${p.id}`).length, 1);
-  assert.equal(shownTo(itemsOf(lea.id, `mention:${p.id}`)[0]!, "fr").title, "Tom Walker vous a mentionné sur « Parking »");
+  assert.equal(shownTo(itemsOf(lea.id, `mention:${p.id}`)[0]!, "fr").title, "Tom Walker vous a mentionné sur «\u202fParking\u202f»");
   assert.equal(itemsOf(tom.id, `mention:${p.id}`).length, 0); // never oneself
   // Inès, the author, gets the usual item; Hugo is not told twice.
   assert.equal(itemsOf(ines.id, `comments:${p.id}`).length, 1);
