@@ -522,11 +522,12 @@ await step("a customer's team gets updates in Slack: connected on “Get updates
   await page.getByLabel("Slack").check();
   await page.locator("#url").fill("https://example.com/not-a-slack-hook");
   await page.getByRole("button", { name: "Connect" }).click();
-  // With JavaScript the refusal is a toast and the form keeps what was
-  // typed (without it, the page comes back filled in, the reason beside).
-  const said = page.locator(".ck-toast", { hasText: "Paste the address Slack gave you" });
+  // With JavaScript the refusal is said next to the address, in the place
+  // the page fills without it, and the form keeps what was typed.
+  const said = page.locator("#url-error:not([hidden])", { hasText: "Paste the address Slack gave you" });
   await said.waitFor();
   expect(await said.count() === 1, "a wrong address is said");
+  expect(await page.locator("#url").getAttribute("aria-invalid") === "true" && await page.locator(".ck-toast-error").count() === 0, "marked on the field, no toast");
   expect((await page.locator("#url").inputValue()) === "https://example.com/not-a-slack-hook", "what was typed stays");
   await page.waitForTimeout(2200);
   await page.getByLabel("Slack").check();

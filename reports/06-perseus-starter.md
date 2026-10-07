@@ -818,6 +818,20 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
   refresh) became `page(…, { version: pageStamp })` and the package's
   hook. The starter's home page shows the pattern (an `AutoRefresh`
   island, the notes' version).
+- **All eighteen tools and the starter on chest-app 0.1.0-studio.10** (7
+  October), re-vendored with `scripts/add-app.mjs`; each's `npm test` on
+  PGlite, one at a time, all passing (starter 16, CRM 126, Equipment 130
+  + 4 skipped, Expenses 115, Goals 103, Leave 142 + 2 skipped, News 103,
+  People 131, Rooms 141 + 1 skipped, Tasks 124, Timesheets 120 + 2
+  skipped, Wiki 119, Booking 122, Forms 151 + 5 skipped, Support 108,
+  Hiring 123, Polls 104, Quotes 207 + 1 skipped, Status 109); the
+  package's 52 and the 19 Chromium tests passing; `chest check` OK for
+  the eighteen; `check-vendor` nothing stale. Browser flows on the
+  harness (`--prod --reset`), all steps passing: Status (28; its two
+  subscribe forms now mark the field, no toast; axe WCAG 2.2 A/AA clean
+  on both after a refusal sent by the script) and Forms (31, with
+  `--tools crm,helpdesk --linked`). Code changed: Forms (readEmail),
+  Status (refusals name their field); the other sixteen only re-vendored.
 - **All eighteen tools and the starter on chest-app 0.1.0-studio.9** (7
   October), re-vendored with `scripts/add-app.mjs` (locks followed);
   each's `npm test` on PGlite, one at a time, all passing (starter 16,
