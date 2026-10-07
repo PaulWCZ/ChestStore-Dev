@@ -21,6 +21,12 @@ rules — is `node_modules/@argentic/chest-app/AGENTS.md`: read it first.
 - Look: the Chest's own theme (`src/theme.ts`), light only.
 - No public part (a permission: add one only when the tool needs it —
   the package's AGENTS.md, "The public part").
+- Mail (the owner's rule): the tool never mails a member — it tells them
+  with a notification (`notifications` capability); the Chest mails
+  members their notifications as each one chose, so no digest, reminder
+  or "email me" setting in the tool. The Chest receives no mail. Mail to
+  a visitor (a receipt, a recap) only through the SDK's `mail`, which SDK
+  0.4.1 does not have yet: never SMTP or a mail service of the tool's own.
 
 ## Replacing the example
 
