@@ -133,15 +133,6 @@ export function clean(value: unknown, max: number, options: { multiline?: boolea
   return text;
 }
 
-// A plain email address, as the Chest's mail sends to.
-const address = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
-export function email(value: unknown): string {
-  if (typeof value !== "string") throw new AppError("invalid_email");
-  const text = value.trim();
-  if (text.length > limits.email || !address.test(text)) throw new AppError("invalid_email");
-  return text;
-}
-
 // A web address a candidate gives (LinkedIn, a portfolio): http or https
 // only, so a page never links to javascript: or data:. "www.x.com" is read
 // as https.

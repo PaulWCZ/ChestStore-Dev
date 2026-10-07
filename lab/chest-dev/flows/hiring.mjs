@@ -79,6 +79,17 @@ await step("a candidate applies with a PDF CV and lands on the thank-you page; a
   expect((await dev()).includes("We received your application — Senior furniture designer"), "confirmation in the outbox");
 });
 
+await step("an address the browser lets through but mail would not take is refused in plain words; what was typed stays", async () => {
+  await page.goto(origin + "/senior-furniture-designer/apply");
+  // Two dots in a row: the server's field.email refuses it.
+  await fillApplication("Paul Martin", "paul..martin@example.com", null);
+  await page.getByRole("button", { name: "Send my application" }).click();
+  await page.waitForSelector("p.error");
+  expect((await page.locator("p.error").first().innerText()).includes("This email address does not look right"), "the address refused");
+  expect((await page.getByLabel("Full name").inputValue()) === "Paul Martin", "kept");
+  expect(!page.url().includes("/thanks"), "not filed");
+});
+
 await step("a file that says PDF but is not one is refused; what was typed stays", async () => {
   await page.goto(origin + "/sales-associate-lyon-showroom/apply");
   await fillApplication("Bot Faker", "bot@example.com", { name: "cv.pdf", mimeType: "application/pdf", buffer: Buffer.from("not a pdf at all") });

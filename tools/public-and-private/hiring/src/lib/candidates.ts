@@ -1,4 +1,5 @@
 import type { Member } from "@argentic/chest-sdk/member";
+import { field } from "@argentic/chest-app";
 import { can, jobAccess, roleOf, type JobAccess } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
@@ -8,7 +9,6 @@ import {
   clean,
   daysBetween,
   fold,
-  email,
   id,
   isLanguage,
   isMemberId,
@@ -23,6 +23,18 @@ import {
   type Recommendation,
   type RejectReason,
 } from "../shared/model.ts";
+
+// A plain email address, as the Chest's mail sends to: the package's rule
+// (field.email: trimmed, the domain lower-cased, the part before the @ as
+// written; display names, controls, quotes and IP literals refused with
+// "invalid_email", "" with "empty"). The actions read addresses with
+// field.email() too; the import holds a file's addresses to it. Compared
+// lowercase (lower(…) in SQL). Kept out of shared/model.ts, which the
+// islands load.
+const address = field.email({ max: limits.email });
+export function email(value: unknown): string {
+  return address.read(value);
+}
 
 // Candidates and the team's work on them: stages, rejections, notes,
 // feedback, the activity line. Team functions take (sql, actor, …) and check

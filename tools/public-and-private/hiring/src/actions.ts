@@ -337,7 +337,7 @@ export const actions = {
     }
   }, { parallel: true }),
   addCandidate: action({
-    jobId: ref(), name: field.text({ max: limits.name }), email: field.text({ max: limits.email }), phone: words(limits.phone), link: words(limits.link), coverLetter: words(limits.coverLetter),
+    jobId: ref(), name: field.text({ max: limits.name }), email: field.email(), phone: words(limits.phone), link: words(limits.link), coverLetter: words(limits.coverLetter),
     language: field.choice(languages), stage: field.optional(ref()), cv: field.optional(field.text({ max: 300 })), cvName: words(limits.fileName),
   }, async (input, { member }): Promise<{ id: string }> => {
     const sql = db();
@@ -351,7 +351,7 @@ export const actions = {
       throw error;
     }
   }),
-  editCandidate: action({ id: ref(), name: field.text({ max: limits.name }), email: field.text({ max: limits.email }), phone: words(limits.phone), link: words(limits.link), language: field.choice(languages) }, async ({ id, ...input }, { member }): Promise<null> => {
+  editCandidate: action({ id: ref(), name: field.text({ max: limits.name }), email: field.email(), phone: words(limits.phone), link: words(limits.link), language: field.choice(languages) }, async ({ id, ...input }, { member }): Promise<null> => {
     await candidates.editCandidate(db(), member, id, input);
     return null;
   }),
@@ -500,7 +500,7 @@ export const actions = {
   // The application. Sent, the thank-you page (nothing of the candidate in
   // its address); a confirmation email in the candidate's language.
   apply: publicAction({
-    slug: field.text({ max: 80 }), name: words(limits.name), email: words(limits.email), phone: words(limits.phone), link: words(limits.link), coverLetter: words(limits.coverLetter),
+    slug: field.text({ max: 80 }), name: words(limits.name), email: field.email(), phone: words(limits.phone), link: words(limits.link), coverLetter: words(limits.coverLetter),
     cv: field.optional(field.text({ max: 200 })), cvName: words(limits.fileName), pool: field.bool(), lang: words(5),
     answers: field.keyed(/^answer:(q[a-z0-9]{1,12})$/u, words(limits.answer), limits.questions),
   }, async (input, { charge }): Promise<null> => {

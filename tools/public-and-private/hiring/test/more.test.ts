@@ -181,10 +181,13 @@ test("importing: rows land in the matched stages with their date; errors, duplic
     { line: 4, name: "Lucie again", email: "LUCIE.I@example.com", stage: "", appliedAt: "" },
     { line: 5, name: "Very old", email: "old@example.com", stage: "", appliedAt: "2020-01-01" },
     { line: 6, name: "", email: "noname@example.com", stage: "", appliedAt: "" },
+    // The import holds a file's addresses to the form's rule.
+    { line: 7, name: "Ana Diaz", email: "Ana <ana@example.com>", stage: "", appliedAt: "" },
+    { line: 8, name: "No address", email: "", stage: "", appliedAt: "" },
   ];
   const done = await importRows(sql, recruiter(), job.id, { rows, stages: { Interview: stages[2]!.id }, origin: "Teamtailor", language: "fr" }, today);
   assert.deepEqual(done.added.map(a => a.email), ["lucie.i@example.com"]);
-  assert.deepEqual(done.skipped, [{ line: 3, reason: "email" }, { line: 4, reason: "duplicate" }, { line: 5, reason: "old" }, { line: 6, reason: "name" }]);
+  assert.deepEqual(done.skipped, [{ line: 3, reason: "email" }, { line: 4, reason: "duplicate" }, { line: 5, reason: "old" }, { line: 6, reason: "name" }, { line: 7, reason: "email" }, { line: 8, reason: "email" }]);
   const c = (await candidates.candidate(sql, recruiter(), done.added[0]!.id)).candidate;
   assert.deepEqual([c.stageId, c.source, c.origin, c.language, c.createdAt.slice(0, 10)], [stages[2]!.id, "import", "Teamtailor", "fr", "2026-05-14"]);
   await assert.rejects(importRows(sql, asMember(hugo), job.id, { rows, stages: {}, origin: "", language: "en" }), { code: "forbidden" });
