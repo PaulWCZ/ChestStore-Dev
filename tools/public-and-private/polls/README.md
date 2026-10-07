@@ -362,7 +362,7 @@ closed poll is seen by those asked, its organiser and admins.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`, and `@argentic/chest-app` 0.1.0-studio.8, contract 0.4 (`"chest": "0.4"`).
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.7), in `vendor/`, and `@argentic/chest-app` 0.1.0-studio.8, contract 0.4 (`"chest": "0.4"`).
 
 - `member.language` — SDK 0.3.0: the interface and the bell in each
   member's language (`localeOf`: English for a language Polls does not
@@ -389,9 +389,10 @@ Built on SDK 0.4.1 + studio proposals (0.4.1-studio.6), in `vendor/`, and `@arge
   so who a poll asks is read from the Chest's own answers. Someone who
   leaves a group (`member.updated`, `changed: ["groups"]`) loses that
   group's "asks you" item and the number on their tile. Without the
-  capability, the groups the Chest gave with the member. Known limit of
-  the official 0.4.1: `member()` refuses an assertion with more than 16
-  groups (lifted by 0.5).
+  capability, the groups the Chest gave with the member. The official
+  0.4.1's `member()` refuses an assertion with more than 16 groups; the
+  studio SDK lifts that from studio.7 (an assertion up to 16 KiB, about
+  300 groups), and 0.5 is announced to lift it too.
 - `calendar` — **Proposal (studio)**: the chosen date in each person's
   Chest calendar (`calendar.putMany`, studio.15: keys `poll:<id>`, then
   `poll:<id>:2`… for each further 1,000 people); without it, the .ics
