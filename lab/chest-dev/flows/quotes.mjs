@@ -654,6 +654,19 @@ await step("round 3: a new client from its SIREN — the public directory, or an
   await page.locator("form p.error[role=alert]", { hasText: "SIREN" }).waitFor();
 });
 
+await step("a client's address the browser lets through but mail would not take is refused under its field; what was typed stays", async () => {
+  await english();
+  await page.goto(origin + "/chest/clients");
+  await page.getByRole("button", { name: "New client" }).first().click();
+  await page.getByLabel("Company name").fill("Atelier Lumière");
+  // Two dots in a row: the server's field.email refuses it.
+  await page.getByLabel("Email", { exact: true }).fill("contact..atelier@example.com");
+  await page.getByRole("button", { name: "Add the client" }).click();
+  await page.locator("form p.error[role=alert]", { hasText: "This is not an email address." }).waitFor();
+  expect(await page.getByLabel("Email", { exact: true }).getAttribute("aria-invalid") === "true", "the field marked");
+  expect(await page.getByLabel("Company name").inputValue() === "Atelier Lumière", "kept");
+});
+
 await step("phone: every place with its words — five labelled tabs, the rest in More", async () => {
   await english();
   await page.setViewportSize({ width: 390, height: 844 });

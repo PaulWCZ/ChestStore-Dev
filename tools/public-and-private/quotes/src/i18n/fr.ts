@@ -117,7 +117,7 @@ export const fr: Catalogue = {
     vat_number_invalid: "Ce numéro de TVA n’est pas valide (FR puis 11 chiffres pour la France).",
     iban_invalid: "Cet IBAN n’est pas valide : vérifiez chaque caractère.",
     bic_invalid: "Un BIC compte 8 ou 11 lettres et chiffres.",
-    email_invalid: "Ce n’est pas une adresse e-mail.",
+    invalid_email: "Ce n’est pas une adresse e-mail.",
     prefix_taken: "« {prefix} » commence déjà {number}, un autre type de document : ses prochains numéros se répéteraient. Choisissez un autre préfixe.",
     prefix_invalid: "Préfixes : 1 à 8 lettres ou chiffres, un différent pour chaque type de document.",
     capital_invalid: "Ce n’est pas un montant.",

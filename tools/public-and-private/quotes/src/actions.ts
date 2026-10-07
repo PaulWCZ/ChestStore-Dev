@@ -10,6 +10,7 @@ import { bankLimits } from "./shared/bank-parse.ts";
 import * as clients from "./lib/clients.ts";
 import * as company from "./lib/company.ts";
 import { db } from "./lib/db.ts";
+import { optionalEmail } from "./lib/email.ts";
 import * as documents from "./lib/documents.ts";
 import * as importers from "./lib/importers.ts";
 import * as items from "./lib/items.ts";
@@ -57,7 +58,7 @@ const defaults = (): documents.Defaults => ({ today: today(), locale: localeOf(c
 
 // A client's card, as its form sends it.
 const clientFields = {
-  kind: field.choice(clientKinds), name: typed(limits.name), contact: typed(limits.contact), email: typed(limits.email), phone: typed(limits.phone),
+  kind: field.choice(clientKinds), name: typed(limits.name), contact: typed(limits.contact), email: optionalEmail, phone: typed(limits.phone),
   address: typed(limits.address), postcode: typed(limits.postcode), city: typed(limits.city), country: typed(8), deliveryAddress: typed(limits.address),
   siren: typed(20), vatNumber: typed(20), language: field.choice(locales), reverseCharge: field.bool(), notes: typed(limits.notes), account: typed(20),
 };
@@ -67,7 +68,7 @@ const itemFields = { name: typed(limits.name), description: typed(limits.descrip
 const companyFields = {
   legalName: typed(limits.name), tradeName: typed(limits.name), legalForm: typed(60), capital: amount, address: typed(limits.address), postcode: typed(limits.postcode),
   city: typed(limits.city), country: typed(8), siren: typed(20), siret: typed(24), rcsCity: typed(limits.city), vatNumber: typed(20), franchise: field.bool(),
-  vatOnDebits: field.bool(), email: typed(limits.email), phone: typed(limits.phone), website: typed(120), bank: typed(limits.name), iban: typed(42), bic: typed(11),
+  vatOnDebits: field.bool(), email: optionalEmail, phone: typed(limits.phone), website: typed(120), bank: typed(limits.name), iban: typed(42), bic: typed(11),
   paymentDays: typed(8), validityDays: typed(8), penaltyRate: typed(12), earlyDiscount: typed(limits.terms), footer: typed(limits.terms), quotePrefix: typed(limits.prefix),
   invoicePrefix: typed(limits.prefix), creditPrefix: typed(limits.prefix), paymentLink: typed(300), remindersOn: field.bool(), reminderDays: typed(40),
   remindersEmail: field.bool(), accounts: field.json(),

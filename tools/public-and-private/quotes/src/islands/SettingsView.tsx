@@ -16,7 +16,7 @@ type Fields = Record<"legalName" | "tradeName" | "legalForm" | "capital" | "addr
   & { franchise: boolean; vatOnDebits: boolean; remindersOn: boolean; remindersEmail: boolean; accounts: Accounts };
 
 const fieldOf: Record<string, keyof Fields> = {
-  siren_invalid: "siren", siret_invalid: "siret", vat_number_invalid: "vatNumber", iban_invalid: "iban", bic_invalid: "bic", email_invalid: "email", prefix_invalid: "invoicePrefix",
+  siren_invalid: "siren", siret_invalid: "siret", vat_number_invalid: "vatNumber", iban_invalid: "iban", bic_invalid: "bic", invalid_email: "email", prefix_invalid: "invoicePrefix",
   capital_invalid: "capital", penalty_invalid: "penaltyRate", terms_invalid: "paymentDays", country_invalid: "country", link_invalid: "paymentLink", reminder_days_invalid: "reminderDays",
   account_invalid: "accounts",
 };

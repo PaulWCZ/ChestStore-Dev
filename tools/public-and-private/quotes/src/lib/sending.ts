@@ -9,7 +9,8 @@ import { company, goesBy, rememberMail } from "./company.ts";
 import type { Sql } from "./db.ts";
 import { getDocument, recordReminder, recordSent, sendQuote, type Full } from "./documents.ts";
 import { catalogue, format, formatDay, type Locale } from "../i18n/index.ts";
-import { clean, email, limits, numberPattern, versioned } from "../shared/model.ts";
+import { email } from "./email.ts";
+import { clean, limits, numberPattern, versioned } from "../shared/model.ts";
 import { formatMoney } from "../shared/money.ts";
 import { pdfFileName } from "../pdf/document.ts";
 import { ensureLink } from "./online.ts";
@@ -109,7 +110,7 @@ async function deliver(sql: Sql, full: Full, message: Message, fromName: string,
     if (error instanceof Unavailable) return "no_mail";
     if (error instanceof QuotaExceeded) throw new AppError("mail_quota");
     if (error instanceof ChestError && error.code === "suppressed") throw new AppError("suppressed");
-    if (error instanceof ChestError && error.code === "invalid_address") throw new AppError("email_invalid");
+    if (error instanceof ChestError && error.code === "invalid_address") throw new AppError("invalid_email");
     throw error;
   }
   await rememberMail(sql, true);

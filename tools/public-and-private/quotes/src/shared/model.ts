@@ -189,15 +189,6 @@ export function bic(value: unknown): string {
   return text;
 }
 
-const emailPattern = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
-export function email(value: unknown): string {
-  if (value === undefined || value === null || value === "") return "";
-  if (typeof value !== "string") throw new AppError("email_invalid");
-  const text = value.trim();
-  if (text === "") return "";
-  if (text.length > limits.email || !emailPattern.test(text)) throw new AppError("email_invalid");
-  return text;
-}
 
 // A country as ISO 3166-1 alpha-2 ("FR").
 export function country(value: unknown): string {

@@ -58,7 +58,7 @@ test("clients: added by anyone selling, checked, archived rather than deleted", 
   await assert.rejects(addClient(sql, asMember(lea), { name: "x" }), refused("forbidden"));
   await assert.rejects(addClient(sql, asMember(nora), { name: "x" }), refused("forbidden"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "" }), refused("empty"));
-  await assert.rejects(addClient(sql, asMember(ines), { name: "x", email: "no" }), refused("email_invalid"));
+  await assert.rejects(addClient(sql, asMember(ines), { name: "x", email: "no" }), refused("invalid_email"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "x", siren: "1" }), refused("siren_invalid"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "x", language: "de" }), refused("invalid"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "x", kind: "robot" }), refused("invalid"));

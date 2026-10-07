@@ -111,7 +111,7 @@ test("an English client gets an English email; a message is checked", async () =
   assert.ok(message.text.startsWith("Hello,\n\nPlease find attached our quote " + upcoming));
   assert.equal(message.subject, `Quote ${upcoming} — Atelier Martin SARL`);
   await assert.rejects(sendDocument(sql, asMember(hugo), q.id, { ...message, to: "" }, today), refused("no_email"));
-  await assert.rejects(sendDocument(sql, asMember(hugo), q.id, { ...message, to: "nope" }, today), refused("email_invalid"));
+  await assert.rejects(sendDocument(sql, asMember(hugo), q.id, { ...message, to: "nope" }, today), refused("invalid_email"));
   await assert.rejects(sendDocument(sql, asMember(hugo), q.id, { ...message, subject: "" }, today), refused("empty"));
   await assert.rejects(sendDocument(sql, asMember(lea), q.id, message, today), refused("forbidden"));
   await assert.rejects(sendDocument(sql, asMember(hugo), q.id, { ...message, to: "bounced@client.test" }, today), refused("suppressed"));
