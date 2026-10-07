@@ -40,6 +40,9 @@ Per tool, median of the medians:
   tools that read groups again at ~02:30 after a bench fix (the bench
   signed members with no groups; a Chest carries them with
   `members.groups`).
+- Since then the package moved to studio.9 (documentation, `field.email`,
+  a source check run by tests): nothing that runs at rest changed, so the
+  numbers were not taken again.
 - One tool at a time, nothing else running; load average during the rests
   0.02–2.26 before, 0.00–0.33 after. Each tool: built as the Chest builds
   it, started with `build.start` and the Chest's environment against a

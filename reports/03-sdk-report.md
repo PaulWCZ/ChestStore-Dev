@@ -1141,6 +1141,23 @@ indicative.
   robot writes. Ask: a stated policy (a separate public budget, or
   public-originated notices folded into one digest). S.
 
+- **`fakeChest` cannot make one call fail** (e.g. `members.list` for one
+  group): Leave's test of "could not read who is in Sales" replaces
+  `globalThis.fetch`. Ask: a testing option to fail a route. S.
+- **Test databases and the zone.** The Chest sets the company's zone as
+  the tool's database role `timezone` (application contract, environment
+  table); a test that creates its role without it counts days in UTC
+  while the server counts in the zone — Status' daily cap failed between
+  22:00 and 24:00 UTC on PostgreSQL only (fixed in its setup, 7 October;
+  twelve other tools' setups have the same gap, harmless while their fakes
+  run in UTC). Ask: `fakeChest` or the package's `testDatabase()` sets the
+  role's zone as the Chest does. S.
+- **The official starter cannot follow the mail decisions yet.** It ships
+  SDK 0.4.1, which has neither `translations` nor `broadcast`: "tell the
+  team, each in their language" means paging `members.list` and one
+  `notify` per language (the package's AGENTS gives both recipes since
+  studio.9). Until 0.5. S.
+
 #### A decision for the owner
 
 Perseus Code ships only the SDK tarball in a project's `vendor/`
