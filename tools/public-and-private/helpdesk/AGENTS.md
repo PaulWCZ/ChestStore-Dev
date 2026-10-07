@@ -13,7 +13,7 @@ own:
 | Path | What it is |
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest (contract 0.4: roles `admin`, `agent`, `viewer`; public part; schedules `cleanup` and `late`; `build.static` `/assets/`) and the proposals it uses (`mail`, public uploads, `receives` `forms.request` and `status.incident`, `emits`, `webhooks`) |
-| `vendor/` | SDK 0.4.1-studio.6, the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `vendor/` | SDK 0.4.1-studio.7, the UI kit, `@argentic/chest-app`: packed copies, never edited |
 | `src/app.tsx` | Every route: the team's pages in their frame (`team()`: a member without a role reaches My requests only), downloads, the public pages, the Chest's deliveries; around them, the frame-ancestors of the public pages and the sandbox of files |
 | `src/actions.ts` | Every change, by name (members' and public); the rules check values and rights |
 | `src/pages/` | Pages (server): `inbox`, `ticket`, `new-ticket`, `settings`, `reports`, `mine`, `contact`, `follow-up`; `frame.tsx` (the team's frame: shell, folders, saved views), `public-shell.tsx` (the public frame, the language switch with `?lang=`) |
