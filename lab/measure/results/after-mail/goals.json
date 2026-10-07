@@ -2,7 +2,7 @@
  "tool": "goals",
  "label": "after-mail",
  "source": "/home/user/ChestStore-Dev/tools/private/goals",
- "date": "2026-10-07T00:36:46.090Z",
+ "date": "2026-10-07T02:14:14.982Z",
  "machine": {
   "host": "vm",
   "cpu": "Intel(R) Xeon(R) Processor",
@@ -16,65 +16,65 @@
  "commit": "7f79810 2026-10-06",
  "load": {
   "atStart": {
-   "one": 0.01,
-   "five": 0.13,
-   "fifteen": 0.56
+   "one": 0,
+   "five": 0.08,
+   "fifteen": 0.1
   },
   "busiestAtStart": [
    {
-    "cpu": 42.8,
-    "rssMiB": 62,
+    "cpu": 66.6,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 45,
+    "rssMiB": 63,
     "command": "MainThread"
    },
    {
-    "cpu": 8.4,
-    "rssMiB": 409,
+    "cpu": 6.5,
+    "rssMiB": 390,
     "command": "claude"
    },
    {
-    "cpu": 1.4,
+    "cpu": 1.2,
     "rssMiB": 0,
     "command": "MainThread"
    },
    {
     "cpu": 0.1,
-    "rssMiB": 53,
+    "rssMiB": 52,
     "command": "environment-man"
-   },
-   {
-    "cpu": 0.1,
-    "rssMiB": 5,
-    "command": "process_api"
    }
   ],
   "atEnd": {
-   "one": 0.01,
-   "five": 0.06,
-   "fifteen": 0.4
+   "one": 0,
+   "five": 0.04,
+   "fifteen": 0.07
   },
   "busiestAtEnd": [
    {
-    "cpu": 8.2,
-    "rssMiB": 395,
+    "cpu": 6.5,
+    "rssMiB": 384,
     "command": "claude"
    },
    {
-    "cpu": 1.3,
+    "cpu": 1.5,
     "rssMiB": 0,
     "command": "MainThread"
    },
    {
-    "cpu": 0.5,
-    "rssMiB": 75,
+    "cpu": 0.4,
+    "rssMiB": 82,
     "command": "MainThread"
    },
    {
     "cpu": 0.1,
-    "rssMiB": 53,
+    "rssMiB": 52,
     "command": "environment-man"
    },
    {
-    "cpu": 0.1,
+    "cpu": 0,
     "rssMiB": 5,
     "command": "process_api"
    }
@@ -89,12 +89,12 @@
  "install": {
   "code": 0,
   "signal": null,
-  "ms": 2832,
+  "ms": 2329,
   "peakRssMiB": 219.1,
-  "peakPssMiB": 187.8,
+  "peakPssMiB": 193.8,
   "processes": 1,
   "cgroup": {
-   "peakMiB": 288.1,
+   "peakMiB": 287.3,
    "failcnt": 0,
    "oomKills": 0
   },
@@ -103,9 +103,9 @@
    "cpus": 1
   },
   "load": {
-   "one": 0.01,
-   "five": 0.13,
-   "fifteen": 0.56
+   "one": 0.08,
+   "five": 0.09,
+   "fifteen": 0.11
   },
   "fits": true
  },
@@ -125,12 +125,12 @@
   "limited": {
    "code": 0,
    "signal": null,
-   "ms": 4204,
-   "peakRssMiB": 326.7,
-   "peakPssMiB": 295.1,
+   "ms": 3901,
+   "peakRssMiB": 332.5,
+   "peakPssMiB": 306.8,
    "processes": 3,
    "cgroup": {
-    "peakMiB": 264.9,
+    "peakMiB": 272.6,
     "failcnt": 0,
     "oomKills": 0
    },
@@ -139,29 +139,29 @@
     "cpus": 1
    },
    "load": {
-    "one": 0.01,
-    "five": 0.13,
-    "fifteen": 0.56
+    "one": 0.16,
+    "five": 0.11,
+    "fifteen": 0.11
    },
    "fits": true
   },
   "free": {
    "code": 0,
    "signal": null,
-   "ms": 1968,
-   "peakRssMiB": 340.4,
-   "peakPssMiB": 287.4,
+   "ms": 2124,
+   "peakRssMiB": 334.9,
+   "peakPssMiB": 273.1,
    "processes": 3,
    "cgroup": {
-    "peakMiB": 270.9,
+    "peakMiB": 265.4,
     "failcnt": 0,
     "oomKills": 0
    },
    "limits": {},
    "load": {
-    "one": 0.01,
-    "five": 0.13,
-    "fifteen": 0.56
+    "one": 0.16,
+    "five": 0.11,
+    "fifteen": 0.11
    }
   }
  },
@@ -247,95 +247,95 @@
   "main": "/chest/company",
   "runs": [
    {
-    "portMs": 305.6,
-    "firstMs": 416.9,
+    "portMs": 280.6,
+    "firstMs": 408,
+    "statuses": [
+     200
+    ],
+    "load": 0.16
+   },
+   {
+    "portMs": 264.3,
+    "firstMs": 363.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.13
+   },
+   {
+    "portMs": 248.1,
+    "firstMs": 348.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.18
+   },
+   {
+    "portMs": 242.5,
+    "firstMs": 338.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.15
+   },
+   {
+    "portMs": 258.8,
+    "firstMs": 356.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.13
+   },
+   {
+    "portMs": 244.2,
+    "firstMs": 340.5,
+    "statuses": [
+     200
+    ],
+    "load": 0.11
+   },
+   {
+    "portMs": 249.3,
+    "firstMs": 351.6,
     "statuses": [
      200
     ],
     "load": 0.09
    },
    {
-    "portMs": 252.1,
-    "firstMs": 352.4,
+    "portMs": 230.7,
+    "firstMs": 336.4,
     "statuses": [
      200
     ],
-    "load": 0.07
+    "load": 0.08
    },
    {
-    "portMs": 272,
-    "firstMs": 375.4,
+    "portMs": 248.1,
+    "firstMs": 346.7,
     "statuses": [
      200
     ],
     "load": 0.06
    },
    {
-    "portMs": 292.4,
-    "firstMs": 386.4,
+    "portMs": 237.6,
+    "firstMs": 332.5,
     "statuses": [
      200
     ],
     "load": 0.05
-   },
-   {
-    "portMs": 301.7,
-    "firstMs": 396.1,
-    "statuses": [
-     200
-    ],
-    "load": 0.04
-   },
-   {
-    "portMs": 258.5,
-    "firstMs": 355.2,
-    "statuses": [
-     200
-    ],
-    "load": 0.04
-   },
-   {
-    "portMs": 256.7,
-    "firstMs": 355.5,
-    "statuses": [
-     200
-    ],
-    "load": 0.03
-   },
-   {
-    "portMs": 278.4,
-    "firstMs": 376.6,
-    "statuses": [
-     200
-    ],
-    "load": 0.02
-   },
-   {
-    "portMs": 262.3,
-    "firstMs": 373.2,
-    "statuses": [
-     200
-    ],
-    "load": 0.02
-   },
-   {
-    "portMs": 275.5,
-    "firstMs": 371.7,
-    "statuses": [
-     200
-    ],
-    "load": 0.1
    }
   ],
   "port": {
-   "median": 273.75,
-   "min": 252.1,
-   "max": 305.6
+   "median": 248.1,
+   "min": 230.7,
+   "max": 280.6
   },
   "first200": {
-   "median": 374.29999999999995,
-   "min": 352.4,
-   "max": 416.9
+   "median": 347.54999999999995,
+   "min": 332.5,
+   "max": 408
   }
  },
  "memory": {
@@ -343,41 +343,41 @@
   "runs": [
    {
     "afterStartMiB": {
-     "rss": 166.4,
-     "pss": 91.8
+     "rss": 166.6,
+     "pss": 97.9
     },
     "peakMiB": {
-     "rss": 173.5,
-     "pss": 98.6,
+     "rss": 173.9,
+     "pss": 105,
      "cgroup": 67
     },
     "afterRequestsMiB": {
-     "rss": 173.5,
-     "pss": 98.6
+     "rss": 173.9,
+     "pss": 105
     },
     "restMiB": {
-     "rss": 169,
-     "pss": 94.1,
-     "pssAnon": 59.2,
-     "pssFile": 34.9,
-     "cgroupAnon": 59.2,
+     "rss": 170,
+     "pss": 101.1,
+     "pssAnon": 59.9,
+     "pssFile": 41.2,
+     "cgroupAnon": 59.9,
      "cgroupCache": 0
     },
     "processes": [
      {
       "command": "npm start",
       "rssMiB": 65.8,
-      "pssMiB": 30.3
+      "pssMiB": 33.2
      },
      {
       "command": "sh -c node --optimize-for-size dist/server/main.js",
       "rssMiB": 1.9,
-      "pssMiB": 0.2
+      "pssMiB": 0.3
      },
      {
       "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 101.4,
-      "pssMiB": 63.6
+      "rssMiB": 102.3,
+      "pssMiB": 67.6
      }
     ],
     "pages": [
@@ -385,137 +385,19 @@
       "path": "/chest/company",
       "status": 200,
       "bytes": 40877,
-      "ms": 17.5
+      "ms": 18.4
      },
      {
       "path": "/chest",
       "status": 200,
       "bytes": 38760,
-      "ms": 16.3
+      "ms": 17.7
      },
      {
       "path": "/chest/objectives/4",
       "status": 200,
-      "bytes": 111529,
-      "ms": 31.8
-     },
-     {
-      "path": "/chest/teams/1",
-      "status": 200,
-      "bytes": 17917,
-      "ms": 13.2
-     },
-     {
-      "path": "/chest/cycles/1",
-      "status": 200,
-      "bytes": 15563,
-      "ms": 9
-     },
-     {
-      "path": "/chest/settings",
-      "status": 200,
-      "bytes": 24954,
-      "ms": 14.1
-     },
-     {
-      "path": "/chest/objectives/new",
-      "status": 200,
-      "bytes": 28748,
-      "ms": 17.1
-     },
-     {
-      "path": "/chest/objectives/5",
-      "status": 200,
-      "bytes": 103305,
-      "ms": 15.9
-     },
-     {
-      "path": "/chest/company?status=at_risk",
-      "status": 200,
-      "bytes": 26949,
-      "ms": 20.9
-     },
-     {
-      "path": "/chest/objectives/11",
-      "status": 200,
-      "bytes": 34754,
-      "ms": 10.7
-     },
-     {
-      "path": "/chest/import",
-      "status": 200,
-      "bytes": 26891,
-      "ms": 7.7
-     },
-     {
-      "path": "/chest/objectives/8",
-      "status": 200,
-      "bytes": 75976,
-      "ms": 13.3
-     }
-    ],
-    "load": {
-     "mean": 0.06,
-     "max": 0.07
-    }
-   },
-   {
-    "afterStartMiB": {
-     "rss": 166.3,
-     "pss": 91.7
-    },
-    "peakMiB": {
-     "rss": 172.3,
-     "pss": 97.4,
-     "cgroup": 65.8
-    },
-    "afterRequestsMiB": {
-     "rss": 172.3,
-     "pss": 97.4
-    },
-    "restMiB": {
-     "rss": 168.3,
-     "pss": 93.4,
-     "pssAnon": 58.5,
-     "pssFile": 34.9,
-     "cgroupAnon": 58.5,
-     "cgroupCache": 0
-    },
-    "processes": [
-     {
-      "command": "npm start",
-      "rssMiB": 65.6,
-      "pssMiB": 30
-     },
-     {
-      "command": "sh -c node --optimize-for-size dist/server/main.js",
-      "rssMiB": 1.9,
-      "pssMiB": 0.2
-     },
-     {
-      "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 100.9,
-      "pssMiB": 63.2
-     }
-    ],
-    "pages": [
-     {
-      "path": "/chest/company",
-      "status": 200,
-      "bytes": 40877,
-      "ms": 17.1
-     },
-     {
-      "path": "/chest",
-      "status": 200,
-      "bytes": 38760,
-      "ms": 14.9
-     },
-     {
-      "path": "/chest/objectives/4",
-      "status": 200,
-      "bytes": 111523,
-      "ms": 28.7
+      "bytes": 111530,
+      "ms": 27.5
      },
      {
       "path": "/chest/teams/1",
@@ -527,49 +409,49 @@
       "path": "/chest/cycles/1",
       "status": 200,
       "bytes": 15563,
-      "ms": 8.9
+      "ms": 10
      },
      {
       "path": "/chest/settings",
       "status": 200,
       "bytes": 24954,
-      "ms": 12.8
+      "ms": 17.7
      },
      {
       "path": "/chest/objectives/new",
       "status": 200,
-      "bytes": 28748,
-      "ms": 13.1
+      "bytes": 28790,
+      "ms": 13.4
      },
      {
       "path": "/chest/objectives/5",
       "status": 200,
-      "bytes": 103309,
+      "bytes": 103320,
       "ms": 16.2
      },
      {
       "path": "/chest/company?status=at_risk",
       "status": 200,
       "bytes": 26949,
-      "ms": 12.9
+      "ms": 12.6
      },
      {
       "path": "/chest/objectives/11",
       "status": 200,
       "bytes": 34756,
-      "ms": 11.3
+      "ms": 11.2
      },
      {
       "path": "/chest/import",
       "status": 200,
       "bytes": 26891,
-      "ms": 8.7
+      "ms": 7.6
      },
      {
       "path": "/chest/objectives/8",
       "status": 200,
-      "bytes": 75974,
-      "ms": 11.6
+      "bytes": 75972,
+      "ms": 11.1
      }
     ],
     "load": {
@@ -579,41 +461,41 @@
    },
    {
     "afterStartMiB": {
-     "rss": 166.2,
-     "pss": 91.6
+     "rss": 166.8,
+     "pss": 98.1
     },
     "peakMiB": {
-     "rss": 172.6,
-     "pss": 97.8,
-     "cgroup": 66.2
+     "rss": 173,
+     "pss": 104,
+     "cgroup": 66
     },
     "afterRequestsMiB": {
-     "rss": 172.6,
-     "pss": 97.8
+     "rss": 173,
+     "pss": 104
     },
     "restMiB": {
-     "rss": 168.7,
-     "pss": 93.8,
-     "pssAnon": 58.9,
-     "pssFile": 34.9,
-     "cgroupAnon": 58.9,
+     "rss": 169.5,
+     "pss": 100.5,
+     "pssAnon": 59.3,
+     "pssFile": 41.2,
+     "cgroupAnon": 59.3,
      "cgroupCache": 0
     },
     "processes": [
      {
       "command": "npm start",
-      "rssMiB": 65.7,
-      "pssMiB": 30.1
+      "rssMiB": 65.8,
+      "pssMiB": 33.2
      },
      {
       "command": "sh -c node --optimize-for-size dist/server/main.js",
       "rssMiB": 1.9,
-      "pssMiB": 0.2
+      "pssMiB": 0.3
      },
      {
       "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 101.1,
-      "pssMiB": 63.4
+      "rssMiB": 101.8,
+      "pssMiB": 67
      }
     ],
     "pages": [
@@ -621,117 +503,117 @@
       "path": "/chest/company",
       "status": 200,
       "bytes": 40877,
-      "ms": 20.3
+      "ms": 16.9
      },
      {
       "path": "/chest",
       "status": 200,
       "bytes": 38760,
-      "ms": 14.2
+      "ms": 15.5
      },
      {
       "path": "/chest/objectives/4",
       "status": 200,
-      "bytes": 111523,
-      "ms": 26.4
+      "bytes": 111536,
+      "ms": 30.4
      },
      {
       "path": "/chest/teams/1",
       "status": 200,
       "bytes": 17917,
-      "ms": 13.6
+      "ms": 14.7
      },
      {
       "path": "/chest/cycles/1",
       "status": 200,
       "bytes": 15563,
-      "ms": 8.4
+      "ms": 8.6
      },
      {
       "path": "/chest/settings",
       "status": 200,
       "bytes": 24954,
-      "ms": 13.5
+      "ms": 15.9
      },
      {
       "path": "/chest/objectives/new",
       "status": 200,
-      "bytes": 28748,
-      "ms": 13.3
+      "bytes": 28790,
+      "ms": 12
      },
      {
       "path": "/chest/objectives/5",
       "status": 200,
-      "bytes": 103305,
-      "ms": 15.4
+      "bytes": 103320,
+      "ms": 16.9
      },
      {
       "path": "/chest/company?status=at_risk",
       "status": 200,
       "bytes": 26949,
-      "ms": 12.3
+      "ms": 13.6
      },
      {
       "path": "/chest/objectives/11",
       "status": 200,
-      "bytes": 34754,
-      "ms": 10.6
+      "bytes": 34758,
+      "ms": 11.9
      },
      {
       "path": "/chest/import",
       "status": 200,
       "bytes": 26891,
-      "ms": 8.3
+      "ms": 7.3
      },
      {
       "path": "/chest/objectives/8",
       "status": 200,
-      "bytes": 75974,
-      "ms": 12.2
+      "bytes": 75972,
+      "ms": 10.8
      }
     ],
     "load": {
-     "mean": 0.07,
-     "max": 0.08
+     "mean": 0.02,
+     "max": 0.02
     }
    },
    {
     "afterStartMiB": {
-     "rss": 165.8,
-     "pss": 91.2
+     "rss": 166.4,
+     "pss": 97.7
     },
     "peakMiB": {
-     "rss": 173.2,
-     "pss": 98.3,
-     "cgroup": 66.7
+     "rss": 174.2,
+     "pss": 105.2,
+     "cgroup": 67.4
     },
     "afterRequestsMiB": {
-     "rss": 173.2,
-     "pss": 98.3
+     "rss": 174.2,
+     "pss": 105.2
     },
     "restMiB": {
-     "rss": 169.8,
-     "pss": 94.9,
-     "pssAnon": 60,
-     "pssFile": 34.9,
-     "cgroupAnon": 60,
+     "rss": 170.3,
+     "pss": 101.3,
+     "pssAnon": 60.1,
+     "pssFile": 41.2,
+     "cgroupAnon": 60.1,
      "cgroupCache": 0
     },
     "processes": [
      {
       "command": "npm start",
-      "rssMiB": 65.6,
-      "pssMiB": 30.1
+      "rssMiB": 65.8,
+      "pssMiB": 33.1
      },
      {
       "command": "sh -c node --optimize-for-size dist/server/main.js",
       "rssMiB": 1.9,
-      "pssMiB": 0.2
+      "pssMiB": 0.3
      },
      {
       "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 102.3,
-      "pssMiB": 64.6
+      "rssMiB": 102.7,
+      "pssMiB": 67.9
      }
     ],
     "pages": [
@@ -745,55 +627,291 @@
       "path": "/chest",
       "status": 200,
       "bytes": 38760,
-      "ms": 14.5
+      "ms": 14.8
      },
      {
       "path": "/chest/objectives/4",
       "status": 200,
-      "bytes": 111523,
-      "ms": 26
+      "bytes": 111530,
+      "ms": 29.4
      },
      {
       "path": "/chest/teams/1",
       "status": 200,
       "bytes": 17917,
-      "ms": 13.9
+      "ms": 13.7
      },
      {
       "path": "/chest/cycles/1",
       "status": 200,
       "bytes": 15563,
-      "ms": 8.6
+      "ms": 8.7
      },
      {
       "path": "/chest/settings",
       "status": 200,
       "bytes": 24954,
-      "ms": 8.6
+      "ms": 7.9
      },
      {
       "path": "/chest/objectives/new",
       "status": 200,
-      "bytes": 28748,
-      "ms": 15.3
+      "bytes": 28790,
+      "ms": 11.2
      },
      {
       "path": "/chest/objectives/5",
       "status": 200,
-      "bytes": 103305,
-      "ms": 19.4
+      "bytes": 103320,
+      "ms": 21.2
      },
      {
       "path": "/chest/company?status=at_risk",
       "status": 200,
       "bytes": 26949,
-      "ms": 13.7
+      "ms": 12.5
      },
      {
       "path": "/chest/objectives/11",
       "status": 200,
       "bytes": 34756,
-      "ms": 10.7
+      "ms": 11.2
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 26891,
+      "ms": 9.1
+     },
+     {
+      "path": "/chest/objectives/8",
+      "status": 200,
+      "bytes": 75972,
+      "ms": 12.6
+     }
+    ],
+    "load": {
+     "mean": 0.01,
+     "max": 0.01
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 166.5,
+     "pss": 97.8
+    },
+    "peakMiB": {
+     "rss": 174.2,
+     "pss": 105.1,
+     "cgroup": 67.3
+    },
+    "afterRequestsMiB": {
+     "rss": 174.2,
+     "pss": 105.1
+    },
+    "restMiB": {
+     "rss": 170.6,
+     "pss": 101.5,
+     "pssAnon": 60.4,
+     "pssFile": 41.1,
+     "cgroupAnon": 60.4,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.9,
+      "pssMiB": 33.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.9,
+      "pssMiB": 68
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest/company",
+      "status": 200,
+      "bytes": 40877,
+      "ms": 16.1
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 38760,
+      "ms": 15.5
+     },
+     {
+      "path": "/chest/objectives/4",
+      "status": 200,
+      "bytes": 111524,
+      "ms": 28.8
+     },
+     {
+      "path": "/chest/teams/1",
+      "status": 200,
+      "bytes": 17917,
+      "ms": 13.4
+     },
+     {
+      "path": "/chest/cycles/1",
+      "status": 200,
+      "bytes": 15563,
+      "ms": 8.9
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 24954,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/objectives/new",
+      "status": 200,
+      "bytes": 28790,
+      "ms": 29.6
+     },
+     {
+      "path": "/chest/objectives/5",
+      "status": 200,
+      "bytes": 103316,
+      "ms": 20.7
+     },
+     {
+      "path": "/chest/company?status=at_risk",
+      "status": 200,
+      "bytes": 26949,
+      "ms": 15.2
+     },
+     {
+      "path": "/chest/objectives/11",
+      "status": 200,
+      "bytes": 34758,
+      "ms": 11
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 26891,
+      "ms": 7.7
+     },
+     {
+      "path": "/chest/objectives/8",
+      "status": 200,
+      "bytes": 75974,
+      "ms": 14.4
+     }
+    ],
+    "load": {
+     "mean": 0,
+     "max": 0
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 166,
+     "pss": 97.2
+    },
+    "peakMiB": {
+     "rss": 173.9,
+     "pss": 104.8,
+     "cgroup": 67
+    },
+    "afterRequestsMiB": {
+     "rss": 173.9,
+     "pss": 104.8
+    },
+    "restMiB": {
+     "rss": 170.1,
+     "pss": 101.1,
+     "pssAnon": 60,
+     "pssFile": 41.1,
+     "cgroupAnon": 60,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.8,
+      "pssMiB": 33.2
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 102.5,
+      "pssMiB": 67.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest/company",
+      "status": 200,
+      "bytes": 40877,
+      "ms": 15.4
+     },
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 38760,
+      "ms": 15.4
+     },
+     {
+      "path": "/chest/objectives/4",
+      "status": 200,
+      "bytes": 111536,
+      "ms": 31.5
+     },
+     {
+      "path": "/chest/teams/1",
+      "status": 200,
+      "bytes": 17917,
+      "ms": 37.7
+     },
+     {
+      "path": "/chest/cycles/1",
+      "status": 200,
+      "bytes": 15563,
+      "ms": 12.3
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 24954,
+      "ms": 9.9
+     },
+     {
+      "path": "/chest/objectives/new",
+      "status": 200,
+      "bytes": 28790,
+      "ms": 13.3
+     },
+     {
+      "path": "/chest/objectives/5",
+      "status": 200,
+      "bytes": 103320,
+      "ms": 34.6
+     },
+     {
+      "path": "/chest/company?status=at_risk",
+      "status": 200,
+      "bytes": 26949,
+      "ms": 14.8
+     },
+     {
+      "path": "/chest/objectives/11",
+      "status": 200,
+      "bytes": 34756,
+      "ms": 10.8
      },
      {
       "path": "/chest/import",
@@ -805,167 +923,49 @@
       "path": "/chest/objectives/8",
       "status": 200,
       "bytes": 75974,
-      "ms": 12.6
+      "ms": 12.5
      }
     ],
     "load": {
-     "mean": 0.03,
-     "max": 0.04
-    }
-   },
-   {
-    "afterStartMiB": {
-     "rss": 166.4,
-     "pss": 91.8
-    },
-    "peakMiB": {
-     "rss": 171.6,
-     "pss": 96.7,
-     "cgroup": 65.2
-    },
-    "afterRequestsMiB": {
-     "rss": 171.6,
-     "pss": 96.7
-    },
-    "restMiB": {
-     "rss": 167.3,
-     "pss": 92.4,
-     "pssAnon": 57.5,
-     "pssFile": 34.9,
-     "cgroupAnon": 57.5,
-     "cgroupCache": 0
-    },
-    "processes": [
-     {
-      "command": "npm start",
-      "rssMiB": 65.7,
-      "pssMiB": 30.1
-     },
-     {
-      "command": "sh -c node --optimize-for-size dist/server/main.js",
-      "rssMiB": 1.9,
-      "pssMiB": 0.2
-     },
-     {
-      "command": "node --optimize-for-size dist/server/main.js",
-      "rssMiB": 99.8,
-      "pssMiB": 62
-     }
-    ],
-    "pages": [
-     {
-      "path": "/chest/company",
-      "status": 200,
-      "bytes": 40877,
-      "ms": 17.1
-     },
-     {
-      "path": "/chest",
-      "status": 200,
-      "bytes": 38760,
-      "ms": 15.5
-     },
-     {
-      "path": "/chest/objectives/4",
-      "status": 200,
-      "bytes": 111529,
-      "ms": 28.6
-     },
-     {
-      "path": "/chest/teams/1",
-      "status": 200,
-      "bytes": 17917,
-      "ms": 14.4
-     },
-     {
-      "path": "/chest/cycles/1",
-      "status": 200,
-      "bytes": 15563,
-      "ms": 11.2
-     },
-     {
-      "path": "/chest/settings",
-      "status": 200,
-      "bytes": 24954,
-      "ms": 8.7
-     },
-     {
-      "path": "/chest/objectives/new",
-      "status": 200,
-      "bytes": 28748,
-      "ms": 12.1
-     },
-     {
-      "path": "/chest/objectives/5",
-      "status": 200,
-      "bytes": 103309,
-      "ms": 16.6
-     },
-     {
-      "path": "/chest/company?status=at_risk",
-      "status": 200,
-      "bytes": 26949,
-      "ms": 13
-     },
-     {
-      "path": "/chest/objectives/11",
-      "status": 200,
-      "bytes": 34754,
-      "ms": 10.1
-     },
-     {
-      "path": "/chest/import",
-      "status": 200,
-      "bytes": 26891,
-      "ms": 8.9
-     },
-     {
-      "path": "/chest/objectives/8",
-      "status": 200,
-      "bytes": 75974,
-      "ms": 13.2
-     }
-    ],
-    "load": {
-     "mean": 0.02,
-     "max": 0.02
+     "mean": 0,
+     "max": 0
     }
    }
   ],
   "rest": {
    "rss": {
-    "median": 168.7,
-    "min": 167.3,
-    "max": 169.8
+    "median": 170.1,
+    "min": 169.5,
+    "max": 170.6
    },
    "pss": {
-    "median": 93.8,
-    "min": 92.4,
-    "max": 94.9
+    "median": 101.1,
+    "min": 100.5,
+    "max": 101.5
    }
   },
   "peak": {
    "rss": {
-    "median": 172.6,
-    "min": 171.6,
-    "max": 173.5
+    "median": 173.9,
+    "min": 173,
+    "max": 174.2
    },
    "pss": {
-    "median": 97.8,
-    "min": 96.7,
-    "max": 98.6
+    "median": 105,
+    "min": 104,
+    "max": 105.2
    }
   },
   "restWithoutNpm": {
    "rss": {
-    "median": 103,
-    "min": 101.7,
-    "max": 104.2
+    "median": 104.4,
+    "min": 103.7,
+    "max": 104.8
    },
    "pss": {
-    "median": 63.6,
-    "min": 62.2,
-    "max": 64.8
+    "median": 67.9,
+    "min": 67.3,
+    "max": 68.3
    }
   }
  }

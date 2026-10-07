@@ -266,12 +266,28 @@ been run without that variable.)
 
 ### Not measured
 
-- **Memory and cold start since studio.3.** Run 5 measured the package
-  at studio.3; studios 4 to 8 added the change log, per-page islands,
-  the proof of work and the deploy checks, and were not measured again.
-  The lead's quiet-window run of the tools (`before-next16-final`) is to
-  give the after-final numbers: _[placeholder: rest RSS, cold start —
-  from the quiet-window run]_.
+- ~~Memory and cold start since studio.3~~ — **measured on 7 October
+  2026** in the quiet-window run (`lab/measure`, label `after-mail`:
+  studio starter on package studio.8 and SDK 0.4.1; the reference Perseus
+  starter beside it, same machine, same night, one at a time, load
+  0.00–0.33; median of 10 cold starts and 5 rests of 30 s;
+  `lab/measure/results/after-mail/TABLE.md`):
+
+  | | Studio starter | Reference starter |
+  |---|--:|--:|
+  | PSS at rest, whole tree with `npm` (MiB) | 76.9 | 66.4 |
+  | Server alone, PSS / RSS (MiB) | 42.0 / 73.9 | 34.3 / 68.9 |
+  | Port open (ms) | 225 | 194 |
+  | First 200 of `/chest` (ms) | 266 | 208 |
+  | Image (MiB) | 18 | 13 |
+  | Build, 4 CPUs (s) / peak PSS (MiB) | 1.3 / 258 | 0.7 / 186 |
+  | `npm ci` in 512 MiB, 1 CPU | fits, peak 284 | fits, peak 292 |
+
+  The studio starter costs about 8 MiB more at rest and 60 ms more to its
+  first page than the reference: the package's machinery (islands per
+  page, the change log, bounded public writes, compression) and its
+  example page. Each of the 18 tools built on it rests at 93–105 MiB
+  (whole tree; 62–75 MiB server alone) — `reports/07-stack-and-memory.md`.
 - A real Chest (its launcher is one more Node process).
 - The real Perseus workbench.
 - Firefox and Safari.
