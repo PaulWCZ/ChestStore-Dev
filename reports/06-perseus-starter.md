@@ -524,7 +524,7 @@ that React's `style={}` is blocked on a public part.
 
 | | Copied core (B1) | Package (B2) |
 |---|---|---|
-| A fix (an open redirect, a caching bug) | Reaches no existing tool: each copy must be patched by hand. The two pilots diverged from the starter, and from each other, within a day | Re-vendored with `scripts/add-app.mjs`, like the kit; the version number says which tool has it, and `scripts/check-vendor.mjs` that a pack is the working copy's. Today the starter and all eighteen tools vendor studio.8, each re-vendored and tested on it (§10) |
+| A fix (an open redirect, a caching bug) | Reaches no existing tool: each copy must be patched by hand. The two pilots diverged from the starter, and from each other, within a day | Re-vendored with `scripts/add-app.mjs`, like the kit; the version number says which tool has it, and `scripts/check-vendor.mjs` that a pack is the working copy's. Today the starter and all eighteen tools vendor studio.9, each re-vendored and tested on it (§10) |
 | What the agent reads | All of it, every turn (579 lines) — and it may "improve" it | The tool's code and the package's `AGENTS.md`; the machinery stays out of its way |
 | What the agent can change | Everything, for one tool | Nothing in the package. A need it does not meet becomes a request to the package, not a fork |
 | Runtime cost | — | None measured (both are bundled the same way) |
@@ -632,6 +632,30 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
   §5's paragraph, checked by `sizes.mjs --check`), also under
   `NODE_ENV=development` (its peak 277 MiB RSS on the local
   server, against 1.2 GiB on PGlite).
+- **studio.9** (7 October, after the sixth review). The changes:
+  - **`field.email()`**: an address a person typed — trimmed, the
+    domain lower-cased, at most 254 characters (64 before the `@`);
+    a space, a control or invisible character, a display name, quotes,
+    brackets, no `@` or two refused as `invalid_email` (optional in a
+    catalogue: read as `invalid` when absent; the starter says it in
+    English and French). Unit and server tests. The tools keep their own
+    `email()` helpers for now (CRM, People, Booking, Support, Hiring,
+    Quotes, Status, Forms' pattern, Rooms' `visitorEmail`): moving them
+    to the field is later work;
+  - **`checkSources`** refuses `charge(` in a public action without
+    `budgets` (a single budget is spent by the package; `charge()` there
+    throws at run time), as it refused the opposite;
+  - **AGENTS**: the owner's mail rule (a tool never mails a member; no
+    digest, reminder mail or "email me" setting; the Chest receives no
+    mail; mail to people outside only through the SDK's `mail` seam);
+    telling a member with `translations` (studio) and on 0.4.1; telling
+    everyone or a role (0.4.1: `members.list` cached a minute, one
+    `notify` per language in chunks of 500, a failing chunk never stops
+    the rest; studio/0.5: `broadcast`, never an empty `to`); notices keep
+    U+00A0/U+202F and line breaks; a reminder button limited to one per
+    12 hours; "nothing that must survive a sleep" with the one-minute
+    caches the page requires; where `formToken`/`solveWork` come from; no
+    personal data in a notification's title or body.
 - **studio.8** (6 October, after the fifth review; breaking). The changes:
   - **deploys**: a page's version includes the build (the entry's
     hashed name), so a refresh after a deploy is never a 304 of the old
@@ -774,6 +798,18 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
   refresh) became `page(…, { version: pageStamp })` and the package's
   hook. The starter's home page shows the pattern (an `AutoRefresh`
   island, the notes' version).
+- **All eighteen tools and the starter on chest-app 0.1.0-studio.9** (7
+  October), re-vendored with `scripts/add-app.mjs` (locks followed);
+  each's `npm test` on PGlite, one at a time, all passing (starter 16,
+  CRM 126, Equipment 130 + 4 skipped, Expenses 115, Goals 103, Leave
+  142 + 2 skipped, News 103, People 131, Rooms 141 + 1 skipped, Tasks
+  124, Timesheets 120 + 2 skipped, Wiki 119, Booking 121, Forms 150 + 5
+  skipped, Support 108, Hiring 123, Polls 104, Quotes 207 + 1 skipped,
+  Status 109 — the skipped are the scale tests that need a PostgreSQL
+  server, and Quotes' Factur-X schema check); the package's 51 and the
+  17 Chromium tests passing; `chest check` OK for the eighteen and the
+  starter; `check-vendor` nothing stale. No tool's code changed: studio.9
+  adds a field, a check and words.
 - **All eighteen tools and the starter on chest-app 0.1.0-studio.8** (6
   October), re-vendored here; each's `npm test` on the local PostgreSQL,
   one at a time, all passing (starter 16, Polls 102, Booking 116,
