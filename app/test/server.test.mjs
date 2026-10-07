@@ -26,6 +26,7 @@ const actions = {
   big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
   refuse: action({}, async () => fail("forbidden")),
   taken: action({ email: field.text({ max: 50 }) }, async () => fail("invalid", undefined, { field: "email" })),
+  subscribe: action({ email: field.email() }, async ({ email }) => ({ email })),
   summarise: action({}, async () => null, { parallel: true }),
   shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
   write: publicAction({ text: field.text({ max: 5 }) }, async ({ text }) => { if (text === "taken") fail("invalid"); written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
@@ -578,6 +579,9 @@ test("bound.work: a token asks a proof of work; a flood that does not compute it
 
 test("fail() from a run names a field", async () => {
   assert.deepEqual(await (await json("/chest/actions/taken", { email: "a@b.c" })).json(), { ok: false, error: "invalid", message: "Invalid.", field: "email" });
+  // field.email(): its code said by the catalogue, or as "invalid" when the catalogue lacks it.
+  assert.deepEqual(await (await json("/chest/actions/subscribe", { email: " Ana@Example.COM " })).json(), { ok: true, value: { email: "Ana@example.com" } });
+  assert.deepEqual(await (await json("/chest/actions/subscribe", { email: "Ana <ana@example.com>" })).json(), { ok: false, error: "invalid_email", message: "Invalid.", field: "email" });
 });
 
 test("a form sent without JavaScript and refused: the page it goes back to has what it held, once", async () => {

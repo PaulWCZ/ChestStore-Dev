@@ -187,6 +187,11 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null, { bound: { perVisitor: 1, perDay: 9 } }) };', /errors\.expired/u);
   write("src/i18n/en.ts", "export const en = { errors: { limit: \"Too many.\", expired: \"Expired.\" } };");
   fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 9 } } } }) };', /never calls charge/u);
+  // The opposite: charge() in an action with a single budget (it throws at run time).
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { perVisitor: 1, perDay: 9 } }) };', /charge\(\) without budgets/u);
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: false }) };', /charge\(\) without budgets/u);
+  // Another action of the file with budgets does not excuse it.
+  fails("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { one: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { budgets: { new: { perVisitor: 1, perDay: 9 } } } }), two: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { perVisitor: 1, perDay: 9 } }) };', /charge\(\) without budgets/u);
   write("src/app.tsx", 'import { db } from "@argentic/chest-app/db";\nexport const a = { send: publicAction({}, async (_, { charge }) => { await charge("new"); }, { bound: { budgets: { new: { perVisitor: 1, perDay: 9 } } } }) };');
   checkSources({ root: dir });
   write("chest.json", JSON.stringify({ capabilities: ["database"] }));
@@ -205,6 +210,38 @@ test("checkSources: style={}, server code in islands, colours, unknown classes, 
   assert.throws(() => checkSources({ root: dir, requireTests: true }), /pricing[/\\]vat\.ts: no test imports it/u);
   write("test/units.test.ts", 'import { x } from "../src/lib/rules.ts";\nimport { vat } from "../src/lib/pricing/vat.ts";');
   checkSources({ root: dir, requireTests: true });
+});
+
+test("email: trimmed, the domain lower-cased, refused as invalid_email (spaces, controls, display names, no @)", () => {
+  const refusedAs = (run: () => unknown, code: string) => assert.throws(run, (e: unknown) => e instanceof AppError && e.code === code);
+  const email = field.email();
+  assert.equal(email.read("  Ana.Lopez@Example.COM "), "Ana.Lopez@example.com");
+  assert.equal(email.read("a+tag@sub.example.fr"), "a+tag@sub.example.fr");
+  assert.equal(email.read("o'brien@x.io"), "o'brien@x.io");
+  assert.equal(email.read("léa@exemple.fr"), "léa@exemple.fr", "a Unicode local part");
+  assert.equal(email.read("info@bücher.DE"), "info@bücher.de", "an international domain");
+  assert.equal(email.read("a@x-y.co"), "a@x-y.co");
+  refusedAs(() => email.read(""), "empty");
+  refusedAs(() => email.read("   "), "empty");
+  refusedAs(() => email.read(undefined), "empty");
+  refusedAs(() => email.read({ to: "a@x.fr" }), "invalid");
+  for (const bad of [
+    "ana", "ana@", "@example.com", "ana@@example.com", "ana@b@example.com", "ana@example", "ana@example.", "ana@.example.com",
+    "ana @example.com", "ana@exa mple.com", "ana\u00a0@example.com", "ana@example.com\u202f.fr", "a\tb@example.com",
+    "Ana <ana@example.com>", "<ana@example.com>", "\"Ana\" ana@example.com", "\"ana\"@example.com", "ana@[127.0.0.1]",
+    "ana@1.2.3.4", "ana,bob@example.com", "ana;bob@example.com", "mailto:ana@example.com", "ana@example.com\r\nBcc: x@y.fr",
+    "ana\u0000@example.com", "ana\u007f@example.com", "ana\u0085@example.com", "ana\u200b@example.com", "ana\u202e@example.com",
+    ".ana@example.com", "ana.@example.com", "an..a@example.com", "ana@-example.com", "ana@example-.com", "ana@example..com",
+    `${"a".repeat(65)}@example.com`, `ana@${"a".repeat(64)}.com`,
+  ]) refusedAs(() => email.read(bad), "invalid_email");
+  // At most 254 characters (what a mail's path carries), or the max given.
+  const long = `${"a".repeat(64)}@${"b".repeat(60)}.${"c".repeat(60)}.${"d".repeat(60)}.fr`;
+  assert.equal([...long].length, 250);
+  assert.equal(email.read(long), long);
+  refusedAs(() => email.read(`${long}rrrrr`), "too_long");
+  refusedAs(() => field.email({ max: 20 }).read("someone@example.com.fr"), "too_long");
+  assert.throws(() => field.email({ max: 300 }), TypeError);
+  assert.equal(field.optional(field.email()).read(""), undefined);
 });
 
 test("text: code points, bidirectional overrides removed, only invisible characters is empty", () => {

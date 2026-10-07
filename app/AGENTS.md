@@ -5,6 +5,7 @@ with a few islands in the browser. This package is that machinery; the
 tool's own code is routes, pages, islands, actions, rules and SQL, words.
 The SDK (`@argentic/chest-sdk`, its `README.md` in `node_modules`) is the
 Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
+This page is for `@argentic/chest-app` 0.1.0-studio.9.
 
 ## Where things are in a tool
 
@@ -194,7 +195,8 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   `needs_javascript` (a code of its own, in every catalogue:
   `checkSources` asks it), and `<Honeypot>` shows that sentence in a
   `<noscript>`. A test sends `{ chest_form: token, chest_work:
-  solveWork(token) }` (`formToken(action, Date.now(), 14)`).
+  solveWork(token) }` (`const token = formToken(action, Date.now(), 14)`;
+  both from `@argentic/chest-app`, the root — not `/testing`).
   **What it does not do:** the visitor is the address the Chest's front
   gives (`Chest-Visitor-Address`, a studio proposal — no Chest gives it
   yet), else the browser's cookie; a robot that clears its cookie and
@@ -222,12 +224,22 @@ Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
   **Notifying members from a public action** (a new application, a
   booking): fine, once per accepted, charged call — `after("notify", …)`
   after `charge()`, so a flood of refused calls notifies nobody and the
-  day's budget bounds the rest. Never `members.get` per request: store
-  the member's language (and zone) with the record they own (the form's
-  owner, the calendar's) when they set it up, and write in it. A test sends `{ chest_form: formToken("book") }`.
+  day's budget bounds the rest. Never `members.get` per request (nor
+  `members.list`). Write the notice in every language the tool speaks
+  and let the Chest pick: with the studio SDK (announced for 0.5), the
+  English `title`/`body` plus `translations: { fr: { title, body } }`
+  ("Telling a member", below) — no member's language looked up at all. On
+  the official 0.4.1 (no `translations`): the notice in the Chest's
+  language (`localeIn(locales, chest.language)`), or the language the
+  owner of the record chose when they set it up (the form's, the
+  calendar's), stored with that record — never a lookup per request. A
+  test sends `{ chest_form: formToken("book") }` (`formToken` and
+  `solveWork` come from the root, `@argentic/chest-app`).
   `bound: false` only for an action that writes nothing (`checkSources`
   fails on a `publicAction` without `bound`, on budgets without
-  `charge(`, on `perSubject` without a subject). A page with a bounded
+  `charge(`, on `charge(` without budgets — a single budget is spent by
+  the package itself, and `charge()` there throws at run time — and on
+  `perSubject` without a subject). A page with a bounded
   form is never cached by a shared cache (its token would be everyone's).
 
 ## Fields of an action
@@ -250,6 +262,14 @@ the person typed, never `Number(…)` or `parseFloat(…)` of it.
 `text({ min?, max })` (trimmed; `min` 1 by default: `empty`, `too_long`;
 `max` in code points; control characters `invalid`, bidirectional
 overrides removed, only invisible characters `empty`),
+`email({ max? })` (an address a person typed: trimmed, the domain
+lower-cased, the part before `@` kept as written; at most `max`
+characters, 254 by default and at most, 64 before the `@`; a space, a
+control or invisible character, no `@` or two, a display name — `Ana
+<ana@example.com>` — quotes, brackets, a domain without a dot are
+`invalid_email`, an optional code of the catalogue that reads as
+`invalid` when absent; `""` is `empty`: `optional(field.email())` for
+one that may be left out),
 `int({ min, max })` (digits only: `""` is `empty`, `"0x5"`, `"1e1"`,
 `"1.0"` are `invalid`), `money({ min?, max, decimals? })` (in minor units — cents with the
 default `decimals: 2`; 0 for yen, 3 for dinars — min and max too; a
@@ -378,26 +398,61 @@ is the default a new member gets; `"role_labels": { "manager": "Manager" }`
 for the Chest's screens); `member.role` says which, `member.isAdmin` too.
 Who may do what is one function in `src/lib/` (`can(member, "x")`), used
 by pages (to show the button) and actions (to refuse with `forbidden`).
-**Writing to another member** (a notification, a digest), outside their
-request: their language and zone from `members.get(id)` or
-`members.lookup(ids)` (`members` capability), then `const locale =
-localeIn(locales, member.language)` (a language the tool speaks, else
-its first), `words(locale)` (the tool's `src/i18n/index.ts`) and
+**Telling a member** (a task assigned, a request approved), outside their
+request — a notification, never a mail (Rules, "Mail"). With the studio
+SDK (announced for 0.5): one notice, `title`/`body` in English (the
+tool's first language) and `translations: { fr: { title, body } }` from
+the French catalogue, a `path` (the page it is about) and a `key` (a
+later notice of that key replaces it; `withdraw(key)` once it is done):
+the Chest shows each member their language — no language looked up.
+On the official 0.4.1 (no `translations`): the member's language from
+`members.lookup(ids)` (`members` capability; group the ids by language,
+one `notify` per language), `localeIn(locales, member.language)` (a
+language the tool speaks, else its first), `words(locale)` (the tool's
+`src/i18n/index.ts`). A date or an amount in it:
 `formatter(locale, member.timeZone, chest.currency)` from
-`@argentic/chest-app`. A notification's title is 80
-characters at most and its body 280 (the SDK refuses longer, and a
-schedule that sends one fails at every run): `cutText(title, 80)`. Send
-it in `after("notify", () => notifications.notify(…))` from an action: a
-Chest hiccup then never fails an action whose data is written.
+`@argentic/chest-app` (0.4.1), or the company's zone and words that
+need none ("tomorrow", "on 3 November") with translations. A
+notification's title is 80 characters at most and its body 280 (the SDK
+refuses longer, and a schedule that sends one fails at every run):
+`cutText(title, 80)`, `cutText(body, 280)` — they cut, nothing else. A
+notice keeps its no-break spaces (U+00A0, U+202F: "20,50 €", « À valider »)
+and the body its line breaks (the Chest keeps them; a line break in a
+title becomes a space): to fold white space, never `/\s+/` (it eats
+U+00A0 and U+202F) — line by line, `/[^\S\u00a0\u2007\u202f]+/gu` to one
+space, empty lines dropped (the tools' `cut`/`cutLines`). Send it in
+`after("notify", () => notifications.notify(…))` from an action: a Chest
+hiccup then never fails an action whose data is written. Never a name,
+an email or what a visitor wrote in a title or body (the member opens
+the page: the details are there).
+**Tell everyone or a role** (a post published, a poll opened). With the
+studio SDK (announced for 0.5): `notifications.broadcast(notice, { to:
+{ roles, groups }, except: [author] })` with `translations` — one call,
+the Chest resolves the members, no cap; leave `to` out for everyone
+with the tool, and **never send an empty `to`** (`{}` or `{ groups: [] }`
+from a setting not filled in is refused, never read as everyone: check
+the setting first). On the official 0.4.1 (no broadcast): the members
+from `members.list({ role })` (or `{ group }`; every page, 500 at most
+each), cached a minute (never listed per request); grouped by
+`member.language`, one `notify` per language in chunks of 500 ids (its
+bound), each chunk in its own `try`/`catch` that logs and goes on — a
+failing chunk never stops the others. Mind 0.4.1's quota: 1,000
+recipients an hour per tool (past it, `QuotaExceeded`): a company larger
+than that waits for broadcast.
+**A reminder button** ("Remind them", "Nudge") — each notice may become
+a mail (the member's choice): give it a limit, one per subject and
+recipient every 12 hours (a `reminded_at` column checked in the
+action, refused with a code of the tool's: "Reminded less than 12 hours
+ago"), and a `key` so the reminder replaces the earlier one.
 **Long lists** — page them: `order by created_at desc, id desc limit
 ${pageSize + 1}` after the last row's `(created_at, id)` from the address
 (`?after=…`); the extra row says whether a next page exists. Never a
 silent `limit 500`.
-**A schedule** — `"schedules": [{"name": "digest", "cron": "0 7 * * 1-5"}]`
+**A schedule** — `"schedules": [{"name": "cleanup", "cron": "0 3 * * *"}]`
 in `chest.json` (the Chest's zone; 15 minutes apart at least), a handler
-`digest: async run => …` in `schedules.handle` of `src/app.tsx`; within 5
+`cleanup: async run => …` in `schedules.handle` of `src/app.tsx`; within 5
 minutes, idempotent (a failed run comes again with the same id). Test it:
-`await chest.run("digest", request => app.fetch(request))` (the SDK's
+`await chest.run("cleanup", request => app.fetch(request))` (the SDK's
 `fakeChest`) answers the status; `chest.notifications` lists what it sent.
 **Members' lifecycle** — `"receives": ["member.*"]` (with `members`), a
 handler in `events.handle`: on `member.erased`, delete or anonymise, then
@@ -492,7 +547,7 @@ and nothing else, and **erase on a schedule**: a `"schedules"` entry
 requests after 12 months, refused applicants after 6), and an action
 for a member to erase one visitor's data on request (every table where
 the address appears, in one transaction). Never in logs (`log` takes no
-input text), never in a notification's body.
+input text), never in a notification's title or body.
 **Static files** — `public/assets/…`, served at `/assets/…`; the
 catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
 **A package the server needs** — `npm install it`; add it to `bundle` in
@@ -509,7 +564,24 @@ catalogue's icon and picture: `chest/icon.svg`, `chest/preview.png`.
 - **CSS**: the kit's tokens only (`var(--ink)`), never a colour; a class
   is the kit's (below) or defined in `src/styles.css` — `checkSources`
   fails on a class defined nowhere.
-- **Nothing kept in memory between requests**: the tool sleeps when idle.
+- **Nothing kept in memory that must survive a sleep**: the tool sleeps
+  when idle and restarts on a deploy — the database and the files are its
+  memory, never a module-level map of state. A short cache of what the
+  Chest answered is the exception, and required where this page says so:
+  a minute for whatever a public request reads from the Chest, and in
+  `complete` (600 member calls a minute per tool) — lost at a sleep, it
+  is simply asked again. Never a per-member cache of anything the tool
+  itself writes (two requests run at once: one would read stale data).
+- **Mail**: a tool never mails a member. It tells them with a
+  notification (`notifications` capability: `notify`, `broadcast`); the
+  Chest mails members their notifications as each one chose (each one,
+  once or twice a day, or off; off per tool) — so no digest, no reminder
+  mail, no "email me when…" setting in a tool. The Chest receives no
+  mail (no mailbox, no reply by mail into the tool: a mail to the public
+  sets Reply-To to the company's own address). Mail to people outside the
+  company (a receipt, a booking's recap, a quote) only through the SDK's
+  `mail` seam (`mail.send`, a studio proposal: SDK 0.4.1 has none yet) —
+  never SMTP, nor a mail service of the tool's own.
 - **Logs**: `log.info("what happened", { note: id })`; ids and counts
   only, never a name, an email, a token or what someone wrote. Every
   request is logged by its route's pattern (`/p/:link/actions/:name`),

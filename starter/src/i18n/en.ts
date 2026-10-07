@@ -27,6 +27,7 @@ export const en = {
     not_found: "This no longer exists.",
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
+    invalid_email: "Write an email address, like name@example.com.",
   },
   // EXAMPLE (Notes)
   people: { former: "{name} (former member)", noAccess: "{name} (no access)", erased: "Former member", unknown: "Unknown member" },

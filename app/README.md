@@ -37,5 +37,6 @@ fakeChest and a database: `TEST_DATABASE_URL` or PGlite). In the studio
 it also checks the report's size figures (`lab/starter-bench/sizes.mjs
 --check`).
 
-Versions: `0.1.0-studio.N`, raised at every change a tool must re-vendor.
+Versions: `0.1.0-studio.N`, raised at every change a tool must re-vendor
+(this copy: `0.1.0-studio.9`).
 MIT.

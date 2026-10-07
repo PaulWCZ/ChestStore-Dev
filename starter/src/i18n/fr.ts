@@ -24,6 +24,7 @@ export const fr: Catalogue = {
     not_found: "Cela n’existe plus.",
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     unknown: "Un problème est survenu. Réessayez.",
+    invalid_email: "Écrivez une adresse e-mail, comme nom@exemple.fr.",
   },
   // EXAMPLE (Notes)
   people: { former: "{name} (ancien membre)", noAccess: "{name} (sans accès)", erased: "Ancien membre", unknown: "Membre inconnu" },

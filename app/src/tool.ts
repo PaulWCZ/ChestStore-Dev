@@ -187,6 +187,13 @@ const controls = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
 // alone are no text (empty).
 const bidi = /[\u202a-\u202e\u2066-\u2069]/gu;
 const invisible = /[\u200b-\u200d\u2060\ufeff]/gu;
+// An email address: never white space (any), a control character (C0, DEL,
+// C1), an invisible or reordering one; the local part a dot-atom of what
+// mail takes unquoted (Unicode letters too), the domain labels of letters,
+// digits and inner hyphens, the last one with a letter.
+const emailRefused = /[\s\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
+const emailLocal = /^[^\s@<>()[\]\\,;:".]+(?:\.[^\s@<>()[\]\\,;:".]+)*$/u;
+const emailDomain = /^(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+(?=[\p{L}\p{N}-]*\p{L})[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?$/u;
 
 export const field = {
   // Trimmed text, from min (1: required) to max characters (code points,
@@ -203,6 +210,32 @@ export const field = {
       return length > max ? fail("too_long", { max }) : s;
     },
   }),
+  // An email address a person typed: trimmed, the domain lower-cased (the
+  // part before "@" kept as written: a mail server may tell its cases
+  // apart), at most max characters (254 by default and at most — what a
+  // mail's path carries), 64 before the "@". Refused with "invalid_email"
+  // (an optional code: "invalid" when the catalogue lacks it): a space, a
+  // control or invisible character, no "@" or two, a display name ("Ana
+  // <ana@example.com>"), quotes, brackets, a comma, a dot first, last or
+  // doubled before the "@", a domain without a dot, a label that starts or
+  // ends with "-", a top-level label without a letter. Only the shape is
+  // checked: a mail that bounces says the rest (mail.status).
+  email: ({ max = 254 }: { max?: number } = {}): Field<string> => {
+    if (!Number.isInteger(max) || max < 6 || max > 254) throw new TypeError("field.email: max between 6 and 254");
+    return {
+      read(value) {
+        const s = value === undefined || value === null ? "" : text(value).trim();
+        if (s === "") fail("empty");
+        if ([...s].length > max) fail("too_long", { max });
+        if (emailRefused.test(s)) fail("invalid_email" as ErrorCode);
+        const at = s.indexOf("@");
+        const local = s.slice(0, at);
+        const domain = s.slice(at + 1).toLowerCase();
+        if (at < 1 || [...local].length > 64 || !emailLocal.test(local) || !emailDomain.test(domain) || domain.length > 253) fail("invalid_email" as ErrorCode);
+        return `${local}@${domain}`;
+      },
+    };
+  },
   // A whole number between min and max, written in digits ("", "0x5",
   // "1e1" refused: an empty required number is not 0).
   int: ({ min, max }: { min: number; max: number }): Field<number, number | string> => ({

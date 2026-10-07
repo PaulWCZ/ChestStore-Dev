@@ -47,6 +47,9 @@ export type CoreWords = {
     readonly needs_javascript?: string;
     // An amount written "1,250": 1250 or 1.25? (optional: "invalid" otherwise).
     readonly amount_ambiguous?: string;
+    // An email address field.email() refuses (optional: "invalid"
+    // otherwise): "Write an email address, like name@example.com."
+    readonly invalid_email?: string;
   };
   readonly kit: KitWords;
 };

@@ -213,7 +213,8 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
   const publicWrites = /\bpublicAction(sAt)?\(/u.test(code_);
   // Each public action is bounded (bound: { perVisitor, perDay }) or says
   // it needs none (bound: false); with budgets by kind, its run calls
-  // charge() (with { subject } for a perSubject one). Read in each
+  // charge() (with { subject } for a perSubject one), and only then (a
+  // single budget is spent by the package: charge() throws). Read in each
   // publicAction(…) call itself, not in the rest of the file.
   let bounded = false;
   let worked = false;
@@ -225,6 +226,7 @@ export function checkSources({ root = ".", requireTests = false }: { root?: stri
       else if (!/\bbound\s*:\s*false\b/u.test(call)) bounded = true;
       if (/\bwork\s*:\s*(?!false\b|0\b)/u.test(call)) worked = true;
       if (/\bbudgets\s*:/u.test(call) && !/\bcharge\(/u.test(call)) problems.push(`${file}: a publicAction with budgets never calls charge(kind): say which budget a call spends, once its request is checked`);
+      if (!/\bbudgets\s*:/u.test(call) && /\bcharge\(/u.test(call)) problems.push(`${file}: a publicAction calls charge() without budgets — a single budget (bound: { perVisitor, perDay }) is spent by the package itself and charge() throws: remove the call, or declare budgets: { kind: { perVisitor, perDay } }`);
       if (/\bperSubject\s*:/u.test(call) && !/\bcharge\([^)]*\bsubject\b/u.test(call)) problems.push(`${file}: a publicAction with perSubject never says its subject: charge(kind, { subject })`);
     }
   }

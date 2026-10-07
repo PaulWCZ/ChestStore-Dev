@@ -656,10 +656,11 @@ function formFields(data: FormData): Record<string, unknown> {
 // The look's stylesheet: linked with ?v=<its hash> it never changes (a
 // new look is a new address); without, revalidated by its ETag.
 // A refusal's sentence: the catalogue's; an optional code it does not say
-// falls back to the nearest it must say ("amount_ambiguous" → "invalid").
+// falls back to the nearest it must say ("amount_ambiguous",
+// "invalid_email" → "invalid").
 function sayError(t: Words, code: string): string {
   const errors = t.errors as Record<string, string | undefined>;
-  return errors[code] ?? (code === "amount_ambiguous" ? t.errors.invalid : t.errors.unavailable);
+  return errors[code] ?? (code === "amount_ambiguous" || code === "invalid_email" ? t.errors.invalid : t.errors.unavailable);
 }
 
 // If-None-Match against a tag, weakly (W/"x" and "x" are the same).
