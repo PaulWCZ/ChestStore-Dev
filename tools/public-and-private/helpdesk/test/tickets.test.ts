@@ -40,6 +40,13 @@ test("the public form opens a ticket; its link shows the thread without the team
   assert.equal(await tickets.byLink(sql, "x".repeat(32)), null);
   assert.equal(await tickets.byLink(sql, "short"), null);
   await assert.rejects(tickets.fromForm(sql, form({ email: "not-an-email" })), refused("invalid_email"));
+  await assert.rejects(tickets.fromForm(sql, form({ email: "Nina <nina@example.com>" })), refused("invalid_email"));
+  await assert.rejects(tickets.fromForm(sql, form({ email: "nina@[192.0.2.1]" })), refused("invalid_email"));
+  await assert.rejects(tickets.fromForm(sql, form({ email: "nina..roux@example.com" })), refused("invalid_email"));
+  await assert.rejects(tickets.fromForm(sql, form({ email: "  " })), refused("empty"));
+  // The part before the @ as typed, the domain lower-cased.
+  const typed = await tickets.fromForm(sql, form({ email: " Nina.Roux@Example.COM ", subject: "Typed" }));
+  assert.equal((await tickets.byLink(sql, typed.secret))?.customerEmail, "Nina.Roux@example.com");
   await assert.rejects(tickets.fromForm(sql, form({ message: " " })), refused("empty"));
   await assert.rejects(tickets.fromForm(sql, form({ message: "x".repeat(10001) })), refused("too_long"));
 });
@@ -145,4 +152,7 @@ test("saved replies, settings, a customer's erasure, and the cleanup of old clos
   await assert.rejects(tickets.eraseCustomer(sql, asMember(hugo), "erase.me@example.com"), refused("forbidden"));
   assert.equal((await tickets.eraseCustomer(sql, asMember(camille), "erase.me@example.com")).tickets, 1);
   assert.equal(await tickets.byLink(sql, gone.secret), null);
+  // An address stored under an older, looser rule is erased all the same.
+  await sql`update tickets set customer_email = 'old..rule@example.com' where number = ${(await tickets.fromForm(sql, form({ email: "later@example.com" }))).number}`;
+  assert.equal((await tickets.eraseCustomer(sql, asMember(camille), "Old..Rule@example.com")).tickets, 1);
 });

@@ -23,7 +23,8 @@ import * as views from "./lib/views.ts";
 // public part (no member: the form's guard, the follow-up link's secret).
 // The rules of src/lib/ check every value and every right themselves and
 // refuse with a code (bounds, empty, invalid_email…): the fields here only
-// take what was sent, of the right kind. From an island: call("reply", {…});
+// take what was sent, of the right kind — but an address, read here by the
+// package's field.email() (the services check it again with the same rule). From an island: call("reply", {…});
 // the page refreshes after each.
 
 // Text as it was sent (the rules clean and bound it); "" when absent.
@@ -138,7 +139,7 @@ export const actions = {
     return null;
   }),
   // The customer's address or name, corrected (a typo that makes emails bounce).
-  setCustomer: action({ number, email: given, name: given }, async ({ number: n, email, name }, { member }) => {
+  setCustomer: action({ number, email: field.email(), name: given }, async ({ number: n, email, name }, { member }) => {
     await tickets.setCustomer(db(), member, n, { email, name });
     return null;
   }),
@@ -157,12 +158,12 @@ export const actions = {
     return null;
   }),
   // A ticket for a customer who called or came by; says its follow-up link.
-  createTicket: action({ name: given, email: given, subject: given, message: given, language: given }, async (input, { member }) => {
+  createTicket: action({ name: given, email: field.email(), subject: given, message: given, language: given }, async (input, { member }) => {
     const sql = db();
     const t = await tickets.fromTeam(sql, member, input);
     const link = followUpLink(t.secret);
     const s = await tickets.settings(sql);
-    const sent = await mailer.confirm({ number: t.number, subject: input.subject.trim(), customerEmail: input.email.trim(), customerName: input.name.trim(), language: isLocale(input.language) ? input.language : "en" }, link, s.companyName);
+    const sent = await mailer.confirm({ number: t.number, subject: input.subject.trim(), customerEmail: input.email, customerName: input.name.trim(), language: isLocale(input.language) ? input.language : "en" }, link, s.companyName);
     if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
     after("badges", () => tell.refreshBadges(sql));
     return { number: t.number, link };
@@ -277,18 +278,18 @@ export const actions = {
   // seconds left (formSeconds). Sent, the request's follow-up page opens
   // (its address is the secret, shown once); a request sent twice is the
   // same ticket, and the team is not told twice.
-  sendRequest: publicAction({ name: given, email: given, subject: given, message: given, lang: given, embed: given, files: any }, async input => {
+  sendRequest: publicAction({ name: given, email: field.email(), subject: given, message: given, lang: given, embed: given, files: any }, async input => {
     const sql = db();
     // The language the visitor read the form in.
     const language = isLocale(input.lang) ? input.lang : "en";
     const embed = input.embed === "1" ? "&embed=1" : "";
-    const t = await tickets.fromForm(sql, { name: input.name.slice(0, 12000), email: input.email.slice(0, 12000), subject: input.subject.slice(0, 12000), message: input.message.slice(0, 12000), language }, visitorFiles(input.files));
+    const t = await tickets.fromForm(sql, { name: input.name.slice(0, 12000), email: input.email, subject: input.subject.slice(0, 12000), message: input.message.slice(0, 12000), language }, visitorFiles(input.files));
     // Sent twice: the team is not told twice, the customer not emailed twice.
     if (t.repeated) redirect(`/t/${t.secret}?new=1&again=1${embed}`);
     const s = await tickets.settings(sql);
     // The words as the ticket keeps them (one line, bounded): a subject the
     // Chest would refuse in a header never costs the customer their link.
-    const ticket = { number: t.number, subject: clean(input.subject, limits.subject), customerEmail: input.email.trim(), customerName: clean(input.name, limits.name, { optional: true }), language };
+    const ticket = { number: t.number, subject: clean(input.subject, limits.subject), customerEmail: input.email, customerName: clean(input.name, limits.name, { optional: true }), language };
     // A stranger's form can name any address: never a robot's, three an
     // hour to one address at most (as for Forms' requests) — past them the
     // request is filed and its page opens, without an email.

@@ -1042,7 +1042,9 @@ export { fillReply };
 // tickets went, and their files to delete from the Chest.
 export async function eraseCustomer(sql: Sql, actor: Member | null, address: unknown): Promise<{ tickets: number; objects: string[] }> {
   if (!can(actor, "customers.erase")) throw new AppError("forbidden");
-  const value = email(address);
+  // Matched as stored, cases aside, not checked against today's rule: a
+  // customer written under an older one is erased too.
+  const value = clean(address, limits.email);
   return sql.begin(async tx => {
     const objects = await objectsOf(tx, tx`lower(t.customer_email) = lower(${value})`);
     const gone = await tx`delete from tickets where lower(customer_email) = lower(${value})`;
