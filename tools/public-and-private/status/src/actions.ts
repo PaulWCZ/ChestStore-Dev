@@ -2,7 +2,7 @@ import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { action, after, field, log, publicAction, redirect, type Field } from "@argentic/chest-app";
 import { catalogue, localeOf } from "./i18n/index.ts";
-import { AppError, type ErrorCode } from "./lib/app-error.ts";
+import { AppError, refusalAbout, type ErrorCode } from "./lib/app-error.ts";
 import * as checks from "./lib/checks.ts";
 import * as components from "./lib/components.ts";
 import { db } from "./lib/db.ts";
@@ -77,11 +77,19 @@ function loose(max: number): Field<string> {
 // package puts the values in the address, ?error=<code>&values=…, which
 // the page reads; the request log never has them). Its count and its form
 // token are given back (the package releases them on a refusal).
-function refuseWith(error: unknown, typed: Record<string, string>): never {
+// about(code): the form's field a refusal is about ("email"), so a form
+// sent by the package's script says it next to that field, as the page
+// does without JavaScript (src/pages/Subscribe.tsx).
+function refuseWith(error: unknown, typed: Record<string, string>, about: (code: string) => string | undefined = () => undefined): never {
   if (!(error instanceof AppError)) throw error;
   const kept = Object.fromEntries(Object.entries(typed).filter(([, v]) => v !== "" && v.length < 100));
-  throw new AppError(error.code as ErrorCode, { ...error.values, ...kept });
+  const refusal = new AppError(error.code as ErrorCode, { ...error.values, ...kept });
+  const field = error.field ?? about(error.code);
+  if (field) refusal.field = field;
+  throw refusal;
 }
+const aboutEmail = (code: string) => (refusalAbout(code, "subscribe") ? "email" : undefined);
+const aboutUrl = (code: string) => (refusalAbout(code, "subscribeChat") ? "url" : undefined);
 
 // A subscription's token as an address may hold it.
 const tokenOf = (value: string) => value.replace(/[^A-Za-z0-9_-]/gu, "").slice(0, 64);
@@ -322,7 +330,7 @@ export const actions = {
         throw new AppError("no_mail");
       }
     } catch (error) {
-      refuseWith(error, { email: input.email });
+      refuseWith(error, { email: input.email }, aboutEmail);
     }
     redirect("/subscribe?sent=1");
   }, { bound: { budgets: formBudgets, formSeconds: 2, work: true } }),
@@ -376,7 +384,7 @@ export const actions = {
       await charge("new");
       token = (await subscribeHook(sql, { kind: input.kind, url: input.url, language: localeOf(locale), components: input.scope === "some" ? input.component : "all" })).token;
     } catch (error) {
-      refuseWith(error, { kind: /^(slack|teams|generic)$/u.test(input.kind) ? input.kind : "", url: input.url });
+      refuseWith(error, { kind: /^(slack|teams|generic)$/u.test(input.kind) ? input.kind : "", url: input.url }, aboutUrl);
     }
     redirect(`/w/${token}?new=1`);
   }, { bound: { budgets: chatBudgets, formSeconds: 2, work: true } }),

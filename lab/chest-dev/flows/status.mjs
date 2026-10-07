@@ -124,11 +124,20 @@ await step("an address the browser lets through but mail would not take is refus
   await page.waitForTimeout(2200);
   await page.getByRole("button", { name: "Subscribe" }).click();
   // With JavaScript the package sends the form itself and says the
-  // refusal in a toast (without, the page comes back with ?error= beside
-  // the form).
-  await page.getByText("This email address does not look right.").first().waitFor();
+  // refusal next to the address, in the place the page fills without
+  // JavaScript (?error=): marked, described, focused — no toast.
+  await page.locator("#email-error:not([hidden])", { hasText: "This email address does not look right." }).waitFor();
   expect(page.url() === publicOrigin + "/subscribe", "still on the form");
-  expect(await page.getByLabel("Your email address").inputValue() === "lucie..garnier@example.com", "kept");
+  const address = page.getByLabel("Your email address");
+  expect(await address.inputValue() === "lucie..garnier@example.com", "kept");
+  expect(await address.getAttribute("aria-invalid") === "true", "marked");
+  expect((await address.getAttribute("aria-describedby") ?? "").split(" ").includes("email-error"), "described by the sentence");
+  expect(await page.evaluate(() => document.activeElement?.id) === "email", "focused");
+  expect(await page.locator(".ck-toast-error").count() === 0, "no toast");
+  // Fixing it clears the mark.
+  await address.press("End");
+  await address.type("x");
+  expect(await address.getAttribute("aria-invalid") === null && await page.locator("#email-error").isHidden(), "cleared at the next input");
 });
 
 await step("a visitor subscribes by email: a confirmation link, then their own page", async () => {

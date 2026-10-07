@@ -1,7 +1,7 @@
 import { Honeypot, type View } from "@argentic/chest-app";
 import { Back, Chat, Mail, Rss } from "../components/icons.tsx";
 import { format } from "../i18n/index.ts";
-import { errorCodes, type ErrorCode } from "../lib/app-error.ts";
+import { errorCodes, refusalAbout, type ErrorCode } from "../lib/app-error.ts";
 import { followOptions } from "../lib/options.ts";
 import type { PublicContext } from "../lib/public-page.ts";
 import { ChoiceFields } from "./parts/choice-fields.tsx";
@@ -32,6 +32,7 @@ export async function subscribePage(context: PublicContext, origin: string, quer
   const values = sentBack(query.values);
   const w = t.subscribe;
   const noMail = !offerMail || error === "no_mail";
+  const onEmail = error !== null && refusalAbout(error, "subscribe");
   // Slack, Teams or a web address, beside email — only when the Chest would
   // deliver them now (webhooks.available()).
   const chat = offerChat ? <p className="links"><a href="/subscribe/chat"><Chat />{t.hooks.chatLink}</a></p> : null;
@@ -61,10 +62,13 @@ export async function subscribePage(context: PublicContext, origin: string, quer
             <Honeypot action="subscribe" />
             <div>
               <label className="label" htmlFor="email">{w.email}</label>
-              <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} defaultValue={values["email"] ?? ""} aria-invalid={error === "invalid_email" || error === "empty" || error === "too_long" || undefined} aria-describedby={error ? "form-error" : undefined} />
+              <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} defaultValue={values["email"] ?? ""} aria-invalid={onEmail || undefined} aria-describedby={error ? (onEmail ? "email-error" : "form-error") : undefined} />
+              {/* The address's refusal, next to it: filled here without
+                  JavaScript, by the package's script with it (the same place). */}
+              <p id="email-error" className="error" role="alert" hidden={!onEmail}>{onEmail ? format(t.errors[error], values) : ""}</p>
             </div>
             <ChoiceFields options={await followOptions(sql, locale)} chosen={null} t={w} />
-            {error && <p id="form-error" className="error" role="alert">{format(t.errors[error], values)}</p>}
+            {error && !onEmail && <p id="form-error" className="error" role="alert">{format(t.errors[error], values)}</p>}
             <div><button type="submit" className="button">{w.submit}</button></div>
             <p className="fine">{w.privacy}</p>
           </form>

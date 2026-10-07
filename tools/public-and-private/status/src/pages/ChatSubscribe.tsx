@@ -2,6 +2,7 @@ import { Honeypot, type View } from "@argentic/chest-app";
 import { Back, Chat } from "../components/icons.tsx";
 import { format } from "../i18n/index.ts";
 import { hookKinds, hooksDelivery } from "../lib/hooks.ts";
+import { refusalAbout } from "../lib/app-error.ts";
 import { followOptions } from "../lib/options.ts";
 import type { PublicContext } from "../lib/public-page.ts";
 import { ChoiceFields } from "./parts/choice-fields.tsx";
@@ -16,6 +17,7 @@ import { refusal, sentBack } from "./Subscribe.tsx";
 export async function chatSubscribePage(context: PublicContext, query: { error: string | undefined; kind: string | undefined; values: string | undefined }): Promise<View> {
   const { t, locale, sql } = context;
   const error = refusal(query.error);
+  const onUrl = error !== null && refusalAbout(error, "subscribeChat");
   const values = sentBack(query.values);
   const w = t.hooks;
   const asked = values["kind"] ?? query.kind;
@@ -43,14 +45,16 @@ export async function chatSubscribePage(context: PublicContext, query: { error: 
             </fieldset>
             <div>
               <label className="label" htmlFor="url">{w.url}</label>
-              <input id="url" name="url" type="url" inputMode="url" className="field" required maxLength={2048} spellCheck={false} autoComplete="off" defaultValue={values["url"] ?? ""} aria-invalid={error?.startsWith("hook_") || undefined} aria-describedby={error ? "form-error" : undefined} />
+              <input id="url" name="url" type="url" inputMode="url" className="field" required maxLength={2048} spellCheck={false} autoComplete="off" defaultValue={values["url"] ?? ""} aria-invalid={onUrl || undefined} aria-describedby={error ? (onUrl ? "url-error" : "form-error") : undefined} />
+              {/* The address's refusal, next to it, with or without JavaScript. */}
+              <p id="url-error" className="error" role="alert" hidden={!onUrl}>{onUrl ? format(t.errors[error], values) : ""}</p>
               <details className="where-hint">
                 <summary><Chat />{w.whereFind}</summary>
                 <ul className="fine">{hookKinds.map(k => <li key={k}>{w.urlHints[k]}</li>)}</ul>
               </details>
             </div>
             <ChoiceFields options={await followOptions(sql, locale)} chosen={null} t={t.subscribe} />
-            {error && <p id="form-error" className="error" role="alert">{format(t.errors[error], values)}</p>}
+            {error && !onUrl && <p id="form-error" className="error" role="alert">{format(t.errors[error], values)}</p>}
             <div><button type="submit" className="button">{w.submit}</button></div>
             <p className="fine">{w.privacy}</p>
           </form>

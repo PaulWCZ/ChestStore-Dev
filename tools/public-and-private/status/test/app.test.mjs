@@ -118,8 +118,18 @@ test("subscribing by email without script: the form's token, the same answer who
   const back = wrong.headers.get("location");
   assert.match(back, /^\/subscribe\?error=invalid_email&values=/u);
   const refilled = checkPage(await (await get(null, back)).text());
-  assert.match(refilled, /role="alert">This email address does not look right/u);
+  assert.match(refilled, /id="email-error" class="error" role="alert">This email address does not look right/u, "said next to the address");
+  assert.match(refilled, /aria-invalid="true" aria-describedby="email-error"/u);
   assert.match(refilled, /name="email"[^>]*value="ana@example"|value="ana@example"[^>]*name="email"/u, "what was typed is kept");
+  // Sent by the package's script (x-tool-action): the refusal names the
+  // field, so the form says it in the same place, not in a toast.
+  const inPlace = await form("/actions/subscribe", { website: "", scope: "all", chest_form: formToken("subscribe", Date.now() - 3000, 14), email: "ana..b@example.com" }, "/subscribe", { "x-tool-action": "1" });
+  assert.equal(inPlace.status, 400);
+  const said = await inPlace.json();
+  assert.equal(said.error, "invalid_email");
+  assert.equal(said.field, "email");
+  // Without a refusal, the place is there, empty and hidden.
+  assert.match(html, /<p id="email-error" class="error" role="alert" hidden="">\s*<\/p>/u);
   // A token serves once, whatever the answer: the page the form came back
   // to carries the next one.
   const spentToken = await form("/actions/subscribe", { website: "", scope: "all", chest_form: pageToken, email: "ana@example.com" }, "/subscribe");
