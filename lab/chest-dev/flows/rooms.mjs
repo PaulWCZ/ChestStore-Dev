@@ -642,6 +642,12 @@ await step("visitors: Hugo announces his visitor, nobody else but the reception 
   expect(await dialog.getByRole("combobox", { name: "Coming to see" }).count() === 0, "a member is the host: no picker");
   // The visitor is outside the company: an invitation by email, replies to the company's address.
   expect((await dialog.innerText()).includes("Their replies go to "), "where replies land, said on the form");
+  // An address the browser takes but mail does not (no dot in the domain):
+  // the package's field.email refuses it in plain words, nothing is announced.
+  await dialog.getByLabel("Their email (optional)").fill("paul.durand@client");
+  await dialog.getByRole("button", { name: "Announce", exact: true }).click();
+  await page.getByText("This email address does not look right.").first().waitFor();
+  expect(await page.locator(".visit-row", { hasText: "Paul Durand" }).count() === 0, "nothing announced with a wrong address");
   await dialog.getByLabel("Their email (optional)").fill("paul.durand@client.example");
   await dialog.getByRole("button", { name: "Announce", exact: true }).click();
   await page.waitForSelector(".ck-toast >> text=Visit of Paul Durand announced");

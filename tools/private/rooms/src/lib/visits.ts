@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import * as mail from "@argentic/chest-sdk/mail";
 import * as members from "@argentic/chest-sdk/members";
 import { ChestError } from "@argentic/chest-sdk/errors";
-import { log } from "@argentic/chest-app";
+import { field, log } from "@argentic/chest-app";
 import { can, roleOf } from "./access.ts";
 import { localeOf } from "../i18n/index.ts";
 import { AppError } from "../shared/app-error.ts";
@@ -62,15 +62,20 @@ async function hostOf(actor: Member, value: unknown): Promise<string> {
 
 export type VisitInput = { officeId?: unknown; day?: unknown; at?: unknown; name?: unknown; company?: unknown; host?: unknown; email?: unknown };
 
-// A visitor's address, when one is given: a plain address the Chest would
-// send to, or nothing.
+// A visitor's address, when one is given: the package's field.email (the
+// domain lower-cased, the part before "@" kept as written; a display name,
+// a space, controls, a domain without a dot refused with invalid_email),
+// and one the Chest would send to (mail.isAddress: its domain in ASCII) —
+// or nothing. The invitations' per-address bound compares addresses
+// lower-cased (lib/invitations.ts), as matchEmails does.
+const visitorAddress = field.email({ max: visitLimits.email });
 export function visitorEmail(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") throw new AppError("invalid_email");
-  const text = value.trim();
-  if (text === "") return null;
-  if (text.length > visitLimits.email || !mail.isAddress(text)) throw new AppError("invalid_email");
-  return text;
+  if (value.trim() === "") return null;
+  const address = visitorAddress.read(value);
+  if (!mail.isAddress(address)) throw new AppError("invalid_email");
+  return address;
 }
 
 // A colleague is not a visitor: Rooms never mails a member (they hear of

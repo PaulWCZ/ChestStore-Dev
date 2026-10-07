@@ -115,6 +115,14 @@ test("an address must be one: a member's id or a word is refused", async () => {
   await assert.rejects(announce(hugo, { email: hugo.id }), { code: "invalid_email" });
   await assert.rejects(announce(hugo, { email: 42 }), { code: "invalid_email" });
   assert.equal((await announce(hugo, { email: "   " })).invitation, null);
+  // The package's field.email: a display name, an IP literal, a domain
+  // without a dot, a bidirectional override are no address; the domain is
+  // lower-cased, the rest kept as written.
+  for (const bad of ["Paul <paul@client.test>", "paul@[192.0.2.1]", "paul@client", "pa\u202eul@client.test", "paul@@client.test"]) {
+    await assert.rejects(announce(hugo, { email: bad }), { code: "invalid_email" }, bad);
+  }
+  const v = await announce(hugo, { email: " Paul.Durand@Client.TEST " }, workday(4));
+  assert.deepEqual([...await database.sql`select email from visits where id = ${v.id}`], [{ email: "Paul.Durand@client.test" }]);
 });
 
 test("a colleague's address is refused in the visitor's field: Rooms never mails a member", async () => {
