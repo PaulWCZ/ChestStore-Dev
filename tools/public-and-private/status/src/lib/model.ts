@@ -1,3 +1,4 @@
+import { field } from "@argentic/chest-app";
 import { AppError } from "./app-error.ts";
 import { instantOf, isDate } from "./zone.ts";
 
@@ -114,12 +115,16 @@ export function componentIds(value: unknown, options: { optional?: boolean } = {
   return ids;
 }
 
-// An email address as the subscribe form takes it: plain, one @, a dot in
-// the domain, no spaces or brackets. The Chest checks it again (isAddress).
+// An email address as the subscribe form takes it: the package's rule
+// (field.email: trimmed, the domain lower-cased, the part before the @ as
+// written; display names, controls, quotes, IP literals refused with
+// "invalid_email", "" with "empty", past 254 characters "too_long"). The
+// action takes the text loosely and checks it here, inside the form's
+// try, so a refusal goes back to the page with what was typed. Compared
+// lowercase (lower(…) in SQL, the budget's subject). The Chest checks it
+// again (isAddress).
+const address = field.email({ max: limits.email });
 export function email(value: unknown): string {
   if (typeof value !== "string") throw new AppError("invalid_email");
-  const text = value.trim();
-  if (text.length < 3 || text.length > limits.email) throw new AppError("invalid_email");
-  if (!/^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:".]{2,}$/u.test(text)) throw new AppError("invalid_email");
-  return text;
+  return address.read(value);
 }

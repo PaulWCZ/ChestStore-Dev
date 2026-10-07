@@ -117,6 +117,20 @@ await step("a visitor opens an incident's own page, the history, and the feeds",
   expect(missing.status() === 404, "unknown incident");
 });
 
+await step("an address the browser lets through but mail would not take is refused in plain words; what was typed stays", async () => {
+  await page.goto(publicOrigin + "/subscribe");
+  // Two dots in a row: field.email's rule refuses it.
+  await page.getByLabel("Your email address").fill("lucie..garnier@example.com");
+  await page.waitForTimeout(2200);
+  await page.getByRole("button", { name: "Subscribe" }).click();
+  // With JavaScript the package sends the form itself and says the
+  // refusal in a toast (without, the page comes back with ?error= beside
+  // the form).
+  await page.getByText("This email address does not look right.").first().waitFor();
+  expect(page.url() === publicOrigin + "/subscribe", "still on the form");
+  expect(await page.getByLabel("Your email address").inputValue() === "lucie..garnier@example.com", "kept");
+});
+
 await step("a visitor subscribes by email: a confirmation link, then their own page", async () => {
   await page.goto(publicOrigin + "/");
   await page.getByRole("link", { name: "Get updates" }).first().click();

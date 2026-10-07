@@ -61,7 +61,7 @@ export async function subscribePage(context: PublicContext, origin: string, quer
             <Honeypot action="subscribe" />
             <div>
               <label className="label" htmlFor="email">{w.email}</label>
-              <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} defaultValue={values["email"] ?? ""} aria-invalid={error === "invalid_email" || undefined} aria-describedby={error ? "form-error" : undefined} />
+              <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} defaultValue={values["email"] ?? ""} aria-invalid={error === "invalid_email" || error === "empty" || error === "too_long" || undefined} aria-describedby={error ? "form-error" : undefined} />
             </div>
             <ChoiceFields options={await followOptions(sql, locale)} chosen={null} t={w} />
             {error && <p id="form-error" className="error" role="alert">{format(t.errors[error], values)}</p>}
