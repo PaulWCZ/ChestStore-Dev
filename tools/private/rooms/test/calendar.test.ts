@@ -49,12 +49,12 @@ test("a room booking is in the organiser's and the guests' calendars, in each on
   const kept = chest.calendar.get(key);
   assert.ok(kept, "put");
   assert.deepEqual([...kept.members].sort(), [hugo.id, ines.id].sort());
-  assert.deepEqual(kept.title, { en: "Room booked: Atlas", fr: "Salle réservée : Atlas" });
+  assert.deepEqual(kept.title, { en: "Room booked: Atlas", fr: "Salle réservée\u202f: Atlas" });
   assert.equal(kept.path, `/chest/rooms?day=${d}&booking=${bookings[0]!.id}`);
   assert.match(kept.location ?? "", /^Atlas · Ground floor · Paris · 12 rue de Paradis$/u);
   assert.ok("start" in kept && kept.start.endsWith("Z"));
   // Ines's feed says it in French.
-  assert.match(chest.feed(ines.id), /SUMMARY:Salle réservée : Atlas/u);
+  assert.match(chest.feed(ines.id), /SUMMARY:Salle réservée\u202f: Atlas/u);
   assert.equal((await sql`select count(*)::int as n from calendar_queue`)[0]!.n, 0);
   assert.equal((await cal.state(sql)), "on");
 

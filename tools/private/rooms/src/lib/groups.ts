@@ -28,7 +28,7 @@ export function forgetGroups(): void {
 // without it, the groups that give Rooms (none when Rooms is open to
 // everyone); when the Chest cannot be asked, the groups it gave with the
 // member (given). (The official 0.4.1 parser refuses a member listed in
-// more than 16 groups: such a member then falls back to given.) It decides
+// more than 16 groups; the vendored 0.4.1-studio.7 lifts it.) It decides
 // who may book a place kept for a group, and every page asks it: kept a
 // minute per member (pages refresh themselves every 20 s, within the
 // members' 600 calls a minute), forgotten on the events above; a stale

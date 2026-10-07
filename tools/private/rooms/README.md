@@ -376,8 +376,9 @@ proposals (0.4.1-studio.6).
   (`src/lib/groups.ts`: `groupsOf` (kept a minute, forgotten on `group.*`
   and `member.updated`) for one member, `membership` for the teams of
   "Who's where"). Without it, the groups that give Rooms. The official
-  0.4.1 parser still refuses a member listed in more than 16 groups (that
-  member then falls back to the groups of their own request).
+  0.4.1 parser refuses a member listed in more than 16 groups; the
+  vendored SDK 0.4.1-studio.7 lifts it (an assertion up to 16 KiB, about
+  300 groups).
 - `members.matchEmails` (studio.15): an import's addresses matched to
   members without `members.email`.
 - Events between tools — **Proposal (studio)**: Leave's `leave.approved` / `leave.cancelled`.
