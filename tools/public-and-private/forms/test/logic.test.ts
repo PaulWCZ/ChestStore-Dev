@@ -149,7 +149,9 @@ test("an answer as text: labels, Yes/No, file names", () => {
   assert.equal(answerText(q("number", "n"), 4.5, words), "4.5");
 });
 
-test("an email question reads an address as the package's field.email() does", () => {
+// The rule is the package's (readEmail, from /client: no copy here): an
+// email question answers what the server's field.email() answers.
+test("an email question reads an address with the package's rule, as field.email() does on the server", () => {
   const rule = field.email();
   const cases = [
     "a@b.co", " Ana.B@Example.COM ", "élodie@exemple.fr", "a+tag@sub.example.org", "x@münchen.de",

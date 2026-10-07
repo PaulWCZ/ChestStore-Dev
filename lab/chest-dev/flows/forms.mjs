@@ -1,5 +1,8 @@
 // Forms, as a creator builds one and people answer it, in a real browser:
-//   node lab/chest-dev/flows/forms.mjs [port]   (harness with --reset: the sample forms are there)
+//   node lab/chest-dev/dev.mjs tools/public-and-private/forms --port 6800 --prod --reset --tools crm,helpdesk --linked
+//   node lab/chest-dev/flows/forms.mjs [port]
+// (--reset: the sample forms are there; --tools crm,helpdesk --linked:
+// Clients and Support installed and linked, the routes' steps need them.)
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 6800);
