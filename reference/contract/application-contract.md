@@ -1,6 +1,6 @@
 # Application contract — excerpt of the Chest's architecture
 
-Snapshot of `docs/architecture.md` of the private Chest repository, commit `0c2bcfd` (5 October 2026): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
+Snapshot of `docs/architecture.md` of the private Chest repository, commit `548e697` (7 October 2026): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
 
 ## Application contract
 
@@ -22,7 +22,7 @@ new tool”).
 **A single contract: the server, versioned.** A tool is a web server; its
 `chest.json` names the version of the tool contract it is written for,
 `"chest": "MAJOR.MINOR"` — the SDK's MAJOR.MINOR (`sourcefile.Contract`,
-0.4). A Chest serves every version up to its own with the one grammar it
+0.5). A Chest serves every version up to its own with the one grammar it
 has: the contract only grows, a key keeps its meaning. A later version is
 refused before any key is read (`sourcefile.NeedsNewerChest`, reason
 `newer_chest`: “This tool needs a newer version of your Chest”, EN and FR,
@@ -174,7 +174,7 @@ no longer offers archive upload.
   source shown —, failing that by its identifier with a capital letter
   (“Editor”); the identifier kept by the access rules and given to the tool
   (`Chest-Member`, `role`) does not change.
-- **Source manifest** (server tool): `"chest": "0.4"` (above). Fields `name`, `roles`, `public` (boolean: the tool has a
+- **Source manifest** (server tool): `"chest": "0.5"` (above). Fields `name`, `roles`, `public` (boolean: the tool has a
   public part, shown and approved like the `public` permission — it
   stays closed at installation), `csp` optional — only value `"tool"`,
   and only with `public: true`: the public part sends its own
@@ -210,8 +210,8 @@ no longer offers archive upload.
   covers (`packagefile.Beyond`) — is a new permission, which only the
   owner or an admin approves. `capabilities` optional, the Chest services
   that the tool uses: closed list, each once, `database`, `files`,
-  `members` and `members.email` — the last only with `members` —,
-  `notifications` and `ai` (“Server tools”, Database, Files, Members,
+  `members`, `members.email` and `members.groups` — the last two only with
+  `members` —, `notifications` and `ai` (“Server tools”, Database, Files, Members,
   Notifications, AI gateway); each is a
   permission, after `public` and before the network, in this order (“A PostgreSQL
   database of its own”, “The Chest keeps it; no other tool can
@@ -221,8 +221,10 @@ no longer offers archive upload.
   email address of the members who have access to it”, both under People). With `files`,
   the optional key `files` asks the storage: `{"quota": "5 GiB",
   "maxObject": "100 MiB"}` (whole MiB or GiB; quota 100 MiB–100 GiB,
-  object 1–512 MiB; any other key refused — `publicUploads` and
-  `publicFiles` of the spec are not built); the permission is then
+  object 1–512 MiB; any other key refused — a visitor's upload needs no
+  key of its own: a tool with a public part could already take a
+  visitor's bytes through its server, so the Chest's upload adds no
+  power, only the bounds of “Files”); the permission is then
   `files:<quota>:<object>` (`files:5GiB:100MiB`, compact, canonical;
   the defaults stay `files`), stated “Keeps private files of its own, up
   to 5 GiB, 100 MiB per file”, and beyond a version that had less
@@ -785,7 +787,7 @@ assertion), the tool's **variables**, its declared network egress, its
     the inventory names the version): a version that lacks a
     migration already run, or that changed one, is refused before any
     effect; a failing file leaves nothing of itself, the version in service
-    keeps running, and the reason (“migration 0003_broken.sql failed (SQLSTATE …);
+    keeps running, and the reason (“migration 0004_broken.sql failed (SQLSTATE …);
     the version in service runs on”) goes up to the portal
     (`portal.RefusedVersion`): the route's response, the reason of a
     deployed build or of the catalogue. At **node startup**, the
@@ -867,6 +869,13 @@ assertion), the tool's **variables**, its declared network egress, its
       of a long-text type is cut in the cluster
       (`left(…::text, 8193)`) then at 8 KiB on a character boundary, the cell
       marked (`cut`); 4 MiB per response.
+    - **Sealed values** (`toolseal.Is`): a text that is a sealed value of
+      the tool (`chest:sealed:1:…`), or the start of one the console cut,
+      is answered as it is and named in `sealed` — a row's columns
+      (`Row.Sealed`), a statement's cells (`QueryResult.Sealed`, row and
+      column) —: the Data tab shows “Sealed” (“Sealed · editor” for the
+      roles it says), never the text; the console holds no key and opens
+      nothing, for whoever asks, the owner and the agents included.
     - **Values in JSON** (by OID): `NULL` → `null`, `bool` → boolean,
       `int2`, `int4`, `oid`, `float4/8` → number (`NaN`, `±Infinity` →
       text), `int8`, `numeric`, `money` → text (beyond what a
@@ -942,6 +951,72 @@ assertion), the tool's **variables**, its declared network egress, its
       SQL text, a value or a key**. Rotated at 1 MiB (one previous
       file kept), lines older than 90 days removed on opening
       then once a day.
+- **Sealed values** (`chest/toolseal`, `cmd/chest/application_files.go`,
+  `chest/portal/sealing.go`, manifest `capabilities: ["sealed"]`,
+  [spec](../../../01_produit/02_specs/sealed-data.md)): a value the tool
+  seals through its Chest, kept sealed in its own database, opened again by
+  the tool only, on the request of a member who has it. The rule: the
+  Chest's own screens, its agents' API, its logs and backups never open a
+  value — the owner included.
+  - **Keys** (envelope): the **Chest key** (`installation/sealing.key`, 32
+    random bytes, 0600), made at the first value sealed with a **recovery
+    code** (160 random bits, base32 in groups of four,
+    `installation/sealing.recovery` until the owner says it is saved) and
+    the **escrow** (`installation/sealing.escrow`: the Chest key under
+    AES-256-GCM, its key HKDF-SHA256 of the code). Written code, escrow,
+    then key: a node stopped between them unlocks itself from the code at
+    its next start. Each tool's key (`apps/<tool>/sealed-values.key`: 32
+    random bytes under AES-256-GCM of the Chest key, its additional data the
+    tool's name) is made at the tool's first seal and goes with its
+    Compartment; one the Chest key does not open is never replaced
+    (`ErrLost`, `sealed_lost`). A value: XChaCha20-Poly1305
+    (`golang.org/x/crypto`, a random 24-byte nonce) under the tool's key,
+    written `chest:sealed:1:<roles>:<base64url(nonce‖box)>`, its additional
+    data the format, the tool, the roles and the tool's context. The node
+    keeps the Chest key and each tool's in memory once read (`Keeper`,
+    `Tool`: one per tool across its versions, forgotten with it).
+  - **Tickets**: the team host gives each request of a member of a version
+    that holds `sealed` a `Chest-Opener` header beside `Chest-Member`
+    (`toolfront.Visit.Opener`, `portal.Binding.Seals`): `1.<member>.<expiry
+    unix>.<HMAC-SHA256>`, 60 s, under a key of the `Tool` made at the
+    node's start and never given to the tool — which holds the key of
+    `Chest-Member` to verify it, so could forge it. A header of that name a
+    browser sends is dropped with every `Chest-*` one.
+  - **API** (`toolseal.Tool.API`, on `CHEST_API`, `/sealed/`): `POST
+    /sealed/seal {"items": [{"value", "roles"?, "context"?}]}` → `{"sealed":
+    […]}` — no member needed; roles among those the version declares
+    (`invalid_role`) — and `POST /sealed/open {"items": [{"sealed",
+    "context"?}]}` with `Chest-Opener` → `{"values": [{"value"} |
+    {"refused": "role" | "invalid"}]}`: the ticket checked (401
+    `member_required`), then the team read **now** (403 `access_removed` for
+    a member who lost the tool), each value opened in its context and its
+    roles checked against the member's role (set by the owner or an admin).
+    A call is 4 MiB at most (a page of values, no count), a value 512 KiB,
+    a context 256 bytes. 503 `sealed_locked` while the Chest key waits for
+    the owner's code; 403 `capability_not_granted` for a version without
+    `sealed`. ~1 µs to seal and open an IBAN (`go test -bench .
+    ./chest/toolseal`).
+  - **Journal of opens** (`installation/sealed-journal/<tool>.jsonl`,
+    `chest/jsonjournal`, 8 MiB turned over, 90 days, archived): one line per
+    call that opened or refused values — the time, the member, how many
+    opened and refused, the roles of the restricted ones —, never a value
+    nor a context; removed with the tool. `GET /api/tools/{app}/sealed`
+    (the owner alone: `toolSealed`) gives the totals of the last 30 days
+    per member, named, and the Data tab shows them under the grid.
+  - **The owner's code** (`chest/portal/sealing.go`): `GET /api/sealing`
+    (whoever runs the Chest) → `{"state": "none" | "pending" | "saved" |
+    "locked"}`; for the owner alone, never an agent: `POST
+    /api/sealing/reveal` → the code while pending, `/saved` (the code
+    leaves the server), `/renew` (a new code and escrow, pending), `/unlock
+    {"code"}` (a restored Chest, 5 tries a minute; 400 `wrong_code`); 409
+    `not_now` for a step the state does not allow. Settings → General
+    shows it.
+  - **Versions**: a version that declares `sealed` is put in service by
+    the owner or an admin alone, whoever wrote it (“Updating a tool”).
+  - **Drafts** of Perseus Code seal under a key of their own
+    (`toolseal.NewDraft`, `sealed-values.key` beside the project, in clear,
+    never the Chest key), opened for their fake members
+    (`draftfront.Running.Seals`); no journal.
 - **Files** (`chest/toolfiles`, `cmd/chest/application_files.go`,
   manifest `capabilities: ["files"]`, “Files” at approval): a
   **broker**, never a mount — the container root stays read-only and its
@@ -1024,8 +1099,9 @@ assertion), the tool's **variables**, its declared network egress, its
     by default and never beyond (413); `types` up to eight media types
     without parameters, exact or `family/*`, any when none (400
     `invalid_type`); `expires_in` 1–900 s, 900 by default (400
-    `invalid_body` beyond). The token, base64url(JSON `{tool, name, max,
-    types, exp, id, boot}`) `.` HMAC-SHA256 under the node key with its
+    `invalid_body` beyond); `public` for a visitor of the public part
+    (below). The token, base64url(JSON `{tool, name, max,
+    types, exp, id, boot, public?}`) `.` HMAC-SHA256 under the node key with its
     own label, 2048 characters at most, names the run of the node that
     signed it (`boot`, random at each start: a restart ends every token)
     and is **taken once** (its `id` remembered until it expires, 100,000
@@ -1036,13 +1112,52 @@ assertion), the tool's **variables**, its declared network egress, its
     require the host's `Origin` and the handler `Sec-Fetch-Site:
     same-origin` (403 `cross_origin`); the token is taken before
     anything is read (403 `invalid_token`: forged, expired, used, of
-    another tool or run); the type must be one it accepts (415
-    `type_refused`); the first 512 bytes of a JPEG, PNG, GIF, WebP,
-    AVIF, HEIC, BMP, TIFF, PDF, ZIP, gzip, 7z, RAR, tar, bzip2, xz or
-    CAB must be of its type (400 `type_mismatch`); then the bounds of a
-    put (413, 429). The read deadline of the request is 30 minutes.
-    201 `{name, type, size}`. SVG, HTML and scripts are served as
-    downloads, never inline (`shown`). No antivirus scan.
+    another tool or run, or a visitor's); the type must be one it accepts
+    (415 `type_refused`); then the bounds of a put (413, 429, 507), and
+    the content, once written aside, must hold the type said when the
+    Chest recognises it (400 `type_mismatch`, `toolfiles/sniff.go`): by
+    its first 512 bytes for a JPEG, PNG, GIF, WebP, AVIF and HEIC (by the
+    brands of their `ftyp` box), BMP, TIFF, PDF, ZIP, gzip, 7z, RAR, tar,
+    bzip2, xz or CAB; by its parts for an Office Open XML document
+    (`[Content_Types].xml` and `word/document.xml`, `xl/workbook.xml` or
+    `ppt/presentation.xml`, its directory read only once its end says
+    16,384 entries at most, never Zip64) or an OpenDocument one (its
+    first entry `mimetype`, stored, says the type). The read deadline of
+    the request is 30 minutes. 201 `{name, type, size}`. SVG, HTML and
+    scripts are served as downloads, never inline (`shown`). No antivirus
+    scan.
+  - **Uploads from a visitor of the public part** — the same mechanism,
+    for an anonymous sender. `POST /files/upload-url` with `"public":
+    true` (409 `no_public_part` for a version without one; drafts take it
+    from their declaration): `name` must be a folder — the Chest names
+    the file, a visitor never replaces one — and `types` must be given,
+    each recognised by content (`toolfiles.Recognised`: an exact type
+    above, or a family of which one is; 400 `invalid_type` otherwise —
+    plain text, CSV). The answer's `url` is a path, `/_chest/files/upload/
+    <token>`, sent by the visitor's page to its own address: the public
+    host, the custom domain, or the page framed by a company's site. The
+    public part takes it (`Portal.publicChest`, only while it is open: 404
+    otherwise) and only a visitor's token, the team host only a member's
+    (403 `invalid_token`), a draft's host both (its preview is both
+    parts). Without session and without `Origin` check (the token is the
+    authority). The type said is ignored: the file is of the type its
+    content is among those granted (`recognise`: an office document
+    before the archive it also is), 415 `type_refused` for none. **Pace
+    per visitor** (`toolfiles.ReceiveVisitor`, per client address —
+    `ratelimit.Client`, the address the front's PROXY header gives —, per
+    tool, in memory): its length said first (411 `length_required`), 2
+    uploads at once, 10 a minute, and in an hour 1/20 of the tool's quota,
+    never less than its largest object (`ratelimit.Windows.Spend`); beyond,
+    429 `slow_down` with `Retry-After`. Nothing caps all visitors
+    together but the tool's quota and the server's disk. The file joins
+    the tool's private files: only its members see it, through the tool
+    (links on the team host); the Chest never serves a file on the public
+    part (public files of the spec are not built).
+  - **Server's disk**: every write (`put`, an upload) needs room on the
+    disk — the size said, or the most the object may be —, within
+    `serverroom.DiskShare` of the disk (`serverroom.DiskFits`, the rule a
+    new tool is weighed by); otherwise 507 `storage_full`, nothing kept,
+    whatever the tool's quota (`StorageFull` in the SDK).
   - **Thumbnails** (`toolfiles/image.go`): for a JPEG, PNG, GIF (first
     frame) or WebP (`golang.org/x/image/webp`, the Go project's own
     decoder; its `draw` package scales with Catmull-Rom) measured within
@@ -1060,8 +1175,9 @@ assertion), the tool's **variables**, its declared network egress, its
     with its host), in the nightly archive with the Compartments and the
     link key (`deploy/backup.md`).
 - **Members** (`chest/toolmembers`, `cmd/chest/application_members.go`,
-  manifest `capabilities: ["members"]`, and `"members.email"` — which
-  requires `members` — for the addresses; each its own sentence at approval):
+  manifest `capabilities: ["members"]`, `"members.email"` for the
+  addresses and `"members.groups"` for every group of the Chest — both
+  require `members` —; each its own sentence at approval):
   who has the tool, read from the policy at every call (`Team.Directory`,
   once the node's portal holds the team — until then, and whenever the policy
   cannot be read, 503 `unavailable`, never an older answer), on the same
@@ -1072,7 +1188,7 @@ assertion), the tool's **variables**, its declared network egress, its
   name, photo, role, admin, builder, groups, language, time_zone, email?}`: `photo` the path of
   their picture on the team host (`/_chest/members/{id}/photo?v=<rev>`),
   `role` the one the tool declares (`access.ToolRole`) — both `null` for none
-  —, `groups` those that give the tool, `language` the one the Chest
+  —, `groups` those of theirs the tool sees, `language` the one the Chest
   speaks to them (`Policy.LanguageOf`: a notification to them is written
   in it) and `time_zone` the zone they work in (`Policy.ZoneOf`), `email`
   only with `members.email`;
@@ -1089,10 +1205,29 @@ assertion), the tool's **variables**, its declared network egress, its
   `"former"`), `{id, status: "erased"}` once their data was erased, and a
   member of the Chest the tool had who lost access to it is `{id, name,
   status: "no_access"}`: “had” is what the events engine remembers of each
-  tool (`toolevents.Engine.Had`, its last 4,096 members, erased ones
+  tool (`toolevents.Engine.Had`, every member it had, erased ones
   forgotten), the name read from the policy (`Team.Named`); anyone else —
-  a member the tool never had — stays `unknown`; `GET /groups` → `{"groups": [{id, name, members}]}`,
-  the groups that grant the tool. Errors `{"error": code}`: `invalid_query`,
+  a member the tool never had — stays `unknown`; `GET
+  /groups?after=&limit=` → `{"groups": [{id, name, size}], "next"}`, the
+  groups the tool sees, paged like the members (by name then identifier,
+  100 by default, 500 at most), `size` how many of their members have the
+  tool, whom `GET /members?group=` pages. A page of either list stops at
+  1 MiB of entries too (`pageBytes`, one entry at least): members in many
+  groups come over more pages. No count bounds the team the tool reads.
+  **The groups a tool sees** (`access.TeamApp.Groups`, from
+  `Binding.MemberGroups`, set at every registration and update of the
+  version in service): those that grant it — or, with `members.groups`,
+  every group of the Chest, so that a tool open to everyone offers “the
+  Sales team”; the same rule makes a member's `groups` (here, in the
+  assertion and in `member.updated`). The assertion carries them while it
+  keeps within 8 KiB (`toolfront` `assertionBytes`: half of the 16 KiB of
+  headers a Node server reads — about 150 groups); beyond, it carries
+  `groups_overage: true` and no `groups`, and the SDK's `member.groups` is
+  `null`: the tool reads them from `GET /members/{id}` — Microsoft's
+  “groups overage”. No group
+  event: joining or leaving a group the tool sees, a group deleted
+  included, is `member.updated` naming `groups`; names are read at render.
+  Errors `{"error": code}`: `invalid_query`,
   `invalid_id`, `invalid_body` 400, `capability_not_granted` 403,
   `member_not_found`, `not_found` 404, `rate_limited` 429 (600 calls a
   minute per instance, `Retry-After`), `unavailable` 503. The addresses in
@@ -1102,15 +1237,19 @@ assertion), the tool's **variables**, its declared network egress, its
   `cmd/chest/application_members.go`, manifest `capabilities:
   ["notifications"]`, its own sentence at approval): the counter a tool shows
   one member on its tile (a badge) and the items it puts in their inbox,
-  inside the Chest only (no mail, no push). Only the members who have the
+  inside the Chest only — the Chest then mails and pushes them as each
+  member chooses (below). Only the members who have the
   tool at the time of the call (`Team.Directory`, as for the members; 503
   `unavailable` while it cannot be read) receive anything; the others, and
   unknown identifiers, are `skipped`. Routes: `PUT /badges/{id} {"count"}`
-  and `PUT /badges {"badges": [{member, count}]}` (500 at most, each member
-  once) → `{"set", "skipped"}`, a count 0 to 9,999, 0 clearing it,
-  idempotent; `POST /notifications {"members", "title", "body"?, "path"?,
-  "key"?}` → `{"delivered", "skipped"}` (1 to 500 identifiers, each once,
-  in the order given): `title` 1 to 80 characters, `body` 280 at most, both
+  and `PUT /badges {"badges": [{member, count}]}` (each member once) →
+  `{"set", "skipped"}`, a count 0 to 9,999, 0 clearing it, idempotent;
+  `POST /notifications {"members", "title", "body"?, "path"?, "key"?,
+  "translations"?}` → `{"delivered", "skipped"}` (one identifier at least,
+  each once, in the order given). No count bounds what a call names: its
+  body takes 64 KiB of texts and 64 bytes for each member who has the tool
+  (`toolnotify` `textBytes`, `memberBytes`), so a call may name the whole
+  team and no more (400 `invalid_body` beyond): `title` 1 to 80 characters, `body` 280 at most, both
   plain text — tabs and line breaks of the title become spaces, the body
   keeps its line breaks, every other control or direction character goes
   (`toolnotify.Title`, `Body`) —; `path` the tool's members' part, `/chest`
@@ -1121,14 +1260,38 @@ assertion), the tool's **variables**, its declared network egress, its
   and member (new text, at the top, unread again); `POST
   /notifications/withdraw {"key", "members"?}` → 204, removing the items of
   that key from everyone or from those named, never saying what existed.
+  `translations` (`{"<language>": {"title", "body"?}}`, `pattern.Language`,
+  each bounded and cleaned as the original) gives the same item in other
+  languages: each member gets the one of their language (`Seen.Language`),
+  the base text otherwise — one `inbox.Store.Deliver` per language. `POST
+  /notifications/broadcast {"to"?: {"groups"?, "roles"?}, "except"?, the
+  notice}` → 204: the same item for every member who has the tool now, or
+  with `to` those in any of its groups (as the tool sees them: one it does
+  not see matches nobody) or holding any of its roles (`packagefile.MaxRoles`
+  at most, those it declares; `to` naming neither is refused), but those of
+  `except`; it answers no count — a tool
+  without `members` learns nothing of the team's size. Its recipients count
+  at the same pace as a notification's.
   A member who muted the tool counts as delivered, nothing kept: the tool
-  never learns who muted it. Quotas per tool (`toolnotify.Quotas`, one per
-  node, in memory — a restart starts them over —, fixed windows): 1,000
-  recipients kept an hour, 100 items per member a day (muted and replaced
-  ones included; one recipient over it refuses the call), 600 badges a
-  minute; 429 `quota_exceeded` with `Retry-After`; a refused call changes
-  nothing. Errors `invalid_body`, `invalid_id`, `invalid_count`,
-  `invalid_title`, `invalid_text`, `invalid_path`, `invalid_key` 400,
+  never learns who muted it. **Nothing is refused for its pace** (Paul, 6
+  October 2026): a tool's notices to a member go at a normal pace, a token
+  bucket per tool and member (`toolnotify.Pace`, one per node, in memory —
+  a restart fills them —: ten at once, one more every six minutes);
+  beyond, each is folded into the tool's one grouped item in that
+  member's inbox (`inbox.Item.Grouped`: how many, the latest's title, body
+  and path, unread and unmailed again, its identifier kept; once read, the
+  next burst starts another), never refused nor lost, constant space per
+  tool and member however fast a tool goes. A notice whose key names an
+  item replaces it, never folded; a folded one keeps no key. The bell
+  shows “37 new notifications” above the latest's title, the mails
+  “New notifications: 37” and the latest (`chest/portal/mail.go`), so a
+  folded burst is one line of the next mail. Badges are a state: the last
+  write wins, one that changes nothing writes nothing, none is refused.
+  Only a malformed or oversized call is. The inbox is changed one
+  member at a time (`inbox.Store.changeEach`): a call that reaches the
+  whole team never holds the others' bells. Errors `invalid_body`, `invalid_id`, `invalid_role`,
+  `invalid_count`, `invalid_title`, `invalid_text`, `invalid_path`,
+  `invalid_key`, `invalid_language` 400,
   `capability_not_granted` 403, `not_found` 404.
   - **The inbox** (`chest/inbox`): one private file per member,
     `installation/inbox/<member id>.json` (0600, directory 0700, in the
@@ -1160,9 +1323,10 @@ assertion), the tool's **variables**, its declared network egress, its
     `chest/web/portal/src/components/Inbox.tsx`): `GET /api/inbox` →
     `{items (the newest 100: id, tool, title, body?, url, created, read;
     or the Chest's: id, kind, member, tool (a version to approve), name, created, read),
-    unread, badges: [{tool, count}], senders: [{tool, muted}]}`; `POST
-    /api/inbox/read {ids | all}`, `/api/inbox/unread {ids}`,
-    `/api/inbox/mute {tool, muted}` answer the same. The bell of the header
+    unread, badges: [{tool, count}], senders: [{tool, muted}], rhythm}`;
+    `POST /api/inbox/read {ids | all}`, `/api/inbox/unread {ids}`,
+    `/api/inbox/mute {tool, muted}`, `/api/inbox/rhythm {rhythm}` answer the
+    same. The bell of the header
     carries the unread count (a black pill, 99+), read with each page and
     every 30 s while the page is seen, and when it is seen again; its panel
     (400 px, full screen on a phone) lists the items beside the icon and the
@@ -1170,8 +1334,104 @@ assertion), the tool's **variables**, its declared network egress, its
     an item opens its link in a new tab and is marked read; its menu marks
     it unread (or read) and mutes its tool; “Mark all as read”. The badge
     is a pill on the tile of the home only (the tools list manages tools);
-    Profile → Notifications lists the senders, “Notify me” each.
-  - **For agents**: `GET /api/v1/inbox` (the same, without the senders)
+    Profile → Notifications has the rhythm of the mails (below) and lists
+    the senders, “Notify me” each.
+  - **The mails of notifications** (`chest/portal/mail.go`,
+    [spec](../../../01_produit/02_specs/mail.md)): part of the Chest's
+    service — a tool notifies, the Chest decides the mail; no SDK call.
+    Each member chooses in Profile → Notifications (`Box.Rhythm`): every
+    notification as it comes (the default), once a day (8:00), twice a day
+    (8:00 and 16:00, in their zone, `Policy.ZoneOf`), or off; muting a tool
+    keeps its items out of the inbox, so out of the mails. `Portal.RunMail`
+    (started with the portal, stopped with it: `nodePortal.stopMail`) runs
+    a round every 20 s on the members whose mail may be due — those who
+    received an item since (`inbox.Store.Fresh`, set by `Deliver` and
+    `Tell`), those whose mail waits, everyone at the first round — and on
+    each only once its next time came (`mailState.next`: the burst over,
+    the next slot, a retry). A mail shows the items unread, not mailed
+    (`Item.Mailed`), younger than 24 hours, from a tool the member has —
+    and the Chest's own requests the bell shows, titled in the member's
+    language — newest first, 10 at most and how many more. As they come: a
+    burst is gathered until no item came for a minute
+    (`mailrelay.NotificationGap`), or five minutes after its first. A
+    summary leaves in its slot, within four hours of it (`mailSlot`;
+    `Box.Slot` records the last). A new rhythm marks what waited mailed:
+    it never mails the backlog. The central writes the mail (template
+    `notifications`): one notification is its title and text, a button to
+    it on its tool's team host; several, a list each leading to itself and
+    a button to the Chest; every mail says why it came and links to the
+    member's choices, `<portal>/mail/notifications?member=<id>&token=<HMAC>`
+    — HMAC-SHA-256 of the member under `installation/inbox/mail.key` (32
+    random bytes, 0600, in the nightly archive; `inbox.Store.Token`,
+    `Proves`). Sent: its items are marked mailed; refused for a quota
+    (429, `mailrelay.ErrQuota`): tried again after the gap; unreachable:
+    five minutes later — what it would have shown kept. The link
+    is the one route of the portal that reads no session and takes a post
+    from any origin (`core.Allowance{Anonymous, AnyOrigin}`: a mail
+    application's one-click unsubscribe, RFC 8058, sends none): a GET shows
+    the four choices on the status page (a link scanner changes nothing), a
+    POST of one keeps it, a POST without one — `List-Unsubscribe-Post` —
+    turns the mails off; a link of another member, altered or with any
+    other query is 404 “Link not valid”. The page speaks the member's
+    language. Agents and tools never see or change the rhythm. The clock
+    is the portal's (`Portal.now`), a test's own.
+  - **The pushes of notifications** (`chest/portal/push.go`,
+    `chest/webpush`, `cmd/chest/application_push.go`;
+    [spec](../../../01_produit/02_specs/members-and-notifications.md#9-on-the-phone-the-chest-installed-and-push)):
+    the other way the Chest brings a member what reaches their inbox,
+    beside the mails and independent of their rhythm. **Devices**: Profile
+    → Notifications → “Push on this device” subscribes the browser
+    (`PushManager`, `userVisibleOnly`) under the Chest's VAPID key, which
+    `GET /api/inbox` tells a session (`push`, the uncompressed P-256 point
+    in base64url; never an agent), then `POST /api/push/devices {endpoint,
+    p256dh, auth}` → 204: a subscription of a known push service only
+    (`webpush.Services`: HTTPS on 443, no user nor fragment, a path, under
+    `fcm.googleapis.com`, `push.apple.com`, `push.services.mozilla.com` or
+    `notify.windows.com`), a valid P-256 point and a 16-byte secret, else
+    400 `invalid_subscription`; kept with the member's inbox
+    (`inbox.Store.AddDevice`: `Box.Devices`, its `Since`, the same endpoint
+    replaced; the devices take 64 KiB of the file at most, the oldest go
+    first); `POST /api/push/devices/remove {endpoint}` → 204 forgets it — the
+    switch turned off, or the page signing out (`push.ts`, `pushOff`, before
+    `/logout`). Turned on while the mails are “every notification”, the
+    profile offers, under the switch, the daily summary instead (**Daily
+    summary** posts the rhythm `daily`, **Keep every email** changes
+    nothing): the rhythm is never changed silently. A session's only, JSON, the portal's Origin; 404 on a
+    Chest without push. **Sending** (`Portal.RunPush`, started and stopped
+    with the mails): a round every 5 s on the members whose push may be due
+    (`inbox.Store.Fresh(inbox.Push)`: each channel is told on its own), the
+    items a mail would show (`Portal.waiting`, shared with the mails) but
+    not yet pushed (`Item.Pushed`) and less than an hour old, to each device
+    what came since its `Since`. The first item of a burst goes at once;
+    within `mailrelay.NotificationGap` of a push delivered, the next waits
+    for the gap and gathers what came. One item says its tool's title and
+    its own title — never its body — and leads to it on the team host (the
+    Chest's own requests: the organization and their title, to the Chest);
+    several say “n new notifications” (`i18n.Push.Many`) under the
+    organization, to the Chest. **The message** (`webpush.Sender.Send`):
+    `{title, body, url}` encrypted for that browser alone (RFC 8291,
+    aes128gcm of RFC 8188, a fresh key pair and salt each time, one record
+    of 4,096 bytes at most), `Authorization: vapid t=<JWT ES256 {aud: the
+    push service's origin, exp: 12 h, sub: the portal's origin}>,
+    k=<key>` (RFC 8292), `TTL` 12 h, `Urgency: normal`, `Topic: chest` (the
+    push service keeps the newest only); posted from the node straight to
+    the push service through `egress.Client` (the node's guard: never an
+    address of the server, of a private network nor a name of the Chest;
+    no proxy, no redirect; 30 s for the answer). 2xx: its items marked
+    pushed; 404 or 410: the device forgotten; 429, 5xx or no answer: tried
+    again after a minute, unless another device took it; any other refusal
+    is logged and the push dropped. **The key**: `installation/inbox/push.key`
+    (the P-256 scalar, 32 bytes, 0600, made at the first start by
+    `webpush.LoadKey`), in the nightly archive with the inboxes — a restored
+    Chest's subscriptions keep working. A laboratory's push service stands
+    for the browsers' (`node.json`, `portal.push_lab {services}`), refused by
+    a server with a dependency binding. The service worker
+    (`chest/web/portal/worker/sw.ts`, served as `/sw.js`) shows a push —
+    one notification of the Chest at a time (`tag`), the app's icon — and
+    opens its link: the Chest's own window when one is open, the tool's
+    page beside it; it caches nothing and handles no request.
+  - **For agents**: `GET /api/v1/inbox` (the same, without the senders,
+    the rhythm and the key)
     and `POST /api/v1/inbox/read {ids | all}` (a write), with a member's
     token — narrowed to tools, only theirs —; the MCP server's `inbox`
     tool reads it, fenced as untrusted data. An agent never sends a
@@ -1195,9 +1455,12 @@ assertion), the tool's **variables**, its declared network egress, its
   sight of a tool is where its events start. It keeps, per tool, a private
   file `installation/events/tools/<tool>.json` (0600, directory 0700,
   replaced atomically, in the nightly archive): that sight, the members it
-  ever saw (4,096 at most) and its **outbox** — the events not yet
-  accepted, 1,000 at most (beyond, the oldest go and the tool is out of
-  sync). A tool that does not receive events is observed all the same (who
+  ever saw (erased ones forgotten) and its **outbox** — the events not yet
+  accepted, as many members' events as fill a full team's policy
+  (`maxOutbox`: `access.MaxBytes` of events of 320 bytes; beyond, the oldest
+  go and the tool is out of sync); the file is bounded by the team's
+  capacity too (three times the policy's), the events between tools
+  sharing it (“Events between tools”). A tool that does not receive events is observed all the same (who
   had it counts for an erasure) and keeps no outbox. **Delivery**: `POST
   /chest-events` on the instance in service, through its launcher's socket
   (`toolfront.Target.Deliver`) — never from a browser: the front answers
@@ -1222,7 +1485,10 @@ assertion), the tool's **variables**, its declared network egress, its
   start. **At least once, same id**: an event leaves the outbox only once
   accepted, the file written before the next; a node that stops keeps it,
   and its next run delivers what waits at once, with the id it had. No
-  order is guaranteed. A tool removed takes its file with it.
+  order is guaranteed. A tool removed takes its file with it. Every
+  delivery is said in the tool's log, never its data: “Event member.updated
+  (evt_…) delivered in 12 ms”, “… not delivered: the tool answered 500;
+  trying again in 15s (attempt 3)”, “… given up after 40 attempts: …”.
   - **Erasure of a former member** (`chest/portal/erasures.go`,
     `toolevents.Erase`): the owner asks it on the team page — Former
     members, the member's sheet, “Erase data”, the name typed first —:
@@ -1245,6 +1511,98 @@ assertion), the tool's **variables**, its declared network egress, its
     `manual`. A tool removed meanwhile took its data: its part is done.
     The sheet shows each tool: “Erased on …”, “Pending — due …”,
     “Overdue — was due …”, “Confirm by hand” with “Confirm”.
+- **Events between tools** (`chest/toolevents` `between.go`, `data.go`;
+  `common/packagefile/events.go`; `chest/portal/tool_events.go`; product:
+  `01_produit/02_specs/tool-events.md`): one tool reacts to what happens in
+  another. **Manifest** (the single validator, `packagefile`): `"emits":
+  {<type>: {"description", "data": {<field>: <kind>[?]}}}` — a type of two
+  to four dotted segments (`EventTypePattern`, 64 characters, never
+  `member.*` nor `access.*`), its sentence (1–80 printable characters), its
+  fields (camelCase, kinds `id`, `text`, `number`, `boolean`, `time`,
+  `date`, `member`, `members`, `?` for optional; their number bounded by the
+  manifest's 16 KiB) — and `"receives"`: `member.*` and types, **never
+  tools**: whichever installed tool emits a type tells it (the Chest stamps
+  `source`). Each type is a permission, `emits:<type>:<field>=<kind>[?],…:<description>`
+  (canonical: types and fields sorted) and `receives:<type>`: what crosses
+  is approved, a field added asks again; the permissions carry the
+  declarations back to a build's status and the catalogue
+  (`EventsDocument`). **A type's data only grows**: a version whose types
+  remove a field, change its kind or make it optional is refused before it
+  takes the traffic (`EventsBreak`, `nodeApplications.Update`:
+  `RefusedVersion`, the reason in words); a new shape is a new type. **A
+  link** is a type the version in service of one tool emits and another's
+  receives — never the tool itself —, on unless an admin switched it off
+  (`installation/events/links.json`); the owner approves it with the second
+  of the two installations, the offer showing it (`GET /api/events`, the
+  portal's words: “Received by …”, “Told by …”). **Emitting**: `POST
+  /events` on the tool's API (`EmitAPI`; the instance is the identity; 403
+  `capability_not_granted` for a version that emits nothing) `{type, data,
+  subject?, key?, occurredAt?, audience?, cause?}` (the body bounded by
+  `MaxData` + a full team's policy) → 202 `{id, receivers}`. Checked
+  (`Check`, shared with drafts): data the type declares only, each field of
+  its kind, required ones present (`null` is absent), a `member` one the
+  tool has or had, 16 KiB at most (`invalid_data`); `subject` and `key` of
+  `IDPattern`, `occurredAt` within the last 72 hours and not ahead (5 s),
+  `cause` an event id (`invalid_event`); `audience` `{members, groups,
+  roles}` naming someone, members the tool has or had (`invalid_audience`);
+  a type not declared `invalid_type`. **Idempotency**: a `key` used again
+  within 72 hours answers 200 with the same event when the content
+  (canonical JSON) is the same, 409 `key_reused` otherwise. **The chain**:
+  an event's `tool/type` hops (`between.Chain`); with a `cause` the tool
+  was delivered (kept 72 hours in its file, `Received`) or is being
+  delivered, the chain continues it; one whose own hop is already in it is
+  accepted and told to no tool, the publisher's log saying “it would loop
+  (a/x → b/y → a/x)” — bounded by the distinct tools and types, never by a
+  depth. **Fan-out**: the event is written to the outbox of every linked
+  receiver before the answer, each delivered, retried and failed on its
+  own, as the members' events (one at a time per tool, the tool woken
+  first, the same backoff), retries counted from the emit. **Order per
+  subject**: an event waits while an earlier one of the same source and
+  subject waits in that outbox (`inTurn`; without a subject, none).
+  **Audience at delivery**: who may see it in the source now (the audience,
+  everyone who has it without one), intersected with who has the receiver:
+  nobody — dropped, the source's log says “not told to …: no one there may
+  see it” —, everyone — `"all"` —, otherwise the list of the receiver's
+  member ids. **Envelope**: `{id, type, source, occurredAt, subject?,
+  audience, data}` on `/chest-events`, signed `Chest-Event v1` as the
+  members' events. **Given up** after 72 hours: kept 30 days with its data
+  in the receiver's file (`Failed`, `FailedKept`), never making the tool
+  out of sync; **Send again** (`Retry`, one or all) puts it back with the
+  same id and 72 hours from then. **Told** once the engine's lock is
+  released (`Engine.GaveUp`, `cmd/chest` `membersNode.deliveryFailed`): to
+  the builders of the receiver and of the source — the owner and the
+  admins when neither has one (`access.Team.Stewards`) —, in their inbox,
+  one item per link (`inbox.TellFailed`, kind `delivery_failed`, `from`,
+  `to`, `event`, `grouped` counting the failures while it is unread; read,
+  the next starts a new one), mailed and pushed as each chose — once per
+  link while unread — (the Chest's own words,
+  `NotificationMail.DeliveryFailed`); the bell shows it while both tools are
+  installed, opening the receiver's Events with **Send again** for whoever
+  runs it, the source's otherwise. A laboratory gives up sooner
+  (`node.json` `portal.events_lab {give_up_seconds}`, 30 s to 72 h, refused
+  by a server with a dependency binding). **Capacity**: the receiver's file bounds
+  what waits — beyond, the oldest delivered records go, then the oldest
+  failed ones, then the oldest events between tools waiting, each said in
+  its log (`fit`); a publisher is never refused for a slow receiver.
+  **Removals**: a receiver removed takes its file; a publisher removed
+  takes the events of it still waiting or failed elsewhere and the links
+  naming it; a version that no longer receives a type drops those waiting.
+  **Logs**: the publisher's “Event note.added (evt_…) emitted to listener”,
+  the receiver's deliveries — never the data. **Pages and API**: `GET
+  /api/tools/{app}/events` (whoever runs the tool; `/api/v1` too) — each
+  type emitted with its receivers, each received with its sources, each
+  link on or off, how many wait, the failed deliveries of the last 30 days
+  (when, type, source, attempts, why: `status:<code>`, `timeout`,
+  `no_room`, `unreachable`) —; `POST …/events/retry {id?}` (whoever runs
+  it; a write for agents); `POST …/events/link {source, type, receiver,
+  on}` (the owner and the admins: a link joins two tools); `GET
+  /api/events` (the owner and the admins; `/api/v1/events`, chest-wide):
+  every installed tool's emitted and received types and the links off.
+  The tool's Overview shows them (Events). **Drafts and Perseus**: a
+  draft's `POST /events` is checked against its `chest.json` and told to no
+  tool, the preview's log saying which installed tools would receive it;
+  Perseus reads the map and posts the preview a sample of a type an
+  installed tool emits (“Perseus Code”, `chest_events`).
 - **Scheduled tasks** (`chest/toolschedules`, `cmd/chest/application_schedules.go`,
   `chest/portal/tool_schedules.go`; manifest `"schedules": [{"name",
   "cron"}]`; product: `01_produit/02_specs/scheduled-tasks.md`): work a
@@ -1474,6 +1832,112 @@ assertion), the tool's **variables**, its declared network egress, its
     counts in the Chest's month; a journal line names the builder, the
     project and the session instead of a tool. Perseus Code counts in the rate of 60
     calls a minute and 8 streams of its own line (`perseus:`).
+- **Realtime** (`chest/realtime`, `chest/livesocket`,
+  `cmd/chest/application_realtime.go`, `chest/portal/tool_server.go`
+  `teamRealtime`, `chest/draftfront` `live`; manifest `realtime`, capability
+  `realtime`; [spec](../../../01_produit/02_specs/realtime.md)): the Chest
+  holds every live connection of a tool's pages, so that the tool writes no
+  socket code and sleeps while they stay open — a connection to the hub is
+  not a visit (“Server tools asleep”).
+  - **Endpoint**: `GET /_chest/realtime` on the tool's team host
+    (`Allowance.Stream`: the session read, committed and released before the
+    upgrade) and on a draft's host. Upgrade (RFC 6455, subprotocol
+    `chest-realtime.v1`, version 13, a key of 16 bytes; 400 or 426
+    otherwise): `Origin` exactly the host's (403 — a WebSocket is not guarded
+    by CORS), a live session (401, never a sign-in), the member given the tool
+    now (`Team.Seen`, 403), the capability held by the version in service
+    (404), room in the server's memory (503 `Retry-After: 5`). The identity
+    is the connection's: member id, subject, role, a digest of the session
+    and its end (`LiveSession`: its deadline or its idle end, the sooner).
+    Without `Upgrade`, the same checks renew the session — what a connected
+    page asks every 5 minutes, and a page whose connection failed before it
+    tries again —: its deadline slides an hour while the provider still
+    signs the person in (`renew`), the cookie is written again and the
+    page's connections live on with it (`Space.Renew`); 204, 401 signed
+    out, 403, 503 `Retry-After` while the provider does not answer
+    (`Unanswered`) or the server has no room. No hourly cut: a session ends
+    only when the person is signed out or stops renewing it (`1008
+    session_ended`). A draft's session (12 hours) is not renewed. The tool
+    is never called. The connection leaves the server's
+    goroutine at once (`Space.Serve`): an idle page holds one goroutine
+    reading it, its writer running only while frames wait.
+  - **Framing** (`chest/livesocket`): text only (binary → 1003), never
+    compressed, every client frame masked (1002), fragments joined within
+    the bound (1009 beyond), UTF-8 (1007), pings answered, closes echoed,
+    read straight from the TLS connection (the server's buffer let go). A
+    frame to many pages is built once (`Text`) and shared by their queues.
+  - **Spaces and channels** (`realtime.Hub`, one per node; `Space`, one per
+    tool, `tool:<app>`, and per draft, `draft:<project>`, nothing held until
+    a page connects): a channel is a name the manifest's patterns match
+    (`packagefile.Channel.Matches`: exact, `prefix:*`, `prefix:{member}` the
+    member's own id, `prefix:{key}` a membership table), joined under its
+    rule (every member, roles, or a row of the membership table read on the
+    tool's database), each channel joined holding `joinCost` (512 bytes,
+    `TestMemoryPerJoin`) of the server's memory — `error full` beyond it,
+    no fixed number —, re-checked at each ephemeral send (`send: true`, 4
+    KiB, 20 a second per page) and presence update (`presence: true`, a
+    JSON object of 1 KiB, merged per member, a leave told 5 s after their
+    last page left). A member's send is a `peer` frame (`from` set by the
+    Chest), its name without a dot (`invalid_event` otherwise): never a
+    `msg`, whose events — feed rows, publishes — are the tool's and the
+    Chest's alone. A page's `focus` (a joined channel, or none) is kept
+    per connection and never told to another page. The tool's API
+    (`CHEST_API`, `/realtime/`: `publish` 64 KiB, `send` to members' pages,
+    `online` — with a channel, `watching`: those with a page focused on it
+    —, `presence`) publishes to any declared name. Every message of a channel is numbered (`seq`) in the
+    space's epoch and kept 2 minutes; a row of a feed carries its place in
+    the change log too (`pos`). A page back with `{epoch, seq, pos}` is
+    replayed what the channel kept; else, on a channel a feed writes, the
+    rows of the change log after `pos` (`Conn.replay`: 256 at a time, as
+    fast as the page reads them, what reaches the channel meanwhile held
+    for it and sent after, never twice), whatever the absence and across
+    epochs; `resync` only beyond what the log keeps, or on a channel no
+    feed writes. The tool's publishes are hints: kept 2 minutes, never
+    replayed beyond.
+  - **Database** (`chest/tooldatabase/realtime.go`): after a version's
+    migrations (and a draft's, at its dev server's start), the Chest
+    installs as the tool, in one transaction, the triggers of its feeds and
+    membership tables (schema `chest_realtime`, one plpgsql function
+    reading its arguments; those of the version before dropped first; a
+    table or a column absent refuses the version): a feed's row is written
+    in the change log (`chest_realtime.changes`: its place, channel, event,
+    the row — 7,000 bytes at most, its key alone beyond, `partial` —,
+    numbered in commit order under one transaction lock, kept 7 days,
+    pruned every 512 rows, the place reached in `chest_realtime.pruned`)
+    and notifies `{k: f, i, c, e, r, p}` at commit; a membership row
+    deleted or whose key or member changed `{k: m, t, key, m}`. While a space whose rules read its database has
+    pages, the node holds one session on it (`Listener`: `LISTEN
+    chest_realtime` as the tool's reader, `search_path` catalog first,
+    membership checked by key and member with bound parameters, a key its
+    column cannot read being no row, the change log read back by
+    `Head` and `Since`), opened again 5 s apart after a failure — and once
+    back the space starts a new epoch and closes its pages `1013`
+    (`Space.Lost`), which come back and are replayed from the change log.
+  - **Revocation**: every change of the team (`access.Team.Watch`) judges
+    every connection again within a second (`Team.Judge`, one policy read):
+    a member who lost the tool is closed `1008 access_removed`, a role that
+    no longer opens a channel leaves it (`kicked`); a membership row deleted
+    kicks at once; a new version judges its connections under its rules;
+    a session not renewed in time closes `1008 session_ended`; a safety pass every
+    minute; a tool removed or a draft deleted closes them all. A draft's
+    space is judged by who may open the project.
+  - **Capacity**: nothing set aside. Each connection costs
+    `livecapacity.ConnectionCost` (node 24 KiB + front 32 KiB, measured by
+    the `TestMemoryPerConnection` of `chest/realtime` and `common/front`:
+    about 21 and 31 KiB), held in the node's memory with the tools awake
+    and the workbenches (`realtime.Room`, `cmd/chest` `liveRoom`): admitted
+    as a tool's wake is — idle tools put to sleep for it —, refused only
+    when nothing more can sleep (503, counted with the wakes refused: the
+    capacity alert). The messages waiting toward pages and those kept for
+    backfill are held there too while they fit: a page more than 256 KiB
+    behind, or one the server's memory cannot hold a message for, is
+    closed `1013` and comes back to its replay; a channel kept beyond the
+    memory forgets its oldest first. Pings every 30 s; a page silent 75 s
+    is cut. Lines in the tool's log, once a minute per kind: connections
+    refused, pages closed to come back, a feed naming no channel. Settings
+    → Server → Details: “Live connections: open · memory”
+    (`serverwatch.View.Live`, never in the central's report); the memory
+    is counted in what the Chest reserves.
 - **Storage view** (`chest/portal/tool_files.go`, `cmd/chest/application_files.go`;
   tab Storage in the Data family, beside Database, `chest/web/portal/src/storage.ts`,
   `components/ToolStorage.tsx`): for whoever sees the data of a server
@@ -1738,7 +2202,9 @@ assertion), the tool's **variables**, its declared network egress, its
   the team host have separate slots: anonymous traffic never takes the
   members' —, 503 beyond), body of 16 MiB at most,
   60 s to read the request and 5 min to answer (beyond the portal
-  server's timeouts, per request), `Upgrade` refused (501). Toward the tool:
+  server's timeouts, per request), `Upgrade` refused (501): a tool's pages
+  are kept live by the Chest (“Realtime”), never through a socket of the
+  tool's own. Toward the tool:
   path, query and `Host` unchanged, every `Chest-*` header removed, the
   `__Host-chest` cookie removed, `X-Forwarded-Proto: https` and `X-Forwarded-Host`
   set by the Chest (the client's removed); a tool asleep is woken first
@@ -1767,7 +2233,39 @@ assertion), the tool's **variables**, its declared network egress, its
   empty policy, receives `DefaultCSP`: the widening is the tool's
   policy, never its absence. Its policy is then its responsibility —
   approved like a permission (“Next.js on Chest”, below, for a
-  nonce-based policy).
+  nonce-based policy). `/_chest/` is the Chest's there too, never the
+  tool's (`Portal.publicChest`): the visitors' uploads (“Files”), and
+  the two scripts of embedding; anything else 404.
+- **Embedding the public part** in the company's website: the owner or
+  an admin allows sites one at a time (`POST /api/tools/{app}/embeds
+  {"origin", "allowed"}`, 204; 400 `invalid_origin`, 409
+  `no_public_part`, 403 for anyone else — a Builder too; `GET …/public`
+  says them as `embeds`, the page reading up to 64 MiB as for the team),
+  kept in the access policy (`access.Embed`, per Chest and tool, gone
+  with the tool): https origins in their one plain form, a domain name of
+  two labels at least, a port at most, no address, no wildcard
+  (`access.ValidEmbedOrigin`), each once. No count bounds them: only the
+  capacity of the policy (`access.MaxBytes`), beyond which a site is
+  refused 507 (`ErrFull`) as a member is. The public part —
+  its host and its custom domain, never the team host — then says them in
+  `frame-ancestors` instead of `'none'` (`Visit.Ancestors`,
+  `toolfront.framed`): on the policy the Chest adds (`DefaultCSP` or
+  `FloorCSP`; a tool's own `frame-ancestors` still intersects) and on
+  the Chest's own pages there (waking, full, unavailable), so a framed
+  tool that sleeps shows its waking page in the frame. A page asked as a
+  frame (`Sec-Fetch-Dest: iframe`, a `GET`) gets `<script
+  src="/_chest/frame.js" async>` after its `<body>` (the banner
+  mechanism: asked uncompressed): it tells the height of the page,
+  `{chest: "height", height}` (the root's box, or what overflows it), by `postMessage` to each allowed site by
+  name (never `*`), at each change (`ResizeObserver`). The site's page
+  loads `/_chest/embed.js` (served to anyone, `Cross-Origin-Resource-
+  Policy: cross-origin`, the public origin written in it): it sets to
+  that height the frame whose window sent it, from that origin only,
+  1 to 100,000 px. The settings give the snippet (an `<iframe>` of the
+  public address, 600 px until told, and the script). The Chest sets no
+  cookie on the public part; a tool's own cookies are third-party in a
+  frame (the SDK's contract says to keep a framed page's state in the
+  page). Both scripts are served only while a site is allowed.
 - **Team host** `<tool>-chest.<chest>.<base>` (`NewToolTeamHost`, a child
   portal): its own OIDC client, registered
   under the label `access.TeamLabel(tool)`, and its own sessions (cookie
@@ -1809,8 +2307,8 @@ assertion), the tool's **variables**, its declared network egress, its
     without a photo), `role` (`access.ToolRole`: the role of the assignment as
     long as the tool declares it, otherwise the first — owner, admins and
     builder without an assignment included; empty for a tool without roles),
-    `admin`, `builder`, `groups` (the groups that give the tool to the
-    member), `language` (the one the Chest speaks to the member,
+    `admin`, `builder`, `groups` (the member's groups the tool sees: those
+    that give it to them, all with `members.groups`), `language` (the one the Chest speaks to the member,
     `Portal.Language`: theirs, else the Chest's default — the tool's
     private part speaks it; the SDK's `member(request).language`),
     `time_zone` (the zone the member works in, `Policy.ZoneOf`; the SDK's
@@ -2255,7 +2753,14 @@ key, and asks the node for everything through the node's internal socket.
   waiting at most; it becomes a session of the draft host only
   (`__Host-chest-draft`, HMAC under a key of the node's run — a restart
   ends every session —, 12 hours), never given to the draft
-  (`toolfront.DraftCookie`, dropped both ways). Every request reads the
+  (`toolfront.DraftCookie`, dropped both ways). A page
+  navigated to without that session, or with a spent ticket (a preview
+  opened in its own tab, bookmarked, reloaded past its session or after a
+  restart of the node), goes back (303) to its project in the portal,
+  `/build/{project}`, which signs in if need be and frames it again with a
+  new ticket — a fixed address of the portal, never one the request names;
+  the portal's frame and the draft's own requests are told to open the
+  preview from the Chest (403). Every request reads the
   policy again (access taken back is access gone), requires the host's
   name and its one plain form, refuses another site's writes; the draft
   is forwarded by the tools' front (`toolfront.Target`) **routed as its
@@ -2289,17 +2794,27 @@ key, and asks the node for everything through the node's internal socket.
   they could not, never reaches a member of the Chest.** Members are the
   draft's three fake members (`draftfront.Team`: the declared roles, the
   owner the first, the manager the second, the member the last; addresses
-  at `draft.invalid`); notifications and badges go to the draft's own
-  inbox (`<project>/inbox`), delivered to no one, each notification said
-  in the preview's log; files are the draft's own (`<project>/files`,
+  at `draft.invalid`), and, for a draft that declares `members.groups`
+  (read at its dev server's start, as its roles), one group that gives it
+  nothing, “Office”, of the manager and the member — in `GET /groups`,
+  their `groups` and their assertion; notifications, broadcasts and badges
+  go to the draft's own inbox (`<project>/inbox`), delivered to no one, each
+  notification and broadcast said in the preview's log; files are the draft's own (`<project>/files`,
   bounded by the declared quota and `buildproject.MaxWorkspace`), removed
-  with the project; AI is the Chest's gateway counted as Perseus Code's —
+  with the project; sealed values are sealed and opened under the draft's
+  own key (`<project>/sealed-values.key`, never the Chest key nor a tool's:
+  a draft never opens a tool's values), for its fake members, whose
+  requests carry their tickets; AI is the Chest's gateway counted as Perseus Code's —
   the project's, for its creator, in the journal —, within the Chest's
   monthly budget and Perseus Code's rate (`Gateway.DraftAPI`). Each
   capability is granted by what the draft's `chest.json` declares at the
   call (read as a package, `sourcefile.Source.Package`; 403 `capability_not_granted`
   otherwise), so a missing declaration fails before publishing; the
-  members' lifecycle (`/erasures`) is not served.
+  members' lifecycle (`/erasures`) is not served. An event the draft emits
+  (`POST /events`) is checked as a tool's (`toolevents.Check`: its type,
+  data among its fake members, audience, subject, time), told to no tool,
+  and said in the preview's log with the installed tools it would reach
+  once published (`Engine.Receiving`); 202 `{id, receivers: 0}`.
 - **Internal socket** (`cmd/chest/node_build_api.go`):
   `<server>/run/perseus/node.sock`, Perseus's one way to the node; its
   routes, the handshake and the turn grants are PB2's (below).
@@ -2405,8 +2920,15 @@ secret, reaches nothing but the node's socket, and there only under the
     preview that never answers with its log's end; `logs` reads the
     current run only, from the node's `perseus.DevStarting` line on — an
     earlier run's crash, read as today's, sent Paul's run on test9 into
-    restarts). Not given: the web, Git, publishing, anything of a
-    tool in service; `db`, `open_page`, `add_package`'s card and `remember`
+    restarts), `chest_events` (`list`: each type the installed tools
+    emit — the tool, its sentence, its fields and their kinds — and which
+    tools receive it, so that Perseus wires a tool to the others from
+    what exists; `send` — Build mode only — posts the running preview a
+    sample of a type an installed tool emits, signed as the Chest signs a
+    delivery, built from that tool's declared fields with fake ids and the
+    draft's fake members (`toolevents.Sample`), refused when the draft does
+    not receive that type, the answer and a line in the preview's log). Not
+    given: the web, Git, publishing, anything of a tool in service; `db`, `open_page`, `add_package`'s card and `remember`
     come with PB3–PB5.
   - **The command policy** (`chest/buildpolicy`, one package for Perseus
     and the node): `Check` refuses what could leave the workbench's
@@ -2461,7 +2983,9 @@ secret, reaches nothing but the node's socket, and there only under the
   mode, 25 minutes — pushed with the turn; **one turn at a time per
   project**. Every request of the turn names its grant
   (`/grants/{grant}/…`): `files`, `file` (read, write, delete), `move`,
-  `search`, `run`, `check`, `dev`, `logs`, `ask`, `chat`, `events`. The
+  `search`, `run`, `check`, `dev`, `logs`, `ask`, `chat`, `events`,
+  `tool-events` (GET the map, POST a sample to the preview:
+  `not_emitted`, `not_received`, `not_running` 409). The
   node checks again, whatever Perseus says: the grant alive and its member
   still opening the project (a builder who lost the status ends the turn
   at its next request), the mode (Plan changes nothing: 403 `plan_mode`),
@@ -2820,7 +3344,12 @@ catalogue. Its data does not move — it lives outside the image, in
   repositories; a version that asks for **more**, or whose code is a
   builder's who does not see the data (“Identities and authorizations”),
   remains an offer, with the difference in words (“Also asks for: …”) or
-  whose code it is, until the owner or an admin decides — the tool's
+  whose code it is, until the owner or an admin decides; so does **every
+  version that declares `sealed`**, whoever wrote it and wherever it
+  comes from (`HasSealed` in `deployBuild`, `installationUpdate`,
+  `sourceInstallBuild` and the catalogue's update): its code can read
+  sealed data, and the page says so (“This version can read sealed
+  data”) — the owner's or an admin's Update is that approval — the tool's
   builder puts into service what asks for nothing more when they see the
   data, never more (403 `approval_required`); a token never does either. The catalogue
   never deploys on its own: “Update Notes (commit abc1234)” is a decision,
@@ -3406,17 +3935,19 @@ map, then what remains to be done.
 
 ### What exists
 
-- **Manifest** `chest.json`, `"chest": "0.4"`, the version of the tool
+- **Manifest** `chest.json`, `"chest": "0.5"`, the version of the tool
   contract it needs (“Application contract”; published with every rule in
   the SDK's `contract/`, judged by `chest check`, the Chest's validator in
   WebAssembly): `name`,
   presentation, `roles` (from strongest to weakest; owner, admins and
   builders come in with the first) and their labels `role_labels`
   (presentation, never approved), `public`, `csp` (`"tool"`: the public part
-  sends its own policy; a permission), `capabilities` (`database`, `files`,
-  `members`, `members.email`, `notifications`, `ai` with its key `ai`; each
-  a permission), `receives`
-  (`["member.*"]`, with `members`; a permission), `network` (32 entries or `["*"]`, each a permission;
+  sends its own policy; a permission), `capabilities` (`database`, `sealed`, `files`,
+  `members`, `members.email`, `members.groups`, `notifications`, `ai` with its key `ai`,
+  `realtime`; each a permission), `realtime` (its channels and feeds, the
+  Chest's rules, never a permission), `emits` (event types, each with its
+  sentence and its fields' kinds; each a permission), `receives`
+  (`member.*`, with `members`, and event types; each a permission), `network` (32 entries or `["*"]`, each a permission;
   widening is a new permission), `env` (expected names, never values),
   `build` (`node`, `npm ci`, `start`, `port`, `static`). Unknown or
   duplicate keys refused, 16 KiB.
@@ -3447,15 +3978,20 @@ map, then what remains to be done.
 | (variables) | `process.env` | Variables tab; `DATABASE_URL` and `PG*` refused to a tool that has a database |
 | `network` | `fetch`, `node:http(s)` via `HTTP(S)_PROXY` | Chest proxy, log, Network tab |
 | `database` | `databaseUrl()` | a PostgreSQL database and a role of the tool's own in the tools cluster; `migrations/*.sql` run before a version's switchover, recorded in `chest_migrations`; a failure keeps the version in service; size measured, shown |
-| `files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url` (thumbnail, download), `uploadUrl` (`files.ts`, `CHEST_API`) | the tool's private files in its Compartment, 32 MiB per object and 1 GiB unless `files` in the manifest asks otherwise (up to 512 MiB and 100 GiB), 10,000 objects; `url` signs a 15-min link served by the team host; `uploadUrl` authorises one browser upload straight to the Chest (single use, 15 min); thumbnails of images; the Storage view and its journal. Later: public files under `public/` and public uploads (`publicFiles`, `publicUploads`, spec'd, not built) |
-| `members`, `members.email` | `members.list`, `get`, `lookup`, `groups.list` (`members.ts`, `CHEST_API`) | the members who have the tool now, by identifier, name, photo, role and groups; their addresses with `members.email`; 600 calls a minute |
-| `notifications` | `notify`, `withdraw`, `badge.set`, `badge.setMany` (`notifications.ts`, `CHEST_API`) | badges on its tile and items in the members' inboxes, inside the Chest; quotas per tool |
+| `sealed` | `seal`, `sealMany`, `open`, `openMany`, `isSealed` (`sealed.ts`, `CHEST_API`) | values sealed under the tool's key, kept sealed in its database; opened for the member of a request (`Chest-Opener`) who has the tool and one of the value's roles, in its context; every open journaled, the owner's totals; shown “Sealed” everywhere else; every version approved by the owner or an admin |
+| `files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url` (thumbnail, download), `uploadUrl` (`files.ts`, `CHEST_API`) | the tool's private files in its Compartment, 32 MiB per object and 1 GiB unless `files` in the manifest asks otherwise (up to 512 MiB and 100 GiB), 10,000 objects; `url` signs a 15-min link served by the team host; `uploadUrl` authorises one browser upload straight to the Chest (single use, 15 min); thumbnails of images; the Storage view and its journal. `uploadUrl(folder, {public: true, types})` a visitor's upload of the public part, its type recognised by content, paced per visitor, private to the members; `StorageFull` when the server's disk is full. Public files are not built |
+| `members`, `members.email`, `members.groups` | `members.list`, `get`, `lookup`, `groups.list` (`members.ts`, `CHEST_API`) | the members who have the tool now, by identifier, name, photo, role and groups; their addresses with `members.email`; every group of the Chest with `members.groups`; 600 calls a minute |
+| `notifications` | `notify`, `broadcast`, `withdraw`, `badge.set`, `badge.setMany` (`notifications.ts`, `CHEST_API`) | badges on its tile and items in the members' inboxes, inside the Chest — to some, to everyone who has the tool, or to groups or roles, each in their language; quotas per tool; each member receives them by mail as they chose (the Chest's service, not the tool's) |
+| `realtime` | `publish`, `send`, `online`, `presence` (`realtime.ts`, `CHEST_API`); in the browser `connect` (`realtime-client.ts`, the one module of the SDK for a page) | the Chest's hub: the pages' connections on `/_chest/realtime` of the team host and of a draft's, the manifest's channels and their rules, membership tables read on the tool's database, feeds turned from its rows at commit, presence, backfill and replay from the change log, session renewal; the tool asleep meanwhile |
 | `ai` | `ai.chat` (whole or streamed), `embed`, `models`, `usage` (`ai.ts`, `CHEST_API`) | the Chest's AI gateway: the owner's OpenRouter key and the Chest's aliases, the tool's monthly cap and the Chest's, reserve then settle, a usage journal without content; the key never in the container |
 | `receives: ["member.*"]` | `events.handle`, `verify`, `acknowledgeErasure` (`events.ts`) | the members' lifecycle posted, signed, to its `/chest-events` through its launcher, at least once with an id; the erasures it acknowledges |
+| `emits`, `receives: [<type>]` | `events.emit`, `events.handle` (`events.ts`, `eventrules.ts`; the cause passed by itself inside a handler) | what it emits checked against its declaration and written for every linked tool; what other tools emit posted, signed, to its `/chest-events` with its source and who may see it, in order per subject, at least once with an id; failed deliveries kept for an admin to send again |
 | `schedules` | `schedules.handle`, `verify` (`schedules.ts`; the signed delivery shared with events, `signed.ts`) | each run posted, signed, to its `/chest-schedules` at its times on the Chest's clock, the tool woken, at least once with an id, journaled on its overview |
 
   Typed errors: 403 `capability_not_granted`, 413 `too_large`, 429
-  `quota_exceeded` and `rate_limited`, 503 `unavailable`, and for AI
+  `quota_exceeded` and `rate_limited`, 503 `unavailable`, for sealed values
+  `MemberRequired`, `NotAllowed`, `SealedInvalid`, `SealedLocked`,
+  `SealedLost`, and for AI
   `AiCapReached`, `AiUnavailable`, `AiModelNotAllowed`, `AiRefused`
   (`client/src/errors.ts` in the SDK).
   For a tool's own tests, the SDK's `testing` module signs assertions like
@@ -3464,8 +4000,9 @@ map, then what remains to be done.
   members, groups, files, badges and
   notifications, erasure acknowledgments, AI answers — whole or streamed,
   a cap, a paused gateway —, with the same bounds and errors;
-  `emit` delivers an event and `run` a run of a schedule, signed as the
-  Chest signs them).
+  `deliver` delivers a member's or a tool's event and `run` a run of a
+  schedule, signed as the Chest signs them; `emitted` lists what the tool
+  emitted, checked against the `emits` it is given).
 - **A server tool's page**: Overview (including the space used: database and
   files), Access, Deployments, Logs, Data (the database), Settings — General,
   Public (including custom domains, for whoever administers the Chest),
@@ -3483,15 +4020,14 @@ map, then what remains to be done.
 
 ### What remains (target)
 
-- **Events between tools**: `emit` and `"emits"` in the manifest, links
-  between tools set by an admin, on the delivery engine the members' events
-  use (`chest/toolevents`: outbox, backoff, signed deliveries to
-  `/chest-events`).
 - **Build through the proxy**: `npm ci` still goes through the open network,
   outside the declared egress.
 - Then, in product order: `member.aliased` (moving one tool's data to
   another Chest); a builder's own view of the erasures to confirm by hand;
-  `email` (mail connector, lot G);
+  mail to the public from tools (a booking recap, a quote, a receipt),
+  later: an SDK `mail` send backed by a connector to the company's own
+  provider, never sent by Argentic; the Chest receives no mail
+  ([spec](../../../01_produit/02_specs/mail.md) § 5);
   runtime logs and state in the tool's page; per-tool bounds adjustable by an
   admin; dated archive of a deleted tool's data, and renaming; `python`
   modelled on `node`.

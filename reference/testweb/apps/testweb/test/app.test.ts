@@ -11,12 +11,16 @@ import type { Files, LinkOptions, QuotaProbe, UploadOptions } from "../src/files
 import { ChestLifecycle, type LifecycleView } from "../src/lifecycle.js";
 import { ChestSchedules, type Ran } from "../src/schedules.js";
 import { ChestAssistant } from "../src/assistant.js";
+import { pageSize, type Chat, type ChatMessage } from "../src/chat.js";
 import { ChestTeam } from "../src/members.js";
 import { maxNotes, type Note, type NoteStore } from "../src/notes.js";
+import { Secrets, type Secret, type SecretStore } from "../src/secrets.js";
 import { QuotaExceeded } from "../../../packages/chest-client/src/errors.js";
 import type { FileData, FileObject, FilePage } from "../../../packages/chest-client/src/files.js";
 import type { Member } from "../../../packages/chest-client/src/member.js";
-import { fakeChest, signAssertion, type FakeChest } from "../../../packages/chest-client/src/testing.js";
+import { fakeChest, withMember, type FakeChest } from "../../../packages/chest-client/src/testing.js";
+import { connect } from "../../../packages/chest-client/src/realtime-client.js";
+import * as realtime from "../../../packages/chest-client/src/realtime.js";
 
 // The tool's database, played in memory: the routes are the tool's, the
 // queries PostgreSQL's (proved in the laboratory's VM).
@@ -42,9 +46,53 @@ class MemoryNotes implements NoteStore {
   }
 }
 const notes = new MemoryNotes();
+// The secrets' table, played in memory: what it keeps is what the Chest sealed.
+class MemorySecrets implements SecretStore {
+  readonly kept: Secret[] = [];
+  async list(): Promise<Secret[]> { return this.kept.map(s => ({ ...s })); }
+  async add(label: string, value: string, editors: boolean): Promise<Secret | null> {
+    if (this.kept.some(s => s.label === label)) return null;
+    const secret = { id: this.kept.length + 1, label, value, editors };
+    this.kept.push(secret);
+    return { ...secret };
+  }
+}
+const secrets = new MemorySecrets();
+
+// The chat, played in memory: its rooms' members and messages.
+class MemoryChat implements Chat {
+  readonly rooms = new Map<number, Set<string>>();
+  readonly written: ChatMessage[] = [];
+  async join(room: number, member: string): Promise<void> { this.rooms.set(room, (this.rooms.get(room) ?? new Set()).add(member)); }
+  async leave(room: number, member: string): Promise<void> { this.rooms.get(room)?.delete(member); }
+  async members(room: number): Promise<string[]> { return [...(this.rooms.get(room) ?? [])].sort(); }
+  async messages(room: number, member: string, after: number): Promise<ChatMessage[] | null> {
+    if (!this.rooms.get(room)?.has(member)) return null;
+    return this.written.filter(m => m.room === room && m.id > after).slice(0, pageSize);
+  }
+  async post(room: number, author: string, text: string): Promise<ChatMessage | null> {
+    if (!this.rooms.get(room)?.has(author)) return null;
+    const message = { id: this.written.length + 1, room, author, text };
+    this.written.push(message);
+    return message;
+  }
+  async forget(author: string): Promise<number> {
+    for (const members of this.rooms.values()) members.delete(author);
+    const theirs = this.written.filter(m => m.author === author);
+    for (const m of theirs) m.author = "erased";
+    return theirs.length;
+  }
+}
+const chat = new MemoryChat();
+// The channels and the feed of its chest.json, which the fake Chest
+// enforces as the Chest does.
+const realtimeRules = {
+  channels: [{ name: "lobby", send: true, presence: true }, { name: "room:{id}", join: { table: "chat_members", key: "room", member: "member_id" } }],
+  feeds: [{ table: "chat_messages", channel: "room:{room}", columns: ["id", "room", "author", "text"] }],
+};
 const probes: ProbeTarget[] = [];
 const database: Database = {
-  async schema(): Promise<Schema> { return { migrations: ["0001_notes.sql"], columns: ["id", "text", "author", "created_at"] }; },
+  async schema(): Promise<Schema> { return { migrations: ["0001_notes.sql", "0002_chat.sql"], columns: ["id", "text", "author", "created_at"] }; },
   async session(): Promise<Session> { return { timeZone: "Europe/Paris", today: "2026-09-30" }; },
   async probe(target: ProbeTarget): Promise<Probe> { probes.push(target); return { target, outcome: "refused", code: "28000" }; },
 };
@@ -82,7 +130,9 @@ const files = new MemoryFiles();
 // and bob, an editor; a reader is bob with another role.
 const id = (name: string): string => "mbr_" + name + "a".repeat(26 - name.length);
 const owner: Member = { id: id("alice"), firstName: "Alice", lastName: "Martin", name: "Alice Martin", photo: null, role: "reader", isAdmin: true, isBuilder: false, groups: [], language: "en", timeZone: "America/New_York" };
-const editor: Member = { id: id("bob"), firstName: "", lastName: "", name: "Bob", photo: null, role: "editor", isAdmin: false, isBuilder: false, groups: [], language: "fr", timeZone: "Europe/Paris" };
+// Sales gives the tool nothing: the tool sees it with members.groups.
+const sales = "grp_sales" + "a".repeat(21);
+const editor: Member = { id: id("bob"), firstName: "", lastName: "", name: "Bob", photo: null, role: "editor", isAdmin: false, isBuilder: false, groups: [sales], language: "fr", timeZone: "Europe/Paris" };
 const reader: Member = { ...editor, role: "reader" };
 
 // The tool behind a plain HTTP server, as the Chest's launcher reaches it,
@@ -93,8 +143,8 @@ let server: Server;
 let base: string;
 before(async () => {
   process.env["CHEST_TOOL"] = "web";
-  chest = await fakeChest({ members: [owner, editor], capabilities: ["members", "notifications", "ai"], ai: { cap: 0.0001 }, chest: { organization: "Atelier & Fils", timeZone: "Europe/Paris", language: "fr", currency: "CHF", publicUrl: "https://forms.atelier.example" } });
-  server = createServer(createApp(notes, database, files, new ChestTeam(), new ChestLifecycle(notes), new ChestSchedules(), new ChestAssistant()));
+  chest = await fakeChest({ members: [owner, editor], groups: [{ id: sales, name: "Sales", members: [editor.id], grants: false }], capabilities: ["members", "members.groups", "notifications", "ai", "sealed", "realtime"], roles: ["reader", "editor"], emits: { "note.added": { description: "A note is added", data: { note: "id", author: "member", text: "text" } } }, ai: { cap: 0.0001 }, realtime: { ...realtimeRules, membership: (table, key, member) => table === "chat_members" && (chat.rooms.get(Number(key))?.has(member) ?? false) }, chest: { organization: "Atelier & Fils", timeZone: "Europe/Paris", language: "fr", currency: "CHF", publicUrl: "https://forms.atelier.example" } });
+  server = createServer(createApp(notes, database, files, new ChestTeam(), new ChestLifecycle(notes, chat), new ChestSchedules(), new ChestAssistant(), new Secrets(secrets), chat));
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   base = "http://127.0.0.1:" + String((server.address() as AddressInfo).port);
@@ -103,7 +153,8 @@ after(async () => { server.close(); await chest.close(); delete process.env["CHE
 
 function call(path: string, who?: Member, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  if (who) headers.set("Chest-Member", signAssertion(who));
+  // A member's request carries their assertion and their ticket, as the Chest's front sends them.
+  if (who) for (const [name, value] of withMember(new Request(base + path), who).headers) headers.set(name, value);
   return fetch(base + path, { ...init, headers });
 }
 const post = (who: Member | undefined, body: unknown, type = "application/json"): Promise<Response> => call("/chest/api/notes", who, { method: "POST", headers: { "Content-Type": type }, body: typeof body === "string" ? body : JSON.stringify(body) });
@@ -201,7 +252,7 @@ test("the outbound network is tried by a member, on the fixed targets only", asy
 
 test("the database is read and probed by a member, on the fixed targets only", async () => {
   assert.equal((await call("/chest/api/database")).status, 401);
-  assert.deepEqual(await (await call("/chest/api/database", reader)).json(), { migrations: ["0001_notes.sql"], columns: ["id", "text", "author", "created_at"] });
+  assert.deepEqual(await (await call("/chest/api/database", reader)).json(), { migrations: ["0001_notes.sql", "0002_chat.sql"], columns: ["id", "text", "author", "created_at"] });
   assert.equal((await call("/chest/api/database", reader, { method: "POST" })).status, 405);
   assert.equal((await call("/chest/api/db-probe?target=keycloak")).status, 401);
   for (const query of ["", "?target=", "?target=postgres://x", "?target=other&target=admin", "?target=other&host=x"]) {
@@ -251,7 +302,7 @@ test("the members of the tool are read from the Chest: the page, the member asse
   assert.deepEqual(await lookup.json(), { members: [owner], former: [], unknown: [id("mallory")] });
   assert.equal((await call("/chest/api/members/lookup", owner, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: "x" }) })).status, 400);
   assert.equal((await call("/chest/api/members/lookup", owner)).status, 405);
-  assert.deepEqual(await (await call("/chest/api/groups", owner)).json(), { groups: [] });
+  assert.deepEqual(await (await call("/chest/api/groups", owner)).json(), { groups: [{ id: sales, name: "Sales", size: 1 }] });
 });
 
 test("an upload is authorised to who writes — photos into photos/, images of 10 MiB —, then described and linked by its thumbnail", async () => {
@@ -269,6 +320,22 @@ test("an upload is authorised to who writes — photos into photos/, images of 1
   await files.remove("photos/cat.png");
 });
 
+test("a visitor sends a CV on the public part: a PDF into applications/, given back and checked by the tool", async () => {
+  const page = await call("/apply");
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /<form id="apply">[\s\S]*type="file" accept="application\/pdf"/u);
+  assert.equal((await call("/apply.js")).headers.get("content-type"), "text/javascript; charset=utf-8");
+  const post = (path: string, body: unknown): Promise<Response> => call(path, undefined, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  files.uploads.length = 0;
+  assert.equal((await post("/api/apply/upload-url", {})).status, 200);
+  assert.deepEqual(files.uploads, [["applications/", { public: true, types: ["application/pdf"], maxSize: 1 << 20 }]]);
+  assert.equal((await call("/api/apply/upload-url")).status, 405);
+  await files.put("applications/cv.pdf", new Uint8Array([0x25, 0x50]), "application/pdf");
+  assert.deepEqual(await (await post("/api/apply", { name: "applications/cv.pdf" })).json(), { received: "applications/cv.pdf", type: "application/pdf", size: 2 });
+  for (const [name, status] of [["photos/cat.png", 400], ["applications/none.pdf", 404], [1, 400]] as const) assert.equal((await post("/api/apply", { name })).status, status, String(name));
+  await files.remove("applications/cv.pdf");
+});
+
 test("who writes tells members through the Chest: an item of their inbox, withdrawn by its key, the counter of the tile", async () => {
   const post = (who: Member, path: string, body: unknown): Promise<Response> => call(path, who, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   assert.equal((await post(reader, "/chest/api/notify", { members: [owner.id], title: "Hi" })).status, 403);
@@ -282,6 +349,14 @@ test("who writes tells members through the Chest: an item of their inbox, withdr
   assert.deepEqual(await (await post(editor, "/chest/api/badge", { member: id("mallory"), count: 3 })).json(), { set: false });
   assert.equal(chest.badges.get(owner.id), 3);
   for (const bad of [{}, { title: "x" }, { members: "x", title: "x" }]) assert.equal((await post(editor, "/chest/api/notify", bad)).status, 400);
+  // To a whole group, each in their language, the writer left out.
+  assert.equal((await post(reader, "/chest/api/broadcast", { title: "Hi" })).status, 403);
+  assert.equal((await post(owner, "/chest/api/broadcast", { title: "For Sales", translations: { fr: { title: "Pour les ventes" } }, groups: [sales], key: "sales" })).status, 204);
+  const last = () => chest.notifications.at(-1);
+  assert.deepEqual(last(), { member: editor.id, title: "Pour les ventes", path: "/chest", key: "sales" });
+  assert.equal((await post(editor, "/chest/api/broadcast", { title: "From Bob", groups: [sales] })).status, 204);
+  assert.equal(last()?.title, "Pour les ventes");
+  assert.equal((await post(editor, "/chest/api/broadcast", { title: "x", groups: ["sales"] })).status, 400);
   assert.equal((await call("/chest/api/badge", editor)).status, 405);
 });
 
@@ -309,8 +384,8 @@ test("the Chest's events are received on /chest-events: each once, held on deman
   const view = async (): Promise<LifecycleView> => await (await call("/chest/api/events", owner)).json() as LifecycleView;
   const hold = (who: Member, held: unknown): Promise<Response> => call("/chest/api/events/hold", who, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ held }) });
   const revoked = { id: "evt_" + "r".repeat(26), type: "access.revoked" as const, data: { id: editor.id } };
-  assert.equal(await chest.emit(revoked, base), 204);
-  assert.equal(await chest.emit(revoked, base), 204);
+  assert.equal(await chest.deliver(revoked, base), 204);
+  assert.equal(await chest.deliver(revoked, base), 204);
   assert.deepEqual((await view()).events.map(e => [e.id, e.type, e.member]), [[revoked.id, "access.revoked", editor.id]]);
   // Not the Chest's: refused, nothing kept; not a POST: 405.
   assert.equal((await fetch(base + "/chest-events", { method: "POST", body: "{}" })).status, 401);
@@ -320,21 +395,35 @@ test("the Chest's events are received on /chest-events: each once, held on deman
   assert.equal((await hold(editor, "yes")).status, 400);
   assert.equal((await hold(editor, true)).status, 204);
   const removed = { id: "evt_" + "m".repeat(26), type: "member.removed" as const, data: { id: editor.id } };
-  assert.equal(await chest.emit(removed, base), 503);
+  assert.equal(await chest.deliver(removed, base), 503);
   assert.deepEqual([(await view()).refused, (await view()).held], [[removed.id], true]);
   assert.equal((await hold(editor, false)).status, 204);
-  assert.equal(await chest.emit(removed, base), 204);
+  assert.equal(await chest.deliver(removed, base), 204);
   assert.deepEqual((await view()).events.map(e => e.id), [revoked.id, removed.id]);
   // The erasure of Bob: his notes anonymised, then acknowledged to the Chest.
   const kept = await notes.list();
   if (kept.length >= maxNotes) await notes.remove(kept[0]!.id);
   const note = await notes.add("Bob's note", editor.id);
   const erasure = "era_" + "e".repeat(26);
-  assert.equal(await chest.emit({ type: "member.erased", data: { id: editor.id, erasure, deadline: "2026-10-28T10:00:00Z" } }, base), 204);
+  assert.equal(await chest.deliver({ type: "member.erased", data: { id: editor.id, erasure, deadline: "2026-10-28T10:00:00Z" } }, base), 204);
   assert.equal((await notes.list()).find(n => n.id === note!.id)?.author, "erased");
   assert.deepEqual(chest.acknowledged, [erasure]);
   assert.equal((await view()).events.at(-1)?.type, "member.erased");
   await notes.remove(note!.id);
+});
+
+test("a note added is told to the other tools; one another tool tells is received with its source and audience", async () => {
+  const kept = await notes.list();
+  if (kept.length >= maxNotes) await notes.remove(kept[0]!.id);
+  const added = await (await post(editor, { text: "Told around" })).json() as { id: number };
+  const told = chest.emitted.at(-1);
+  assert.deepEqual([told?.type, told?.data, told?.subject, told?.key], ["note.added", { note: String(added.id), author: editor.id, text: "Told around" }, String(added.id), "note:" + String(added.id)]);
+  await notes.remove(added.id);
+  const event = { id: "evt_" + "n".repeat(26), type: "note.added", source: "todo", audience: [owner.id], data: { note: "7", author: owner.id, text: "From todo" } };
+  assert.equal(await chest.deliver(event, base), 204);
+  assert.equal(await chest.deliver(event, base), 204);
+  const view = await (await call("/chest/api/events", owner)).json() as LifecycleView;
+  assert.deepEqual(view.events.filter(e => e.type === "note.added").map(e => [e.id, e.member, e.source, e.audience]), [[event.id, owner.id, "todo", [owner.id]]]);
 });
 
 test("the runs of its schedules are received on /chest-schedules: each once, a schedule it does not have refused", async () => {
@@ -348,6 +437,51 @@ test("the runs of its schedules are received on /chest-schedules: each once, a s
   assert.equal((await fetch(base + "/chest-schedules", { method: "POST", body: "{}" })).status, 401);
   assert.equal((await call("/chest-schedules")).status, 405);
   assert.equal((await call("/chest/api/schedules")).status, 401);
+});
+
+test("the chat: a room joined and left by its row, messages only in a room one is in, who is online; the page's scripts", async () => {
+  const page = await call("/chest/chat", editor);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /data-member="mbr_bob/u);
+  const script = await (await call("/chest/chat.js", editor)).text();
+  assert.match(script, /from "\.\/realtime-client\.js"/u);
+  assert.match(await (await call("/chest/realtime-client.js", editor)).text(), /export function connect/u);
+  assert.equal((await call("/chest/chat.js")).status, 401);
+  const say = (who: Member, text: unknown) => call("/chest/api/chat/rooms/1/messages", who, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+  assert.equal((await say(editor, "before")).status, 403);
+  assert.equal((await call("/chest/api/chat/rooms/1/messages", editor)).status, 403);
+  for (const who of [editor, owner]) assert.equal((await call("/chest/api/chat/rooms/1/join", who, { method: "POST" })).status, 204);
+  // bob's page is open: the Chest says he is online.
+  const live = connect({ url: chest.realtime.url(editor.id) });
+  try {
+    let joined = false;
+    live.channel("room:1").onJoined(() => { joined = true; });
+    for (let i = 0; i < 300 && !joined; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(joined, "bob's page joined the room");
+    const sent = await say(owner, "Hello");
+    assert.equal(sent.status, 201);
+    assert.deepEqual(await sent.json(), { message: { id: 1, room: 1, author: owner.id, text: "Hello" }, online: [editor.id], watching: [] });
+    // bob's page shows the room: he is watching it, nobody notifies him.
+    live.focus("room:1");
+    for (let i = 0; i < 300; i++) {
+      if ((await realtime.online([editor.id], { channel: "room:1" })).watching.length) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const watched = await say(owner, "Again");
+    assert.deepEqual(((await watched.json()) as { watching: string[] }).watching, [editor.id]);
+    assert.equal((await say(owner, "")).status, 400);
+    assert.equal((await say(owner, "x".repeat(281))).status, 400);
+    assert.deepEqual(await (await call("/chest/api/chat/rooms/1/messages?after=0", editor)).json(), { messages: [{ id: 1, room: 1, author: owner.id, text: "Hello" }, { id: 2, room: 1, author: owner.id, text: "Again" }] });
+    assert.deepEqual(await (await call("/chest/api/chat/rooms/1/messages?after=2", editor)).json(), { messages: [] });
+    assert.equal((await call("/chest/api/chat/rooms/1/messages?after=x", editor)).status, 400);
+    assert.deepEqual(await (await call("/chest/api/chat/presence", editor)).json(), { members: [] });
+  } finally {
+    live.close();
+  }
+  assert.equal((await call("/chest/api/chat/rooms/1/leave", editor, { method: "POST" })).status, 204);
+  assert.equal((await say(editor, "after")).status, 403);
+  assert.equal((await call("/chest/api/chat/rooms/0/join", editor, { method: "POST" })).status, 404);
+  assert.equal((await call("/chest/api/chat/rooms/1/join", editor)).status, 405);
 });
 
 test("the server listens on PORT and exits cleanly on SIGTERM", async () => {
@@ -369,4 +503,24 @@ test("the server listens on PORT and exits cleanly on SIGTERM", async () => {
   child.kill("SIGTERM");
   const [code, signal] = await once(child, "exit") as [number | null, string | null];
   assert.deepEqual([code, signal], [0, null]);
+});
+
+test("a secret is kept sealed, opened for the members it was sealed for, never for a request without its ticket", async () => {
+  const add = (who: Member, body: unknown) => call("/chest/api/secrets", who, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  assert.equal((await add(editor, { label: "iban", value: "FR76 3000 6000 0112 3456 7890 189", editors: true })).status, 201);
+  assert.equal((await add(editor, { label: "wifi", value: "correct horse" })).status, 201);
+  assert.equal((await add(editor, { label: "iban", value: "again" })).status, 409);
+  assert.equal((await add(reader, { label: "other", value: "x" })).status, 403);
+  assert.equal((await add(editor, { label: "Bad Label", value: "x" })).status, 400);
+  // What the tool keeps is sealed, for the editors when asked.
+  assert.ok(secrets.kept.every(s => s.value.startsWith("chest:sealed:1:") && !s.value.includes("FR76")));
+  assert.ok(secrets.kept[0]!.value.startsWith("chest:sealed:1:editor:") && secrets.kept[1]!.value.startsWith("chest:sealed:1::"));
+  const shown = async (who: Member) => (await (await call("/chest/api/secrets", who)).json() as { secrets: { label: string; value: string | null }[] }).secrets.map(s => [s.label, s.value]);
+  assert.deepEqual(await shown(editor), [["iban", "FR76 3000 6000 0112 3456 7890 189"], ["wifi", "correct horse"]]);
+  // The owner holds the role reader here: the editors' secret stays sealed for them.
+  assert.deepEqual(await shown(owner), [["iban", null], ["wifi", "correct horse"]]);
+  // An assertion without the Chest's ticket opens nothing.
+  const forged = await fetch(base + "/chest/api/secrets", { headers: { "Chest-Member": withMember(new Request(base), editor).headers.get("Chest-Member")! } });
+  assert.deepEqual([forged.status, await forged.json()], [401, { error: "member_required" }]);
+  assert.deepEqual(chest.opens.slice(-2).map(o => [o.member, o.opened, o.refused]), [[editor.id, 2, 0], [owner.id, 1, 1]]);
 });

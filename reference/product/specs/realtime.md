@@ -1,544 +1,521 @@
 # Realtime
 
-**Specified 29 September 2026 from Paul's question of the same day; for Paul
-to decide, then to build** (batch RT in [status.md](../03_roadmap/status.md)).
-Paul's question: to build a Slack equivalent with the SDK, tools need live
-connections. This page answers in two lots:
+**Decided by Paul on 6 October 2026: a realtime service of the Chest
+(option B below); on 7 October: no memory set aside, nothing lost however
+long a page is away, no hourly cut, no channels for visitors. Built 7 October in
+batch RT, not merged, not deployed** ([status.md](../03_roadmap/status.md)).
+How the code does it goes into
+`03_code/01_chest-by-argentic/docs/architecture.md` (Server tools,
+“Realtime”); the SDK's side into its README (`realtime`,
+`realtime/client`).
 
-- **RT1 — Socket pass-through.** The tool front relays WebSocket and
-  Server-Sent Events (SSE) to the tool, with the member checked at the
-  upgrade. The tool owns its sockets; any library works. Perseus Code's live
-  preview (PB3) needs it for hot reload, so it comes early.
-- **RT2 — Chest Realtime.** A service of the Chest, like Supabase Realtime:
-  the tool publishes to channels, members' browsers subscribe through one
-  Chest endpoint, the Chest does the fan-out and presence. The tool manages no
-  socket, and nothing drops when it is redeployed.
+Paul's question (29 September, 6 October): *being able to do realtime would
+be great for an internal Slack-like messaging tool; it is essential to sell
+a server that replaces subscriptions to other SaaS.* Today the tool front
+answers 501 to any WebSocket and the studio's tools poll every 20–45 s,
+which also keeps a tool awake as long as one tab is open. This page decides
+how a tool gets live updates, and shows a Slack-like tool built on it.
 
-It replaces the “Realtime” line of the
-[SDK and agents vision](../98_travail/sdk-and-agents-vision.md) (P1 of
-batch SDK+). How it is coded goes, once built, into
-`03_code/01_chest-by-argentic/docs/architecture.md` (“Server tools”, Front).
 Related: [Members and notifications](members-and-notifications.md) (badges,
-inbox, lifecycle events), [Perseus Code](perseus-build.md#live-preview)
-(draft hosts), [Develop and test tools](develop-and-test-tools.md) (previews,
-`chest dev`, `testing`), [Security](security.md).
+inbox, lifecycle events), [Fleet monitoring](fleet-monitoring.md#sleeping-tools)
+(sleeping tools), [Perseus Code](perseus-build.md) (draft hosts),
+[Tool storage](tool-storage.md), [Security](security.md), [Sealed data](sealed-data.md#realtime) (what a channel, a feed and the backfill do with sealed values).
 
-## What exists
+## The decision
 
-| | Today (`docs/architecture.md`, “Server tools”, Front) |
-|---|---|
-| Upgrade | `Upgrade` refused with 501 on both hosts; the egress proxy refuses it too (400) |
-| Long answers | The front relays through the instance's socket: 64 requests at a time per instance **and per host** (public and team have separate slots), 60 s to read a request, 5 min to answer. An SSE stream holds a slot and is cut at 5 minutes |
-| Team host | `/chest/*` needs the member's session (`__Host-chest`, in-memory store of that host), `Team.Access` re-read at each request, `Sec-Fetch-Site: same-origin` and the host's `Origin` for anything but `GET`/`HEAD`; the `Chest-Member` assertion (60 s life) goes to the tool |
-| Public front (`chest front`) | SNI relay, 512 connections at most, 5 min of inactivity, PROXY protocol v2 gives the portal the client's address |
-| Lifecycle engine | The node compares what each tool sees at every team change (batch N): it knows at once who lost access to which tool |
+| | (a) Pass-through | (b) Chest realtime service | Chosen |
+|---|---|---|---|
+| What | The front relays WebSocket and SSE to the tool's own socket server, the member asserted at the upgrade | The Chest holds every connection: channels, broadcast, presence, database-change feeds, through the SDK | **(b) now; (a) later** |
+| Socket code in the tool | All of it (server, heartbeat, presence, reconnect, fan-out) | None: a manifest key and two SDK calls | (b) |
+| Sleeping tools | An open socket keeps the tool awake: a chat open all day never sleeps | The tool sleeps while the Chest holds the connections; it wakes only to handle a write | (b) |
+| Redeploy, crash, restart of the tool | Every socket drops | Nothing drops | (b) |
+| Memory on a 4 GB server | One socket in the node **and** one in the tool's 256 MiB, per member | One connection in the node per member and tool; measured below | (b) |
+| Revocation | The Chest must find and cut the socket inside a tool it cannot see | The Chest owns the socket: cut at once | (b) |
+| What it cannot do | — | A protocol of the tool's own (binary CRDT sync, a game server, a dev server's hot reload) | (a), later |
+
+**Later: pass-through (a)**, only when a tool needs a protocol of its own:
+a capability approved at install with the warning *“This tool stays awake
+while someone has it open.”*, its sockets held in the server's memory as
+the Chest's are. Not built now.
+
+**Never: public channels for visitors.** Chest realtime is for members only:
+no visitor, no outside account ever connects to it (a chat tool's “public
+channel”, open to every member, is an ordinary channel). Realtime on a tool's public part,
+if a tool ever needs it, is the tool's own business — its own socket server
+behind pass-through, on its public host —, never a channel of the Chest.
 
 ## Research, in short
 
-| Product | Model | What we take |
+| Product | Model | What we take — or avoid |
 |---|---|---|
-| **Supabase Realtime** | Broadcast, Presence, Postgres changes; private channels authorised by RLS on `realtime.messages`, evaluated **at join and cached** until reconnect or a new JWT; server publishes by REST or `realtime.send()`; `self` and `ack` options; limits per plan (e.g. 3 MB broadcast payload, 100 channels per connection, presence 5 calls per 30 s per client) | One endpoint, channels multiplexed on one socket, server-side publish, authorisation at join. Avoid: access kept until the token expires |
-| **Pusher Channels** | public / `private-` / `presence-` channels; the app's auth endpoint signs `socket_id` + channel name | The tool, not the platform, decides who may join; presence as a channel property |
-| **Ably** | Tokens carry a capability map (channel patterns × operations: subscribe, publish, presence, history), short TTL; key revocation terminates connections | Short-lived tokens with channel patterns and operations; revocation closes connections |
-| **Phoenix Channels** | `topic:subtopic`, `join/3` authorises, socket authenticated by a signed token, PubSub across nodes, **at-most-once**, clients catch up by `last_seen_id` | At-most-once stated plainly; the tool's database is the truth; catch-up is the tool's |
-| **Liveblocks** | Rooms, access tokens (app decides) or ID tokens (platform keeps room permissions) | Confirms the choice: the tool decides, the Chest enforces |
+| **Supabase Realtime** | Broadcast, Presence, Postgres Changes on one socket; private channels authorised by RLS on `realtime.messages`, checked at join and cached until reconnect; Postgres Changes checks every change against every subscriber's RLS, single-threaded — Supabase now advises “Broadcast from Database” triggers for scale | One endpoint, channels multiplexed, server-side publish, authorisation at join. Database feeds by **trigger and channel**, never per-subscriber row checks. Avoid: access kept until the token expires |
+| **Slack** | One WebSocket per client to a gateway; messages are written through the web API, persisted, then fanned out by channel servers; on reconnect the client asks the API for what it missed | Write over HTTP to the tool, receive over the socket; the database is the truth, the socket a hint |
+| **Liveblocks** | Rooms; the app's auth endpoint or room permissions kept by Liveblocks; presence and broadcast throttled (~100 ms) | Permissions the platform keeps, so joins need no app round trip; throttled ephemeral messages |
+| **Pusher / Ably** | `private-` and `presence-` channels authorised by the app's endpoint (Pusher) or capability tokens (Ably); Ably keeps 2 minutes of connection state for recovery | Presence as a channel property; **a short recovery window** replays what a reconnect missed |
+| **Cloudflare Durable Objects** | One object per room; with WebSocket Hibernation the object leaves memory while its sockets stay connected, and wakes on a message | Exactly our sleeping tool: **the edge holds the socket, the code sleeps** |
+| **Phoenix Channels** | `topic:subtopic`, `join/3` authorises, at-most-once, clients catch up by last id | Topic names with a prefix; at-most-once stated plainly; catch-up from the database |
+| **Vercel** | Serverless functions hold no WebSocket; Vercel sends builders to Pusher, Ably or Liveblocks | A platform that sleeps must hold the sockets itself, or buy them: (b) |
+| **Railway** | Long-running containers, WebSockets through its proxy; “app sleeping” never sleeps a service with an open connection | What (a) would give us, with the same sleep problem |
 
-## RT1 — Socket pass-through
+## What the builder writes
 
-### Where it applies
-
-| Host | WebSocket and SSE | Condition |
-|---|---|---|
-| **Team host** `<tool>-chest.<chest>…` | On `/chest` and below (the tool's private part) | None: part of every server tool. A socket is just a request of the private part, with the same checks |
-| **Public host** `<tool>.<chest>…` and its custom domains | On any path the public part serves | Capability **`public.sockets`** (requires `public`), approved like any permission: “Keeps live connections open with visitors of its public part.” |
-| **Draft hosts** `<project>--build-chest…` ([Perseus Code](perseus-build.md#live-preview)) and **previews** `<tool>--<branch>-chest…` ([Develop and test tools](develop-and-test-tools.md#level-3--previews-on-the-chest)) | On **any path** of the draft (the whole host is the dev server behind its ticket: Next.js `/_next/webpack-hmr`, Vite's HMR socket), on `/chest` for previews | The host's own entry (single-use ticket, then the host's cookie); same limits, counted in the team pool |
-
-### Authentication at the upgrade
-
-A WebSocket is not protected by CORS: a hostile page can open a socket to the
-team host and the browser sends the member's cookie. The **exact `Origin`**
-check is therefore the defence (cross-site WebSocket hijacking), not an extra.
-
-On the team host, an upgrade request (`GET`, `Connection: Upgrade`,
-`Upgrade: websocket`, `Sec-WebSocket-Version: 13`, HTTP/1.1) passes only if:
-
-1. **Session**: exactly one `__Host-chest` cookie of this host, valid. No
-   sign-in redirect for a socket: 401 without a session.
-2. **Origin**: present and **exactly** the team host's origin (or its custom
-   team address while one exists). Anything else, or absent → 403. When the
-   browser sends `Sec-Fetch-Site`, it must be `same-origin`.
-3. **Access**: the member is still in the Chest and `Team.Access` gives the
-   tool (re-read now) → otherwise 403, the tool is not called.
-4. **Caps** (below) not reached → otherwise 503 with `Retry-After`.
-
-Then the session is settled (`core.Settle`, as for any request) and the
-upgrade request goes to the tool with a fresh **`Chest-Member`** assertion
-(v2, the organisation name included once that work lands, see
-[below](#the-organisation-name)). The tool reads it at the upgrade with
-`member(request)`; the assertion lives 60 s, the socket's identity is the one
-the tool bound at the upgrade.
-
-On the public host (with `public.sockets`): no session and no assertion (a
-`Chest-Member` from the client is removed as always); `Origin` must be exactly
-the public host or one of the tool's public custom domains, otherwise 403 — the
-tool cannot widen it in RT1. Per-address caps apply (the portal knows the
-client's address through the PROXY protocol).
-
-SSE needs no upgrade: a `GET` on `/chest/*` with the same session and access
-checks as today, whose response is `Content-Type: text/event-stream`.
-
-### What the tool sees
-
-- An ordinary HTTP/1.1 upgrade request on its own server: path, query and
-  `Host` unchanged, `X-Forwarded-Proto` and `X-Forwarded-Host` set by the
-  Chest, `Chest-Member` on the team host, `Sec-WebSocket-Key`, `-Version`,
-  `-Protocol` (subprotocols) and `-Extensions` passed unchanged; the
-  `__Host-chest` cookie and every client `Chest-*` header removed, as for any
-  request.
-- It answers `101 Switching Protocols` itself (10 s at most, else the client
-  gets 502); any other answer is relayed as an ordinary response.
-- After the upgrade, frames go both ways as the tool and the browser write
-  them: **any library works** (`ws`, `socket.io`, `uWebSockets.js`, Hono,
-  a custom Next.js server, Python's `websockets` later). Compression
-  (`permessage-deflate`) is negotiated end to end; the Chest never
-  decompresses.
-- For SSE: the response is flushed as the tool writes it, never buffered.
-- The tool never sees the member's address, cookie or session, and the
-  Chest never originates frames except the close frames below.
-
-### Limits
-
-The front reads frame headers (never payloads) to enforce sizes and to close
-cleanly. All limits are counted **after** the upgrade leaves the 64 request
-slots: an open socket never takes a request slot.
-
-| | Value | Beyond |
-|---|---|---|
-| Frame and message size (wire bytes, each direction) | 1 MiB | Close `1009` on both sides |
-| Handshake answer from the tool | 10 s | 502 to the client |
-| Idle: no frame (ping and pong included) either way / no byte of an SSE stream | 120 s | Close `1001` (“idle”); the SDK helpers heartbeat every 30 s, dev servers do too |
-| Maximum lifetime | 24 h | Close `1001` (“lifetime”), the client reconnects and is checked again |
-| Write stalled toward one side (slow consumer) | 30 s | Close `1001` (“slow”) on both sides |
-| Sockets per member per tool (tabs) | 10 | 503 at the upgrade |
-| Sockets per client address, public host | 20 per tool | 503 |
-| Per-tool pools, per Chest total | [Limits per plan](#limits-per-plan) | 503 with `Retry-After` |
-
-**Backpressure** comes from relaying without a queue: the front reads from
-one side only when its last write to the other side is done (two fixed
-buffers of 32 KiB per socket). A slow reader slows the writer through TCP,
-never the node's memory; if a write stays blocked 30 s, both sides close.
-
-### Closes the Chest sends
-
-Standard codes only, so any library understands them; the reason text is
-fixed.
-
-| When | Code | Client should |
-|---|---|---|
-| New version of the tool in service, rollback, restart | `1012` service restart | Reconnect after a random 0–5 s |
-| Node restart (Chest update) | TCP closed (the process goes) | Reconnect with backoff |
-| Idle, lifetime, slow consumer | `1001` going away | Reconnect with backoff |
-| Too large | `1009` | Not resend the same message |
-| **Access removed**, member removed, session signed out, tool removed or its public part closed, draft ticket revoked | `1008` policy violation, reason `access_removed` | **Not** reconnect; show “Access removed” (the SDK helper does) |
-| Caps reached | 503 at the upgrade (`1013` try again later if a cap drops while open) | Reconnect with backoff |
-
-**Redeploy.** The new version starts beside the old one as today; new
-sockets go to the new instance at once. The old instance's sockets receive
-`1012`, **spread over 10 s** (not all at once) during its 30 s of drain, then
-it stops. Clients reconnect with jitter to the new version. Nothing survives
-a redeploy in RT1 — that is what RT2 is for.
-
-**Revocation.** The front keeps a registry of open sockets by (tool, host,
-member, session). The lifecycle engine, which already computes who lost what
-at every team change, closes the matching sockets with `1008` **within a
-second**; sign-out and session end do the same; as a safety net each socket's
-member is re-checked every 60 s.
-
-### The public front
-
-`chest front` relays TLS bytes and cannot tell a socket from a page. Its
-connection limit (512 today) becomes the plan's live-connection cap **plus 512**
-for ordinary traffic, and its 5-minute inactivity rule stays (idle sockets are
-closed at 120 s before it). Browsers open WebSockets over HTTP/1.1, one TLS
-connection each; the portal does not offer WebSockets over HTTP/2 (RFC 8441)
-in RT1.
-
-### SDK helpers (`@argentic/chest-sdk/live`)
-
-Small and optional; any library works without them.
-
-| Side | Helper | Does |
-|---|---|---|
-| Browser | `reconnecting(url, {protocols?, onMessage, onOpen?, onClose?})` | A WebSocket that reconnects with full-jitter backoff (0.5 s → 30 s), 0–5 s after `1012`, stops on `1008` and calls `onClose({reason: "access_removed"})`; sends a heartbeat every 30 s; `send` buffers while reconnecting (bounded, 100 messages) |
-| Server | `heartbeat(ws)` | Pings every 30 s, terminates a peer silent for 90 s (works with `ws`) |
-| Server | `sse(response)` | Headers, flush, a comment line every 30 s, `event`/`data`/`id` writer |
-| Tests | `fakeChest` | Accepts upgrades and SSE on its team host like the Chest (session, Origin, assertion, closes on demand) |
-
-### Logs and metrics
-
-No payload is ever logged, by the Chest or its agents API.
-
-| Where | What |
-|---|---|
-| Tool's **Logs** tab (runtime log, Chest lines) | Refusals worth a builder's eye: caps reached, frames too large, handshake timeouts, one line per minute at most per kind; closes by redeploy (“412 connections moved to the new version”) |
-| Tool's overview | “Live connections: 37” (team and public), refreshed like the rest of the overview |
-| Node metrics ([Fleet monitoring](fleet-monitoring.md)) | Per tool and per Chest: open sockets and SSE streams by pool, peak, opened, closed by reason, refused by cap, bytes in and out — sampled every minute |
-| Settings → Server | “Live connections: 380 of 2,000” among the details |
-| Agents | `GET /api/v1/tools/{tool}/connections` (counts, caps, last refusals); MCP `health` includes them |
-
-## RT2 — Chest Realtime
-
-### Why a service on top of RT1
-
-With RT1, a tool that fans out messages keeps every member's socket in its own
-process: it loses them all at each redeploy, it must hold them in its 256 MiB,
-and it must write presence and reconnection itself. RT2 moves the sockets
-into the Chest: the tool **publishes**, the Chest **delivers**. Redeploys,
-restarts and crashes of the tool do not disconnect anybody; the members'
-browsers hold one connection per tool, to the Chest.
-
-### The shape
-
-```mermaid
-flowchart LR
-  Browser[Member_browser] -->|"wss /_chest/realtime, session + Origin"| Hub[Chest_realtime_hub_in_the_node]
-  Browser -->|"POST /chest/api/messages"| Tool[Tool_server]
-  Tool -->|"realtime.publish, CHEST_API socket"| Hub
-  Tool -->|"realtime.token signed locally"| Browser
-  Hub -->|"fan-out to subscribers"| Browser
-  Team[Lifecycle_engine] -->|"access revoked: close"| Hub
+```jsonc
+// chest.json
+{
+  "capabilities": ["database", "realtime"],
+  "realtime": {
+    "channels": [
+      { "name": "everyone", "presence": true },
+      { "name": "room:{id}", "join": { "table": "room_members", "key": "room_id", "member": "member_id" }, "send": true, "presence": true },
+      { "name": "inbox:{member}" }
+    ],
+    "feeds": [
+      { "table": "messages", "channel": "room:{room_id}", "columns": ["id", "room_id", "author", "text", "created_at"] }
+    ]
+  }
+}
 ```
-
-- **In the node process**, like the AI gateway: one hub per Chest, no new
-  service, no broker. A Chest is one server, so “across instances” means
-  across the tool's instances, versions and restarts, which the node outlives.
-- **One endpoint per tool**: `wss://<tool>-chest.<chest>…/_chest/realtime`,
-  on the tool's team host, the same origin as its `/chest` pages. Channels of
-  **that tool only** are reachable on it.
-- **Permission** `realtime` in `chest.json`: “Sends live updates to the members
-  who have access to it.” Without it, the endpoint answers 404 and the tool
-  API 403 `capability_not_granted`.
-
-```json
-{ "capabilities": ["realtime"] }
-```
-
-### Channels
-
-- Name: `[a-z0-9._:@-]{1,128}`, chosen by the tool (`ch:42`, `dm:mbr_a:mbr_b`,
-  `doc:7`, `board`). Implicitly namespaced by the tool: tool A's `general` is
-  not tool B's.
-- Created on first use, gone when empty; nothing to declare.
-- Operations: **subscribe** (receive what is published), **send** (ephemeral
-  client messages: typing, cursors), **presence** (appear and carry a small
-  state).
-
-### Authorisation: the tool signs short-lived channel tokens
-
-Chosen as the simplest safe design. Alternatives set aside: rules declared in
-`chest.json` cannot express “the members of channel 42” (that lives in the
-tool's database); a call from the Chest to the tool at each join (Phoenix's
-`join/3`) makes joins fail whenever the tool is redeploying, which RT2 exists
-to avoid.
 
 ```ts
-// Server side, in a /chest route of the tool (the member is known)
-import { member } from "@argentic/chest-sdk/member";
-import * as realtime from "@argentic/chest-sdk/realtime";
-
-const who = member(request);
-const ids = await myChannelsOf(who.id);               // the tool's own rule, from its database
-const token = realtime.token(who.id, [
-  ...ids.map(id => ({ channel: `ch:${id}`, subscribe: true, send: true, presence: true })),
-  { channel: "dm:*", subscribe: true },               // a prefix pattern ends with "*"
-]);                                                     // default life 5 min, 15 min at most
-return Response.json({ token });
-```
-
-| Rule | Decision |
-|---|---|
-| Signature | Compact JWS HS256 under HMAC-SHA256(“Chest-Realtime v1”) of `CHEST_TOKEN`, computed **in the tool's process** (no call); the Chest accepts the keys of the tool's instances in service (both during a switchover) |
-| Claims | `aud` tool, `sub` member id, `iat`, `exp` (≤ 15 min), `ch`: up to 100 entries `{c, s?, w?, p?}` (channel or prefix pattern `…*`; subscribe, send, presence) |
-| Binding | The Chest accepts a token only on a socket whose **session member is `sub`**: a token leaked to another member is useless |
-| Where it travels | In the socket's messages (`auth`), never in a URL; the client module keeps it in memory, never in storage |
-| When it counts | **At join.** A subscription lasts until the member leaves, is kicked, loses access to the tool, or the socket ends. Tokens are refreshed only for new joins and reconnects |
-| Kick | `realtime.kick(channel, memberIds)` ends those members' subscription and presence at once, and refuses tokens for that (channel, member) issued before the kick. This is how a tool removes someone from a Slack channel without waiting for a token to expire (Supabase's weak spot) |
-
-The member's own **direct lane** needs no token: `realtime.send(memberIds,
-event, payload)` reaches every connection of those members on this tool
-(unread counts, a DM notification, “you were added to #design”).
-
-### Server side: `@argentic/chest-sdk/realtime`
-
-Through `CHEST_API`, the instance is the identity.
-
-| SDK | Chest route (tool API) | Answer / notes |
-|---|---|---|
-| `realtime.token(memberId, grants, {ttl?})` | — (signed locally) | A string |
-| `realtime.publish(channel, event, payload, {except?})` | `POST /realtime/publish` | `{seq}`. `event` `[a-z0-9._:-]{1,64}`; `payload` JSON, 64 KiB at most; `except`: a member id not to deliver to (the author, already shown optimistically) |
-| `realtime.publishMany([{channel, event, payload}])` | `POST /realtime/publish` (array) | Up to 100 at once |
-| `realtime.send(memberIds, event, payload)` | `POST /realtime/send` | Direct lane; 1 to 500 members; those without access are skipped silently |
-| `realtime.presence(channel)` | `GET /realtime/presence/{channel}` | `{members: [{id, state, since}], count}` (500 listed at most, `count` exact) |
-| `realtime.online(memberIds)` | `POST /realtime/online` | `{online: string[]}`: members with at least one live connection to this tool (any channel). What decides whether to `notify` |
-| `realtime.kick(channel, memberIds)` | `POST /realtime/kick` | 204 |
-| `realtime.stats()` | `GET /realtime/stats` | Connections, channels, deliveries this minute |
-
-Errors: 403 `capability_not_granted`, 400 `invalid_channel` / `invalid_event`,
-413 `too_large`, 429 `rate_limited` with `Retry-After`, 503 `unavailable`.
-The tool never learns which member is connected to which channel beyond
-`presence`, `online` and its own tokens.
-
-### Browser side: `@argentic/chest-sdk/realtime/client`
-
-```ts
+// In the browser, on a /chest page of the tool (no socket code, no token)
 import { connect } from "@argentic/chest-sdk/realtime/client";
 
-const rt = connect({
-  token: () => fetch("/chest/api/realtime-token").then(r => r.json()).then(j => j.token),
-});                                   // opens /_chest/realtime on this host; one socket per tab
-
-const ch = rt.channel("ch:42");
-ch.on("message.created", m => render(m));
-ch.on("typing", ({ from }) => showTyping(from));   // `from` is set by the Chest, never by the sender
-ch.presence.track({ viewing: true });
-ch.presence.on("sync", list => renderOnline(list));
-ch.send("typing", {});                            // ephemeral, to the others in the channel
-rt.on("direct", (event, payload) => …);           // realtime.send from the server
-rt.on("resync", () => refetchSinceLastId());      // after a reconnect or a node restart
-rt.on("closed", ({ reason }) => …);               // "access_removed": do not retry
+const live = connect();                                  // wss://<tool>-chest…/_chest/realtime
+const room = live.channel("room:42");
+room.on("messages.insert", row => show(row));            // the Chest's events: a feed's row as written
+room.peers.on("typing", (_, from) => showTyping(from));  // the members' messages, apart: from set by the Chest
+room.peers.send("typing");                               // ephemeral, to the others (no dot in its name)
+room.presence.track({ active: true });
+live.focus("room:42");                                   // the conversation shown: the tool's to read, nobody else's
+room.onResync(() => refetchAfter(lastId));               // only beyond a week away
+live.on("closed", reason => { if (reason === "access_removed") showAccessRemoved(); });
 ```
 
-It reconnects with backoff, re-fetches a token and re-joins its channels by
-itself, then emits `resync` so the page catches up from the tool (below).
+```ts
+// On the server, only for what is not a row: a direct hint, who is online
+import * as realtime from "@argentic/chest-sdk/realtime";
+await realtime.publish("everyone", "rooms.changed", { id });
+const { online, watching } = await realtime.online(roomMemberIds, { channel: "room:42" });
+// notify those not online, badge those online but not watching room:42
+```
 
-### Wire protocol (for other languages)
+The tool writes rows as it always does; the Chest turns them into live
+events. Nothing to run, nothing to keep awake.
 
-Subprotocol `chest-realtime.v1`, JSON text frames, one object each, a `ref`
-for replies: `auth {token}`, `join {ch, presence?}`, `leave {ch}`,
-`send {ch, event, payload}`, `track {ch, state}`, `ping`; the Chest answers
-`ok {ref}` / `error {ref, code}` and pushes `msg {ch, event, payload, seq,
-from?}`, `direct {event, payload}`, `presence {ch, joins, leaves}` or
-`presence_state {ch, members}`, `kicked {ch}`, `epoch {id}`. Documented in
-the SDK repository with the client.
+## Channels and who joins them
 
-### Semantics
+A channel is a name `[a-z0-9_-]` segments joined by `:`, 128 characters at
+most, scoped to its tool (tool A's `everyone` is not tool B's). The manifest
+declares the channels a tool has, as **patterns**, each with its rule; a name
+no pattern matches does not exist. Up to 32 patterns.
+
+| Pattern | Matches |
+|---|---|
+| `everyone` | that name |
+| `room:{id}` | `room:` and one segment; the segment is the key of a membership table (below) |
+| `inbox:{member}` | `inbox:` and the joining member's own id only: a private lane per member |
+| `board:*` | `board:` and any one segment, under the pattern's rule |
+
+| Key | Values | Rule |
+|---|---|---|
+| `join` | absent (default): every member who has the tool · a list of the tool's roles (`["manager"]`) · a membership table `{table, key, member}` | Checked by the Chest **at every join**, without the tool |
+| `send` | `false` (default) · `true` | Whoever may join may send ephemeral messages (typing, cursors) on it; re-checked **at every message** |
+| `presence` | `false` (default) · `true` | Whoever joins may appear in its presence |
+
+**Membership tables** keep the tool's rule in the tool's own data: `room:42`
+may be joined by member `m` when `select 1 from room_members where room_id =
+'42' and member_id = 'm'` finds a row. The Chest asks the tool's database
+directly (read-only, the tool's console reader role), never the tool's
+process: a join works while the tool sleeps or redeploys. When a row of
+`room_members` is deleted or changed, the Chest's trigger tells it at once,
+and that member is **removed from the channel immediately** (`kicked`).
+Requires `database`.
+
+The tool's own server publishes to any channel it declares; its rules apply
+to members' browsers only.
+
+### Authorisation alternatives set aside
+
+| Alternative | Why not |
+|---|---|
+| **Tokens the tool signs** (Pusher, Ably, Liveblocks access tokens) | The tool must be awake to mint one at every connection and reconnect; a token stays valid after a member is removed from a channel unless the Chest also keeps kick lists — two truths |
+| **An authorize hook** (`POST /chest-realtime/authorize`, Phoenix's `join/3`) | Wakes a sleeping tool at every join, fails while it redeploys; a cache makes revocation late |
+| **Lists the tool sets through the API** (`grant`, `revoke`) | Duplicates the tool's membership table in the Chest; the tool must keep both in step, and a missed call is a leak |
+| **Row-level filters per subscriber** (Supabase Postgres Changes) | One check per change and per subscriber: the cost Supabase itself advises against |
+
+Membership tables keep one truth (the tool's rows), need no awake tool,
+and revoke at the instant the row goes.
+
+## Database-change feeds
+
+A feed turns writes to a table into channel events: `<table>.insert`,
+`<table>.update`, `<table>.delete`, the payload being the declared
+`columns` of the row (the old row for a delete).
+
+- At each install, update and start of a version (and each draft
+  migration), after the migrations, the Chest installs in the tool's
+  database one trigger per feed and membership table, in a schema of its
+  own (`chest_realtime`), replacing those of the version before. The tool
+  writes no SQL for it.
+- The trigger writes the row's event in the **change log** of the tool's
+  database (`chest_realtime.changes`: its place `pos`, the channel — from
+  the template, the row's `room_id` gives `room:42` —, the event, the
+  columns) and runs `pg_notify` with the same. PostgreSQL delivers it **at
+  commit**: a rolled-back write sends nothing. The places follow the
+  commits (one transaction lock taken by the trigger until the commit:
+  writes to a tool's fed tables commit one after the other), so a page
+  replayed from a place never misses a row committed later under a smaller
+  one. The log keeps a week (pruned every 512 rows); it holds the declared
+  columns as the tool stored them — a sealed value stays sealed — and is
+  backed up with the tool's database.
+- The Chest listens on the tool's database only while someone is connected
+  to the tool; a row of more than 7,000 bytes is sent as `{id}` only
+  (`partial: true`) and the page fetches it.
+- `columns` must name the primary key first; never list a secret or a
+  column a member of the channel may not read: the channel's rule is the
+  only filter.
+
+A feed is the right tool for “what was written”; `realtime.publish` for
+what is not a row (a hint, a computed count, “rooms changed”).
+
+## The server API (`@argentic/chest-sdk/realtime`)
+
+Through `CHEST_API`, as every capability: the instance is the identity.
+
+| SDK | Chest route | Answer |
+|---|---|---|
+| `publish(channel, event, payload)` | `POST /realtime/publish` | `{seq}`; the channel must match a declared pattern; `payload` JSON, 64 KiB at most |
+| `send(memberIds, event, payload)` | `POST /realtime/send` | `{reached}`: the members it reached on at least one connection; the others are not online here |
+| `online(memberIds, {channel?})` | `POST /realtime/online` | `{online, watching}`: members with at least one connection to this tool, and of them those with a page showing `channel` (its focus) — what decides whom to `notify` and whom to leave alone |
+| `presence(channel)` | `GET /realtime/presence?channel=` | `{members: [{id, state}]}` |
+
+Errors: 403 `capability_not_granted`, 400 `invalid_channel` (no pattern
+matches) / `invalid_event` / `invalid_body`, 413 `too_large`, 503
+`unavailable`. `event` is `[a-z0-9._-]{1,64}`. A publish is never refused
+for capacity: a page whose message the server's memory cannot hold is
+closed to come back (below).
+
+## The browser client (`@argentic/chest-sdk/realtime/client`)
+
+A module for the browser (no `node:` import), the only part of the SDK that
+runs there. `connect()` opens `/_chest/realtime` on the page's own host —
+the session cookie is the identity — and:
+
+- joins channels by name (`live.channel(name)`), with their presence;
+- reconnects by itself (full-jitter backoff 0.5 s → 30 s; at once when the
+  page comes back to the foreground, from the back-forward cache or when
+  the network returns; nothing tried while the browser says it is
+  offline), re-joins its channels **with the last `seq` and `pos` it saw**:
+  the Chest replays what was missed — from memory within 2 minutes, from
+  the change log after any absence up to a week — and the client drops
+  what it already had (by `pos`): **no reload, no gap, nothing twice**.
+  `resync` comes only beyond a week, or on a channel no feed writes once
+  its 2 minutes are gone;
+- renews the session every 5 minutes through the endpoint (a plain `GET`,
+  below): no hourly cut, nothing for the page to do;
+- says `status(false)` only after 3 seconds without a connection, and
+  `status(true)` only after a `false`: a quick reconnect never shows;
+- a full server is waited for quietly (`Retry-After`), never shown as an
+  error: the page goes on working over HTTP meanwhile;
+- stops on `access_removed` and emits `closed`; on `signed_out` (the
+  renewal or a reconnect refused 401: the person is signed out at the
+  provider, or away longer than the session) emits `closed` too;
+- sends an application ping every 25 s, so a dead network is noticed on a
+  phone.
+
+### Wire protocol (other languages, tests)
+
+Subprotocol `chest-realtime.v1`, JSON text frames, one object each; `ref`
+pairs a reply with its request.
+
+| Direction | Frames |
+|---|---|
+| Browser → Chest | `join {ref, ch, since?: {epoch, seq, pos?}}` · `leave {ref, ch}` · `send {ref, ch, event, payload}` (`event` without a dot) · `track {ref, ch, state}` · `focus {ref, ch}` (a joined channel, or `""`) · `ping {ref}` |
+| Chest → browser | `hello {epoch, member}` · `ok {ref, seq, pos?, presence?, resync?}` · `error {ref, code}` · `msg {ch, event, payload, seq?, pos?, partial?}` (the tool's and the Chest's events only) · `peer {ch, event, payload, from}` (a member's send) · `direct {event, payload}` · `presence {ch, joins, leaves}` · `kicked {ch}` |
+
+`pos` is a row's place in the change log: on every row of a feed, on the
+`ok` of a channel a feed writes (the head at a fresh join, the page's own
+place at a replayed one); the rows replayed from the log follow that `ok`
+with `pos` and no `seq`. A page ignores a row whose `pos` it has passed.
+
+`GET /_chest/realtime` without upgrading renews the session: 204, 401
+signed out, 403 access removed, 404 no realtime, 503 with `Retry-After`
+(the provider did not answer, or the server has no room for a connection
+now).
+
+Close codes: `1008` with reason `access_removed` (do not reconnect) or
+`session_ended` (not renewed in time: renew, then reconnect); `1013` (this
+connection fell too far behind, or the server's memory could not hold a
+message for it: reconnect and replay); `1009` (a frame too large); `1001`
+(the Chest restarts).
+
+## Semantics
 
 | | Decision |
 |---|---|
-| Delivery | **At most once.** A message published while a member is disconnected is not delivered to them later. The tool's database is the truth; realtime is a hint that something changed |
-| Order | Per channel, in the order the node accepted publishes: each message carries `seq`, increasing per channel within an `epoch` (the node's run). A gap in `seq`, or a new `epoch`, tells the client to resync |
-| Acknowledgement | `publish` returns once the node has accepted it (not once delivered) |
-| Self | A member's own `send` is not echoed back; `publish` reaches everyone unless `except` |
-| History | **None** in RT2. Catch-up is the tool's: “messages after id N” from its database. A bounded replay buffer (e.g. last 100 per channel, 5 min) is a later option if tools struggle |
-| Presence | Per channel, per **member** (merged across tabs and devices): present while at least one connection tracks; `state` JSON ≤ 1 KiB, updated at most 5 times per 10 s per connection; a leave is announced after 10 s of absence, so a reconnect does not flicker |
-| Typing indicators | Ephemeral `send("typing")`, shown 5 s by the receivers; not presence state (cheaper, no leave to wait for) |
+| Delivery | **Rows: exactly once, whatever the absence** — live, else replayed from memory or from the change log, the page dropping what it has (`pos`) — up to a week; beyond, `resync`. **Tool publishes and sends**: at most once, hints kept 2 minutes |
+| Order | Per channel, the order the Chest accepted publishes and the database committed rows; each message carries `seq`, increasing per channel within an `epoch` (the node's run); a row carries its `pos`, increasing in commit order per tool |
+| Backfill and replay | Each channel keeps its recent messages in memory, **2 minutes at most**, while the server's memory holds them; a re-join with `since` replays the missed ones in order from there; else, on a channel a feed writes, from the change log after the page's `pos` — across another epoch (a restart of the Chest, its database session lost) —, what reaches the channel meanwhile held for the page and sent after, never twice; `resync: true` only beyond the log's week, or on a channel no feed writes |
+| Self | A member's own `send` is not echoed back; a feed or a `publish` reaches every subscriber, the author included (the page deduplicates by id) |
+| Presence | Per channel, per **member** (merged across tabs and devices), seen by every member of the channel — what a member must not see goes in the focus, never in presence; `state` JSON ≤ 1 KiB, set at most 5 times in 10 s; a leave is announced 5 s after the member's last connection left, so that a reload does not flicker |
+| Ephemeral sends | 4 KiB at most; 20 a second per connection (burst 40): a person types, a script floods |
+| Joins | No fixed number: each channel joined holds 512 bytes of the server's memory (measured about 430); beyond the memory, `error full`, the page joins again later |
+| Namespaces | The Chest's and the tool's events (`msg`: feed rows, publishes, dotted names allowed) and the members' messages (`peer`, `from` set by the Chest, names without a dot) never share a name nor an API: a member cannot send `messages.delete`, and a page cannot take a member's message for a row |
+| Focus | Each page may say which joined channel it shows (`focus`); the client clears it while the page is hidden. Never sent to another page: the tool reads it (`online(…, {channel})` → `watching`) to notify a member in the tool but in another conversation |
 
-### Limits
+## Identity, revocation
 
-| | Value |
+- **At connect** (the upgrade on `/_chest/realtime` of the team host): TLS,
+  the exact host, exactly one session cookie of that host, the member still
+  in the Chest **and** given the tool now, `Origin` exactly the team host
+  (a WebSocket is not protected by CORS: this check is what stops another
+  site's page from riding the member's cookie), `Sec-WebSocket-Version: 13`,
+  the subprotocol `chest-realtime.v1`, the capability `realtime` held by the
+  version in service, room in the server's memory. 401 without a session
+  (never a sign-in redirect), 403, 404, 503 `Retry-After` otherwise. The
+  tool is never called.
+- **At join**: the channel's pattern and rule; **at each send**: the rule
+  again.
+- **Revocation at once**: every change of the team (a member removed, access
+  taken back, a role changed, the tool removed) re-checks every open
+  connection of the Chest within a second: `1008 access_removed` for a member
+  who lost the tool; a channel whose role rule no longer holds is left with
+  `kicked`. A membership row deleted kicks at once (trigger). A new version
+  that drops `realtime` closes its connections; one that drops a pattern
+  kicks its channels.
+- **No hourly cut**: a connected page renews its session every 5 minutes
+  through the endpoint (`GET` without upgrading). Each renewal goes through
+  the portal's renewal — the identity renewed with the provider, which must
+  still sign the person in — and slides the session's deadline an hour
+  ahead, the cookie written again; the page's open connections live on with
+  it, nothing reconnects. A session stops only when the person is signed
+  out (the provider refuses: 401, `closed signed_out`) or the page stops
+  renewing it (a connection whose session's end passed is closed `1008
+  session_ended`, a safety sweep every minute). A provider that does not
+  answer is 503, tried again: never a sign-out. A draft's session (12
+  hours) is not renewed.
+- **A page that keeps failing to connect** asks the endpoint without
+  upgrading — the same renewal —: 204 (try again), 401 (signed out), 403
+  (access removed), 503 `Retry-After` (wait) — a browser never sees a
+  refused handshake's status.
+- **Away longer than the session, or the Chest restarted** (20 minutes
+  without the page renewing it — a laptop closed, a phone off —, or the
+  sessions, held in memory, gone with a restart): the client says
+  `signed_out`; the page keeps what is being written and reloads, and the
+  provider, which still signs the person in, brings them back without a
+  word nor a click (relogin.spec.ts, case (a), for every page of the
+  Chest; realtime.spec.ts after a node restart). What the person sees: the
+  page reloading once, their draft still there. Only once the provider no
+  longer signs them in (its own session ended) do they type their password.
+
+## Capacity
+
+**No memory set aside** (Paul, 7 October): realtime is held in the
+server's memory exactly as the tools awake and Perseus Code's workbenches
+are, and refused only when the server is truly full.
+
+- **Measured** (`TestMemoryPerConnection` of `chest/realtime` and
+  `common/front`: 400 idle connections over TLS from another process, each
+  joined to two channels and pinged, Go heap and stacks): **at rest** — no
+  page connected — the service holds no goroutine but its one ticker, and a
+  space per tool a few hundred bytes; **each connection about 21 KiB in the
+  node** (one goroutine reading it; its writer runs only while frames wait;
+  the server's request buffers let go at the upgrade) **and about 31 KiB in
+  `chest front`** (two goroutines and two 8 KiB buffers), counted 24 + 32 =
+  56 KiB. 1,000 live connections take 55 MiB, beside a tool's 256. The
+  kernel's socket memory of an idle connection is a few KiB more, outside
+  the count.
+- **Held with the tools**: each connection's 56 KiB, the messages waiting
+  toward pages and those kept for backfill are counted in the memory the
+  node's tools awake and workbenches hold (`toolmemory.Budget`). A new
+  connection is admitted as a tool's wake is: when it does not fit, the
+  least recently used idle tools are put to sleep for it; it is refused
+  only when nothing more can sleep — counted with the wakes refused, which
+  raises the owner's **capacity alert** as anywhere else. A message is held
+  while it fits; a page the server cannot hold a message for is closed
+  `1013` and comes back to its replay; a channel kept beyond the memory
+  forgets its oldest first (the change log still has the rows).
+- **The user never sees it**: a refused connection is 503 `Retry-After: 5`;
+  the client waits quietly and tries again; the page keeps working over
+  HTTP meanwhile; `status(false)` only after 3 s.
+- **Fan-out and backpressure**: a message is encoded once and shared by
+  every queue; a connection's queue holds 4 of the largest messages
+  (256 KiB): a page further behind is closed `1013` and replays. A
+  protocol bound on one slow reader, not a share of the server.
+- **`chest front`**, the TLS relay every connection crosses, lets through
+  512 connections plus as many as the server's whole memory could hold: it
+  cannot tell a live connection from another, the node decides which it
+  keeps.
+- Refused: 503 at connect, one line a minute in the tool's Logs (“Live
+  connections refused: the server's memory is full”).
+
+## Sleeping tools
+
+A connection to `/_chest/realtime` is the Chest's, never the tool's: it
+does not count as a visit. A Slack-like tool open in 40 browsers all day
+sleeps 15 minutes after its last write; typing, presence and joins go on
+without it; the next message posted wakes it (≈ 0.5 s), its row's feed
+reaches everyone. Polling every 20 s, as the studio's tools do, keeps a tool
+awake as long as one tab is open — realtime replaces it.
+
+While a tool with feeds or membership tables has connections, the Chest
+keeps one session on the tools database (to listen, to check joins and to
+read the change log); none when nobody is connected. This keeps the tools
+database awake while a page is connected (accepted by Paul, 7 October).
+
+## Drafts (Perseus Code)
+
+A draft host (`<project>--build-chest…`) serves `/_chest/realtime` with the
+same code: the identity is the fake member the builder views the draft as
+(a page connected keeps the one it connected as), the rules are those its
+`chest.json` declared at its dev server's start — as its routes are —,
+feeds and membership tables come from the draft's preview database
+(installed after its migrations, as for a version), with its own change
+log, held in the server's memory the same way. Revocation: the
+builder who loses the project is cut at once. What works in the preview
+works once published.
+
+## Networks, devices
+
+| | |
 |---|---|
-| Payload of `publish` / `send` (server) | 64 KiB (a message carries ids and short text; files go through [tool storage](tool-storage.md)) |
-| Payload of a client `send` | 4 KiB |
-| Channels per connection | 100 |
-| Client `send` per connection | 20 a second (burst 40) |
-| Joins per connection | 10 a second |
-| Connections per member per tool | 10 |
-| Outbound queue per connection | 256 messages or 1 MiB; overflow → close `1013` and the client resyncs |
-| Publishes per tool, deliveries per Chest | [Limits per plan](#limits-per-plan) |
+| HTTP/2 | Browsers open WebSockets over HTTP/1.1, one TLS connection each; the Chest does not announce WebSockets over HTTP/2 (RFC 8441, off in Go by default) |
+| Proxies, Cloudflare | The Chest pings every connection every 30 s and expects a sign of life within 75 s: an idle socket survives proxies that cut at 100 s (Cloudflare) and is noticed dead behind one that never closes |
+| `chest front` | Relays TLS bytes: its 5-minute idle rule never fires on a pinged connection |
+| Phone asleep, laptop lid, network change | The socket dies or hangs; the client notices (no answer to its ping, the browser going offline, the page shown again or restored from the back-forward cache), reconnects at once when the network is back, and is replayed what it missed: nothing shows but the rows arriving |
+| SSE | Not offered: one WebSocket carries both directions; SSE belongs to pass-through, later |
 
-Rate counters are in memory (a restart starts them over), like the AI gateway's.
+## Security
 
-### Security
+- Cross-tool isolation: the endpoint is on the tool's own host (another
+  tool's cookie means nothing there), channel names are per tool, the API
+  publishes only into the tool's own declared patterns.
+- Unforgeable sender: `from` on sends and presence is the session's member
+  id, set by the Chest.
+- Content is opaque: never logged, never interpreted; the page escapes it
+  (the SDK README says so).
+- A membership table is read as the tool's console reader (read-only), by
+  key and member only, with bound parameters.
 
-- Same upgrade checks as RT1 on the team host: session, exact `Origin`,
-  `Team.Access`, caps. The endpoint belongs to the Chest (`/_chest/`), the tool
-  never sees the socket.
-- **Cross-tool isolation**: the endpoint lives on the tool's own host (another
-  tool's session cookie means nothing there), the token's `aud` must be the
-  tool, channel names are per tool, the tool API publishes only into its own
-  namespace. Tool B can neither read nor publish tool A's channels.
-- **Members without access**: 403 at the upgrade; the tool's `send` and
-  `publish` never reach them (subscriptions exist only for connected members
-  with access).
-- **Revoked access closes immediately**: the lifecycle engine closes that
-  member's realtime sockets for the tool with `1008 access_removed` within a
-  second, as in RT1; member removed, sign-out, tool removed, capability
-  withdrawn by a new version: the same.
-- **Unforgeable sender**: `from` on client `send` and presence is the session's
-  member id, set by the Chest.
-- **Content is opaque** to the Chest: never logged, never interpreted. The tool
-  renders it; escaping is the tool's job (the SDK README says so).
+## Logs and what the owner sees
 
-### Notifications and events
-
-Realtime reaches members who are **looking**; notifications reach the others.
-
-| Need | Primitive |
+| Where | What |
 |---|---|
-| Update an open page now | `realtime.publish` / `realtime.send` |
-| Tell a member who is **not** online | `realtime.online(ids)` then `notify(offline, {…, key})` (inbox under the bell) |
-| A count on the tool's tile | `badge.setMany` (idempotent state; coalesce: at most one write per member every 5 s, the SDK recipe shows it, within the 600 writes a minute) |
-| The member read it | `notifications.withdraw(key, [id])`, badge set again |
-| Something happened in another tool, or to a member | [Events](members-and-notifications.md#5-member-lifecycle-events) (server to server, at least once, signed). Not realtime: realtime never goes to a tool's server |
-
-Later, the portal's own bell may subscribe to a Chest channel instead of
-polling every 30 s — not in these lots.
-
-### Public channels, later
-
-Visitors of a public part (a support chat, a live page) would use
-`/_chest/realtime` on the public host with tool-signed tokens for an
-anonymous or `acc_…` subject, capability `realtime.public`, per-address caps.
-Not before **public accounts** (P2): without them there is no identity to
-bind a token to.
+| The tool's Logs (Chest lines) | Connections refused for want of memory, connections closed to come back (fallen behind, or memory full): one line a minute per kind |
+| Settings → Server → Details | “Live connections: 37 · 2.0 MiB” (the owner's alone, never in the report the central receives); the memory is in what the Chest reserves; a refusal counts in “Wakes impossible for want of memory” and raises the capacity alert |
+| Node journal | Counts only, never a payload, never a member |
 
 ## A Slack-like tool, end to end
 
 **Manifest**: `"capabilities": ["database", "members", "notifications",
-"realtime", "files"]`. Tables: `channels(id, name, private)`,
-`channel_members(channel, member)`, `messages(id, channel, author, text,
-created)`, `reads(channel, member, last_read)`. Member ids, never copied names.
+"realtime"]`, the `realtime` key above. Tables: `rooms(id, name, private)`,
+`room_members(room_id, member_id)`, `messages(id, room_id, author, text,
+created_at)`, `reads(room_id, member_id, last_read)`; direct messages are
+private rooms of two. Member ids, never copied names.
 
-1. **Opening** `/chest`: the page renders with `member(request)` — the header
-   shows the **organisation name** from the assertion (next section) and the
-   member's photo; the sidebar lists the member's channels and DMs with unread
-   counts from `reads`.
-2. **Connecting**: the page calls `/chest/api/realtime-token`; the tool signs
-   a token for `ch:<id>` of every channel the member belongs to (subscribe,
-   send, presence) and `dm:<pair>` for their DMs, then `connect()` joins them.
-3. **Sending**: `POST /chest/api/messages` → insert → `realtime.publish("ch:42",
-   "message.created", {id, author, text, created}, {except: author})`. Every
-   member viewing gets it in well under a second; the author already shows it.
-4. **Typing**: `ch.send("typing", {})` on keystrokes (at most every 2 s);
-   receivers show “Camille is typing…” for 5 s.
-5. **Presence**: every page tracks a `presence` channel with
-   `{status: "active"}`; the DM list shows a filled or hollow dot (black and
-   white, no colour).
-6. **Unread counts**: on each message, for channel members not viewing it
-   (presence state `viewing`), `realtime.send(ids, "unread", {channel, count})`
-   updates their sidebar; `badge.setMany` (coalesced) puts total unread DMs and
-   mentions on the tool's tile in the Chest home.
-7. **Offline**: for DM recipients and `@mentions`, `realtime.online(ids)` →
-   `notify(offline, {title: "Camille in #design", body: text.slice(0, 280),
-   path: "/chest/c/42#m981", key: "ch:42"})`; the key replaces the item instead
-   of stacking one per message. Reading the channel → `withdraw("ch:42",
-   [id])` and the badge goes down.
-8. **Channel membership**: adding someone → new token on their next join
-   (`realtime.send([id], "channels.changed")` tells their page to refresh it);
-   removing → `realtime.kick("ch:42", [id])`, effective at once.
-9. **Reconnect or redeploy**: a redeploy of the tool changes nothing for open
-   pages; a node restart or a network drop → `resync` → the page fetches
-   messages after its last id.
-10. **Access revoked** in Team: the socket closes with `access_removed`; the
-    page shows the Chest's “Access removed” sentence; the next navigation gets
-    the Chest's page.
-11. **Search, files, threads**: Postgres full-text (SDK recipe), browser
-    uploads ([tool storage](tool-storage.md)), `thread:<id>` channels.
+1. **Opening `/chest`** wakes the tool if it sleeps: the page renders the
+   member's rooms with unread counts (`reads`) and the last 50 messages of
+   the open room, names from `members.lookup`, the organisation name from
+   `chest.organization`.
+2. **Connecting**: `connect()`; the page joins `room:<id>` for each of the
+   member's rooms, `inbox:<member>` and `everyone` (presence `{status:
+   "active"}`): the Chest checks `room_members` for each room, the rest by
+   pattern.
+3. **Posting**: `POST /chest/api/rooms/42/messages` → `insert into messages`
+   → at commit, `messages.insert` reaches everyone in `room:42` in well
+   under a second; the author's page shows it once (by id).
+4. **Typing**: `room.peers.send("typing")` at most every 2 s; the others show
+   “Camille is typing…” for 5 s. The tool is not involved.
+5. **Online dots**: presence of `everyone`, a filled or hollow dot (black and
+   white).
+6. **Unread and offline**: on each message the tool asks
+   `realtime.online(roomMembers, {channel: "room:42"})`: those not online
+   get a `notify` (key `room:42`, replaced rather than stacked) and their
+   badge; those online but not `watching` room 42 — in the tool, on another
+   conversation, or its tab hidden — get an unread count on their inbox
+   lane (`inbox:<id>`); those watching it, nothing. Reading the room
+   withdraws it.
+7. **Adding someone** to a private room: insert into `room_members`, then
+   `realtime.publish("inbox:<their id>", "rooms.changed", {id})`; their page
+   joins. **Removing** them: delete the row — the Chest kicks them from
+   `room:42` at that instant.
+8. **Asleep**: nobody posts for 15 minutes, the tool sleeps; sockets,
+   typing and presence go on; the next post wakes it.
+9. **Reconnects**: a phone back after an hour in a pocket re-joins with its
+   last `seq` and `pos`: every message written meanwhile arrives, once, in
+   order, from the change log — the tool stays asleep, nothing reloads.
+   Only beyond a week: `resync` → `GET /chest/api/rooms/42/messages?after=<last id>`.
+10. **All day open**: the page renews its session every 5 minutes: no
+    reload at the hour, no sign-in while the person is signed in.
+11. **Redeploy**: nothing happens to the open pages.
+12. **Access taken back** in Team: the socket closes `access_removed` within
+    a second; the page shows the Chest's sentence.
+13. **In Perseus Code**: the same tool in its preview, the builder viewing it
+    as Alex Morgan in one tab and Sam Taylor in another, chats with itself.
 
-The same tool on RT1 alone is possible (its own `ws` server) but loses every
-socket at each deployment and must write presence; the catalogue's chat tool
-uses RT2.
-
-## The organisation name
-
-The organisation name is the Chest's, not a member's: a tool reads it with
-the SDK's `chest.organization.name` (with the Chest's time zone and
-language, SDK 0.3.0), which the Chest gives every tool in its environment,
-so a tool like Slack can show it in its header. RT1 and RT2 need nothing
-more: it is there on the upgrade request and on the token route alike, and
-in a job outside any request.
-
-## Limits per plan
-
-A socket costs the node about **40 KiB** (two goroutines, buffers, registry
-entry; RT2 adds its subscriptions and queue). The caps keep live connections
-under ~2 % of the server's memory, inside the 1.5 GiB the capacity guard
-already reserves for the Chest ([Owner space and billing](owner-space-and-billing.md)
-for the plans).
-
-| | Starter (VPS-1, 4 GB) | Team (VPS-2, 8 GB) | Business (VPS-3, 12 GB) | Scale (VPS-4, 24 GB) |
-|---|---|---|---|---|
-| Live connections per Chest (RT1 sockets and SSE + RT2) | 2,000 | 5,000 | 10,000 | 20,000 |
-| Per tool, team pool (default) | 500 | 1,500 | 3,000 | 6,000 |
-| Per tool, public pool (default, with `public.sockets`) | 200 | 500 | 1,000 | 2,000 |
-| RT2 publishes per tool | 100 / s | 200 / s | 400 / s | 800 / s |
-| RT2 deliveries (fan-out) per Chest | 5,000 / s | 10,000 / s | 20,000 / s | 40,000 / s |
-| `chest front` connections | 2,512 | 5,512 | 10,512 | 20,512 |
-
-The owner or an admin can lower or raise a tool's pools on its Settings
-(within the Chest's cap). The public pool never takes the team pool's places:
-anonymous traffic cannot lock members out, as for request slots today.
+What it costs: one connection per open device (~56 KiB), nothing in the
+tool while nobody writes.
 
 ## Failure modes
 
 | Failure | What happens |
 |---|---|
-| Tool redeployed | RT1: `1012`, clients reconnect to the new version within seconds. RT2: nothing (sockets are the Chest's); publishes during the switchover come from whichever instance serves |
-| Tool crashed or restarting | RT1: sockets drop, reconnect fails (502) until supervision restarts it, backoff up to 30 s. RT2: sockets stay; publishes stop; the page keeps its data |
-| Node restarted (Chest update) | Every socket drops; clients reconnect with backoff; team host sessions are in memory, so members sign in again first (the helper sees 401 and reloads the page); RT2 `epoch` changes → `resync` |
-| Caps reached | 503 at the upgrade, a Logs line for the tool, the metric; existing sockets unaffected |
-| Slow member (bad network) | RT1: closed after 30 s of blocked write. RT2: queue overflow → `1013` → reconnect and resync. Neither grows the node's memory |
-| Burst publish from a tool | 429 `rate_limited` to the tool; nothing queued in the node |
-| Memory pressure on the server | The caps bound the node's share; the health sentence counts live connections |
-| Token signed by an old instance | Accepted while that instance is in service; afterwards the client fetches a new one (5 min life) |
-| Access revoked while a message is in flight | The close happens before any later delivery; at most the message already written to the socket arrives |
+| Tool redeployed, crashed, asleep | Nothing for the connections; publishes and feeds resume when it runs |
+| Node restarted (Chest update) | Connections drop; clients reconnect with backoff; new `epoch` → replayed from the change log. The portal's sessions are in memory: a restart signs everyone out of the team hosts (as for every page), the client says `signed_out` |
+| Server full | Idle tools sleep first; then 503 at connect, waited quietly by the client, a Logs line, the capacity alert; open connections untouched |
+| A member's network is slow | Their queue fills, `1013`, they reconnect and replay |
+| A tool publishes in a loop | Its pages fall behind and are closed `1013`, then replay; the server's memory, not a share, bounds it |
+| Access revoked while a message is in flight | The close comes before any later delivery |
+| The tools database is down | Joins of membership-table channels answer `error unavailable`; feeds pause; other channels work. Once the session on it is back, the space starts a new epoch and closes its pages `1013`: they come back and are replayed from the change log |
+| The provider does not answer a renewal | 503, the client tries again later; the connection stays until its session's end |
 
 ## Testing
 
-- **Chest (Go)**: frame-header relay and limits (size, idle, lifetime, slow
-  consumer), Origin and session checks at the upgrade, pools and caps, revocation
-  registry, `1012` spread on switchover; RT2 hub: token verification (binding,
-  `aud`, patterns, kick “not before”), fan-out order and `seq`, presence merge
-  and the 10 s leave, queue overflow, rate limits.
-- **SDK**: `realtime.token` against a vector signed by the Chest (like the
-  assertion); the client module against a fake hub; `fakeChest` gains
-  upgrades, SSE and an in-process realtime hub with the same limits.
-- **Test bench** (`tests/apps/testweb`): an echo WebSocket, an SSE clock, a
-  small two-channel chat on RT2.
-- **VM browser proof, two members** (Playwright, two browser contexts):
-  A and B open the chat; A sends → B sees it; typing shown to B; presence of
-  both; B without access → 403 at the upgrade; A's access revoked in Team →
-  A's socket closes with `access_removed` within a second and A's page says
-  so; a token of tool X refused on tool Y's endpoint; a wrong `Origin` refused;
-  tool redeployed → RT1 echo reconnects, RT2 chat untouched; node restarted
-  → both reconnect and the chat resyncs; caps lowered to 1 → 503.
-- **PB3**: hot reload of a Next.js draft through the draft host.
+- **Go**: the WebSocket framing (handshake, masking, fragments, sizes,
+  pings); the hub (patterns, rules, membership checks, kicks, presence merge
+  and delayed leave, `seq`, backfill, replay from the change log after ten
+  minutes away and across a new epoch with a row committed during the
+  replay, `resync` beyond the log, queues and `1013`, memory held in the
+  server's room, renewal, revocation sweeps); the node's room (a
+  connection puts an idle tool to sleep, is refused only when full,
+  counted); the endpoint's checks (Origin, session, access, subprotocol,
+  renewal, full server); the session's renewal and `Unanswered`; the
+  triggers and the change log on a real PostgreSQL 17 (places in commit
+  order, read back by channel, pruning); memory per connection.
+- **SDK**: `realtime` against a fake Chest; the browser client against a
+  fake hub with a change log and a clock: a 10-minute disconnect replays
+  every row once and in order with no reload, memory replay within 2
+  minutes, `resync` beyond a week, renewal every 5 minutes and
+  `signed_out` on 401, a full server waited quietly, no status flicker on
+  a quick reconnect, visibility, `online` and `pageshow` handled.
+- **Browser proof** (`realtime.spec.ts`, VM): two members chat through the
+  test bench (feed, typing, presence); the owner's browser offline 2 min
+  10 s while bob writes, then back: the three messages arrive once and in
+  order, no reload, no call to the tool; a membership row deleted kicks;
+  access taken back closes the socket; the same in a Perseus draft
+  preview.
 
-## What to build, in lots
+## Decided by Paul on 7 October
 
-| Lot | Content | Depends on |
-|---|---|---|
-| **RT1a Team pass-through** | `chest/toolfront`: upgrade on `/chest/*` of team hosts and on draft and preview hosts (any path of a draft), checks at the upgrade, assertion on the upgrade, frame-header relay, sizes, idle, lifetime, slow consumer, pools out of request slots, SSE streamed and out of the 5-min answer limit, socket registry, `1012` on switchover, `1008` on revocation from the lifecycle engine; `chest front` cap per plan; metrics, Logs lines, overview count, `/api/v1/tools/{tool}/connections`; SDK `live` helpers and `fakeChest` upgrades; test bench echo and SSE; VM proof | — |
-| **RT1b Public sockets** | Capability `public.sockets` (sentence en/fr, approval, `chest check`), public host upgrade with exact public Origins, per-address caps, public pool | RT1a |
-| **RT2a Chest Realtime** | Capability `realtime`; hub in the node; `/_chest/realtime` endpoint; tokens, channels, `publish`, `send`, `online`, `kick`, `stats`; `seq` and `epoch`; SDK `realtime` and `realtime/client`; `fakeChest` hub; test bench chat; two-member browser proof | RT1a (shares the upgrade checks, registry, caps) |
-| **RT2b Presence** | Presence per channel, `track`, merged per member, 10 s leave, `presence()` | RT2a |
-| **RT2c Catalogue chat** | A Slack-like catalogue tool (`chest-by-argentic/chat`) as the proof of RT2 with notifications, badges and uploads | RT2b, N, ST |
-| *Later* | Public channels (`realtime.public`, after public accounts), bounded replay, portal bell on realtime, WebSockets over HTTP/2 | — |
+1. **No arbitrary limit**: no share of memory; each connection's measured
+   cost held with the tools awake, refused only when the server is truly
+   full, the user never feeling it, the owner seeing the capacity alert.
+2. **Stable without the user ever feeling a problem**: the session renewed
+   on the open connection (no hourly cut); any absence replayed from the
+   change log with no loss, no duplicate, no reload; phone sleep, network
+   change and laptop lid handled.
+3. **No public channels, no outside visitors** on Chest realtime (members
+   only); a tool's public part does its own realtime if it ever needs it.
+4. **The tools database stays awake** while a page is connected.
 
-**Where it fits (proposal):** RT1a **before PB3** — PB3 (live preview, week of
-19 October) needs hot reload through draft hosts; RT1a is about a week, so the
-week of 12 October beside PB-B/PB1's remaining work, deployed with PB3. RT1b
-when a public tool asks for it. RT2a and RT2b after PB4, as part of SDK+ P1
-with the delivery engine, then RT2c with the catalogue, since each catalogue
-tool is the proof of the primitive it needs.
+## Open questions for Paul (defaults applied)
 
-## Changes to other pages (when built)
-
-- `docs/architecture.md`: the front's upgrade and SSE rules, the pools, the
-  realtime hub, tokens (“Chest-Realtime v1”).
-- [SDK and agents vision](../98_travail/sdk-and-agents-vision.md): the Realtime
-  line points here (done with this page).
-- [Perseus Code](perseus-build.md): PB3's dependency “front WebSocket support” = RT1a.
-- SDK README: `live`, `realtime`, `realtime/client`, the Slack recipe.
-
-## Open questions for Paul
-
-1. **Order**: RT1a before PB3 (proposed), RT2 after PB4 with SDK+ P1 — or RT2
-   earlier if the chat catalogue tool is wanted for the first pilot?
-2. **Public sockets without RT2**: `public.sockets` (RT1b) allows a public
-   live page today with the tool's own sockets; ship it only on demand
-   (proposed) or with RT1a?
-3. **History**: none (proposed), or a small replay buffer from the start?
-4. **Caps per plan**: the values above are estimates from memory per socket;
-   to confirm by a load test on a VPS-1 (2,000 idle sockets, 100 publishes a
-   second to 50 members).
+1. **Pass-through (a)** for a tool's own protocol (co-editing with Yjs,
+   PB3's hot reload of a dev server, realtime on a public part). *Default:
+   later, approved at install with “stays awake”; PB3 reloads the preview
+   frame after each turn instead.*
+2. **Away longer than a session, or a Chest restart**: the page reloads
+   once, by itself, and the provider signs the person in again without a
+   click while its own session lasts; the draft is kept. Proven in the VM.
+   *Default (Paul, 7 October: sign-in is never a problem): kept.*
+3. **Change log kept a week**. *Default (Paul, 7 October): a week.*
