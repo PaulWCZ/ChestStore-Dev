@@ -195,6 +195,28 @@ const emailRefused = /[\s\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2
 const emailLocal = /^[^\s@<>()[\]\\,;:".]+(?:\.[^\s@<>()[\]\\,;:".]+)*$/u;
 const emailDomain = /^(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+(?=[\p{L}\p{N}-]*\p{L})[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?$/u;
 
+// readEmail(text, { max }): field.email()'s rule as a pure function, the
+// same in the browser (an island, a rule a tool shares with its pages) and
+// on the server — field.email() is built on it. An address a person typed:
+// { ok: true, value } (trimmed, the domain lower-cased), or { ok: false,
+// code, values } — "empty", "too_long" ({ max }), "invalid_email" — to
+// say with the catalogue (fail(code, values) in an action).
+export type EmailRead = { ok: true; value: string } | { ok: false; code: "empty" | "too_long" | "invalid_email"; values: Record<string, number> };
+export function readEmail(typed: string, { max = 254 }: { max?: number } = {}): EmailRead {
+  if (!Number.isInteger(max) || max < 6 || max > 254) throw new TypeError("readEmail: max between 6 and 254");
+  const refuse = (code: "empty" | "too_long" | "invalid_email", values: Record<string, number> = {}): EmailRead => ({ ok: false, code, values });
+  if (typeof typed !== "string") return refuse("invalid_email");
+  const s = typed.trim();
+  if (s === "") return refuse("empty");
+  if ([...s].length > max) return refuse("too_long", { max });
+  if (emailRefused.test(s)) return refuse("invalid_email");
+  const at = s.indexOf("@");
+  const local = s.slice(0, at);
+  const domain = s.slice(at + 1).toLowerCase();
+  if (at < 1 || [...local].length > 64 || !emailLocal.test(local) || !emailDomain.test(domain) || domain.length > 253) return refuse("invalid_email");
+  return { ok: true, value: `${local}@${domain}` };
+}
+
 export const field = {
   // Trimmed text, from min (1: required) to max characters (code points,
   // not UTF-16 units); bidirectional overrides removed; only invisible
@@ -224,15 +246,8 @@ export const field = {
     if (!Number.isInteger(max) || max < 6 || max > 254) throw new TypeError("field.email: max between 6 and 254");
     return {
       read(value) {
-        const s = value === undefined || value === null ? "" : text(value).trim();
-        if (s === "") fail("empty");
-        if ([...s].length > max) fail("too_long", { max });
-        if (emailRefused.test(s)) fail("invalid_email" as ErrorCode);
-        const at = s.indexOf("@");
-        const local = s.slice(0, at);
-        const domain = s.slice(at + 1).toLowerCase();
-        if (at < 1 || [...local].length > 64 || !emailLocal.test(local) || !emailDomain.test(domain) || domain.length > 253) fail("invalid_email" as ErrorCode);
-        return `${local}@${domain}`;
+        const read = readEmail(value === undefined || value === null ? "" : text(value), { max });
+        return read.ok ? read.value : fail(read.code as ErrorCode, read.code === "too_long" ? read.values : undefined);
       },
     };
   },

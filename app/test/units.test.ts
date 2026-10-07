@@ -7,7 +7,7 @@ import { csvLine } from "../src/csv.ts";
 import { formatter, publicLocale } from "../src/i18n.ts";
 import { islandRegistry } from "../src/registry.ts";
 import { checkPage, checkSources, checkWords } from "../src/testing.ts";
-import { AppError, cutText, field, readMoney, toolPath } from "../src/tool.ts";
+import { AppError, cutText, field, readEmail, readMoney, toolPath } from "../src/tool.ts";
 
 test("fields read forms and JSON alike, and refuse with a code", () => {
   const refused = (f: () => unknown, code: string) => assert.throws(f, (e: unknown) => e instanceof AppError && e.code === code);
@@ -242,6 +242,29 @@ test("email: trimmed, the domain lower-cased, refused as invalid_email (spaces, 
   refusedAs(() => field.email({ max: 20 }).read("someone@example.com.fr"), "too_long");
   assert.throws(() => field.email({ max: 300 }), TypeError);
   assert.equal(field.optional(field.email()).read(""), undefined);
+});
+
+test("readEmail: field.email's rule as a pure answer, the same from /client (the browser) — never a throw", async () => {
+  // The built package (npm test builds it first): one implementation, from
+  // the root and from /client.
+  const client = await import("../dist/client.js") as { readEmail: typeof readEmail };
+  const root = await import("../dist/index.js") as { readEmail: typeof readEmail };
+  assert.equal(client.readEmail, root.readEmail, "/client and the root give the same function");
+  assert.deepEqual(client.readEmail(" A@B.CO "), readEmail(" A@B.CO "));
+  assert.deepEqual(readEmail("  Ana.Lopez@Example.COM "), { ok: true, value: "Ana.Lopez@example.com" });
+  assert.deepEqual(readEmail(""), { ok: false, code: "empty", values: {} });
+  assert.deepEqual(readEmail(" \t "), { ok: false, code: "empty", values: {} });
+  assert.deepEqual(readEmail("Ana <ana@example.com>"), { ok: false, code: "invalid_email", values: {} });
+  assert.deepEqual(readEmail("someone@example.com.fr", { max: 20 }), { ok: false, code: "too_long", values: { max: 20 } });
+  assert.deepEqual(readEmail(42 as unknown as string), { ok: false, code: "invalid_email", values: {} });
+  assert.throws(() => readEmail("a@b.co", { max: 5 }), TypeError);
+  // field.email() answers exactly what readEmail does, refusals included.
+  const email = field.email({ max: 40 });
+  for (const typed of ["a@b.co", " X@Y.FR ", "a..b@example.com", "a@b", "", "\u200b@x.fr", `${"a".repeat(41)}@x.fr`, "élodie@exemple.fr", "a@münchen.de"]) {
+    const read = readEmail(typed, { max: 40 });
+    if (read.ok) assert.equal(email.read(typed), read.value, typed);
+    else assert.throws(() => email.read(typed), (e: unknown) => e instanceof AppError && e.code === read.code && JSON.stringify(e.values) === JSON.stringify(read.code === "too_long" ? read.values : {}), typed);
+  }
 });
 
 test("text: code points, bidirectional overrides removed, only invisible characters is empty", () => {

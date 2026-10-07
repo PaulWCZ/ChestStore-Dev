@@ -12,7 +12,7 @@ export { FormToken, Honeypot } from "./form.tsx";
 // For rules a tool shares between its server and its islands (an import
 // read in the browser to show it, then again on the server): they refuse
 // with the same codes on both sides.
-export { AppError, fail, readMoney } from "./tool.ts";
+export { AppError, fail, readEmail, readMoney, type EmailRead } from "./tool.ts";
 // The types an island needs: an action's outcome (call()'s answer), what
 // it sends, the codes and words, plain props.
 export type { Outcome, SentOf } from "./tool.ts";

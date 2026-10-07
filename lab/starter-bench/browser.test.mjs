@@ -4,6 +4,7 @@
 // forms work without JavaScript.
 //   node --test lab/starter-bench/browser.test.mjs   (after npm run build in starter/)
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { after, before, test } from "node:test";
 import { chromium } from "playwright-core";
@@ -84,22 +85,71 @@ test("a refresh keeps what is typed, the scroll, an island's state; Undo works",
   await close();
 });
 
-test("a field's refusal is said under that field in the reader's words, gone at the next send", async () => {
-  const { page, close } = await open();
+test("a field's refusal is said next to that field in the reader's words (no toast), what was typed kept, gone at the next input", async () => {
+  const { page, problems, close } = await open();
   await page.evaluate(() => document.querySelector("#body").removeAttribute("required"));
   await page.fill("#body", "   ");
   await page.click("form.composer button");
-  await page.waitForSelector("#body + .ck-error >> text=Write something first.");
+  await page.waitForSelector("#body + .ck-error[role=alert] >> text=Write something first.");
   assert.equal(await page.getAttribute("#body", "aria-invalid"), "true");
   assert.match(await page.getAttribute("#body", "aria-describedby"), /body-error/u);
   assert.equal(await page.evaluate(() => document.activeElement?.id), "body");
+  assert.equal(await page.inputValue("#body"), "   ", "what was typed stays");
   assert.equal(await page.locator(".ck-toast-error").count(), 0, "no toast");
+  // The next input clears the mark: the person is fixing it.
+  await page.type("#body", "N");
+  assert.equal(await page.locator("#body + .ck-error").count(), 0);
+  assert.equal(await page.getAttribute("#body", "aria-invalid"), null);
+  assert.equal(await page.getAttribute("#body", "aria-describedby"), null);
   await page.fill("#body", "Now something");
   await page.click("form.composer button");
   await page.waitForSelector("li.note >> text=Now something");
   assert.equal(await page.locator("#body + .ck-error").count(), 0);
   assert.equal(await page.getAttribute("#body", "aria-invalid"), null);
+  // The refusal's 400 is the browser's own line; nothing else.
+  assert.deepEqual(problems.filter(p => !/status of 400/u.test(p)), []);
   await close();
+});
+
+test("a field's refusal fills the page's own place for that field's error (<id>-error) when the form has one; refused again, said once", async () => {
+  const { page, close } = await open();
+  // The place a page renders for the no-JS answer, hidden while empty.
+  await page.evaluate(() => {
+    const body = document.querySelector("#body");
+    body.removeAttribute("required");
+    const place = document.createElement("p");
+    place.id = "body-error";
+    place.className = "ck-error";
+    place.hidden = true;
+    body.closest("form").append(place);
+  });
+  for (let i = 0; i < 2; i++) {
+    await page.fill("#body", " ");
+    await page.click("form.composer button");
+    await page.waitForSelector("#body-error:not([hidden]) >> text=Write something first.");
+  }
+  assert.equal(await page.locator("form.composer .ck-error").count(), 1, "no second sentence added");
+  assert.equal(await page.getAttribute("#body", "aria-describedby"), "body-error", "described once");
+  await page.type("#body", "x");
+  assert.equal(await page.locator("#body-error").isHidden(), true, "emptied and hidden at the next input");
+  assert.equal(await page.textContent("#body-error"), "");
+  assert.equal(await page.getAttribute("#body", "aria-invalid"), null);
+  await close();
+});
+
+test("a field's refusal passes axe (WCAG 2.2 A/AA) with the sentence shown", async () => {
+  const context = await browser.newContext({ bypassCSP: true });
+  const page = await context.newPage();
+  await page.goto(`${tool.origin}/chest`);
+  await page.waitForFunction(() => document.documentElement.hasAttribute("data-ready"));
+  await page.evaluate(() => document.querySelector("#body").removeAttribute("required"));
+  await page.fill("#body", "   ");
+  await page.click("form.composer button");
+  await page.waitForSelector("#body + .ck-error");
+  await page.addScriptTag({ path: createRequire(import.meta.url).resolve("axe-core/axe.min.js") });
+  const violations = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] }, resultTypes: ["violations"] })).violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(" ")).join(", ")}`));
+  assert.deepEqual(violations, []);
+  await context.close();
 });
 
 test("without JavaScript the same form posts and comes back", async () => {

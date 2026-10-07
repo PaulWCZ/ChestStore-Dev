@@ -7,7 +7,8 @@ import { busyText, intercepts, navigate, refresh, send, startIslands, toast } fr
 //   start(islands)
 // The islands come to life, and every <form method="post"> to an action
 // is sent in place — no page load, the page refreshed, then the form
-// emptied; a refusal as a toast. Without JavaScript the same form posts
+// emptied; a refusal about a field said next to it (showFieldError), any
+// other as a toast. Without JavaScript the same form posts
 // and the server redirects back.
 const actionPath = /\/actions\/[A-Za-z0-9_]+$/u; // /chest/actions/x, /actions/x, /p/abc/actions/x
 
@@ -53,34 +54,66 @@ export async function start(islands: Record<string, ComponentType<never>>, lazy:
   await ready;
 }
 
-// A refusal under its field: aria-invalid, the sentence in a .ck-error
-// the field describes itself by, the focus there. Gone at the next send.
+// A refusal about one field, said as a form sent without JavaScript says
+// it: the field aria-invalid and described by the sentence, which sits
+// next to it — in the page's own place for that field's error when it has
+// one (an element of the form with the id "<field's id>-error", as the
+// kit's fields and a page's no-JS answer render it: filled and shown), else
+// in a .ck-error after the field — and the focus there. What was typed
+// stays. The mark goes at the field's next input, or at the next send.
 function showFieldError(form: HTMLFormElement, name: string, message: string): boolean {
   const named = form.elements.namedItem(name);
   const field = named instanceof RadioNodeList ? (named[0] as HTMLElement | undefined) : (named as HTMLElement | null);
   if (!field || !(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) || field.type === "hidden") return false;
-  const id = `${field.id || `${name}-${Math.random().toString(36).slice(2, 6)}`}-error`;
-  const said = document.createElement("p");
-  said.id = id;
-  said.className = "ck-error";
-  said.setAttribute("data-field-error", "");
+  const own = field.id ? form.querySelector<HTMLElement>(`[id="${CSS.escape(field.id)}-error"]`) : null;
+  let said: HTMLElement;
+  if (own) {
+    said = own;
+    said.setAttribute("data-field-error", "kept");
+    said.hidden = false;
+  } else {
+    said = document.createElement("p");
+    said.id = `${field.id || `${name}-${Math.random().toString(36).slice(2, 6)}`}-error`;
+    said.className = "ck-error";
+    said.setAttribute("data-field-error", "added");
+    field.insertAdjacentElement("afterend", said);
+  }
   said.setAttribute("role", "alert");
   said.textContent = message;
-  field.insertAdjacentElement("afterend", said);
   field.setAttribute("aria-invalid", "true");
-  field.setAttribute("aria-describedby", [field.getAttribute("aria-describedby"), id].filter(Boolean).join(" "));
+  const described = (field.getAttribute("aria-describedby") ?? "").split(" ").filter(Boolean);
+  if (!described.includes(said.id)) field.setAttribute("aria-describedby", [...described, said.id].join(" "));
   field.focus();
+  // Cleared as soon as the person changes what they typed (each field of
+  // a radio group or a list of boxes shares the name).
+  const clear = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || target.getAttribute("name") !== name) return;
+    form.removeEventListener("input", clear);
+    form.removeEventListener("change", clear);
+    clearFieldError(form, said);
+  };
+  form.addEventListener("input", clear);
+  form.addEventListener("change", clear);
   return true;
 }
-function clearFieldErrors(form: HTMLFormElement): void {
-  for (const said of form.querySelectorAll("[data-field-error]")) {
-    const field = form.querySelector<HTMLElement>(`[aria-describedby~="${said.id}"]`);
-    if (field) {
-      field.removeAttribute("aria-invalid");
-      const rest = (field.getAttribute("aria-describedby") ?? "").split(" ").filter(x => x && x !== said.id).join(" ");
-      if (rest) field.setAttribute("aria-describedby", rest);
-      else field.removeAttribute("aria-describedby");
-    }
-    said.remove();
+function clearFieldError(form: HTMLFormElement, said: Element): void {
+  const how = said.getAttribute("data-field-error");
+  if (how === null) return;
+  for (const field of form.querySelectorAll<HTMLElement>(`[aria-describedby~="${CSS.escape(said.id)}"]`)) {
+    field.removeAttribute("aria-invalid");
+    const rest = (field.getAttribute("aria-describedby") ?? "").split(" ").filter(x => x && x !== said.id).join(" ");
+    if (rest) field.setAttribute("aria-describedby", rest);
+    else field.removeAttribute("aria-describedby");
   }
+  said.removeAttribute("data-field-error");
+  if (how === "added") said.remove();
+  else {
+    // The page's own place: emptied and hidden, there for the next time.
+    said.textContent = "";
+    (said as HTMLElement).hidden = true;
+  }
+}
+function clearFieldErrors(form: HTMLFormElement): void {
+  for (const said of form.querySelectorAll("[data-field-error]")) clearFieldError(form, said);
 }

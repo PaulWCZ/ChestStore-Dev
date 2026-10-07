@@ -5,7 +5,7 @@ with a few islands in the browser. This package is that machinery; the
 tool's own code is routes, pages, islands, actions, rules and SQL, words.
 The SDK (`@argentic/chest-sdk`, its `README.md` in `node_modules`) is the
 Chest's side; the UI kit (`@argentic/chest-ui`, its `README.md`) the look.
-This page is for `@argentic/chest-app` 0.1.0-studio.9.
+This page is for `@argentic/chest-app` 0.1.0-studio.10.
 
 ## Where things are in a tool
 
@@ -39,8 +39,9 @@ This page is for `@argentic/chest-app` 0.1.0-studio.9.
   function, a Date, a Map — and carry their words (`t.home.remove`…),
   dates already written by `f`, the path if needed. An island imports only
   React, the kit, `src/components/`, and `call`, `refresh`, `navigate`,
-  `onLinkClick`, `toast`, `fill`, `plural`, `fail` (and `send` for a form
-  it posts itself) from `@argentic/chest-app/client` — with the types an
+  `onLinkClick`, `toast`, `fill`, `plural`, `fail`, `readEmail`,
+  `readMoney` (and `send` for a form it posts itself) from
+  `@argentic/chest-app/client` — with the types an
   island names (`Outcome`, `SentOf`, `ErrorCode`, `Words`, `Plain`), never
   from the package's root (server code). Islands do not nest. Each island is a
   React root of its own: the kit's `useToast()` sees no `<Toasts>` there —
@@ -59,8 +60,10 @@ This page is for `@argentic/chest-app` 0.1.0-studio.9.
     inputs named like the fields (a button may carry `formaction`). Without
     JavaScript the server redirects back (a refusal in `?error=`, shown by
     the layout's `notice`); with it the form is sent in place, the page
-    refreshed, then the form emptied; a refusal is a toast; a second
-    submit while the first is on its way says "still sending".
+    refreshed, then the form emptied; a refusal about a field is said
+    next to that field (below, "Fields of an action"), any other is a
+    toast; a second submit while the first is on its way says "still
+    sending".
   - an island: `await call("addNote", { body })` — typed by the action's
     fields; it refreshes the page after a success (or follows the action's
     `redirect()`); a refusal is a toast and `{ ok: false, error, message }`
@@ -248,11 +251,22 @@ A form sent without JavaScript and refused goes back to its page with what
 it held: `sent("body")` in the page's context (kept a minute in a cookie,
 never in the address) — `defaultValue={sent("body") ?? ""}`.
 A field's refusal names its field (`{ ok: false, error, message, field }`):
-a form sent in place shows the sentence under that field (`.ck-error`,
-`aria-invalid`, the focus there) instead of a toast; an island reads
+a form sent in place says it as the page would without JavaScript — the
+field `aria-invalid` and `aria-describedby` the sentence, the sentence
+next to it, the focus there, what was typed kept — instead of a toast.
+The sentence goes in the page's own place for that field's error when
+the form has one — an element with the id `<field's id>-error` (render
+it `hidden` when empty: `<p id="email-error" className="ck-error" hidden>`,
+the place a no-JS answer fills) — else in a `<p class="ck-error"
+role="alert">` added after the field. The mark goes at the field's next
+input or change, or at the next send. A toast only when no field is
+named (or the form has no visible field of that name). An island reads
 `outcome.field` to do the same. A run names one too:
 `fail("invalid", undefined, { field: "email" })` (a rule that reads the
-database: "this address is already registered").
+database: "this address is already registered"); a rule of the tool's
+that refuses a field's value (`email(input.address)` in `src/lib/`)
+throws without one — name it where the action catches, or the form
+falls back to a toast.
 
 Each field has two types: what `run()` receives (read) and what `call()`
 may send (the wire): `money()` receives cents, a `number`, and accepts
@@ -263,7 +277,11 @@ the person typed, never `Number(…)` or `parseFloat(…)` of it.
 `max` in code points; control characters `invalid`, bidirectional
 overrides removed, only invisible characters `empty`),
 `email({ max? })` (an address a person typed: trimmed, the domain
-lower-cased, the part before `@` kept as written; at most `max`
+lower-cased, the part before `@` kept as written — the rule is
+`readEmail(text, { max? })`, from the root and from `/client`: `{ ok:
+true, value }` or `{ ok: false, code, values }`, never a throw, the same
+in an island, a rule both sides share (`src/shared/`) and the server;
+`fail(read.code, read.values)` in an action; at most `max`
 characters, 254 by default and at most, 64 before the `@`; a space, a
 control or invisible character, no `@` or two, a display name — `Ana
 <ana@example.com>` — quotes, brackets, a domain without a dot are
