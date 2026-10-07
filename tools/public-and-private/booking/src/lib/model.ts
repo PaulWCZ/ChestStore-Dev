@@ -1,3 +1,4 @@
+import { field } from "@argentic/chest-app";
 import { AppError } from "./app-error.ts";
 import { colors, durations, isColor, isLocationKind, locationKinds, reserved, slugify, type Color, type LocationKind } from "../shared/kinds.ts";
 
@@ -20,12 +21,14 @@ export function clean(value: unknown, max: number, options: { multiline?: boolea
   return text;
 }
 
-const address = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
+// An email address a person typed: the package's rule (field.email:
+// trimmed, the domain lower-cased, display names, controls, quotes and
+// IP literals refused with "invalid_email", "" with "empty"). The services
+// and the calendar import check with it too, so a guest booked by hand,
+// online or from a file is held to the same rule.
+const address = field.email({ max: limits.email });
 export function email(value: unknown): string {
-  if (typeof value !== "string") throw new AppError("invalid_email");
-  const text = value.trim();
-  if (text.length > limits.email || !address.test(text)) throw new AppError("invalid_email");
-  return text;
+  return address.read(value);
 }
 
 // Addresses of pages: a host's (/camille-martin) and a type's

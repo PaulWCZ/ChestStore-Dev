@@ -138,7 +138,8 @@ test("the answers reach the host's bell (in their language) and the guest's conf
   // French, the host's own words as written.
   assert.equal(shownTo(bell, "fr").body, "Project call — Bring samples — Which room?: Living room — Is it for a business?: Non");
   assert.equal(await email(sql, "confirmed", booking, "https://book.example.com"), "email");
-  const mail = chest.outbox.filter(m => m.to.includes("Alex@Example.com")).at(-1)!;
+  // Mailed as stored: the part before the @ as typed, the domain lower-cased.
+  const mail = chest.outbox.filter(m => m.to.includes("Alex@example.com")).at(-1)!;
   assert.ok(mail.text.includes("Your answers:\nWhich room?: Living room\nIs it for a business?: No\n"), mail.text);
   // Without questions, the confirmation is as before.
   const plain = await b.book(sql, host, (await b.typesOf(sql, ines.id))[0]!, { ...guest, start: "2026-10-07T07:00:00.000Z" }, monday);

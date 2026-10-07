@@ -87,6 +87,16 @@ test("a time that is not offered is refused: outside the hours, too soon, or not
   await refuses(b.book(sql, host, type, { ...guest, start: "2026-10-06T07:10:00.000Z" }, monday), "taken");
   await refuses(b.book(sql, host, type, { ...guest, start: "nonsense" }, monday), "invalid");
   await refuses(b.book(sql, host, type, { ...guest, email: "not an email", start: "2026-10-06T07:00:00.000Z" }, monday), "invalid_email");
+  await refuses(b.book(sql, host, type, { ...guest, email: "Sam <sam@example.com>", start: "2026-10-06T07:00:00.000Z" }, monday), "invalid_email");
+  await refuses(b.book(sql, host, type, { ...guest, email: "sam@[192.0.2.1]", start: "2026-10-06T07:00:00.000Z" }, monday), "invalid_email");
+  await refuses(b.book(sql, host, type, { ...guest, email: " ", start: "2026-10-06T07:00:00.000Z" }, monday), "empty");
+});
+
+test("a guest's address is kept as typed before the @, the domain lower-cased; erasing finds it whatever its cases", async () => {
+  const { sql, host, type } = await ready();
+  const made = await b.book(sql, host, type, { ...guest, email: " Sam.Lee@Example.COM ", start: "2026-10-06T07:00:00.000Z" }, monday);
+  assert.equal(made.booking.guestEmail, "Sam.Lee@example.com");
+  assert.equal((await b.eraseGuest(sql, asMember(camille), "sam.lee@EXAMPLE.com")).length, 1);
 });
 
 test("buffers keep time around a booking, for this type and the others", async () => {

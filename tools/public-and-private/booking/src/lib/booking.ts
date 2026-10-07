@@ -1208,10 +1208,11 @@ export async function cleanup(sql: Query, now = Date.now()): Promise<number> {
 
 // eraseGuest deletes every booking of an email address (a guest asked);
 // the bookings deleted (and their hosts), to take them out of the hosts'
-// calendars.
+// calendars. The address is matched as stored, cases aside, not checked
+// against today's rule: a guest booked under an older one is erased too.
 export async function eraseGuest(sql: Query, actor: Member, address: unknown): Promise<{ id: string; memberId: string }[]> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
-  const rows = await sql<{ id: string; member_id: string }[]>`delete from bookings where lower(guest_email) = ${email(address).toLowerCase()} returning id::text as id, member_id`;
+  const rows = await sql<{ id: string; member_id: string }[]>`delete from bookings where lower(guest_email) = ${clean(address, limits.email).toLowerCase()} returning id::text as id, member_id`;
   return rows.map(r => ({ id: r.id, memberId: r.member_id }));
 }
 
