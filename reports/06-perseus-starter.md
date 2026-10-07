@@ -827,7 +827,7 @@ arrangement as the SDK's knowledge-pack page. The owner decides.
   Hiring 123, Polls 104, Quotes 207 + 1 skipped, Status 109); the
   package's 52 and the 19 Chromium tests passing; `chest check` OK for
   the eighteen; `check-vendor` nothing stale. Browser flows on the
-  harness (`--prod --reset`), all steps passing: Status (28; its two
+  harness (`--prod --reset`), all steps passing: Status (27; its two
   subscribe forms now mark the field, no toast; axe WCAG 2.2 A/AA clean
   on both after a refusal sent by the script) and Forms (31, with
   `--tools crm,helpdesk --linked`). Code changed: Forms (readEmail),
