@@ -192,6 +192,10 @@ await step("on a phone, a French visitor: the English form speaks English, one q
   await visitor.locator("input.answer-input").fill("pas-une-adresse");
   await visitor.locator(".button.form-button", { hasText: "OK" }).click();
   expect((await visitor.locator(".q-error").innerText()).includes("Check the email address"), "email refused");
+  // Two dots in a row: the browser's own check lets it through, field.email's rule does not.
+  await visitor.locator("input.answer-input").fill("nina..roux@example.com");
+  await visitor.locator(".button.form-button", { hasText: "OK" }).click();
+  expect((await visitor.locator(".q-error").innerText()).includes("Check the email address"), "doubled dot refused");
   await visitor.locator("input.answer-input").fill("nina@example.com");
   // A copy goes only when the visitor asks for it, under the email question.
   await visitor.getByLabel("Email me a copy of my answers").check();

@@ -186,7 +186,7 @@ export const actions = {
     link: field.text({ max: 64 }),
     poll: field.optional(field.id()),
     name: field.text({ min: 0, max: limits.guestName * 2 }),
-    email: field.text({ min: 0, max: limits.guestEmail * 2 }),
+    email: field.optional(field.email({ max: limits.guestEmail })),
     dates: field.keyed(/^d([1-9][0-9]{0,17})$/u, field.int({ min: 0, max: 2 }), limits.dates.max),
   }, async (input, { locale, cookies }) => {
     const sql = db();

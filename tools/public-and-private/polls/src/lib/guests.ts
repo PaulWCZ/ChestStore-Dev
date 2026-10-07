@@ -1,8 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
-import { isAddress } from "@argentic/chest-sdk/mail";
 import { manages, sees } from "./access.ts";
-import { AppError } from "@argentic/chest-app";
+import { AppError, field } from "@argentic/chest-app";
 import { wantedPlaces, writeNamed } from "./answers.ts";
 import type { Query, Sql } from "./db.ts";
 import { isLocale, type Locale } from "../i18n/index.ts";
@@ -101,13 +100,22 @@ export async function mine(sql: Query, poll: Pick<Poll, "id" | "questions">, sec
   return { id: String(p.id), name: p.guest_name, email: p.guest_email ?? "", dates };
 }
 
+// The address a guest may give to hear of the chosen date: none ("" or
+// absent), else the package's rule (field.email: trimmed, the domain
+// lower-cased, the part before the @ as typed; display names, controls,
+// IP literals refused with "invalid_email"). Only mailed, never compared.
+const guestAddress = field.email({ max: limits.guestEmail });
+function guestEmail(value: unknown): string {
+  if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) return "";
+  return guestAddress.read(value);
+}
+
 // answerAsGuest: a guest's answer to an open date poll, new or changed
 // (with the secret of the first one). Answers the secret to keep: a new
 // one for a first answer, the same one for a change.
 export async function answerAsGuest(sql: Sql, link: unknown, input: { name: unknown; email: unknown; dates: unknown; locale: Locale; secret?: unknown }, now = new Date()): Promise<{ secret: string; first: boolean; poll: Poll }> {
   const name = clean(input.name, limits.guestName);
-  const emailText = clean(input.email, limits.guestEmail, { optional: true }).toLowerCase();
-  if (emailText !== "" && !isAddress(emailText)) throw new AppError("bad_email");
+  const emailText = guestEmail(input.email);
   return sql.begin(async tx => {
     const poll = await byLink(tx, link, { lock: true, now });
     if (poll.status !== "open") throw new AppError("closed");

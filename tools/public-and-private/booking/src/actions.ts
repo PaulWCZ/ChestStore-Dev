@@ -49,7 +49,7 @@ export const actions = {
 
   // A host books for a guest (a customer on the phone, at the counter):
   // they get the usual confirmation and link.
-  bookForGuest: action({ typeId: field.id(), start: text(40), name: text(120), email: text(254), phone: text(40), note: text(2000), zone: text(64), language: text(8) }, async (input, { member, request }) => {
+  bookForGuest: action({ typeId: field.id(), start: text(40), name: text(120), email: field.email(), phone: text(40), note: text(2000), zone: text(64), language: text(8) }, async (input, { member, request }) => {
     const sql = db();
     const s = await b.settings(sql);
     const made = await b.bookForGuest(sql, member, input.typeId, { ...input, language: languageOf(input.language) }, Date.now(), s.companyName);
@@ -200,7 +200,7 @@ export const actions = {
   // transaction, and the guest's page (/b/<secret>). A booking that fails
   // (a time just taken) gives its count and its token back.
   bookTime: publicAction({
-    host: text(40), type: text(40), start: text(40), name: text(120), email: text(254), phone: text(40), note: text(2000), zone: text(64),
+    host: text(40), type: text(40), start: text(40), name: text(120), email: field.email(), phone: text(40), note: text(2000), zone: text(64),
     // The answers to the host's questions, sent as q_<question id>.
     answers: field.keyed(/^q_([a-z0-9]{4,12})$/u, text(2000), 10),
   }, async (input, { locale, request, charge }) => {

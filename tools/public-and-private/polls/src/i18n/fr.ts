@@ -462,7 +462,7 @@ export const fr: Catalogue = {
     limit: "Trop de réponses envoyées d’ici aujourd’hui. Réessayez demain.",
     expired: "Cette page est restée ouverte trop longtemps. Rechargez-la, puis renvoyez votre réponse.",
     needs_javascript: "Ce formulaire a besoin de JavaScript : activez-le dans votre navigateur, puis renvoyez-le.",
-    bad_email: "Cette adresse e-mail ne semble pas correcte.",
+    invalid_email: "Cette adresse e-mail ne semble pas correcte.",
     guests_full: "Ce sondage a déjà tous les invités qu’il peut accueillir ({max}).",
   },
   // Les mots des composants du kit (@argentic/chest-ui/components) : ses

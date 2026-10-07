@@ -1,3 +1,4 @@
+import { field } from "@argentic/chest-app";
 import { AppError } from "./app-error.ts";
 import { limits } from "../shared/model.ts";
 
@@ -33,13 +34,13 @@ export function clean(value: unknown, max: number, options: { multiline?: boolea
 }
 
 // A plain email address (no name, no comment), as the Chest's mail sends
-// to; kept lowercase for comparisons, as written for display.
-const address = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
+// to: the package's rule (field.email: trimmed, the domain lower-cased, the
+// part before the @ as written; display names, controls, quotes and IP
+// literals refused with "invalid_email", "" with "empty"). The actions read
+// addresses with field.email() too; compared lowercase (lower(…) in SQL).
+const address = field.email({ max: limits.email });
 export function email(value: unknown): string {
-  if (typeof value !== "string") throw new AppError("invalid_email");
-  const text = value.trim();
-  if (text.length > limits.email || !address.test(text)) throw new AppError("invalid_email");
-  return text;
+  return address.read(value);
 }
 
 const numberPattern = /^[1-9][0-9]{0,8}$/u;

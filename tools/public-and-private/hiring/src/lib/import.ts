@@ -2,11 +2,11 @@ import { chest } from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, jobAccess } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
-import { activity } from "./candidates.ts";
+import { activity, email } from "./candidates.ts";
 import type { Sql } from "./db.ts";
 import { settings, stagesOf } from "./jobs.ts";
 import { dateOf } from "../shared/import-map.ts";
-import { clean, email, id, isLanguage, limits, link, phone, type Language } from "../shared/model.ts";
+import { clean, id, isLanguage, limits, link, phone, type Language } from "../shared/model.ts";
 
 // Importing candidates another tool exported (lib/import-map.ts read the
 // file in the browser; the recruiter checked the columns): each row lands
@@ -43,13 +43,16 @@ export async function importRows(sql: Sql, actor: Member | null, jobId: unknown,
       const r = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
       const line = Number.isInteger(r["line"]) ? Number(r["line"]) : 0;
       let row;
+      let name: string | undefined;
       try {
-        const name = clean(r["name"], limits.name);
+        name = clean(r["name"], limits.name);
         const address = email(r["email"]);
         row = { name, address, tel: safe(() => phone(r["phone"]), ""), url: safe(() => link(r["link"]), ""), letter: clean(r["coverLetter"], limits.coverLetter, { multiline: true, optional: true }) };
       } catch (error) {
         const code = error instanceof AppError ? error.code : "invalid";
-        skipped.push({ line, reason: code === "invalid_email" ? "email" : code === "empty" && !r["name"] ? "name" : "invalid" });
+        // The name read, what failed is the address (missing, too long or
+        // not one); else the name, missing or not one.
+        skipped.push({ line, reason: name !== undefined ? (code === "invalid_email" || code === "empty" || code === "too_long" ? "email" : "invalid") : code === "empty" && !r["name"] ? "name" : "invalid" });
         continue;
       }
       const applied = typeof r["appliedAt"] === "string" ? dateOf(r["appliedAt"]) : null;

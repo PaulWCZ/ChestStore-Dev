@@ -77,13 +77,14 @@ test("a guest answers with a name, no account; the results mark them; the member
   const { id, first, second } = await openDinner();
   const link = await guests.setGuestLink(sql, asMember(sofia), id, true, now);
   await assert.rejects(guests.answerAsGuest(sql, link, { name: "  ", email: "", dates: { [first]: 2 }, locale: "en" }, now), refuses("empty"));
-  await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "not an address", dates: { [first]: 2 }, locale: "en" }, now), refuses("bad_email"));
+  await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "not an address", dates: { [first]: 2 }, locale: "en" }, now), refuses("invalid_email"));
+  await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "Jean <jean@client.example>", dates: { [first]: 2 }, locale: "en" }, now), refuses("invalid_email"));
   await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "", dates: { "999": 2 }, locale: "en" }, now), refuses("invalid"));
   const jean = await guests.answerAsGuest(sql, link, { name: "Jean Dupont", email: "Jean@Client.example", dates: { [first]: 2, [second]: 1 }, locale: "fr" }, now);
   assert.equal(jean.first, true);
   assert.match(jean.secret, /^[A-Za-z0-9_-]{32}$/u);
   const [row] = await sql`select member, guest_name, guest_email, guest_locale, guest_key from participants where poll_id = ${id}`;
-  assert.deepEqual([row!["member"], row!["guest_name"], row!["guest_email"], row!["guest_locale"]], ["guest", "Jean Dupont", "jean@client.example", "fr"]);
+  assert.deepEqual([row!["member"], row!["guest_name"], row!["guest_email"], row!["guest_locale"]], ["guest", "Jean Dupont", "Jean@client.example", "fr"], "the part before the @ as typed, the domain lower-cased");
   assert.notEqual(row!["guest_key"], jean.secret, "only the secret's hash is kept");
   await answer(sql, asMember(hugo), id, { [(await polls.load(sql, id)).questions[0]!.id]: { dates: { [first]: 2 } } }, now);
   const v = await polls.view(sql, asMember(sofia), id, now);
@@ -99,9 +100,9 @@ test("a guest answers with a name, no account; the results mark them; the member
   assert.deepEqual(v.participants, [hugo.id], "the list of members who answered has no guest");
   // The export marks them, with their email (for those who manage it).
   const data = await polls.exportData(sql, asMember(sofia), id, now);
-  assert.deepEqual(data.guests.get(guestRow), { name: "Jean Dupont", email: "jean@client.example" });
+  assert.deepEqual(data.guests.get(guestRow), { name: "Jean Dupont", email: "Jean@client.example" });
   // Managers see the guests and their emails; a member does not.
-  assert.deepEqual((await guests.guests(sql, asMember(sofia), await polls.load(sql, id))).map(g => [g.name, g.email]), [["Jean Dupont", "jean@client.example"]]);
+  assert.deepEqual((await guests.guests(sql, asMember(sofia), await polls.load(sql, id))).map(g => [g.name, g.email]), [["Jean Dupont", "Jean@client.example"]]);
   assert.deepEqual(await guests.guests(sql, asMember(hugo), await polls.load(sql, id)), []);
 });
 

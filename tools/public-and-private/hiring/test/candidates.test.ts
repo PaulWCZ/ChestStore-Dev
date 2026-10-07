@@ -38,6 +38,11 @@ test("an application lands in the first stage, without a forced consent; the for
   assert.ok((await candidates.apply(sql, application(job.slug, { email: "pool@example.com", pool: true }))).candidate.poolAt);
   await assert.rejects(candidates.apply(sql, application(job.slug, { pool: "yes" })), { code: "invalid" });
   await assert.rejects(candidates.apply(sql, application(job.slug, { email: "lucie@" })), { code: "invalid_email" });
+  await assert.rejects(candidates.apply(sql, application(job.slug, { email: "Lucie <lucie@example.com>" })), { code: "invalid_email" });
+  await assert.rejects(candidates.apply(sql, application(job.slug, { email: "lucie@[192.0.2.1]" })), { code: "invalid_email" });
+  await assert.rejects(candidates.apply(sql, application(job.slug, { email: " " })), { code: "empty" });
+  // The part before the @ as typed, the domain lower-cased.
+  assert.equal((await candidates.apply(sql, application(job.slug, { email: " Lucie.G@Example.COM " }))).candidate.email, "Lucie.G@example.com");
   await assert.rejects(candidates.apply(sql, application(job.slug, { link: "javascript:alert(1)" })), { code: "invalid_link" });
   await assert.rejects(candidates.apply(sql, application(job.slug, { link: "" })), { code: "cv_missing" });
   await assert.rejects(candidates.apply(sql, application(job.slug, { phone: "call me" })), { code: "invalid" });

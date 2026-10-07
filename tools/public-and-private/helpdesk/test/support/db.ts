@@ -37,6 +37,16 @@ export async function testDatabase(options: { upTo?: string } = {}): Promise<Tes
     const name = "t_test_" + Math.random().toString(36).slice(2, 10);
     const admin = postgres(server, { max: 1, onnotice: () => {} });
     await admin.unsafe(`create role ${name} login password 'test'`);
+    // The Chest sets its time zone as the role's own (contract 0.4:
+    // CHEST_TIME_ZONE "is also its database role's timezone"), so every
+    // session — the tool's pool, @argentic/chest-app's, the test's — has
+    // the company's current_date. Without it the test's session would count
+    // in the server's zone while the server counts in the Chest's: a
+    // different day for an hour or two each evening. The zone is the fake
+    // Chest's when it started first (CHEST_TIME_ZONE), else UTC, the Chest's
+    // own default.
+    const zone = process.env["CHEST_TIME_ZONE"] ?? "";
+    await admin.unsafe(`alter role ${name} set timezone = '${/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/u.test(zone) ? zone : "UTC"}'`);
     await admin.unsafe(`create database ${name} owner ${name}`);
     const base = new URL(server);
     const url = `postgres://${name}:test@127.0.0.1:${base.port || 5432}/${name}?sslmode=disable`;

@@ -3,7 +3,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { bic, clean, country, email, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "../shared/model.ts";
+import { email } from "./email.ts";
+import { bic, clean, country, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "../shared/model.ts";
 import { ambiguousAmount, parseAmount, parsePercent } from "../shared/money.ts";
 import type { Seller } from "../shared/parties.ts";
 

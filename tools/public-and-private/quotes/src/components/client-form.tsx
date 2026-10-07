@@ -13,7 +13,7 @@ export type ClientFields = { kind: "company" | "person"; name: string; contact: 
 
 export const blankClient = (language: Locale): ClientFields => ({ kind: "company", name: "", contact: "", email: "", phone: "", address: "", postcode: "", city: "", country: "FR", deliveryAddress: "", siren: "", vatNumber: "", language, reverseCharge: false, notes: "", account: "" });
 
-const fieldOf: Record<string, keyof ClientFields> = { siren_invalid: "siren", vat_number_invalid: "vatNumber", email_invalid: "email", country_invalid: "country", empty: "name", account_invalid: "account" };
+const fieldOf: Record<string, keyof ClientFields> = { siren_invalid: "siren", vat_number_invalid: "vatNumber", invalid_email: "email", country_invalid: "country", empty: "name", account_invalid: "account" };
 
 export function ClientForm({ t, initial, id, onSaved, onCancel, onDirty, compact = false, readOnly = false }: { t: ClientFormWords; initial: ClientFields; id?: string; onSaved: (client: Client) => void; onCancel?: () => void; onDirty?: (dirty: boolean) => void; compact?: boolean; readOnly?: boolean }) {
   const [f, setF] = useState(initial);

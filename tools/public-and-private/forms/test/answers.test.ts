@@ -45,7 +45,7 @@ test("an answer is checked against its form on the server: errors per question, 
   await assert.rejects(send(f, { [name.id]: "Nina", [email.id]: "nope" }), (e: unknown) => e instanceof AppError && e.code === "answers" && e.values[email.id] === "email");
   await assert.rejects(send(f, { [name.id]: "Nina" }), (e: unknown) => e instanceof AppError && e.values[email.id] === "required");
   const { answer } = await send(f, { [name.id]: " Nina ", [email.id]: "Nina@Example.com", zzzzzzzz: "extra" });
-  assert.deepEqual(answer.data, { [name.id]: "Nina", [email.id]: "Nina@Example.com" });
+  assert.deepEqual(answer.data, { [name.id]: "Nina", [email.id]: "Nina@example.com" }, "the part before the @ as typed, the domain lower-cased");
   assert.equal(answer.email, "nina@example.com");
   assert.equal(answer.respondent, null);
   await refused(send(f, { [name.id]: "x".repeat(200000) }), "too_long");

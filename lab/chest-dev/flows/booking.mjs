@@ -56,6 +56,14 @@ await step("they pick a day and a time, fill three fields and the host's questio
   await page.getByLabel("Anything to prepare? (optional)").fill("A kitchen island in oak.");
   // Sent at once, as a browser that fills the fields itself would: not
   // refused (the server waits the seconds left).
+  // An address the browser lets through but mail would not take (two
+  // dots in a row): the server's field.email refuses it in plain words,
+  // the rest of the form kept.
+  await page.getByLabel("Your email address").fill("lucie..garnier@example.com");
+  await page.getByRole("button", { name: "Confirm the booking" }).click();
+  await page.getByText("Check the email address.").first().waitFor();
+  expect((await page.getByLabel("Your name").inputValue()) === "Lucie Garnier", "the form kept");
+  await page.getByLabel("Your email address").fill("lucie@example.com");
   await page.getByRole("button", { name: "Confirm the booking" }).click();
   await page.waitForURL(/\/b\/[A-Za-z0-9_-]{32}\?new=1/u);
   guestPage = page.url().split("?")[0];

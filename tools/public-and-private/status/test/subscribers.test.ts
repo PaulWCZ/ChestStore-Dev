@@ -44,7 +44,7 @@ test("double opt-in: an address is pending until its link confirms it; the same 
   const first = await subs.subscribe(sql, { email: " Lucie@Example.com ", language: "fr", components: [checkout] }, now);
   assert.equal(first.state, "new");
   assert.equal(first.send, true);
-  assert.equal(first.subscriber.email, "Lucie@Example.com");
+  assert.equal(first.subscriber.email, "Lucie@example.com", "the part before the @ as typed, the domain lower-cased");
   assert.equal(first.subscriber.token.length, 32);
   assert.deepEqual(first.subscriber.components, [checkout]);
   // Again within minutes: no second email; later: one more.
@@ -82,9 +82,14 @@ test("a subscriber chooses what to follow among what is shown, and unsubscribing
 
 test("the form refuses bad addresses; unconfirmed addresses are forgotten after 7 days", async () => {
   const { sql } = database;
-  for (const bad of ["", "nobody", "a@b", "a b@example.com", "<a@example.com>", "a@example.com\nBcc: x@y.z", "x".repeat(250) + "@example.com", 42]) {
+  for (const bad of ["nobody", "a@b", "a b@example.com", "<a@example.com>", "Ana <a@example.com>", "a..b@example.com", "a@[192.0.2.1]", "a@example.com\nBcc: x@y.z", "x".repeat(65) + "@example.com", 42]) {
     await refuses("invalid_email", () => subs.subscribe(sql, { email: bad, language: "en", components: "all" }));
   }
+  await refuses("empty", () => subs.subscribe(sql, { email: " ", language: "en", components: "all" }));
+  await refuses("too_long", () => subs.subscribe(sql, { email: "x".repeat(250) + "@example.com", language: "en", components: "all" }));
+  // The part before the @ as typed, the domain lower-cased.
+  assert.equal((await subs.subscribe(sql, { email: " Ana.B@Example.COM ", language: "en", components: "all" })).subscriber.email, "Ana.B@example.com");
+  await sql`delete from subscribers`;
   const old = new Date(Date.now() - 8 * 86400000);
   await subs.subscribe(sql, { email: "old@example.com", language: "en", components: "all" }, old);
   await subs.subscribe(sql, { email: "new@example.com", language: "en", components: "all" });

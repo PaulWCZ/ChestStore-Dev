@@ -464,7 +464,7 @@ export const en = {
     limit: "Too many answers from here today. Try again tomorrow.",
     expired: "This page was open too long. Reload it, then send your answer again.",
     needs_javascript: "This form needs JavaScript: turn it on in your browser, then send it again.",
-    bad_email: "This email address does not look right.",
+    invalid_email: "This email address does not look right.",
     guests_full: "This poll has all the guests it can take ({max}).",
   },
   // The words of the kit's components (@argentic/chest-ui/components):

@@ -118,7 +118,7 @@ export const en = {
     vat_number_invalid: "This VAT number is not valid (FR, then 11 digits for France).",
     iban_invalid: "This IBAN is not valid: check each character.",
     bic_invalid: "A BIC has 8 or 11 letters and digits.",
-    email_invalid: "This is not an email address.",
+    invalid_email: "This is not an email address.",
     prefix_taken: "“{prefix}” already begins {number}, of another kind of document: its next numbers would repeat. Choose another prefix.",
     prefix_invalid: "Prefixes: 1 to 8 letters or digits, a different one for each kind of document.",
     capital_invalid: "This is not an amount.",
