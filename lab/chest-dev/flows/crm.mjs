@@ -61,8 +61,14 @@ await step("a new company warns of a look-alike, then opens its page", async () 
 await step("add a person there, then a deal for her", async () => {
   await page.getByRole("button", { name: "Add a person" }).click();
   await page.getByLabel("Name").fill("Aurélie Masson");
-  await page.getByLabel("Email").fill("a.masson@pharmacie-centrale.fr");
+  // An address the browser takes but mail does not (no dot in the domain):
+  // the package's field.email refuses it in plain words, nothing is added.
+  await page.getByLabel("Email").fill("a.masson@pharmacie-centrale");
   await page.getByLabel("Job title").fill("Pharmacist, owner");
+  await page.getByRole("button", { name: "Add the contact" }).click();
+  await page.getByText("This email address does not look right.").first().waitFor();
+  expect(await page.locator(".mini-list a:has-text('Aurélie Masson')").count() === 0, "nothing added with a wrong address");
+  await page.getByLabel("Email").fill("A.Masson@Pharmacie-Centrale.fr");
   await page.getByRole("button", { name: "Add the contact" }).click();
   await page.waitForSelector(".mini-list a:has-text('Aurélie Masson')");
   await page.getByRole("button", { name: "New deal" }).click();
@@ -204,7 +210,8 @@ await step("Forms tells of someone who filled in the contact form: a new contact
   expect(await line.getByRole("link", { name: "Contact us" }).getAttribute("href") === "https://forms-chest.chest.test/chest/forms/5/answers/flowanswer000001", "the link back to the answer in Forms");
   expect((await page.locator(".timeline").innerText()).includes("Added from the form “Contact us”"), "added from the form");
   const main = await page.locator("main").innerText();
-  expect(main.includes("nina.roux@example.com") && main.includes("Roux Menuiserie"), "email and company");
+  // The address as she wrote it, its domain lower-cased (field.email).
+  expect(main.includes("Nina.Roux@example.com") && main.includes("Roux Menuiserie"), "email and company");
   // The same answer published again (another event id): one line still.
   await deliver(nina);
   await page.reload();
@@ -580,7 +587,7 @@ await step("GDPR: a person's data is exported, then deleted for good", async () 
   await page.waitForURL(/\/chest\/contacts\/\d+$/u);
   const contactUrl = page.url();
   const data = JSON.parse(await (await page.request.get(contactUrl + "/data")).text());
-  expect(data.contact.email === "a.masson@pharmacie-centrale.fr" && data.deals.length === 1, "export");
+  expect(data.contact.email === "A.Masson@pharmacie-centrale.fr" && data.deals.length === 1, "export");
   expect(data.activities.some(a => a.text.includes("winter season")), "what was written about her");
   await page.getByRole("button", { name: "Erase this person" }).click();
   await page.getByRole("button", { name: "Erase", exact: true }).click();
@@ -835,7 +842,7 @@ await step("Booking tells Clients a guest booked Hugo: a contact of Hugo's, the 
   expect(said.includes("Booked a meeting: Project call") && said.includes("10:00") && said.includes("with you"), "the line: " + said);
   expect(await line.getByRole("link", { name: "Project call" }).getAttribute("href") === "https://booking-chest.chest.test/chest/bookings/9001", "the type links back to the booking");
   expect((await page.locator(".timeline").innerText()).includes("Added when they booked a meeting"), "added by the booking");
-  expect((await page.locator("main").innerText()).includes("sarah.klein@example.com"), "her email, lower-cased");
+  expect((await page.locator("main").innerText()).includes("Sarah.Klein@example.com"), "her email as she wrote it (field.email)");
   // Moved to the day after, at 14:00 Paris; told twice; an older move late.
   const later = booked("9001", { moves: 1, start: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 2, 12, 0)) });
   await tellBooking(later);
