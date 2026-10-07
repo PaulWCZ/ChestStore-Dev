@@ -14,7 +14,7 @@ islands, refresh, fields, words, tests).
 | Path | What it is |
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest, contract 0.4 (roles `admin`, `host`; public part; `network`: the calendar hosts; `schedules`: `reminders`, `cleanup`, `calendars`) and the proposals it uses (`mail`, `calendar`, `emits`, `receives`, `translations`) |
-| `vendor/` | SDK 0.4.1 + studio proposals (0.4.1-studio.6), the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `vendor/` | SDK 0.4.1 + studio proposals (0.4.1-studio.7), the UI kit, `@argentic/chest-app`: packed copies, never edited |
 | `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, `/api/slots`, `/chest/api/slots`, `/chest/export`, `/b/<secret>/ics`, `/feed/<token>.ics`, `/chest-events`, `/chest-schedules`; `framed`: the public pages' `frame-ancestors` from Settings |
 | `src/actions.ts` | **Every mutation**, by name: the team's (`action`) and the public part's (`publicAction`: `bookTime`, `cancelMine`, `moveMine`) |
 | `src/pages/` | Pages rendered on the server: `Agenda`, `Booking`, `NewBooking`, `Types`, `TypeEdit`, `Hours`, `Settings`; public: `CompanyPage`, `HostPage`, `TypePage`, `GuestBooking`, their frame `PublicShell` |

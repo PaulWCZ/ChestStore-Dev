@@ -1,6 +1,6 @@
 import type { Booking } from "./booking.ts";
 import { format, meetingTime, type Locale } from "../i18n/index.ts";
-import { cut, notify, withdraw } from "./notify.ts";
+import { cut, notify, withdraw, cutLines } from "./notify.ts";
 import { answerText } from "./questions.ts";
 
 // The bell for hosts, in their time zone: a booking made, moved or
@@ -17,16 +17,16 @@ export async function booked(b: Booking, hostZone: string, titles: Titles = {}):
   // bell shows; the booking's page has everything.
   await notify([b.memberId], (t, locale) => ({
     title: format(t.bell.booked, { guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }),
-    body: cut([titles[locale] ?? b.title, b.guestNote, ...b.answers.map(a => `${a.label}: ${answerText(a, t.answers)}`)].filter(x => x !== "").join(" — "), 280),
+    body: cutLines([titles[locale] ?? b.title, b.guestNote, ...b.answers.map(a => `${a.label}: ${answerText(a, t.answers)}`)].filter(x => x !== "").join(" — "), 280),
   }), { path: path(b), key: `booking:${b.id}` });
 }
 
 export async function moved(b: Booking, hostZone: string, titles: Titles = {}): Promise<void> {
-  await notify([b.memberId], (t, locale) => ({ title: format(t.bell.moved, { guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }), body: cut(titles[locale] ?? b.title, 280) }), { path: path(b), key: `booking:${b.id}` });
+  await notify([b.memberId], (t, locale) => ({ title: format(t.bell.moved, { guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }), body: cutLines(titles[locale] ?? b.title, 280) }), { path: path(b), key: `booking:${b.id}` });
 }
 
 export async function cancelled(b: Booking, hostZone: string, titles: Titles = {}): Promise<void> {
-  await notify([b.memberId], (t, locale) => ({ title: format(t.bell.cancelled, { guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }), body: cut(b.cancelReason || (titles[locale] ?? b.title), 280) }), { path: path(b), key: `booking:${b.id}` });
+  await notify([b.memberId], (t, locale) => ({ title: format(t.bell.cancelled, { guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }), body: cutLines(b.cancelReason || (titles[locale] ?? b.title), 280) }), { path: path(b), key: `booking:${b.id}` });
 }
 
 // A colleague (who may manage every booking) moved or cancelled a host's
@@ -35,7 +35,7 @@ export async function cancelled(b: Booking, hostZone: string, titles: Titles = {
 export async function changedFor(kind: "moved" | "cancelled", b: Booking, by: string, hostZone: string, titles: Titles = {}): Promise<void> {
   await notify([b.memberId], (t, locale) => ({
     title: format(kind === "moved" ? t.bell.movedFor : t.bell.cancelledFor, { member: cut(by, 40), guest: cut(b.guestName, 40), when: meetingTime(b.startsAt, hostZone, locale) }),
-    body: cut(kind === "cancelled" && b.cancelReason ? b.cancelReason : (titles[locale] ?? b.title), 280),
+    body: cutLines(kind === "cancelled" && b.cancelReason ? b.cancelReason : (titles[locale] ?? b.title), 280),
   }), { path: path(b), key: `booking:${b.id}` });
 }
 
