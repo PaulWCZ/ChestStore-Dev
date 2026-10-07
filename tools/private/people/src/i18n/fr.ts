@@ -659,6 +659,7 @@ const words: Omit<Catalogue, "kit"> = {
     forbidden: "Votre rôle ne le permet pas.",
     not_found: "Cet élément n’existe plus.",
     invalid: "Vérifiez ce que vous avez écrit.",
+    invalid_email: "Écrivez une adresse e-mail, comme nom@exemple.fr.",
     too_long: "Trop long : {max} caractères au plus.",
     empty: "Écrivez d’abord quelque chose.",
     too_many: "Trop nombreux : {max} au plus.",

@@ -174,15 +174,6 @@ export function dueState(due: string, now: string): DueState {
   return daysBetween(now, due) <= 7 ? "soon" : "later";
 }
 
-// A work address, as people write it: one @, a dot in the domain, no
-// spaces. Only checked for shape; the Chest's own addresses win.
-export function email(value: unknown): string {
-  const text = clean(value, limits.email, { optional: true }).toLowerCase();
-  if (text === "") return "";
-  if (!/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[^\s@<>()"',;:.]{2,}$/u.test(text)) throw new AppError("invalid");
-  return text;
-}
-
 // Saturday and Sunday: a first day falling on one gets a word of warning.
 export function isWeekend(value: string): boolean {
   const d = new Date(value + "T00:00:00Z").getUTCDay();

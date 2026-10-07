@@ -4,7 +4,8 @@ import { can } from "./access.ts";
 import { AppError } from "../shared/app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { randomBytes } from "node:crypto";
-import { addDays, clean, day, email, fold, id, limits, memberId } from "../shared/model.ts";
+import { addDays, clean, day, fold, id, limits, memberId } from "../shared/model.ts";
+import { email } from "./email.ts";
 import { present } from "./people.ts";
 import { profiles, save, wouldLoop } from "./profiles.ts";
 
@@ -208,7 +209,8 @@ export function suggestions<P extends { id: string; name: string; email?: string
   const found = new Map<string, P[]>();
   for (const a of arrivals) {
     if (a.status !== "expected") continue;
-    const byAddress = a.workEmail ? people.filter(p => p.email && p.email.toLowerCase() === a.workEmail) : [];
+    const address = a.workEmail.toLowerCase();
+    const byAddress = address ? people.filter(p => p.email && p.email.toLowerCase() === address) : [];
     const key = fold(a.name);
     const same = byAddress.length > 0 ? byAddress : people.filter(p => fold(p.name) === key);
     if (same.length > 0) found.set(a.id, same);

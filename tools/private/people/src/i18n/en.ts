@@ -672,6 +672,7 @@ const words = {
     forbidden: "Your role does not allow this.",
     not_found: "This no longer exists.",
     invalid: "Check what you wrote.",
+    invalid_email: "Write an email address, like name@example.com.",
     too_long: "Too long: {max} characters at most.",
     empty: "Write something first.",
     too_many: "Too many: {max} at most.",

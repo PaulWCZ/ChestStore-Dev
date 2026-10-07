@@ -286,7 +286,13 @@ await step("HR writes an expected arrival by hand (a weekend is questioned) and 
   expect((await page.locator(".arrival-form .warn-hint").innerText()).trim() === "", "weekday fine");
   await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
   await page.getByRole("option", { name: "Inès Moreau" }).click();
-  await page.getByLabel("Their work email (if known)").fill("paul.mercier@example.test");
+  // An address the browser takes but mail does not (no dot in the domain):
+  // the package's field.email says so in plain words, nothing is added.
+  await page.getByLabel("Their work email (if known)").fill("paul.mercier@example");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByText("Write an email address, like name@example.com.").first().waitFor();
+  expect(await page.locator(".arrival", { hasText: "Paul Mercier" }).count() === 0, "nothing added with a wrong address");
+  await page.getByLabel("Their work email (if known)").fill("Paul.Mercier@Example.test");
   await page.getByRole("button", { name: "Save" }).click();
   await page.locator(".ck-toast", { hasText: "Arrival added." }).waitFor();
   const card = page.locator(".arrival", { hasText: "Paul Mercier" });

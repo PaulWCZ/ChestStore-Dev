@@ -11,7 +11,8 @@ import { plan } from "../src/lib/importer.ts";
 import { fieldDates } from "../src/lib/morning.ts";
 import { ofMember } from "../src/lib/journal.ts";
 import * as j from "../src/lib/journeys.ts";
-import { email, isWeekend } from "../src/shared/model.ts";
+import { isWeekend } from "../src/shared/model.ts";
+import { email } from "../src/lib/email.ts";
 import { filled, profile, updateJob, updateOwn } from "../src/lib/profiles.ts";
 import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -150,11 +151,11 @@ test("an arrival written by HR by hand: the same as Hiring's, corrected, linked 
   const { sql } = database;
   await assert.rejects(addArrival(sql, asMember(hugo), { name: "Lucie" }), refused("forbidden"));
   await assert.rejects(addArrival(sql, hr, { name: "" }), refused("empty"));
-  await assert.rejects(addArrival(sql, hr, { name: "Lucie", workEmail: "not an address" }), refused("invalid"));
+  await assert.rejects(addArrival(sql, hr, { name: "Lucie", workEmail: "not an address" }), refused("invalid_email"));
   await assert.rejects(addArrival(sql, hr, { name: "Lucie", managerId: "mbr_" + "z".repeat(26) }), refused("not_member"));
   const a = await addArrival(sql, hr, { name: "Lucie Garnier", job: "Sales associate", team: "Sales", startDate: "2026-11-02", managerId: ines.id, workEmail: "Nora@Example.test" });
-  assert.deepEqual([a.source, a.status, a.workEmail, a.managerId], ["manual", "expected", "nora@example.test", ines.id]);
-  const fixed = await updateArrival(sql, hr, a.id, { name: "Lucie Garnier", job: "Sales associate", startDate: "2026-11-03", managerId: ines.id, workEmail: "nora@example.test" });
+  assert.deepEqual([a.source, a.status, a.workEmail, a.managerId], ["manual", "expected", "Nora@example.test", ines.id]);
+  const fixed = await updateArrival(sql, hr, a.id, { name: "Lucie Garnier", job: "Sales associate", startDate: "2026-11-03", managerId: ines.id, workEmail: "Nora@Example.test" });
   assert.equal(fixed.startDate, "2026-11-03");
   // Her checklist before day 1: the newcomer's steps wait, the rest runs.
   const t = await j.createTemplate(sql, hr, { kind: "onboarding", name: "Newcomer" });
@@ -216,8 +217,10 @@ test("example steps speak each reader's language until reworded; the newcomer's 
 });
 
 test("addresses and weekends", () => {
-  assert.equal(email(" Lucie.Garnier@Atelier-Martin.fr "), "lucie.garnier@atelier-martin.fr");
+  // The package's field.email: the domain lower-cased, the rest as written.
+  assert.equal(email(" Lucie.Garnier@Atelier-Martin.fr "), "Lucie.Garnier@atelier-martin.fr");
   assert.equal(email(""), "");
-  for (const bad of ["lucie", "a@b", "a b@c.fr", "<a@b.fr>"]) assert.throws(() => email(bad), (e: unknown) => e instanceof AppError && e.code === "invalid");
+  assert.equal(email("  "), "");
+  for (const bad of ["lucie", "a@b", "a b@c.fr", "<a@b.fr>", "Lucie <lucie@atelier.fr>", "lucie@[10.0.0.1]", "lu\u202ecie@atelier.fr"]) assert.throws(() => email(bad), (e: unknown) => e instanceof AppError && e.code === "invalid_email", bad);
   assert.deepEqual(["2026-10-10", "2026-10-11", "2026-10-12"].map(isWeekend), [true, true, false]);
 });

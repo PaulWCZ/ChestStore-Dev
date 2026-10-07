@@ -346,7 +346,11 @@ test("the welcome to an arrival: an address already a member's is said on the fo
     assert.equal((await call(sofia, "addTemplateItem", { id: list.value.id, text: "Order the laptop", role: "hr", offset: -3 })).ok, true);
     const first = new Date(Date.now() + 9 * 86_400_000).toISOString().slice(0, 10);
     // Hugo is in the Chest already; HR wrote his address on an arrival.
-    const known = await call(sofia, "addArrival", { input: { name: "Hugo Bernard", startDate: first, workEmail: "hugo@atelier.test" } });
+    // An address that is not one is said in the reader's words (the
+    // package's field.email); one written in capitals is still Hugo's.
+    const wrong = await call(sofia, "addArrival", { input: { name: "Hugo Bernard", startDate: first, workEmail: "Hugo <hugo@atelier.test>" } });
+    assert.deepEqual([wrong.status, wrong.error, wrong.message], [400, "invalid_email", "Write an email address, like name@example.com."]);
+    const known = await call(sofia, "addArrival", { input: { name: "Hugo Bernard", startDate: first, workEmail: "Hugo@Atelier.test" } });
     const stranger = await call(sofia, "addArrival", { input: { name: "Lucie Garnier", startDate: first, workEmail: "lucie.garnier@atelier.test" } });
     assert.equal(known.ok && stranger.ok, true);
     const form = await page(sofia, "/chest/checklists/new");
