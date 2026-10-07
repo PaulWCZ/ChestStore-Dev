@@ -521,7 +521,7 @@ mail); the bell's notices carry their French translation in one notice.
 
 ## Needs from the SDK
 
-Built on SDK 0.4.1-studio.6 (contract 0.4 + studio proposals) and the package `@argentic/chest-app` 0.1.0-studio.6, in `vendor/`.
+Built on SDK 0.4.1-studio.7 (contract 0.4 + studio proposals) and the package `@argentic/chest-app` 0.1.0-studio.6, in `vendor/`.
 
 - **mail** (studio proposal, `chest.proposals.json` `mail.send`): send the
   quote, invoice, credit note or reminder with its PDF attached — to
