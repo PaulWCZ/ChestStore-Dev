@@ -36,7 +36,14 @@ such._
   copied into each tool. It is a versioned package, `@argentic/chest-app`,
   vendored the way the UI kit is, so a fix reaches every tool when the
   tool re-vendors it. The lead decided this; §7 compares both options.
-- **What it costs, measured with the candidates run in turn (§4, run 4):**
+- **What it costs, latest (7 October, studio.8, a quiet machine, §4
+  "Not measured"):** at rest 76.9 MiB PSS for the whole tree against
+  66.4 for the reference as shipped (+10.5; the server alone 42.0 against
+  34.3, +7.7); first 200 of `/chest` 266 ms against 208 (+58); image 18
+  MiB against 13. The starter is heavier and slower to wake than the
+  reference — by what it does that the reference does not — and all of it
+  stays far under 256 MiB and the 2 s before "Waking up…".
+- **What it cost on studio.2, measured with the candidates run in turn (§4, run 4):**
   - **At rest**, the starter's server holds **22.6 MiB of private memory
     (USS)**, against **18.7 MiB for the reference with the same V8 flag
     (A′)** and 23.6 MiB for the reference as shipped (A): **about 4 MiB
@@ -283,11 +290,14 @@ been run without that variable.)
   | Build, 4 CPUs (s) / peak PSS (MiB) | 1.3 / 258 | 0.7 / 186 |
   | `npm ci` in 512 MiB, 1 CPU | fits, peak 284 | fits, peak 292 |
 
-  The studio starter costs about 8 MiB more at rest and 60 ms more to its
-  first page than the reference: the package's machinery (islands per
-  page, the change log, bounded public writes, compression) and its
-  example page. Each of the 18 tools built on it rests at 93–105 MiB
-  (whole tree; 62–75 MiB server alone) — `reports/07-stack-and-memory.md`.
+  The studio starter costs about 10 MiB more at rest (whole tree; 8 MiB
+  the server alone) and 60 ms more to its first page than the reference
+  as shipped. Assumed, not measured in this run: the package's machinery
+  (islands per page, the change log, bounded public writes, compression)
+  and its example page (a database connection, kit components); run 4's
+  plain-page split (§4) put about half on each. Each of the 18 tools
+  built on it rests at 94–105 MiB (whole tree; 64–75 MiB server alone) —
+  `reports/07-stack-and-memory.md`.
 - A real Chest (its launcher is one more Node process).
 - The real Perseus workbench.
 - Firefox and Safari.
@@ -366,14 +376,14 @@ counts, the package's version, and every studio number of the header):
 - The package is 0.1.0-studio.8. The package's tests: 50 (10 units,
   35 server, 5 change log); in Chromium: 17 tests; the starter's: 16
   tests.
-- The project's `AGENTS.md` is 45 lines: what Perseus rewrites
+- The project's `AGENTS.md` is 51 lines: what Perseus rewrites
   (purpose, data model, decisions, what to delete from the example).
 - The reference page is the package's `AGENTS.md`, 581 lines, read from
   `node_modules/@argentic/chest-app/`. It covers how the package works,
   fields, words, the database, recipes (roles, writing to another member,
   paging, imports and archives, a schedule's test…), rules, the kit's
   classes, tests and pitfalls.
-- The template is 29 files and 926 lines. The package is 3,164 lines of
+- The template is 29 files and 932 lines. The package is 3,164 lines of
   source and 1,012 of tests. (The reference starter: 16 files, 311 lines.)
 
 **UI quality with the kit.**
@@ -411,9 +421,9 @@ Checked in Chromium only.
   date columns read as text.
 
 **Tests.** B2 has:
-- 15 tests in the starter: 11 against the built server, with the SDK's
-  fakeChest and a real PostgreSQL, and 4 on the sources — passing with and
-  without `NODE_ENV=development`;
+- 16 tests in the starter: 12 against the built server, with the SDK's
+  fakeChest and a real PostgreSQL, and 4 units (the words, the sources,
+  the look, a rule) — passing with and without `NODE_ENV=development`;
 - 35 tests in the package: its fields, redirects, formats and checks, and
   a small tool built on the packaged code (the pilots' own included; and
   bounds — junk that fails the checks spends nothing, a token serves
@@ -423,7 +433,7 @@ Checked in Chromium only.
   compression measured, `settled()`, `rawRoute`, `zipStream` read by `unzip`, the database in a far
   time zone, a route's own policy and referrer policy, a public page in
   its own language, a page's own head and exact title);
-- 15 Chromium tests (`lab/starter-bench/browser.test.mjs`). They check
+- 17 Chromium tests (`lab/starter-bench/browser.test.mjs`). They check
   hydration under the policy, forms sent in place, a download asked
   once, a link to a `#place` followed in place, and a refresh that
   keeps typed text, scroll, an island's state and a moved row's island.
