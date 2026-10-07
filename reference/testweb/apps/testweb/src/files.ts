@@ -7,7 +7,7 @@ import type { FileData, FileObject, FilePage } from "../../../packages/chest-cli
 // its Chest through the SDK (files.ts), never on the container's disk.
 export type QuotaProbe = { tooLarge: number; quota: string; written: number };
 
-export type UploadOptions = { maxSize?: number; types?: string[]; expiresIn?: number };
+export type UploadOptions = { maxSize?: number; types?: string[]; expiresIn?: number; public?: boolean };
 export type LinkOptions = { thumbnail?: 256 | 1024; download?: boolean };
 
 export interface Files {
@@ -17,8 +17,8 @@ export interface Files {
   list(): Promise<FilePage>;
   remove(name: string): Promise<boolean>;
   url(name: string, options?: LinkOptions): Promise<{ url: string; expiresIn: number }>;
-  // uploadUrl authorises one upload of a member's browser, straight to the
-  // Chest (never through this container).
+  // uploadUrl authorises one upload of a member's browser — or, public, of a
+  // visitor's —, straight to the Chest (never through this container).
   uploadUrl(name: string, options?: UploadOptions): Promise<{ url: string; method: "PUT"; expiresIn: number }>;
   // quotaProbe has the Chest refuse what goes beyond its bounds — what the
   // laboratory's proof reads — and removes what it wrote.

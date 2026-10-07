@@ -1,5 +1,5 @@
 {
-  "contract": "0.4",
+  "contract": "0.5",
   "manifest": {
     "file": "chest.json",
     "maxBytes": 16384,
@@ -9,7 +9,7 @@
         "required": true,
         "rule": "The version of the tool contract the tool is written for, \"MAJOR.MINOR\" — the SDK's MAJOR.MINOR. A Chest serves every version up to its own; an older Chest refuses the tool before reading anything else: \"This tool needs a newer version of your Chest\".",
         "pattern": "^(0|[1-9][0-9]{0,2})\\.(0|[1-9][0-9]{0,2})$",
-        "example": "0.4"
+        "example": "0.5"
       },
       {
         "key": "name",
@@ -68,14 +68,17 @@
       },
       {
         "key": "capabilities",
-        "rule": "What the tool uses of its Chest, each at most once, each approved as a permission: database (its own PostgreSQL), files (its private files), members (who has the tool), members.email (their addresses; with members), notifications (badges and inbox items), ai (AI models through the Chest; with the key ai).",
+        "rule": "What the tool uses of its Chest, each at most once, each approved as a permission: database (its own PostgreSQL), sealed (values it seals, which only its members open through it; every version of the tool then waits for the owner or an admin), files (its private files), members (who has the tool), members.email (their addresses; with members), members.groups (every group of the Chest, and which of those members are in each; with members), notifications (badges and inbox items), ai (AI models through the Chest; with the key ai), realtime (live updates to its members' open pages; its channels in the key realtime).",
         "example": [
           "database",
+          "sealed",
           "files",
           "members",
           "members.email",
+          "members.groups",
           "notifications",
-          "ai"
+          "ai",
+          "realtime"
         ]
       },
       {
@@ -99,10 +102,64 @@
         }
       },
       {
+        "key": "realtime",
+        "rule": "With the capability realtime: the channels the members' pages join, and the tables whose writes become live events. \"channels\", 1 to 32 patterns, no channel name matched by two: \"name\", segments of ^[a-z0-9_-]{1,64}$ joined by colons, 128 characters at most, its last segment possibly {member} (the joining member's own id only), * (any segment) or {key} (a membership table decides); \"join\", absent for every member who has the tool, a list of the tool's roles, or {\"table\", \"key\", \"member\"} — a member joins {key} when a row of table has the key in column key and their id in column member (requires database; a row deleted removes them at once); \"send\" true lets those who join send ephemeral messages; \"presence\" true lets them appear in its presence. \"feeds\", up to 16: \"table\", whose inserts, updates and deletes become events \u003ctable\u003e.insert, .update, .delete on \"channel\" — a declared channel, or prefix:{column} of a variable pattern, the column giving the last segment —, each carrying \"columns\" (1 to 32, the primary key first) of the row. Names of tables and columns are ^[a-z_][a-z0-9_]{0,62}$. Never approved: only the capability is.",
+        "example": {
+          "channels": [
+            {
+              "name": "everyone",
+              "presence": true
+            },
+            {
+              "name": "room:{id}",
+              "join": {
+                "table": "room_members",
+                "key": "room_id",
+                "member": "member_id"
+              },
+              "send": true,
+              "presence": true
+            },
+            {
+              "name": "inbox:{member}"
+            }
+          ],
+          "feeds": [
+            {
+              "table": "messages",
+              "channel": "room:{room_id}",
+              "columns": [
+                "id",
+                "room_id",
+                "author",
+                "text",
+                "created_at"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "key": "emits",
+        "rule": "The events the tool tells the other tools of the Chest, by type: two to four dotted words of lowercase letters, digits and dashes (64 characters at most; never member.* nor access.*), each {\"description\", \"data\"} — what happened in a sentence of 1 to 80 printable characters, and every field its data carries with its kind: id, text, number, boolean, time, date, member, members, ? after the kind for an optional field (camelCase names; {} for none). Data with any other field is refused, 16 KiB at most. Each type approved as a permission, with the tools it reaches; a type's data only grows from one version to the next: a field is never removed, retyped nor made optional — a new shape is a new type.",
+        "example": {
+          "task.done": {
+            "description": "A task is done",
+            "data": {
+              "task": "id",
+              "project": "id",
+              "doneBy": "member",
+              "note": "text?"
+            }
+          }
+        }
+      },
+      {
         "key": "receives",
-        "rule": "[\"member.*\"]: the members' lifecycle events, posted to POST /chest-events. Requires the capability members; approved as a permission.",
+        "rule": "The events posted to POST /chest-events: \"member.*\", the members' lifecycle (requires the capability members), and event types, from whichever other tool emits them — never the tool's own events. Each approved as a permission, with the tools it comes from.",
         "example": [
-          "member.*"
+          "member.*",
+          "quote.accepted"
         ]
       },
       {

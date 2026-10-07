@@ -5,6 +5,8 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
+**Update from the owner (2026-10-07): read [brief/09-update-sdk-0.5.md](brief/09-update-sdk-0.5.md).** `reference/` was refreshed (SDK 0.5.0 from Chest-SDK main, not yet on npm; contract 0.5; the Perseus starter, the test bench, the contract and the changed specs). Asks: every tool on SDK 0.5.0 with the official shapes of groups, broadcast, events and visitors' uploads; realtime instead of polling; sealed fields for sensitive data; needs kept in the SDK report. Do not build a team chat: the official Chat (`chest-by-argentic/chat`) exists, study it.
+
 **Update from the owner (2026-10-05): read [brief/08-update-2026-10.md](brief/08-update-2026-10.md).** `reference/` was refreshed (SDK 0.4.1, contract 0.4, the Perseus starter); the 18 tools are refused by a 0.4 Chest as they are (`"version": 2`, schedules on `/chest-jobs`). Asks: (a) every tool on SDK 0.4.x and the 0.4 manifest; (b) memory at rest measured, Next.js tools moved to the lighter reference stack unless measured otherwise; (c) a better starter template for Perseus (`reports/` + a working template folder).
 
 Step 3 done (17 tools verified). Step 4: the SDK report is kept current. Step 5 under way.
