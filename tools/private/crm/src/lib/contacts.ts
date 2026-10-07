@@ -8,7 +8,8 @@ import type { FieldDef } from "../shared/custom.ts";
 import { fieldClause, listFields, type FieldFilter } from "./fields.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { clean, email, id, limits, optionalId, owner as ownerOf, phone, tags, website } from "../shared/model.ts";
+import { clean, id, limits, optionalId, owner as ownerOf, phone, tags, website } from "../shared/model.ts";
+import { email } from "./email.ts";
 import { stepColumns, toStep, type Step } from "./steps.ts";
 import { checkAssignable } from "./team.ts";
 

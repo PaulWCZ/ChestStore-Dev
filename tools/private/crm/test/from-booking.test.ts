@@ -69,7 +69,7 @@ test("a new guest: a contact of their host (who works on clients here), one meet
   assert.ok(id);
   const c = await contacts.contact(sql, asMember(camille), id);
   assert.equal(c.name, "SarahKlein", "direction overrides and spaces cleaned");
-  assert.equal(c.email, "sarah.klein@example.com");
+  assert.equal(c.email, "Sarah.Klein@example.com");
   assert.equal(c.phone, "+33 6 11 22 33 44");
   assert.equal(c.owner, ines.id, "the host is meeting them: theirs");
   assert.equal(c.lastContact, d.at);

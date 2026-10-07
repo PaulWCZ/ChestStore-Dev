@@ -870,7 +870,7 @@ export const en = {
     too_long: "Too long: {max} characters at most.",
     empty: "Write something first.",
     too_many: "Too many: {max} at most.",
-    bad_email: "This email address does not look right.",
+    invalid_email: "This email address does not look right.",
     bad_amount: "Write an amount such as 12 500 or 12,500.50.",
     bad_date: "Choose a valid date.",
     stage_in_use: "This stage still holds {count} deals: move them first.",

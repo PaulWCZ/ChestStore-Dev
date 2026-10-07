@@ -52,7 +52,7 @@ test("a new person: a contact of nobody's, at the company of that name (added), 
   assert.ok(id);
   const c = await contacts.contact(sql, asMember(camille), id);
   assert.equal(c.name, "Nina Roux");
-  assert.equal(c.email, "nina.roux@example.com");
+  assert.equal(c.email, "Nina.Roux@example.com");
   assert.equal(c.phone, "+33 6 98 76 54 32");
   assert.equal(c.owner, null, "unassigned: nobody imported it");
   assert.equal(c.company?.name, "Roux SARL");
@@ -62,7 +62,7 @@ test("a new person: a contact of nobody's, at the company of that name (added), 
   assert.deepEqual(history.map(a => a.kind), ["form", "created"]);
   assert.equal(history[0]!.body, "Six oak chairs, please.");
   assert.equal(history[0]!.at, "2026-09-29T10:00:00.000Z");
-  assert.deepEqual(history[0]!.data, { event: history[0]!.data["event"], formId: "5", form: "Contact us", answer: data.answer.id, path: data.answer.path, who: { name: "Nina Roux", email: "nina.roux@example.com", phone: "+33 6 98 76 54 32", company: "Roux SARL" } });
+  assert.deepEqual(history[0]!.data, { event: history[0]!.data["event"], formId: "5", form: "Contact us", answer: data.answer.id, path: data.answer.path, who: { name: "Nina Roux", email: "Nina.Roux@example.com", phone: "+33 6 98 76 54 32", company: "Roux SARL" } });
   assert.deepEqual(history[1]!.data, { form: "Contact us" });
   // The company's page shows the line too.
   assert.ok((await activities.timeline(sql, { companyId: c.company!.id })).some(a => a.kind === "form"));

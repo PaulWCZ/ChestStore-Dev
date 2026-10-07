@@ -6,7 +6,8 @@ import * as members from "@argentic/chest-sdk/members";
 import type { Query, Sql } from "./db.ts";
 import { companyNamed, isObject, line, match, refPattern, safe } from "./from-forms.ts";
 import { format, formatDate, type Catalogue, type Locale } from "../i18n/index.ts";
-import { email as checkEmail, limits, memberPattern, phone as checkPhone } from "../shared/model.ts";
+import { limits, memberPattern, phone as checkPhone } from "../shared/model.ts";
+import { email as checkEmail } from "./email.ts";
 import { cut as bounded, notify } from "./notify.ts";
 import { managers } from "./team.ts";
 

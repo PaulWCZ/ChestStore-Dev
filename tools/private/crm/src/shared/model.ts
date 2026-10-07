@@ -78,12 +78,12 @@ export function owner(value: unknown): string | null {
   return value;
 }
 
-// An address is kept as written, lower-cased; only its shape is checked.
-export function email(value: unknown): string {
-  const text = clean(value ?? "", limits.email, { optional: true }).toLowerCase();
-  if (text === "") return "";
-  if (!/^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:".]{2,}$/u.test(text)) throw new AppError("bad_email");
-  return text;
+// An email address is read by the package's field.email (src/lib/email.ts:
+// server only, the package's fields do not run in the browser). Two
+// addresses are the same person when their keys are equal: the whole
+// address lower-cased (contacts_email indexes lower(email)).
+export function emailKey(address: string): string {
+  return address.toLowerCase();
 }
 
 // A website: a domain or an http(s) address, nothing a browser would run.

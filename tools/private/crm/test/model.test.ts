@@ -3,7 +3,8 @@ import { test } from "node:test";
 import { amountInput, parseAmount } from "../src/shared/amount.ts";
 import { AppError } from "../src/shared/app-error.ts";
 import { fold, key } from "../src/shared/fold.ts";
-import { addDays, clean, day, domainOf, dueState, email, monthOf, nextWorkday, owner, phone, phoneHref, tags, website, websiteHref } from "../src/shared/model.ts";
+import { email } from "../src/lib/email.ts";
+import { addDays, clean, day, domainOf, dueState, emailKey, monthOf, nextWorkday, owner, phone, phoneHref, tags, website, websiteHref } from "../src/shared/model.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
@@ -17,10 +18,17 @@ test("texts are trimmed, bounded, and keep lines only where they may", () => {
 });
 
 test("emails, websites, phones and owners are checked", () => {
-  assert.equal(email(" Claire.Durand@Durand.FR "), "claire.durand@durand.fr");
+  // The package's field.email: the domain lower-cased, the rest as written;
+  // compared by its key, the whole address lower-cased.
+  assert.equal(email(" Claire.Durand@Durand.FR "), "Claire.Durand@durand.fr");
+  assert.equal(emailKey(email("Claire.Durand@Durand.FR")), emailKey(email("claire.durand@durand.fr")));
   assert.equal(email(""), "");
-  assert.throws(() => email("claire@"), refused("bad_email"));
-  assert.throws(() => email("a b@c.fr"), refused("bad_email"));
+  assert.equal(email("   "), "");
+  assert.equal(email(undefined), "");
+  for (const bad of ["claire@", "a b@c.fr", "Claire <claire@durand.fr>", "claire@durand", "a@b@c.fr", "claire\u0007@durand.fr", "claire@[127.0.0.1]", ".claire@durand.fr"]) {
+    assert.throws(() => email(bad), refused("invalid_email"), bad);
+  }
+  assert.throws(() => email(`${"a".repeat(250)}@b.fr`), refused("too_long"));
   assert.equal(website("https://durand.fr/"), "https://durand.fr");
   assert.equal(website("www.durand.fr"), "www.durand.fr");
   assert.throws(() => website("javascript:alert(1)"), refused("invalid"));

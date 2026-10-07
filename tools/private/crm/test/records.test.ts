@@ -56,9 +56,9 @@ test("contacts: linked to a company, duplicates are warned, search ignores accen
   const co = await companies.addCompany(sql, asMember(ines), { name: "Société Générale d’Emballage", website: "https://www.sge.fr" });
   const claire = await contacts.addContact(sql, asMember(ines), { name: "Claire Lefèvre", email: "Claire@SGE.fr", company: co.id, title: "Achats" });
   const c = await contacts.contact(sql, asMember(hugo), claire.id);
-  assert.equal(c.email, "claire@sge.fr");
+  assert.equal(c.email, "Claire@sge.fr");
   assert.equal(c.company?.name, "Société Générale d’Emballage");
-  await assert.rejects(contacts.addContact(sql, asMember(ines), { name: "X", email: "nope" }), refused("bad_email"));
+  await assert.rejects(contacts.addContact(sql, asMember(ines), { name: "X", email: "nope" }), refused("invalid_email"));
   await assert.rejects(contacts.addContact(sql, asMember(ines), { name: "X", company: "999999" }), refused("not_found"));
   assert.deepEqual((await lookalikes(sql, asMember(ines), { kind: "contact", email: "claire@sge.fr" })).map(l => [l.name, l.why]), [["Claire Lefèvre", "email"]]);
   assert.deepEqual((await lookalikes(sql, asMember(ines), { kind: "contact", name: "claire lefevre" })).map(l => l.why), ["name"]);

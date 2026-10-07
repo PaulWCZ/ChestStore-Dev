@@ -236,7 +236,7 @@ test("a company's legal identity: SIREN or SIRET, VAT number, structured address
   await assert.rejects(companies.addCompany(sql, asMember(hugo), { name: "X", vat: "12" }), refused("bad_vat"));
   const c = await companies.addCompany(sql, asMember(hugo), { name: "Legal SAS", siren: "552 100 554 00014", vat: "fr 40 303265045", postcode: "75009", city: "Paris", country: "Allemagne", email: "Compta@Legal.fr" });
   const read = await companies.company(sql, asMember(lea), c.id);
-  assert.deepEqual([read.siren, read.vat, read.country, read.email], ["55210055400014", "FR40303265045", "DE", "compta@legal.fr"]);
+  assert.deepEqual([read.siren, read.vat, read.country, read.email], ["55210055400014", "FR40303265045", "DE", "Compta@legal.fr"]);
   await companies.updateCompany(sql, asMember(hugo), c.id, { country: "Atlantis" });
   assert.equal((await companies.company(sql, asMember(lea), c.id)).country, "Atlantis", "kept as written when unknown");
 });

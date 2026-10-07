@@ -11,7 +11,8 @@ import { AppError } from "./errors.ts";
 import { addField, listFields } from "./fields.ts";
 import { fold } from "../shared/fold.ts";
 import { today, zoned } from "./zone.ts";
-import { clean, email as checkEmail, limits, owner as checkOwner, phone as checkPhone, siren as checkSiren, tags as checkTags, vat as checkVat, website as checkWebsite, stageName, type Stage, type StageKey } from "../shared/model.ts";
+import { clean, emailKey, limits, owner as checkOwner, phone as checkPhone, siren as checkSiren, tags as checkTags, vat as checkVat, website as checkWebsite, stageName, type Stage, type StageKey } from "../shared/model.ts";
+import { email as checkEmail } from "./email.ts";
 import { activityKind, checkMapping, dayOf, doneOf, endOf, firstName, isImportKind, mapRow, readTable, timeOf, type ImportKind, type Mapped, type Mapping } from "../shared/parse-import.ts";
 import { between } from "../shared/position.ts";
 import { listStages } from "./stages.ts";
@@ -203,7 +204,7 @@ async function importContact(ctx: Context, m: Mapped | Card): Promise<"created" 
   };
   // The same address is the same person; the same name too, unless both
   // have different addresses.
-  const same = (address && ctx.contacts.get(address)) || (() => {
+  const same = (address && ctx.contacts.get(emailKey(address))) || (() => {
     const namesake = ctx.contacts.get(fold(name));
     return namesake && (!address || !namesake.email) ? namesake : null;
   })();
@@ -222,20 +223,20 @@ async function importContact(ctx: Context, m: Mapped | Card): Promise<"created" 
     returning id`;
   const created = { id: String(row!.id), companyId, email: address };
   await createdRecord(ctx, { contactId: created.id, companyId }, at);
-  if (address) remember(ctx, ctx.contacts, address, created);
+  if (address) remember(ctx, ctx.contacts, emailKey(address), created);
   remember(ctx, ctx.contacts, fold(name), created);
   return "created";
 }
 
 async function contactFor(ctx: Context, who: string, address: string, companyId: string | null): Promise<Found | null> {
-  const known = (address && ctx.contacts.get(address)) || (who && ctx.contacts.get(fold(who))) || null;
+  const known = (address && ctx.contacts.get(emailKey(address))) || (who && ctx.contacts.get(fold(who))) || null;
   if (known) return known;
   if (!who) return null;
   const [row] = await ctx.tx<{ id: string }[]>`insert into contacts (name, email, company_id, owner, created_by, import_id) values (${who}, ${address}, ${companyId}, ${ctx.actor.id}, ${ctx.actor.id}, ${ctx.importId}) returning id`;
   const found = { id: String(row!.id), companyId, email: address };
   await record(ctx.tx, "created", ctx.actor.id, { contactId: found.id, companyId }, "", { imported: 1 });
   remember(ctx, ctx.contacts, fold(who), found);
-  if (address) remember(ctx, ctx.contacts, address, found);
+  if (address) remember(ctx, ctx.contacts, emailKey(address), found);
   ctx.report.contacts++;
   return found;
 }
@@ -288,7 +289,7 @@ async function importActivity(ctx: Context, m: Mapped): Promise<"created"> {
   const dealId = dealTitle ? ctx.deals.get(fold(dealTitle)) ?? null : null;
   const address = m.contactEmail ? checkEmail(m.contactEmail.split(/[;,]/u)[0] ?? "") : "";
   const who = firstName(m.contact);
-  const person = (address && ctx.contacts.get(address)) || (who && ctx.contacts.get(fold(who))) || null;
+  const person = (address && ctx.contacts.get(emailKey(address))) || (who && ctx.contacts.get(fold(who))) || null;
   const companyName = firstName(m.company);
   let companyId = companyName ? ctx.companies.get(fold(companyName)) ?? null : null;
   if (!dealId && !person && !companyId) throw new AppError("not_found");
@@ -341,8 +342,8 @@ async function context(tx: Query, actor: Member, importId: string, options: { fi
   const companies = new Map((await tx<{ id: string; folded: string }[]>`select id, folded from companies`).map(r => [fold(r.folded), String(r.id)]));
   const contacts = new Map<string, Found>();
   for (const r of await tx<{ id: string; name: string; email: string; company_id: string | null }[]>`select id, name, email, company_id from contacts`) {
-    const c = { id: String(r.id), companyId: r.company_id ? String(r.company_id) : null, email: r.email.toLowerCase() };
-    if (r.email) contacts.set(r.email.toLowerCase(), c);
+    const c = { id: String(r.id), companyId: r.company_id ? String(r.company_id) : null, email: r.email };
+    if (r.email) contacts.set(emailKey(r.email), c);
     if (!contacts.has(fold(r.name))) contacts.set(fold(r.name), c);
   }
   const deals = new Map((await tx<{ id: string; title: string }[]>`select id, title from deals order by created_at, id`).map(r => [fold(r.title), String(r.id)]));

@@ -8,7 +8,8 @@ import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import type { FieldDef } from "../shared/custom.ts";
 import { fieldClause, listFields, type FieldFilter } from "./fields.ts";
-import { clean, email, id, limits, owner as ownerOf, phone, phoneDigits, siren, tags, vat, website } from "../shared/model.ts";
+import { clean, id, limits, owner as ownerOf, phone, phoneDigits, siren, tags, vat, website } from "../shared/model.ts";
+import { email } from "./email.ts";
 import { checkAssignable } from "./team.ts";
 
 // Companies: the clients and prospects, their people (contacts) and their

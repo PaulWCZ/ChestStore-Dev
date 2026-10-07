@@ -859,7 +859,7 @@ export const fr: Catalogue = {
     too_long: "Trop long : {max} caractères au plus.",
     empty: "Écrivez d’abord quelque chose.",
     too_many: "Trop d’éléments : {max} au plus.",
-    bad_email: "Cette adresse e-mail ne semble pas correcte.",
+    invalid_email: "Cette adresse e-mail ne semble pas correcte.",
     bad_amount: "Saisissez un montant comme 12 500 ou 12 500,50.",
     bad_date: "Choisissez une date valide.",
     stage_in_use: "Cette étape contient encore {count} affaires : déplacez-les d’abord.",

@@ -42,7 +42,7 @@ test("a HubSpot contacts export: companies made on the way, owners matched by na
   ].join("\n");
   await assert.rejects(importTable(sql, asMember(lea), "contacts", csv, mapped("contacts", csv), en.stages), refused("forbidden"));
   const report = await importTable(sql, asMember(hugo), "contacts", csv, mapped("contacts", csv), en.stages);
-  assert.deepEqual(counts(report), { created: 2, companies: 1, contacts: 0, duplicates: 1, skipped: [{ line: 4, error: "bad_email" }] });
+  assert.deepEqual(counts(report), { created: 2, companies: 1, contacts: 0, duplicates: 1, skipped: [{ line: 4, error: "invalid_email" }] });
   // An owner the Chest does not know is said, with who received the rows.
   assert.deepEqual(report.owners, [{ name: "Someone Unknown", rows: 1 }]);
   assert.equal(report.ownerFallback, hugo.id);

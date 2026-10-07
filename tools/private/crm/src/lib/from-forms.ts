@@ -3,7 +3,8 @@ import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Query, Sql } from "./db.ts";
 import { format } from "../i18n/index.ts";
 import { fold } from "../shared/fold.ts";
-import { email as checkEmail, limits, phone as checkPhone, phoneDigits } from "../shared/model.ts";
+import { emailKey, limits, phone as checkPhone, phoneDigits } from "../shared/model.ts";
+import { email as checkEmail } from "./email.ts";
 import { cut as bounded, notify } from "./notify.ts";
 import { managers } from "./team.ts";
 
@@ -118,7 +119,7 @@ export function sameName(a: string, b: string): boolean {
 export type Found = { id: string; name: string; email: string; phone: string; phone2: string; company_id: string | null; owner: string | null };
 export async function match(tx: Query, c: Pick<FormContact, "email" | "phone" | "name">): Promise<{ found: Found | null; maybe: Found | null }> {
   if (c.email) {
-    const [row] = await tx<Found[]>`select id, name, email, phone, phone2, company_id, owner from contacts where email <> '' and lower(email) = ${c.email} order by id limit 1`;
+    const [row] = await tx<Found[]>`select id, name, email, phone, phone2, company_id, owner from contacts where email <> '' and lower(email) = ${emailKey(c.email)} order by id limit 1`;
     if (row) return { found: row, maybe: null };
   }
   const digits = c.phone ? phoneDigits(c.phone) : "";
