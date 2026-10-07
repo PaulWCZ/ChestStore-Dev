@@ -468,9 +468,15 @@ await step("guests outside the Chest: the organiser turns the link off and on, a
   // (The organiser's own words may name colleagues; the answers never show.)
   expect(!/Claire|Marc/u.test(text) && !(await guest.p.locator(".grid-table, .results-card, .participation").count()), "no other answer, no results on the public page");
   await guest.p.getByLabel("Your name").fill("Jean Martin");
-  await guest.p.getByLabel("Your email (optional)").fill("jean@client.example");
+  // Two dots in a row: the browser lets it through, field.email refuses it
+  // in plain words, the answer kept.
+  await guest.p.getByLabel("Your email (optional)").fill("jean..martin@client.example");
   await guest.p.locator(".date-row").nth(0).locator("label.yes").click();
   await guest.p.locator(".date-row").nth(1).locator("label.maybe").click();
+  await guest.p.getByRole("button", { name: "Send my answer" }).click();
+  await guest.p.getByText("This email address does not look right.").first().waitFor();
+  expect(await guest.p.getByLabel("Your name").inputValue() === "Jean Martin", "the name kept");
+  await guest.p.getByLabel("Your email (optional)").fill("jean@client.example");
   await guest.p.getByRole("button", { name: "Send my answer" }).click();
   await guest.p.waitForSelector(".thanks:has-text('Thanks, Jean Martin!')");
   expect((await guest.p.locator(".thanks").innerText()).includes("jean@client.example"), "told the date will come by email");
