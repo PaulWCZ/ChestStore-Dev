@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as desks from "../lib/desk-bookings.ts";
-import * as places from "../lib/places.ts";
-import * as rooms from "../lib/room-bookings.ts";
-import { rules, setRules } from "../lib/settings.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import * as places from "../src/lib/places.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
+import { rules, setRules } from "../src/lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
@@ -91,7 +91,7 @@ test("giving a desk to someone cancels others' coming bookings on it, and one pe
 test("the rules: bounds checked, admins only", async () => {
   const { sql } = database;
   const set = await setRules(sql, admin, { daysAhead: 30, maxDeskDays: 3, repeatWeeks: 8, dayStart: 480, dayEnd: 1140, weekdays: [5, 1, 2, 3, 4], keepMonths: 6 });
-  assert.deepEqual(set, { daysAhead: 30, maxDeskDays: 3, repeatWeeks: 8, dayStart: 480, dayEnd: 1140, weekdays: [1, 2, 3, 4, 5], keepMonths: 6, checkIn: false });
+  assert.deepEqual(set, { daysAhead: 30, maxDeskDays: 3, repeatWeeks: 8, dayStart: 480, dayEnd: 1140, weekdays: [1, 2, 3, 4, 5], keepMonths: 6, visitorDays: 30, checkIn: false });
   await assert.rejects(setRules(sql, admin, { daysAhead: 0 }), { code: "invalid" });
   await assert.rejects(setRules(sql, admin, { dayStart: 600, dayEnd: 540 }), { code: "invalid" });
   await assert.rejects(setRules(sql, admin, { dayStart: 450 }), { code: "invalid" });

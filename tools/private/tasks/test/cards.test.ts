@@ -1,21 +1,21 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { AppError } from "../lib/errors.ts";
-import { en } from "../lib/i18n/en.ts";
-import { chestToday } from "../lib/clock.ts";
-import * as tell from "../lib/tell.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { AppError } from "@argentic/chest-app";
+import { en } from "../src/i18n/en.ts";
+import { chestToday } from "../src/lib/clock.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { everyone, hugo, ines, lea, nora } from "./support/members.ts";
+import { everyone, hugo, ines, lea, nora, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -75,7 +75,7 @@ test("a card is given only to people who see the board; they are told in their l
   assert.deepEqual(change.added.sort(), [hugo.id, ines.id].sort());
   await tell.assigned(asMember(hugo), change.added, { id: c.id, title: change.title, boardId: b.id });
   // Inès reads French: her bell says it in French; Hugo gave it to himself.
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.path]), [[ines.id, "Hugo Bernard vous a confié une tâche", `/chest/cards/${c.id}`]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, seen(n).title, n.path]), [[ines.id, "Hugo Bernard vous a confié une tâche", `/chest/cards/${c.id}`]]);
   await tell.refreshBadges(sql, [ines.id, hugo.id]);
   assert.equal(chest.badges.get(ines.id), 1);
   const mine = await cards.myTasks(sql, asMember(ines));
@@ -129,4 +129,39 @@ test("files are recorded once the Chest holds them; search finds cards on visibl
   await cards.addCard(sql, asMember(hugo), secret.b.id, secret.todo.id, "Floor secret");
   assert.ok(!(await cards.searchCards(sql, asMember(ines), "floor")).some(x => x.title === "Floor secret"));
   assert.deepEqual(await cards.searchCards(sql, asMember(ines), "%%%"), []);
+});
+
+test("cards added and moved at once never share a position; two that do are spread again by a move between them", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup("team");
+  // Eight quick adds sent at once (a person typing fast).
+  const made = await Promise.all(Array.from({ length: 8 }, (_, i) => cards.addCard(sql, asMember(hugo), b.id, todo.id, `C${i + 1}`)));
+  const rows = await sql<{ id: string; position: string }[]>`select id::text, position from cards where column_id = ${todo.id} order by position, id`;
+  assert.equal(new Set(rows.map(r => r.position)).size, rows.length, "every card its own key");
+  // A column left with two cards on one key (an earlier version): a drop
+  // between them lands between them, and the keys are written again.
+  await sql`update cards set position = (select position from cards where id = ${made[1]!.id}) where id = ${made[2]!.id}`;
+  // The two, in the order the column shows them (same key: by id — the
+  // quick adds may have been written in any order).
+  const [first, second] = await sql<{ id: string; title: string }[]>`select id::text, title from cards where id in (${made[1]!.id}, ${made[2]!.id}) order by position, id`;
+  await cards.moveCard(sql, asMember(hugo), made[7]!.id, todo.id, first!.id, second!.id);
+  const order = (await sql<{ title: string }[]>`select title from cards where column_id = ${todo.id} order by position, id`).map(r => r.title);
+  assert.equal(order.indexOf("C8"), order.indexOf(first!.title) + 1, `dropped right after ${first!.title}: ` + order.join(","));
+  assert.equal(order.indexOf(second!.title), order.indexOf("C8") + 1, "and before the other");
+  const keys = await sql<{ position: string }[]>`select position from cards where column_id = ${todo.id}`;
+  assert.equal(new Set(keys.map(k => k.position)).size, keys.length);
+});
+
+test("a card restored after its key was given to another keeps a key of its own", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup("team");
+  const one = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "One");
+  await cards.archiveCard(sql, asMember(hugo), one.id, true);
+  // A card added on top takes a key below the first card shown: the
+  // archived one's, here.
+  const two = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Two", { top: true });
+  await sql`update cards set position = ${one.position} where id = ${two.id}`;
+  await cards.archiveCard(sql, asMember(hugo), one.id, false);
+  const keys = await sql<{ position: string }[]>`select position from cards where column_id = ${todo.id}`;
+  assert.equal(new Set(keys.map(k => k.position)).size, keys.length);
 });

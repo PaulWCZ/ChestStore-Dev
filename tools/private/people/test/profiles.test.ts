@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { directory } from "../lib/directory.ts";
-import { AppError } from "../lib/errors.ts";
-import { choices, profile, reportsOf, updateJob, updateOwn } from "../lib/profiles.ts";
+import { directory } from "../src/lib/directory.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { choices, profile, purgeLeft, reportsOf, updateJob, updateOwn } from "../src/lib/profiles.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, id, ines, lea, nora, paul, tom } from "./support/members.ts";
@@ -12,7 +12,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -73,10 +73,14 @@ test("the directory lists the Chest's members with what the tool knows, and only
   assert.equal(entries.find(e => e.id === hugo.id)?.title, "Account manager");
   assert.equal(entries.find(e => e.id === tom.id)?.title, "");
   await assert.rejects(directory(sql, asMember(paul)), refused("forbidden"));
-  // Someone who left and came back within 30 days finds their profile again.
+  // Someone who left and came back within 30 days finds their profile again;
+  // reading the directory deletes nothing — the morning purges a profile
+  // gone for more than 30 days.
   await sql`update profiles set left_at = now() - interval '2 days' where member_id = ${hugo.id}`;
   await sql`insert into profiles (member_id, title, left_at) values (${id("gone")}, 'Old', now() - interval '31 days')`;
   await directory(sql, asMember(nora));
   assert.equal((await sql`select left_at from profiles where member_id = ${hugo.id}`)[0]?.left_at, null);
+  assert.equal((await sql`select 1 from profiles where member_id = ${id("gone")}`).length, 1, "a page read deletes nothing");
+  assert.equal(await purgeLeft(sql), 1);
   assert.equal((await sql`select 1 from profiles where member_id = ${id("gone")}`).length, 0);
 });

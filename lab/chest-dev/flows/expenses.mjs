@@ -7,6 +7,9 @@ import { as, done, expect, open, step } from "./lib.mjs";
 const port = Number(process.argv[2] ?? 4900);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, allow404: /\/chest\/expenses\/1$|\/chest\/receipts\/\d+\?size=256$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
+// The steps save and pay on the day they run: the exports ask for that month.
+const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+const thisMonthFr = new Intl.DateTimeFormat("fr", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(thisMonth + "-15T12:00:00Z"));
 
 // A photo of a till receipt, drawn by the browser itself.
 const receipt = tmp + "/expenses-receipt.png";
@@ -159,6 +162,9 @@ await step("send the drafts to Inès in one tap", async () => {
   const text = await page.locator("main").innerText();
   expect(text.includes("Waiting for Inès Moreau"), "waiting");
   expect(text.includes("Chez Janou"), "the unticked one stays a draft");
+  // Inès hears of it in her inbox, in French (the notice's translation).
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("Hugo Bernard sent 3 expenses") && dev.includes("fr: Hugo Bernard a envoyé 3 dépenses"), "Inès told, the French words with the notice");
 });
 
 await step("Inès, in French: refuses the taxi without receipt, approves the rest of Hugo's", async () => {
@@ -283,6 +289,19 @@ await step("Tom's account is British: his postal address, then the company's, ar
   expect((await page.locator("#bank").innerText()).includes("8 rue de la Roquette, 75011 Paris, France"), "the company's address kept: " + (await page.locator("#bank").innerText()));
 });
 
+await step("Tom's account, entered by Camille, waits for his word before a file pays into it; he confirms it", async () => {
+  await page.goto(origin + "/chest/pay");
+  const tom = await page.locator("section.paper", { hasText: "Tom Walker" }).innerText();
+  expect(/Saisies par Camille Martin .*hors du fichier de virement tant que Tom Walker ne les a pas confirmées/u.test(tom), "held, and why: " + tom);
+  expect(await page.locator("section.by-file").getByRole("button", { name: /^Créer le fichier/u }).count() === 0, "nobody payable by file yet");
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/settings");
+  expect(/Camille Martin entered these bank details/u.test(await page.locator("#bank").innerText()), "Tom is asked");
+  await page.getByRole("button", { name: "These are mine" }).click();
+  await page.waitForSelector("text=Confirmed: the next transfer file pays you here.");
+  await as(context, origin, "camille");
+});
+
 await step("Camille pays the others by one transfer file (SEPA), then enters Léa's bank details", async () => {
   await page.goto(origin + "/chest/pay");
   const panel = page.locator("section.by-file");
@@ -297,9 +316,11 @@ await step("Camille pays the others by one transfer file (SEPA), then enters Lé
   expect(xml.includes("<Cdtr><Nm>Tom Walker</Nm><PstlAdr><StrtNm>12 King's Road</StrtNm><PstCd>SW3 4RP</PstCd><TwnNm>London</TwnNm><Ctry>GB</Ctry></PstlAdr></Cdtr>"), "Tom's address in the file");
   expect(xml.includes("<PstlAdr><StrtNm>8 rue de la Roquette</StrtNm><PstCd>75011</PstCd><TwnNm>Paris</TwnNm><Ctry>FR</Ctry></PstlAdr></Dbtr>"), "the company's address in the file");
   expect(/<Ustrd>Notes de frais E\d+ E\d+<\/Ustrd>/u.test(xml), "the bank text in French");
-  if (process.env.SEPA_XSD) {
+  // Against the ISO 20022 schema the tool's tests keep (xmllint needed).
+  {
     const { execFileSync } = await import("node:child_process");
-    execFileSync("xmllint", ["--noout", "--schema", process.env.SEPA_XSD, await download.path()], { stdio: "pipe" });
+    const xsd = process.env.SEPA_XSD ?? new URL("../../../tools/private/expenses/test/fixtures/pain.001.001.03.xsd", import.meta.url).pathname;
+    execFileSync("xmllint", ["--noout", "--schema", xsd, await download.path()], { stdio: "pipe" });
   }
   await page.waitForSelector("text=1 personne est laissée de côté");
   await page.waitForTimeout(800);
@@ -433,8 +454,9 @@ await step("the accounting entries (FEC layout) and the export by month of payme
   const lines = entries.split("\r\n");
   expect(lines[0] === "JournalCode\tJournalLib\tEcritureNum\tEcritureDate\tCompteNum\tCompteLib\tCompAuxNum\tCompAuxLib\tPieceRef\tPieceDate\tEcritureLib\tDebit\tCredit\tEcritureLet\tDateLet\tValidDate\tMontantdevise\tIdevise", "FEC header");
   expect(entries.includes("\t421BERNARD\tHugo Bernard\t"), "Hugo's own account");
-  await page.goto(origin + "/chest/export?by=paid");
-  expect(/remboursées en septembre 2026/iu.test(await page.locator("main").innerText()), "by month of payment");
+  // Paid today (the steps above): the month of payment is this one.
+  await page.goto(origin + "/chest/export?by=paid&month=" + thisMonth);
+  expect(new RegExp(`remboursées en ${thisMonthFr}`, "iu").test(await page.locator("main").innerText()), "by month of payment");
   expect(await page.locator("a.download").count() === 3, "three downloads");
 });
 
@@ -457,7 +479,8 @@ await step("Camille imports Expensify's history: columns guessed, the unknown pe
 });
 
 await step("the export: a French CSV and a ZIP of the receipts", async () => {
-  await page.goto(origin + "/chest/export");
+  // Hugo's lunch of the first step is dated as its photo says (28 September).
+  await page.goto(origin + "/chest/export?month=2026-09");
   const csvHref = await page.locator("a.download").first().getAttribute("href");
   const zipHref = await page.locator("a.download").nth(1).getAttribute("href");
   const csv = await (await page.request.get(origin + csvHref)).text();
@@ -475,10 +498,11 @@ await step("Camille names Inès as Léa's approver; Léa's trip waiting moves to
   expect((await page.locator("main").innerText()).includes("Léa Dubois"), "Léa's trip waits for Inès");
 });
 
-await step("the 25th: a reminder to those with drafts, in their language", async () => {
+await step("the 25th: a reminder to those with drafts, and to approvers with expenses waiting, in their language", async () => {
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reminder" } });
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Send your expenses before the end of the month") && dev.includes("Envoyez vos notes de frais avant la fin du mois"), "reminders in English and French");
+  expect(/<b>Inès Moreau<\/b>[^<]*· \d+ expenses? waits? for your approval/u.test(dev) && /fr: \d+ dépenses? attendent? votre validation/u.test(dev), "Inès nudged of what waits for her, in both languages");
 });
 
 await step("Tom claims a flat rate: two meals away from home", async () => {
@@ -571,7 +595,7 @@ await step("search: Camille finds by amount, shop, person and reference; Hugo on
   expect(!(await page.locator("main").innerText()).includes("Hôtel Mercure Lille"), "Hugo never finds Léa's");
 });
 
-await step("card lines finish themselves: UBER becomes Travel, a word of the company's own is added; the holder is emailed", async () => {
+await step("card lines finish themselves: UBER becomes Travel, a word of the company's own is added; the holder is told, each payment named", async () => {
   const { writeFileSync } = await import("node:fs");
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/settings/company#card-words");
@@ -591,8 +615,9 @@ await step("card lines finish themselves: UBER becomes Travel, a word of the com
   await page.waitForSelector("text=2 attendent leur justificatif");
   await page.waitForTimeout(800);
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  expect(dev.includes("3 company card payments need their receipt") || dev.includes("company card payments need their receipt"), "Hugo emailed");
-  expect(dev.includes("UBER *TRIP · 23.40") || dev.includes("UBER *TRIP · €23.40"), "the email names each payment");
+  expect(dev.includes("3 company card payments need their receipt") || dev.includes("company card payments need their receipt"), "Hugo told in his inbox");
+  expect(dev.includes("UBER *TRIP · 23.40") || dev.includes("UBER *TRIP · €23.40"), "the notice names each payment");
+  expect(!dev.includes("Mail to people outside"), "Expenses mails nobody (no mail proposal)");
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest");
   const uber = await page.locator(".row", { hasText: "UBER *TRIP" }).filter({ hasText: "21 Sept" }).innerText();
@@ -601,9 +626,7 @@ await step("card lines finish themselves: UBER becomes Travel, a word of the com
   expect(monoprix.includes("Supplies"), "Monoprix is the company's supplies: " + monoprix);
 });
 
-await step("emails: the approver hears of what was sent to her; one date format; no line starts with a dot", async () => {
-  const dev = await (await page.request.get(origin + "/_dev")).text();
-  expect(dev.includes("Hugo Bernard a envoyé"), "Inès emailed in French when Hugo sent");
+await step("one date format; no line starts with a dot", async () => {
   await as(context, origin, "camille");
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of ["/chest/pay", "/chest/approve", "/chest"]) {

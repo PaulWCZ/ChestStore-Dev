@@ -442,14 +442,16 @@ await step("a booking goes into the organiser's and the guest's calendars, and d
   expect(ics.startsWith("BEGIN:VCALENDAR") && ics.includes("SUMMARY:Calendar check"), "ics: " + ics.slice(0, 80));
   await page.keyboard.press("Escape");
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  const feed = /href="(http:\/\/localhost:\d+\/_chest\/calendar\/[^"]+\.ics)"/u.exec(dev)?.[1];
+  const feed = /href="(https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/_chest\/calendar\/[^"]+\.ics)"/u.exec(dev)?.[1];
   expect(feed, "Hugo's feed address");
   const hugoFeed = await (await page.request.get(feed)).text();
   expect(hugoFeed.includes("SUMMARY:Calendar check"), "in Hugo's feed");
-  expect(dev.includes("Invitation") || dev.includes("Calendar check"), "Léa emailed");
+  // Léa hears it in her bell: one notice, its French beside it; Rooms mails no member.
+  expect(/invited you: Calendar check<br>.*?<small lang="fr">fr: Hugo Bernard vous invite\u202f: Calendar check/su.test(dev), "Léa's bell, English and French");
+  expect(!dev.includes("Mail to people outside") || !/<b>[^<]*Calendar check[^<]*<\/b>/u.test(dev.slice(dev.indexOf("Mail to people outside"))), "no email to a member");
 });
 
-await step("a meeting with four guests: each guest gets their own invitation email (one refused guest no longer stops the others)", async () => {
+await step("a meeting with four guests: each guest finds it in their bell; none gets an email from Rooms", async () => {
   await as(context, origin, "hugo");
   await page.goto(origin + `/chest/rooms?day=${friday}`);
   await page.getByRole("button", { name: "Book a room" }).click();
@@ -466,8 +468,10 @@ await step("a meeting with four guests: each guest gets their own invitation ema
   await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  const mails = [...dev.matchAll(/<li><b>([^<]*Four guests[^<]*)<\/b>.*?→ ([^<]+)<\/small>/gsu)].map(m => m[2].trim());
-  expect(mails.length === 4 && new Set(mails).size === 4, "four invitations, one per guest: " + mails.join(" | "));
+  const told = [...dev.matchAll(/<li><b>([^<]+)<\/b> · Hugo Bernard invited you: Four guests/gu)].map(m => m[1].trim());
+  expect(told.length === 4 && new Set(told).size === 4, "four bell items, one per guest: " + told.join(" | "));
+  const outbox = dev.includes("Mail to people outside") ? dev.slice(dev.indexOf("Mail to people outside")) : "";
+  expect(!outbox.includes("Four guests"), "no email to the guests");
 });
 
 await step("my usual week: say it once; coming days are filled; a tap outside the form keeps it", async () => {
@@ -636,9 +640,24 @@ await step("visitors: Hugo announces his visitor, nobody else but the reception 
   await dialog.getByLabel("Their name").fill("Paul Durand");
   await dialog.getByLabel("Company (optional)").fill("Client SA");
   expect(await dialog.getByRole("combobox", { name: "Coming to see" }).count() === 0, "a member is the host: no picker");
+  // The visitor is outside the company: an invitation by email, replies to the company's address.
+  expect((await dialog.innerText()).includes("Their replies go to "), "where replies land, said on the form");
+  // An address the browser takes but mail does not (no dot in the domain):
+  // the package's field.email refuses it in plain words, nothing is announced.
+  await dialog.getByLabel("Their email (optional)").fill("paul.durand@client");
+  await dialog.getByRole("button", { name: "Announce", exact: true }).click();
+  await page.getByText("This email address does not look right.").first().waitFor();
+  expect(await page.locator(".visit-row", { hasText: "Paul Durand" }).count() === 0, "nothing announced with a wrong address");
+  await dialog.getByLabel("Their email (optional)").fill("paul.durand@client.example");
   await dialog.getByRole("button", { name: "Announce", exact: true }).click();
   await page.waitForSelector(".ck-toast >> text=Visit of Paul Durand announced");
+  expect((await page.locator(".ck-toast").innerText()).includes("Invitation sent."), "the toast says the invitation went");
   expect(await page.locator(".visit-row", { hasText: "Paul Durand" }).count() === 1, "listed");
+  expect((await page.locator(".visit-row", { hasText: "Paul Durand" }).innerText()).includes("invitation sent"), "the row says it");
+  const sent = await (await page.request.get(origin + "/_dev")).text();
+  const outbox = sent.slice(sent.indexOf("Mail to people outside"));
+  expect(/<b>Your visit to [^<]+<\/b>.*?→ paul\.durand@client\.example<br>replies to <code>[^<]+@[^<]+<\/code>/su.test(outbox), "one invitation to the visitor, replies to the company: " + outbox.slice(0, 400));
+  expect(!/→ [a-z]+@example\.test/u.test(outbox), "no member in the outbox");
   await as(context, origin, "lea");
   await page.goto(origin + "/chest/visitors");
   const lea = await page.locator("main").innerText();
@@ -660,6 +679,46 @@ await step("visitors: Hugo announces his visitor, nobody else but the reception 
   await page.getByRole("button", { name: "Book a room" }).click();
   expect(await page.locator("dialog[open]").getByRole("button", { name: "Book it for someone else" }).count() === 1, "book for someone else");
   await page.keyboard.press("Escape");
+});
+
+await step("visitors and mail: a cancelled visit tells the visitor, its Undo invites them again; on a Chest that cannot send, the form says so and the visit stands", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/visitors");
+  const outbox = async () => { const dev = await (await page.request.get(origin + "/_dev")).text(); return dev.slice(dev.indexOf("Mail to people outside")); };
+  await page.getByRole("button", { name: "Announce a visitor" }).click();
+  const form = page.locator("dialog[open]");
+  await form.getByLabel("Their name").fill("Clara Petit");
+  await form.getByLabel("Their email (optional)").fill("clara@client.example");
+  await form.getByRole("button", { name: "Announce", exact: true }).click();
+  await page.waitForSelector(".ck-toast >> text=Visit of Clara Petit announced");
+  await page.waitForTimeout(600);
+  const row = page.locator(".visit-row", { hasText: "Clara Petit" });
+  await row.getByRole("button", { name: "Cancel the visit" }).click();
+  await page.waitForSelector(".ck-toast >> text=Visit of Clara Petit cancelled. They get an email saying so.");
+  await page.waitForTimeout(800);
+  expect(/<b>Cancelled: your visit to [^<]+<\/b>.*?→ clara@client\.example/su.test(await outbox()), "the cancellation went to the visitor");
+  await page.locator(".ck-toast", { hasText: "Clara Petit cancelled" }).getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(1200);
+  const after = await outbox();
+  expect((after.match(/<b>Your visit to [^<]+<\/b>(?:(?!<li>).)*?→ clara@client\.example/gsu) ?? []).length === 2, "invited again after the Undo");
+  expect(await page.locator(".visit-row", { hasText: "Clara Petit" }).count() === 1, "back in the list");
+  // The owner disconnected the company's mail: the form says so; the visit stands.
+  await page.request.post(origin + "/_dev/delivery", { form: { mail: "not_connected" }, maxRedirects: 0 });
+  try {
+    await page.goto(origin + "/chest/visitors");
+    await page.getByRole("button", { name: "Announce a visitor" }).click();
+    const dialog = page.locator("dialog[open]");
+    expect((await dialog.innerText()).includes("This Chest cannot send emails right now: tell them the time and the address yourself."), "said on the form");
+    expect(await dialog.getByLabel("Their email (optional)").count() === 0, "no address asked");
+    await dialog.getByLabel("Their name").fill("Alice Martin");
+    await dialog.getByRole("button", { name: "Announce", exact: true }).click();
+    await page.waitForSelector(".ck-toast >> text=Visit of Alice Martin announced");
+    expect(!(await page.locator(".ck-toast").innerText()).includes("Invitation"), "no invitation promised");
+    expect(await page.locator(".visit-row", { hasText: "Alice Martin" }).count() === 1, "the visit stands");
+  } finally {
+    await page.request.post(origin + "/_dev/delivery", { form: { mail: "ready" }, maxRedirects: 0 });
+  }
 });
 
 await step("a desk's holder comes back on a day it was lent: whoever borrowed it hears it, and the holder is told they know", async () => {
@@ -769,6 +828,25 @@ await step("a room kept for Sales, a group that does not give Rooms: Hugo (Sales
   await page.locator("dialog[open]").getByLabel("Kept for").selectOption({ label: "Everyone" });
   await page.locator("dialog[open]").getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForSelector(".ck-toast");
+});
+
+await step("a weekly meeting changed from one week on: this one and the next ones move, the weeks before stay", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // Next Monday's stand-up (a weekly booking of the sample).
+  const nextMonday = iso(new Date(monday.getTime() + 7 * 864e5));
+  await page.goto(origin + `/chest/rooms?day=${nextMonday}`);
+  await page.locator(".block", { hasText: "Team stand-up" }).first().click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  await field(dialog, "What for \\(optional\\)").fill("Team stand-up (new time)");
+  await dialog.getByRole("button", { name: "Save this and the next ones" }).click();
+  await page.waitForSelector(".ck-toast >> text=/bookings? changed/");
+  await page.reload();
+  expect(await page.locator(".block", { hasText: "Team stand-up (new time)" }).count() === 1, "this week's changed");
+  await page.goto(origin + `/chest/rooms?day=${iso(monday)}`);
+  expect(await page.locator(".block", { hasText: "Team stand-up (new time)" }).count() === 0, "the week before stays");
 });
 
 await step("a phone says to tap, not to drag", async () => {

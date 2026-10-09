@@ -6,15 +6,15 @@ import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { pdfOf } from "../lib/archive.ts";
-import { finalise, getDocument, invoiceFromQuote, decideQuote, sendQuote, startCreditNote, saveDraft } from "../lib/documents.ts";
-import type { Line } from "../lib/documents.ts";
-import { einvoiceXml, type EInvoiceInput } from "../lib/einvoice.ts";
-import type { Buyer, Seller } from "../lib/parties.ts";
-import { renderPdf } from "../lib/pdf/document.ts";
-import { loadFont } from "../lib/pdf/fonts.ts";
-import { srgbProfile } from "../lib/pdf/icc.ts";
-import { TrueType } from "../lib/pdf/truetype.ts";
+import { carriesFacturx, pdfOf } from "../src/lib/archive.ts";
+import { finalise, getDocument, invoiceFromQuote, decideQuote, sendQuote, startCreditNote, saveDraft } from "../src/lib/documents.ts";
+import type { Line } from "../src/lib/documents.ts";
+import { einvoiceXml, type EInvoiceInput } from "../src/lib/einvoice.ts";
+import type { Buyer, Seller } from "../src/shared/parties.ts";
+import { renderPdf } from "../src/pdf/document.ts";
+import { loadFont } from "../src/pdf/fonts.ts";
+import { srgbProfile } from "../src/pdf/icc.ts";
+import { TrueType } from "../src/pdf/truetype.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -53,8 +53,8 @@ const tag = (xml: string, name: string) => [...xml.matchAll(new RegExp(`<${name}
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {
@@ -128,6 +128,41 @@ test("deposit invoices, credit notes, reverse charge, the VAT exemption, individ
   assert.throws(() => einvoiceXml({ doc: { ...doc, number: null }, lines, seller, buyer, reference: null }));
 });
 
+test("outside the euro: the VAT also in euros at the rate given (BT-6, BT-111); three decimals cannot travel in a Factur-X", async () => {
+  const xml = einvoiceXml({ doc: { ...doc, currency: "USD", eurRate: 1_082_300 }, lines: [l("Maquettes", 1000, 100000)], seller, buyer, reference: null });
+  assert.deepEqual(tag(xml, "ram:TaxCurrencyCode"), ["EUR"]);
+  assert.deepEqual(tag(xml, "ram:InvoiceCurrencyCode"), ["USD"]);
+  // 200.00 USD of VAT at 1 € = 1.0823 USD: 184.79 €.
+  assert.match(xml, /<ram:TaxTotalAmount currencyID="USD">200\.00<\/ram:TaxTotalAmount><ram:TaxTotalAmount currencyID="EUR">184\.79<\/ram:TaxTotalAmount>/u);
+  assert.equal(tag(einvoiceXml({ doc, lines, seller, buyer, reference: null }), "ram:TaxCurrencyCode").length, 0, "in euros, nothing more");
+  assert.throws(() => einvoiceXml({ doc: { ...doc, currency: "USD" }, lines, seller, buyer, reference: null }), /rate is missing/u);
+  assert.throws(() => einvoiceXml({ doc: { ...doc, currency: "KWD", eurRate: 330_000 }, lines, seller, buyer, reference: null }), /three decimals/u);
+  assert.equal(carriesFacturx({ type: "invoice", currency: "KWD", eurRate: 330_000 }), false);
+  assert.equal(carriesFacturx({ type: "invoice", currency: "USD", eurRate: null }), false, "issued before the rate was asked");
+  assert.equal(carriesFacturx({ type: "credit", currency: "USD", eurRate: 1_082_300 }), true);
+  // The PDF says it too.
+  const pdf = renderPdf({ doc: { ...doc, status: "final", validUntil: null, currency: "USD", eurRate: 1_082_300 }, lines: [l("Maquettes", 1000, 100000)], seller, buyer, reference: null, logo: null, today: "2026-09-28", created: new Date("2026-09-28T10:00:00Z") });
+  assert.match(pdfText(pdf).replace(/\s+/gu, " "), /TVA en euros\s?: 184,79\s€ \(taux de change 1\s€ = 1,0823 USD\)/u);
+});
+
+test("an invoice outside the euro asks its exchange rate before it is issued; its credit note keeps it", async () => {
+  const { sql } = database;
+  const c = await client(sql, { name: "Dollar Inc" });
+  const d = await draft(sql, "invoice", c.id, [line("Conseil", 1000, 100000)]);
+  await sql`update documents set currency = 'USD' where id = ${d.id}`;
+  await assert.rejects(finalise(sql, asMember(sofia), d.id, today), (e: unknown) => (e as { code?: string }).code === "eur_rate_missing");
+  await assert.rejects(saveDraft(sql, asMember(sofia), d.id, { eurRate: "abc" }), (e: unknown) => (e as { code?: string }).code === "eur_rate_invalid");
+  await assert.rejects(saveDraft(sql, asMember(sofia), d.id, { eurRate: "0" }), (e: unknown) => (e as { code?: string }).code === "eur_rate_invalid");
+  await saveDraft(sql, asMember(sofia), d.id, { eurRate: "1,0823" });
+  const f = await finalise(sql, asMember(sofia), d.id, today);
+  assert.equal(f.eurRate, 1_082_300);
+  const credit = await startCreditNote(sql, asMember(sofia), d.id);
+  assert.equal(credit.eurRate, 1_082_300, "the VAT taken back at the rate it was charged");
+  // In euros, no rate.
+  const e = await draft(sql, "invoice", c.id, [line("Conseil", 1000, 100000)]);
+  await assert.rejects(saveDraft(sql, asMember(sofia), e.id, { eurRate: "1,1" }), (x: unknown) => (x as { code?: string }).code === "invalid");
+});
+
 // The official schema check, when the Factur-X 1.09.2 EN 16931 XSD is at
 // hand (FACTURX_XSD=/path/to/Factur-X_EN16931.xsd, from the factur-x
 // package on PyPI) and xmllint is installed.
@@ -136,6 +171,8 @@ test("the data validates against the Factur-X EN 16931 schema", { skip: !process
   const samples = {
     invoice: einvoiceXml({ doc, lines, seller, buyer, reference: null }),
     credit: einvoiceXml({ doc: { ...doc, type: "credit", number: "A-2026-0003", dueDate: null }, lines: [l("Maquettes", 1000, 45000)], seller, buyer, reference: { number: "F-2026-0042", issueDate: "2026-09-12" } }),
+    dollars: einvoiceXml({ doc: { ...doc, currency: "USD", eurRate: 1_082_300 }, lines, seller, buyer, reference: null }),
+    yen: einvoiceXml({ doc: { ...doc, currency: "JPY", eurRate: 162_430_000 }, lines: [l("Maquettes", 1000, 45000)], seller, buyer, reference: null }),
   };
   for (const [name, xml] of Object.entries(samples)) {
     const file = join(dir, name + ".xml");
@@ -251,6 +288,6 @@ test("finalised, an invoice's copy of record is its Factur-X; a credit note's to
 });
 
 test("the fonts are read from the tool's own folder", () => {
-  assert.ok(existsSync(join(import.meta.dirname, "..", "lib", "pdf", "fonts", "LiberationSans-Regular.ttf")));
-  assert.ok(readFileSync(join(import.meta.dirname, "..", "lib", "pdf", "fonts", "LICENSE-liberation.txt"), "utf8").includes("SIL OPEN FONT LICENSE Version 1.1"));
+  assert.ok(existsSync(join(import.meta.dirname, "..", "src", "pdf", "fonts", "LiberationSans-Regular.ttf")));
+  assert.ok(readFileSync(join(import.meta.dirname, "..", "src", "pdf", "fonts", "LICENSE-liberation.txt"), "utf8").includes("SIL OPEN FONT LICENSE Version 1.1"));
 });

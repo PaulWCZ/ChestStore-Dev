@@ -1,19 +1,8 @@
 {
-  "schedules": [
-    {
-      "name": "publish",
-      "cron": "*/15 * * * *"
-    },
-    {
-      "name": "digest",
-      "cron": "30 8 * * 1"
-    }
-  ],
-  "mail": {
-    "send": true
-  },
   "calendar": true,
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "receives": [
     "group.*"
   ],

@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addComponent, updateComponent } from "../lib/components.ts";
-import { admit, checkForm, formToken } from "../lib/guard.ts";
-import * as incidents from "../lib/incidents.ts";
-import { flush, updateEmail, welcome } from "../lib/mailer.ts";
-import { mailDelivery, mailState, setMailState } from "../lib/settings.ts";
-import * as subs from "../lib/subscribers.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { addComponent, updateComponent } from "../src/lib/components.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { flush, updateEmail, welcome } from "../src/lib/mailer.ts";
+import { mailDelivery, mailState, setMailState } from "../src/lib/settings.ts";
+import * as subs from "../src/lib/subscribers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, nora } from "./support/members.ts";
@@ -19,7 +18,7 @@ let website = "", checkout = "", secret = "";
 
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 6 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier-martin.test", perDay: 6 }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", publicUrl: "https://status.atelier-martin.test" } });
 });
 after(async () => {
   await chest.close();
@@ -27,7 +26,7 @@ after(async () => {
 });
 beforeEach(async () => {
   const { sql } = database;
-  await sql`truncate incidents, components, subscribers, mail_queue, form_counts, settings restart identity cascade`;
+  await sql`truncate incidents, components, subscribers, mail_queue, settings restart identity cascade`;
   chest.outbox.length = 0;
   website = (await addComponent(sql, editor, { name: "Website" })).id;
   checkout = (await addComponent(sql, editor, { name: "Checkout" })).id;
@@ -45,7 +44,7 @@ test("double opt-in: an address is pending until its link confirms it; the same 
   const first = await subs.subscribe(sql, { email: " Lucie@Example.com ", language: "fr", components: [checkout] }, now);
   assert.equal(first.state, "new");
   assert.equal(first.send, true);
-  assert.equal(first.subscriber.email, "Lucie@Example.com");
+  assert.equal(first.subscriber.email, "Lucie@example.com", "the part before the @ as typed, the domain lower-cased");
   assert.equal(first.subscriber.token.length, 32);
   assert.deepEqual(first.subscriber.components, [checkout]);
   // Again within minutes: no second email; later: one more.
@@ -83,9 +82,14 @@ test("a subscriber chooses what to follow among what is shown, and unsubscribing
 
 test("the form refuses bad addresses; unconfirmed addresses are forgotten after 7 days", async () => {
   const { sql } = database;
-  for (const bad of ["", "nobody", "a@b", "a b@example.com", "<a@example.com>", "a@example.com\nBcc: x@y.z", "x".repeat(250) + "@example.com", 42]) {
+  for (const bad of ["nobody", "a@b", "a b@example.com", "<a@example.com>", "Ana <a@example.com>", "a..b@example.com", "a@[192.0.2.1]", "a@example.com\nBcc: x@y.z", "x".repeat(65) + "@example.com", 42]) {
     await refuses("invalid_email", () => subs.subscribe(sql, { email: bad, language: "en", components: "all" }));
   }
+  await refuses("empty", () => subs.subscribe(sql, { email: " ", language: "en", components: "all" }));
+  await refuses("too_long", () => subs.subscribe(sql, { email: "x".repeat(250) + "@example.com", language: "en", components: "all" }));
+  // The part before the @ as typed, the domain lower-cased.
+  assert.equal((await subs.subscribe(sql, { email: " Ana.B@Example.COM ", language: "en", components: "all" })).subscriber.email, "Ana.B@example.com");
+  await sql`delete from subscribers`;
   const old = new Date(Date.now() - 8 * 86400000);
   await subs.subscribe(sql, { email: "old@example.com", language: "en", components: "all" }, old);
   await subs.subscribe(sql, { email: "new@example.com", language: "en", components: "all" });
@@ -93,19 +97,20 @@ test("the form refuses bad addresses; unconfirmed addresses are forgotten after 
   assert.deepEqual(rows.map(r => r.email), ["new@example.com"]);
 });
 
-test("the form's guard: a signed time, then counts — the Chest's, else the tool's own", async () => {
+test("the form spends its budget only on a good request — \"new\" for an unknown address, \"again\" for a known one — and mails an address three times a day at most", async () => {
   const { sql } = database;
-  const token = formToken();
-  assert.throws(() => checkForm(token), (e: unknown) => e instanceof AppError && e.code === "too_fast");
-  assert.throws(() => checkForm("forged.value"), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  assert.throws(() => checkForm(undefined), (e: unknown) => e instanceof AppError && e.code === "invalid");
-  const headers = new Headers({ "x-forwarded-for": "203.0.113.9" });
-  for (let i = 0; i < subs.formLimits.perVisitorHour; i++) await admit(sql, headers);
-  await refuses("too_many", () => admit(sql, headers));
-  await admit(sql, new Headers({ "x-forwarded-for": "203.0.113.10" }));
-  // The tool's own counters (a Chest that does not count visitors).
-  for (let i = 0; i < subs.formLimits.perVisitorHour; i++) await subs.guard(sql, "198.51.100.1");
-  await refuses("too_many", () => subs.guard(sql, "198.51.100.1"));
+  const spent: string[] = [];
+  const charge = async (kind: "new" | "again", _subject: string) => { spent.push(kind); };
+  await refuses("invalid_email", () => subs.subscribe(sql, { email: "not an address", language: "en", components: "all" }, new Date(), charge));
+  assert.deepEqual(spent, [], "a refused request costs nothing");
+  const day = new Date("2026-10-06T08:00:00Z");
+  const first = await subs.subscribe(sql, { email: "ana@example.com", language: "en", components: "all" }, day, charge);
+  assert.equal(first.send, true);
+  const sends: boolean[] = [first.send];
+  for (let k = 1; k <= 6; k++) sends.push((await subs.subscribe(sql, { email: "Ana@Example.com", language: "en", components: "all" }, new Date(day.getTime() + k * 11 * 60000), charge)).send);
+  assert.deepEqual(spent, ["new", "again", "again", "again", "again", "again", "again"]);
+  assert.deepEqual(sends, [true, true, true, false, false, false, false], "three confirmation emails a day, whoever asks");
+  assert.equal((await subs.subscribe(sql, { email: "ana@example.com", language: "en", components: "all" }, new Date(day.getTime() + 86400000), charge)).send, true, "the next day, one more");
 });
 
 test("editors see and remove subscribers; nobody else", async () => {
@@ -139,29 +144,19 @@ test("emails: a confirmation in the visitor's language, then each update with it
   assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "sent once");
 });
 
-test("a member's email preference (studio.15): the confirmation link is transactional, update emails honour it", async () => {
+test("subscribers' emails go to the address they gave, replies to the company's address; the mail says where replies go", async () => {
   const { sql } = database;
-  // Nora subscribes with her own address; in her Chest she chose "none".
-  const quiet = { ...nora, language: "fr", timeZone: "UTC", email: "nora@atelier-martin.test", mailPreference: "none" as const };
-  chest.members.push(quiet);
-  chest.clearCaches();
-  try {
-    const r = await subs.subscribe(sql, { email: "nora@atelier-martin.test", language: "fr", components: "all" });
-    assert.equal(await welcome(sql, r.subscriber, r.state, "https://status.atelier-martin.test"), "sent");
-    assert.deepEqual(chest.outbox.at(-1)!.to, ["nora@atelier-martin.test"], "the answer to her own request goes whatever she chose");
-    assert.equal(chest.held.length, 0);
-    await subs.confirm(sql, r.subscriber.token);
-    const sent = chest.outbox.length;
-    await incidents.openIncident(sql, editor, { title: "Paiement en panne", status: "investigating", body: "Nous cherchons.", states: { [checkout]: "major" } });
-    assert.deepEqual(await flush(sql), { sent: 1, stopped: null }, "handed to the Chest, which holds it");
-    assert.equal(chest.outbox.length, sent, "an update is not sent to someone who chose no email");
-    assert.deepEqual(chest.held.map(h => [h.member, h.reason]), [[nora.id, "none"]]);
-    assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "and never retried");
-  } finally {
-    chest.members.splice(chest.members.indexOf(quiet), 1);
-    chest.held.length = 0;
-    chest.clearCaches();
-  }
+  const r = await subs.subscribe(sql, { email: "nora@atelier-martin.test", language: "fr", components: "all" });
+  assert.equal(await welcome(sql, r.subscriber, r.state, "https://status.atelier-martin.test"), "sent");
+  assert.deepEqual(chest.outbox.at(-1)!.to, ["nora@atelier-martin.test"]);
+  assert.equal(chest.outbox.at(-1)!.replyTo, "contact@atelier-martin.test", "the connector's reply address: the company's inbox");
+  await subs.confirm(sql, r.subscriber.token);
+  await incidents.openIncident(sql, editor, { title: "Paiement en panne", status: "investigating", body: "Nous cherchons.", states: { [checkout]: "major" } });
+  assert.deepEqual(await flush(sql), { sent: 1, stopped: null });
+  const update = chest.outbox.at(-1)!;
+  assert.equal(update.replyTo, "contact@atelier-martin.test");
+  assert.match(update.text, /Une question\u202f\? Répondez à cet e-mail\u202f: il arrive chez Atelier Martin\./u);
+  assert.deepEqual(await flush(sql), { sent: 0, stopped: null }, "never sent twice");
 });
 
 test("the Chest's daily quota stops the queue, which goes on later; a Chest without mail hides the form", async () => {
@@ -175,7 +170,7 @@ test("the Chest's daily quota stops the queue, which goes on later; a Chest with
   const [{ count }] = (await sql`select count(*)::int as count from mail_queue`) as unknown as [{ count: number }];
   assert.equal(count, 8 - first.sent);
   // Without mail on the Chest.
-  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     const r = await subs.subscribe(sql, { email: "z@example.com", language: "en", components: "all" });
     assert.equal(await welcome(sql, r.subscriber, r.state, "https://x.test"), "none");
@@ -199,7 +194,7 @@ test("studio.16: whether the Chest sends email is asked of it (mail.available) �
   } finally {
     chest.delivery.mail = "ready";
   }
-  const bare = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  const bare = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     assert.deepEqual(await mailDelivery(sql), { state: "none", reason: "not_granted" });
   } finally {

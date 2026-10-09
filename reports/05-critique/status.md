@@ -71,3 +71,25 @@ No crashes, console errors or 5xx met on any page.
 6. Statuspage JSON import + JSON export (S).
 7. Heartbeat + SSL expiry checks once `schedules`/`checks` ship (M); internal status page for the team (M).
 8. Static mirror on a second origin for independence (L, platform).
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Status's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-hono`; PSS of the
+  server's process tree at rest, median of 5): **143.9 → 67.2 MiB**;
+  image 463 → 32 MiB; first members' page 930 →
+  649 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: the public forms on the package's bounds (single-use token, budgets spent once a request is good, three confirmation emails a day per address, a known address asked about ten times a day at most); a refused form comes back filled in; public pages with an ETag and a minute's cache; the 90 days drawn once per page; an import capped at 10 MiB (`5e03b42`, `1f0dd24`); Settings says the public address (the company's own domain once connected) and that the Chest frames no public page yet (`b6bc67e`).
+- **Pending**: Nothing listed as pending in its commits.
+
+**Verdict, updated.** Blocker 1 ("No custom domain") is **gone**: the Chest connects `status.<company>.com` to a tool's public part and serves its certificate (brief/08; the SDK's `chest.tool.publicUrl` says it), and the links Status writes follow that address (`src/lib/public-origin.ts`), which Settings shows. What still keeps a company on Statuspage: reaching subscribers (email needs the Chest's `mail`), the `/embed` banner (no public page can be framed on a Chest, `frame-ancestors 'none'`), and a page that shares the Chest's fate. **Cancel tomorrow: not yet** — for those three reasons, no longer for the address.

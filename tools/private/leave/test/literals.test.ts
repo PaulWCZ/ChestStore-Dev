@@ -9,12 +9,12 @@ const root = join(import.meta.dirname, "..");
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "test"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "test"].includes(name)) return [];
     return statSync(path).isDirectory() ? files(path) : path.endsWith(".tsx") ? [path] : [];
   });
 }
 
-test("no words in the pages outside lib/i18n", () => {
+test("no words in the pages outside src/i18n", () => {
   const found: string[] = [];
   for (const file of files(root)) {
     const source = readFileSync(file, "utf8").replace(/\{\/\*[\s\S]*?\*\/\}/gu, "").replace(/^\s*\/\/.*$/gmu, "");

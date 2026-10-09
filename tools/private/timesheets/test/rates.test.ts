@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET } from "../app/chest/reports/export/route.ts";
-import { today } from "../lib/clock.ts";
-import { addDays, mondayOf, todayIn } from "../lib/days.ts";
-import { addEntry } from "../lib/entries.ts";
-import { erase } from "../lib/lifecycle.ts";
-import * as projects from "../lib/projects.ts";
-import { history, origin, peopleRates, projectRates, rateLock, rateOn, rateUse, removeStep, setRate } from "../lib/rates.ts";
-import { rateDayProblem } from "../components/rate-day.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { report } from "../lib/reports.ts";
-import { lock } from "../lib/settings.ts";
+import { fetchApp as GET } from "./support/app.ts";
+import { today } from "../src/lib/clock.ts";
+import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
+import { addEntry } from "../src/lib/entries.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import * as projects from "../src/lib/projects.ts";
+import { history, origin, peopleRates, projectRates, rateLock, rateOn, rateUse, removeStep, setRate } from "../src/lib/rates.ts";
+import { rateDayProblem } from "../src/shared/rate-day.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { report } from "../src/lib/reports.ts";
+import { lock } from "../src/lib/settings.ts";
 import { migrate, testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
@@ -149,7 +149,7 @@ test("the migration keeps every rate the previous version had, since always", as
     await old.close();
   }
   // The rest of this file uses its own database again.
-  const { provide } = await import("../lib/db.ts");
+  const { provide } = await import("../src/lib/db.ts");
   provide(database.sql);
 });
 

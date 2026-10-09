@@ -1,0 +1,629 @@
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { fakeChest, withMember } from "@argentic/chest-sdk/testing";
+import { en as kit } from "@argentic/chest-ui/components/logic";
+import { createElement as h, useId } from "react";
+import { download, formToken, solveWork, Honeypot, rawRoute, zipStream, action, after as afterAnswer, AppError, createApp, fail, field, Island, page, publicAction, publicActionsAt, publicPage, redirect } from "../dist/index.js";
+import { AppError as BrowserError } from "../dist/client.js";
+import { applies, comparable } from "../dist/runtime.js";
+import { db, seenIn } from "../dist/db.js";
+import { checkPage, settled, testDatabase } from "../dist/testing.js";
+
+// A tool of a few lines on the built package, asked as the Chest asks.
+const words = {
+  kit,
+  tool: { name: "Probe" },
+  pages: { notFound: { title: "Nothing here", body: ".", publicBody: "Ask whoever sent the link." }, forbidden: { title: "Not allowed", body: "." }, failed: { title: "Failed", body: "." }, signIn: "Sign in.", busy: "Busy.", language: "Language", back: "Back" },
+  errors: { invalid: "Invalid.", empty: "Empty.", too_long: "Too long: {max} at most.", too_large: "Too large.", forbidden: "Forbidden.", not_found: "Not found.", unavailable: "Unavailable.", unknown: "Unknown.", expired: "Expired.", needs_javascript: "This form needs JavaScript." },
+};
+function Labelled({ label }) {
+  const id = useId();
+  return h("label", { htmlFor: id }, label, h("input", { id }));
+}
+const actions = {
+  echo: action({ text: field.text({ max: 5 }) }, async ({ text }, { member }) => ({ text, who: member.id })),
+  go: action({}, async () => redirect("/chest/elsewhere")),
+  big: action({ text: field.text({ max: 1e6 }) }, async () => null, { maxBody: 100 }),
+  refuse: action({}, async () => fail("forbidden")),
+  taken: action({ email: field.text({ max: 50 }) }, async () => fail("invalid", undefined, { field: "email" })),
+  subscribe: action({ email: field.email() }, async ({ email }) => ({ email })),
+  summarise: action({}, async () => null, { parallel: true }),
+  shout: publicAction({ text: field.text({ max: 5 }) }, async () => null, { bound: false }),
+  write: publicAction({ text: field.text({ max: 5 }) }, async ({ text }) => { if (text === "taken") fail("invalid"); written++; return null; }, { bound: { perVisitor: 2, perDay: 3 } }),
+  book: publicAction({ secret: field.text({ min: 0, max: 20 }) }, async ({ secret }, { charge }) => {
+    if (secret && secret !== "s3cret") fail("forbidden"); // checked before it counts
+    await charge(secret ? "change" : "new");
+    written++;
+    return null;
+  }, { bound: { budgets: { new: { perVisitor: 1, perDay: 10 }, change: { perVisitor: 3, perDay: 10 } }, formMinutes: 30 } }),
+  guarded: publicAction({ ok: field.bool() }, async ({ ok }, { flooded }) => (ok ? { flooded } : fail("forbidden")), { bound: { perVisitor: 1, perDay: 1 } }),
+  rsvp: publicAction({ link: field.text({ max: 20 }) }, async ({ link }, { charge }) => { await charge("change", { subject: link }); return null; }, { bound: { budgets: { change: { perVisitor: 50, perDay: 50, perSubject: 2 } } } }),
+  chat: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 2 } }),
+  hard: publicAction({ text: field.text({ max: 20 }) }, async () => { worked++; return null; }, { bound: { perVisitor: 100, perDay: 100, work: 8 } }),
+  patient: publicAction({}, async () => null, { bound: { perVisitor: 5, perDay: 5, formSeconds: 1 } }),
+  forgot: publicAction({}, async () => null, { bound: { budgets: { new: { perVisitor: 1, perDay: 1 } } } }),
+};
+let completed = 0;
+let written = 0, worked = 0;
+const layout = ({ notice, look, status, data, children }) => h("main", { id: "main", "data-status": status, "data-logo": look?.logo?.url ?? "", "data-trash": String(data.trash ?? "none") }, notice && h("p", { role: "alert" }, notice), children);
+const app = createApp({
+  actions, islands: { Labelled }, locales: ["en", "fr"], words: locale => (locale === "fr" ? { ...words, tool: { name: "Sonde" } } : words), layouts: { members: layout, public: layout },
+  look: viewer => ({ css: viewer.member ? ":root{--ink:#111}" : ":root{--ink:#222}", colors: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }], logo: { url: "/_chest/theme/brand/logo.svg", alt: "Brand" } }),
+  complete: async who => { completed++; return { ...who, groups: ["grp_completedcompletedcompleted"] }; },
+});
+app.post("/p/:link/actions/:name", publicActionsAt());
+app.post("/chest/import", rawRoute({ maxBytes: 100 }, (body, { viewer, c }) => c.json({ bytes: body.length, who: viewer.member?.id ?? null })));
+app.get("/chest/groups", page(({ member }) => ({ title: "Groups", body: h("p", null, member.groups.join(",")) })));
+app.get("/chest", page(({ t }) => ({ title: "Home", layout: { trash: true }, body: h("div", null, h(Island, { name: "Labelled", props: { label: "A" } }), h(Island, { name: "Labelled", props: { label: "B" } }), t.tool.name) })));
+app.get("/chest/day", page(async () => {
+  const [{ day }] = await db()`select date '2026-10-05' as day`;
+  return { title: "Day", body: h("p", null, typeof day + " " + day) };
+}));
+app.get("/chest/refused", page(() => fail("forbidden")));
+app.get("/chest/missing", page(() => fail("not_found")));
+app.get("/chest/invalid", page(() => fail("invalid")));
+app.get("/chest/own-policy", page(() => new Response("framed", { headers: { "content-security-policy": "frame-ancestors https://partner.example" } })));
+app.get("/chest/export.csv", download(({ query }) => {
+  if (query("who") === "other") fail("forbidden");
+  if (query("year") === "1900") fail("too_long", { max: 5 });
+  return { name: "Absences été 2026.csv", type: "text/csv; charset=utf-8", body: "a,b\r\n" };
+}));
+let pulled = 0;
+app.get("/chest/archive.zip", download(() => ({ name: "archive.zip", type: "application/zip", body: new ReadableStream({ pull(controller) { pulled++; controller.enqueue(new Uint8Array(4096)); if (pulled > 50) controller.close(); } }) })));
+app.get("/chest/short", page(() => ({ title: "Short", body: "x" })));
+app.get("/chest/long", page(() => ({ title: "Long", body: h("p", null, "word ".repeat(2000)) })));
+let versionOfPage = "v1", rendered = 0;
+app.get("/chest/own-island", page(() => ({ title: "Own", body: h(Island, { name: "Labelled", id: "report-7", props: { label: "R" } }) })));
+app.get("/chest/big-island", page(() => ({ title: "Big", body: h(Island, { name: "Labelled", props: { label: "x".repeat(300 * 1024) } }) })));
+app.get("/chest/sent", page(({ sent }) => ({ title: "Sent", body: h("p", { id: "sent" }, String(sent("text") ?? "nothing")) })));
+app.get("/chest/versioned", page(() => { rendered++; return { title: "Versioned", body: h("p", null, versionOfPage) }; }, { version: () => versionOfPage }));
+app.post("/chest-schedules", () => { throw new Error("boom"); });
+app.get("/", publicPage(() => ({ title: "Public", body: h("form", { method: "post", action: "/actions/write" }, h(Honeypot, { action: "write" }), h("p", null, "hello")) })));
+app.get("/hard", publicPage(() => ({ title: "Hard", body: h("form", { method: "post", action: "/actions/hard" }, h(Honeypot, { action: "hard" }), h(Island, { name: "Labelled", props: { label: "Name" } })) })));
+app.get("/in/:lang", publicPage(({ param }) => ({ title: "Public", body: h("p", null, "bonjour"), locale: param("lang") })));
+app.get("/company", publicPage(() => ({ title: "Atelier status", exactTitle: true, head: h("meta", { name: "robots", content: "index, follow" }), body: h("p", null, "ok") })));
+app.get("/framed", () => new Response("<p>framed</p>", { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors https://shop.test" } }));
+app.use("/secret/*", async (c, next) => { await next(); c.header("Referrer-Policy", "no-referrer"); });
+app.get("/secret/:token", publicPage(() => ({ title: "Secret", body: h("p", null, "yours") })));
+
+const member = { id: "mbr_camillemartincamillemartin", firstName: "C", lastName: "M", name: "C M", photo: null, role: "member", isAdmin: false, isBuilder: false, groups: [], language: "en", timeZone: "Europe/Paris" };
+let chest, database;
+before(async () => { chest = await fakeChest({ members: [member], chest: { timeZone: "Pacific/Kiritimati" } }); database = await testDatabase({ migrations: "test/no-migrations" }); });
+after(async () => { await database.close(); await chest.close(); });
+
+const url = path => `https://tool.test${path}`;
+const get = (path, who = member, headers = {}) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
+const post = (path, body, headers = {}, who = member) => { const request = new Request(url(path), { method: "POST", body, headers: { "sec-fetch-site": "same-origin", host: "tool.test", ...headers } }); return app.fetch(who ? withMember(request, who) : request); };
+const json = (path, input, who) => post(path, JSON.stringify(input), { "content-type": "application/json", "x-tool-action": "1" }, who);
+
+test("a page: islands rendered each as its own root (ids that match the browser's), the policy", async () => {
+  const response = await get("/chest");
+  const html = checkPage(await response.text());
+  const prefixes = [...html.matchAll(/data-prefix="([^"]+)"/gu)].map(m => m[1]);
+  assert.equal(prefixes.length, 2);
+  assert.notEqual(prefixes[0], prefixes[1]);
+  for (const p of prefixes) assert.match(html, new RegExp(`for="_?«?${p}`, "u"));
+  assert.match(response.headers.get("content-security-policy"), /^default-src 'self'; script-src 'self'; style-src 'self'/u);
+  assert.equal((await get("/chest", null)).status, 401);
+});
+
+test("actions: JSON for an island, a redirect for a form, refusals with their values", async () => {
+  assert.deepEqual(await (await json("/chest/actions/echo", { text: "hi" })).json(), { ok: true, value: { text: "hi", who: member.id } });
+  assert.deepEqual(await (await json("/chest/actions/echo", { text: "toolong" })).json(), { ok: false, error: "too_long", message: "Too long: 5 at most.", field: "text" });
+  assert.deepEqual(await (await json("/chest/actions/go", {})).json(), { ok: true, value: null, redirect: "/chest/elsewhere" });
+  assert.equal((await json("/chest/actions/refuse", {})).status, 403);
+  const big = await json("/chest/actions/big", { text: "x".repeat(200) });
+  assert.equal(big.status, 413);
+  assert.equal((await big.json()).error, "too_large");
+  const form = await post("/chest/actions/echo", new URLSearchParams({ text: "toolong" }), { referer: url("/chest?error=old") });
+  assert.equal(form.status, 303);
+  const back = form.headers.get("location");
+  assert.equal(back, `/chest?error=too_long&values=${encodeURIComponent('{"max":5}')}`);
+  assert.match(await (await get(back)).text(), /role="alert">Too long: 5 at most\./u);
+  assert.equal((await json("/actions/shout", { text: "x" })).status, 200);
+  assert.equal((await json("/chest/actions/shout", { text: "x" })).status, 404);
+  assert.equal((await json("/chest/actions/echo", { text: "x" }, member)).status, 200);
+  const cross = await post("/chest/actions/echo", JSON.stringify({ text: "x" }), { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "cross-site" });
+  assert.equal(cross.status, 403);
+  assert.equal((await cross.json()).error, "forbidden");
+});
+
+test("the language switch and the forms never send elsewhere", async () => {
+  for (const evil of ["//evil.example", "/%5Cevil.example", "/%09/evil.example", "https://evil.example", "/chest"]) {
+    assert.equal((await get(`/lang/en?back=${evil}`, null)).headers.get("location"), "/", evil);
+  }
+  assert.equal((await get("/lang/en?back=/jobs?x=1", null)).headers.get("location"), "/jobs?x=1");
+  const form = await post("/chest/actions/echo", new URLSearchParams({ text: "x" }), { referer: "https://evil.example/chest/x" });
+  assert.equal(form.headers.get("location"), "/chest");
+});
+
+test("db(): a date column is a day as text", async () => {
+  assert.match(await (await get("/chest/day")).text(), /string 2026-10-05/u);
+});
+
+test("options: a look served as a stylesheet with its hash, the member completed, public actions under a path", async () => {
+  const html = await (await get("/chest")).text();
+  const href = /href="(\/chest\/look\.css\?v=[^"]+)"/u.exec(html)?.[1];
+  assert.ok(href, "the look's link");
+  assert.match(html, /<meta name="theme-color" media="\(prefers-color-scheme: light\)" content="#ffffff"\/>/u);
+  const before = completed;
+  const sheet = await get(href);
+  assert.equal(completed, before, "complete() is not run for the look");
+  assert.equal(await sheet.text(), ":root{--ink:#111}");
+  assert.equal(sheet.headers.get("cache-control"), "private, max-age=31536000, immutable");
+  assert.equal((await get("/look.css", null)).headers.get("cache-control"), "private, no-cache");
+  assert.match(await (await get("/chest/groups")).text(), /grp_completedcompletedcompleted/u);
+  assert.equal((await json("/p/abc/actions/shout", { text: "x" })).status, 200);
+  assert.equal((await json("/p/abc/actions/echo", { text: "x" })).status, 404, "a members' action is not served there");
+  assert.match(await (await get("/chest/nothing")).text(), /href="\/chest">Back</u);
+  assert.doesNotMatch(await (await get("/nothing", null)).text(), />Back</u);
+});
+
+test("the log names the route, never the path or the query", async () => {
+  const lines = [];
+  const write = console.log;
+  console.log = line => lines.push(String(line));
+  try {
+    await json("/p/secret-guest-link/actions/shout?token=abc", { text: "x" });
+    await get("/chest/day?token=abc");
+    await get("/nowhere/secret", null);
+  } finally {
+    console.log = write;
+  }
+  const text = lines.join("\n");
+  assert.doesNotMatch(text, /secret|token|abc/u);
+  assert.match(text, /route=\/p\/:link\/actions\/:name action=shout status=200/u);
+  assert.match(text, /route=\/chest\/day status=200/u);
+  assert.match(text, /route=\(none\) status=404/u);
+});
+
+test("the script is linked by its hashed name, never with a query: a chunk an island imports later finds the same module", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = mkdtempSync(join(tmpdir(), "chest-app-assets-"));
+  mkdirSync(join(root, "dist", "client", "assets"), { recursive: true });
+  writeFileSync(join(root, "dist", "client", "assets", "client-Ab3_x9Zq.js"), "export {};");
+  writeFileSync(join(root, "dist", "client", "assets", "client.css"), "");
+  const [cwd, mode] = [process.cwd(), process.env.NODE_ENV];
+  process.chdir(root);
+  process.env.NODE_ENV = "development"; // read again on every page
+  try {
+    const html = await (await get("/chest")).text();
+    assert.match(html, /<script type="module" src="\/assets\/client-Ab3_x9Zq\.js"><\/script>/u);
+    assert.match(html, /<link rel="stylesheet" href="\/assets\/client\.css\?v=\w+"\/>/u);
+    const script = await app.fetch(new Request(url("/assets/client-Ab3_x9Zq.js")));
+    assert.equal(script.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  } finally {
+    process.chdir(cwd);
+    if (mode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = mode;
+  }
+});
+
+test("layouts receive the look (its logo) and the page's status; a visitor's 404 says its own words", async () => {
+  const home = await (await get("/chest")).text();
+  assert.match(home, /data-status="200" data-logo="\/_chest\/theme\/brand\/logo\.svg" data-trash="true"/u, "and what the page told it (View.layout)");
+  const missing = await get("/nothing", null);
+  assert.equal(missing.status, 404);
+  const text = await missing.text();
+  assert.match(text, /data-status="404"[^>]*data-trash="none"/u);
+  assert.match(text, /Ask whoever sent the link\./u);
+  assert.doesNotMatch(await (await get("/chest/nothing")).text(), /Ask whoever sent the link/u, "a member reads the page's body");
+});
+
+test("a public page in a language of its own: <html lang> and the layout's words follow it, one the tool does not speak is ignored", async () => {
+  const fr = await (await get("/in/fr", null)).text();
+  assert.match(fr, /<html lang="fr">/u);
+  assert.match(fr, /<title>Public · Sonde<\/title>/u);
+  const unknown = await (await get("/in/xx", null)).text();
+  assert.match(unknown, /<html lang="en">/u);
+  assert.match(unknown, /<title>Public · Probe<\/title>/u);
+});
+
+test("a page's own head and exact title; a route's own policy and referrer policy are kept", async () => {
+  const company = await (await get("/company", null)).text();
+  assert.match(company, /<title>Atelier status<\/title>/u);
+  assert.match(company, /<meta name="robots" content="index, follow"\/>/u);
+  assert.match(await (await get("/", null)).text(), /<title>Public · Probe<\/title>/u);
+  const framed = await get("/framed", null);
+  assert.equal(framed.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors https://shop.test");
+  const secret = await get("/secret/abc", null);
+  assert.equal(secret.headers.get("referrer-policy"), "no-referrer");
+  assert.match(secret.headers.get("content-security-policy"), /frame-ancestors 'none'/u);
+  assert.equal((await get("/", null)).headers.get("referrer-policy"), "same-origin");
+});
+
+test("after(): a task that throws before its first await is logged, never thrown", async () => {
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    afterAnswer("probe", () => { throw new Error("at once"); });
+    await new Promise(resolve => setTimeout(resolve, 20));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /^error "probe failed"/mu);
+});
+
+test("settled(): waits for after()'s tasks, and those they start", async () => {
+  const done = [];
+  afterAnswer("first", async () => {
+    await new Promise(resolve => setTimeout(resolve, 30));
+    done.push("first");
+    afterAnswer("second", async () => { await new Promise(resolve => setTimeout(resolve, 30)); done.push("second"); });
+  });
+  await settled();
+  assert.deepEqual(done, ["first", "second"]);
+});
+
+test("which page read is put in place: a navigation is never lost to a refresh or an action", () => {
+  const read = { ticket: 3, latest: 3, move: 1, moves: 1, settled: true, sending: 0 };
+  assert.equal(applies({ ...read, navigation: false }), true);
+  assert.equal(applies({ ...read, navigation: false, latest: 4 }), false, "a newer read is on its way");
+  assert.equal(applies({ ...read, navigation: false, moves: 2 }), false, "a navigation came since: this refresh read the old address");
+  assert.equal(applies({ ...read, navigation: false, sending: 1 }), false, "an action is on its way");
+  assert.equal(applies({ ...read, navigation: false, settled: false }), false, "an action was on its way when it started");
+  assert.equal(applies({ ...read, navigation: true, latest: 5, sending: 1, settled: false }), true, "the person's own click");
+  assert.equal(applies({ ...read, navigation: true, moves: 2 }), false, "but not a click followed by another");
+});
+
+test("a rule shared with the browser refuses with the server's own AppError", () => {
+  assert.equal(BrowserError, AppError);
+});
+
+test("fail() in a page is a 403 or 404 page; a body neither form nor JSON is a 415; notices take numbers only", async () => {
+  assert.equal((await get("/chest/refused")).status, 403);
+  assert.equal((await get("/chest/missing")).status, 404);
+  assert.equal((await get("/chest/invalid")).status, 404);
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    const plain = await post("/actions/shout", "text=x", { "content-type": "text/plain", "x-tool-action": "1" }, null);
+    assert.equal(plain.status, 415);
+  } finally {
+    console.error = write;
+  }
+  assert.deepEqual(lines, [], "no error logged for a visitor's odd body");
+  const injected = await (await get(`/chest?error=too_long&values=${encodeURIComponent('{"max":"Call +33 6… now"}')}`)).text();
+  assert.doesNotMatch(injected, /Call/u);
+  assert.match(injected, /role="alert">Invalid\./u);
+});
+
+test("two apps keep their own options", async () => {
+  const other = createApp({ actions: {}, islands: {}, locales: ["en"], words: () => ({ ...words, tool: { name: "Other" } }), layouts: { members: layout, public: layout } });
+  other.get("/chest", page(({ t }) => ({ title: t.tool.name, body: "x" })));
+  assert.match(await (await other.fetch(withMember(new Request(url("/chest")), member))).text(), /<title>Other<\/title>/u);
+  assert.match(await (await get("/chest")).text(), /Probe/u);
+});
+
+test("seen: any table of the tool's, forgotten after so many days", async () => {
+  assert.throws(() => seenIn("x; drop table y"), TypeError);
+  await db()`create table if not exists my_seen (id text primary key, at timestamptz not null default now())`;
+  const mine = seenIn("my_seen");
+  assert.equal(await mine.has("evt_1"), false);
+  await mine.add("evt_1");
+  await mine.add("evt_1");
+  assert.equal(await mine.has("evt_1"), true);
+  await db()`update my_seen set at = now() - interval '40 days'`;
+  await mine.forget();
+  assert.equal(await mine.has("evt_1"), false);
+});
+
+test("rawRoute: the body counted while read, 413 past the cap (chunked too), 403 cross-site", async () => {
+  const ok = await post("/chest/import", "x".repeat(50), { "content-type": "application/octet-stream" });
+  assert.deepEqual(await ok.json(), { bytes: 50, who: member.id });
+  assert.equal((await post("/chest/import", "x".repeat(200), { "content-type": "application/octet-stream" })).status, 413);
+  const chunked = new ReadableStream({ start(controller) { for (let i = 0; i < 5; i++) controller.enqueue(new TextEncoder().encode("x".repeat(40))); controller.close(); } });
+  const request = withMember(new Request(url("/chest/import"), { method: "POST", body: chunked, duplex: "half", headers: { "sec-fetch-site": "same-origin" } }), member);
+  assert.equal(request.headers.get("content-length"), null);
+  assert.equal((await app.fetch(request)).status, 413);
+  assert.equal((await post("/chest/import", "x", { "sec-fetch-site": "cross-site" })).status, 403);
+  // A Content-Length is the buffer's size: a body longer than it is refused.
+  const longer = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode("x".repeat(30))); controller.close(); } });
+  const lying = withMember(new Request(url("/chest/import"), { method: "POST", body: longer, duplex: "half", headers: { "sec-fetch-site": "same-origin", "content-length": "10" } }), member);
+  assert.equal((await app.fetch(lying)).status, 400);
+});
+
+test("zipStream: a zip any reader opens, written as it is read", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  async function* entries() {
+    yield { name: "notes.csv", data: "id,body\r\n1,héllo\r\n" };
+    yield { name: "files/photo.bin", data: (async function* () { yield new Uint8Array([1, 2, 3]); yield new Uint8Array(70000).fill(7); })() };
+    yield { name: "vide.txt", data: new Uint8Array() };
+  }
+  const bytes = new Uint8Array(await new Response(zipStream(entries())).arrayBuffer());
+  const file = join(mkdtempSync(join(tmpdir(), "zip-")), "export.zip");
+  writeFileSync(file, bytes);
+  assert.match(execFileSync("unzip", ["-t", file]).toString(), /No errors detected/u);
+  assert.equal(execFileSync("unzip", ["-p", file, "notes.csv"]).toString(), "id,body\r\n1,héllo\r\n");
+  assert.equal(execFileSync("unzip", ["-p", file, "files/photo.bin"]).length, 70003);
+  await assert.rejects(new Response(zipStream([{ name: "../evil", data: "x" }])).arrayBuffer(), RangeError);
+});
+
+test("a route's own policy is kept; failures named by what failed", async () => {
+  assert.equal((await get("/chest/own-policy")).headers.get("content-security-policy"), "frame-ancestors https://partner.example");
+  assert.match((await get("/chest/day")).headers.get("content-security-policy"), /^default-src 'self'/u);
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    await app.fetch(new Request(url("/chest-schedules"), { method: "POST" }));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /^error "schedule failed"/mu);
+});
+
+test("the database runs in the Chest's zone (a far one)", async () => {
+  const { chest: sdkChest } = await import("@argentic/chest-sdk/chest");
+  const [{ day }] = await db()`select current_date::text as day`;
+  const [{ seeded }] = await database.sql`select current_date::text as seeded`;
+  assert.equal(seeded, day, "testDatabase()'s sql (the seeds) on the same day as db()");
+  for (const sql of [db(), database.sql]) assert.equal((await sql`select current_setting('TimeZone') as zone`)[0].zone, "Pacific/Kiritimati");
+  assert.equal(day, sdkChest.today());
+});
+
+test("a public action's bound: a form token served once, then counted per visitor and for everyone; the honeypot", async () => {
+  await db()`create table if not exists chest_bounds (scope text, visitor text, day date, count integer not null, primary key (scope, visitor, day))`;
+  await db()`create table if not exists chest_seen (id text primary key, at timestamptz not null default now())`;
+  const send = (name, fields, { cookie, address, form = formToken(name) } = {}) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, ...(form ? { chest_form: form } : {}) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}), ...(address ? { "chest-visitor-address": address } : {}) } }));
+  // The public page carries a token for its form's action, in <Honeypot action="write" />.
+  const home = await (await get("/", null)).text();
+  const token = /data-action="write" name="chest_form" value="([^"]+)"/u.exec(home)?.[1];
+  assert.ok(token, home.slice(home.indexOf("<form"), home.indexOf("</form>")));
+  assert.equal((await send("write", { text: "a" }, { form: token })).status, 200, "the page's token serves");
+  assert.equal((await (await send("write", { text: "a" }, { form: formToken("book") })).json()).error, "expired", "a token for another action does not");
+  assert.doesNotMatch(await (await get("/chest")).text(), /chest_form/u, "a member's page has none");
+  // Junk costs nothing: no token, a forged one, an old one, invalid fields.
+  for (const form of [null, "1.2.3", formToken("write", Date.now() - 3 * 3600_000)]) {
+    const junk = await send("write", { text: "a" }, { form });
+    assert.equal(junk.status, 400);
+    const said = await junk.json();
+    assert.equal(said.error, "expired");
+    assert.equal(said.form, undefined, "a request without a valid token gets none back");
+    assert.equal(said.retry, true, "the browser reads the page's tokens again and sends once more");
+  }
+  assert.equal((await send("write", { text: "toolong" })).status, 400);
+  assert.equal((await send("write", { text: "taken" })).status, 400, "a run that refuses gives its count back");
+  // A token serves once (the answer brings the next).
+  const once = formToken("write");
+  const first = await send("write", { text: "a" }, { form: once });
+  assert.equal(first.status, 200);
+  assert.match((await first.json()).form, /^\d{13}\.[\w-]+\.write\.0\.[\w-]+$/u);
+  const replayed = await (await send("write", { text: "a" }, { form: once })).json();
+  assert.equal(replayed.error, "expired");
+  assert.equal(replayed.form, undefined, "a token sent twice brings none");
+  const cookie = /chest_v=[\w-]+/u.exec(first.headers.get("set-cookie") ?? "")?.[0];
+  assert.ok(cookie, "a visitor cookie, for the next calls");
+  // That first call had no cookie yet: everyone's count only.
+  assert.equal((await send("write", { text: "b" }, { cookie })).status, 200);
+  assert.equal((await send("write", { text: "c" }, { cookie })).status, 200);
+  const third = await send("write", { text: "d" }, { cookie });
+  assert.equal(third.status, 429, "this browser's two");
+  assert.equal((await third.json()).error, "limit");
+  assert.equal((await send("write", { text: "e" }, { cookie: "chest_v=anotherbrowseranotherbrowser" })).status, 429, "everyone's three");
+  const before = written;
+  assert.equal((await send("write", { text: "f", website: "spam.example" })).status, 200, "a robot is answered done");
+  assert.equal(written, before, "and nothing is done");
+});
+
+test("budgets by kind, charged once the request is checked; a visitor known by the front's address", async () => {
+  const send = (fields, address) => app.fetch(new Request(url("/actions/book"), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken("book") }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", "chest-visitor-address": address } }));
+  for (let i = 0; i < 5; i++) assert.equal((await send({ secret: "wrong" }, "203.0.113.7")).status, 403, "a wrong secret spends nothing");
+  const made = await send({}, "203.0.113.7");
+  assert.equal(made.status, 200, JSON.stringify(await made.clone().json()));
+  assert.equal((await send({}, "203.0.113.7")).status, 429, "one new booking");
+  for (let i = 0; i < 3; i++) assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 200, "changes have their own budget");
+  assert.equal((await send({ secret: "s3cret" }, "203.0.113.7")).status, 429);
+  assert.equal((await send({}, "2001:db8::1")).status, 200, "another address");
+  const started = Date.now();
+  const quick = await app.fetch(new Request(url("/actions/patient"), { method: "POST", body: JSON.stringify({ chest_form: formToken("patient") }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  assert.equal(quick.status, 200);
+  assert.ok(Date.now() - started >= 950, "a form sent at once waits its formSeconds");
+  const lines = [];
+  const write = console.error;
+  console.error = line => lines.push(String(line));
+  try {
+    await app.fetch(new Request(url("/actions/forgot"), { method: "POST", body: JSON.stringify({ chest_form: formToken("forgot") }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  } finally {
+    console.error = write;
+  }
+  assert.match(lines.join("\n"), /public action ran without charge\(\)/u, "a run that forgets charge() is said loudly");
+});
+
+test("after a change in place, the focus goes to <main> only if nothing new took it", async () => {
+  const { focusMain } = await import("../dist/runtime.js");
+  const body = { isConnected: true }, gone = { isConnected: false }, panel = { isConnected: true };
+  assert.equal(focusMain(gone, body, body), true, "the focused link went: <main>");
+  assert.equal(focusMain(gone, panel, body), false, "a panel that arrived focused itself: kept");
+  assert.equal(focusMain(panel, panel, body), false, "the focused element stayed");
+  assert.equal(focusMain(body, body, body), false);
+});
+
+test("download(): a file as an attachment, never cached; a refusal is a page in the reader's words with its status", async () => {
+  const file = await get("/chest/export.csv");
+  assert.equal(file.status, 200);
+  assert.equal(await file.text(), "a,b\r\n");
+  assert.equal(file.headers.get("content-disposition"), `attachment; filename="Absences _t_ 2026.csv"; filename*=UTF-8''Absences%20%C3%A9t%C3%A9%202026.csv`);
+  assert.equal(file.headers.get("cache-control"), "no-store");
+  const refused = await get("/chest/export.csv?who=other");
+  assert.equal(refused.status, 403);
+  assert.match(await refused.text(), /Forbidden\./u);
+  const invalid = await get("/chest/export.csv?year=1900");
+  assert.equal(invalid.status, 400);
+  assert.match(await invalid.text(), /Too long: 5 at most\./u);
+});
+
+test("bounds: a visitor's refusals close the form to them only; everyone's flood never refuses a valid call; a subject has its own; a visitor who wrote today a reserve", async () => {
+  const send = (name, fields = {}, cookie) => app.fetch(new Request(url(`/actions/${name}`), { method: "POST", body: JSON.stringify({ ...fields, chest_form: formToken(name) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin", ...(cookie ? { cookie } : {}) } }));
+  // One browser's flood: past twenty refusals, refused before the run.
+  const flooder = "chest_v=flooderflooderflooderfl";
+  for (let i = 0; i < 20; i++) assert.equal((await send("guarded", { ok: false }, flooder)).status, 403);
+  const stopped = await send("guarded", { ok: false }, flooder);
+  assert.equal(stopped.status, 429, "their 21st");
+  assert.equal((await stopped.json()).error, "limit");
+  // A flood without address or cookie passes everyone's ceiling (ten): a
+  // valid call still goes through, told the form is flooded.
+  for (let i = 0; i < 12; i++) assert.equal((await send("guarded", { ok: false })).status, 403);
+  const valid = await send("guarded", { ok: true });
+  assert.equal(valid.status, 200, "a valid call after the flood");
+  assert.deepEqual((await valid.json()).value, { flooded: true });
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 200);
+  assert.equal((await send("rsvp", { link: "guest-a" })).status, 429, "two a day for one link");
+  assert.equal((await send("rsvp", { link: "guest-b" })).status, 200, "another link");
+  const a = "chest_v=visitoraaaaaaaaaaaaaaaa", b = "chest_v=visitorbbbbbbbbbbbbbbbb", c = "chest_v=visitorcccccccccccccccc";
+  assert.equal((await send("chat", {}, a)).status, 200);
+  assert.equal((await send("chat", {}, b)).status, 200);
+  assert.equal((await send("chat", {}, c)).status, 429, "everyone's two");
+  assert.equal((await send("chat", {}, a)).status, 200, "one who wrote today: the reserve");
+  assert.equal((await send("chat", {}, a)).status, 429, "a reserve of one");
+});
+
+test("compression measured (a short page as it is, a long one gzipped), the look's tag compared weakly, a file asked in place answered 204 unmade, parallel actions listed", async () => {
+  const gz = { "accept-encoding": "gzip, br" };
+  const at = (path, headers = {}, who = member) => app.fetch(who ? withMember(new Request(url(path), { headers }), who) : new Request(url(path), { headers }));
+  const short = await at("/nothing", gz, null);
+  assert.equal(short.headers.get("content-encoding"), null, "under 1 KiB: as it is");
+  const long = await at("/chest/long", gz);
+  assert.equal(long.headers.get("content-encoding"), "gzip");
+  assert.match(long.headers.get("vary") ?? "", /Accept-Encoding/u);
+  const sheet = await at("/look.css", gz, null);
+  const tag = sheet.headers.get("etag");
+  await sheet.arrayBuffer();
+  assert.equal((await at("/look.css", { ...gz, "if-none-match": tag }, null)).status, 304, `304 for ${tag}`);
+  const before = pulled;
+  const file = await at("/chest/archive.zip", { "x-tool-navigate": "1" });
+  assert.equal(file.status, 204);
+  assert.equal(file.headers.get("x-tool-file"), "1");
+  assert.ok(pulled - before <= 2, `the archive was not made: ${pulled - before} chunks`);
+  const whole = await at("/chest/archive.zip");
+  assert.equal(whole.headers.get("content-disposition"), `attachment; filename="archive.zip"; filename*=UTF-8''archive.zip`);
+  assert.ok((await whole.arrayBuffer()).byteLength > 4096, "followed plainly, the file comes whole");
+  assert.match(await (await at("/chest")).text(), /<meta name="chest-parallel" content="summarise"\/>/u);
+});
+
+test("a page's version: a refresh that has it is a 304, the page not rendered; an island's wrapper id is island-<id>", async () => {
+  const first = await (await get("/chest/versioned")).text();
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(first)?.[1];
+  assert.ok(version);
+  const before = rendered;
+  const same = await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), member));
+  assert.equal(same.status, 304);
+  assert.equal(rendered, before, "not rendered");
+  versionOfPage = "v2";
+  const changed = await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), member));
+  assert.equal(changed.status, 200);
+  assert.notEqual(/<meta name="chest-version" content="([^"]+)"/u.exec(await changed.text())?.[1], version);
+  const other = { ...member, id: "mbr_" + "o".repeat(26) };
+  const another = await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), other));
+  assert.equal(another.status, 200, "keyed by the reader");
+  assert.match(await (await get("/chest/own-island")).text(), /<div class="island" id="island-report-7" data-island="Labelled"/u);
+});
+
+test("an island with more than 256 KB of props is warned about in development", async () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = line => said.push(String(line));
+  try {
+    assert.equal((await get("/chest/big-island")).status, 200);
+  } finally {
+    console.warn = warn;
+  }
+  if (process.env.NODE_ENV === "development") assert.match(said.join("\n"), /island Labelled receives 30\d KB of props/u);
+  else assert.deepEqual(said, []);
+});
+
+test("bound.work: a token asks a proof of work; a flood that does not compute it is refused before anything, a browser's answer passes", async () => {
+  const send = (form, work) => app.fetch(new Request(url("/actions/hard"), { method: "POST", body: JSON.stringify({ text: "hi", chest_form: form, ...(work !== undefined ? { chest_work: work } : {}) }), headers: { "content-type": "application/json", "x-tool-action": "1", "sec-fetch-site": "same-origin" } }));
+  const before = worked;
+  const flood = await Promise.all(Array.from({ length: 60 }, () => send(formToken("hard", Date.now(), 8))));
+  assert.ok(flood.every(r => r.status === 400), "60 at once without the proof: refused");
+  const bodies = await Promise.all(flood.map(r => r.json()));
+  assert.ok(bodies.every(b => b.error === "needs_javascript" && b.form === undefined), "said needs JavaScript, and no token given back");
+  const wrong = await (await send(formToken("hard", Date.now(), 8), "12345")).json();
+  assert.equal(wrong.error, "expired", "a wrong proof");
+  assert.equal(wrong.form, undefined);
+  assert.equal((await send(formToken("hard", Date.now(), 0))).status, 400, "a token asking less than the action's work");
+  const token = formToken("hard", Date.now(), 8);
+  const done = await send(token, solveWork(token));
+  assert.equal(done.status, 200);
+  assert.match((await done.json()).form, /^\d{13}\.[\w-]+\.hard\.8\.[\w-]+$/u, "the next token asks a proof too");
+  assert.equal(worked, before + 1);
+  // The day's budget past half: today's tokens ask one bit more, and one
+  // issued before (8 bits, its proof done) is refused — its answer brings
+  // one of today's, and the browser sends again.
+  await db()`insert into chest_bounds (scope, visitor, day, count) values ('hard', '*', current_date, 60) on conflict (scope, visitor, day) do update set count = 60`;
+  try {
+    const early = formToken("hard", Date.now(), 8);
+    const refused = await send(early, solveWork(early));
+    assert.equal(refused.status, 400);
+    const said = await refused.json();
+    assert.equal(said.error, "expired");
+    assert.equal(said.retry, true);
+    assert.match(said.form, /\.hard\.9\./u, "today's token");
+    assert.equal(worked, before + 1, "nothing ran");
+    const again = await send(said.form, solveWork(said.form));
+    assert.equal(again.status, 200);
+    assert.equal(worked, before + 2);
+  } finally {
+    await db()`delete from chest_bounds where scope = 'hard' and visitor = '*'`;
+  }
+});
+
+test("fail() from a run names a field", async () => {
+  assert.deepEqual(await (await json("/chest/actions/taken", { email: "a@b.c" })).json(), { ok: false, error: "invalid", message: "Invalid.", field: "email" });
+  // field.email(): its code said by the catalogue, or as "invalid" when the catalogue lacks it.
+  assert.deepEqual(await (await json("/chest/actions/subscribe", { email: " Ana@Example.COM " })).json(), { ok: true, value: { email: "Ana@example.com" } });
+  assert.deepEqual(await (await json("/chest/actions/subscribe", { email: "Ana <ana@example.com>" })).json(), { ok: false, error: "invalid_email", message: "Invalid.", field: "email" });
+});
+
+test("a form sent without JavaScript and refused: the page it goes back to has what it held, once", async () => {
+  const refused = await post("/chest/actions/echo", new URLSearchParams({ text: "far too long" }), { referer: url("/chest/sent") });
+  assert.equal(refused.status, 303);
+  const cookie = /chest_sent=[^;]+/u.exec(refused.headers.get("set-cookie") ?? "")?.[0];
+  assert.ok(cookie, "kept a minute in a cookie, not in the address");
+  assert.doesNotMatch(refused.headers.get("location"), /far/u);
+  const back = await get("/chest/sent", member, { cookie });
+  assert.match(await back.text(), /<p id="sent">far too long<\/p>/u);
+  assert.match(back.headers.get("set-cookie") ?? "", /chest_sent=;/u, "taken once");
+});
+
+test("a form asking a proof of work, without JavaScript: <noscript> says it needs JavaScript, and a post is told so", async () => {
+  const page = await (await get("/hard", null)).text();
+  assert.match(page, /<noscript><p class="ck-error" role="alert">This form needs JavaScript\.<\/p><\/noscript>/u);
+  assert.doesNotMatch(await (await get("/", null)).text(), /<noscript>/u, "a form without work has none");
+  const form = /data-action="hard" name="chest_form" value="([^"]+)"/u.exec(page)?.[1];
+  const sent = await app.fetch(new Request(url("/actions/hard"), { method: "POST", body: new URLSearchParams({ text: "hi", chest_form: form }), headers: { "sec-fetch-site": "same-origin", host: "tool.test", referer: url("/hard") } }));
+  assert.equal(sent.status, 303);
+  assert.match(sent.headers.get("location"), /error=needs_javascript/u);
+  assert.match(await (await get(sent.headers.get("location"), null)).text(), /role="alert">This form needs JavaScript\./u);
+});
+
+test("concurrent public reads: each page's render mark is its own islands' (the mark set after the last await)", async () => {
+  const pages = await Promise.all(Array.from({ length: 30 }, () => get("/hard", null).then(r => r.text())));
+  for (const page of pages) {
+    const mark = /<meta name="chest-render" content="([^"]+)"/u.exec(page)?.[1];
+    const prefix = /data-prefix="([^"]+)"/u.exec(page)?.[1];
+    assert.ok(mark && prefix);
+    assert.ok(prefix.endsWith(`${mark}-`), `${prefix} has the mark ${mark}`);
+  }
+});
+
+test("the page's version follows the reader's time zone; a refresh compares pages without their form tokens", async () => {
+  const first = await (await get("/chest/versioned")).text();
+  const version = /<meta name="chest-version" content="([^"]+)"/u.exec(first)?.[1];
+  const elsewhere = { ...member, timeZone: "America/Lima" };
+  assert.equal((await app.fetch(withMember(new Request(url("/chest/versioned"), { headers: { "x-tool-version": version } }), elsewhere))).status, 200);
+  const one = await (await get("/", null)).text();
+  const two = await (await get("/", null)).text();
+  assert.notEqual(one, two);
+  const mark = text => /<meta name="chest-render" content="([^"]+)"/u.exec(text)?.[1] ?? "";
+  assert.equal(comparable(one, mark(one)), comparable(two, mark(two)));
+});

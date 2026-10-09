@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as activities from "../lib/activities.ts";
-import * as companies from "../lib/companies.ts";
-import * as contacts from "../lib/contacts.ts";
-import { formKey, readFormContact, sameName } from "../lib/from-forms.ts";
-import { dismissLead, formLinesToCheck, keepApart, leads, markChecked, maybeSame, moveLine, restoreLead, takeLead } from "../lib/leads.ts";
-import { catalogue, format } from "../lib/i18n/index.ts";
-import { answerLink, withWhen } from "../lib/page-data.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as companies from "../src/lib/companies.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import { formKey, readFormContact, sameName } from "../src/lib/from-forms.ts";
+import { dismissLead, formLinesToCheck, keepApart, leads, markChecked, maybeSame, moveLine, restoreLead, takeLead } from "../src/lib/leads.ts";
+import { catalogue, format } from "../src/i18n/index.ts";
+import { answerLink, withWhen } from "../src/lib/page-data.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -19,8 +19,8 @@ import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -52,7 +52,7 @@ test("a new person: a contact of nobody's, at the company of that name (added), 
   assert.ok(id);
   const c = await contacts.contact(sql, asMember(camille), id);
   assert.equal(c.name, "Nina Roux");
-  assert.equal(c.email, "nina.roux@example.com");
+  assert.equal(c.email, "Nina.Roux@example.com");
   assert.equal(c.phone, "+33 6 98 76 54 32");
   assert.equal(c.owner, null, "unassigned: nobody imported it");
   assert.equal(c.company?.name, "Roux SARL");
@@ -62,14 +62,14 @@ test("a new person: a contact of nobody's, at the company of that name (added), 
   assert.deepEqual(history.map(a => a.kind), ["form", "created"]);
   assert.equal(history[0]!.body, "Six oak chairs, please.");
   assert.equal(history[0]!.at, "2026-09-29T10:00:00.000Z");
-  assert.deepEqual(history[0]!.data, { event: history[0]!.data["event"], formId: "5", form: "Contact us", answer: data.answer.id, path: data.answer.path, who: { name: "Nina Roux", email: "nina.roux@example.com", phone: "+33 6 98 76 54 32", company: "Roux SARL" } });
+  assert.deepEqual(history[0]!.data, { event: history[0]!.data["event"], formId: "5", form: "Contact us", answer: data.answer.id, path: data.answer.path, who: { name: "Nina Roux", email: "Nina.Roux@example.com", phone: "+33 6 98 76 54 32", company: "Roux SARL" } });
   assert.deepEqual(history[1]!.data, { form: "Contact us" });
   // The company's page shows the line too.
   assert.ok((await activities.timeline(sql, { companyId: c.company!.id })).some(a => a.kind === "form"));
   // Camille, the manager, is told in French (the Chest writes a bell's
   // narrow spaces as plain ones).
   const bell = chest.notifications.filter(n => n.key === formKey("5", data.answer.id));
-  assert.deepEqual(bell.map(n => [n.member, n.title, n.body, n.path]), [[camille.id, "Nouveau contact : Nina Roux a rempli le formulaire « Contact us »", "Six oak chairs, please.", `/chest/contacts/${id}`]]);
+  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body, n.path]), [[camille.id, "Nouveau contact\u202f: Nina Roux a rempli le formulaire «\u202fContact us\u202f»", "Six oak chairs, please.", `/chest/contacts/${id}`]]);
 });
 
 test("the line reads in each reader's language", () => {
@@ -170,7 +170,7 @@ test("privacy: Nina Roux's answer, whose phone is Claire Durand's, is never file
   // Claire's owner is not told; the managers are, of a new contact that
   // may be Claire.
   const bell = chest.notifications.filter(n => n.key === formKey("101", "s54tfe3tahshinv1"));
-  assert.deepEqual(bell.map(n => [n.member, n.title, n.body]), [[camille.id, "Nouveau contact : Nina Roux a rempli le formulaire « Contactez-nous »", "Peut-être la même personne que Claire Durand (même téléphone) : vérifiez avant d’appeler. Bonjour, je voudrais un devis pour six chaises en chêne. Merci"]], "(the bell writes a message on one line)");
+  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body]), [[camille.id, "Nouveau contact\u202f: Nina Roux a rempli le formulaire «\u202fContactez-nous\u202f»", "Peut-être la même personne que Claire Durand (même téléphone)\u202f: vérifiez avant d’appeler. Bonjour, je voudrais un devis pour six chaises en chêne. Merci"]], "(the bell writes a message on one line)");
   // She is a lead in My day.
   assert.ok((await leads(sql, asMember(hugo))).rows.some(l => l.id === ninaId && l.maybe?.name === "Claire Durand"));
 
@@ -272,7 +272,7 @@ test("the line links to the answer in Forms, made when the page is shown from th
   try {
     assert.equal(withWhen([line!], "en")[0]!.link, `https://forms-chest.chest.test/chest/forms/5/answers/${data.answer.id}`);
     // Forms at a custom domain: the same stored line follows it.
-    chest.installTool("forms", { team: "https://forms.atelier-martin.fr" });
+    chest.installTool("forms", { teamUrl: "https://forms.atelier-martin.fr" });
     assert.equal(answerLink(line!), `https://forms.atelier-martin.fr/chest/forms/5/answers/${data.answer.id}`);
     // Only a "form" line, only a path Forms' team host would open.
     const [created] = (await activities.timeline(database.sql, { contactId: id! })).filter(a => a.kind === "created");

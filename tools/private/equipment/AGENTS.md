@@ -5,43 +5,38 @@ what must not break.
 
 ## Map
 
+How the tool is built — pages, islands, actions, words, the database,
+tests, recipes, rules of the stack — is
+`node_modules/@argentic/chest-app/AGENTS.md`: read it first. Equipment's
+own:
+
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | The manifest; the SDK proposals it uses (weekly schedule, French tile) |
-| `migrations/0001_equipment.sql` | Categories, items, seats, problems, history (append-only trigger), chest_events |
-| `migrations/0002_departures.sql` | Departures told by People (member, last day, when told) |
-| `migrations/0004_field_keys_rules_reminders.sql` | Field keys (names in each language), the example rules (`charters.example`), `receipts.reminded_at` |
-| `migrations/0003_receipts_requests_fields.sql` | Receipts, rules (charters), requests, fields per category, supplies (quantity, minimum), inventories, invoice; history gains qty, cost, ref, due and new kinds |
-| `migrations/0005_members_see_history_time.sql` | `categories.members_see` (off for keys and badges, vehicles — existing Chests too); the history's time is `clock_timestamp()` |
-| `migrations/0006_intune.sql` | `intune_devices` (the last read, by folded serial; the member Intune names, as an id) and `intune_reads` (each read's outcome) |
-| `lib/intune.ts` | Microsoft Intune, read only: settings from `env`, token (client credentials), paged `managedDevices`, `refresh` (nightly or asked), `status` / `factsOf` for the pages, `missingAsCsv` for the importer; plain `fetch`, answered in tests by `fakeChest({ network })`; users matched with `members.matchEmails` (names only on a Chest without it) |
-| `lib/access.ts` | **Who may do what** — the only place roles are read |
-| `lib/model.ts` | Pure rules: limits, statuses, tags, money, dates, `clean()` |
-| `lib/items.ts` | Items: list (pages), detail (full / brief), create (one or several), edit, give, take back, status and repairs, seats, supplies (hand out, restock), problems, holdings, invoice, overview; opening and closing receipts |
-| `lib/receipts.ts` | "I received it", the rules (charter versions), the handover and return sheets |
-| `lib/requests.ts` | Requests: ask, approve, refuse, fulfil (give / seat / hand out), cancel |
-| `lib/fields.ts` | Fields per category and reading their values |
-| `lib/inventory.ts` | Inventories: start, seen (tag, label link, id), close with the missing, report, last seen |
-| `lib/categories.ts` | Categories |
-| `lib/importer.ts` | Snipe-IT / spreadsheet import: `plan()` is pure, `applyImport()` writes; other columns become fields when kept; `test/fixtures/` holds Snipe-IT exports |
-| `lib/export.ts`, `lib/csv.ts` | CSV out (reads back through the importer) |
-| `lib/qr.ts` | The QR encoder (tested by decoding) |
-| `lib/tell.ts`, `lib/notify.ts` | Bell items (keyed, withdrawn when settled), managers' badges |
-| `lib/departures.ts` | Departures told by People (events between tools): read and check each event, ordering by `occurredAt`, the "To take back" list, purge |
-| `lib/lifecycle.ts`, `lib/weekly.ts` | Members leaving (their departure leaves the lists, kept for `equipment.returned`) / erased (forgets it); Monday's run |
-| `migrations/0007_returned.sql`, `lib/returned.ts` | `equipment.returned {member}` to People once everything a leaving person held is back: a deferred trigger writes the outbox in the take-back's transaction; published after each action (`app/chest/actions.ts` `act`) and by the `returns` schedule; key `equipment:<member>:returned:<ms>` — People's contract, never change its shape |
-| `lib/view.ts`, `lib/words.ts` | Items as rows in words for the views; `categoryName`, `fieldName`, `charterText`: the tool's own names and example rules in the reader's language |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser; the UI kit's word sections (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`, `filters`, `search`) |
-| `lib/theme.ts` | The identity "Tool crib" (`defineTheme`, equal to the kit's catalogue theme `labels`) and `currentLook()` |
-| `app/tokens.css` | The tool's own tokens, all defined from contract tokens (steel bar, tag, paper) |
-| `components/claim-button.tsx`, `components/fold.tsx` | *Claim the warranty* (to repair with the supplier's details); a long overview section folded to three lines |
-| `components/shell.tsx`, `components/bits.tsx` | The kit's `AppShell` with Next's `Link`; asset tag, status stamps (the kit's `StatusBadge`), item lines |
-| `app/chest/` | Pages (server) and views (`"use client"`); `actions.ts` server actions |
+| `chest.json`, `chest.proposals.json` | The manifest (contract 0.4: roles, capabilities, the three schedules, Microsoft's two hosts, Intune's settings); the SDK proposals it uses (events between tools, the French tile); no mail: members hear everything in the bell |
+| `src/app.tsx` | Every route: pages (`equipment()`: a role is needed; `managers()`: 403 with the kit's NoAccess otherwise), the photo and invoice links, the streamed CSV export, `/chest-events`, `/chest-schedules` |
+| `src/actions.ts` | Every change, by name (`call("giveItem", …)` from an island); after each, `equipment.returned` is told (`lib/returned.ts`) |
+| `src/pages/` | The pages, rendered on the server (`Overview`, `Mine`, `Items`, `Item`, `NewItem`/`EditItem`, `People`, `Person`, `Handover`/`ReturnSheet` with `sheet.tsx`, `Inventory`, `InventoryReport`, `Labels`, `Import`, `Settings`) |
+| `src/islands/` | What runs in the browser (`index.ts` lists them); `undo.ts` (an Undo that tells the truth), `upload.ts` (grant, PUT, record) |
+| `src/components/` | Shared by pages and islands: icons, the mark, asset tags and stamps (`bits.tsx`), the label's face and QR, the folded sections, the watched date field |
+| `src/shared/` | Pure rules both sides use: `model.ts` (limits, statuses, tags, money, dates, `clean()`), `words.ts` (names in the reader's language), `qr.ts` (the QR encoder, tested by decoding) |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts`, the only place an `Intl` object is made (kept); the UI kit's words |
+| `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity "Tool crib" (the kit's catalogue theme `labels`), the look served as `/chest/look.css`; the tool's own tokens, made of contract tokens; its CSS |
+| `src/lib/access.ts` | **Who may do what** — the only place roles are read |
+| `src/lib/items.ts` | Items: list (pages), detail (full / brief), create (one or several), edit, give, take back (rows locked in the transaction), status and repairs, seats, supplies, problems, holdings, invoice, overview; receipts opened and closed |
+| `src/lib/receipts.ts`, `requests.ts`, `fields.ts`, `inventory.ts`, `categories.ts` | "I received it", the rules and the sheets; requests; fields per category; inventories; categories |
+| `src/lib/importer.ts`, `export.ts`, `csv.ts` | Snipe-IT / spreadsheet import (`plan()` is pure); the CSV export (header and rows apart, for the stream) |
+| `src/lib/intune.ts` | Microsoft Intune, read only (see Rules) |
+| `src/lib/tell.ts`, `notify.ts`, `people.ts` | Bell items (keyed, withdrawn when settled), badges; names from the Chest (`former`, `no_access`, `erased`) |
+| `src/lib/deliveries.ts`, `lifecycle.ts`, `departures.ts`, `returned.ts`, `weekly.ts` | What the Chest posts: members' lifecycle, People's departures, the runs of `weekly`, `intune`, `returns`; the delivered ids kept in `chest_events` (forgotten after 30 days, weekly) |
+| `src/lib/view.ts` | Items as rows in words for the views |
+| `src/lib/origin.ts`, `db.ts` | The team host for QR links (`chest.tool.teamUrl`); the package's database pool |
+| `migrations/` | 0001 to 0007 (history append-only by trigger, departures, receipts, fields, members_see, Intune, the `equipment.returned` outbox): never edit one that shipped |
+| `test/` | The services (`*.test.ts` on a real database), the built server (`app.test.ts`), the stack's rules (`sources.test.ts`); `support/` |
 | `seed/sample.sql` | Sample equipment of the studio's cast |
 
 ## Rules
 
-- Identity only from `member(request)` (`lib/session.ts`); store `mbr_…`
+- Identity only from the package's `member` (the Chest's assertion); store `mbr_…`
   ids, names come from `members.lookup` at render.
 - Every service starts with the actor's rights; a member never sees money,
   suppliers, notes or history (`brief()`); an item they may not see is
@@ -61,8 +56,8 @@ what must not break.
   Intune's user is kept only as a matched member id. Nothing is written to
   Intune. Its shapes come from Microsoft's documentation (sources in
   `lib/intune.ts`): do not add a field or an MDM from memory.
-- Services return data or throw `AppError(code)`; words live in
-  `lib/i18n` only (`test/literals.test.ts`, `test/i18n.test.ts`).
+- Services return data or throw `AppError(code)` (the package's); words
+  live in `src/i18n` only (`test/literals.test.ts`, `test/i18n.test.ts`).
 - **Days are the Chest's**: `chest.today()` (or `chest.today(at)` for an
   instant), the same day as the database's `current_date` and `at::date`
   (the Chest puts the sessions in its zone). Never
@@ -71,9 +66,9 @@ what must not break.
   is shown in the reader's language (`categoryName`, `fieldName`,
   `charterText`) until a manager changes it; never seed an English name
   without its key.
-- **One refusal for managers' pages**: `if (!can(member, "items.manage"))
-  forbidden();` first thing (403, `app/chest/forbidden.tsx`, the kit's
-  NoAccess); add a new managers' page to `test/refusals.test.ts`.
+- **One refusal for managers' pages**: route it with `managers()` in
+  `src/app.tsx` (403, the kit's NoAccess, before anything is read); add it
+  to `managersPages` in `test/app.test.ts`.
 - **Printed sheets are proof**: people by `plainName` (never "(former
   member)"), no placeholder left in any text, hidden or not.
 - The history is append-only: add a `kind` (migration + catalogue
@@ -90,7 +85,7 @@ what must not break.
   departure is cancelled, and when the member leaves or is erased.
 - Nothing leaves the tool: fonts, icons and QR codes are local.
 - **The UI kit** (`@argentic/chest-ui`, vendored in `vendor/`): `AppShell`
-  (+ `Nav`, `BrandMark`, `NoAccess`), `Toasts`/`useToast` (Undo returns
+  (+ `Nav`, `BrandMark`, `NoAccess`), toasts through the package's `toast()` (Undo returns
   `true` or why not; `sent: true` once a bell left), `Dialog` (pass
   `dirty` when something was typed), `Confirm` (only for the irreversible:
   deleting a photo or an invoice), `PeoplePicker` (`localSearch` over the
@@ -108,13 +103,14 @@ what must not break.
   `Menu size="m"`, the category filter becomes a select past 8
   categories (`as: "select"`).
 - **CSS names only contract tokens** and the tool's own from
-  `app/tokens.css` (`test/theme.test.ts`); never a colour. The paper
+  `src/tokens.css` (`test/theme.test.ts`); never a colour. The paper
   (sheets, labels) uses the system's `Canvas`/`CanvasText` (and a dark grey mixed from them)
   with `color-scheme: light`, so it prints black on white in every look.
 - Words follow `lab/GLOSSARY.md` (`node scripts/lint-words.mjs` in the
   studio: 0 errors): Undo « Annuler l’action », Delete « Supprimer »,
   narrow no-break spaces in French.
-- Client components never import the SDK, `lib/db.ts`, `lib/session.ts`,
-  `lib/people.ts`.
+- Islands and components never import the SDK nor `src/lib/` (types
+  aside): `checkSources()` refuses it. Give an island an `id` of its
+  subject (`i-item-<id>`) so its state never moves to another item.
 - Verify with `npm test` (PGlite and `TEST_DATABASE_URL`), `npm run build`,
   the flows, the screenshots and the audit (README, "Develop").

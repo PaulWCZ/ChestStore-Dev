@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { askChange, decideChange, waitingChange, waitingChanges, withdrawChange } from "../lib/changes.ts";
-import { AppError } from "../lib/errors.ts";
-import { ofRecord } from "../lib/journal.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { endings } from "../lib/morning.ts";
-import { employeeNumber, workDays } from "../lib/model.ts";
-import { createRecord, linkRecord, listRecords, record, updateRecord, upcoming } from "../lib/records.ts";
+import { askChange, decideChange, waitingChange, waitingChanges, withdrawChange } from "../src/lib/changes.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { ofRecord } from "../src/lib/journal.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { endings } from "../src/lib/morning.ts";
+import { employeeNumber, workDays } from "../src/shared/model.ts";
+import { createRecord, linkRecord, listRecords, record, updateRecord, upcoming } from "../src/lib/records.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, nora, sofia, tom, seen } from "./support/members.ts";
 
 // Round 3: the employee number, the work permit's end, the days worked,
 // what People tells Leave of a record (events between tools), and changes
@@ -20,7 +20,7 @@ let chest: FakeChest;
 before(async () => {
   process.env["CHEST_TOOL"] = "people";
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"], emits: ["people.leaving", "people.leaving_cancelled", "people.record"], receivers: 1 });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications"], emits: ["people.leaving", "people.leaving_cancelled", "people.record"], receivers: 1 });
 });
 after(async () => {
   await chest.close();
@@ -54,7 +54,7 @@ test("a record's employee number is unique; the work permit's end reminds HR 60 
   assert.deepEqual((await upcoming(sql, "2026-12-01")).filter(u => u.id === a.id).map(u => u.what), ["permit"]);
   chest.notifications.length = 0;
   await endings(sql, "2026-12-01");
-  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `record:${a.id}:permit:2026-11-20`);
+  const told = chest.notifications.filter(n => n.member === camille.id && n.key === `record:${a.id}:permit:2026-11-20`).map(seen);
   assert.equal(told.length, 1);
   assert.match(told[0]!.title, /DIALLO Aminata a expiré le 20 novembre/u);
   // A day refused: an 8th day of the week.

@@ -1,28 +1,28 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { ofRecord, ofRegister } from "../lib/journal.ts";
-import { endings } from "../lib/morning.ts";
-import { numbers, workersOf } from "../lib/numbers.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { ofRecord, ofRegister } from "../src/lib/journal.ts";
+import { endings } from "../src/lib/morning.ts";
+import { numbers, workersOf } from "../src/lib/numbers.ts";
 import {
   addDocument, createForEveryone, createRecord, deleteRecord, documentUpload, linkRecord, listRecords, missing, openDocument, purgeRecords, record, recordIdOf,
   removeDocument, updateRecord, upcoming,
-} from "../lib/records.ts";
-import { mentions, register, registerCsv, registerGaps } from "../lib/register.ts";
-import { plainName } from "../lib/people.ts";
+} from "../src/lib/records.ts";
+import { mentions, register, registerCsv, registerGaps } from "../src/lib/register.ts";
+import { plainName } from "../src/lib/people.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom } from "./support/members.ts";
-import { updateJob } from "../lib/profiles.ts";
+import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom, seen } from "./support/members.ts";
+import { updateJob } from "../src/lib/profiles.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();
@@ -102,7 +102,7 @@ test("documents: uploaded by HR through the Chest, opened by HR and the person o
   const id = (await listRecords(sql, hr)).find(r => r.memberId === nora.id)!.id;
   await assert.rejects(documentUpload(sql, asMember(nora), id, { type: "application/pdf", size: 1000 }), refused("forbidden"));
   await assert.rejects(documentUpload(sql, hr, id, { type: "application/x-msdownload", size: 1000 }), refused("type_refused"));
-  await assert.rejects(documentUpload(sql, hr, id, { type: "application/pdf", size: 30 << 20 }), refused("too_large"));
+  await assert.rejects(documentUpload(sql, hr, id, { type: "application/pdf", size: 30 << 20 }), refused("file_too_large"));
   const pdf = new TextEncoder().encode("%PDF-1.4\n% contrat\n");
   const up = await documentUpload(sql, hr, id, { type: "application/pdf", size: pdf.length });
   const sent = await chest.upload(up.url, pdf, "application/pdf");
@@ -186,7 +186,7 @@ test("what is coming up; the bell tells HR in their language; records go five ye
   const soon = await upcoming(sql, "2026-10-10");
   assert.deepEqual(soon.filter(s => s.id === noraId).map(s => [s.what, s.day]), [["trial", "2026-10-21"]]);
   await endings(sql, "2026-10-10");
-  const told = chest.notifications.filter(n => n.key === `record:${noraId}:trial:2026-10-21`);
+  const told = chest.notifications.filter(n => n.key === `record:${noraId}:trial:2026-10-21`).map(seen);
   assert.deepEqual(told.map(n => n.member).sort(), [camille.id, sofia.id].sort());
   assert.equal(told.find(n => n.member === camille.id)!.title, "La période d’essai de Nora Petit se termine le 21 octobre");
   assert.equal(told.find(n => n.member === sofia.id)!.title, "Nora Petit’s trial period ends on 21 October");

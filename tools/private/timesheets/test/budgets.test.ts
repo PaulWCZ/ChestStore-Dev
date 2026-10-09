@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { addDays, mondayOf, todayIn } from "../lib/days.ts";
-import * as entries from "../lib/entries.ts";
-import { markInvoiced, unmarkInvoiced } from "../lib/invoicing.ts";
-import * as projects from "../lib/projects.ts";
-import { report } from "../lib/reports.ts";
-import { setRate } from "../lib/rates.ts";
+import { addDays, mondayOf, todayIn } from "../src/shared/days.ts";
+import * as entries from "../src/lib/entries.ts";
+import { markInvoiced, unmarkInvoiced } from "../src/lib/invoicing.ts";
+import * as projects from "../src/lib/projects.ts";
+import { report } from "../src/lib/reports.ts";
+import { setRate } from "../src/lib/rates.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines } from "./support/members.ts";
+import { camille, everyone, hugo, ines, seen } from "./support/members.ts";
 import { refused } from "./support/refused.ts";
 
 let database: TestDatabase;
@@ -32,11 +32,11 @@ test("crossing 80 % then 100 % of a budget rings the managers once each; back un
   await entries.addEntry(sql, me, { projectId: p.id, day: monday, minutes: 420 });
   assert.equal(chest.notifications.length, 0);
   const cell = await entries.saveCell(sql, me, { projectId: p.id, taskId: null, day: addDays(monday, 1), minutes: 90 });
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key, n.path]), [[camille.id, "Signage a consommé 85 % de son budget", `budget:${p.id}`, `/chest/projects/${p.id}`]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, seen(n).title, n.key, n.path]), [[camille.id, "Signage a consommé 85\u00a0% de son budget", `budget:${p.id}`, `/chest/projects/${p.id}`]]);
   await entries.saveCell(sql, me, { projectId: p.id, taskId: null, day: addDays(monday, 1), minutes: 100 });
   assert.equal(chest.notifications.length, 1);
   await entries.saveCell(sql, me, { projectId: p.id, taskId: null, day: addDays(monday, 1), minutes: 200 });
-  assert.deepEqual(chest.notifications.map(n => n.title), ["Signage dépasse son budget : 103 %"]);
+  assert.deepEqual(chest.notifications.map(n => seen(n).title), ["Signage dépasse son budget\u202f: 103\u00a0%"]);
   // Back under 80 % (time removed), then over it again: a new warning.
   await entries.saveCell(sql, me, { projectId: p.id, taskId: null, day: addDays(monday, 1), minutes: 0 });
   assert.equal((await sql`select 1 from budget_alerts where project_id = ${p.id}`).length, 0);
@@ -51,7 +51,7 @@ test("a money budget counts the billable amount; raising the budget clears the w
   chest.notifications.length = 0;
   const p = await projects.createProject(sql, asMember(camille), { name: "Brand", rateCents: 10000, budget: { kind: "money", cents: 100000 } });
   await entries.addEntry(sql, asMember(ines), { projectId: p.id, day: monday, minutes: 600 });
-  assert.deepEqual(chest.notifications.map(n => n.title), ["Brand dépasse son budget : 100 %"]);
+  assert.deepEqual(chest.notifications.map(n => seen(n).title), ["Brand dépasse son budget\u202f: 100\u00a0%"]);
   await projects.updateProject(sql, asMember(camille), p.id, { name: "Brand", rateCents: 10000, budget: { kind: "money", cents: 500000 } });
   assert.equal((await sql`select 1 from budget_alerts where project_id = ${p.id}`).length, 0);
 });

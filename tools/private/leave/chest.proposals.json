@@ -1,9 +1,8 @@
 {
-  "mail": {
-    "send": true
-  },
   "calendar": true,
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "emits": [
     "leave.approved",
     "leave.cancelled",
@@ -13,12 +12,6 @@
     "people.leaving",
     "people.leaving_cancelled",
     "people.record"
-  ],
-  "schedules": [
-    {
-      "name": "morning",
-      "cron": "30 8 * * 1-5"
-    }
   ],
   "translations": {
     "fr": {

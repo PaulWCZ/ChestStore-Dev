@@ -1,0 +1,1272 @@
+{
+ "tool": "people",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/tools/private/people",
+ "date": "2026-10-06T09:47:49.642Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "3b1d29e 2026-09-30",
+ "load": {
+  "atStart": {
+   "one": 1.21,
+   "five": 1.01,
+   "fifteen": 1.08
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 90.6,
+    "rssMiB": 142,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 52,
+    "rssMiB": 63,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 30.3,
+    "rssMiB": 38,
+    "command": "postgres"
+   },
+   {
+    "cpu": 12.6,
+    "rssMiB": 611,
+    "command": "claude"
+   },
+   {
+    "cpu": 11.5,
+    "rssMiB": 60,
+    "command": "postgres"
+   }
+  ],
+  "atEnd": {
+   "one": 1.24,
+   "five": 1.37,
+   "fifteen": 1.26
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 57.8,
+    "rssMiB": 124,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 26.8,
+    "rssMiB": 62,
+    "command": "postgres"
+   },
+   {
+    "cpu": 12.5,
+    "rssMiB": 537,
+    "command": "claude"
+   },
+   {
+    "cpu": 3.2,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 1.2,
+    "rssMiB": 56,
+    "command": "MainThread"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 11.6,
+  "apparentMiB": 10.9,
+  "files": 226
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 3223,
+  "peakRssMiB": 559.9,
+  "peakPssMiB": 517.8,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 1.6,
+   "five": 1.1,
+   "fifteen": 1.1
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 9632,
+  "peakRssMiB": 729,
+  "peakPssMiB": 690,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1224.7,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 1.63,
+   "max": 1.63
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 504.3,
+   "apparentMiB": 469,
+   "files": 11635
+  },
+  "pruned": {
+   "diskMiB": 442.6,
+   "apparentMiB": 410.6,
+   "files": 10538
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 36230,
+   "peakRssMiB": 623.1,
+   "peakPssMiB": 524.5,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 498.4,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 2.03,
+    "max": 2.27
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 15810,
+   "peakRssMiB": 1141.7,
+   "peakPssMiB": 1055.7,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 1047.1,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 2.22,
+    "max": 2.3
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 5.7,
+  "apparentMiB": 4.8,
+  "files": 225,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 459.9
+ },
+ "sdk": "0.3.1-studio.1",
+ "pages": {
+  "source": "lab/measure/pages/people.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/chart",
+    "member": "tom",
+    "language": "en"
+   },
+   {
+    "path": "/chest/todo",
+    "member": "nora",
+    "language": "en"
+   },
+   {
+    "path": "/chest/checklists/1",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/checklists",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest?team=Sales",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+    "member": "lea",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/checklists/templates/1",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/records",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/records/9",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/records/register",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/numbers",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/table",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/checklists/new",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/records/3",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/records/import",
+    "member": "camille",
+    "language": "en"
+   },
+   {
+    "path": "/chest/records/letters",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/records/9/letters/1",
+    "member": "camille",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 267.6,
+    "firstMs": 636.8,
+    "statuses": [
+     200
+    ],
+    "load": 2.42
+   },
+   {
+    "portMs": 257.7,
+    "firstMs": 626.1,
+    "statuses": [
+     200
+    ],
+    "load": 2.51
+   },
+   {
+    "portMs": 343,
+    "firstMs": 738.5,
+    "statuses": [
+     200
+    ],
+    "load": 2.21
+   },
+   {
+    "portMs": 348.4,
+    "firstMs": 854.7,
+    "statuses": [
+     200
+    ],
+    "load": 2.02
+   },
+   {
+    "portMs": 323.4,
+    "firstMs": 738.8,
+    "statuses": [
+     200
+    ],
+    "load": 1.86
+   },
+   {
+    "portMs": 278.2,
+    "firstMs": 700.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.82
+   },
+   {
+    "portMs": 287.6,
+    "firstMs": 721.9,
+    "statuses": [
+     200
+    ],
+    "load": 1.7
+   },
+   {
+    "portMs": 320.7,
+    "firstMs": 720.8,
+    "statuses": [
+     200
+    ],
+    "load": 1.67
+   },
+   {
+    "portMs": 295,
+    "firstMs": 716.3,
+    "statuses": [
+     200
+    ],
+    "load": 1.56
+   },
+   {
+    "portMs": 294.3,
+    "firstMs": 686.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.55
+   }
+  ],
+  "port": {
+   "median": 294.65,
+   "min": 257.7,
+   "max": 348.4
+  },
+  "first200": {
+   "median": 718.55,
+   "min": 626.1,
+   "max": 854.7
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 241.2,
+     "pss": 146.6
+    },
+    "peakMiB": {
+     "rss": 269.6,
+     "pss": 174.8,
+     "cgroup": 141.3
+    },
+    "afterRequestsMiB": {
+     "rss": 269.6,
+     "pss": 174.8
+    },
+    "restMiB": {
+     "rss": 236,
+     "pss": 143.6,
+     "pssAnon": 101.7,
+     "pssFile": 41.9,
+     "cgroupAnon": 101.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 25
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 167.2,
+      "pssMiB": 118.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 48458,
+      "ms": 30.3
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 35331,
+      "ms": 30.9
+     },
+     {
+      "path": "/chest/chart",
+      "status": 200,
+      "bytes": 31512,
+      "ms": 26.1
+     },
+     {
+      "path": "/chest/todo",
+      "status": 200,
+      "bytes": 26678,
+      "ms": 32.7
+     },
+     {
+      "path": "/chest/checklists/1",
+      "status": 200,
+      "bytes": 52957,
+      "ms": 22.7
+     },
+     {
+      "path": "/chest/checklists",
+      "status": 200,
+      "bytes": 45866,
+      "ms": 36.4
+     },
+     {
+      "path": "/chest?team=Sales",
+      "status": 200,
+      "bytes": 43149,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37418,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/checklists/templates/1",
+      "status": 200,
+      "bytes": 53794,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/records",
+      "status": 200,
+      "bytes": 49708,
+      "ms": 28.9
+     },
+     {
+      "path": "/chest/records/9",
+      "status": 200,
+      "bytes": 55548,
+      "ms": 28.4
+     },
+     {
+      "path": "/chest/records/register",
+      "status": 200,
+      "bytes": 41908,
+      "ms": 22
+     },
+     {
+      "path": "/chest/numbers",
+      "status": 200,
+      "bytes": 41415,
+      "ms": 20.8
+     },
+     {
+      "path": "/chest/table",
+      "status": 200,
+      "bytes": 59485,
+      "ms": 22
+     },
+     {
+      "path": "/chest/checklists/new",
+      "status": 200,
+      "bytes": 34786,
+      "ms": 25.1
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37935,
+      "ms": 22.5
+     },
+     {
+      "path": "/chest/records/3",
+      "status": 200,
+      "bytes": 57227,
+      "ms": 55.3
+     },
+     {
+      "path": "/chest/records/import",
+      "status": 200,
+      "bytes": 35424,
+      "ms": 15.5
+     },
+     {
+      "path": "/chest/records/letters",
+      "status": 200,
+      "bytes": 34780,
+      "ms": 14.3
+     },
+     {
+      "path": "/chest/records/9/letters/1",
+      "status": 200,
+      "bytes": 29820,
+      "ms": 17.9
+     }
+    ],
+    "load": {
+     "mean": 1.42,
+     "max": 1.52
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 242.8,
+     "pss": 150.6
+    },
+    "peakMiB": {
+     "rss": 270.5,
+     "pss": 181.3,
+     "cgroup": 143.3
+    },
+    "afterRequestsMiB": {
+     "rss": 270.5,
+     "pss": 181.3
+    },
+    "restMiB": {
+     "rss": 235.4,
+     "pss": 152.9,
+     "pssAnon": 101.2,
+     "pssFile": 51.7,
+     "cgroupAnon": 101.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 27.6
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 166.7,
+      "pssMiB": 125.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 48458,
+      "ms": 29.6
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 35331,
+      "ms": 25
+     },
+     {
+      "path": "/chest/chart",
+      "status": 200,
+      "bytes": 31512,
+      "ms": 32.8
+     },
+     {
+      "path": "/chest/todo",
+      "status": 200,
+      "bytes": 26678,
+      "ms": 22.9
+     },
+     {
+      "path": "/chest/checklists/1",
+      "status": 200,
+      "bytes": 52957,
+      "ms": 22.4
+     },
+     {
+      "path": "/chest/checklists",
+      "status": 200,
+      "bytes": 45866,
+      "ms": 35.9
+     },
+     {
+      "path": "/chest?team=Sales",
+      "status": 200,
+      "bytes": 43149,
+      "ms": 19.3
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37418,
+      "ms": 23.1
+     },
+     {
+      "path": "/chest/checklists/templates/1",
+      "status": 200,
+      "bytes": 53794,
+      "ms": 16.1
+     },
+     {
+      "path": "/chest/records",
+      "status": 200,
+      "bytes": 49708,
+      "ms": 34.5
+     },
+     {
+      "path": "/chest/records/9",
+      "status": 200,
+      "bytes": 55923,
+      "ms": 26.9
+     },
+     {
+      "path": "/chest/records/register",
+      "status": 200,
+      "bytes": 41908,
+      "ms": 19.8
+     },
+     {
+      "path": "/chest/numbers",
+      "status": 200,
+      "bytes": 41415,
+      "ms": 17.9
+     },
+     {
+      "path": "/chest/table",
+      "status": 200,
+      "bytes": 59485,
+      "ms": 18.8
+     },
+     {
+      "path": "/chest/checklists/new",
+      "status": 200,
+      "bytes": 34786,
+      "ms": 23.1
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37935,
+      "ms": 14.5
+     },
+     {
+      "path": "/chest/records/3",
+      "status": 200,
+      "bytes": 57227,
+      "ms": 17.5
+     },
+     {
+      "path": "/chest/records/import",
+      "status": 200,
+      "bytes": 35424,
+      "ms": 10.1
+     },
+     {
+      "path": "/chest/records/letters",
+      "status": 200,
+      "bytes": 34780,
+      "ms": 10.7
+     },
+     {
+      "path": "/chest/records/9/letters/1",
+      "status": 200,
+      "bytes": 29820,
+      "ms": 19.3
+     }
+    ],
+    "load": {
+     "mean": 1.31,
+     "max": 1.38
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 243.2,
+     "pss": 154.3
+    },
+    "peakMiB": {
+     "rss": 272.2,
+     "pss": 180,
+     "cgroup": 144.1
+    },
+    "afterRequestsMiB": {
+     "rss": 272.2,
+     "pss": 180
+    },
+    "restMiB": {
+     "rss": 237,
+     "pss": 154.5,
+     "pssAnon": 102.7,
+     "pssFile": 51.7,
+     "cgroupAnon": 102.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 27.7
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 168.1,
+      "pssMiB": 126.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 48458,
+      "ms": 35.7
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 35331,
+      "ms": 35.2
+     },
+     {
+      "path": "/chest/chart",
+      "status": 200,
+      "bytes": 31512,
+      "ms": 22.5
+     },
+     {
+      "path": "/chest/todo",
+      "status": 200,
+      "bytes": 26678,
+      "ms": 27.3
+     },
+     {
+      "path": "/chest/checklists/1",
+      "status": 200,
+      "bytes": 52957,
+      "ms": 47.5
+     },
+     {
+      "path": "/chest/checklists",
+      "status": 200,
+      "bytes": 45866,
+      "ms": 43.4
+     },
+     {
+      "path": "/chest?team=Sales",
+      "status": 200,
+      "bytes": 43149,
+      "ms": 25.7
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37418,
+      "ms": 28.3
+     },
+     {
+      "path": "/chest/checklists/templates/1",
+      "status": 200,
+      "bytes": 53794,
+      "ms": 21.2
+     },
+     {
+      "path": "/chest/records",
+      "status": 200,
+      "bytes": 49708,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest/records/9",
+      "status": 200,
+      "bytes": 56298,
+      "ms": 32
+     },
+     {
+      "path": "/chest/records/register",
+      "status": 200,
+      "bytes": 41908,
+      "ms": 20
+     },
+     {
+      "path": "/chest/numbers",
+      "status": 200,
+      "bytes": 41415,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/table",
+      "status": 200,
+      "bytes": 59485,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/checklists/new",
+      "status": 200,
+      "bytes": 34786,
+      "ms": 24.5
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37935,
+      "ms": 16.5
+     },
+     {
+      "path": "/chest/records/3",
+      "status": 200,
+      "bytes": 57227,
+      "ms": 21.2
+     },
+     {
+      "path": "/chest/records/import",
+      "status": 200,
+      "bytes": 35424,
+      "ms": 10.4
+     },
+     {
+      "path": "/chest/records/letters",
+      "status": 200,
+      "bytes": 34780,
+      "ms": 13.8
+     },
+     {
+      "path": "/chest/records/9/letters/1",
+      "status": 200,
+      "bytes": 29820,
+      "ms": 20
+     }
+    ],
+    "load": {
+     "mean": 1.71,
+     "max": 1.89
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 241.5,
+     "pss": 149.1
+    },
+    "peakMiB": {
+     "rss": 268.4,
+     "pss": 179.2,
+     "cgroup": 140
+    },
+    "afterRequestsMiB": {
+     "rss": 268.4,
+     "pss": 179.2
+    },
+    "restMiB": {
+     "rss": 234.8,
+     "pss": 142.2,
+     "pssAnon": 100.5,
+     "pssFile": 41.7,
+     "cgroupAnon": 100.5,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 25
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 165.9,
+      "pssMiB": 117
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 48458,
+      "ms": 29.1
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 35331,
+      "ms": 26.8
+     },
+     {
+      "path": "/chest/chart",
+      "status": 200,
+      "bytes": 31512,
+      "ms": 21.3
+     },
+     {
+      "path": "/chest/todo",
+      "status": 200,
+      "bytes": 26678,
+      "ms": 25.4
+     },
+     {
+      "path": "/chest/checklists/1",
+      "status": 200,
+      "bytes": 52957,
+      "ms": 24.2
+     },
+     {
+      "path": "/chest/checklists",
+      "status": 200,
+      "bytes": 45866,
+      "ms": 36.2
+     },
+     {
+      "path": "/chest?team=Sales",
+      "status": 200,
+      "bytes": 43149,
+      "ms": 21.2
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37418,
+      "ms": 25.7
+     },
+     {
+      "path": "/chest/checklists/templates/1",
+      "status": 200,
+      "bytes": 53794,
+      "ms": 17.5
+     },
+     {
+      "path": "/chest/records",
+      "status": 200,
+      "bytes": 49708,
+      "ms": 26.6
+     },
+     {
+      "path": "/chest/records/9",
+      "status": 200,
+      "bytes": 56673,
+      "ms": 28.3
+     },
+     {
+      "path": "/chest/records/register",
+      "status": 200,
+      "bytes": 41908,
+      "ms": 20.2
+     },
+     {
+      "path": "/chest/numbers",
+      "status": 200,
+      "bytes": 41415,
+      "ms": 20.4
+     },
+     {
+      "path": "/chest/table",
+      "status": 200,
+      "bytes": 59485,
+      "ms": 19.8
+     },
+     {
+      "path": "/chest/checklists/new",
+      "status": 200,
+      "bytes": 34786,
+      "ms": 21.9
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37935,
+      "ms": 25.1
+     },
+     {
+      "path": "/chest/records/3",
+      "status": 200,
+      "bytes": 57227,
+      "ms": 23
+     },
+     {
+      "path": "/chest/records/import",
+      "status": 200,
+      "bytes": 35424,
+      "ms": 10.7
+     },
+     {
+      "path": "/chest/records/letters",
+      "status": 200,
+      "bytes": 34780,
+      "ms": 11
+     },
+     {
+      "path": "/chest/records/9/letters/1",
+      "status": 200,
+      "bytes": 29820,
+      "ms": 21.5
+     }
+    ],
+    "load": {
+     "mean": 1.5,
+     "max": 1.61
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 242.3,
+     "pss": 154.8
+    },
+    "peakMiB": {
+     "rss": 271,
+     "pss": 181.9,
+     "cgroup": 143
+    },
+    "afterRequestsMiB": {
+     "rss": 271,
+     "pss": 181.9
+    },
+    "restMiB": {
+     "rss": 237,
+     "pss": 144.4,
+     "pssAnon": 102.8,
+     "pssFile": 41.6,
+     "cgroupAnon": 102.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.9,
+      "pssMiB": 24.9
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 168.2,
+      "pssMiB": 119.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 48458,
+      "ms": 32
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 35331,
+      "ms": 31
+     },
+     {
+      "path": "/chest/chart",
+      "status": 200,
+      "bytes": 31512,
+      "ms": 35.8
+     },
+     {
+      "path": "/chest/todo",
+      "status": 200,
+      "bytes": 26678,
+      "ms": 32.3
+     },
+     {
+      "path": "/chest/checklists/1",
+      "status": 200,
+      "bytes": 52957,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest/checklists",
+      "status": 200,
+      "bytes": 45866,
+      "ms": 31.5
+     },
+     {
+      "path": "/chest?team=Sales",
+      "status": 200,
+      "bytes": 43149,
+      "ms": 26.4
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37418,
+      "ms": 24.5
+     },
+     {
+      "path": "/chest/checklists/templates/1",
+      "status": 200,
+      "bytes": 53794,
+      "ms": 21.4
+     },
+     {
+      "path": "/chest/records",
+      "status": 200,
+      "bytes": 49708,
+      "ms": 24.6
+     },
+     {
+      "path": "/chest/records/9",
+      "status": 200,
+      "bytes": 57049,
+      "ms": 34.7
+     },
+     {
+      "path": "/chest/records/register",
+      "status": 200,
+      "bytes": 41908,
+      "ms": 17.6
+     },
+     {
+      "path": "/chest/numbers",
+      "status": 200,
+      "bytes": 41415,
+      "ms": 22.2
+     },
+     {
+      "path": "/chest/table",
+      "status": 200,
+      "bytes": 59485,
+      "ms": 20.3
+     },
+     {
+      "path": "/chest/checklists/new",
+      "status": 200,
+      "bytes": 34786,
+      "ms": 26.5
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+      "status": 200,
+      "bytes": 37935,
+      "ms": 13.9
+     },
+     {
+      "path": "/chest/records/3",
+      "status": 200,
+      "bytes": 57227,
+      "ms": 18.5
+     },
+     {
+      "path": "/chest/records/import",
+      "status": 200,
+      "bytes": 35424,
+      "ms": 9.9
+     },
+     {
+      "path": "/chest/records/letters",
+      "status": 200,
+      "bytes": 34780,
+      "ms": 11.8
+     },
+     {
+      "path": "/chest/records/9/letters/1",
+      "status": 200,
+      "bytes": 29820,
+      "ms": 16.9
+     }
+    ],
+    "load": {
+     "mean": 1.4,
+     "max": 1.49
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 236,
+    "min": 234.8,
+    "max": 237
+   },
+   "pss": {
+    "median": 144.4,
+    "min": 142.2,
+    "max": 154.5
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 270.5,
+    "min": 268.4,
+    "max": 272.2
+   },
+   "pss": {
+    "median": 180,
+    "min": 174.8,
+    "max": 181.9
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 169.1,
+    "min": 167.8,
+    "max": 170.1
+   },
+   "pss": {
+    "median": 119.5,
+    "min": 117.2,
+    "max": 126.8
+   }
+  }
+ }
+}

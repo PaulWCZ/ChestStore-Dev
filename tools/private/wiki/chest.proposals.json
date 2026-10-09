@@ -1,14 +1,7 @@
 {
-  "schedules": [
-    {
-      "name": "reviews",
-      "cron": "40 7 * * 1-5"
-    }
+  "capabilities": [
+    "members.groups"
   ],
-  "mail": {
-    "send": true
-  },
-  "groups": "read",
   "receives": [
     "group.*"
   ],

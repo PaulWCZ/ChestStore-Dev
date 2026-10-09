@@ -1,18 +1,15 @@
 {
   "calendar": true,
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "mail": {
     "send": true
   },
-  "schedules": [
-    {
-      "name": "quarter",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "receives": [
     "leave.approved",
-    "leave.cancelled"
+    "leave.cancelled",
+    "group.*"
   ],
   "translations": {
     "fr": {

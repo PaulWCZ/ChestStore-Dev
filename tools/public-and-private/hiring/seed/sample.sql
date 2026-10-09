@@ -134,23 +134,15 @@ insert into activity (candidate_id, actor, kind, data, created_at) values
   (15, null, 'applied', '{}', now() - interval '100 days'),
   (15, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'rejected', '{"reason": "filled"}', now() - interval '74 days');
 
--- Some agreed to be kept in mind for other jobs; Julie answered her
--- rejection; an interview is planned with Lucie; a template of the team.
+-- Some agreed to be kept in mind for other jobs; Lucie was written to
+-- and an interview is planned with her; a template of the team.
 update candidates set pool_at = created_at where id in (1, 4, 7, 11, 13);
 update candidates set answers = '[{"id": "qsat1", "label": "Can you work on Saturdays?", "answer": "yes"}, {"id": "qstart2", "label": "When could you start?", "answer": "Within a month"}]' where id = 8;
 insert into messages (candidate_id, direction, kind, author, subject, body, status, created_at, sent_at) values
   (1, 'out', 'confirmation', null, 'We received your application — Senior furniture designer', E'Hello Lucie Garnier,\n\nThank you for applying for Senior furniture designer at Atelier Martin. Your application has reached the team: we read every one, and we will write to you, whatever our answer.\n\nAtelier Martin', 'sent', now() - interval '21 days', now() - interval '21 days'),
-  (1, 'out', 'message', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Your application — Senior furniture designer', E'Hello Lucie,\n\nThank you for applying for the Senior furniture designer position. We would like to talk with you: when are you free next week for a 30-minute call?\n\nCamille\nAtelier Martin', 'sent', now() - interval '18 days', now() - interval '18 days'),
-  (1, 'in', 'message', null, 'Re: Your application — Senior furniture designer', E'Hello Camille,\n\nThank you! Tuesday or Wednesday afternoon works for me.\n\nLucie', 'received', now() - interval '17 days', null),
-  (11, 'in', 'message', null, 'Re: Your application — Sales associate — Lyon showroom', E'Bonjour,\n\nMerci pour votre réponse. N’hésitez pas à me recontacter si un poste se libère.\n\nJulie', 'received', now() - interval '10 days', null);
-update messages set from_address = 'lucie.garnier@example.com', from_name = 'Lucie Garnier', authenticated = true where candidate_id = 1 and direction = 'in';
-insert into messages (candidate_id, direction, kind, author, subject, body, status, from_address, from_name, authenticated, created_at) values
-  (null, 'in', 'message', null, 'CV for the showroom job', E'Hello,\n\nA friend told me about your showroom job. My CV is attached; I can come by any day.\n\nThomas Roux', 'received', 'thomas.roux@example.com', 'Thomas Roux', true, now() - interval '4 hours');
-update messages set from_address = 'julie.morel@example.com', from_name = 'Julie Morel', authenticated = true where candidate_id = 11 and direction = 'in';
+  (1, 'out', 'message', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Your application — Senior furniture designer', E'Hello Lucie,\n\nThank you for applying for the Senior furniture designer position. We would like to talk with you: when are you free next week for a 30-minute call?\n\nCamille\nAtelier Martin', 'sent', now() - interval '18 days', now() - interval '18 days');
 insert into activity (candidate_id, actor, kind, data, created_at) values
-  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'wrote', '{"kind": "message"}', now() - interval '18 days'),
-  (1, null, 'replied', '{"auto": false}', now() - interval '17 days'),
-  (11, null, 'replied', '{"auto": false}', now() - interval '10 days');
+  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'wrote', '{"kind": "message"}', now() - interval '18 days');
 -- Days and hours are the Chest's: the database session is in its zone,
 -- so date_trunc('day', now()) is its midnight (14:00 is 14:00 there).
 insert into interviews (id, candidate_id, starts_at, ends_at, place, note, created_by, calendar) overriding system value values
@@ -168,6 +160,14 @@ insert into activity (candidate_id, actor, kind, data, created_at) values
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'interview', jsonb_build_object('at', to_char((date_trunc('day', now()) + interval '2 days 14 hours') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'people', jsonb_build_array('mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa')), now() - interval '1 day');
 insert into templates (name, language, subject, body, created_by) values
   ('Showroom day invitation', 'en', 'A day in our showroom — {job}', E'Hello {firstName},\n\nWe would like you to spend a day with us in the showroom, rue Mercière: you will meet the team and a few of our clients. Which day suits you next week?\n\n{sender}\n{company}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa');
+
+-- A link a candidate (Hélène, interview 2) already booked from: the page a
+-- candidate sees after choosing, with "Choose another time" and "Call off
+-- the interview" (docs/screens.json). Sample data only: its secret,
+-- sample-booked-link-of-the-screens-000000000, is written here.
+insert into interview_requests (candidate_id, token_hash, minutes, first_day, last_day, day_start, day_end, place, created_by, interview_id, booked_at) values
+  (13, '-tQ6DopuVh4QD-Vrsp0hSHyXwnjt3wDE_W2N3NzzuZ4', 60, current_date + 1, current_date + 10, 540, 1080, 'Atelier Martin, 14 rue des Tanneurs, Lyon', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 2, now() - interval '1 day');
+insert into interview_request_people (request_id, member_id) select id, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa' from interview_requests where token_hash = '-tQ6DopuVh4QD-Vrsp0hSHyXwnjt3wDE_W2N3NzzuZ4';
 
 select setval(pg_get_serial_sequence('jobs', 'id'), 100);
 select setval(pg_get_serial_sequence('interviews', 'id'), 100);

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as activities from "../lib/activities.ts";
-import * as contacts from "../lib/contacts.ts";
-import { bookingKey, readBooking, upcoming } from "../lib/from-booking.ts";
-import { catalogue, format } from "../lib/i18n/index.ts";
-import { leads } from "../lib/leads.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { withWhen } from "../lib/page-data.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import { bookingKey, readBooking, upcoming } from "../src/lib/from-booking.ts";
+import { catalogue, format } from "../src/i18n/index.ts";
+import { leads } from "../src/lib/leads.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { withWhen } from "../src/lib/page-data.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
@@ -21,8 +21,8 @@ import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, tool: "crm", members: everyone, receives: ["member.*", "booking.confirmed", "booking.cancelled"], tools: { booking: true } });
   database = await testDatabase();
-  chest = await fakeChest({ tool: "crm", members: everyone, receives: ["member.*", "booking.confirmed", "booking.cancelled"], tools: { booking: true } });
 });
 after(async () => {
   await chest.close();
@@ -69,7 +69,7 @@ test("a new guest: a contact of their host (who works on clients here), one meet
   assert.ok(id);
   const c = await contacts.contact(sql, asMember(camille), id);
   assert.equal(c.name, "SarahKlein", "direction overrides and spaces cleaned");
-  assert.equal(c.email, "sarah.klein@example.com");
+  assert.equal(c.email, "Sarah.Klein@example.com");
   assert.equal(c.phone, "+33 6 11 22 33 44");
   assert.equal(c.owner, ines.id, "the host is meeting them: theirs");
   assert.equal(c.lastContact, d.at);
@@ -200,7 +200,7 @@ test("a host who does not work on clients here: the guest is a lead of nobody's,
   assert.ok(lead?.booking);
   assert.equal(lead.booking.start, d.start);
   const bell = chest.notifications.filter(n => n.key === bookingKey(d.booking));
-  assert.deepEqual(bell.map(n => [n.member, n.title]), [[camille.id, "Nouveau contact : Léon Blanc a pris rendez-vous"]]);
+  assert.deepEqual(bell.map(n => [n.member, shownTo(n, "fr").title]), [[camille.id, "Nouveau contact\u202f: Léon Blanc a pris rendez-vous"]]);
   // A viewer hosting is no owner either.
   await tell(data({ host: lea.id, contact: { email: "viewer-host@example.com" } }));
   const [v] = await byEmail("viewer-host@example.com");

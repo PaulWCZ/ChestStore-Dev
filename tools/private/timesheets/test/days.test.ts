@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addDays, instantOf, isDay, mondayOf, monthEnd, wall, weekDays } from "../lib/days.ts";
-import { period } from "../lib/periods.ts";
+import { addDays, instantOf, isDay, mondayOf, monthEnd, wall, weekDays } from "../src/shared/days.ts";
+import { period } from "../src/shared/periods.ts";
 
 test("weeks start on Monday, across months and years", () => {
   assert.equal(mondayOf("2026-09-28"), "2026-09-28");

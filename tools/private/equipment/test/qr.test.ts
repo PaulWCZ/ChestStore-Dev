@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import jsQR from "jsqr";
-import { encode, svgPath } from "../lib/qr.ts";
+import { encode, svgPath } from "../src/shared/qr.ts";
 
 // The encoder is checked by reading its codes back with a decoder (jsQR,
 // Apache-2.0, a dev dependency only): short and long texts, versions with

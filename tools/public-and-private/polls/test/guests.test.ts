@@ -1,28 +1,26 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
-import { formToken } from "@argentic/chest-sdk/visitors";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { answer } from "../lib/answers.ts";
-import { AppError } from "../lib/app-error.ts";
-import { emailGuests, eventKey, guestMailOffered, learned, notInCalendar, syncFinal } from "../lib/agenda.ts";
-import { checkForm, count } from "../lib/guard.ts";
-import * as guests from "../lib/guests.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { limits } from "../lib/model.ts";
-import * as polls from "../lib/polls.ts";
+import { answer } from "../src/lib/answers.ts";
+import { AppError } from "@argentic/chest-app";
+import { emailGuests, eventKey, guestMailOffered, learned, notInCalendar, syncFinal } from "../src/lib/agenda.ts";
+import * as guests from "../src/lib/guests.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { limits } from "../src/lib/model.ts";
+import * as polls from "../src/lib/polls.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, chestGroups, everyone, hugo, ines, lea, sofia, tom } from "./support/members.ts";
 
-// Guests outside the Chest on a date poll (lib/guests.ts), the guard of
-// their form (lib/guard.ts), and the chosen date in calendars and guests'
+// Guests outside the Chest on a date poll (lib/guests.ts) (their form's
+// guard is the package's: test/app.test.mjs), and the chosen date in calendars and guests'
 // inboxes (lib/agenda.ts).
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications", "mail", "calendar"], mail: { replyTo: "hello@atelier.test" }, calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin" } });
 });
 after(async () => {
   await chest.close();
@@ -79,13 +77,14 @@ test("a guest answers with a name, no account; the results mark them; the member
   const { id, first, second } = await openDinner();
   const link = await guests.setGuestLink(sql, asMember(sofia), id, true, now);
   await assert.rejects(guests.answerAsGuest(sql, link, { name: "  ", email: "", dates: { [first]: 2 }, locale: "en" }, now), refuses("empty"));
-  await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "not an address", dates: { [first]: 2 }, locale: "en" }, now), refuses("bad_email"));
+  await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "not an address", dates: { [first]: 2 }, locale: "en" }, now), refuses("invalid_email"));
+  await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "Jean <jean@client.example>", dates: { [first]: 2 }, locale: "en" }, now), refuses("invalid_email"));
   await assert.rejects(guests.answerAsGuest(sql, link, { name: "Jean", email: "", dates: { "999": 2 }, locale: "en" }, now), refuses("invalid"));
   const jean = await guests.answerAsGuest(sql, link, { name: "Jean Dupont", email: "Jean@Client.example", dates: { [first]: 2, [second]: 1 }, locale: "fr" }, now);
   assert.equal(jean.first, true);
   assert.match(jean.secret, /^[A-Za-z0-9_-]{32}$/u);
   const [row] = await sql`select member, guest_name, guest_email, guest_locale, guest_key from participants where poll_id = ${id}`;
-  assert.deepEqual([row!["member"], row!["guest_name"], row!["guest_email"], row!["guest_locale"]], ["guest", "Jean Dupont", "jean@client.example", "fr"]);
+  assert.deepEqual([row!["member"], row!["guest_name"], row!["guest_email"], row!["guest_locale"]], ["guest", "Jean Dupont", "Jean@client.example", "fr"], "the part before the @ as typed, the domain lower-cased");
   assert.notEqual(row!["guest_key"], jean.secret, "only the secret's hash is kept");
   await answer(sql, asMember(hugo), id, { [(await polls.load(sql, id)).questions[0]!.id]: { dates: { [first]: 2 } } }, now);
   const v = await polls.view(sql, asMember(sofia), id, now);
@@ -101,9 +100,9 @@ test("a guest answers with a name, no account; the results mark them; the member
   assert.deepEqual(v.participants, [hugo.id], "the list of members who answered has no guest");
   // The export marks them, with their email (for those who manage it).
   const data = await polls.exportData(sql, asMember(sofia), id, now);
-  assert.deepEqual(data.guests.get(guestRow), { name: "Jean Dupont", email: "jean@client.example" });
+  assert.deepEqual(data.guests.get(guestRow), { name: "Jean Dupont", email: "Jean@client.example" });
   // Managers see the guests and their emails; a member does not.
-  assert.deepEqual((await guests.guests(sql, asMember(sofia), await polls.load(sql, id))).map(g => [g.name, g.email]), [["Jean Dupont", "jean@client.example"]]);
+  assert.deepEqual((await guests.guests(sql, asMember(sofia), await polls.load(sql, id))).map(g => [g.name, g.email]), [["Jean Dupont", "Jean@client.example"]]);
   assert.deepEqual(await guests.guests(sql, asMember(hugo), await polls.load(sql, id)), []);
 });
 
@@ -157,22 +156,6 @@ test("a manager removes a guest's answer for good; nobody else may", async () =>
   assert.equal((await sql`select count(*)::int as n from answers`)[0]!["n"], 0, "their answer with them");
 });
 
-test("the guest form's guard: a form not shown is refused, one sent too fast waits, the own counters stop a flood", async () => {
-  await assert.rejects(checkForm("nonsense"), refuses("invalid"));
-  let clock = Date.now();
-  const token = formToken(clock);
-  let slept = 0;
-  await checkForm(token, () => clock, async ms => { slept = ms; clock += ms; });
-  assert.ok(slept > 1000, "waited the seconds left: " + slept);
-  const { sql } = database;
-  for (let i = 0; i < limits.guestsPerVisitorHour; i++) await count(sql, "203.0.113.9", now);
-  await assert.rejects(count(sql, "203.0.113.9", now), refuses("too_many"));
-  await count(sql, "198.51.100.7", now);
-  // The next hour starts again (and the hour before is deleted).
-  await count(sql, "203.0.113.9", new Date(now.getTime() + 3_600_000));
-  assert.equal((await sql`select count(*)::int as n from guest_counts where hour < ${new Date(now.getTime() + 3_600_000)}`)[0]!["n"], 0);
-});
-
 test("the chosen date goes to the calendars of those asked (not those who said no), and by email to guests who gave one", async () => {
   const { sql } = database;
   const { id, first, second } = await openDinner();
@@ -205,8 +188,21 @@ test("the chosen date goes to the calendars of those asked (not those who said n
   assert.equal(mail.subject, "La date de «\u202fDinner with the client\u202f»");
   assert.match(mail.text, /mercredi 21 octobre/u);
   assert.ok(mail.text.includes(`https://polls.atelier.test/p/${link}`));
+  // Replies go to the company's own address (the connector's Reply-To), and the email says so.
+  assert.equal(mail.replyTo, "hello@atelier.test");
+  assert.ok(mail.text.endsWith("Les réponses à cet e-mail arrivent chez Atelier Martin."));
   assert.equal(await emailGuests(sql, id, "https://polls.atelier.test"), 1);
   assert.equal(chest.outbox.length, 1, "the same choice is not sent twice (its key)");
+  // The company's mail not connected: nothing sent, nothing lost silently — the page stays the truth.
+  chest.delivery.mail = "not_connected";
+  try {
+    await polls.chooseFinal(sql, asMember(sofia), id, null, now);
+    await polls.chooseFinal(sql, asMember(sofia), id, (await polls.load(sql, id)).questions[0]!.options[1]!.id, new Date(now.getTime() + 60_000));
+    assert.equal(await emailGuests(sql, id, "https://polls.atelier.test"), 0);
+    assert.equal(chest.outbox.length, 1);
+  } finally {
+    chest.delivery.mail = "ready";
+  }
   // Taken back, or the poll deleted: gone from every calendar.
   await polls.chooseFinal(sql, asMember(sofia), id, null, now);
   await syncFinal(sql, id);
@@ -220,7 +216,7 @@ test("the guests' form offers email only when the Chest would send it (mail.avai
   chest.delivery.mail = "suspended";
   assert.equal(await guestMailOffered(), false, "sending suspended");
   chest.delivery.mail = "ready";
-  const bare = await fakeChest({ members: everyone, capabilities: ["members"] });
+  const bare = await fakeChest({ network: {}, members: everyone, capabilities: ["members"] });
   try {
     assert.equal(await guestMailOffered(), false, "no mail on this Chest");
   } finally {
@@ -244,7 +240,7 @@ test("a guest's email key carries their address (SDK studio.16: keys built from 
 
 test("a Chest without the calendar: Polls learns it and keeps its file", async () => {
   const { sql } = database;
-  const bare = await fakeChest({ members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], calendar: false });
+  const bare = await fakeChest({ network: {}, members: everyone, groups: chestGroups, capabilities: ["members", "notifications"], calendar: false });
   try {
     const { id, first } = await openDinner();
     await polls.closePoll(sql, asMember(sofia), id, now);
@@ -261,7 +257,7 @@ test("a date chosen for more than 1,000 people goes to their calendars in parts 
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  const big = await fakeChest({ network: {}, members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     const { id, first, second } = await openDinner();
     const q = (await polls.load(sql, id)).questions[0]!;
@@ -292,7 +288,7 @@ test("the Chest answers each part (calendar.putMany, SDK studio.16): a refused p
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  const big = await fakeChest({ network: {}, members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     // The tool's 5,000 events nearly all used (other polls' dates): room
     // for two new parts, not three.
@@ -334,7 +330,7 @@ test("a part refused in the middle leaves a hole: taking the date back still rem
   const alphabet = "abcdefghijklmnopqrstuvwxyz234567";
   const code = (n: number) => Array.from({ length: 4 }, (_, i) => alphabet[Math.floor(n / 32 ** i) % 32]).join("");
   const crowd = Array.from({ length: 2345 }, (_, n) => ({ ...tom, id: `mbr_crowd${code(n)}${"a".repeat(17)}`, firstName: "Person", lastName: String(n), name: `Person ${n}`, groups: [] }));
-  const big = await fakeChest({ members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
+  const big = await fakeChest({ network: {}, members: [...everyone, ...crowd], groups: chestGroups, capabilities: ["members", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Polls", company: "Atelier" }, chest: { timeZone: "Europe/Paris" } });
   try {
     const { id, first } = await openDinner();
     await polls.closePoll(sql, asMember(sofia), id, now);

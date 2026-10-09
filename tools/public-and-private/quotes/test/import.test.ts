@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { listClients } from "../lib/clients.ts";
-import { AppError } from "../lib/errors.ts";
-import { clientsCsv, itemsCsv } from "../lib/export.ts";
-import { importTable } from "../lib/importers.ts";
-import { listItems } from "../lib/items.ts";
-import { countryOf, goodsOf, guessMapping, readTable, vatRateOf } from "../lib/parse-import.ts";
+import { listClients } from "../src/lib/clients.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { clientsCsv, itemsCsv } from "../src/lib/export.ts";
+import { importTable } from "../src/lib/importers.ts";
+import { listItems } from "../src/lib/items.ts";
+import { amountMarkOf, countryOf, goodsOf, guessMapping, readTable, vatRateOf } from "../src/shared/parse-import.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -25,8 +25,8 @@ import { camille, everyone, hugo, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {
@@ -162,8 +162,19 @@ test("what leaves comes back: the clients and catalogue exports import as they a
       assert.deepEqual([twin.unitPrice, twin.vatRate, twin.goods, twin.unit], [i.unitPrice, i.vatRate, i.goods, i.unit], i.name);
     }
     await other.close();
-    // testDatabase took over db(): give it back.
-    (await import("../lib/db.ts")).provide(sql);
   }
   await assert.rejects(clientsCsv(sql, asMember(hugo), "fr"), refused("forbidden"));
+});
+
+test("a file's amounts are read with its own decimal mark: 1.234 is a thousand where decimals are written 12,50", async () => {
+  const text = "Nom;Prix HT;TVA\nAudit complet;1.234;20\nAtelier;12,50;20\nJournée;650,00;20\n";
+  const table = readTable(text);
+  const mapping = guessMapping("items", table.head);
+  assert.equal(amountMarkOf(table, mapping), ",");
+  await importTable(database.sql, asMember(sofia), "items", text, mapping, options);
+  const items = new Map((await listItems(database.sql, asMember(lea))).map(i => [i.name, i.unitPrice]));
+  assert.equal(items.get("Audit complet"), 123400);
+  assert.equal(items.get("Atelier"), 1250);
+  // No clue in the file: thousands, as said in the preview.
+  assert.equal(amountMarkOf(readTable("Nom;Prix\nA;1,234\nB;40\n"), ["name", "unitPrice"]), null);
 });

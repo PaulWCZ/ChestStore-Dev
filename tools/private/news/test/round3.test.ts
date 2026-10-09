@@ -1,23 +1,20 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET as answerLink } from "../app/chest/posts/[id]/answer/route.ts";
-import { answerToken } from "../lib/answer-links.ts";
-import { whoPublishes } from "../lib/audience.ts";
-import { startDigest } from "../lib/digest.ts";
-import { AppError } from "../lib/errors.ts";
-import { erase, leave } from "../lib/lifecycle.ts";
-import * as posts from "../lib/posts.ts";
-import * as proposals from "../lib/proposals.ts";
-import { otherLanguage, search } from "../lib/search.ts";
-import * as tell from "../lib/tell.ts";
-import { today } from "../lib/time.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { whoPublishes } from "../src/lib/audience.ts";
+import { AppError } from "@argentic/chest-app";
+import { erase, leave } from "../src/lib/lifecycle.ts";
+import * as posts from "../src/lib/posts.ts";
+import * as proposals from "../src/lib/proposals.ts";
+import { otherLanguage, search } from "../src/lib/search.ts";
+import * as tell from "../src/lib/tell.ts";
+import { today } from "../src/lib/time.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, hugo, ines, lea, sofia, stranger } from "./support/members.ts";
 
 // The third severe critique: search and empty states in the reader's
-// language; "I'm coming" in one tap from an email; posts from everyone
+// language; posts from everyone
 // (shout-outs and news), moderated by the publishers — and who sees what
 // before they approve.
 
@@ -25,11 +22,10 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" },
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" },
     members: everyone,
     groups: fakeGroups,
-    capabilities: ["members", "files", "notifications", "mail"],
-    mail: { domain: "atelier.test" },
+    capabilities: ["members", "files", "notifications"],
   });
 });
 after(async () => {
@@ -37,9 +33,8 @@ after(async () => {
   await database.close();
 });
 beforeEach(async () => {
-  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs, preferences, emails, proposals, chest_state restart identity cascade`;
+  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, proposals, chest_state restart identity cascade`;
   chest.notifications.splice(0);
-  chest.outbox.length = 0;
 });
 
 const zone = "Europe/Paris";
@@ -85,66 +80,6 @@ test("a reader's empty front page names the publishers, the Chest's administrato
   assert.deepEqual(await whoPublishes(), { names: ["Sofia Rossi", "Camille Martin"], more: false });
 });
 
-test("an Important event's email carries “I’m coming” and “Not coming”: one tap answers, for that person only", async () => {
-  const e = await write({ kind: "event", title: "Summer party", body: "On the terrace.", locale: "en", important: true, event: { day: inDays(5), seats: 1 } });
-  await tell.announce(database.sql);
-  const letter = chest.outbox.find(m => m.to[0] === hugo.email)!;
-  assert.match(letter.text, /Are you coming\? One click answers:/u);
-  const yes = /I’m coming: (\S+)/u.exec(letter.text)![1]!;
-  const no = /Not coming: (\S+)/u.exec(letter.text)![1]!;
-  assert.match(yes, new RegExp(`/chest/posts/${e.id}/answer\\?a=yes&t=[A-Za-z0-9_-]{32}$`, "u"));
-  const french = chest.outbox.find(m => m.to[0] === ines.email)!;
-  assert.match(french.text, /Vous venez\u202f\? Un clic suffit pour répondre\u202f:/u);
-  const open = (href: string, who = hugo) => answerLink(withMember(new Request(href), who), { params: Promise.resolve({ id: e.id }) });
-  // Hugo taps "I'm coming": answered, then the post says so, with the answer before (Undo).
-  let r = await open(yes);
-  assert.equal(r.status, 303);
-  assert.equal(r.headers.get("location"), `/chest/posts/${e.id}?answered=yes&was=none`);
-  assert.deepEqual([...await database.sql`select member, answer from rsvps where post_id = ${e.id}`], [{ member: hugo.id, answer: "yes" }]);
-  // The same button again: the same answer (not a toggle).
-  r = await open(yes);
-  assert.equal(r.headers.get("location"), `/chest/posts/${e.id}?answered=yes&was=yes`);
-  // Léa opens Hugo's link: it is not hers, nothing changes.
-  r = await open(yes, lea);
-  assert.equal(r.headers.get("location"), `/chest/posts/${e.id}?answered=invalid`);
-  assert.equal((await database.sql`select count(*)::int as n from rsvps where post_id = ${e.id}`)[0]!.n, 1);
-  // A token for another button, another event or changed by a letter: nothing.
-  const tampered = yes.replace(/t=(.)/u, (_m, c: string) => `t=${c === "A" ? "B" : "A"}`);
-  assert.equal((await open(tampered)).headers.get("location"), `/chest/posts/${e.id}?answered=invalid`);
-  assert.equal((await open(yes.replace("a=yes", "a=no"))).headers.get("location"), `/chest/posts/${e.id}?answered=invalid`);
-  assert.equal((await open(yes.replace("a=yes", "a=maybe"))).headers.get("location"), `/chest/posts/${e.id}?answered=invalid`);
-  // Without the Chest's assertion: nothing (the proxy answers 401 before; the route too).
-  assert.equal((await answerLink(new Request(yes), { params: Promise.resolve({ id: e.id }) })).headers.get("location"), `/chest/posts/${e.id}?answered=invalid`);
-  // "Not coming" frees the only seat.
-  r = await open(no);
-  assert.equal(r.headers.get("location"), `/chest/posts/${e.id}?answered=no&was=yes`);
-  // Léa's own link: the only seat is hers.
-  const leaYes = `${new URL(yes).origin}/chest/posts/${e.id}/answer?a=yes&t=${await answerToken(database.sql, e.id, "yes", lea.id)}`;
-  assert.equal((await open(leaYes, lea)).headers.get("location"), `/chest/posts/${e.id}?answered=yes&was=none`);
-  // Past its last day: nothing changes, the post says it is over.
-  await database.sql`update posts set event_day = ${today(zone, new Date(Date.now() - 3 * 864e5))} where id = ${e.id}`;
-  assert.equal((await open(yes)).headers.get("location"), `/chest/posts/${e.id}?answered=closed`);
-  // A post Hugo cannot see answers "not found".
-  const kept = await write({ kind: "event", title: "Board dinner", locale: "en", event: { day: inDays(3) }, people: [sofia.id] });
-  const hidden = `${new URL(yes).origin}/chest/posts/${kept.id}/answer?a=yes&t=${await answerToken(database.sql, kept.id, "yes", hugo.id)}`;
-  assert.equal((await answerLink(withMember(new Request(hidden), hugo), { params: Promise.resolve({ id: kept.id }) })).status, 404);
-  // An Important post that is not an event has no such lines.
-  await write({ kind: "announcement", title: "Fire drill", important: true, locale: "en" });
-  await tell.announce(database.sql);
-  assert.doesNotMatch(chest.outbox.at(-1)!.text, /I’m coming/u);
-});
-
-test("the weekly digest's email offers the answers of an event still open", async () => {
-  const e = await write({ kind: "event", title: "Team lunch", locale: "en", event: { day: inDays(4) } });
-  await write({ kind: "info", title: "New coffee machine", locale: "en" });
-  await startDigest(database.sql, { scheduledAt: new Date(Date.now() + 60_000).toISOString(), timeZone: zone });
-  const letter = chest.outbox.find(m => m.to[0] === hugo.email)!;
-  assert.match(letter.text, /• New coffee machine\n• Team lunch\n {2}I’m coming: \S+answer\?a=yes&t=\S+\n {2}Not coming: \S+answer\?a=no&t=\S+\n/u);
-  const link = /I’m coming: (\S+)/u.exec(letter.text)![1]!;
-  const r = await answerLink(withMember(new Request(link), hugo), { params: Promise.resolve({ id: e.id }) });
-  assert.equal(r.headers.get("location"), `/chest/posts/${e.id}?answered=yes&was=none`);
-});
-
 test("posts from everyone: a reader proposes; before approval only they and the publishers see it; a publisher publishes it", async () => {
   const sql = database.sql;
   // A picture of Hugo's own, uploaded for it (a reader may add a cover only).
@@ -156,7 +91,7 @@ test("posts from everyone: a reader proposes; before approval only they and the 
   const bell = chest.notifications.filter(n => n.key === tell.proposalsKey);
   assert.deepEqual(bell.map(n => n.member).sort(), [camille.id, sofia.id].sort());
   assert.equal(bell.find(n => n.member === sofia.id)!.title, "1 post waits for your approval");
-  assert.equal(bell.find(n => n.member === camille.id)!.title, "1 publication attend votre validation");
+  assert.equal(shownTo(bell.find(n => n.member === camille.id)!, "fr").title, "1 publication attend votre validation");
   // Before approval: not a post — not on anyone's front page, not in search.
   for (const who of [hugo, lea, ines, sofia, camille]) {
     assert.equal((await posts.front(sql, asMember(who), { zone })).posts.length, 0, who.firstName);
@@ -192,7 +127,7 @@ test("posts from everyone: a reader proposes; before approval only they and the 
   assert.equal((await search(sql, asMember(ines), "SECRETPROPOSAL"))[0]!.id, done.postId);
   // Hugo is told it is published; Léa that Hugo thanks her; the publishers' item goes.
   assert.equal(chest.notifications.find(n => n.member === hugo.id && n.key === `proposal:${made.id}`)!.title, "Your post is on News: “Thank you, Léa!”");
-  assert.equal(chest.notifications.find(n => n.member === lea.id && n.key === `post:${done.postId}:welcome`)!.title, "Hugo Bernard vous remercie dans les Actualités");
+  assert.equal(shownTo(chest.notifications.find(n => n.member === lea.id && n.key === `post:${done.postId}:welcome`)!, "fr").title, "Hugo Bernard vous remercie dans les Actualités");
   assert.equal(chest.notifications.filter(n => n.key === tell.proposalsKey).length, 0);
   // It is gone from the list; approving again finds nothing.
   assert.deepEqual(await proposals.waiting(sql, asMember(sofia)), []);
@@ -207,8 +142,8 @@ test("a publisher never approves their own proposal; declined with a reason, the
   const declined = await proposals.decline(sql, asMember(camille), news.id, "Déjà annoncé lundi.");
   await tell.proposalDeclined(sql, declined);
   const told = chest.notifications.find(n => n.member === ines.id && n.key === `proposal:${news.id}`)!;
-  assert.equal(told.title, "Votre publication n’a pas été publiée\u202f: «\u202fLe chantier de Lyon est fini\u202f»");
-  assert.equal(told.body, "Déjà annoncé lundi.");
+  assert.equal(shownTo(told, "fr").title, "Votre publication n’a pas été publiée\u202f: «\u202fLe chantier de Lyon est fini\u202f»");
+  assert.equal(shownTo(told, "fr").body, "Déjà annoncé lundi.");
   assert.equal((await proposals.mine(sql, asMember(ines)))[0]!.reason, "Déjà annoncé lundi.");
   assert.deepEqual((await proposals.waiting(sql, asMember(sofia))).map(p => p.id), [own.id]);
   await assert.rejects(proposals.approve(sql, asMember(sofia), news.id), refused("not_found"));

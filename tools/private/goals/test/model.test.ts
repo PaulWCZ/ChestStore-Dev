@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { checkValue, clean, cycleDates, cycleTime, firstCycleChoices, isStale, measure, mondayOf, nextQuarter, objectiveProgress, parseValue, progress, quarterOf, score, worst } from "../lib/model.ts";
-import { singularOf, unitFor, unitOf, unitParts, valueText } from "../lib/values.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { checkValue, clean, cycleDates, cycleTime, firstCycleChoices, isStale, measure, mondayOf, nextQuarter, objectiveProgress, parseValue, progress, quarterOf, score, worst } from "../src/lib/model.ts";
+import { singularOf, unitFor, unitOf, unitParts, valueText } from "../src/shared/values.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as activities from "../lib/activities.ts";
-import * as companies from "../lib/companies.ts";
-import * as contacts from "../lib/contacts.ts";
-import * as deals from "../lib/deals.ts";
-import { today } from "../lib/zone.ts";
-import * as steps from "../lib/steps.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as companies from "../src/lib/companies.ts";
+import * as contacts from "../src/lib/contacts.ts";
+import * as deals from "../src/lib/deals.ts";
+import { today } from "../src/lib/zone.ts";
+import * as steps from "../src/lib/steps.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -15,8 +15,8 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -27,7 +27,7 @@ test("someone who leaves: their deals, clients and next steps go unassigned, the
   const { sql } = database;
   const co = await companies.addCompany(sql, asMember(hugo), { name: "Leaving Co" });
   const p = await contacts.addContact(sql, asMember(hugo), { name: "Left Contact", company: co.id });
-  const d = await deals.addDeal(sql, asMember(hugo), { title: "Left deal", contact: p.id, value: 900 });
+  const d = await deals.addDeal(sql, asMember(hugo), { title: "Left deal", contact: p.id, value: 90000 });
   await steps.addStep(sql, asMember(hugo), { deal: d.id }, { text: "Call", due: today() });
   const note = await activities.log(sql, asMember(hugo), { deal: d.id }, "note", "Hugo's note");
   assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, POST), 204);
@@ -40,7 +40,7 @@ test("someone who leaves: their deals, clients and next steps go unassigned, the
   assert.equal(history[0]?.kind, "unassigned");
   assert.ok(history.some(a => a.id === note.id && a.author === hugo.id), "what they wrote stays theirs");
   // Camille (a manager) is told, in French.
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body, n.path]), [[camille.id, "Hugo Bernard est parti : ses clients n’ont plus de responsable", "1 affaire · 1 prochaine étape · 2 entreprises ou contacts", "/chest/deals?view=list&owner=none"]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body, n.path]), [[camille.id, "Hugo Bernard est parti\u202f: ses clients n’ont plus de responsable", "1 affaire · 1 prochaine étape · 2 entreprises ou contacts", "/chest/deals?view=list&owner=none"]]);
 });
 
 test("an erasure: their id is gone everywhere, their notes stay for the team, acknowledged once", async () => {

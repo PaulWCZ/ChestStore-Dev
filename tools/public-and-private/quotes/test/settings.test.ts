@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { addClient, archiveClient, getClient, listClients, updateClient } from "../lib/clients.ts";
-import { company, missing, updateCompany } from "../lib/company.ts";
-import { AppError } from "../lib/errors.ts";
-import { addItem, archiveItem, listItems, updateItem } from "../lib/items.ts";
+import { addClient, archiveClient, countMatching, getClient, listClients, updateClient } from "../src/lib/clients.ts";
+import { company, missing, updateCompany } from "../src/lib/company.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { addItem, archiveItem, countItems, listItems, updateItem } from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
@@ -12,8 +12,8 @@ import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/membe
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone });
+  database = await testDatabase();
 });
 after(async () => {
   await chest.close();
@@ -58,7 +58,7 @@ test("clients: added by anyone selling, checked, archived rather than deleted", 
   await assert.rejects(addClient(sql, asMember(lea), { name: "x" }), refused("forbidden"));
   await assert.rejects(addClient(sql, asMember(nora), { name: "x" }), refused("forbidden"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "" }), refused("empty"));
-  await assert.rejects(addClient(sql, asMember(ines), { name: "x", email: "no" }), refused("email_invalid"));
+  await assert.rejects(addClient(sql, asMember(ines), { name: "x", email: "no" }), refused("invalid_email"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "x", siren: "1" }), refused("siren_invalid"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "x", language: "de" }), refused("invalid"));
   await assert.rejects(addClient(sql, asMember(ines), { name: "x", kind: "robot" }), refused("invalid"));
@@ -75,6 +75,14 @@ test("clients: added by anyone selling, checked, archived rather than deleted", 
   assert.equal(updated.siren, "412873564");
   assert.deepEqual((await listClients(sql, asMember(lea), { q: "ross" })).map(x => x.name), ["Garage Rossi"]);
   assert.deepEqual((await listClients(sql, asMember(lea), { q: "412873" })).map(x => x.name), ["Garage Rossi"]);
+  // Searched without case or accents, on the server; a page at a time.
+  await addClient(sql, asMember(ines), { name: "Atelier Étienne Lefèvre", city: "Besançon" });
+  assert.deepEqual((await listClients(sql, asMember(lea), { q: "etienne lefevre" })).map(x => x.name), ["Atelier Étienne Lefèvre"]);
+  assert.deepEqual((await listClients(sql, asMember(lea), { q: "BESANCON" })).map(x => x.name), ["Atelier Étienne Lefèvre"]);
+  assert.deepEqual((await listClients(sql, asMember(lea), { q: "100%_" })).map(x => x.name), [], "% and _ are letters, not patterns");
+  const everyone = (await listClients(sql, asMember(lea))).map(x => x.name);
+  assert.deepEqual([...(await listClients(sql, asMember(lea), { limit: 1 })), ...(await listClients(sql, asMember(lea), { limit: 1, offset: 1 }))].map(x => x.name), everyone.slice(0, 2));
+  assert.equal(await countMatching(sql, { q: "etienne" }), 1);
   await archiveClient(sql, asMember(ines), c.id, true);
   assert.ok(!(await listClients(sql, asMember(lea))).some(x => x.id === c.id));
   assert.ok((await listClients(sql, asMember(lea), { archived: true })).some(x => x.id === c.id));
@@ -89,6 +97,7 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
   await assert.rejects(addItem(sql, asMember(lea), { name: "x" }, "EUR"), refused("forbidden"));
   await assert.rejects(addItem(sql, asMember(hugo), { name: "x", vatRate: 1900 }, "EUR"), refused("rate_invalid"));
   await assert.rejects(addItem(sql, asMember(hugo), { name: "x", unitPrice: "abc" }, "EUR"), refused("amount_invalid"));
+  await assert.rejects(addItem(sql, asMember(hugo), { name: "x", unitPrice: "1.234" }, "EUR"), refused("amount_ambiguous"));
   await assert.rejects(addItem(sql, asMember(hugo), { name: "x", unitPrice: "100000000" }, "EUR"), refused("amount_invalid"));
   const item = await addItem(sql, asMember(hugo), { name: "Journée de développement", unit: "jour", unitPrice: "650,00", vatRate: 2000 }, "EUR");
   assert.equal(item.unitPrice, 65000);
@@ -97,6 +106,9 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
   const cheaper = await updateItem(sql, asMember(hugo), item.id, { unitPrice: "600" }, "EUR");
   assert.equal(cheaper.unitPrice, 60000);
   assert.deepEqual((await listItems(sql, asMember(lea))).map(i => i.name), ["Guide imprimé", "Journée de développement"]);
+  assert.deepEqual((await listItems(sql, asMember(lea), { q: "IMPRIME" })).map(i => i.name), ["Guide imprimé"]);
+  assert.deepEqual((await listItems(sql, asMember(lea), { limit: 1, offset: 1 })).map(i => i.name), ["Journée de développement"]);
+  assert.equal(await countItems(sql), 2);
   await archiveItem(sql, asMember(hugo), book.id, true);
   assert.deepEqual((await listItems(sql, asMember(lea))).map(i => i.name), ["Journée de développement"]);
   await assert.rejects(updateItem(sql, asMember(hugo), "999", { name: "x" }, "EUR"), refused("not_found"));
@@ -104,7 +116,7 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
 
 test("the company's row comes back empty if it was ever missing, and the payment link is https only", async () => {
   const { sql } = database;
-  const { company: read, updateCompany: update } = await import("../lib/company.ts");
+  const { company: read, updateCompany: update } = await import("../src/lib/company.ts");
   await assert.rejects(update(sql, asMember(camille), { paymentLink: "http://pay.test" }), (e: unknown) => (e as { code?: string }).code === "link_invalid");
   assert.equal((await update(sql, asMember(camille), { paymentLink: "https://pay.test/x" })).paymentLink, "https://pay.test/x");
   await sql`delete from company`;

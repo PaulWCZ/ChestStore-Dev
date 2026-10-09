@@ -71,3 +71,25 @@ Used on 2026-09-29 in the harness (port 7300, `--prod --reset`, whose fake Chest
 8. Zendesk/Freshdesk history import. **M**
 9. Public answers / help centre (with the Wiki). **M–L**
 10. Stop claiming Crisp until a chat widget exists. **S** (wording) / **L** (widget)
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Support's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-package`; PSS of the
+  server's process tree at rest, median of 5): **136.9 → 65.1 MiB**;
+  image 460 → 30 MiB; first members' page 880 →
+  489 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: public actions on the package's bounded actions (single-use token, honeypot, budgets per visitor, per day and per request link); public downloads at most two at once (40 parallel downloads of a 9.5 MB file had taken the server to 838 MiB), 503 with `Retry-After` beyond; the export streamed (5,000 tickets and 20,000 messages peak at 160 MiB); the public upload's address a path, so it works on the company's own domain (SDK 0.4.1-studio.4, `645d37e`); an unknown follow-up link says so (`a06025d`). Axe 0 on 34 screens (`e3ad1e0`).
+- **Pending**: Nothing listed as pending in its commits. Platform: a public file still passes whole through the tool (`reports/03-sdk-report.md` §4.17).
+
+**Verdict, updated.** Custom domains now exist on the Chest (brief/08): the help pages can live at `support.<company>.com`, and since SDK 0.4.1-studio.4 a visitor's upload works there too. That was one of the platform gaps the summary named for Support; the blocker that stays is email in and out. **Cancel tomorrow: unchanged — not yet** (email on a real Chest).

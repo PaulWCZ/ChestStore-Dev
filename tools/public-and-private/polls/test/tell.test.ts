@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
-import { POST as job } from "../app/chest-jobs/[name]/route.ts";
-import { answer } from "../lib/answers.ts";
-import * as polls from "../lib/polls.ts";
-import * as tell from "../lib/tell.ts";
+import { fakeChest, shownTo, type FakeChest, type FakeMember, type FakeNotification } from "@argentic/chest-sdk/testing";
+import * as schedules from "@argentic/chest-sdk/schedules";
+import { answer } from "../src/lib/answers.ts";
+import * as polls from "../src/lib/polls.ts";
+import { seen } from "../src/lib/lifecycle.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, chestGroups, everyone, groups, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
@@ -21,14 +22,21 @@ beforeEach(async () => {
   await database.sql`truncate polls, tellings restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ members, groups: chestGroups, capabilities: ["members", "notifications"], schedules: [{ name: "pass", cron: "*/15 * * * *" }], chest: { timeZone: "Europe/Paris" } });
+  chest = await fakeChest({ network: {}, members, groups: chestGroups, capabilities: ["members", "notifications"], chest: { timeZone: "Europe/Paris" } });
   return chest;
 };
+
+// What POST /chest-schedules does (src/app.tsx; the route itself is
+// tested against the built server, test/app.test.mjs).
+const job = async (request: Request) => new Response(null, { status: await schedules.handle(request, { pass: async () => { await tell.pass(database.sql); } }, { seen: seen(database.sql) }) });
 
 const now = new Date("2026-10-05T08:00:00Z");
 const ctx = { zone: "Europe/Paris", now, today: "2026-10-05", known: null };
 const lunch = { kind: "choice", title: "Lunch on Friday?", options: ["Pizza", "Sushi"], open: true };
 const items = (key: string) => chest.notifications.filter(n => n.key === key);
+// What a member sees of a notice: their language's words (the notice's
+// translations), English otherwise.
+const read = (n: FakeNotification | undefined, who: FakeMember) => shownTo(n!, who.language ?? "en");
 
 test("a sent poll is told to everyone it asks, each in their language — not its organiser, not those without a role", async () => {
   await open();
@@ -38,9 +46,9 @@ test("a sent poll is told to everyone it asks, each in their language — not it
     assert.deepEqual(result, { told: [`${made.id}:ask`], waiting: [] });
     const asked = items(tell.askKey(made.id));
     assert.deepEqual(asked.map(n => n.member).sort(), [camille.id, ines.id, hugo.id, lea.id, tom.id].sort());
-    assert.equal(asked.find(n => n.member === hugo.id)!.title, "Sofia Rossi asks: Lunch on Friday?");
-    assert.equal(asked.find(n => n.member === ines.id)!.title, "Sofia Rossi demande : Lunch on Friday?");
-    assert.equal(asked.find(n => n.member === hugo.id)!.body, "Answer before Fri 9 Oct, 12:00.");
+    assert.equal(read(asked.find(n => n.member === hugo.id), hugo).title, "Sofia Rossi asks: Lunch on Friday?");
+    assert.equal(read(asked.find(n => n.member === ines.id), ines).title, "Sofia Rossi demande\u202f: Lunch on Friday?", "the narrow no-break space kept");
+    assert.equal(read(asked.find(n => n.member === hugo.id), hugo).body, "Answer before Fri 9 Oct, 12:00.");
     assert.equal(asked[0]!.path, `/chest/polls/${made.id}`);
     assert.equal(chest.badges.get(hugo.id), 1);
     assert.equal(chest.badges.get(sofia.id), 1, "the organiser is asked too: a number, no bell item");
@@ -87,8 +95,8 @@ test("the day before it closes, those who have not answered are reminded — onc
     assert.ok(!result.told.includes(`${quick.id}:remind`), "sent less than a day before its closing: no reminder");
     const reminded = items(tell.askKey(made.id));
     assert.deepEqual(reminded.map(n => n.member).sort(), [camille.id, hugo.id, lea.id, tom.id].sort());
-    assert.equal(reminded.find(n => n.member === hugo.id)!.title, "Closes tomorrow: Lunch on Friday?");
-    assert.equal(reminded.find(n => n.member === camille.id)!.title, "Se termine demain : Lunch on Friday?");
+    assert.equal(read(reminded.find(n => n.member === hugo.id), hugo).title, "Closes tomorrow: Lunch on Friday?");
+    assert.equal(read(reminded.find(n => n.member === camille.id), camille).title, "Se termine demain\u202f: Lunch on Friday?", "the narrow no-break space kept");
     const before = chest.notifications.length;
     await tell.pass(sql, new Date(later.getTime() + 36e5));
     assert.equal(chest.notifications.length, before, "once");
@@ -119,8 +127,8 @@ test("closed by its date: every 'asks you' item goes, tiles drop, the organiser 
     await tell.runTellings(sql, after);
     const told = items(tell.finalKey(made.id));
     assert.equal(told.length, 5);
-    assert.deepEqual([told.find(n => n.member === hugo.id)!.title, told.find(n => n.member === hugo.id)!.body], ["Date chosen: Christmas party", "Friday 18 December · 19:00 – 23:00"]);
-    assert.equal(told.find(n => n.member === lea.id)!.body, "vendredi 18 décembre · 19:00 – 23:00");
+    assert.deepEqual([read(told.find(n => n.member === hugo.id), hugo).title, read(told.find(n => n.member === hugo.id), hugo).body], ["Date chosen: Christmas party", "Friday 18 December · 19:00 – 23:00"]);
+    assert.equal(read(told.find(n => n.member === lea.id), lea).body, "vendredi 18 décembre · 19:00 – 23:00");
     // Deleted: its items leave every bell.
     const poll = await polls.deletePoll(sql, asMember(sofia), made.id, after);
     await tell.removed(sql, poll);
@@ -136,7 +144,7 @@ test("the pass runs on the Chest's schedule; a call not signed by the Chest is r
     const made = await polls.createPoll(database.sql, asMember(sofia), lunch, ctx);
     assert.equal(await chest.run("pass", job), 204);
     assert.equal(items(tell.askKey(made.id)).length, 5);
-    assert.equal((await job(new Request("http://tool.test/chest-jobs/pass", { method: "POST", body: "{}" }))).status, 401);
+    assert.equal((await job(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}" }))).status, 401);
   } finally {
     await chest.close();
   }

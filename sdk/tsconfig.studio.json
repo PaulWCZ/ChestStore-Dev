@@ -1,0 +1,31 @@
+{
+  "//": "The studio's build (0.4.1-studio.N): 0.4.1's tsconfig.build.json, with the package's entry points the studio publishes — the official modules under client/src, unchanged, and the studio's under client/studio. client/index.ts, 0.4.1's root, is kept verbatim but not built: the package's root is client/studio/index.ts.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "client",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "files": [
+    "client/src/errors.ts",
+    "client/src/database.ts",
+    "client/src/schedules.ts",
+    "client/src/ai.ts",
+    "client/studio/index.ts",
+    "client/studio/member.ts",
+    "client/studio/chest.ts",
+    "client/studio/files.ts",
+    "client/studio/members.ts",
+    "client/studio/notifications.ts",
+    "client/studio/events.ts",
+    "client/studio/mail.ts",
+    "client/studio/calendar.ts",
+    "client/studio/webhooks.ts",
+    "client/studio/visitors.ts",
+    "client/studio/checks.ts",
+    "client/studio/testing.ts"
+  ],
+  "include": []
+}

@@ -1,34 +1,35 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as desks from "../lib/desk-bookings.ts";
-import { forgetGroups, groupsOf, membership } from "../lib/groups.ts";
-import { people } from "../lib/people.ts";
-import * as places from "../lib/places.ts";
-import * as rooms from "../lib/room-bookings.ts";
-import { setUsualWeek } from "../lib/usual.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { forgetGroups, groupsOf, membership } from "../src/lib/groups.ts";
+import { people } from "../src/lib/people.ts";
+import * as places from "../src/lib/places.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
+import { setUsualWeek } from "../src/lib/usual.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, lea } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
 
 // Rooms open to everyone, as on most Chests: no group gives the tool, so
-// member(request).groups and the members API say [] (SDK 0.3.0). A room or
-// an area kept for Sales still follows who is in Sales: Rooms asks the
-// Chest (members.groups.of, with "groups": "read").
+// without "members.groups" a member's groups read [] (SDK 0.4.1). A room
+// or an area kept for Sales still follows who is in Sales: with
+// "members.groups" (studio.5, announced for 0.5), the members API says
+// every group of the Chest a member is in (members.get, members.list({
+// group })) — even when the request's own assertion carried none.
 
-const open = everyone.map(p => ({ ...p, groups: [] }));
 let database: TestDatabase;
 let chest: FakeChest;
 let o: Awaited<ReturnType<typeof office>>;
 before(async () => {
   database = await testDatabase();
   chest = await fakeChest({
-    members: open,
-    capabilities: ["members", "notifications", "files", "groups"],
+    members: everyone,
+    capabilities: ["members", "notifications", "files", "members.groups"],
     groups: [
-      { id: groups.sales, name: "Sales", members: [hugo.id], grants: false },
-      { id: groups.office, name: "Office", members: [camille.id, lea.id], grants: false },
+      { id: groups.sales, name: "Sales", members: everyone.filter(p => p.groups.includes(groups.sales)).map(p => p.id), grants: false },
+      { id: groups.office, name: "Office", members: everyone.filter(p => p.groups.includes(groups.office)).map(p => p.id), grants: false },
     ],
     chest: { timeZone: zone },
   });

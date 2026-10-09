@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
+import { AppError } from "../src/shared/app-error.ts";
 import {
   createDocument, decideQuote, duplicate, finalise, getDocument, invoiceFromQuote, listDocuments, markReady, receivables, removeDraft, restoreDraft,
   saveDraft, sendQuote, startCreditNote, stateOf,
-} from "../lib/documents.ts";
-import { addPayment } from "../lib/payments.ts";
-import { archiveClient } from "../lib/clients.ts";
+} from "../src/lib/documents.ts";
+import { addPayment } from "../src/lib/payments.ts";
+import { archiveClient } from "../src/lib/clients.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, defaults, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -16,8 +16,8 @@ import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/membe
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications"] });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {
@@ -256,6 +256,32 @@ test("a credit note corrects a finalised invoice, never more than it", async () 
   await assert.rejects(sql`update documents set gross = 1 where id = ${cf.id}`, (e: unknown) => (e as { code?: string }).code === "QF001");
 });
 
+test("a credit note takes back VAT only at the invoice's rates, no more than is left at each", async () => {
+  const { sql } = database;
+  const c = await client(sql, { name: "Avoir Taux" });
+  const inv = await draft(sql, "invoice", c.id, [line("Conseil", 1000, 100000)]);
+  await finalise(sql, asMember(sofia), inv.id, today);
+  // 1,100.00 at 5.5 % is less than the 1,200.00 left, but the invoice
+  // charged no VAT at 5.5 %.
+  const odd = await startCreditNote(sql, asMember(sofia), inv.id);
+  await saveDraft(sql, asMember(sofia), odd.id, { lines: [{ ...line("Conseil", 1000, 110000), vatRate: 550 }] });
+  await assert.rejects(finalise(sql, asMember(sofia), odd.id, today), refused("credit_rate"));
+  // Two invoices' worth of a rate: refused at that rate, with what is left said.
+  const mixed = await draft(sql, "invoice", c.id, [line("Conseil", 1000, 100000), { ...line("Livre", 1000, 10000), vatRate: 550 }]);
+  await finalise(sql, asMember(sofia), mixed.id, today);
+  const over = await startCreditNote(sql, asMember(sofia), mixed.id);
+  await saveDraft(sql, asMember(sofia), over.id, { lines: [{ ...line("Livre", 1000, 20000), vatRate: 550 }] });
+  await assert.rejects(finalise(sql, asMember(sofia), over.id, today), (e: unknown) => e instanceof AppError && e.code === "credit_rate_too_large" && /100,00/u.test(String(e.values["left"])));
+  await saveDraft(sql, asMember(sofia), over.id, { lines: [{ ...line("Livre", 1000, 10000), vatRate: 550 }] });
+  await finalise(sql, asMember(sofia), over.id, today);
+  // Nothing left at 5.5 %: another 5.5 % credit is refused, 20 % still goes.
+  const again = await startCreditNote(sql, asMember(sofia), mixed.id);
+  await saveDraft(sql, asMember(sofia), again.id, { lines: [{ ...line("Livre", 1000, 100), vatRate: 550 }] });
+  await assert.rejects(finalise(sql, asMember(sofia), again.id, today), refused("credit_rate_too_large"));
+  await saveDraft(sql, asMember(sofia), again.id, { lines: [line("Conseil", 1000, 100000)] });
+  assert.equal((await finalise(sql, asMember(sofia), again.id, today)).gross, 120000);
+});
+
 test("payments: partial, full, overdue by the Chest's date, undone", async () => {
   const { sql } = database;
   const c = await client(sql, { name: "Paiements" });
@@ -265,6 +291,8 @@ test("payments: partial, full, overdue by the Chest's date, undone", async () =>
   await assert.rejects(addPayment(sql, asMember(hugo), inv.id, { paidOn: today, amount: "100", method: "transfer" }, today), refused("forbidden"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: "2026-10-01", amount: "100", method: "transfer" }, today), refused("date_invalid"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "0", method: "transfer" }, today), refused("payment_invalid"));
+  // "1,234": a thousand, or one twenty-three? Said, never guessed.
+  await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "1,234", method: "transfer" }, today), refused("amount_ambiguous"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "100", method: "bitcoin" }, today), refused("invalid"));
   await assert.rejects(addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "1 200,01", method: "transfer" }, today), refused("payment_too_large"));
   await addPayment(sql, asMember(sofia), inv.id, { paidOn: today, amount: "500", method: "transfer" }, today);

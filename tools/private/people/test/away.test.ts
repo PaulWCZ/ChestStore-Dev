@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { awayOf, awayText, awayToday, purgeAway, readLeave, type Span } from "../lib/away.ts";
-import { catalogue, format, formatDay } from "../lib/i18n/index.ts";
-import { addDays } from "../lib/model.ts";
-import { today } from "../lib/zone.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import { awayOf, awayText, awayToday, purgeAway, readLeave, type Span } from "../src/lib/away.ts";
+import { catalogue, format, formatDay } from "../src/i18n/index.ts";
+import { addDays } from "../src/shared/model.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { everyone, hugo, id, ines, lea, tom } from "./support/members.ts";
 
@@ -14,7 +14,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();

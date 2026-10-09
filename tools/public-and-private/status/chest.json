@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "status",
   "title": "Status",
   "description": "Tell your customers whether your services work: a public status page, incidents and their updates, planned maintenance.",
@@ -8,15 +8,15 @@
   "roles": ["editor"],
   "role_labels": { "editor": "Editor" },
   "public": true,
-  "csp": "tool",
   "capabilities": ["database", "members", "notifications"],
   "receives": ["member.*"],
+  "schedules": [{ "name": "updates", "cron": "*/15 * * * *" }],
   "build": {
     "runtime": "node",
     "install": "npm ci",
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": ["/_next/static/"]
+    "static": ["/assets/"]
   }
 }

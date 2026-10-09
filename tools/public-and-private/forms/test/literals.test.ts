@@ -9,12 +9,12 @@ const root = join(import.meta.dirname, "..");
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
-    if (["node_modules", ".next", "vendor", "test"].includes(name)) return [];
+    if (["node_modules", "dist", "vendor", "test"].includes(name)) return [];
     return statSync(path).isDirectory() ? files(path) : path.endsWith(".tsx") ? [path] : [];
   });
 }
 
-test("no words in the pages outside lib/i18n", () => {
+test("no words in the pages outside src/i18n", () => {
   const found: string[] = [];
   for (const file of files(root)) {
     const source = readFileSync(file, "utf8").replace(/\{\/\*[\s\S]*?\*\/\}/gu, "").replace(/^\s*\/\/.*$/gmu, "");
@@ -23,7 +23,7 @@ test("no words in the pages outside lib/i18n", () => {
     // characters JSX text does not hold).
     for (const m of source.matchAll(/([^=\s-])\s*>([^<>{}]*)</gu)) {
       const text = m[2]!.trim();
-      if (/\p{L}{2,}/u.test(text) && !/[;=()[\]]/u.test(text)) found.push(`${relative(root, file)}: "${text}"`);
+      if (/\p{L}{2,}/u.test(text) && !/[;=()[\]?&|]/u.test(text)) found.push(`${relative(root, file)}: "${text}"`);
     }
     for (const m of source.matchAll(/\s(placeholder|title|alt|aria-label|label)="([^"]*\p{L}[^"]*)"/gu)) found.push(`${relative(root, file)}: ${m[1]}="${m[2]}"`);
   }

@@ -77,7 +77,7 @@ them to everyone, organiser included, only once it closes.
   be worked out by subtraction is hidden too (see "Anonymous polls").
   Free texts are never split by team.
 - **Who is asked**: everyone who has Polls, or chosen Chest groups (any
-  group of the Chest, with the `groups` proposal) and/or
+  group of the Chest, with the `members.groups` proposal) and/or
   **people picked by name**. Those asked get **one item in the Chest's
   bell**, in their own language, and a **number on the Polls tile** until
   they answer.
@@ -92,9 +92,9 @@ them to everyone, organiser included, only once it closes.
   by those asked and those who manage it; the organiser hears of them in the
   bell; deleting one is undone from the toast. Anonymous polls take none.
 - **Remind those who haven't answered** (the organiser, at most every 12
-  hours): a bell item and, where the Chest sends email, one email each —
-  as each member chose in their Chest settings (all, one a day, none: the
-  Chest applies it; the bell item always comes).
+  hours): a notification to each of them, in their language. Polls never
+  emails a member: the Chest emails members their notifications as each
+  one chose in the Chest (every one, once or twice a day, or off).
 - **One answer per member**, bound to the member the Chest signs in — never
   to anything the browser sends. A named answer can be changed until the
   poll closes.
@@ -118,8 +118,8 @@ them to everyone, organiser included, only once it closes.
   all-day or timed, on the Chest's clock) stays, for a Chest without the
   calendar and for anyone who prefers it.
 - **Reminder**: the day before a poll closes, those who have not answered
-  get one bell item ("Closes tomorrow: …"), and an email where the Chest
-  sends them — only for polls sent more than a day before their close. The organiser is told when their poll closed by
+  get one notification ("Closes tomorrow: …") — only for polls sent more
+  than a day before their close. The organiser is told when their poll closed by
   its date (for a date poll: "Pick the date and tell everyone").
 - **Drafts**: save a poll as a draft and send it later; a new poll's words
   are also kept in the browser until saved, so a closed tab loses nothing.
@@ -162,7 +162,7 @@ The organiser ticks *Anonymous* when writing the poll. Then:
   name people).
 - **A repeating pulse** compares rounds, never answers: each round is its
   own anonymous poll, shown once closed and from 5 answers.
-- **Per team** (`lib/teams.ts`): an anonymous survey also keeps its counts
+- **Per team** (`src/lib/teams.ts`): an anonymous survey also keeps its counts
   per group of the Chest the answerer belongs to — only groups of **5
   members or more**, never a free text, with no name and no time, rewritten
   with the poll's other anonymous rows in one shuffled transaction. Once
@@ -177,7 +177,7 @@ The organiser ticks *Anonymous* when writing the poll. Then:
 - **An anonymous answer cannot be changed**: nothing says which one is yours.
   The form says so before you send it.
 - **Replies to anonymous free texts** (Officevibe's two-way feedback,
-  `lib/replies.ts`): when someone writes a free text in an anonymous poll,
+  `src/lib/replies.ts`): when someone writes a free text in an anonymous poll,
   their browser makes a random key and sends only its hash with the text
   (`texts.reply_key`); the key stays in that browser (localStorage). Nothing
   else changes: no member id, no time with the text or its hash. Once the
@@ -225,7 +225,7 @@ What anonymity here does **not** protect against, honestly:
 
 Polls wears the look the company chooses in its Chest, with the same
 features: its own identity, **Confetti** (coral, deep navy and mint on warm
-paper, chunky rounded shapes — `lib/theme.ts`), any theme of the store's
+paper, chunky rounded shapes — `src/theme.ts`), any theme of the store's
 catalogue (the 17 tools' identities, "Chest", "High contrast"), or the
 company's own brand (its colours, fonts, corners and logo — the logo then
 stands where the Polls mark is). The choice may be for all tools or for
@@ -294,39 +294,50 @@ closed poll is seen by those asked, its organiser and admins.
 | `/chest/polls/[id]/export` | CSV of the answers (those who manage the poll) |
 | `/chest/polls/[id]/calendar` | The chosen date as an .ics file (the Chest calendar has it too) |
 | `POST /chest-events` | The Chest's lifecycle events (signed) |
-| `POST /chest-jobs/pass` | The scheduled pass (signed; Proposal (studio)) |
+| `POST /chest-schedules` | The `pass` schedule's runs (signed, `Chest-Schedule`; SDK 0.4) |
+| `/chest/look.css`, `/look.css` | The look as a stylesheet: the team's (the company's choice), the public pages' (its brand, else Polls' own) |
+| `POST /chest/actions/<name>`, `POST /p/<link>/actions/answerGuest` | The members' actions (`src/actions.ts`); the guest form's, under its page's path (its cookie is that path's) |
 
 ## On a Chest
 
-- `public: true` with `"csp": "tool"` (the guest pages, Next.js's own
-  policy as Forms and Booking); the owner opens the public part in the
-  Chest — until then, the guest link cannot be reached (and the organiser's
-  card cannot show a public address). Public pages wear the company's brand
-  or Polls' own look, never a catalogue theme chosen for the team.
+- `public: true` and no `"csp"` permission: the pages run no inline
+  script and carry no inline style (`style=""` included), so the Chest's
+  own policy for a public part admits them; the tool sends the same
+  policy on both hosts. The owner opens the public part in the Chest —
+  until then, the guest link cannot be reached (and the organiser's card
+  cannot show a public address). Public pages wear the company's brand or
+  Polls' own look, never a catalogue theme chosen for the team.
+- **The look is a stylesheet the tool serves** (`/chest/look.css` for the
+  team, `/look.css` for the public pages, `src/theme.ts`): the company's
+  choice read with `chest.theme()` (kept a minute by the SDK), written
+  once per choice, linked with its hash (`?v=…`, kept a year by the
+  browser; an ETag and a 304 otherwise). `build.static` is `["/assets/"]`
+  (the browser's script and styles, the fonts, the icon).
 - `capabilities`: `database`; `members` (names, photos, groups, who is
   asked, people found by name); `notifications` (the bell, the tile's
   number); `receives: ["member.*"]`. Proposal (studio), in
-  `chest.proposals.json`: `mail: {send: true}` — reminders by email, one
-  per person, sent to `{member}` (Polls never sees an address); without it,
-  reminders are bell items only; it also sends a guest the chosen date.
-  `calendar: true` — the chosen date in each person's Chest calendar.
-  `groups: "read"` with `receives:
-  ["group.*"]` — every group of the Chest as an audience, and results per
-  team; without it, only the groups that give Polls.
-- **Telling those asked** uses one `notifications.broadcast` per poll
-  (Proposal (studio): each member's item in their language, 30 an hour,
-  outside the recipients quota). Where the Chest has no broadcast, and for
-  reminders (only those who have not answered), Polls lists members 500 at
-  a time and tells them in their language; the Chest takes **1,000
-  recipients an hour**: beyond, Polls keeps where it stopped and goes on at
-  the next pass.
+  `chest.proposals.json`: `mail: {send: true}` — only to send a **guest**
+  (someone outside the company) the chosen date (see "Mail to people
+  outside the company"); `calendar: true` — the chosen date in each
+  person's Chest calendar; `capabilities: ["members.groups"]` with
+  `receives: ["group.*"]` — every group of the Chest as an audience, and
+  results per team; without it, only the groups that give Polls.
+- **Telling those asked** uses one `notifications.broadcast(notice, {to,
+  except})` per poll (Proposal (studio): to its roles or groups, except
+  its organiser and those who answered; 30 an hour, outside the recipients
+  quota). Every notice is written once, in English with its French
+  `translations`; the Chest shows each member theirs. Where the Chest has
+  no broadcast, for polls put to people by name, and for reminders (only
+  those who have not answered), Polls lists members 500 at a time and
+  notifies them; the Chest takes **1,000 recipients an hour**: beyond,
+  Polls keeps where it stopped and goes on at the next pass.
 - **Without schedules**: polls close by their date on the next page view
   (closing is evaluated on every read), and the same pass (closing
   follow-ups, the next rounds of repeating surveys, reminders, tellings,
   purge) runs at most once a minute when someone opens a page. With the
   `pass` schedule (every 15 minutes) it runs on time. A round missed while
   nobody came is skipped, never opened in a burst.
-- **Groups**: with the `groups` proposal Polls sees every group of the
+- **Groups**: with the `members.groups` proposal Polls sees every group of the
   Chest (Sales, Tech…) even when it is open to everyone; without it, the
   Chest shows a tool only the groups that *give* it access, and if none
   does, the composer offers people by name ("No group gives Polls here:
@@ -351,36 +362,37 @@ closed poll is seen by those asked, its organiser and admins.
 
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.7), in `vendor/`, and `@argentic/chest-app` 0.1.0-studio.8, contract 0.4 (`"chest": "0.4"`).
 
 - `member.language` — SDK 0.3.0: the interface and the bell in each
   member's language (`localeOf`: English for a language Polls does not
   speak yet).
-- `notifications.broadcast` — **Proposal (studio)**: telling a poll's
-  audience in one call; Polls falls back to paged `notify` without it.
-- `schedules` — **Proposal (studio)**: `chest.proposals.json` declares `pass`
-  every 15 minutes. Without it, Polls still works (see above).
+- `notifications.broadcast(notice, {to, except})` and a notice's
+  `translations` — **Proposal (studio)**, announced for 0.5: telling a
+  poll's audience in one call, each member in their language; Polls falls
+  back to paged `notify` (with `translations`) without it.
+- `schedules` — SDK 0.4: `chest.json` declares `pass` every 15 minutes,
+  run on `POST /chest-schedules` (`schedules.handle`, with the durable
+  `seen` of the events). Without runs, Polls still works (see above).
 - `chest.timeZone` / `chest.today()` — SDK 0.3.0: dates and closing
   times on the Chest's clock; the Chest puts the database's sessions in
   that zone too (`current_date` is the Chest's day).
-- `mail` — **Proposal (studio)**: reminders by email (`send` to `{member}`).
-  Keys are passed whole (studio.15 hashes long ones). Reminders honour each
-  member's `mailPreference` (studio.15, applied by `mail.send`; not
-  transactional). The chosen date emailed to guests goes to outside
-  addresses, which have no Chest preference, so the `transactional` flag
-  would change nothing there and is not set. Keys made from database ids
-  carry the recipient (studio.16): a guest's email key ends with their
-  address. `mail.available()` (studio.16) decides whether the guest form
-  asks for an email.
-- `groups: "read"` — **Proposal (studio)**, in `vendor/` (`members.groups.all`,
-  `members.groups.members`, `members.groups.of`, `group.*` events): any
-  group of the Chest as an audience; results per team (`lib/groups.ts`,
-  adapted from News). The assertion (`member(request).groups`) and
-  `members.*` name only the groups that **give** Polls — none when Polls is
-  open to everyone — so who a poll asks is read from the Chest: the member
-  of a request with `groups.of` (once per request, `lib/session.ts`), an
-  audience or a badge count with `groups.members` of the poll's groups.
-  Without the permission, the groups the Chest gave with the member.
+- `mail` — **Proposal (studio)**, to people outside the company only:
+  the chosen date to guests (below). Keys made from database ids carry the
+  recipient: a guest's email key ends with their address.
+  `mail.available()` decides whether the guest form asks for an email.
+- `members.groups` — **Proposal (studio)**, the name announced for 0.5
+  (`member.groups`, `members.list({group})`, `members.groups.all()`,
+  `group.*` events): any group of the Chest as an audience; results per
+  team (`src/lib/groups.ts`, adapted from News). With it, the Chest names
+  every group a member is in — in `member(request)` and in `members.*` —
+  so who a poll asks is read from the Chest's own answers. Someone who
+  leaves a group (`member.updated`, `changed: ["groups"]`) loses that
+  group's "asks you" item and the number on their tile. Without the
+  capability, the groups the Chest gave with the member. The official
+  0.4.1's `member()` refuses an assertion with more than 16 groups; the
+  studio SDK lifts that from studio.7 (an assertion up to 16 KiB, about
+  300 groups), and 0.5 is announced to lift it too.
 - `calendar` — **Proposal (studio)**: the chosen date in each person's
   Chest calendar (`calendar.putMany`, studio.15: keys `poll:<id>`, then
   `poll:<id>:2`… for each further 1,000 people); without it, the .ics
@@ -389,34 +401,82 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   5,000 events full, a date out of its range) is taken out of calendars
   and its people are remembered (`polls.calendar_missing`), so their page
   offers the .ics file rather than saying "In your calendar".
-- `visitors` — **Proposal (studio)**: the guest page's language (the
-  visitor's switch, their browser's, then the Chest's own), the guest
-  form's token and the Chest's counters of visitors; without them, Polls
-  counts in its own
-  table (`guest_counts`).
-- `chest.publicUrl` — **Proposal (studio)**: the guest link's address
-  (else derived from the request, as Booking does).
+- The guest form's guard is `@argentic/chest-app`'s (`publicAction`'s
+  `bound`): a single-use form token for this action that lasts two hours,
+  a proof of work the browser computes (answering needs JavaScript), a form sent
+  faster than a person waits the seconds left, a field only robots fill,
+  answers counted a day per visitor (the address the Chest's front gives —
+  a studio proposal — else a cookie) and for everyone (`chest_bounds`).
+  The tool's own hourly counters (`guest_counts`) are no longer written;
+  the table goes in a later migration.
+- `chest.tool.publicUrl` — SDK 0.4: the guest link's address (the
+  company's own domain once connected; outside a Chest, derived from the
+  request, as Booking does).
 - Wanted, not built:
-  - **A broadcast to members by id** (`to: { members: [ids] }`) and one
-    that **excludes members** (`except: [ids]`), so a poll put to people by
-    name, a reminder or a poll's first telling need not page through
-    members.
-  - **Push to a phone**: the bell reaches only those who open their Chest;
-    email helps; a push would be Officevibe's Slack nudge.
+  - **A broadcast to members by id** (`to: { members: [ids] }`), so a
+    poll put to people by name or a reminder (only those who have not
+    answered) need not page through members.
+  - **Push to a phone**: the bell reaches only those who open their Chest
+    (the Chest's own emails of notifications help); a push would be
+    Officevibe's Slack nudge.
+
+## Mail to people outside the company
+
+Polls never emails a member (the Chest does, from their notifications, as
+each member chose). It emails one kind of person: a **guest** of a date
+poll, who is not in the Chest. Sent through the Chest's mail connector
+(studio proposal, not built yet).
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| A guest who gave an email on the poll's public page | The date chosen | When the organiser picks the date and *Tell everyone* (again if the date changes) | In the language the guest answered in: the poll's title, the date, the link back to the poll's page (where the calendar file is), and "Replies to this email go to {company}." | None (the .ics is on the page) | The company's reply address set with the connector (Polls has no setting of its own) |
+
+When the Chest cannot send (mail not granted, the company's mail not
+connected, sending suspended), the guest form does not ask for an email at
+all; the page shows the chosen date to anyone who comes back, and the
+guest's thanks says so ("Open this link again to see the date chosen").
+The organiser's *Guests outside the Chest* card says which way guests
+learn the date: by email, or — when the Chest cannot send — "Guests are
+not emailed … send them the link again: the page shows it".
+
+## What changed with the mail decisions of 6 October 2026
+
+- The reminder emails to members (the day before the close, and *Remind
+  those who haven't answered*) are gone: the notification stays, and the
+  Chest emails it to each member as they chose.
+- Every notice is written once in English with its French translation
+  (`translations`); Polls no longer looks up each member's language to
+  notify them. The broadcast takes the new shape `broadcast(notice, {to,
+  except})`.
+- Groups use the `members.groups` capability (the earlier `groups` read proposal is gone):
+  a member's groups come with the member, no extra question to the Chest.
+- The guest's email says where replies go (the company's address).
 
 ## Develop
 
+Made like the studio's starter, on its package `@argentic/chest-app` (`vendor/`): TypeScript,
+Hono, React rendered on the server with a few islands, Vite. No Next.js.
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run dev       # rebuilds on every change and restarts the server
+npm run build     # the type check, then the browser's files and the server (dist/)
+npm test          # the type check, the server built into dist/test, then test/*.test.*
+npm start         # the built server, as the Chest runs it
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/polls --prod --reset
---port 5500` (the sample polls of `seed/sample.sql`),
-`node lab/chest-dev/flows/polls.mjs 5500` (browser flows),
-`node lab/chest-dev/screens.mjs tools/public-and-private/polls --port 5500`,
-`node lab/chest-dev/audit.mjs tools/public-and-private/polls --port 5500`.
+`npm test` runs PostgreSQL inside the test (PGlite); with
+`TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`
+it runs on a real PostgreSQL (a role and a database `t_test_…`, dropped
+after). `test/app.test.mjs` asks the built server as the Chest does
+(a fake Chest, signed members, visitors); the other files test
+`src/lib/` alone.
+
+In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/polls --prod --build --reset
+--port 5530` (the sample polls of `seed/sample.sql`; two hosts, https),
+`node lab/chest-dev/flows/polls.mjs 5530` (browser flows),
+`node lab/chest-dev/screens.mjs tools/public-and-private/polls --port 5530`,
+`node lab/chest-dev/audit.mjs tools/public-and-private/polls --port 5530`.
 
 ## What it does not do (yet)
 

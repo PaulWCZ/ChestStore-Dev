@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as desks from "../lib/desk-bookings.ts";
-import { addDays, today } from "../lib/model.ts";
-import * as places from "../lib/places.ts";
-import { presenceOf, setPresence } from "../lib/presence.ts";
-import * as rooms from "../lib/room-bookings.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { builtServer, type Handler } from "./support/server.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { addDays, today } from "../src/shared/model.ts";
+import * as places from "../src/lib/places.ts";
+import { presenceOf, setPresence } from "../src/lib/presence.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -15,7 +15,9 @@ import { office, workday, zone } from "./support/places.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 let o: Awaited<ReturnType<typeof office>>;
+let POST: Handler;
 before(async () => {
+  POST = await builtServer();
   database = await testDatabase();
   chest = await fakeChest({ members: everyone });
   o = await office(database.sql);
@@ -47,8 +49,8 @@ test("someone who leaves: their coming bookings are cancelled and their guests t
   // Inès, invited to Hugo's meeting, hears it is cancelled, in French.
   const told = chest.notifications.filter(n => n.member === ines.id);
   assert.equal(told.length, 1);
-  assert.equal(told[0]!.title, "Réunion annulée : Hugo's review");
-  assert.match(told[0]!.body ?? "", /L’organisateur est parti/u);
+  assert.equal(shownTo(told[0]!, "fr").title, "Réunion annulée\u202f: Hugo's review");
+  assert.match(shownTo(told[0]!, "fr").body ?? "", /L’organisateur est parti/u);
   assert.equal(told[0]!.key, `room:${mine.bookings[0]!.id}`);
 });
 

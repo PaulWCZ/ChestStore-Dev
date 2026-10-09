@@ -2,7 +2,7 @@
   { "name": "week", "path": "/chest", "member": "camille", "locale": "en", "preview": true, "actions": [{ "click": "a[aria-label='Previous week']:visible" }, { "wait": 1200 }] },
   { "name": "week-fr", "path": "/chest", "member": "ines", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']:visible" }, { "wait": 1200 }] },
   { "name": "week-returned-fr", "path": "/chest", "member": "lea", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']:visible" }, { "wait": 1200 }] },
-  { "name": "week-undo-fr", "path": "/chest", "member": "camille", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']:visible" }, { "wait": 1200 }, { "click": "button[aria-label^='Retirer la ligne']:visible" }, { "wait": 800 }], "only": ["desktop"] },
+  { "name": "week-undo-fr", "path": "/chest", "member": "camille", "locale": "fr", "actions": [{ "click": "button[aria-label^='Retirer la ligne']:visible" }, { "wait": 800 }], "only": ["desktop"] },
   { "name": "week-chest", "path": "/chest", "member": "camille", "locale": "en", "look": { "all": "catalogue:chest" }, "actions": [{ "click": "a[aria-label='Previous week']:visible" }, { "wait": 1200 }] },
   { "name": "week-theme", "path": "/chest", "member": "camille", "locale": "en", "look": { "all": "catalogue:library" }, "actions": [{ "click": "a[aria-label='Previous week']:visible" }, { "wait": 1200 }] },
   { "name": "week-theme-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "look": { "all": "catalogue:workshop" }, "only": ["phone"] },

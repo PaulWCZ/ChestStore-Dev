@@ -3,23 +3,23 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as balances from "../lib/balances.ts";
-import { addDays, addMonths } from "../lib/calendar.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { planImport, planLeave, type KindNames } from "../lib/import.ts";
-import { today } from "../lib/today.ts";
-import * as requests from "../lib/requests.ts";
-import { saveType, types } from "../lib/rules.ts";
-import { setupSteps } from "../lib/setup.ts";
-import { setApprover, setEmployeeNumber, setEndDate, setStartDate, setWorkDays, staffRow } from "../lib/staff.ts";
-import * as tell from "../lib/tell.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as balances from "../src/lib/balances.ts";
+import { addDays, addMonths } from "../src/shared/calendar.ts";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import { planImport, planLeave, type KindNames } from "../src/lib/import.ts";
+import { today } from "../src/lib/today.ts";
+import * as requests from "../src/lib/requests.ts";
+import { saveType, types } from "../src/lib/rules.ts";
+import { setupSteps } from "../src/lib/setup.ts";
+import { setApprover, setEmployeeNumber, setEndDate, setStartDate, setWorkDays, staffRow } from "../src/lib/staff.ts";
+import * as tell from "../src/lib/tell.ts";
 import { quietMonday, week } from "./support/dates.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, lea, nora, sofia, tom, seen } from "./support/members.ts";
 
 // People as payroll needs them: last days, weeks, employee numbers; leave
 // recorded for someone; the imports from Lucca's files; HR's first run.
@@ -32,7 +32,7 @@ before(async () => {
   // These tests ask without setting balances first: paid leave may go
   // below zero here (its default refusal is tested in requests.test.ts).
   await database.sql`update leave_types set overdraw = true where key = 'paid'`;
-  chest = await fakeChest({ members: everyone, groups: fakeGroups });
+  chest = await fakeChest({ network: {}, members: everyone, groups: fakeGroups });
   const all = await types(database.sql);
   const id = (key: string) => all.find(t => t.key === key)!.id;
   [paid, rtt, sick, family, remote] = [id("paid"), id("rtt"), id("sick"), id("family"), id("remote")];
@@ -98,7 +98,7 @@ test("HR, or the person's approver, records leave for them: approved at once, th
   assert.equal(r.decidedBy, camille.id);
   assert.deepEqual((await requests.history(sql, asMember(camille), r.id)).map(s => [s.kind, s.actor]), [["recorded", camille.id]]);
   await tell.recorded(sql, asMember(camille), r);
-  assert.equal(chest.notifications.find(n => n.member === nora.id)?.title, "Camille Martin recorded leave for you");
+  assert.equal(seen(chest.notifications.find(n => n.member === nora.id))?.title, "Camille Martin recorded leave for you");
   // Ines answers Hugo's requests: she records his; not Tom's.
   const h = await requests.createRequest(sql, asMember(ines), { typeId: paid, ...week(monday), memberId: hugo.id });
   assert.equal(h.status, "approved");

@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as events } from "../app/chest-events/route.ts";
-import { POST as hooks } from "../app/chest-webhooks/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as notices from "../lib/notices.ts";
-import * as tickets from "../lib/tickets.ts";
+import { chestEvents as events, chestWebhooks as hooks } from "../src/lib/deliveries.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import * as notices from "../src/lib/notices.ts";
+import * as tickets from "../src/lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, nora } from "./support/members.ts";
@@ -18,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" }, webhooks: { max: 10, to: hooks } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" }, chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "en" }, webhooks: { max: 10, to: hooks } });
 });
 after(async () => {
   await chest.close();
@@ -131,7 +130,7 @@ test("a channel that keeps failing is stopped by the Chest: Settings says so, th
 
 test("on a Chest without webhooks, Settings says so and adding is refused in words", async () => {
   const { sql } = database;
-  const plain = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  const plain = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
   try {
     assert.equal((await notices.targets(sql, asMember(camille))).available, false);
     assert.equal((await notices.targets(sql, asMember(camille))).delivery, "not_granted");

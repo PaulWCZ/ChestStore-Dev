@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { incidentReplies, openIncidents, readIncident } from "../lib/incidents-in.ts";
+import { chestEvents as POST } from "../src/lib/deliveries.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { incidentReplies, openIncidents, readIncident } from "../src/lib/incidents-in.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines, nora } from "./support/members.ts";
@@ -16,7 +16,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "notifications"] });
 });
 after(async () => {
   await chest.close();

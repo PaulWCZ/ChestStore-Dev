@@ -9,13 +9,13 @@ monospace, aligned, a total under a dashed rule.
 ## Tokens — the identity is a theme
 
 The identity, "Receipt", is a theme of the UI kit's token contract
-(`@argentic/chest-ui`, `vendor/`): `defineTheme` in **`lib/theme.ts`**,
+(`@argentic/chest-ui`, `vendor/`): the kit's `identityOf("expenses")` in **`src/theme.ts`**,
 the very source of the catalogue's `receipt` theme (a test holds them
 equal), checked against every contrast pair of the contract in light and
 dark (`test/theme.test.ts`). The page's look is written by `<ThemeStyle>`
-in `app/layout.tsx`: this identity by default, or the catalogue theme or
+as a stylesheet the tool serves (`/chest/look.css`, `src/theme.ts`): this identity by default, or the catalogue theme or
 brand the company chose in its Chest. The CSS names **only contract
-tokens**; `app/tokens.css` holds the tool's own few (`--rule`, `--money`,
+tokens**; `src/tokens.css` holds the tool's own few (`--rule`, `--money`,
 the paper's shade, the receipt photo's ground, the dock's height), each
 defined from contract tokens.
 
@@ -38,7 +38,7 @@ it follows any theme; `chest/icon.svg` stays the Receipt drawing.
 
 **Type**: *Public Sans* (text, headings; USWDS, OFL-1.1) and *JetBrains
 Mono* (amounts, dates, labels in capitals; OFL-1.1), both variable,
-self-hosted in `public/fonts/`. Amounts use tabular figures. 16 px body.
+self-hosted in `public/assets/fonts/`. Amounts use tabular figures. 16 px body.
 **Shape**: receipts are `--surface` sheets with a torn, zig-zag bottom edge
 (a CSS mask) and a soft drop shadow that follows it; dashed 1.5 px rules
 between sections; radii 4/8/12 px. **Space**: 4, 8, 12, 16, 24, 32, 48.
@@ -105,8 +105,8 @@ the save button under the thumb.
     { "name": "Warning amber", "value": "#8e3b00" }
   ],
   "fonts": {
-    "display": { "family": "JetBrains Mono", "file": "public/fonts/jetbrains-mono-latin-wght-normal.woff2", "weight": 800 },
-    "body": { "family": "Public Sans", "file": "public/fonts/public-sans-latin-wght-normal.woff2", "weight": 400 }
+    "display": { "family": "JetBrains Mono", "file": "public/assets/fonts/jetbrains-mono-latin-wght-normal.woff2", "weight": 800 },
+    "body": { "family": "Public Sans", "file": "public/assets/fonts/public-sans-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "TOTAL TTC ....... 41,00 €"
 }

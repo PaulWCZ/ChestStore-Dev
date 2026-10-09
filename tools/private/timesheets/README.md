@@ -11,15 +11,15 @@ the hour and wants to know where its time goes.
   (and task) found by typing a few words of it (a searchable picker, also
   in the grid and the day list), *Start*. One timer per person, kept on the server (its start
   instant): it survives a reload, a closed tab, another device (pages
-  re-read it every minute and when they come back into view). *Stop* turns
+  re-read it when they come back into view). *Stop* turns
   it into an entry of the day it started, in the Chest's time zone. A timer
   left running more than 10 hours is **forgotten**: on the next visit a
   dialog asks when it really stopped (quarter-hour choices), or discards it.
   A stop under a minute records nothing: *Undo* puts the timer back, or the
   timer's line offers *Keep 1 min*.
 - **My week**: a grid of projects/tasks × 7 days where one types hours —
-  `1:30`, `1.5`, `1,5`, `90m`, `1h30` are all understood (`lib/duration.ts`,
-  tested). Totals per day, row and week; *Copy last week's rows*; rows
+  `1:30`, `1.5`, `1,5`, `90m`, `1h30` are all understood (`src/shared/duration.ts`,
+  tested; the cell sends what was typed, the server reads it again). Totals per day, row and week; *Copy last week's rows*; rows
   added and removed (with *Undo*). Enter and the arrows move down and up the
   column, Tab to the right. A cell holding several entries opens the day.
   **Each cell has its note** (the note icon, or Shift+Enter): what the
@@ -32,8 +32,8 @@ the hour and wants to know where its time goes.
   the person reads on their week. **Nobody approves (or sends back) their
   own week**: a manager's week shows on the Team page with "another
   manager approves it", no button, and the server refuses (`self_approval`);
-  the only manager is told to give someone the Manager role. The bell and
-  an email ask the **leads of the projects the week holds** (every other
+  the only manager is told to give someone the Manager role. A notification
+  asks the **leads of the projects the week holds** (every other
   manager when none has a lead), and tell the person of the answer. The
   company may turn approvals off.
 - **Project leads**: each project may have a lead, one of the managers
@@ -77,7 +77,8 @@ the hour and wants to know where its time goes.
   before the tool's first project or entry) show "—": never "short", never
   reminded; an empty tool expects nothing of anyone. *Remind N people*
   never counts the manager who presses it ("Your own week is short too"
-  is said beside it), and reaches each person by bell and by email. A
+  is said beside it), and reaches each person by a notification that names
+  who asks. A
   person's week opens read-only with every note.
 - **Reports**: this week, last week, this month, last month or chosen days;
   grouped by project, client, person or task; billable or not, or
@@ -88,14 +89,18 @@ the hour and wants to know where its time goes.
 - **Search the notes** (Reports): words of a note ("Feyssine") narrow the
   report, list the entries found (the 100 most recent: day, person,
   project, note, time) and the CSV. A member searches their own.
-- **Draft invoices in Quotes** (managers, when Quotes is installed): in
-  "Billable, not invoiced", each project's billable time of the period is
-  offered as one draft invoice — *Draft invoice in Quotes* — sent through
-  events between tools (the contract below). Sent once: the entries wait
-  for their invoice, locked; Quotes' answer marks them invoiced (rates
-  written on them), with the invoice's number and a link to it; *Take
-  back* frees them before that. On a Chest that cannot tell Quotes, the
-  page says so and nothing changes.
+- **Draft invoices in Quotes** (managers, when Quotes is installed and an
+  administrator linked it to Timesheets): in "Billable, not invoiced", each
+  project's billable time of the period is offered as one draft invoice —
+  *Draft invoice in Quotes* — sent through events between tools (the
+  contract below). Sent once: the entries wait for their invoice, locked,
+  **their rates written on them at that moment** (a rate changed later
+  never makes the invoice and Timesheets disagree); Quotes' answer marks
+  them invoiced, with the invoice's number and a link to it; *Take back*
+  frees them (and their rates) before that. Quotes installed but not
+  linked: the panel says an administrator links them, and offers nothing.
+  A hand-off that reaches no tool is undone at once and said so — the
+  time never waits for an invoice nobody makes.
 - **Invoiced time** (managers): in "Billable, not invoiced", *Mark N
   entries as invoiced* once the invoice is out; that time locks and keeps
   its rates; *Undo* puts it back.
@@ -116,11 +121,31 @@ the hour and wants to know where its time goes.
   page asks. Harvest's Billable/Cost Rate and Clockify's rate columns (and
   Toggl's Amount) come along when in the Chest's currency, so past amounts
   match the old invoices; Harvest rows marked invoiced come in invoiced.
-- **Friday reminder** (optional, a schedules proposal): on Friday at 15:30,
+- **Friday reminder** (optional, the schedule `friday` of `chest.json`): on Friday at 15:30,
   whoever is short of their usual week and has not sent it gets one bell
   item in their language — "Your week has 22 h — fill in the rest?". It can
   be turned off; everything else works without it (the Team page's
   *Remind* works on any Chest).
+
+## Notifications, and mail
+
+Timesheets tells its team through the Chest's notifications only, each in
+its reader's language: a week sent to approve (to the projects' leads),
+approved or sent back (to its person), *Remind* (to each person short of
+their usual week, saying who asks), the Friday reminder at 15:30 (the
+Chest’s zone), a project at 80 % and 100 % of its budget (to its lead, or
+every manager when it has none). The tool mails nobody: the Chest mails
+each member their notifications by their own choice (each one, once or twice a day, or never; off per tool), set in
+the Chest — Timesheets has no email setting.
+
+**Mail to people outside the company**: none. Timesheets is for the team
+only; billable time reaches clients through Quotes, which sends the
+invoice.
+
+**Changed on 6 October 2026** (the owner's mail decisions): Remind, the
+Friday reminder and a week sent to approve also went by email; those
+emails are gone (the notifications stay, at the same moments). The `mail`
+proposal is no longer declared.
 
 ## Looks
 
@@ -130,7 +155,7 @@ signal, tabular figures — `DESIGN.md`), any theme of the UI kit's catalogue
 (the store's identities, *Chest*, *High contrast*), or the **company's
 brand** (its colours, fonts, corners — and its logo in the header where
 the tool shows its stopwatch). The choice is for all tools or for this one;
-the page follows it on the next request (`lib/theme.ts`, `chest.theme()`),
+the page follows it on the next request (`src/theme.ts`, `chest.theme()`, served as the stylesheet `/chest/look.css`),
 light and dark, every text readable (the kit checks every pair). The
 instrument panel (header and timer) keeps its own dark colour in light and
 dark (the theme's `--inverse`). Its components — shell and tabs, toasts with an
@@ -149,7 +174,7 @@ no idle detection.
 | `manager` (Manager / Responsable) | Everything a member can; clients, projects, tasks, rates and cost rates, usual weeks, budgets, who works on what; approving weeks and reminding; everyone's reports, amounts, costs, margins and CSV; marking time invoiced; locking; import; settings |
 | `member` (Member / Membre) | Their own time (timer, week, day, notes) on the projects open to them; sending their week; their own reports and CSV (never a rate or an amount) |
 
-Nobody changes another person's time. The rules live in `lib/access.ts`;
+Nobody changes another person's time. The rules live in `src/lib/access.ts`;
 every service checks them on the server.
 
 ## First minute
@@ -180,7 +205,7 @@ there is a project" (a member reads that a manager opens projects).
 
 | Route | What |
 |---|---|
-| `/` | Public host: says the tool lives in the Chest (language switch) |
+| `/` | Outside a Chest: says the tool lives in the Chest (language switch); a Chest answers 404 on the public host itself |
 | `/chest` | My week (`?week=` a Monday, `?day=` the day listed) |
 | `/chest/reports` | Reports (`preset`, `from`, `to`, `group`, `person`, `kind`: `all`, `billable`, `non`, `uninvoiced`; `q`: words of the notes) |
 | `/chest/reports/export` | The report's entries as CSV (the same parameters; `preset` alone works) |
@@ -190,16 +215,20 @@ there is a project" (a member reads that a manager opens projects).
 | `/chest/people` | Rates, cost rates and usual weeks of each person; former people of imports (managers) |
 | `/chest/settings` | Locked period, weekly approval, usual week and Friday reminder, hours style (managers) |
 | `/chest/import` | Import from Toggl, Clockify, Harvest (managers) |
-| `/chest-events` | Members' lifecycle (signed by the Chest) |
-| `/chest-jobs/friday` | The Friday reminder (schedules proposal, signed) |
+| `/chest-events` | Members' lifecycle, and Quotes' `quotes.invoiced` (signed by the Chest) |
+| `/chest-schedules` | The runs of `chest.json`'s schedules: `friday`, the Friday reminder (signed `Chest-Schedule`) |
 
 ## On a Chest
 
-- `capabilities`: `database`, `members` (names; people for projects and
-  imports), `notifications` (the Friday reminder); `receives: ["member.*"]`.
-  Proposals (`chest.proposals.json`): `mail: {send: true}`, `emits:
+- `chest.json` (contract 0.4, `chest check` OK): `capabilities`:
+  `database`, `members` (names; people for projects and imports),
+  `notifications` (the Friday reminder); `receives: ["member.*"]`;
+  `schedules: [{"name": "friday", "cron": "30 15 * * 5"}]` (the Chest's
+  zone); `build.static: ["/assets/"]` (the script, the stylesheet, the
+  fonts, the icon — everything the tool serves outside `/chest`).
+  Proposals (`chest.proposals.json`): `emits:
   ["timesheets.billable", "timesheets.billable_cancelled"]`, `receives:
-  ["quotes.invoiced"]`, the `friday` schedule.
+  ["quotes.invoiced"]`, the French `translations`.
 - **Someone leaves** (or loses access): their running timer stops and
   becomes an entry when plausible (under 10 hours, in an open day; dropped
   otherwise), they leave the projects they were named on, their grid rows
@@ -214,38 +243,39 @@ there is a project" (a member reads that a manager opens projects).
   lock, rate, approval or invoicing they did forgets who did it; the
   erasure is acknowledged.
 - **Nothing runs in the background**: deleted entries are purged after 30
-  days on a later request. No WebSocket: pages re-read themselves every
-  minute while visible (the timer's state from another device).
+  days on a later request. No WebSocket: a page reads itself again when
+  its tab is shown again or its window focused (the timer's state from
+  another device), and every minute while its reader was active in the
+  last ten (the package's `useAutoRefresh`) — idle, never, so an open tab
+  does not keep the tool awake. Each page has a version (every row
+  written bumps a sequence, `migrations/0006`): a read with nothing new
+  is a 304, the Reports' and Team's queries not run again.
 - A day holds 24 hours at most, per person, checked in one transaction per
   person (two tabs saving at once cannot overflow it).
 
 ## Needs from the SDK
 
-Timesheets runs on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in
-`vendor/`. From 0.3.0: `member(request)` with the member's `language` (the
+Timesheets runs on SDK 0.4.1 + studio proposals (0.4.1-studio.4) and `@argentic/chest-app` 0.1.0-studio.6, in
+`vendor/`. Official: `member(request)` with the member's `language` (the
 interface and the bell in each member's language) and `timeZone` (when a
 week was sent, approved or locked, shown at their own hour);
 `chest.timeZone` and `chest.today()` — the day an entry belongs to, "this
-week", the hours of an entry. The database's `current_date` is that day
+week", the hours of an entry; the database's `current_date` is that day
 too: the Chest makes its zone the TimeZone of the tool's database
-sessions.
+sessions. `chest.currency` — rates and amounts (EUR when the Chest does
+not say). `schedules` — the Friday reminder on `POST /chest-schedules`;
+without it the tool is complete; the setting says so.
 
-- `chest.currency` — **Proposal (studio)**: rates and amounts (EUR when
-  the Chest does not say).
-- `schedules` — **Proposal (studio)**, `chest.proposals.json`: the Friday
-  reminder. Without it the tool is complete; the setting says so.
+- **`members.leftAt(ids)`** — **Proposal (studio)**: "Left the Chest on
+  30 September 2026" on a former member's week. Nothing on a Chest that
+  does not say it.
 - **Events between tools** — **Proposal (studio)**: billable time to Quotes
-  (below). Without it the page says Quotes cannot be told; *Mark invoiced*
-  by hand still works.
-- `mail` — **Proposal (studio)**: Remind, the Friday reminder and a week
-  sent to approve also go by email. Without it, the bell only. Keys are
-  given whole (`week:<member>:<monday>:<sent at>:<recipient>`; the SDK
-  sends one longer than the Chest keeps as its digest). **None
-  of these emails is transactional**: each asks someone to act (fill in a
-  week, approve one) — a reminder, like Hiring's interviewers' — so the
-  choice each person made in the Chest (`mailPreference` in the members
-  API: all, one a day, none; applied by `mail.send`) always holds; the bell
-  still tells them. An approval or a return is told by the bell only.
+  (below), `chest.tools.get/link`. Without it the page says Quotes cannot
+  be told; *Mark invoiced* by hand still works.
+- **Notices with translations** — **Proposal (studio, announced for 0.5)**:
+  one `notifications.notify` per event, its English words with their French
+  in `translations`; the Chest shows each member their language
+  (`src/lib/notify.ts`).
 - **Wished — a start-timer event from Tasks**: Toggl and Clockify users start
   timers from their task tool; with events between tools, Tasks could send
   `tasks.timer.start` (a task's title as the note).
@@ -287,41 +317,109 @@ the moment it was taken back. `data`:
 ```
 
 People are never named (no member id either: an invoice line is per task
-and rate). **What Quotes must do** (its side is built in another round):
-receive `timesheets.billable` (declare it in `receives`), make one **draft
+and rate). **What Quotes does** (built: Quotes' `lib/timesheets.ts`,
+its `chest.proposals.json` receives `timesheets.billable` and
+`timesheets.billable_cancelled` and emits `quotes.invoiced`): it receives `timesheets.billable` (declare it in `receives`), make one **draft
 invoice** per `handoff` (a second delivery of the same `handoff` changes
 nothing) for the client (matched by name, or asked), one line per `lines[]`
-item (label, quantity `minutes / 60` hours, unit price `rate`), link back
+item (label, quantity `minutes / 60` hours, unit price `rate`), links back
 with `chest.toolLink("timesheets", source.path)`; on
-`timesheets.billable_cancelled {version: 1, handoff}` drop that draft if it
-was not issued (else ignore it); and when the invoice is **issued**, publish
+`timesheets.billable_cancelled {version: 1, handoff}` drops that draft if it
+was not issued (else tells billing); and when the invoice is **issued**, publishes
 **`quotes.invoiced`** `{ handoff: "12", invoice: "F2026-014", path:
 "/chest/invoices/14", by?: "mbr_…" }` (key `quotes:invoiced:<handoff>`).
-Timesheets receives it (`app/chest-events/route.ts`): the hand-off's
+Timesheets receives it (`src/calls.ts`, `/chest-events`): the hand-off's
 entries become invoiced, their rates written on them, the report shows
 "Invoiced: F2026-014" with a link; delivered twice, nothing more.
+
+## How it is made
+
+The studio's starter stack (`starter/`, `reports/06-perseus-starter.md`):
+a Hono server that renders React pages (`src/pages/`), with islands
+(`src/islands/`: the week's grid and day list, the timer, every form) that
+call typed actions (`src/actions.ts`); the machinery is the vendored
+package `@argentic/chest-app` (its `AGENTS.md`). The rules and the SQL
+are `src/lib/` (every service `(sql, actor, …input)`), the pure rules the
+browser shares are `src/shared/`, every word is `src/i18n/`. Vite builds
+the browser's script and stylesheet into `dist/client/assets/` (served at
+`/assets/`) and the server into `dist/server/`.
+
+- **Typed input goes as typed**: a cell's `1,5` or `1.5`, a rate's
+  `80,50`, a usual week's `35:30` are read again on the server
+  (`src/shared/duration.ts`, `src/shared/amounts.ts` — the amount grammar
+  is `field.money`'s, tested to agree).
+- **No inline style or script**: bars and budget gauges are SVG shapes
+  (`src/components/gauges.tsx`); the look is a stylesheet the tool serves
+  (`/chest/look.css`, an ETag and a hash in its address). No `"csp"`
+  permission.
+- **The CSV streams** (`src/downloads.ts`): the rows are read through a
+  cursor, 500 at a time, the names resolved once before.
+- **Nothing kept in memory between requests** but cached `Intl` formatters
+  (`src/i18n/format.ts`, the only place that makes one).
+
+### Measured
+
+By the studio's bench (`lab/measure/`, Node 24.21, the same way for
+every tool: the repository as the Chest receives it, `npm ci` and the
+build under 512 MiB and 1 CPU, 10 cold starts, 5 rests of 30 s with the
+12 pages of `lab/measure/pages/timesheets.json`), 6 October 2026, before
+(Next.js 16, 5 October) → after (this stack):
+
+| | Before | After |
+|---|--:|--:|
+| Memory at rest, PSS of the process tree (median) | 138.8 MiB | 64.7 MiB |
+| Peak PSS | 171.6 MiB | 69.0 MiB |
+| First 200 after a cold start (median) | 676 ms | 573 ms |
+| Image (repository + node_modules + build) | 458 MiB | 29 MiB |
+| `npm ci` under 512 MiB, 1 CPU | killed (OOM) | 3.0 s, peak 289 MiB |
+| Build under 512 MiB, 1 CPU | 35.4 s, peak 441 MiB | 3.8 s, peak 275 MiB |
+
+The rests ran beside other agents' builds (load average up to 9.9): the
+cold start is the noisiest number.
 
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm run build     # tsc, the browser's files, the server (no CHEST_* variable needed)
+npm test          # tsc, the server built into dist/test, then the tests:
+                  # PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
+npm start         # the built server, as the Chest runs it (PORT)
+npm run dev       # rebuilds on every change
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --reset --port 5200`
-(Atelier Martin from `seed/sample.sql`), `node lab/chest-dev/flows/timesheets.mjs 5200`,
-`node lab/chest-dev/screens.mjs tools/private/timesheets --port 5200`,
-`node lab/chest-dev/audit.mjs tools/private/timesheets --port 5200`.
+In the studio:
+
+```sh
+node lab/chest-dev/dev.mjs tools/private/timesheets --prod --build --reset --tools quotes --linked --port 5200
+node lab/chest-dev/flows/timesheets.mjs 5200
+node lab/chest-dev/screens.mjs tools/private/timesheets --port 5200
+node lab/chest-dev/audit.mjs tools/private/timesheets --port 5200
+```
+
+Atelier Martin comes from `seed/sample.sql`. **`--tools quotes --linked`
+is needed by the flow**: Quotes installed beside Timesheets and linked to
+it by an admin, for the hand-off of billable time (without them the
+Reports page offers no *Draft invoice in Quotes*, or says Quotes is not
+linked yet, and the flow's hand-off steps fail). Start the harness again
+with `--reset` before running the flow a second time: it expects the
+sample data as seeded.
 
 ## What it does not do (yet)
 
-- **Invoices**: it writes no invoice itself. The hand-off to Quotes is
-  built on Timesheets' side; Quotes' side (the draft invoice, and its
-  `quotes.invoiced` answer) is not built yet, so today the time waits
-  "for its invoice" until a manager takes it back or marks it invoiced.
-  One hand-off per project and period; no grouping of several projects of
-  a client in one invoice, no notes on the invoice lines.
+- **Invoices**: it writes no invoice itself — Quotes does, from the
+  hand-off (both sides built; they need a Chest with events between tools,
+  a studio proposal, and an administrator's link). One hand-off per
+  project and period; no grouping of several projects of a client in one
+  invoice, no notes on the invoice lines. **Amounts round per entry**: an
+  entry's amount is its minutes at its rate, rounded to the cent; a
+  report's totals, the CSV and the `amount` of each hand-off line add those
+  up. Quotes prices a line itself (`minutes / 60` × `rate`), which may
+  differ from the line's `amount` by a cent or so on a long line.
+- **An entry's day is the Chest's day** (its time zone): a timer started
+  in Montréal after 18:00 for a Chest in Paris belongs to the next day, and
+  a person's week is the Chest's Monday to Sunday.
 - **No integrations or browser extension**: no timer started from Jira,
   Asana, Trello or GitHub, no calendar sync. Time is recorded here, on the
   phone or the computer.
@@ -333,10 +431,9 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --res
   person's rate changes.
 - The notes' search is case-insensitive but not accent-insensitive, and
   searches notes only (not project or task names).
-- Emails: no switch of the tool's own — the person's choice in the Chest
-  (all, one a day, none) applies to every email Timesheets sends.
-- Members' reports show a project's whole budget ("251:15 of 230:00 used"),
-  not only their share (seen by the critic as harmless; not changed).
+- Members' reports show a project's whole budget: in hours as it is
+  ("251:15 of 230:00 used"), in money as a share only ("64 % of the budget
+  used") — never an amount, which beside their hours would give the rate.
 - Approval is weekly and by the whole week (a lead is asked first, any
   other manager may approve; no approval line by line, no monthly periods).
 - No export of the projects and clients themselves (their time exports as

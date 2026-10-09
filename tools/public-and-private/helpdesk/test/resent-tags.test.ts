@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { catalogue } from "../lib/i18n/index.ts";
-import { shownTag, storedTag } from "../lib/seed-words.ts";
-import * as tickets from "../lib/tickets.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { shownTag, storedTag } from "../src/lib/seed-words.ts";
+import * as tickets from "../src/lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -14,7 +14,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test", mailboxes: ["support"] } });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
 });
 after(async () => {
   await chest.close();

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { decideQuote, getDocument, saveDraft } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { reviseQuote } from "../lib/versions.ts";
-import { answer, answerPdf, answersOf, ensureLink, liveLink, openLink, renewLink, revokeLink, shownPdf } from "../lib/online.ts";
-import { draftMessage, markSent, sendDocument, withAnswerLink } from "../lib/sending.ts";
-import { answeredOnline } from "../lib/tell.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { decideQuote, getDocument, saveDraft } from "../src/lib/documents.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { reviseQuote } from "../src/lib/versions.ts";
+import { answer, answerPdf, answersOf, ensureLink, liveLink, openLink, renewLink, revokeLink, shownPdf } from "../src/lib/online.ts";
+import { draftMessage, markSent, sendDocument, withAnswerLink } from "../src/lib/sending.ts";
+import { answeredOnline } from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -22,8 +22,8 @@ import { everyone, hugo, ines, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
-  database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test" } });
+  database = await testDatabase();
   await company(database.sql);
 });
 after(async () => {
@@ -51,7 +51,7 @@ test("a quote's email carries its answer link, before the sign-off, in the clien
   const { id, secret, mail } = await sentQuote();
   assert.match(secret, /^[A-Za-z0-9_-]{32}$/u);
   // The link is the email's first line, not an afterthought; nobody is
-  // asked to reply to accept (round 3: replies reach a mailbox the tool
+  // asked to reply to accept (replies reach the company's inbox, which the tool
   // never reads).
   const number = (await getDocument(sql, asMember(ines), id, today)).number!;
   assert.ok(mail.text.startsWith(`Lisez le devis ${number} et acceptez-le en ligne\u202f: https://quotes.atelier.argentic.work/q/` + secret + "\n\nBonjour"), mail.text.slice(0, 200));
@@ -113,7 +113,8 @@ test("the client accepts: name, Bon pour accord, the PDF they saw; the author he
   assert.equal(full.decidedBy, "client");
   const told = chest.notifications.slice(before);
   assert.deepEqual(told.map(n => n.member), [ines.id]);
-  assert.equal(told[0]!.title, `Marie Dupain a accepté le devis ${full.number} en ligne`);
+  assert.equal(shownTo(told[0]!, "fr").title, `Marie Dupain a accepté le devis ${full.number} en ligne`);
+  assert.equal(told[0]!.title, `Marie Dupain accepted quote ${full.number} online`, "English, the fallback, in the same notice");
   assert.equal(told[0]!.path, `/chest/documents/${id}`);
   // The page now says it is accepted, by whom; a second answer is refused.
   const after = (await openLink(sql, secret, today))!;
@@ -166,7 +167,7 @@ test("past its validity date the link says the quote expired", async () => {
   const later = "2027-06-01";
   assert.equal((await openLink(sql, secret, later))!.showing, "expired");
   const { sha256 } = await shownPdf(sql, opened, today);
-  await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, later), refused("expired"));
+  await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, later), refused("quote_expired"));
 });
 
 test("a link turned off never works again; a new one does", async () => {

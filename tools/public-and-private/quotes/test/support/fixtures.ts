@@ -1,7 +1,7 @@
-import { addClient, type Client } from "../../lib/clients.ts";
-import { updateCompany } from "../../lib/company.ts";
-import type { Sql } from "../../lib/db.ts";
-import { createDocument, saveDraft, type Defaults, type Doc, type LineInput } from "../../lib/documents.ts";
+import { addClient, type Client } from "../../src/lib/clients.ts";
+import { updateCompany } from "../../src/lib/company.ts";
+import type { Sql } from "../../src/lib/db.ts";
+import { createDocument, saveDraft, type Defaults, type Doc, type LineInput } from "../../src/lib/documents.ts";
 import { asMember } from "./member.ts";
 import { camille, sofia } from "./members.ts";
 

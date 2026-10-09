@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
-import { POST as job } from "../app/chest-jobs/[name]/route.ts";
-import * as posts from "../lib/posts.ts";
-import * as tell from "../lib/tell.ts";
+import { fakeChest, shownTo, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
+import { chestSchedules as job } from "../src/calls.ts";
+import * as posts from "../src/lib/posts.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia, stranger } from "./support/members.ts";
@@ -20,7 +20,7 @@ beforeEach(async () => {
   await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits restart identity cascade`;
 });
 const open = async (members: FakeMember[] = everyone) => {
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, capabilities: ["members", "files", "notifications"], schedules: [{ name: "publish", cron: "*/15 * * * *" }] });
+  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members, capabilities: ["members", "files", "notifications"], network: {} });
   return chest;
 };
 const zone = "Europe/Paris";
@@ -36,7 +36,7 @@ test("an Important post is told to everyone who has News, in their language, onc
     const items = chest.notifications.filter(n => n.key === `post:${p.id}:important`);
     // Not the author, not Léa (she confirmed already), not Tom (no role).
     assert.deepEqual(items.map(n => n.member).sort(), [hugo.id, ines.id, nora.id, sofia.id].sort());
-    assert.equal(items.find(n => n.member === ines.id)!.title, "Important\u202f: Office move");
+    assert.equal(shownTo(items.find(n => n.member === ines.id)!, "fr").title, "Important\u202f: Office move");
     assert.equal(items.find(n => n.member === hugo.id)!.title, "Important: Office move");
     assert.equal(items.find(n => n.member === hugo.id)!.body, "We move on 2 November.");
     assert.equal(items[0]!.path, `/chest/posts/${p.id}`);
@@ -70,7 +70,7 @@ test("a scheduled Important post is told at its time, by the publish schedule", 
     assert.equal(await chest.run("publish", job), 204);
     assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 5);
     // Not a delivery of the Chest: refused.
-    assert.equal((await job(new Request("http://tool.test/chest-jobs/publish", { method: "POST", body: "{}" }))).status, 401);
+    assert.equal((await job(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}" }))).status, 401);
   } finally {
     await chest.close();
   }
@@ -81,15 +81,17 @@ test("a welcome tells the new colleague; a comment tells the author; a reminder 
   try {
     const w = await posts.createPost(database.sql, pub, { kind: "welcome", title: "Welcome Nora!", welcome: nora.id }, { zone });
     await tell.announce(database.sql);
-    assert.deepEqual(chest.notifications.map(n => [n.member, n.title]), [[nora.id, "Bienvenue\u202f! L’équipe vous salue dans les Actualités"]]);
+    assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title]), [[nora.id, "Bienvenue\u202f! L’équipe vous salue dans les Actualités"]]);
     const done = await posts.addComment(database.sql, asMember(hugo), w.id, "Welcome!");
     await tell.commented(asMember(hugo), done);
-    assert.deepEqual(chest.notifications.at(-1), { member: camille.id, title: "Hugo Bernard a commenté «\u202fWelcome Nora!\u202f»", body: "Welcome!", path: `/chest/posts/${w.id}#comments`, key: `post:${w.id}:comments` });
+    const toCamille = chest.notifications.at(-1)!;
+    assert.deepEqual([toCamille.member, toCamille.path, toCamille.key], [camille.id, `/chest/posts/${w.id}#comments`, `post:${w.id}:comments`]);
+    assert.deepEqual(shownTo(toCamille, "fr"), { title: "Hugo Bernard a commenté «\u202fWelcome Nora!\u202f»", body: "Welcome!" });
     // Her own comment tells nobody.
     const before = chest.notifications.length;
     await tell.commented(pub, { ...done, comment: { ...done.comment, body: "Thanks" } });
     assert.equal(chest.notifications.length, before);
-    await tell.remind(database.sql, { id: w.id, title: "Office move", body: "", locale: "en", versions: [], author: camille.id }, [{ id: hugo.id, name: hugo.name, photo: null, locale: "en", role: "reader", groups: [] }], "2026-10-01");
+    await tell.remind({ id: w.id, title: "Office move", body: "", locale: "en", versions: [] }, [{ id: hugo.id, name: hugo.name, photo: null, locale: "en", role: "reader", groups: [] }]);
     assert.equal(chest.notifications.at(-1)!.title, "Reminder: Office move");
     assert.equal(chest.notifications.at(-1)!.body, "Please confirm you have read it.");
   } finally {
@@ -116,6 +118,22 @@ test("beyond the Chest's 1,000 recipients an hour, the telling stops and goes on
     // Still over the quota: nobody told twice, it waits again.
     assert.deepEqual(await tell.announce(database.sql), { told: [], waiting: [p.id] });
     assert.equal(chest.notifications.length, 999);
+  } finally {
+    await chest.close();
+  }
+});
+
+test("the weekly digest item an earlier version left in a bell is withdrawn at the next pass, once", async () => {
+  await open();
+  try {
+    const notifications = await import("@argentic/chest-sdk/notifications");
+    await notifications.notify([hugo.id, ines.id], { title: "3 posts this week", path: "/chest", key: tell.oldDigestKey });
+    await database.sql`insert into digests (member, sent_at) values (${hugo.id}, now()), (${ines.id}, now())`;
+    await tell.pass(database.sql);
+    assert.equal(chest.notifications.filter(n => n.key === tell.oldDigestKey).length, 0);
+    assert.equal((await database.sql`select 1 from digests`).length, 0);
+    // Nothing left: nothing asked of the Chest again.
+    await tell.clearDigests(database.sql);
   } finally {
     await chest.close();
   }

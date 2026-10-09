@@ -1,21 +1,19 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as boards from "../lib/boards.ts";
-import { daysBetween, shifted, span, timelineStart } from "../lib/calendar.ts";
-import * as cards from "../lib/cards.ts";
-import { AppError } from "../lib/errors.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fr } from "../lib/i18n/fr.ts";
-import { erase, leave } from "../lib/lifecycle.ts";
-import * as mail from "../lib/mail.ts";
-import * as tell from "../lib/tell.ts";
+import * as boards from "../src/lib/boards.ts";
+import { daysBetween, shifted, span, timelineStart } from "../src/shared/calendar.ts";
+import * as cards from "../src/lib/cards.ts";
+import { AppError } from "@argentic/chest-app";
+import { en } from "../src/i18n/en.ts";
+import { fr } from "../src/i18n/fr.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, seen } from "./support/members.ts";
 
 // The second severe critique: nothing of a deleted comment stays in the
-// bell or leaves by email; emails from one moment go as one; "blocked
+// bell, in any language; "blocked
 // by" between cards (a card waiting is not done unless the person says
 // so); the timeline's dates; columns in the reader's language.
 
@@ -23,7 +21,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();
@@ -36,7 +34,6 @@ beforeEach(async () => {
   chest.notifications.length = 0;
 });
 
-const later = (seconds = mail.quietSeconds + 5) => new Date(Date.now() + seconds * 1000);
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 async function setup(by = hugo) {
   const b = await boards.createBoard(database.sql, asMember(by), { name: "Office move", visibility: "team" }, en.templates.columns);
@@ -53,29 +50,27 @@ async function comment(by: typeof hugo, cardId: string, body: string, mentions: 
   return done.comment;
 }
 const secretIn = (text: string | undefined) => (text ?? "").includes("SECRETX");
+// A notice holds the secret in any of its languages.
+const holds = (n: (typeof chest.notifications)[number]) => [n.title, n.body, ...Object.values(n.translations ?? {}).flatMap(w => [w?.title, w?.body])].some(secretIn);
 
-test("SECRETX: a deleted comment takes its bell items back and its mention email never leaves", async () => {
+test("SECRETX: a deleted comment takes its bell items back, in every language", async () => {
   const { sql } = database;
   const { b, todo } = await setup();
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Door code");
   await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id, camille.id]);
   const said = await comment(hugo, c.id, "@Inès Moreau Door code is 4321 SECRETX", [ines.id]);
   // Inès: a mention; Camille (given the card): a comment. Both hold the words.
-  assert.equal(chest.notifications.filter(n => secretIn(n.body)).length, 2);
+  assert.equal(chest.notifications.filter(holds).length, 2);
   await tell.commentGone(sql, await cards.removeComment(sql, asMember(hugo), said.id));
-  assert.equal(chest.notifications.filter(n => secretIn(n.body) || secretIn(n.title)).length, 0, "the bell holds no trace");
-  // Its Undo still open: the email is held, not sent, even long after.
-  assert.equal(await mail.flushMail(sql, later(300)), 0);
-  assert.equal(chest.outbox.length, 0);
-  // Undo: the comment and its items come back; its email leaves as usual.
+  assert.equal(chest.notifications.filter(holds).length, 0, "the bell holds no trace");
+  // Undo: the comment and its items come back.
   await tell.commentShown(sql, await cards.restoreComment(sql, asMember(hugo), said.id));
-  assert.equal(chest.notifications.filter(n => secretIn(n.body)).length, 2);
+  assert.equal(chest.notifications.filter(holds).length, 2);
   await tell.commentGone(sql, await cards.removeComment(sql, asMember(hugo), said.id));
-  // The Undo is over: the comment is deleted for good, its email with it.
+  // The Undo is over: the comment is deleted for good, what said it with it.
   await sql`update comments set removed_at = now() - interval '11 minutes' where id = ${said.id}`;
-  assert.equal(await mail.flushMail(sql, later(3600)), 0);
-  assert.equal(chest.outbox.filter(m => secretIn(m.text) || secretIn(m.subject)).length, 0);
-  assert.equal((await sql`select 1 from mail_queue`).length, 0);
+  await cards.purgeComments(sql);
+  assert.equal(chest.outbox.length, 0, "Tasks sends no email");
   assert.equal((await sql`select 1 from comment_notices`).length, 0);
 });
 
@@ -106,71 +101,8 @@ test("an edited comment: the bell says its new words", async () => {
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Wi-Fi");
   const said = await comment(hugo, c.id, "@Inès Moreau the password is SECRETX", [ines.id]);
   await tell.commentShown(sql, await cards.editComment(sql, asMember(hugo), said.id, "@Inès Moreau ask me for the password"));
-  assert.equal(chest.notifications.filter(n => secretIn(n.body)).length, 0);
-  // The email reads the comment as it is when it leaves.
-  await mail.flushMail(sql, later());
-  assert.equal(chest.outbox.length, 1);
-  assert.ok(!secretIn(chest.outbox[0]!.text));
-  assert.match(chest.outbox[0]!.text, /ask me for the password/u);
-});
-
-test("a card, a step and a mention from one moment: one email, in the reader's language, each with its link", async () => {
-  const { sql } = database;
-  const { b, todo } = await setup();
-  const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Order boxes");
-  const change = await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id]);
-  await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Order boxes", boardId: b.id }, sql);
-  const step = await cards.addItem(sql, asMember(hugo), c.id, "Compare prices");
-  const given = await cards.updateItem(sql, asMember(hugo), step.id, { assignee: ines.id });
-  await tell.stepAssigned(asMember(hugo), ines.id, { id: step.id, text: "Compare prices" }, given.card, sql);
-  await comment(hugo, c.id, "@Inès Moreau 40 of them", [ines.id]);
-  // Within the minute: nothing yet.
-  assert.equal(await mail.flushMail(sql, later(20)), 0);
-  assert.equal(await mail.flushMail(sql, later()), 1);
-  assert.equal(chest.outbox.length, 1);
-  const letter = chest.outbox[0]!;
-  assert.equal(letter.subject, "Hugo Bernard\u202f: 1 tâche confiée, 1 étape et 1 mention");
-  assert.match(letter.text, /Hugo Bernard vous a confié cette tâche/u);
-  assert.match(letter.text, /Compare prices/u);
-  assert.match(letter.text, /40 of them/u);
-  assert.match(letter.text, /décochez/u);
-});
-
-test("what an email names is read again as it leaves: a card taken back, a step ticked are left out", async () => {
-  const { sql } = database;
-  const { b, todo } = await setup();
-  const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Keys");
-  const change = await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id]);
-  await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Keys", boardId: b.id }, sql);
-  await cards.setAssignees(sql, asMember(hugo), c.id, []);
-  assert.equal(await mail.flushMail(sql, later()), 0);
-  assert.equal((await sql`select 1 from mail_queue`).length, 0, "dropped, not kept");
-  // Someone who turned email off gets none, and nothing waits for them.
-  await mail.setEmail(sql, asMember(ines), false);
-  await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id]);
-  await tell.assigned(asMember(hugo), [ines.id], { id: c.id, title: "Keys", boardId: b.id }, sql);
-  assert.equal(await mail.flushMail(sql, later()), 0);
-  assert.equal(chest.outbox.length, 0);
-  // Ten minutes at most: a busy colleague does not hold the email forever.
-  await mail.setEmail(sql, asMember(ines), true);
-  const d = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Badges");
-  await cards.setAssignees(sql, asMember(hugo), d.id, [ines.id]);
-  await tell.assigned(asMember(hugo), [ines.id], { id: d.id, title: "Badges", boardId: b.id }, sql);
-  await sql`update mail_queue set created_at = now() - interval '11 minutes'`;
-  await tell.assigned(asMember(hugo), [ines.id], { id: c.id, title: "Keys", boardId: b.id }, sql);
-  assert.equal(await mail.flushMail(sql, new Date()), 1);
-});
-
-test("someone who leaves: nothing waits to be emailed to them or from them", async () => {
-  const { sql } = database;
-  const { b, todo } = await setup();
-  const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Keys");
-  await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id, camille.id]);
-  await tell.assigned(asMember(hugo), [ines.id, camille.id], { id: c.id, title: "Keys", boardId: b.id }, sql);
-  await leave(sql, ines.id);
-  assert.deepEqual((await sql<{ member_id: string }[]>`select member_id from mail_queue`).map(r => r.member_id), [camille.id]);
-  await erase(sql, hugo.id);
-  assert.equal((await sql`select 1 from mail_queue`).length, 0);
+  assert.equal(chest.notifications.filter(holds).length, 0);
+  assert.match(chest.notifications.find(n => n.member === ines.id)?.body ?? "", /ask me for the password/u);
 });
 
 test("blocked by: a card waits for others of its board; no loop, no other board, no card twice", async () => {
@@ -220,7 +152,7 @@ test("a card waiting for an open card is not marked done, unless forced; its blo
   const free = await cards.freed(sql, truck.id);
   assert.deepEqual(free.map(f => [f.title, f.assignees]), [["Tell the clients", [ines.id]]]);
   await tell.unblocked({ title: "Book the truck" }, free);
-  assert.equal(chest.notifications.at(-1)?.title, "Vous pouvez commencer «\u202fTell the clients\u202f»");
+  assert.equal(seen(chest.notifications.at(-1)!).title, "Vous pouvez commencer «\u202fTell the clients\u202f»");
   assert.equal((await cards.boardCards(sql, b.id)).find(x => x.id === clients.id)?.waiting, 0);
   await cards.moveCard(sql, asMember(hugo), clients.id, done.id, null, null);
   // Reopened, the truck blocks it again — for a card not yet done.

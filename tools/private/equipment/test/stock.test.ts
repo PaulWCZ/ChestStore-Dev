@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { addCategory, categoryCounts, listCategories } from "../lib/categories.ts";
-import { closeInventory, lastSeen, markSeen, progress, reopenInventory, report, startInventory, unmarkSeen } from "../lib/inventory.ts";
-import * as items from "../lib/items.ts";
+import { AppError } from "@argentic/chest-app";
+import { addCategory, categoryCounts, listCategories } from "../src/lib/categories.ts";
+import { closeInventory, lastSeen, markSeen, progress, reopenInventory, report, startInventory, unmarkSeen } from "../src/lib/inventory.ts";
+import * as items from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, sofia } from "./support/members.ts";
@@ -14,7 +14,7 @@ let chest: FakeChest;
 let cats: Awaited<ReturnType<typeof listCategories>>;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
   cats = await listCategories(database.sql, asMember(camille));
 });
 after(async () => {
@@ -131,7 +131,9 @@ test("an inventory: started once, items seen by tag, label link or tick; closed,
   await refused(startInventory(sql, M), "inventory_open");
   const before = await progress(sql, M);
   assert.ok(before);
-  const scope = before.notSeen.length;
+  const scope = before.total;
+  assert.equal(before.notSeen.length, before.notSeenCount);
+  assert.equal(before.seenCount, 0);
   // Only things counted one by one, not lost or retired.
   assert.ok(before.notSeen.every(i => i.category.kind === "asset"));
   const byTag = await markSeen(sql, M, { text: "eq-0002" });
@@ -146,7 +148,11 @@ test("an inventory: started once, items seen by tag, label link or tick; closed,
   await unmarkSeen(sql, M, link.item.id);
   const during = (await progress(sql, M))!;
   assert.equal(during.seen.length, 1);
-  assert.equal(during.notSeen.length, scope - 1);
+  assert.equal(during.seenCount, 1);
+  assert.equal(during.notSeenCount, scope - 1);
+  // A search of what is not seen yet.
+  const searched = (await progress(sql, M, { q: "zz-no-such-thing" }))!;
+  assert.deepEqual([searched.notSeen.length, searched.notSeenCount, searched.total], [0, 0, scope]);
   assert.equal((await lastSeen(sql, byTag.item.id)).openSeen, true);
   const closed = await closeInventory(sql, M);
   assert.equal(closed.total, scope);
@@ -154,6 +160,7 @@ test("an inventory: started once, items seen by tag, label link or tick; closed,
   assert.equal(await progress(sql, M), null);
   const found = await report(sql, M, inv.id);
   assert.equal(found.missing.length, scope - 1);
+  assert.equal(found.count, scope - 1);
   assert.ok((await lastSeen(sql, link.item.id)).missedIn);
   assert.ok((await lastSeen(sql, byTag.item.id)).seenAt);
   assert.equal((await lastSeen(sql, byTag.item.id)).missedIn, null);

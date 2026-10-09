@@ -69,14 +69,7 @@ insert into confirmations (post_id, member, at, version) values
   (4, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', pg_temp.at(5, '09:12'), 2),
   (4, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', pg_temp.at(5, '13:02'), 2);
 
--- Who was sent the move by email (a delivery, never a reading).
-insert into emails (post_id, member, version, at) values
-  (4, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 1, pg_temp.at(6, '10:00')),
-  (4, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, pg_temp.at(6, '10:00')),
-  (4, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 1, pg_temp.at(6, '10:00')),
-  (4, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, pg_temp.at(6, '10:00')),
-  (4, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, pg_temp.at(6, '10:00'));
-insert into chest_state (key, value) values ('mail', 'on'), ('calendar', 'on');
+insert into chest_state (key, value) values ('calendar', 'on');
 
 insert into rsvps (post_id, member, answer, at) values
   (3, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'yes', pg_temp.at(9, '09:30')),

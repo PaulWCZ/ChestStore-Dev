@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 // Nothing shown to a person is written outside the catalogues: no text
 // between JSX tags, no words in the attributes people read or hear.
-const root = join(import.meta.dirname, "..");
+const root = join(import.meta.dirname, "..", "src");
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
@@ -14,7 +14,7 @@ function files(dir: string): string[] {
   });
 }
 
-test("no words in the pages outside lib/i18n", () => {
+test("no words in the pages and islands outside src/i18n", () => {
   const found: string[] = [];
   for (const file of files(root)) {
     const source = readFileSync(file, "utf8").replace(/\{\/\*[\s\S]*?\*\/\}/gu, "").replace(/^\s*\/\/.*$/gmu, "");

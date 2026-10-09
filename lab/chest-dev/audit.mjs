@@ -2,12 +2,13 @@
 // screen of its docs/screens.json — the page, then its "actions" replayed
 // like screens.mjs does, so a state behind a click (a dialog, a form) is
 // checked too — at desktop and phone width (or the sizes its "only" names),
-// light and dark, with axe-core (WCAG 2.1 A and AA rules) — in the company's
+// light and dark, with axe-core (WCAG 2.1 A and AA rules; with --wcag22, the
+// WCAG 2.2 AA rules too — axe-core 4.10's tag wcag22aa: target-size) — in the company's
 // look a screen names ("look", as screens.mjs), so every theme is audited
 // on the tool's real pages. A lab tool:
 // axe-core is never part of a tool.
 //
-//   node lab/chest-dev/audit.mjs <tool folder> [--port 4000]
+//   node lab/chest-dev/audit.mjs <tool folder> [--port 4000] [--wcag22]
 //
 // Prints each rule broken, where, and exits 1 when one is found.
 import { existsSync, readFileSync } from "node:fs";
@@ -20,13 +21,21 @@ const args = process.argv.slice(2);
 const folder = args.find(a => !a.startsWith("--"));
 const portAt = args.indexOf("--port");
 const port = portAt >= 0 ? Number(args[portAt + 1]) : 4000;
+// The rules run: WCAG 2.0 and 2.1, A and AA (the default, as every tool's
+// audit so far); --wcag22 adds axe's WCAG 2.2 AA rules (tag wcag22aa).
+const wcag22 = args.includes("--wcag22");
+const tags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", ...(wcag22 ? ["wcag22aa"] : [])];
+const standard = wcag22 ? "WCAG 2.2 A/AA" : "WCAG A/AA";
 if (!folder || !existsSync(join(folder, "docs", "screens.json"))) {
-  console.error("usage: node lab/chest-dev/audit.mjs <tool folder> [--port 4000] (with docs/screens.json)");
+  console.error("usage: node lab/chest-dev/audit.mjs <tool folder> [--port 4000] [--wcag22] (with docs/screens.json)");
   process.exit(1);
 }
 // "language" (SDK 0.3.0's word) or "locale" (its former name), as screens.mjs.
 const shots = JSON.parse(readFileSync(join(resolve(folder), "docs", "screens.json"), "utf8")).map(shot => ({ ...shot, locale: shot.language ?? shot.locale }));
-const origin = `http://localhost:${port}`;
+// The harness's two hosts (dev.mjs): https, self-signed (cert.mjs).
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+const origin = `https://127.0.0.1:${port}`;
+const publicOrigin = `https://localhost:${port + 2}`;
 const axe = require.resolve("axe-core/axe.min.js");
 const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
 const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
@@ -66,13 +75,17 @@ for (const shot of screens) {
   for (const [kind, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
     if (shot.only && !shot.only.includes(kind)) continue;
     for (const scheme of ["light", "dark"]) {
-      const context = await browser.newContext({ bypassCSP: true, viewport, colorScheme: scheme, locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
+      const context = await browser.newContext({ ignoreHTTPSErrors: true, bypassCSP: true, viewport, colorScheme: scheme, locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
       await context.addCookies([
         { name: "dev_member", value: id(shot.member ?? "camille"), url: origin },
-        ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }] : []),
+        ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: publicOrigin }] : []),
       ]);
       const page = await context.newPage();
-      await page.goto(origin + shot.path, { waitUntil: "networkidle" });
+      await page.goto((/^\/chest(\/|\?|$)/iu.test(shot.path) ? origin : publicOrigin) + shot.path, { waitUntil: "load" });
+    // Network idle, or 5 s: a file the Chest's front refuses (sent to the
+    // other host, then blocked by the CSP) never lets Chromium call the
+    // network idle — the front's log says which.
+    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => console.warn(`! ${shot.path}: the network never went idle (see /_dev/logs for files the front refused)`));
       try {
         await run(page, shot.actions);
       } catch (error) {
@@ -82,11 +95,11 @@ for (const shot of screens) {
       }
       await page.waitForTimeout(200);
       await page.addScriptTag({ path: axe });
-      const result = await page.evaluate(async () => {
+      const result = await page.evaluate(async values => {
         // eslint-disable-next-line no-undef
-        const r = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] });
+        const r = await axe.run(document, { runOnly: { type: "tag", values }, resultTypes: ["violations"] });
         return r.violations.map(v => ({ id: v.id, impact: v.impact, help: v.help, targets: v.nodes.slice(0, 3).map(n => n.target.join(" ")) }));
-      });
+      }, tags);
       for (const v of result) {
         const key = `${v.id}|${label(shot)}`;
         if (!found.has(key)) found.set(key, { ...v, path: label(shot), where: new Set() });
@@ -103,7 +116,7 @@ if (looks) {
 await browser.close();
 for (const line of unreached) console.log(`✗ could not reach the screen: ${line}`);
 if (found.size === 0 && unreached.length === 0) {
-  console.log(`✓ no WCAG A/AA rule broken on ${screens.length} screens (desktop, phone, light, dark)`);
+  console.log(`✓ no ${standard} rule broken on ${screens.length} screens (desktop, phone, light, dark)`);
   process.exit(0);
 }
 for (const v of found.values()) console.log(`✗ ${v.impact} ${v.id} — ${v.help}\n  ${v.path} (${[...v.where].join(", ")})\n  ${v.targets.join("\n  ")}`);

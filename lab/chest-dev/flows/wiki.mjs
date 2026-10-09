@@ -2,9 +2,9 @@
 // (the harness runs the tool with --reset: the sample handbook is there —
 // seed/sample.sql of tools/private/wiki).
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import postgres from "postgres";
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4300);
 const { browser, context, page, origin, problems } = await open(port, "tom", { allow404: /\/chest\/(pages\/(16|999)|pages\/\d+\/edit)$/u });
@@ -261,17 +261,22 @@ await step("idle for 15 minutes, a lock can be taken over; the first editor keep
   await as(context, origin, "tom");
   await page.goto(origin + "/chest/pages/5/edit");
   await page.locator(".ProseMirror").waitFor();
-  // Tom walks away: his lock grows old (the harness's database, as the tool's role).
-  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
-  await sql`update page_locks set active_at = now() - interval '20 minutes' where page_id = 5`;
-  await sql.end();
-  await as(context, origin, "sofia");
-  await page.goto(origin + "/chest/pages/5/edit");
-  await page.waitForSelector("text=has not typed for 20 minutes");
-  await page.getByRole("button", { name: "Take over" }).click();
-  await page.locator(".ProseMirror").waitFor();
-  await page.getByRole("button", { name: "Stop editing" }).click();
-  await page.waitForURL(/\/chest\/pages\/5$/u);
+  // Tom walks away: his lock grows old (this harness's database, as the
+  // tool's role); whatever happens, no aged lock is left behind.
+  const sql = postgres(toolDatabase("wiki", port), { max: 1, onnotice: () => {} });
+  try {
+    await sql`update page_locks set active_at = now() - interval '20 minutes' where page_id = 5`;
+    await as(context, origin, "sofia");
+    await page.goto(origin + "/chest/pages/5/edit");
+    await page.waitForSelector("text=has not typed for 20 minutes");
+    await page.getByRole("button", { name: "Take over" }).click();
+    await page.locator(".ProseMirror").waitFor();
+    await page.getByRole("button", { name: "Stop editing" }).click();
+    await page.waitForURL(/\/chest\/pages\/5$/u);
+  } finally {
+    await sql`update page_locks set active_at = now() where page_id = 5`;
+    await sql.end();
+  }
 });
 
 await step("an editor drags a page in the sidebar to put it inside another", async () => {
@@ -392,7 +397,8 @@ await step("review reminders: the owner of a page due is told by the morning run
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reviews" } });
   const told = await bell();
   expect(told.includes("Time to check “Who to ask”"), "Sofia is told");
-  expect(told.includes("À relire : « Wi-Fi and printers »") === false, "Tom's page is his (English)");
+  // Tom's page is his: his item reads in English (the notice carries its French words too, for a French reader).
+  expect(told.includes("Tom Walker</b> · Time to check “Wi-Fi and printers”"), "Tom's page is his (English)");
   expect(told.includes("Time to check “Wi-Fi and printers”"), "Tom is told too");
   await page.goto(origin + "/chest/pages/7");
   await page.getByRole("button", { name: "Still correct" }).click();
@@ -471,7 +477,7 @@ await step("leaving the editor without a word frees the page at once: another ed
   // Tom goes elsewhere through the browser (no "Stop editing").
   await page.goto(origin + "/chest");
   await page.waitForTimeout(600);
-  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
+  const sql = postgres(toolDatabase("wiki", port), { max: 1, onnotice: () => {} });
   const locks = await sql`select member_id from page_locks where page_id = 3`;
   const drafts = await sql`select doc::text as doc from drafts where page_id = 3 and member_id = ${"mbr_tom" + "a".repeat(23)}`;
   await sql.end();
@@ -531,7 +537,7 @@ await step("the “/” menu inserts a table, a checklist, found by typing", asy
 await step("per-space edit rights: Sales is edited by the sales group; Tom (tech) reads it and is told why", async () => {
   // Each member in their own language again; Sales open to everyone again (a step above kept it to the office).
   await context.addCookies([{ name: "dev_locale", value: "", url: origin }]);
-  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
+  const sql = postgres(toolDatabase("wiki", port), { max: 1, onnotice: () => {} });
   await sql`update spaces set visibility = 'everyone' where id = 2`;
   await sql`delete from space_groups where space_id = 2`;
   await sql.end();
@@ -578,21 +584,23 @@ await step("read and acknowledged: Hugo is asked, confirms in one click; Camille
   await page.goto(origin + "/chest/pages/13");
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: "Ask readers to confirm" }).click();
-  // Studio.16: the dialog asks the Chest whether email would go now
-  // (mail.available) before promising it.
-  expect((await page.locator("dialog[open] .where").innerText()).includes("told in the bell and by email"), "the Chest sends email: the dialog says so");
+  // A notification, never an email from the wiki: the dialog says so plainly.
+  expect((await page.locator("dialog[open] .where").innerText()).includes("gets a notification"), "the dialog says what happens");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   await page.waitForSelector(".ck-toast:has-text('people asked')");
   expect((await bell()).includes("Tom Walker vous demande de lire"), "Léa is told, in French");
-  // By email too (the "mail" proposal): one letter each, in their language.
+  // One notice with its translation; no email to members.
   const dev = await bell();
-  expect(dev.includes("<li><b>Tom Walker vous demande de lire « Onboarding for engineers »</b>"), "Léa's email, in French");
-  expect(dev.includes("<li><b>Tom Walker asks you to read “Onboarding for engineers”</b>"), "Hugo's email, in English");
-  // Those who have not confirmed are reminded, in the bell and by email.
+  expect(!dev.includes("<li><b>Tom Walker asks you to read “Onboarding for engineers”</b>"), "no email to members");
+  expect(dev.includes("Tom Walker asks you to read “Onboarding for engineers”"), "the notice's English words");
+  // Those who have not confirmed are reminded with a notification.
   await page.goto(origin + "/chest/pages/13/reads");
   await page.getByRole("button", { name: "Remind those who have not confirmed" }).click();
-  await page.waitForSelector(".ck-toast:has-text('reminded, in the bell and by email')");
+  await page.waitForSelector(".ck-toast:has-text('reminded.')");
   expect((await bell()).includes("Rappel : merci de lire « Onboarding for engineers »"), "the reminder, in French");
+  // Once every 12 hours: a second click says so (each reminder may be an email from the Chest).
+  await page.getByRole("button", { name: "Remind those who have not confirmed" }).click();
+  await page.waitForSelector(".ck-toast:has-text('less than 12 hours')");
 });
 
 await step("search in French: little words do not count; words that mean the same find each other; editors keep them", async () => {
@@ -739,6 +747,10 @@ await step("round 3: a picture pasted from the web becomes a note in its place, 
   expect((await note.innerText()).includes("Picture from the web not kept (“schema”): download it, then drop it here."), "the note: " + (await note.innerText()));
   expect(await page.locator(".ProseMirror img[src^='https://']").count() === 0, "no picture from the web left in the editor");
   expect((await body.innerText()).includes("Point suivant"), "the rest of the paste came");
+  // Google Docs says bold with a style attribute, which the page's policy
+  // refuses: the editor keeps it as bold, and the wrapper <b> marked
+  // "normal" bolds nothing else.
+  expect((await page.locator(".ProseMirror strong").allInnerTexts()).join("|") === "Budget validé", "bold kept, and only it: " + (await page.locator(".ProseMirror strong").allInnerTexts()).join("|"));
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForURL(/\/chest\/pages\/\d+(\?saved=\d+)?$/u);
   await page.waitForSelector(".ck-toast:has-text('Saved.')");
@@ -815,6 +827,155 @@ await step("round 3: “My pages” — a reader writes a private page; nobody e
     await page.goto(origin + "/chest/search?q=PRIVATEWORD");
     expect(await page.locator(".result-title").count() === 0, who + " finds nothing");
   }
+});
+
+// ---- The review of the move to the starter's stack (October 2026).
+
+await step("review: a paste from Word desktop keeps its words, its lists as lists, its picture uploaded", async () => {
+  await as(context, origin, "tom");
+  await page.goto(created + "/edit");
+  const body = page.locator(".ProseMirror");
+  await body.waitFor();
+  // At the very end of the page (its last block may be a table).
+  await body.evaluate(el => el.editor.chain().focus("end").insertContent({ type: "paragraph" }).run());
+  // Word puts the HTML and the picture itself on the clipboard.
+  const html = readFileSync(new URL("../../../tools/private/wiki/test/fixtures/paste/word-desktop.html", import.meta.url), "utf8");
+  await body.evaluate((el, { html, png }) => {
+    const dt = new DataTransfer();
+    dt.setData("text/html", html);
+    dt.setData("text/plain", "Avant la réunion");
+    dt.items.add(new File([Uint8Array.from(atob(png), c => c.charCodeAt(0))], "image001.png", { type: "image/png" }));
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, { html, png: png.toString("base64") });
+  await page.waitForSelector(".ProseMirror img[src^='/chest/files/']");
+  const text = await body.innerText();
+  expect(text.includes("Avant la réunion") && text.includes("Après la réunion"), "the words came: " + text);
+  expect(!/·|\bo\s+Bullet|1\.\s+Numbered/u.test(text), "no written markers: " + text);
+  expect(await body.locator("ul > li", { hasText: "Bullet one" }).count() === 1, "a bulleted list");
+  expect(await body.locator("ul ul li", { hasText: "Bullet inside" }).count() === 1, "nested by its level");
+  expect(await body.locator("ol > li").count() === 2 && await body.locator("ol strong", { hasText: "two" }).count() === 1, "a numbered list, bold kept");
+  expect(await body.locator("aside[data-tone=warning]", { hasText: "Plan du bureau" }).count() === 0, "the picture of the computer is the uploaded one, not a note");
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+$/u);
+});
+
+await step("review: a link pasted from Google Docs goes where it says, not through Google", async () => {
+  await page.goto(created + "/edit");
+  const body = page.locator(".ProseMirror");
+  await body.waitFor();
+  await body.evaluate(el => el.editor.chain().focus("end").insertContent({ type: "paragraph" }).run());
+  const html = readFileSync(new URL("../../../tools/private/wiki/test/fixtures/paste/google-docs-link.html", import.meta.url), "utf8");
+  await body.evaluate((el, html) => { const dt = new DataTransfer(); dt.setData("text/html", html); dt.setData("text/plain", "Voir la charte"); el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); }, html);
+  const link = body.locator("a", { hasText: "charte" });
+  await link.waitFor();
+  expect((await link.getAttribute("href")) === "https://intranet.example/charte", "unwrapped: " + (await link.getAttribute("href")));
+  expect(await body.locator("em", { hasText: "règlement" }).count() === 1, "italics kept");
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+$/u);
+});
+
+await step("review: after Save the page is free, even when the way back to it takes longer than a heartbeat", async () => {
+  await as(context, origin, "tom");
+  const id = created.split("/").at(-1);
+  await page.goto(created + "/edit");
+  await page.locator(".ProseMirror").waitFor();
+  await page.locator(".ProseMirror").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Saved slowly.");
+  // The page after the save is slow to come (35 s): the editor's 30-second
+  // heartbeat must not take the lock back meanwhile.
+  await page.route(u => u.pathname === `/chest/pages/${id}` && u.searchParams.has("saved"), async route => { await new Promise(r => setTimeout(r, 35_000)); await route.continue(); });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(33_000);
+  const sql = postgres(toolDatabase("wiki", port), { max: 1, onnotice: () => {} });
+  try {
+    const locks = await sql`select member_id from page_locks where page_id = ${id}`;
+    expect(locks.length === 0, "the lock was given back and stays so: " + JSON.stringify(locks));
+  } finally {
+    await sql.end();
+  }
+  await page.waitForURL(/\?saved=/u, { timeout: 15_000 }).catch(() => {});
+  await page.unroute(() => true);
+  await as(context, origin, "sofia");
+  await page.goto(created);
+  expect(!(await page.locator("main").innerText()).includes("has been editing this page"), "Sofia sees nobody editing");
+});
+
+await step("review: a comment on a passage across two paragraphs finds it again; Tab from the selection reaches the button", async () => {
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/2");
+  await page.waitForSelector("html[data-hydrated]");
+  await page.evaluate(() => {
+    const ps = document.querySelectorAll(".prose > p, .prose > ol > li");
+    const range = document.createRange();
+    range.setStart(ps[0].firstChild, 0);
+    range.setEnd(ps[1].lastChild ?? ps[1], (ps[1].lastChild ?? ps[1]).textContent.length);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  });
+  const offer = page.getByRole("button", { name: "Comment on this passage" });
+  await offer.waitFor();
+  await page.keyboard.press("Tab");
+  expect(await offer.evaluate(el => el === document.activeElement), "Tab reaches it");
+  await page.keyboard.press("Enter");
+  await page.getByLabel("Your comment").fill("Two paragraphs at once.");
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  const talk = page.locator(".conversation", { hasText: "Two paragraphs at once." });
+  await talk.waitFor();
+  await page.evaluate(() => window.getSelection().removeAllRanges());
+  await talk.locator(".quote-link").click();
+  await page.waitForTimeout(400);
+  expect((await page.evaluate(() => window.getSelection().toString())).length > 10, "the passage selected again");
+  expect(await page.locator(".ck-toast:has-text('no longer')").count() === 0, "not said gone");
+});
+
+await step("review: the \"/\" menu is heard (the text controls the open list), the toolbar is one Tab stop", async () => {
+  await as(context, origin, "tom");
+  await page.goto(created + "/edit");
+  const body = page.locator(".ProseMirror");
+  await body.waitFor();
+  await body.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("/");
+  await page.locator("#slash-list").waitFor();
+  expect((await body.getAttribute("aria-controls")) === "slash-list", "it controls the list");
+  expect((await body.getAttribute("aria-activedescendant")) === "slash-h1", "the chosen item");
+  await page.keyboard.press("ArrowDown");
+  expect((await body.getAttribute("aria-activedescendant")) === "slash-h2", "follows the arrows");
+  await page.keyboard.press("Escape");
+  expect((await body.getAttribute("aria-controls")) === null && (await body.getAttribute("aria-activedescendant")) === null, "closed");
+  const stops = await page.locator(".toolbar:not(.sub) :is(button, select)[tabindex='0']").count();
+  expect(stops === 1, "one Tab stop: " + stops);
+  await page.locator("#text-style").focus();
+  await page.keyboard.press("ArrowRight");
+  expect((await page.evaluate(() => document.activeElement?.getAttribute("title"))) === "Bold", "the arrows move along");
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+$/u);
+});
+
+await step("review: the sidebar carries the open branch only; a closed one comes when opened", async () => {
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/2");
+  const props = await page.locator("[data-island=Sidebar]").getAttribute("data-props");
+  expect(!props.includes("Wi-Fi and printers"), "a closed branch is not sent");
+  const it = page.locator(".sidebar .row", { hasText: "IT setup" });
+  await it.locator("button.twist").click();
+  await page.locator(".sidebar").getByRole("link", { name: "Wi-Fi and printers" }).waitFor();
+});
+
+await step("review: writing on a phone, the app's tabs step aside", async () => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  await as(context, origin, "tom");
+  await page.goto(created + "/edit");
+  await page.locator(".ProseMirror").waitFor();
+  expect(!(await page.locator(".ck-bar-nav").isVisible()), "no tabs while writing");
+  const pinned = await page.evaluate(() => document.querySelector(".writer-top").getBoundingClientRect().height);
+  expect(pinned < 200, "what stays pinned: " + pinned + " px");
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+$/u);
+  expect(await page.locator(".ck-bar-nav").isVisible(), "the tabs again when reading");
+  await page.setViewportSize({ width: 1280, height: 860 });
 });
 
 await browser.close();

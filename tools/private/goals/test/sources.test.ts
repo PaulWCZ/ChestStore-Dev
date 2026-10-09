@@ -1,19 +1,20 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { checkIn, updateKeyResult } from "../lib/key-results.ts";
-import { createObjective } from "../lib/objectives.ts";
-import { noCycleWords, whoStarts } from "../lib/people.ts";
-import { cycleObjectives, objectiveById } from "../lib/read.ts";
-import { forgetMemberGroups, groupsOf, readerFor } from "../lib/groups.ts";
-import { knownBoards } from "../lib/sources.ts";
-import { addGroupTeam, chestGroups, forgetGroups } from "../lib/teams.ts";
-import { clockAt } from "../lib/tell.ts";
-import { unitFor, valueText } from "../lib/values.ts";
+import { AppError } from "../src/lib/app-error.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { checkIn, updateKeyResult } from "../src/lib/key-results.ts";
+import { createObjective } from "../src/lib/objectives.ts";
+import { noCycleWords, whoStarts } from "../src/lib/people.ts";
+import { cycleObjectives, objectiveById } from "../src/lib/read.ts";
+import * as members from "@argentic/chest-sdk/members";
+import { groupsOf, readerFor } from "../src/lib/groups.ts";
+import { knownBoards } from "../src/lib/sources.ts";
+import { addGroupTeam, chestGroups, forgetGroups, groupMembers, teams } from "../src/lib/teams.ts";
+import { clockAt } from "../src/lib/tell.ts";
+import { unitFor, valueText } from "../src/shared/values.ts";
 import { asMember } from "./support/member.ts";
 import { camille, hugo, ines, sofia } from "./support/members.ts";
+import { server, type Server } from "./support/server.ts";
 import { running, world, type World } from "./support/world.ts";
 
 // Key results fed by the store's other tools (lib/sources.ts): cards done
@@ -22,7 +23,8 @@ import { running, world, type World } from "./support/world.ts";
 // And the coherence fixes: every group of the Chest as a team, units read
 // by their own language's rule, the admins named on an empty page.
 let w: World;
-before(async () => { w = await world({ groups: true }); });
+let POST: Server;
+before(async () => { w = await world({ groups: true }); POST = await server(); });
 after(async () => { await w.close(); });
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
@@ -136,21 +138,25 @@ test("every group of the Chest may become a team, not only those that give Goals
   forgetGroups();
   const groups = await chestGroups();
   assert.deepEqual(groups.map(g => g.name).sort(), ["Office", "Sales", "Warehouse"]);
-  assert.deepEqual(groups.find(g => g.name === "Warehouse")!.members, [hugo.id]);
+  assert.deepEqual(await groupMembers("grp_warehouseaaaaaaaaaaaaaaaaa"), [hugo.id]);
   const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
   assert.equal(team.name, "Warehouse");
+  assert.deepEqual(team.members, [hugo.id]);
+  // Only the groups that are teams are asked for their members.
+  assert.deepEqual((await teams(sql)).map(x => [x.name, x.members]), [["Warehouse", [hugo.id]]]);
   await sql`delete from teams`;
 });
 
-test("a group that does not give Goals is still a team its members write for and read: its membership is asked of the Chest", async () => {
+test("a group that does not give Goals is still a team its members write for and read: the Chest names every group of a member (members.groups)", async () => {
   const { sql } = w.database;
   const { cycle } = await running(w);
   forgetGroups();
-  forgetMemberGroups();
   const team = await addGroupTeam(sql, admin, "grp_warehouseaaaaaaaaaaaaaaaaa");
-  const hugoM = asMember(hugo), sofiaM = asMember(sofia);
-  // The assertion carries only the groups that give Goals: not Warehouse.
-  assert.ok(!hugoM.groups.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  // With "members.groups", the Chest names every group of the member, as
+  // member(request) carries them: Warehouse too, which does not give Goals.
+  const asserted = (await members.get(hugo.id))!.groups;
+  assert.ok(asserted.includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
+  const hugoM = { ...asMember(hugo), groups: asserted }, sofiaM = asMember(sofia);
   assert.ok((await groupsOf(hugoM)).includes("grp_warehouseaaaaaaaaaaaaaaaaa"));
   const o = await createObjective(sql, hugoM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Ship every order the same day", visibility: "team", keyResults: [{ title: "Orders shipped the same day", kind: "percent", start: "70", target: "95", owner: hugo.id }] });
   await assert.rejects(createObjective(sql, sofiaM, { cycleId: cycle.id, level: "team", teamId: team.id, title: "Not my team" }), refused("forbidden"));

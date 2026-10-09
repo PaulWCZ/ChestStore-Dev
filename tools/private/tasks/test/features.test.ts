@@ -2,20 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import type { Run } from "@argentic/chest-sdk/schedules";
-import * as boards from "../lib/boards.ts";
-import * as cards from "../lib/cards.ts";
-import { chestToday } from "../lib/clock.ts";
-import { AppError } from "../lib/errors.ts";
-import { boardCsv, everything } from "../lib/export.ts";
-import { en } from "../lib/i18n/en.ts";
-import { fromCsv, fromTrello, importBoard, importedCounts, previewPeople } from "../lib/importers.ts";
-import { leave } from "../lib/lifecycle.ts";
-import * as mail from "../lib/mail.ts";
-import { morning } from "../lib/morning.ts";
-import { addDays } from "../lib/repeat.ts";
-import * as tell from "../lib/tell.ts";
+import * as boards from "../src/lib/boards.ts";
+import * as cards from "../src/lib/cards.ts";
+import { chestToday } from "../src/lib/clock.ts";
+import { AppError } from "@argentic/chest-app";
+import { boardCsv, everything } from "../src/lib/export.ts";
+import { en } from "../src/i18n/en.ts";
+import { fromCsv, fromTrello, importBoard, importedCounts, previewPeople } from "../src/lib/importers.ts";
+import { leave } from "../src/lib/lifecycle.ts";
+import { morning } from "../src/lib/morning.ts";
+import { addDays } from "../src/shared/repeat.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora } from "./support/members.ts";
@@ -24,14 +23,14 @@ import { camille, everyone, groups, hugo, ines, lea, nora } from "./support/memb
 // columns archived with their cards (moved or kept, found by search),
 // cards moved or copied to another board, steps given to people with a
 // date (subtasks), a board's own fields, start dates and due times,
-// comments removed with Undo, email beside the bell, imports private by
+// comments removed with Undo, every notice in each one's language, imports private by
 // default with a check of the people, one export of everything.
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier.test" } });
+  chest = await fakeChest({ network: {}, members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();
@@ -44,8 +43,6 @@ beforeEach(async () => {
   chest.notifications.length = 0;
 });
 
-// A moment after the quiet minute of lib/mail.ts.
-const later = () => new Date(Date.now() + (mail.quietSeconds + 5) * 1000);
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 async function setup(name = "Trade show", visibility: "team" | "private" = "team", by = hugo) {
   const b = await boards.createBoard(database.sql, asMember(by), { name, visibility }, en.templates.columns);
@@ -175,13 +172,9 @@ test("a step of a checklist given to someone with a date is a subtask: in their 
   await assert.rejects(cards.updateItem(sql, asMember(lea), step.id, { done: true }), refused("forbidden"));
   assert.deepEqual((await cards.mySteps(sql, asMember(ines))).map(s => [s.text, s.cardTitle, s.due]), [["Get the keys", "Open the new office", day]]);
   assert.equal((await cards.urgentCounts(sql, [ines.id])).get(ines.id), 1);
-  // Told in her language, by the bell and by email.
-  await tell.stepAssigned(asMember(hugo), ines.id, { id: step.id, text: "Get the keys" }, change.card, sql);
-  assert.equal(chest.notifications.at(-1)?.title, "Hugo Bernard vous a confié une étape de « Open the new office »");
-  // The email waits a minute for anything else from the same moment.
-  assert.equal(chest.outbox.length, 0);
-  await mail.flushMail(sql, later());
-  assert.match(chest.outbox.at(-1)?.subject ?? "", /confié une étape/u);
+  // Told in her language, by the bell (the Chest mails it if she chose so).
+  await tell.stepAssigned(asMember(hugo), ines.id, { id: step.id, text: "Get the keys" }, change.card);
+  assert.equal(shownTo(chest.notifications.at(-1)!, "fr").title, "Hugo Bernard vous a confié une étape de « Open the new office »");
   // Ticked: out of her list.
   await cards.updateItem(sql, asMember(ines), step.id, { done: true });
   assert.deepEqual(await cards.mySteps(sql, asMember(ines)), []);
@@ -270,46 +263,33 @@ test("a comment removed is hidden at once, can come back a moment, then goes for
   await assert.rejects(cards.restoreComment(sql, asMember(ines), said.comment.id), refused("not_found"));
 });
 
-test("email beside the bell: given a card, mentioned, the morning; in each one's language; one switch turns it off", async () => {
+test("no email from Tasks: a card given, a mention and the morning are notices, in English with their French; the Chest mails them by each one's choice", async () => {
   const { sql } = database;
   const { b, todo } = await setup();
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Order boxes");
   const change = await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id, hugo.id]);
-  await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Order boxes", boardId: b.id }, sql);
-  // Nothing leaves at once; a minute later, only Inès (Hugo gave it to
-  // himself), in French, with the link when the Chest gives the address.
-  assert.equal(chest.outbox.length, 0);
-  assert.equal(await mail.flushMail(sql, new Date(Date.now() + 30_000)), 0);
-  assert.equal(await mail.flushMail(sql, later()), 1);
-  assert.equal(chest.outbox.length, 1);
-  const letter = chest.outbox[0]!;
-  assert.equal(letter.subject, "Hugo Bernard vous a confié une tâche : Order boxes");
-  assert.match(letter.text, /décochez « M’envoyer aussi tout cela par e-mail »/u);
-  // Sent, it is gone from the queue: flushing again sends nothing twice.
-  assert.equal(await mail.flushMail(sql, later()), 0);
-  assert.equal(chest.outbox.length, 1);
-  // Mentioned: Hugo, in English.
+  await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Order boxes", boardId: b.id });
+  // Only Inès (Hugo gave it to himself): one notice, both languages.
+  assert.deepEqual(chest.notifications.map(n => n.member), [ines.id]);
+  const given = chest.notifications[0]!;
+  assert.equal(given.title, "Hugo Bernard gave you a task");
+  assert.equal(shownTo(given, "fr").title, "Hugo Bernard vous a confié une tâche");
+  assert.equal(given.path, `/chest/cards/${c.id}`);
+  assert.equal(given.key, `card:${c.id}:assigned`);
+  // Mentioned: Hugo, in English (his language), with the comment's words.
   const said = await cards.addComment(sql, asMember(ines), c.id, "@Hugo Bernard which size?", [hugo.id]);
   await tell.mentioned(asMember(ines), said.mentions, { id: c.id, title: "Order boxes", boardId: b.id }, said.comment.body, sql, said.comment.id);
-  await mail.flushMail(sql, later());
-  assert.equal(chest.outbox.at(-1)?.subject, "Inès Moreau mentioned you on “Order boxes”");
-  // Switched off: the bell only.
-  assert.equal(await mail.emailOn(sql, asMember(hugo)), true);
-  await mail.setEmail(sql, asMember(hugo), false);
-  assert.equal(await mail.emailOn(sql, asMember(hugo)), false);
-  const before = chest.outbox.length;
-  const again = await cards.addComment(sql, asMember(ines), c.id, "@Hugo Bernard?", [hugo.id]);
-  await tell.mentioned(asMember(ines), again.mentions, { id: c.id, title: "Order boxes", boardId: b.id }, again.comment.body, sql, again.comment.id);
-  await mail.flushMail(sql, later());
-  assert.equal(chest.outbox.length, before);
-  // The morning: what is due, by email too (Inès; Hugo turned it off).
+  assert.equal(shownTo(chest.notifications.at(-1)!, "en").title, "Inès Moreau mentioned you on “Order boxes”");
+  // The morning: what is due, one notice per person, in both languages.
   await cards.updateCard(sql, asMember(hugo), c.id, { due: addDays(chestToday(), -1) });
-  chest.outbox.length = 0;
-  const run: Run = { id: "run_" + "b".repeat(26), name: "morning", scheduledAt: new Date().toISOString(), attempt: 1, timeZone: "Europe/Paris" };
+  const run: Run = { id: "run_" + "b".repeat(26), name: "morning", scheduledAt: new Date().toISOString(), attempt: 1 };
   await morning(sql, run);
-  assert.deepEqual(chest.outbox.map(m => m.subject), ["1 tâche en retard"]);
-  assert.match(chest.outbox[0]!.text, /En retard :\n• Order boxes/u);
-  await assert.rejects(mail.setEmail(sql, asMember(nora), true), refused("forbidden"));
+  const reminder = chest.notifications.find(n => n.key === "digest" && n.member === ines.id)!;
+  assert.equal(reminder.title, "1 task late");
+  assert.equal(shownTo(reminder, "fr").title, "1 tâche en retard");
+  assert.match(shownTo(reminder, "fr").body ?? "", /Order boxes/u);
+  // Nothing ever left by email from the tool.
+  assert.equal(chest.outbox.length, 0);
 });
 
 test("a real Trello export: several lists, the closed one archived, link attachments into the description, uploaded files counted", async () => {

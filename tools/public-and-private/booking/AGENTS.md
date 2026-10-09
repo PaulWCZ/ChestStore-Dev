@@ -5,61 +5,71 @@ what must not break.
 
 ## Map
 
+The stack is the studio's starter: Hono, React rendered on the server, a
+few islands in the browser, Vite; the machinery is the package
+`@argentic/chest-app` (`vendor/`; its own `AGENTS.md` in
+`node_modules/@argentic/chest-app/` is the reference: pages, actions,
+islands, refresh, fields, words, tests).
+
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `host`; public part) and the proposals it uses (`mail`, `schedules`, `calendar`, `emits`, `receives`) |
-| `vendor/` | SDK 0.3.0 + studio proposals (0.3.1-studio.1) and the UI kit, packed copies |
-| `lib/session.ts` | Who asks (`member()`), the language of `/chest` (the member's `language`) and of a public page (the visitor's, else the Chest's `chest.language`, else English; a host's page then keeps to the host's languages) |
-| `lib/access.ts` | Who may do what |
-| `lib/model.ts` | Bounds, slugs, email and phone checks, colours, kinds — pure |
-| `lib/zone.ts` | Wall-clock time in a time zone and back (DST gaps and overlaps) — pure, tested |
-| `lib/slots.ts` | Free times from hours, overrides, bookings and rules (buffers, notice, window, daily limit) — pure, tested |
-| `lib/texts.ts` | A host's texts in two languages: the page's language (`pageLanguage`), the type's second-language texts (`cleanTypeTexts`, `localizeType`) — pure, browser-safe, tested |
-| `lib/questions.ts` | The host's own questions and the guest's answers: bounds, checks, reading — pure, browser-safe, tested |
-| `lib/booking.ts` | The service: hosts, hours, types, free times, booking, moving, cancelling, feed, guard, cleanup, erasure |
-| `lib/ics.ts` | Calendar files (RFC 5545) |
-| `lib/ical.ts`, `lib/windows-zones.ts` | Reading a calendar for its busy times only (RRULE, EXDATE, RECURRENCE-ID, whole days, TZID, VTIMEZONE) — pure, tested |
-| `lib/calendars.ts` | The hosts' other calendars: allowed hosts (= `chest.json` `network`), fetching with limits, keeping busy spans, schedule and lazy refresh |
-| `lib/publish.ts` | Each booking in the host's Chest calendar (Proposal `calendar`) |
-| `lib/share.ts`, `lib/busy-snapshot.ts` | Events between tools (README "With the other tools"): `booking.busy` (a host's own busy times, only when changed: `shared_busy`), `booking.confirmed` / `booking.cancelled` for Clients (`changed`), `hiring.busy` and `leave.busy` heard (`takeBusy` → `told_busy`, `told_spans`; `tool:leave` reads "Off" on the agenda, never the kind of leave); the snapshot's shape, pure and the same file in Hiring |
-| `lib/import.ts` | Calendly's scheduled-events CSV |
-| `lib/embed.ts` | The public pages' `frame-ancestors` from the websites an administrator allowed |
-| `lib/zones.ts`, `components/zone-select.tsx` | The time-zone list (cities in the reader's language from the catalogue's `zones.cities`, offsets, regions), written on the server |
-| `lib/mailer.ts`, `lib/guests.ts` | Emails to guests through the Chest's mail, falling back to the page |
-| `lib/tell.ts` | The host's bell |
-| `lib/lifecycle.ts` | Members leaving or erased |
-| `lib/form-token.ts`, `lib/public-origin.ts` | The form's signed "shown at" time; the public host's address; the visitor's key |
-| `app/page.tsx`, `app/[host]/…`, `app/b/[secret]/…`, `app/api/slots`, `app/feed/[token]`, `app/public-actions.ts`, `components/picker.tsx` | The public part (anonymous) |
-| `app/chest/…`, `app/chest/actions.ts` | The team's part (`first-run.tsx`: a new host's first screen; `agenda-tools.tsx`: blocking from the agenda's free stretches, unblocking with Undo; `new/`: a host books for a guest; `api/slots`: the free times a host sees; `hours/other-calendars.tsx`, `hours/exceptions.tsx` inside `components/fold.tsx`) |
-| `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
-| `lib/theme.ts`, `lib/look.ts`, `app/tokens.css`, `app/globals.css` | The identity as a kit theme and the looks of the team's and the public surfaces (`teamLook`, `publicLook`; `currentLook` picks by the member assertion); the tool's own tokens (aliases of contract tokens); styles (contract tokens only) |
-| `components/shell.tsx`, `components/link.tsx`, `components/public-shell.tsx`, `lib/i18n/kit.ts` | The kit's AppShell, BrandMark and LanguageSwitch wired to Next.js; Next's `Link` re-exported for server pages; the kit's date words from the catalogue |
+| `chest.json`, `chest.proposals.json` | Manifest, contract 0.4 (roles `admin`, `host`; public part; `network`: the calendar hosts; `schedules`: `reminders`, `cleanup`, `calendars`) and the proposals it uses (`mail`, `calendar`, `emits`, `receives`, `translations`) |
+| `vendor/` | SDK 0.4.1 + studio proposals (0.4.1-studio.7), the UI kit, `@argentic/chest-app`: packed copies, never edited |
+| `src/app.tsx` | **Every route**: `createApp({…})` (actions, islands, words, layouts, the look), the pages, `/api/slots`, `/chest/api/slots`, `/chest/export`, `/b/<secret>/ics`, `/feed/<token>.ics`, `/chest-events`, `/chest-schedules`; `framed`: the public pages' `frame-ancestors` from Settings |
+| `src/actions.ts` | **Every mutation**, by name: the team's (`action`) and the public part's (`publicAction`: `bookTime`, `cancelMine`, `moveMine`) |
+| `src/pages/` | Pages rendered on the server: `Agenda`, `Booking`, `NewBooking`, `Types`, `TypeEdit`, `Hours`, `Settings`; public: `CompanyPage`, `HostPage`, `TypePage`, `GuestBooking`, their frame `PublicShell` |
+| `src/islands/` | What runs in the browser (`index.ts` lists them): `AgendaTools` (block a time from the agenda's buttons, `data-block`/`data-unblock`, one island for the whole list), `FreeToggle`, `FirstRun`, `TypeForm`, `TypeSwitch`, `WeekEditor`, `Exceptions`, `OtherCalendars`, the settings' forms, `CancelMeeting`, `MoveMeeting`, `PaidSwitch`, `ForGuest`; public: `BookTime`, `MoveMine`, `CancelMine` |
+| `src/components/` | Shared by pages and islands, browser-safe: icons, mark, `picker.tsx` (the month grid and times, the guest's form), `zone-select.tsx`, `copy-button.tsx` (also an island), `fold.tsx` |
+| `src/shared/` | Pure modules the browser needs too: `zone.ts` (wall clock ↔ instant), `zones.ts` (the zone list), `kinds.ts` (colours and their classes, kinds, durations, questions' shapes and bounds, hours ranges, slugify). `src/lib/` re-exports them |
+| `src/lib/` | Rules and SQL (below); never imported by an island |
+| `src/i18n/` | Every word: `en.ts` (source), `fr.ts`; `index.ts` (languages, `formatter`), `format.ts` (dates and plurals, each Intl object made once; browser-safe) |
+| `src/layout.tsx` | The members' shell (sections, the company's logo in brand mode, toasts), the public layout (pages draw their own frame) |
+| `src/theme.ts`, `src/tokens.css`, `src/styles.css` | The identity (a kit theme) and the look of each surface as a stylesheet (`sheetOf`); the tool's tokens (aliases of contract tokens); its styles (contract tokens only, classes only) |
+| `src/lib/session.ts` | A host page's language (`hostWords`: the visitor's when the host wrote it, else the host's) |
+| `src/lib/access.ts` | Who may do what |
+| `src/lib/model.ts` | Bounds, slugs, email and phone checks — pure |
+| `src/lib/slots.ts` | Free times from hours, overrides, bookings and rules (buffers, notice, window, daily limit) — pure, tested |
+| `src/lib/texts.ts` | A host's texts in two languages — pure, tested |
+| `src/lib/questions.ts` | The host's own questions and the guest's answers: checks, reading — pure, tested |
+| `src/lib/booking.ts` | The service: hosts, hours, types, free times, booking, moving, cancelling, feed, the public form's counters (`guard`), cleanup, erasure |
+| `src/lib/ics.ts`, `src/lib/ical.ts`, `src/lib/windows-zones.ts` | Calendar files written (RFC 5545); calendars read for busy times only |
+| `src/lib/calendars.ts` | The hosts' other calendars: allowed hosts (= `chest.json` `network`), fetching with limits, schedule and lazy refresh |
+| `src/lib/publish.ts` | Each booking in the host's Chest calendar (Proposal `calendar`) |
+| `src/lib/share.ts`, `src/lib/busy-snapshot.ts` | Events between tools (README "With the other tools") |
+| `src/lib/import.ts` | Calendly's scheduled-events CSV |
+| `src/lib/embed.ts` | The websites allowed to frame the public pages |
+| `src/lib/mailer.ts`, `src/lib/guests.ts`, `src/lib/tell.ts`, `src/lib/notify.ts` | Emails to guests (people outside) through the Chest's mail connector (falling back to the page); the host's bell (notifications with translations) |
+| `src/lib/lifecycle.ts` | Members leaving or erased; `seen` (events and schedule runs handled once, `chest_events`) |
+| `src/lib/public-origin.ts` | The Chest's addresses (`chest.tool.*`); the public form's guard is the package's (`bound`, budgets in `formLimits` of `src/lib/booking.ts`) |
+| `src/lib/db.ts` | The tool's database pool (`provide()` lets the unit tests hand it their connection) |
+| `test/` | `app.test.mjs` (the built server: routes, policy, look, actions, public pages, framing, files, events, schedules), `stack.test.ts` (the package's `checkSources`, `checkWords`), the services' tests; `support/db.ts` (PGlite with `btree_gist`, or `TEST_DATABASE_URL`) |
 
 ## Commands
 
 ```sh
-npm ci && npm test && npm run build   # all three must pass
+npm ci && npm run build && npm test   # all three must pass (and TEST_DATABASE_URL=… npm test)
 ```
 
 ## Rules
 
 - **The UI kit first** (`@argentic/chest-ui/components`, vendored in
   `vendor/`): `AppShell`, `PageHeader`, `NoAccess`, `Tabs`, `EmptyState`,
-  `Avatar`, `StatusBadge`, `Toasts`/`useToast`, `Confirm`, `DateField`,
+  `Avatar`, `StatusBadge`, `Confirm`, `DateField`,
   `TimeSelect` (+ `moveStart`/`moveEnd`), `FilePicker`, `BrandMark`,
   `LanguageSwitch`, `Segmented` (link variant: "Mine / Everyone", the
-  choice in the address), `Switch` (a type on or off, the email-me
-  setting: what takes effect at once; a box in a form that waits for Save
-  stays a checkbox). Their words come from the catalogues (`toast`,
-  `date`, `files` sections). A server page gives the kit Next's `Link`
-  through `components/link.tsx` (a `"use client"` re-export); a client
-  component passes `Link` as it is — no wrapper, no cast. Titles are
+  choice in the address), `Switch` (a type on or off: what takes effect at once; a box in a form that waits for Save
+  stays a checkbox). Their words come from the catalogues' `kit` section.
+  Links are plain `<a>`; an island moves with `navigate()` and says
+  things with `toast()` (`@argentic/chest-app/client`: each island is a
+  React root of its own, the kit's `useToast()` sees no toasts there). Titles are
   `PageHeader size="m"`, a company logo is sized with `--ck-logo-max`.
   Kept on purpose: the public month grid and time buttons
-  (`components/picker.tsx`: a calendar of free days, not a date field),
+  (`src/components/picker.tsx`: a calendar of free days, not a date field),
   the time-zone select (a form field, grouped by region), the copy button.
-- **Never a colour in CSS or TSX**: contract tokens only, the tool's
-  tokens aliased to them (`test/theme.test.ts`). Text only on measured
+- **Never a colour in CSS or TSX, never a style attribute**: contract
+  tokens only, the tool's tokens aliased to them (`test/theme.test.ts`,
+  `checkSources`); what varies with the data is a class (a type's colour:
+  `typeClass`/`swatchClass` of `src/shared/kinds.ts`). Text only on measured
   pairs (`--ok-ink` on `--ok-soft`, `--accent-text` on `--accent-soft`…).
 - **Never `window.confirm`**: irreversible acts (delete a type, erase a
   guest) use the kit's `Confirm`; an email already sent is a `sent: true`
@@ -93,12 +103,14 @@ npm ci && npm test && npm run build   # all three must pass
   `chest.json` `network`); never show a calendar's address again. Read
   them with plain `fetch` (no injected fetcher): tests answer the hosts
   with `fakeChest({ network })`.
-- **Email keys are whole** (studio.15: never cut; the SDK hashes a long
-  one) and name the recipient when it can change; the same key for other
-  recipients is a `key_conflict`. Only the guest's confirmation, move and
-  cancellation are `transactional`.
+- **Email keys are whole** (never cut; the SDK hashes a long one) and
+  name the recipient when it can change; the same key for other
+  recipients is a `key_conflict`.
+- **Mail goes to guests only** (`src/lib/mailer.ts`, `mail.send` to an
+  address). A member is told with a notification (`src/lib/notify.ts`:
+  one notice, English words and French `translations`), never a mail.
 - **Every change to a booking tells the Chest's calendar** (`publish` /
-  `unpublish`) and, when the host wants it, emails them (`tell.hostCopy`).
+  `unpublish`).
 - **The daily limit** has no constraint of its own: it holds because
   `book` and `moveByGuest` lock the type's row (`lockType`, `for update`)
   and check the time again inside that transaction; the host's daily
@@ -120,14 +132,27 @@ npm ci && npm test && npm run build   # all three must pass
   they are at booking time (`cleanAnswers`); never trust the form's fields.
 - **Times are instants** (`timestamptz`, ISO strings); hours are minutes
   of the host's wall clock in `hosts.zone`. Convert only with
-  `lib/zone.ts`; never with the server's local time.
+  `src/shared/zone.ts`; never with the server's local time.
 - **The guest's secret** opens one booking: it is looked up by its
   SHA-256, kept for their later emails, never shown on the team's pages,
   never logged.
 - **Guests are data subjects**: anything new stored about them must be
   deleted by `eraseGuest` and `cleanup`.
 - **Email is optional**: every path must work when `mail.send` throws.
-- **Dates in client components**: format them on the server (Node's and
-  the browser's Intl can differ and break hydration).
-- Identity from `member()` only; rights in `lib/access.ts`; words in every
-  catalogue; client components never import the SDK or `lib/db.ts`.
+- **Dates in islands**: written on the server (the page's props carry
+  them as text), or with `src/i18n/format.ts` (one Intl object per
+  language, zone and style — never one per row).
+- **The public part's writes are bounded by the package, and only valid
+  ones count**: every `publicAction` has `bound` (budgets `new`/`change`
+  of `formLimits.perKind`), its form carries `<Honeypot />` (the token;
+  `call()` sends it from the page), and its run refuses what could never
+  write anything (the type found, a well-formed time, `changeAllowed` for
+  a guest's link) **before** `await charge(kind)` — a change with `{
+  subject: secret }`, so one link has its own budget (`perSubject`). A new public
+  action does the same.
+- **Calendar UIDs** are `Booking.uid` (`calendarUid`): never build one by
+  hand; bookings made before migration 0007 keep `booking-<id>@chest`.
+- Identity from `member()` only (the package's `page()`/`action()`);
+  rights in `src/lib/access.ts`; words in every catalogue; islands and
+  `src/components/` import only `src/shared/`, `src/i18n/format.ts`, the
+  kit and `@argentic/chest-app/client` (`test/stack.test.ts`).

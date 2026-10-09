@@ -60,7 +60,7 @@ confirmation; nobody is ever booked twice.
   booked in ("Visite du showroom" for Inès, who reads French, for an
   English and a French guest alike), the guest's language as a small tag
   ("EN") when it is not the reader's; the same on a booking's page, in the
-  bell, the Chest's calendar, the host's email copy and the CSV (a *Guest's
+  bell, the Chest's calendar and the CSV (a *Guest's
   language* column). The coming week's **busy times from elsewhere** show
   as grey rows within the host's hours — "Busy · In your Google calendar
   16:00–17:00", "An interview in Hiring", "Off" (a day of leave, told by
@@ -135,18 +135,21 @@ confirmation; nobody is ever booked twice.
   at most), *Cancel* with an optional word.
 - **Emails to the guest** (Proposal *mail*): confirmation with the
   calendar file and their answers, new time, cancellation, and a reminder
-  the day before (Proposal *schedules*). The host hears of bookings, moves
-  and cancellations in the Chest's bell, in their language and time zone
-  (a new booking's bell shows the note and the answers, as far as it fits).
+  the day before (Proposal *schedules*); their replies go to the
+  company's address (see *Mail to people outside the company*). The host
+  hears of bookings, moves and cancellations in the Chest's bell — a
+  guest's, or a colleague's who manages every booking (with who did
+  it) — in their language and time zone (a new booking's bell shows the note and
+  the answers, as far as it fits); the Chest mails it to them if they
+  chose so in the Chest — Booking itself never emails a member.
 - **A host books for a customer** (*New booking*: a type, a free time —
   the minimum notice aside —, the guest's name and email; they get the
   usual confirmation and link) and **moves a meeting** (*Move this
   meeting*: the guest is emailed the new time).
 - **Each booking in the host's Chest calendar** (Proposal *calendar*): put
   when booked or moved, removed when cancelled or erased, titled in each
-  reader's language. With email, the host also gets each booking with its
-  calendar file (Settings, on by default), which a calendar app adds at
-  once — the Chest's feed is read by Google hours later.
+  reader's language. Calendar apps read the Chest's feed at their own
+  pace (Google: hours); the Bookings page and the bell are at once.
 - **On the company's website**: an administrator lists the websites
   allowed to show the booking pages (their `frame-ancestors`) and copies
   a frame code, or a button code that opens the page.
@@ -205,7 +208,9 @@ or confirm their hours.
 | `/lang/<code>` | The public part's language switch |
 | `/chest`, `/chest/bookings/<id>`, `/chest/new`, `/chest/types…`, `/chest/hours`, `/chest/settings`, `/chest/export` | The team's part |
 | `/chest/api/slots` | The free times a host sees (booking for a guest, moving a meeting) |
-| `/chest-events`, `/chest-jobs/<name>` | Deliveries from the Chest (signed) |
+| `/chest-events`, `/chest-schedules` | Deliveries from the Chest (signed): the members' lifecycle and other tools' events; the runs of `chest.json`'s schedules |
+| `/chest/look.css`, `/look.css` | The look of the team's and of the public pages, a stylesheet (src/theme.ts) |
+| `POST /chest/actions/<name>`, `POST /actions/<name>` | The team's and the public part's actions (`src/actions.ts`) |
 
 ## Looks
 
@@ -220,7 +225,7 @@ the company's own. **The public pages** (a host's page, a guest's booking,
 that button) wear the company's brand when it has one and Booking's own
 identity otherwise — never a catalogue theme chosen for the team, never
 the Chest's sheet (kit 0.2.3, `surface: "public"`). The look is resolved on
-the server (`lib/theme.ts`, `lib/look.ts`, `chest.theme()`), written in one `<style>` with the page's nonce; every
+the server (`src/theme.ts`, `chest.theme()`) and served as a stylesheet of its own — `/chest/look.css` for the team's pages, `/look.css` for the public ones, linked with its hash, never an inline `<style>`; every
 text stays readable (WCAG AA) in every look. Screens:
 `docs/screens/*-chest-*`, `*-theme-*`, `*-brand-*`.
 
@@ -283,7 +288,7 @@ visitor), `host` (a host for them), `import`. `company` is null: the form
 does not ask it (a host may ask it as one of their questions; answers are
 not sent). Never the guest's note, their answers or their link. `path`
 opens the booking for a member who may see it:
-`chest.toolLink("booking", path)`.
+`chest.tools.link("booking", path)`.
 
 What a receiver (Clients) does: declare `"receives": ["booking.confirmed",
 "booking.cancelled"]`; on each, find or create the contact by
@@ -305,7 +310,7 @@ does).
 
 ## On a Chest
 
-- `public: true`, `csp: "tool"`; `capabilities`: `database`, `members`
+- `public: true` (no `csp` permission: no inline script nor style, the Chest's default policy holds); `capabilities`: `database`, `members`
   (names, roles), `notifications`; `receives: ["member.*"]`; `network`:
   the four calendar hosts (the owner approves "Can reach
   calendar.google.com", …). Nothing else leaves the tool. Proposals:
@@ -332,12 +337,56 @@ does).
   Chest's migration role may create it is to be confirmed (see the SDK
   report).
 
+
+## Mail to people outside the company
+
+Booking emails only its guests — people outside the company. A host is
+never emailed by Booking: they are told in the Chest's bell, and the
+Chest mails them their notifications by their own choice (each one, once
+or twice a day, or off; off per tool), set in the Chest, not here.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| The guest | Confirmation | They book (or a host books for them) | Type, host, time in their zone, where, their answers, pay link if any, the link to change or cancel | `booking.ics` (`METHOD:PUBLISH`) | The company's address (the connector's default) |
+| The guest | New time | The guest or the host moves it | Type, host, new time, where, the link | `booking.ics` (same UID, higher `SEQUENCE`) | The company's address |
+| The guest | Cancellation | The guest or the host cancels it (or the host is erased) | Time, the host's word if any, where to book again | `booking.ics` (`METHOD:CANCEL`) | The company's address |
+| The guest | Reminder | About a day before (schedule `reminders`, hourly) | Type, host, time, where, the link | — | The company's address |
+
+Sent through the Chest's mail connector (studio proposal, not built yet):
+`mail.send` with the guest's address, in the language the guest booked in,
+signed "{host} — {company}". Each mail says "A question? Reply to this
+email": replies reach the company's usual inbox, not Booking. When the
+connector is absent or paused (`mail.available()` not ok), nothing is
+lost: the booking is made, the guest's page shows the booking with *Add
+to my calendar* first and says no email goes out, the host's toast says
+"tell them yourself", and Settings says why in plain words.
+
+**Changed on 6 October 2026** (the owner's mail decisions): the host's
+email copy with the calendar file and its *Email me* switch in Settings
+are gone. The host is told in the bell at the same moments — a guest
+books, moves or cancels; a colleague who manages every booking moves or
+cancels theirs (with who did it); a booking reassigned to them — and has
+every booking in the Chest's calendar. What the host loses: the copy put
+the meeting in their calendar app at once, while a calendar app reads
+the Chest's calendar at its own pace (Google: every few hours, up to a
+day); Settings says so under the calendar, and the Bookings page and the
+bell are always up to date. Guest mails need no special flag any more;
+the bell is one notice with its French translation.
+The `hosts.email_me` column is no longer read and stays so that the
+previous version keeps working during a rolling update (it is
+`not null default true`: new hosts need nothing from this version); a
+later version drops it (`alter table hosts drop column email_me`) once
+no instance runs 0.2.0.
+
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), a packed copy in
-`vendor/`. The member's `language` and the Chest's `organization.name`,
-`timeZone` and `language` are the released 0.3.0; what follows is not in
-it yet.
+Built on SDK 0.4.1 + studio proposals (0.4.1-studio.2), a packed copy in
+`vendor/`, tool contract 0.4 (`"chest": "0.4"`; `chest check` says OK).
+The member's `language`, the Chest's `organization.name`, `timeZone`,
+`language`, the tool's addresses (`chest.tool.publicUrl`,
+`chest.tool.teamUrl`: the company's own domain once connected) and the
+schedules (`chest.json` `schedules`, posted to `/chest-schedules`) are the
+released 0.4.1; what follows is not in it yet.
 
 - **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`).
   Without it the tool works: the guest keeps their page's link (shown
@@ -348,20 +397,38 @@ it yet.
   mail on this Chest, email not connected, paused, the day's emails used).
   Every email's key carries its recipient, and each event's key the guest
   (studio.16): after a restore from a backup, a booking's id can name
-  another guest's meeting.
-- **Scheduled tasks** — **Proposal (studio)**: `reminders` (hourly) and
-  `cleanup` (nightly). Without them, no reminder is sent and bookings are
-  kept until an administrator erases them.
+  another guest's meeting. Settings shows where guests' replies go
+  (`mail.available().replyTo`).
+- **Scheduled tasks** (0.4.1, `chest.json`): `reminders` (hourly),
+  `cleanup` (nightly) and `calendars` (every 15 minutes); each run is
+  handled once (`chest_events`, the same store as the events).
 - **Photos on the public host**: the Chest's photo links work on the team
   host only; public pages show initials.
-- **The Chest's addresses** — **Proposal (studio)** (`chest.publicUrl`,
-  `chest.teamUrl`): the public host's address; on a Chest that does not
-  give it yet, the address is derived from the request (remembered for
-  emails sent by a schedule). The company's name (an administrator may
+- **The Chest's addresses** (0.4.1, `chest.tool.publicUrl`,
+  `chest.tool.teamUrl`): outside a Chest (they throw there) the public
+  address is derived from the request, and the last one seen is
+  remembered for emails sent by a schedule. The company's name (an administrator may
   name it otherwise for visitors) and the default time zone of new hosts
   are the Chest's (`chest.organization.name`, `chest.timeZone`, 0.3.0).
-- **The visitor's address** for the booking form's counters is read from
-  `X-Forwarded-For`, assumed set by the Chest's front.
+- **The visitor's address** — **Proposal (studio)**
+  (`Chest-Visitor-Address`, which the front would set; never
+  `X-Forwarded-For`, which the visitor writes). The public writes are
+  bounded by the package (`@argentic/chest-app`'s `publicAction({ bound })`):
+  a form token that serves once, for its action only, and lasts two hours,
+  a proof of work on `bookTime` (it stops robots that run no JavaScript; a
+  native script pays about a millisecond — reasoned, not measured — so the
+  budgets below are what hold; booking needs JavaScript, and a browser
+  without it is told so), the field only robots fill, and budgets a day
+  per visitor (the front's address, else a
+  `chest_v` cookie of the browser's) and for everyone — bookings (10 / 1,000)
+  and changes (20 / 1,000) apart — spent only once a request is valid
+  (the type exists, the time is well-formed, the guest's link opens a
+  booking still to come: junk spends no budget; refusals are counted
+  apart, up to ten times a day's budget). Changes also have a budget per
+  guest's link (20 a day, the package's `perSubject`), so one link cannot
+  spend everyone's. Without the front's address, a robot that drops its
+  cookie can still spend the day's budget for everyone (the package's
+  AGENTS.md says so): the address is the fix.
 - **`calendar`** — **Proposal (studio)** (`chest.proposals.json`:
   `"calendar": true`): each booking in its host's Chest calendar feed.
   Without it, the tool's own private feed (Settings) remains.
@@ -371,21 +438,19 @@ it yet.
 - **Declared network** (real contract, `network`): the calendars are read
   with plain `fetch`, which follows the Chest's proxy through
   `NODE_USE_ENV_PROXY=1` (Node ≥ 24.5 in the Chest's image; the tool's
-  `engines` allow Node 22 for local work, where fetch goes out directly).
+  `engines` ask Node 24).
   Tests answer the declared hosts with `fakeChest({ network })` (SDK
   studio.15: a read, a 404, a redirect between declared hosts, a refused
   host). The local harness runs the tool in its own process and does not
   route its `fetch`, so a successful read is shown by the tests
   (`test/busy.test.ts`, `test/jobs.test.ts`), not by the flow.
-- **Members' email choice** — **Proposal (studio.15)**: `mail.send`
-  applies each member's choice (all, a daily digest, none). The guest's
-  confirmation, a move and a cancellation are marked `transactional` (a
-  guest who is a member of the Chest gets them whatever they chose); the
-  reminder and the host's own notice honour the choice, beside the
-  host's "Email me" setting.
+- **Notifications with translations** — **Proposal (studio, announced
+  for 0.5)**: each bell item is one notice with English words and their
+  French `translations`; the Chest shows each host their language.
 - **Being shown in another website**: the Chest's front adds
-  `frame-ancestors 'none'` to every public response, even with `csp:
-  "tool"` (contract, "Public host", `FloorCSP`), and two policies combine,
+  `frame-ancestors 'none'` to every public response (its default policy,
+  and its floor even with `csp: "tool"`: contract, "Public host"), and two
+  policies combine,
   so **the frame code cannot work on a Chest today**: the Chest needs a
   permission that lets an administrator allow the company's websites
   (see the SDK report). The button code works today.
@@ -399,16 +464,34 @@ it yet.
 
 ## Develop
 
+Hono and React rendered on the server, a few islands in the browser, built
+by Vite — the studio's starter, its machinery the package
+`@argentic/chest-app` (`vendor/`). `AGENTS.md` says where things are.
+
 ```sh
 npm ci
-npm test          # node:test; PGlite, or TEST_DATABASE_URL for a real PostgreSQL
-npm run build
+npm run dev       # rebuilds on every change and restarts the server
+npm run build     # tsc, then the browser's files and the server (dist/)
+npm test          # tsc, the server built into dist/test, then test/*.test.*:
+                  # PGlite, or TEST_DATABASE_URL for a real PostgreSQL
+npm start         # the built server, as the Chest runs it
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --reset --port 5100`
+In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --reset --prod --port 5100`
 (the `/_dev` page shows the outbox, the bell, and runs the schedules),
 `node lab/chest-dev/flows/booking.mjs 5100`,
 `node lab/chest-dev/screens.mjs tools/public-and-private/booking --port 5100`.
+
+## Measured
+
+`lab/measure/` (6 October 2026, Node 24.21, the studio's 4-CPU container;
+12 pages of `lab/measure/pages/booking.json`, then 30 s at rest, median of
+5; results in `lab/measure/results/after-hono/booking.json`), Next.js 16
+before → this stack: memory at rest (PSS of the tree, `npm` included)
+140 → 79 MiB, the server alone 119 → 58 MiB PSS (176 → 117 MiB RSS);
+first page after a cold start 679 → 369 ms; image 461 → 31 MiB; the build
+fits the Chest's 512 MiB / 1 CPU container (it did not: OOM), peak
+255 MiB PSS, 1.4 s.
 
 ## What it does not do (yet)
 

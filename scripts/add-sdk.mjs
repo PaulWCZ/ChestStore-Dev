@@ -1,11 +1,11 @@
-// Gives a tool the studio's working copy of the Chest SDK (sdk/), with the proposed
-// modules the published package does not have yet.
+// Gives a tool the studio's working copy of the Chest SDK (sdk/, the official
+// 0.4.1 with the studio's proposals on top: 0.4.1-studio.N).
 //
 // A tool that uses only what the published SDK offers depends on npm
-// ("@argentic/chest-sdk": "^0.2.0") and never needs this script. A tool that
+// ("@argentic/chest-sdk": "0.4.1") and never needs this script. A tool that
 // uses a proposal of sdk/ gets a packed copy of it in its own vendor/
-// (a tool stays self-contained: it will become its own repository). Run it
-// again after every change to sdk/.
+// (vendor/argentic-chest-sdk-<version>.tgz; a tool stays self-contained: it
+// will become its own repository). Run it again after every change to sdk/.
 //
 //   node scripts/add-sdk.mjs tools/private/<name>
 //   node scripts/add-sdk.mjs tools/public-and-private/<name>
@@ -45,7 +45,7 @@ for (const start = Date.now(); ;) {
 }
 // A pack must hold the built files: check it, pack once more if not, then refuse.
 const PREFIX = "argentic-chest-sdk-";
-const built = ["package/dist/index.js"];
+const built = ["package/dist/studio/index.js", "package/dist/src/member.js", "package/dist/studio/testing.js"];
 const whole = () => {
   const file = readdirSync(vendor).find(name => name.startsWith(PREFIX) && name.endsWith(".tgz"));
   if (!file) return false;
@@ -78,5 +78,9 @@ if (existsSync(lockPath)) {
   writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
 }
 rmSync(join(tool, "node_modules", "@argentic", "chest-sdk"), { recursive: true, force: true });
-if (existsSync(join(tool, "node_modules"))) execFileSync("npm", ["install", "--no-audit", "--no-fund"], { cwd: tool, stdio: ["ignore", "ignore", "inherit"] });
-console.log(`${basename(tool)}: @argentic/chest-sdk → file:vendor/${tarball}${existsSync(join(tool, "node_modules")) ? " (installed)" : " (run npm install in " + target + ")"}`);
+// Without node_modules, the lockfile is still brought up to date (the new
+// tarball's integrity, nothing installed): `npm ci`, the Chest's install,
+// refuses a lockfile that does not match package.json.
+const installed = existsSync(join(tool, "node_modules"));
+execFileSync("npm", installed ? ["install", "--no-audit", "--no-fund"] : ["install", "--package-lock-only", "--no-audit", "--no-fund"], { cwd: tool, stdio: ["ignore", "ignore", "inherit"] });
+console.log(`${basename(tool)}: @argentic/chest-sdk → file:vendor/${tarball}${installed ? " (installed)" : " (lockfile updated; npm ci installs it)"}`);

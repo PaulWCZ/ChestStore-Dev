@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as deals from "../lib/deals.ts";
-import { listStages } from "../lib/stages.ts";
-import { today, zoned } from "../lib/zone.ts";
+import * as deals from "../src/lib/deals.ts";
+import { listStages } from "../src/lib/stages.ts";
+import { today, zoned } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, ines } from "./support/members.ts";
@@ -15,8 +15,8 @@ import { everyone, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone, chest: { timeZone: "Pacific/Kiritimati" } });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, chest: { timeZone: "Pacific/Kiritimati" } });
 });
 after(async () => {
   await chest.close();
@@ -31,7 +31,7 @@ test("today and a next step's time are the Chest's", () => {
 test("won this month counts a deal by the Chest's day it was won", async () => {
   const { sql } = database;
   const won = (await listStages(sql)).find(s => s.kind === "won")!;
-  const d = await deals.addDeal(sql, asMember(ines), { title: "Late evening in UTC", value: "1 000" });
+  const d = await deals.addDeal(sql, asMember(ines), { title: "Late evening in UTC", value: 100000 });
   await deals.moveDeal(sql, asMember(ines), d.id, won.id, null, null, "");
   await sql`update deals set closed_at = '2026-09-30T20:00:00Z' where id = ${d.id}`;
   assert.equal((await deals.wonThisMonth(sql, asMember(ines), "2026-10-15")).mine, 100000);

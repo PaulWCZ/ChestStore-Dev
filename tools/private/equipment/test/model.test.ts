@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AppError } from "../lib/app-error.ts";
-import { addDays, addMonths, clean, day, daysBetween, ending, makeTag, money, seatsCount, tag } from "../lib/model.ts";
+import { AppError } from "@argentic/chest-app";
+import { addDays, addMonths, clean, day, daysBetween, ending, makeTag, money, seatsCount, tag } from "../src/shared/model.ts";
 
 const code = (fn: () => unknown) => {
   try { fn(); } catch (error) { return error instanceof AppError ? error.code : "other"; }
@@ -64,7 +64,7 @@ test("texts are trimmed and bounded; seats are whole numbers", () => {
 });
 
 test("a series of tags for several items: the digits at the end count up", async () => {
-  const { tagSeries } = await import("../lib/model.ts");
+  const { tagSeries } = await import("../src/shared/model.ts");
   assert.deepEqual(tagSeries("LAP-009", 3), ["LAP-009", "LAP-010", "LAP-011"]);
   assert.deepEqual(tagSeries("KEY", 1), ["KEY"]);
   assert.deepEqual(tagSeries("A99", 2), ["A99", "A100"]);

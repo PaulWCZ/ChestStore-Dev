@@ -286,7 +286,13 @@ await step("HR writes an expected arrival by hand (a weekend is questioned) and 
   expect((await page.locator(".arrival-form .warn-hint").innerText()).trim() === "", "weekday fine");
   await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
   await page.getByRole("option", { name: "Inès Moreau" }).click();
-  await page.getByLabel("Their work email (if known)").fill("paul.mercier@example.test");
+  // An address the browser takes but mail does not (no dot in the domain):
+  // the package's field.email says so in plain words, nothing is added.
+  await page.getByLabel("Their work email (if known)").fill("paul.mercier@example");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByText("Write an email address, like name@example.com.").first().waitFor();
+  expect(await page.locator(".arrival", { hasText: "Paul Mercier" }).count() === 0, "nothing added with a wrong address");
+  await page.getByLabel("Their work email (if known)").fill("Paul.Mercier@Example.test");
   await page.getByRole("button", { name: "Save" }).click();
   await page.locator(".ck-toast", { hasText: "Arrival added." }).waitFor();
   const card = page.locator(".arrival", { hasText: "Paul Mercier" });
@@ -314,9 +320,12 @@ await step("HR edits as a table: a cell saves on leaving it, Undo puts it back; 
   await page.reload();
   expect((await page.getByLabel("Team of Hugo Bernard").inputValue()) === "Key accounts", "undone");
   // A loop of managers is refused and the cell comes back.
-  await page.getByLabel("Manager of Camille Martin").selectOption({ label: "Hugo Bernard" });
+  // (A manager cell is a name on a button that opens the person picker.)
+  await page.getByRole("button", { name: "Manager of Camille Martin: No manager" }).click();
+  await page.getByRole("combobox", { name: "Manager of Camille Martin" }).fill("Hugo");
+  await page.getByRole("option", { name: "Hugo Bernard" }).click();
   await page.locator(".ck-toast", { hasText: "loop" }).waitFor();
-  expect((await page.getByLabel("Manager of Camille Martin").inputValue()) === "", "refused loop comes back");
+  await page.getByRole("button", { name: "Manager of Camille Martin: No manager" }).waitFor();
   await page.getByRole("button", { name: "Add a field" }).click();
   await page.getByLabel("Name of the field").fill("T-shirt");
   await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -658,6 +667,7 @@ await step("the Chest's email paused: the arrival form says Marc gets no welcome
   }
 });
 
+let marcChecklist = "";
 await step("pass 4: HR starts Marc's welcome checklist: he gets a short welcome email at his work address, signed by HR, who is the reply address", async () => {
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/checklists");
@@ -671,7 +681,8 @@ await step("pass 4: HR starts Marc's welcome checklist: he gets a short welcome 
   expect(await page.locator("[data-welcome=yes]", { hasText: "Marc Lefèvre gets a short welcome email." }).count() === 1, "welcome promised: " + await page.locator("[data-welcome]").allInnerTexts());
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.waitForURL(/\/chest\/checklists\/\d+$/u);
-  await page.locator(".ck-toast", { hasText: "Started. Marc Lefèvre gets a short welcome email." }).waitFor();
+  marcChecklist = page.url();
+  await page.locator(".ck-toast", { hasText: "Started. A short welcome email is on its way to marc.lefevre@example.test." }).waitFor();
   await page.goto(origin + "/_dev");
   const letter = page.locator("li", { has: page.locator("b", { hasText: "Welcome to Atelier Martin, Marc" }) });
   expect(await letter.count() === 1, "one welcome email");
@@ -680,6 +691,44 @@ await step("pass 4: HR starts Marc's welcome checklist: he gets a short welcome 
   await letter.locator("summary").click();
   const body = await letter.locator("pre").innerText();
   expect(body.startsWith("Hello Marc,") && body.includes("Your first day is") && body.includes("Inès Moreau will be your manager.") && body.includes("You will get access to the company’s Chest") && body.trim().endsWith("Camille Martin"), "the letter: " + body);
+});
+
+await step("Marc's welcome email bounces: the morning asks the Chest, and the checklist tells HR to check his work email", async () => {
+  await as(context, origin, "camille");
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const sent = [...dev.matchAll(/<li><b>([^<]*)<\/b>(?:(?!<li>)[\s\S])*?name="message" value="(msg_[a-z2-7]{26})"/gu)].find(m => m[1].includes("Welcome to Atelier Martin, Marc"));
+  expect(Boolean(sent), "Marc's letter in the outbox");
+  await page.request.post(origin + "/_dev/bounce", { form: { message: sent[2], permanent: "1", back: "/_dev" } });
+  await page.request.post(origin + "/_dev/schedule", { form: { name: "morning", back: "/_dev" } });
+  await page.goto(marcChecklist);
+  const said = await page.locator(".banner.warn").innerText();
+  expect(said === "The welcome email to marc.lefevre@example.test could not be delivered. Check their work email under Arriving, in Checklists.", "bounce shown: " + said);
+});
+
+await step("an arrival whose work address is already a member's: the form says so, Tom gets a notification, no email, HR is asked to link", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/checklists");
+  await page.getByRole("button", { name: "Expected arrival" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Thomas Walker");
+  await page.getByLabel("First day").fill("11/01/2027");
+  await page.getByLabel("First day").press("Tab");
+  await page.getByLabel("Their work email (if known)").fill("tom@example.test");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.locator(".ck-toast", { hasText: "Arrival added." }).waitFor();
+  const before = (await (await page.request.get(origin + "/_dev")).text()).match(/name="message" value="msg_/gu)?.length ?? 0;
+  await page.locator(".arrival", { hasText: "Thomas Walker" }).getByRole("link", { name: "Start the arrival checklist" }).click();
+  await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
+  await page.locator(".choice", { hasText: "Office newcomer" }).click();
+  const promised = await page.locator("[data-welcome=yes]").innerText();
+  expect(promised === "Thomas Walker is already in the Chest: they will find a short welcome in their notifications. Link their arrival to them under Arriving, in Checklists.", "promised: " + promised);
+  await page.screenshot({ path: `${tmp}/people-start-matched.png` });
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.waitForURL(/\/chest\/checklists\/\d+$/u);
+  await page.locator(".ck-toast", { hasText: "Started. Thomas Walker is already in the Chest: they find a short welcome in their notifications. Link their arrival to them under Arriving." }).waitFor();
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(/<li><b>Tom Walker<\/b> · Welcome to Atelier Martin, Tom/u.test(dev), "Tom's welcome in his bell");
+  const after = dev.match(/name="message" value="msg_/gu)?.length ?? 0;
+  expect(after === before, `no email to a member (${before} → ${after})`);
 });
 
 await step("pass 4: staff without the Chest are in the directory and the org chart, marked; a colleague's card opens nothing; HR places them from the record", async () => {
@@ -725,6 +774,26 @@ await step("pass 4: Equipment tells that everything is back: the leaving checkli
   const text = await step().innerText();
   expect(text.includes("Ticked by Equipment: everything is back"), "ticked by Equipment: " + text);
   expect((await page.locator("main").innerText()).includes("1 of 5 done"), "one step done");
+});
+
+await step("a member's welcome checklist: the form promises a welcome in her notifications; she finds it, in French; no email", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/checklists/new");
+  await page.getByRole("combobox", { name: "Who is it for?" }).fill("Léa");
+  await page.getByRole("option", { name: "Léa Dubois" }).click();
+  await page.locator(".choice", { hasText: "Office newcomer" }).click();
+  // Léa came long ago: a first day ahead (a welcome is for the days around it).
+  await page.getByLabel("First day").fill("11/01/2027");
+  await page.getByLabel("First day").press("Tab");
+  const promised = await page.locator("[data-welcome=yes]").innerText();
+  expect(promised === "Léa Dubois finds a short welcome in their Chest notifications.", "promised: " + promised);
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.waitForURL(/\/chest\/checklists\/\d+$/u);
+  await page.locator(".ck-toast", { hasText: "Started. Léa Dubois finds a short welcome in their notifications." }).waitFor();
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const item = (dev.match(/<li><b>Léa Dubois<\/b> · Welcome to Atelier Martin, Léa[\s\S]*?<\/li>/u) ?? [""])[0];
+  expect(item.includes("fr: Bienvenue chez Atelier Martin, Léa") && item.includes("/chest/todo"), "her welcome notice: " + item);
+  expect(!/<pre>[^<]*Hello Léa/u.test(dev), "no welcome email to a member");
 });
 
 await step("in French: the directory and a checklist speak French", async () => {

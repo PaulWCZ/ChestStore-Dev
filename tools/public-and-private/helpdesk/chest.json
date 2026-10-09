@@ -1,22 +1,48 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "helpdesk",
   "title": "Support",
   "description": "Answer your customers together: a contact form, one shared inbox, replies and notes.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["admin", "agent", "viewer"],
-  "role_labels": { "admin": "Administrator", "agent": "Agent", "viewer": "Viewer" },
+  "roles": [
+    "admin",
+    "agent",
+    "viewer"
+  ],
+  "role_labels": {
+    "admin": "Administrator",
+    "agent": "Agent",
+    "viewer": "Viewer"
+  },
   "public": true,
-  "csp": "tool",
-  "capabilities": ["database", "files", "members", "notifications"],
-  "receives": ["member.*"],
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "schedules": [
+    {
+      "name": "cleanup",
+      "cron": "15 3 * * *"
+    },
+    {
+      "name": "late",
+      "cron": "*/15 * * * *"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": ["/_next/static/"]
+    "static": [
+      "/assets/"
+    ]
   }
 }

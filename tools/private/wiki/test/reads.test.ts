@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { normalize } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import { fromMarkdown } from "../lib/markdown.ts";
-import * as pages from "../lib/pages.ts";
-import * as reads from "../lib/reads.ts";
-import * as spaces from "../lib/spaces.ts";
-import * as tell from "../lib/tell.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { chestEvents as POST } from "../src/calls.ts";
+import { normalize } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import { fromMarkdown } from "../src/lib/markdown.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as reads from "../src/lib/reads.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -22,7 +22,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -52,7 +52,7 @@ test("editors ask everyone who reads the space; each is told once, confirms, and
   assert.equal(told, 4);
   assert.deepEqual(chest.notifications.map(n => n.member).sort(), [ines.id, tom.id, hugo.id, lea.id].sort());
   assert.ok(chest.notifications.every(n => n.key === `read:${p.id}`));
-  assert.ok(chest.notifications.find(n => n.member === lea.id)!.title.startsWith("Camille Martin vous demande de lire"));
+  assert.ok(shownTo(chest.notifications.find(n => n.member === lea.id)!, "fr").title.startsWith("Camille Martin vous demande de lire"));
   // Hugo sees it on his home page, confirms version 1; it leaves his home page and his bell.
   assert.deepEqual((await reads.toRead(sql, asMember(hugo))).map(r => r.id), [p.id]);
   assert.deepEqual(await reads.confirm(sql, asMember(hugo), p.id), { version: 1 });

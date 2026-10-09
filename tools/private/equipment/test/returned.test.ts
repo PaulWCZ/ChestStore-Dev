@@ -4,14 +4,13 @@ import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chest as chestSettings } from "@argentic/chest-sdk/chest";
-import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
-import { POST } from "../app/chest-events/route.ts";
-import { listCategories } from "../lib/categories.ts";
-import { leavingList, lastDayOf } from "../lib/departures.ts";
-import * as items from "../lib/items.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { addDays } from "../lib/model.ts";
-import { forgetReturned, occurredAtFor, publishReturned, returnedLimits } from "../lib/returned.ts";
+import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
+import { listCategories } from "../src/lib/categories.ts";
+import { leavingList, lastDayOf } from "../src/lib/departures.ts";
+import * as items from "../src/lib/items.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { addDays } from "../src/shared/model.ts";
+import { forgetReturned, occurredAtFor, publishReturned, returnedLimits } from "../src/lib/returned.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -28,8 +27,7 @@ import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts"
 let database: TestDatabase;
 let chest: FakeChest;
 const chestWith = (emits: string[]) => fakeChest({
-  tool: "equipment", members: everyone, emits,
-  schedules: [{ name: "weekly", cron: "50 7 * * 1" }, { name: "intune", cron: "40 5 * * *" }, { name: "returns", cron: "*/15 * * * *" }],
+  tool: "equipment", members: everyone, emits, network: {},
 });
 before(async () => {
   database = await testDatabase();
@@ -49,7 +47,7 @@ beforeEach(async () => {
 
 const M = asMember(camille);
 const lastDay = () => addDays(chestSettings.today(), 14);
-const leaving = (member: string, day = lastDay()) => chest.deliver({ type: "people.leaving", source: "people", data: { member, lastDay: day } }, POST);
+const leaving = (member: string, day = lastDay()) => chest.deliver({ type: "people.leaving", source: "people", data: { member, lastDay: day } }, onEvent);
 const fromNow = () => chest.published.length;
 const since = (start: number) => chest.published.slice(start).map(e => ({ type: e.type, data: e.data }));
 const keyOf = (member: string) => new RegExp(`^equipment:${member}:returned:\\d{13}$`, "u");
@@ -67,10 +65,11 @@ async function equip(member: string) {
   return { laptop, badge, figma };
 }
 
-test("the manifest's proposals declare the event People reads, and a schedule to try again", () => {
+test("the manifest's proposals declare the event People reads, and chest.json a schedule to try again", () => {
   const proposals = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.proposals.json"), "utf8"));
+  const manifest = JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8"));
   assert.deepEqual(proposals.emits, ["equipment.returned"]);
-  assert.ok(proposals.schedules.some((s: { name: string; cron: string }) => s.name === "returns" && s.cron === "*/15 * * * *"));
+  assert.ok(manifest.schedules.some((s: { name: string; cron: string }) => s.name === "returns" && s.cron === "*/15 * * * *"));
   assert.ok(proposals.receives.includes("people.leaving"));
 });
 
@@ -134,7 +133,7 @@ test("after they left the Chest, their laptop coming back is still told; the man
   chest.members.splice(chest.members.findIndex(m => m.id === lea.id), 1);
   chest.former.push({ id: lea.id, name: "Léa Dubois" });
   try {
-    assert.equal(await chest.emit({ type: "member.removed", data: { id: lea.id } }, POST), 204);
+    assert.equal(await chest.emit({ type: "member.removed", data: { id: lea.id } }, onEvent), 204);
     assert.deepEqual((await leavingList(sql, M)).filter(l => l.memberId === lea.id), []);
     assert.equal(await lastDayOf(sql, M, lea.id), null);
     const start = fromNow();
@@ -157,7 +156,7 @@ test("never told: someone not leaving, a departure taken back in People, someone
   // Leaving, then taken back in People.
   await equip(hugo.id);
   await leaving(hugo.id);
-  assert.equal(await chest.deliver({ type: "people.leaving_cancelled", source: "people", data: { member: hugo.id } }, POST), 204);
+  assert.equal(await chest.deliver({ type: "people.leaving_cancelled", source: "people", data: { member: hugo.id } }, onEvent), 204);
   await items.takeEverythingBack(sql, M, hugo.id);
   // Leaving, holding nothing: nothing came back.
   await leaving(sofia.id);
@@ -194,11 +193,11 @@ test("a Chest that cannot take it yet: it waits, the schedule tells it later; fo
     chest = await chestWith(["equipment.returned"]);
   }
   const start = fromNow();
-  assert.equal(await chest.run("returns", JOB), 204);
+  assert.equal(await chest.run("returns", onSchedule), 204);
   assert.deepEqual(since(start), [{ type: "equipment.returned", data: { member: hugo.id } }]);
   assert.equal(await pending(), 0);
   // Two runs at once, or a run delivered twice: nothing told twice.
-  assert.equal(await chest.run("returns", JOB), 204);
+  assert.equal(await chest.run("returns", onSchedule), 204);
   assert.equal(chest.published.length, start + 1);
   // Forgetting.
   await sql`insert into returned_events (member_id, at) values (${ines.id}, now() - make_interval(days => ${returnedLimits.keepDays + 1}))`;
@@ -229,7 +228,7 @@ test("a late event carries when the last thing came back; one older than a day g
   const backAt = new Date(Date.now() - 40 * 60_000);
   await sql`update returned_events set at = ${backAt} where member_id = ${hugo.id} and published_at is null`;
   await sql`update returned_events set at = ${new Date(Date.now() - 25 * 3_600_000)} where member_id = ${lea.id} and published_at is null`;
-  assert.equal(await chest.run("returns", JOB), 204);
+  assert.equal(await chest.run("returns", onSchedule), 204);
   const late = chest.published.find(e => e.data["member"] === hugo.id)!;
   assert.equal(late.occurredAt, backAt.toISOString(), "the real time of the change");
   assert.match(late.key!, new RegExp(`:${backAt.getTime()}$`, "u"));

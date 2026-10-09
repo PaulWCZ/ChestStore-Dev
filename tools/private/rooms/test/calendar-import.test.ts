@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { importRoomCalendar, undoCalendarImport } from "../lib/calendar-import.ts";
-import { readEvents } from "../lib/ical.ts";
-import { addDays, weekday } from "../lib/model.ts";
-import * as rooms from "../lib/room-bookings.ts";
+import { importRoomCalendar, undoCalendarImport } from "../src/lib/calendar-import.ts";
+import { readEvents } from "../src/lib/ical.ts";
+import { addDays, weekday } from "../src/shared/model.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, sofia } from "./support/members.ts";
@@ -162,7 +162,7 @@ test("only admins import; a file that is not a calendar, or an unknown room, is 
 
 // Outlook in an Exchange company: the organiser as "Last, First", guests
 // by address only, a department in brackets; addresses matched when the
-// Chest gives them (members.email).
+// Chest matches them (members.matchEmails).
 test("Outlook's \"Martin, Camille\" and addresses find the people; the preview counts the bookings left in the admin's name and names the guests not found", async () => {
   const { sql } = database;
   const o = await office(sql, "Lille");
@@ -185,7 +185,7 @@ test("Outlook's \"Martin, Camille\" and addresses find the people; the preview c
     "END:VCALENDAR",
   ].join("\r\n");
 
-  // With names only (no members.email): "Martin, Camille" and "Rossi,
+  // With names only (no address matched): "Martin, Camille" and "Rossi,
   // Sofia (Finance)" are found by name; an address alone is not.
   const byName = await importRoomCalendar(sql, admin, { roomId: o.atlas, text, commit: false }, people.map(p => ({ ...p, ...splitName(p.name) })), zone);
   const budget = byName.items.find(i => i.title === "Budget 2027")!;
@@ -225,5 +225,5 @@ test("the Outlook fixture: “Martin, Camille” organises the weekly board, the
   assert.equal(board.weekly, true);
   assert.equal(supplier.organiser, null);
   assert.equal(preview.yours, supplier.count);
-  assert.deepEqual(preview.unknownGuests, ["hugo@example.test"], "an address alone, without members.email");
+  assert.deepEqual(preview.unknownGuests, ["hugo@example.test"], "an address alone, matched by nobody");
 });

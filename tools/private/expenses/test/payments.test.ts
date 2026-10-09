@@ -4,24 +4,41 @@ import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
-import { fakeChest, withMember, type FakeChest } from "@argentic/chest-sdk/testing";
-import { GET as fileRoute } from "../app/chest/pay/files/[id]/route.ts";
-import { AppError, type ErrorCode } from "../lib/app-error.ts";
-import * as bank from "../lib/bank.ts";
-import * as expenses from "../lib/expenses.ts";
-import { checkBic, checkIban, groupIban, mod97 } from "../lib/iban.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { erase } from "../lib/lifecycle.ts";
-import { today } from "../lib/today.ts";
-import * as payments from "../lib/payments.ts";
-import { leftNote, people } from "../lib/people.ts";
-import { seal, sealing, unseal } from "../lib/seal.ts";
-import { pain001, sepaAmount, sepaText } from "../lib/sepa.ts";
-import * as settings from "../lib/settings.ts";
-import * as tell from "../lib/tell.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { AppError, type ErrorCode } from "../src/shared/app-error.ts";
+import * as bank from "../src/lib/bank.ts";
+import * as expenses from "../src/lib/expenses.ts";
+import { checkBic, checkIban, groupIban, mod97 } from "../src/shared/iban.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { erase } from "../src/lib/lifecycle.ts";
+import { today } from "../src/lib/today.ts";
+import * as payments from "../src/lib/payments.ts";
+import { leftNote, people } from "../src/lib/people.ts";
+import { seal, sealing, unseal } from "../src/lib/seal.ts";
+import { pain001, sepaAmount, sepaText } from "../src/lib/sepa.ts";
+import * as settings from "../src/lib/settings.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, tom } from "./support/members.ts";
+import { get as fetchAs } from "./support/server.ts";
+
+// Every transfer file is checked against the ISO 20022 schema
+// (test/fixtures/pain.001.001.03.xsd, THIRD_PARTY.md) with xmllint, which
+// this check needs: without it the check says so and is skipped (CI images
+// have it: libxml2-utils). SEPA_XSD names another copy of the schema.
+const xsdPath = process.env["SEPA_XSD"] ?? join(import.meta.dirname, "fixtures", "pain.001.001.03.xsd");
+const hasXmllint = (() => { try { execFileSync("xmllint", ["--version"], { stdio: "pipe" }); return true; } catch { return false; } })();
+function validates(xml: string): void {
+  assert.ok(existsSync(xsdPath), "the pain.001.001.03 schema");
+  if (!hasXmllint) {
+    console.warn("xmllint is missing: the transfer file is not checked against the ISO 20022 schema");
+    return;
+  }
+  const file = join(mkdtempSync(join(tmpdir(), "sepa-")), "file.xml");
+  writeFileSync(file, xml);
+  execFileSync("xmllint", ["--noout", "--schema", xsdPath, file], { stdio: "pipe" });
+}
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -29,7 +46,7 @@ const cat: Record<string, string> = {};
 const yes = async () => true;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: {}, chest: { publicUrl: null } });
   for (const r of await database.sql<{ id: string; key: string }[]>`select id, key from categories`) cat[r.key] = String(r.id);
 });
 after(async () => {
@@ -128,7 +145,7 @@ test("bank details: one's own, and every one's for the accountants; never an app
   // The accountant enters Léa's (from payroll): Léa hears of it.
   await bank.setBankDetails(sql, asMember(camille), lea.id, { iban: leaIban, holder: "Léa et Marc Dubois" });
   await tell.bankChanged(asMember(camille), lea.id, "3000");
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title.replace(/\s/gu, " ")]), [[lea.id, "Camille Martin a modifié vos coordonnées bancaires (compte finissant par 3000)"]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title.replace(/\s/gu, " ")]), [[lea.id, "Camille Martin a modifié vos coordonnées bancaires (compte finissant par 3000)"]]);
   // A person changing their own: the accountants hear of it.
   chest.notifications.length = 0;
   await tell.bankChanged(asMember(hugo), hugo.id, "0189");
@@ -206,14 +223,7 @@ test("the transfer file: one transfer per person with bank details, everything p
   // Downloaded again: the very same file.
   assert.equal((await payments.runFile(sql, asMember(camille), made.run.id)).xml, xml);
   await assert.rejects(payments.runFile(sql, asMember(ines), made.run.id), refuses("forbidden"));
-  // Checked against the ISO 20022 schema when it is at hand (not shipped:
-  // SEPA_XSD=<path to pain.001.001.03.xsd>, and xmllint).
-  const xsd = process.env["SEPA_XSD"];
-  if (xsd && existsSync(xsd)) {
-    const file = join(mkdtempSync(join(tmpdir(), "sepa-")), "file.xml");
-    writeFileSync(file, xml);
-    execFileSync("xmllint", ["--noout", "--schema", xsd, file], { stdio: "pipe" });
-  }
+  validates(xml);
   // A line of a batch is not undone alone: the batch is cancelled.
   await assert.rejects(expenses.unmarkPaid(sql, asMember(camille), [h1]), refuses("invalid"));
   const back = await payments.cancelRun(sql, asMember(camille), made.run.id);
@@ -237,7 +247,7 @@ test("the file's route: accountants only, the XML as a download", async () => {
   await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban });
   await approved(hugo, "10");
   const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
-  const get = (who: typeof camille | null) => fileRoute(who ? withMember(new Request("http://tool.test/chest/pay/files/" + made.run.id), who) : new Request("http://tool.test/x"), { params: Promise.resolve({ id: made.run.id }) });
+  const get = (who: typeof camille | null) => fetchAs(who, "/chest/pay/files/" + made.run.id);
   const ok = await get(camille);
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("Content-Type"), "application/xml; charset=utf-8");
@@ -279,16 +289,16 @@ test("someone who left is never in a transfer file: paid on their final pay slip
     await approved(lea, "8");
     const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
     assert.deepEqual(made.skipped, [{ member: paul.id, reason: "left", leftAt: "2026-09-30T16:00:00.000Z" }]);
-    // The pages say since when (studio.15, FormerMember.leftAt), in each
+    // The pages say since when (members.leftAt, a studio proposal), in each
     // reader's language; the year only when it is not this one.
-    const who = await people([paul.id]);
+    const who = await people([paul.id], { leftAt: true });
     const en = catalogue("en"), fr = catalogue("fr");
-    assert.equal(leftNote(who.get(paul.id), "en", en.pay, new Date("2026-10-02T09:00:00Z")), "Left the company on 30 September: pay on their final pay slip, then “Mark paid” (not in the transfer file)");
-    assert.match(leftNote(who.get(paul.id), "fr", fr.approve, new Date("2026-10-02T09:00:00Z"))!, /^A quitté l’entreprise le 30 septembre\s:/u);
-    assert.match(leftNote(who.get(paul.id), "en", en.approve, new Date("2027-01-05T09:00:00Z"))!, /^Left the company on 30 September 2026:/u);
+    assert.equal(leftNote(who.get(paul.id), "en", en.pay, "Europe/Paris", new Date("2026-10-02T09:00:00Z")), "Left the company on 30 September: pay on their final pay slip, then “Mark paid” (not in the transfer file)");
+    assert.match(leftNote(who.get(paul.id), "fr", fr.approve, "Europe/Paris", new Date("2026-10-02T09:00:00Z"))!, /^A quitté l’entreprise le 30 septembre\s:/u);
+    assert.match(leftNote(who.get(paul.id), "en", en.approve, "Europe/Paris", new Date("2027-01-05T09:00:00Z"))!, /^Left the company on 30 September 2026:/u);
     // A Chest that does not say when: the sentence without the day.
-    assert.equal(leftNote({ ...who.get(paul.id)!, leftAt: null }, "en", en.pay), en.pay.left);
-    assert.equal(leftNote((await people([lea.id])).get(lea.id), "en", en.pay), null);
+    assert.equal(leftNote({ ...who.get(paul.id)!, leftAt: null }, "en", en.pay, "Europe/Paris"), en.pay.left);
+    assert.equal(leftNote((await people([lea.id])).get(lea.id), "en", en.pay, "Europe/Paris"), null);
     // Paid by hand ("Mark paid") once his final pay slip did it.
     await expenses.markPaid(sql, asMember(camille), [p], today());
   } finally {
@@ -385,15 +395,47 @@ test("an account outside the EEA (UK, Switzerland): the holder's address is aske
   assert.match(xml, /<Cdtr><Nm>Tom Walker<\/Nm><PstlAdr><TwnNm>Bath<\/TwnNm><Ctry>GB<\/Ctry><\/PstlAdr><\/Cdtr>/u);
   assert.match(xml, /<Cdtr><Nm>Hugo Bernard<\/Nm><\/Cdtr>/u); // inside the EEA: none
   assert.ok([t, h].every(id => xml.includes(`E${id}`)) && !xml.includes(`E${l}<`));
-  // Checked against the ISO 20022 schema when it is at hand (SEPA_XSD).
-  const xsd = process.env["SEPA_XSD"];
-  if (xsd && existsSync(xsd)) {
-    const file = join(mkdtempSync(join(tmpdir(), "sepa-")), "file.xml");
-    writeFileSync(file, xml);
-    execFileSync("xmllint", ["--noout", "--schema", xsd, file], { stdio: "pipe" });
-  }
+  validates(xml);
   // An erased person's address leaves the batch with their account.
   await erase(sql, tom.id);
   const [run] = await sql`select file::text as file from payment_runs where id = ${made.run.id}`;
   assert.equal(String(run!["file"]).includes("Bath"), false);
+});
+
+test("the schema check refuses a file that is not pain.001.001.03", { skip: !hasXmllint && "no xmllint" }, () => {
+  assert.throws(() => validates('<?xml version="1.0" encoding="UTF-8"?><Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"><CstmrCdtTrfInitn/></Document>'));
+});
+
+test("a file whose day has come is cancelled only when the bank did not pay it; one just made, by its Undo", async () => {
+  const { sql } = database;
+  await company();
+  await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban });
+  await approved(hugo, "10");
+  const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  await sql`update payment_runs set created_at = now() - interval '1 hour' where id = ${made.run.id}`;
+  await assert.rejects(payments.cancelRun(sql, asMember(camille), made.run.id), refuses("file_due"));
+  assert.deepEqual(await payments.cancelRun(sql, asMember(camille), made.run.id, { notPaid: true }), [hugo.id]);
+  // Made a minute ago (the toast's Undo): cancelled at once.
+  const again = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  assert.deepEqual(await payments.cancelRun(sql, asMember(camille), again.run.id), [hugo.id]);
+});
+
+test("bank details an accountant entered wait for their owner's word before a transfer file pays into them", async () => {
+  const { sql } = database;
+  await company();
+  await bank.setBankDetails(sql, asMember(camille), hugo.id, { iban: hugoIban });
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, true);
+  await approved(hugo, "10");
+  await assert.rejects(payments.createRun(sql, asMember(camille), { executionDate: today() }), refuses("bank_unconfirmed"));
+  await bank.confirmBankDetails(sql, asMember(hugo));
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, false);
+  const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  assert.equal(made.run.count, 1);
+  // Changed again by the accountant: held again; changed by Hugo himself: not.
+  await bank.setBankDetails(sql, asMember(camille), hugo.id, { iban: "" , holder: "H. Bernard" });
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, true);
+  await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban });
+  assert.equal((await bank.bankDetails(sql, asMember(hugo), hugo.id))?.held, false);
+  // Nothing to confirm: refused; the company's account is the accountants' own.
+  await assert.rejects(bank.confirmBankDetails(sql, asMember(hugo)), refuses("not_found"));
 });

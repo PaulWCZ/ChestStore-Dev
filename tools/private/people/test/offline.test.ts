@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import { ofRecord } from "../lib/journal.ts";
-import { eraseRecords } from "../lib/records.ts";
-import { createRecord, linkRecord, updateRecord } from "../lib/records.ts";
-import { offlineStaff, placement, setPlacement } from "../lib/offline.ts";
-import { profiles } from "../lib/profiles.ts";
-import { addDays } from "../lib/model.ts";
-import { orgChart } from "../lib/tree.ts";
-import { today } from "../lib/zone.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { ofRecord } from "../src/lib/journal.ts";
+import { eraseRecords } from "../src/lib/records.ts";
+import { createRecord, linkRecord, updateRecord } from "../src/lib/records.ts";
+import { offlineStaff, placement, setPlacement } from "../src/lib/offline.ts";
+import { profiles } from "../src/lib/profiles.ts";
+import { addDays } from "../src/shared/model.ts";
+import { orgChart } from "../src/shared/tree.ts";
+import { today } from "../src/lib/zone.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, paul, tom } from "./support/members.ts";
@@ -24,7 +24,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ tool: "people", members: everyone });
+  chest = await fakeChest({ network: {}, tool: "people", members: everyone });
 });
 after(async () => {
   await chest.close();

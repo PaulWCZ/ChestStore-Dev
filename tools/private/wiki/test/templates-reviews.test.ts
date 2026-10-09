@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as jobs } from "../app/chest-jobs/[name]/route.ts";
-import { POST as events } from "../app/chest-events/route.ts";
-import { normalize, plainText } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { fromMarkdown } from "../lib/markdown.ts";
-import * as pages from "../lib/pages.ts";
-import * as reviews from "../lib/reviews.ts";
-import { search } from "../lib/search.ts";
-import * as spaces from "../lib/spaces.ts";
-import * as templates from "../lib/templates.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { chestSchedules as jobs } from "../src/calls.ts";
+import { chestEvents as events } from "../src/calls.ts";
+import { normalize, plainText } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { fromMarkdown } from "../src/lib/markdown.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as reviews from "../src/lib/reviews.ts";
+import { search } from "../src/lib/search.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import * as templates from "../src/lib/templates.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, nora, tom } from "./support/members.ts";
@@ -24,7 +24,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "reviews", cron: "40 7 * * 1-5" }] });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -149,8 +149,8 @@ test("when due, the owner is told once by the morning run; 'Still correct' settl
   assert.deepEqual((await reviews.myReviews(sql, asMember(ines))).map(r => r.id), [p.id]);
   assert.deepEqual(await reviews.myReviews(sql, asMember(tom)), []);
   assert.equal(await chest.run("reviews", jobs), 204);
-  assert.deepEqual(chest.notifications.map(n => ({ member: n.member, title: n.title, key: n.key, path: n.path })), [
-    { member: ines.id, title: "À relire : « Fire drill »", key: `review:${p.id}`, path: `/chest/pages/${p.id}` },
+  assert.deepEqual(chest.notifications.map(n => ({ member: n.member, title: shownTo(n, "fr").title, key: n.key, path: n.path })), [
+    { member: ines.id, title: "À relire\u202f: «\u202fFire drill\u202f»", key: `review:${p.id}`, path: `/chest/pages/${p.id}` },
   ]);
   // Told once: the next mornings add nothing.
   chest.notifications.splice(0);

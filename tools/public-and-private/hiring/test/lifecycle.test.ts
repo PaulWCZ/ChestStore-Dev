@@ -1,22 +1,25 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as events } from "../app/chest-events/route.ts";
-import { POST as jobsRoute } from "../app/chest-jobs/[name]/route.ts";
-import * as candidates from "../lib/candidates.ts";
-import * as interviews from "../lib/interviews.ts";
-import * as jobs from "../lib/jobs.ts";
-import * as messages from "../lib/messages.ts";
+import * as candidates from "../src/lib/candidates.ts";
+import * as interviews from "../src/lib/interviews.ts";
+import * as jobs from "../src/lib/jobs.ts";
+import * as messages from "../src/lib/messages.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
+import { built } from "./support/app.ts";
+
+// What the Chest posts, through the built server's routes.
+const events = (request: Request) => built().then(app => app.fetch(request));
+const jobsRoute = (request: Request) => built().then(app => app.fetch(request));
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "cleanup", cron: "25 3 * * *" }] });
+  chest = await fakeChest({ members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -81,7 +84,7 @@ test("the nightly cleanup deletes candidates past the retention, with their CVs"
   chest.files.set(object, { data: new TextEncoder().encode("%PDF-"), type: "application/pdf", updated: new Date().toISOString() });
   const c = (await candidates.apply(sql, application(job.slug, { cv: { object, fileName: "cv.pdf", type: "application/pdf", size: 5 } }))).candidate;
   await sql`update candidates set last_activity_at = now() - interval '3 years' where id = ${c.id}`;
-  assert.equal(await chest.run("cleanup", jobsRoute as never), 204);
+  assert.equal(await chest.run("cleanup", jobsRoute), 204);
   await assert.rejects(candidates.candidate(sql, asMember(camille), c.id), { code: "not_found" });
   assert.equal(chest.files.has(object), false);
 });

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { erase, leave } from "../lib/lifecycle.ts";
-import { myCsv } from "../lib/mine.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { addDays, today } from "../lib/model.ts";
-import { purge } from "../lib/settings.ts";
-import * as tell from "../lib/tell.ts";
-import * as visits from "../lib/visits.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { erase, leave } from "../src/lib/lifecycle.ts";
+import { myCsv } from "../src/lib/mine.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { addDays, today } from "../src/shared/model.ts";
+import { purge, setRules } from "../src/lib/settings.ts";
+import * as tell from "../src/lib/tell.ts";
+import * as visits from "../src/lib/visits.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -46,7 +46,7 @@ test("a member announces their own visitor; only they and the reception see it; 
   chest.notifications.length = 0;
   await tell.visitAnnounced(asMember(tom), forInes);
   await tell.visitAnnounced(asMember(hugo), mine);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title]), [[ines.id, "Tom Walker a annoncé votre visiteur Marie Leroy"]], "announcing one's own visitor is silent");
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title]), [[ines.id, "Tom Walker a annoncé votre visiteur Marie Leroy"]], "announcing one's own visitor is silent");
 });
 
 test("refusals: no role, a member announcing for someone else, a past day, too far, an odd time, no name, an unknown office or host", async () => {
@@ -80,8 +80,8 @@ test("the reception marks an arrival on the day, the host hears it once; Undo; a
   await tell.visitorHere(asMember(tom), first.visit, "Paris");
   assert.equal(chest.notifications.length, 1);
   assert.equal(chest.notifications[0]!.member, lea.id);
-  assert.equal(chest.notifications[0]!.title, "Anna Weber (Weber GmbH) est là pour vous");
-  assert.equal(chest.notifications[0]!.body, "Paris · rendez-vous de 23:45");
+  assert.equal(shownTo(chest.notifications[0]!, "fr").title, "Anna Weber (Weber GmbH) est là pour vous");
+  assert.equal(shownTo(chest.notifications[0]!, "fr").body, "Paris · rendez-vous de 23:45");
   assert.equal((await visits.unarrive(sql, asMember(tom), v.id)).arrivedAt, null);
   // The host marks it themselves: nobody else to tell.
   const own = await visits.arrive(sql, asMember(lea), v.id, zone);
@@ -107,9 +107,25 @@ test("a host who leaves: their coming visitors are cancelled; erased: no trace o
   await erase(sql, ines.id, zone);
   const [left] = await sql<{ n: number }[]>`select count(*)::int as n from visits where host = ${ines.id} or created_by = ${ines.id} or arrived_by = ${ines.id}`;
   assert.equal(left!.n, 0);
-  // A visit long past goes when the week is read (purge).
+  // A visit long past goes at the quarter's purge.
   await sql`insert into visits (office_id, day, at_minute, name, host, created_by) values (${o.office}, ${addDays(now(), -400)}, 600, 'Old', ${hugo.id}, ${hugo.id})`;
   await purge(sql, zone);
   const [old] = await sql<{ n: number }[]>`select count(*)::int as n from visits where name = 'Old'`;
   assert.equal(old!.n, 0);
+});
+
+test("visitors are kept a shorter time than bookings: 30 days after their visit, or what an admin sets (1 to 90)", async () => {
+  const { sql } = database;
+  const count = async (name: string) => (await sql<{ n: number }[]>`select count(*)::int as n from visits where name = ${name}`)[0]!.n;
+  for (const [name, ago] of [["Forty", -40], ["Ten", -10]] as const) {
+    await sql`insert into visits (office_id, day, at_minute, name, host, created_by) values (${o.office}, ${addDays(now(), ago)}, 600, ${name}, ${hugo.id}, ${hugo.id})`;
+  }
+  await purge(sql, zone);
+  assert.equal(await count("Forty"), 0, "past 30 days: gone");
+  assert.equal(await count("Ten"), 1);
+  await setRules(sql, asMember(camille), { visitorDays: 5 });
+  await purge(sql, zone);
+  assert.equal(await count("Ten"), 0);
+  await assert.rejects(setRules(sql, asMember(camille), { visitorDays: 365 }), { code: "invalid" });
+  await setRules(sql, asMember(camille), { visitorDays: 30 });
 });

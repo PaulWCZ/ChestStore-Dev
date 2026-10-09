@@ -1,0 +1,67 @@
+[
+ {
+  "path": "/chest",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/1",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/1?card=1",
+  "member": "hugo",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/1?card=17",
+  "member": "ines",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/1?view=list",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/1?view=calendar",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/1/settings",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards",
+  "member": "camille",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/boards/2",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/import",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/1?view=timeline",
+  "member": "camille",
+  "language": "en"
+ },
+ {
+  "path": "/chest/boards/2?view=timeline",
+  "member": "lea",
+  "language": "fr"
+ },
+ {
+  "path": "/chest/boards/1?card=3",
+  "member": "hugo",
+  "language": "en"
+ }
+]

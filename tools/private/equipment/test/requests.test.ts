@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { AppError } from "../lib/app-error.ts";
-import { categoryCounts, listCategories } from "../lib/categories.ts";
-import * as items from "../lib/items.ts";
-import { approve, ask, cancel, fulfil, myRequests, refuse, waitingRequests } from "../lib/requests.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
+import { AppError } from "@argentic/chest-app";
+import { categoryCounts, listCategories } from "../src/lib/categories.ts";
+import * as items from "../src/lib/items.ts";
+import { approve, ask, cancel, fulfil, myRequests, refuse, waitingRequests } from "../src/lib/requests.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
@@ -15,7 +15,7 @@ let chest: FakeChest;
 let cats: Awaited<ReturnType<typeof listCategories>>;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
   cats = await listCategories(database.sql, asMember(camille));
 });
 after(async () => {
@@ -37,7 +37,7 @@ test("a member asks; the managers hear it and see it; their tile counts it", asy
   assert.equal(r.status, "open");
   const bell = chest.notifications.filter(n => n.key === `request:${r.id}`);
   assert.deepEqual(bell.map(n => n.member).sort(), [camille.id, sofia.id].sort());
-  assert.equal(bell.find(n => n.member === camille.id)?.title, "Hugo demande du matériel");
+  assert.equal(shownTo(bell.find(n => n.member === camille.id)!, "fr").title, "Hugo demande du matériel");
   assert.equal(chest.badges.get(sofia.id), 1);
   await refused(waitingRequests(sql, H), "forbidden");
   assert.deepEqual((await waitingRequests(sql, M)).map(x => x.id), [r.id]);
@@ -77,7 +77,7 @@ test("refused with a reason; cancelled by the one who asked; at most 10 waiting 
   const refusedOne = await refuse(sql, M, a.id, "Les écrans de 27 pouces suffisent");
   assert.equal(refusedOne.status, "refused");
   assert.equal(refusedOne.answer, "Les écrans de 27 pouces suffisent");
-  assert.equal(chest.notifications.find(n => n.key === `request:${a.id}:answer`)?.title, "Camille a refusé votre demande : Un écran 32 pouces");
+  assert.equal(shownTo(chest.notifications.find(n => n.key === `request:${a.id}:answer`)!, "fr").title, "Camille a refusé votre demande\u202f: Un écran 32 pouces");
   const b = await ask(sql, I, { body: "Un casque" });
   await refused(cancel(sql, H, b.id), "not_found");
   assert.equal((await cancel(sql, I, b.id)).status, "cancelled");
@@ -106,7 +106,7 @@ test("someone who leaves: what they asked for is cancelled, the managers' bell i
   assert.equal(waiting.length, 10);
   chest.members.splice(chest.members.findIndex(m => m.id === lea.id), 1);
   chest.former.push({ id: lea.id, name: "Léa Dubois" });
-  assert.equal(await chest.emit({ type: "member.removed", id: "evt_" + "r".repeat(26), data: { id: lea.id } }, POST), 204);
+  assert.equal(await chest.emit({ type: "member.removed", id: "evt_" + "r".repeat(26), data: { id: lea.id } }, onEvent), 204);
   assert.equal((await waitingRequests(sql, M)).filter(r => r.member === lea.id).length, 0);
   for (const r of waiting) assert.equal(chest.notifications.some(n => n.key === `request:${r.id}`), false);
 });

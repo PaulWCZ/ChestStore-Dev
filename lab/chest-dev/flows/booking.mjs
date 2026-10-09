@@ -1,9 +1,27 @@
 // Booking, as visitors and hosts use it, in a real browser:
 //   node lab/chest-dev/flows/booking.mjs [port]   (harness with --reset)
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { as, done, expect, open, step } from "./lib.mjs";
 
+// The Calendly export of the tests, its days moved so that its first is
+// tomorrow (a fixed date passes; an import skips the past).
+function calendlyFromTomorrow() {
+  const text = readFileSync(new URL("../../../tools/public-and-private/booking/test/fixtures/calendly-scheduled-events.csv", import.meta.url), "utf8");
+  const days = [...text.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/gu)].map(m => m[1]).sort();
+  const tomorrow = new Date();
+  tomorrow.setUTCHours(0, 0, 0, 0);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const shift = Math.round((tomorrow.getTime() - Date.parse(days[0] + "T00:00:00Z")) / 86_400_000);
+  const moved = text.replace(/\b(\d{4}-\d{2}-\d{2})\b/gu, day => new Date(Date.parse(day + "T00:00:00Z") + shift * 86_400_000).toISOString().slice(0, 10));
+  const dir = mkdtempSync(join(tmpdir(), "booking-flow-"));
+  writeFileSync(join(dir, "calendly-scheduled-events.csv"), moved);
+  return { file: join(dir, "calendly-scheduled-events.csv"), remove: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
 const port = Number(process.argv[2] ?? 5100);
-const { browser, context, page, origin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "ines", { allow404: /\/(nobody-here|chest\/bookings\/9999)$/u });
 let guestPage = "";
 // The team's pages speak each member's language (Inès and Camille: French
 // in the cast): these steps read them in English.
@@ -21,10 +39,10 @@ await step("a visitor finds Inès on the company's page and opens a kind of meet
   await page.goto(origin + "/");
   expect((await page.locator("h1").innerText()).includes("Atelier Martin"), "company");
   await page.locator(".host-card", { hasText: "Inès Moreau" }).click();
-  await page.waitForURL(origin + "/ines-moreau");
+  await page.waitForURL(publicOrigin + "/ines-moreau");
   expect((await page.locator(".offers").innerText()).includes("Project call"), "types listed");
   await page.locator(".offer", { hasText: "Project call" }).click();
-  await page.waitForURL(origin + "/ines-moreau/project-call");
+  await page.waitForURL(publicOrigin + "/ines-moreau/project-call");
 });
 
 await step("they pick a day and a time, fill three fields and the host's questions, and are booked (with an email)", async () => {
@@ -38,6 +56,14 @@ await step("they pick a day and a time, fill three fields and the host's questio
   await page.getByLabel("Anything to prepare? (optional)").fill("A kitchen island in oak.");
   // Sent at once, as a browser that fills the fields itself would: not
   // refused (the server waits the seconds left).
+  // An address the browser lets through but mail would not take (two
+  // dots in a row): the server's field.email refuses it in plain words,
+  // the rest of the form kept.
+  await page.getByLabel("Your email address").fill("lucie..garnier@example.com");
+  await page.getByRole("button", { name: "Confirm the booking" }).click();
+  await page.getByText("Check the email address.").first().waitFor();
+  expect((await page.getByLabel("Your name").inputValue()) === "Lucie Garnier", "the form kept");
+  await page.getByLabel("Your email address").fill("lucie@example.com");
   await page.getByRole("button", { name: "Confirm the booking" }).click();
   await page.waitForURL(/\/b\/[A-Za-z0-9_-]{32}\?new=1/u);
   guestPage = page.url().split("?")[0];
@@ -47,6 +73,8 @@ await step("they pick a day and a time, fill three fields and the host's questio
   expect(text.includes(time), "the time chosen");
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Booked: Project call with Inès Moreau"), "confirmation email in the outbox");
+  expect(dev.includes("lucie@example.com") && dev.includes("replies to <code>contact@atelier-martin.test</code>"), "to the guest, replies to the company's address");
+  expect(!dev.includes("New booking: Project call"), "no email copy to the host: the bell tells her");
   expect(dev.includes("What is it for?: A shop or an office"), "the answers in the email and the bell");
   // A video room of its own, and the booking in Inès's Chest calendar.
   expect(/https:\/\/meet\.jit\.si\/atelier-martin-[a-z0-9x]{12}/u.test(text), "a room of its own");
@@ -381,9 +409,15 @@ await step("a host imports the meetings booked in Calendly", async () => {
   await as(context, origin, "camille");
   await english();
   await page.goto(origin + "/chest/settings");
-  await page.getByLabel("The exported file (.csv)").setInputFiles(new URL("../../../tools/public-and-private/booking/test/fixtures/calendly-scheduled-events.csv", import.meta.url).pathname);
-  await page.getByRole("button", { name: "Import" }).click();
-  await page.waitForSelector(".ck-toast");
+  // The browser reads the file when the form sends it: kept until then.
+  const calendly = calendlyFromTomorrow();
+  try {
+    await page.getByLabel("The exported file (.csv)").setInputFiles(calendly.file);
+    await page.getByRole("button", { name: "Import" }).click();
+    await page.waitForSelector(".ck-toast");
+  } finally {
+    calendly.remove();
+  }
   expect(/bookings? imported/u.test(await page.locator(".ck-toast").innerText()), "imported: " + await page.locator(".ck-toast").innerText());
   await page.goto(origin + "/chest");
   expect((await page.locator(".agenda").innerText()).includes("Marie Leroy"), "on the agenda");
@@ -642,7 +676,7 @@ await step("four wrong calendar addresses, four plain answers; webcal:// is take
 });
 
 await step("a French visitor in Montréal reads French cities, « Toronto, Montréal » chosen, and « à l’arrivée d’Inès »", async () => {
-  const montreal = await browser.newContext({ locale: "fr-CA", timezoneId: "America/Toronto", viewport: { width: 390, height: 844 } });
+  const montreal = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-CA", timezoneId: "America/Toronto", viewport: { width: 390, height: 844 } });
   const visitor = await montreal.newPage();
   visitor.on("pageerror", e => problems.push("page: " + e.message));
   await visitor.goto(origin + "/lang/fr?back=/ines-moreau/project-call");
@@ -707,7 +741,7 @@ await step("on a phone Inès's agenda shows her meetings; « Afficher les créne
   expect(!(await page.locator(".free-toggle").isVisible()) && await page.locator(".meeting.free").first().isVisible(), "a computer shows them all");
 });
 
-await step("email is promised only because this Chest sends it (SDK studio.16, mail.available): the public form, New booking and Settings say so, and no page says it cannot", async () => {
+await step("email is promised only because this Chest sends it (mail.available): the public form, New booking and Settings say so, and no page says it cannot", async () => {
   await context.clearCookies();
   await page.goto(origin + "/ines-moreau/project-call");
   await page.waitForSelector(".calendar button.open");
@@ -723,12 +757,15 @@ await step("email is promised only because this Chest sends it (SDK studio.16, m
   await page.goto(origin + "/chest/settings");
   const text = await page.locator("main").innerText();
   expect(!/cannot send email|not connected email|paused email|all of today/u.test(text), "Settings warns of nothing: " + text.slice(0, 200));
+  expect(text.includes("when they reply, it goes to contact@atelier-martin.test"), "Settings says where guests' replies go");
+  expect(!/Email me/u.test(text), "no email-me setting: the member chooses in the Chest");
 });
 
 await step("the company's page speaks the visitor's language, else the Chest's (English here)", async () => {
   const lang = async (headers) => {
-    // A visitor without the harness's cookies.
-    const html = await (await fetch(origin + "/", { headers })).text();
+    // A visitor without the harness's cookies, on the public host (a
+    // redirect from the team host to another origin drops the cookie).
+    const html = await (await fetch(publicOrigin + "/", { headers })).text();
     return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
   };
   expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");

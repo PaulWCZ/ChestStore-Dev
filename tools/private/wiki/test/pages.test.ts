@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { fromMarkdown } from "../lib/markdown.ts";
-import { lines, normalize } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import * as history from "../lib/history.ts";
-import * as pages from "../lib/pages.ts";
-import * as pins from "../lib/pins.ts";
-import { search } from "../lib/search.ts";
-import * as spaces from "../lib/spaces.ts";
+import { fromMarkdown } from "../src/lib/markdown.ts";
+import { lines, normalize } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import * as history from "../src/lib/history.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as pins from "../src/lib/pins.ts";
+import { search } from "../src/lib/search.ts";
+import * as spaces from "../src/lib/spaces.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -17,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -185,7 +185,7 @@ test("an editor who leaves without saying so frees the page: at once by the leav
   assert.ok(back.status === "editing" && back.draft !== null && lines(back.draft.doc).join(" ").includes("Six spaces."));
   // His editor says it is open: the lock stays his, even without typing.
   await sql`update page_locks set seen_at = now() - interval '90 seconds', active_at = now() - interval '10 minutes' where page_id = ${p.id}`;
-  assert.deepEqual(await editing.heartbeat(sql, asMember(tom), p.id), { lock: null });
+  assert.deepEqual(await editing.heartbeat(sql, asMember(tom), p.id), { lock: null, held: true });
   assert.equal((await editing.startEditing(sql, asMember(ines), p.id)).status, "locked");
   // His laptop shuts: unheard of for two minutes, the page is free — no "take over" needed.
   await sql`update page_locks set seen_at = now() - interval '3 minutes' where page_id = ${p.id}`;
@@ -199,6 +199,13 @@ test("an editor who leaves without saying so frees the page: at once by the leav
   await editing.publish(sql, asMember(ines), p.id, { title: "Parking", doc: md("Four spaces."), baseVersion: 1 });
   await assert.rejects(editing.leave(sql, asMember(hugo), p.id), /forbidden/u);
   await assert.rejects(editing.heartbeat(sql, asMember(hugo), p.id), /forbidden/u);
+  // After Ines's save the page is free: a heartbeat or a draft of hers on
+  // its way never takes the lock back (only opening the editor does).
+  assert.equal(await editing.lockOf(sql, p.id), null);
+  assert.deepEqual(await editing.heartbeat(sql, asMember(ines), p.id), { lock: null, held: false });
+  assert.deepEqual(await editing.saveDraft(sql, asMember(ines), p.id, { title: "Parking", doc: md("Late."), baseVersion: 2 }), { lock: null, held: false });
+  assert.equal(await editing.lockOf(sql, p.id), null, "still free: Camille may edit it");
+  await sql`delete from drafts where page_id = ${p.id} and member_id = ${ines.id}`;
   // From the page, Tom drops his old draft, and Undo puts it back.
   const dropped = await editing.discardDraft(sql, asMember(tom), p.id);
   assert.ok(dropped && lines(dropped.doc).join(" ").includes("Six spaces."));
@@ -310,8 +317,8 @@ test("recently updated: newest first, only what the reader sees", async () => {
 
 test("the example handbook: a space and linked pages in the editor's language", async () => {
   const { sql } = database;
-  const { addExample } = await import("../lib/starter.ts");
-  const { catalogue } = await import("../lib/i18n/index.ts");
+  const { addExample } = await import("../src/lib/starter.ts");
+  const { catalogue } = await import("../src/i18n/index.ts");
   await assert.rejects(addExample(sql, asMember(hugo), catalogue("en")), /forbidden/u);
   const made = await addExample(sql, asMember(camille), catalogue("fr"));
   const first = await pages.page(sql, asMember(hugo), made.pageId);

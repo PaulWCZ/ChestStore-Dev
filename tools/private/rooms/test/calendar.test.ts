@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import * as calendar from "@argentic/chest-sdk/calendar";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as cal from "../lib/calendar.ts";
-import * as desks from "../lib/desk-bookings.ts";
-import { erase, leave } from "../lib/lifecycle.ts";
-import { bookingIcs, myCsv, myIcs } from "../lib/mine.ts";
-import { catalogue } from "../lib/i18n/index.ts";
-import { addDays, today } from "../lib/model.ts";
-import { setPresence } from "../lib/presence.ts";
-import * as rooms from "../lib/room-bookings.ts";
+import { builtServer, type Handler } from "./support/server.ts";
+import * as cal from "../src/lib/calendar.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import { erase, leave } from "../src/lib/lifecycle.ts";
+import { bookingIcs, myCsv, myIcs } from "../src/lib/mine.ts";
+import { catalogue } from "../src/i18n/index.ts";
+import { addDays, today } from "../src/shared/model.ts";
+import { setPresence } from "../src/lib/presence.ts";
+import * as rooms from "../src/lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -18,7 +19,9 @@ import { office, workday, zone } from "./support/places.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 let o: Awaited<ReturnType<typeof office>>;
+let POST: Handler;
 before(async () => {
+  POST = await builtServer();
   database = await testDatabase();
   chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "calendar"], calendar: { domain: "atelier.test", toolTitle: "Rooms", company: "Atelier" } });
   o = await office(database.sql);
@@ -29,22 +32,29 @@ after(async () => {
 });
 
 const origin = { domain: "rooms.atelier.test", origin: "https://rooms-chest.atelier.test" };
+// The key the Chest knows a room booking by: room:<id>:<its salt>
+// (migrations/0008), or room:<id> for a booking made before.
+async function published(id: string): Promise<string> {
+  const [row] = await database.sql<{ uid_salt: string | null }[]>`select uid_salt from room_bookings where id = ${id}`;
+  return cal.calendarKeyOf(id, row?.uid_salt ?? null);
+}
 
 test("a room booking is in the organiser's and the guests' calendars, in each one's language; a move updates it; a cancel removes it", async () => {
   const { sql } = database;
   const d = workday(2);
   const { bookings } = await rooms.bookRoom(sql, asMember(hugo), { roomId: o.atlas, day: d, start: 600, end: 660, title: "", attendees: [ines.id] }, zone);
-  const key = `room:${bookings[0]!.id}`;
+  const key = await published(bookings[0]!.id);
+  assert.match(key, new RegExp(`^room:${bookings[0]!.id}:[0-9a-f]{12}$`, "u"), "a key of its own, unique across a restored database");
   await cal.flush(sql, zone);
   const kept = chest.calendar.get(key);
   assert.ok(kept, "put");
   assert.deepEqual([...kept.members].sort(), [hugo.id, ines.id].sort());
-  assert.deepEqual(kept.title, { en: "Room booked: Atlas", fr: "Salle réservée : Atlas" });
+  assert.deepEqual(kept.title, { en: "Room booked: Atlas", fr: "Salle réservée\u202f: Atlas" });
   assert.equal(kept.path, `/chest/rooms?day=${d}&booking=${bookings[0]!.id}`);
   assert.match(kept.location ?? "", /^Atlas · Ground floor · Paris · 12 rue de Paradis$/u);
   assert.ok("start" in kept && kept.start.endsWith("Z"));
   // Ines's feed says it in French.
-  assert.match(chest.feed(ines.id), /SUMMARY:Salle réservée : Atlas/u);
+  assert.match(chest.feed(ines.id), /SUMMARY:Salle réservée\u202f: Atlas/u);
   assert.equal((await sql`select count(*)::int as n from calendar_queue`)[0]!.n, 0);
   assert.equal((await cal.state(sql)), "on");
 
@@ -60,7 +70,26 @@ test("a room booking is in the organiser's and the guests' calendars, in each on
   await rooms.cancelRoomBooking(sql, asMember(hugo), bookings[0]!.id, "one", zone);
   await cal.flush(sql, zone);
   assert.equal(chest.calendar.has(key), false);
-  assert.equal((await sql`select count(*)::int as n from calendar_sent where key = ${key}`)[0]!.n, 0);
+  assert.equal((await sql`select count(*)::int as n from calendar_sent where key = ${"room:" + bookings[0]!.id}`)[0]!.n, 0);
+});
+
+test("a booking made before the salt keeps the key calendars hold; two bookings of one id in two databases never share a UID", async () => {
+  const { sql } = database;
+  const d = workday(2);
+  const { bookings } = await rooms.bookRoom(sql, asMember(hugo), { roomId: o.bora, day: d, start: 900, end: 960, title: "Old", attendees: [] }, zone);
+  const id = bookings[0]!.id;
+  // As the migration leaves a booking made before it.
+  await sql`update room_bookings set uid_salt = null where id = ${id}`;
+  await cal.enqueue(sql, [cal.roomKey(id)]);
+  await cal.flush(sql, zone);
+  assert.ok(chest.calendar.has(`room:${id}`), "the legacy key");
+  const legacy = await bookingIcs(sql, asMember(hugo), id, "en", origin);
+  assert.match(legacy, new RegExp(`UID:${calendar.uidOf("rooms", `room:${id}`, origin.domain)}`, "u"));
+  await rooms.cancelRoomBooking(sql, asMember(hugo), id, "one", zone);
+  await cal.flush(sql, zone);
+  assert.equal(chest.calendar.has(`room:${id}`), false, "removed under the key the Chest holds");
+  // A restored database gives the same id to another booking: another salt, another UID.
+  assert.notEqual(calendar.uidOf("rooms", cal.calendarKeyOf(id, "0123456789ab"), origin.domain), calendar.uidOf("rooms", cal.calendarKeyOf(id, "ba9876543210"), origin.domain));
 });
 
 test("a day at the office is a whole free day in the member's own calendar; remote takes it out", async () => {
@@ -82,6 +111,13 @@ test("a day at the office is a whole free day in the member's own calendar; remo
   await setPresence(sql, asMember(lea), { day: d, status: "office" }, zone);
   await cal.flush(sql, zone);
   assert.equal(chest.calendar.get(key)?.title.en, "At the office");
+  // A day changed again: a newer sequence, so calendars that hold it update it.
+  const first = (await cal.eventOf(sql, key, zone))!;
+  assert.ok(first.sequence > 0);
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  await desks.bookDesk(sql, asMember(lea), { deskId: o.desks[0], day: d, part: "pm" }, zone);
+  const later = (await cal.eventOf(sql, key, zone))!;
+  assert.ok(later.sequence > first.sequence, `${first.sequence} → ${later.sequence}`);
 });
 
 test("someone who leaves: their days go, they leave their guests' events; an erasure drops every key naming them", async () => {
@@ -90,9 +126,10 @@ test("someone who leaves: their days go, they leave their guests' events; an era
   const { bookings } = await rooms.bookRoom(sql, asMember(camille), { roomId: o.bora, day: d, start: 600, end: 630, attendees: [sofia.id] }, zone);
   await setPresence(sql, asMember(sofia), { day: d, status: "office" }, zone);
   await cal.flush(sql, zone);
-  assert.ok(chest.calendar.get(`room:${bookings[0]!.id}`)!.members.includes(sofia.id));
+  const key = await published(bookings[0]!.id);
+  assert.ok(chest.calendar.get(key)!.members.includes(sofia.id));
   await leave(sql, sofia.id, zone);
-  assert.deepEqual(chest.calendar.get(`room:${bookings[0]!.id}`)!.members, [camille.id]);
+  assert.deepEqual(chest.calendar.get(key)!.members, [camille.id]);
   assert.equal(chest.calendar.has(`day:${sofia.id}:${d}`), false);
   await setPresence(sql, asMember(hugo), { day: d, status: "office" }, zone);
   await cal.flush(sql, zone);

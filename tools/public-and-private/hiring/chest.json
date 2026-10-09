@@ -1,22 +1,50 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "hiring",
   "title": "Hiring",
   "description": "Publish your jobs on your careers page, Google and Indeed, and hire together: one board per job, CVs, emails, interviews.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["recruiter", "interviewer"],
-  "role_labels": { "recruiter": "Recruiter", "interviewer": "Interviewer" },
+  "roles": [
+    "recruiter",
+    "interviewer"
+  ],
+  "role_labels": {
+    "recruiter": "Recruiter",
+    "interviewer": "Interviewer"
+  },
   "public": true,
-  "csp": "tool",
-  "capabilities": ["database", "files", "members", "notifications"],
-  "receives": ["member.*"],
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "schedules": [
+    {
+      "name": "cleanup",
+      "cron": "25 3 * * *"
+    },
+    {
+      "name": "outbox",
+      "cron": "*/15 * * * *"
+    },
+    {
+      "name": "morning",
+      "cron": "40 7 * * 1-5"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": ["/_next/static/"]
+    "static": [
+      "/assets/"
+    ]
   }
 }

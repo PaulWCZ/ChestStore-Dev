@@ -272,7 +272,7 @@ await step("a poll put to Sales, a group that does not give Polls (open to every
 });
 
 await step("on a phone, the date grid scrolls inside its frame: the page stays 390 px", async () => {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-GB" });
+  const phone = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "en-GB" });
   await phone.addCookies([{ name: "dev_member", value: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", url: origin }, { name: "dev_locale", value: "en", url: origin }]);
   const p = await phone.newPage();
   for (const path of ["/chest/polls/2", dinnerUrl.replace(origin, ""), "/chest/polls/10", "/chest/polls/3", "/chest/polls/9", "/chest", "/chest/new?kind=date"]) {
@@ -349,7 +349,7 @@ await step("a sign-up sheet: a full slot cannot be taken, a free one can", async
   await page.waitForSelector(".thanks");
 });
 
-await step("the organiser reminds those who have not answered, once per 12 hours", async () => {
+await step("the organiser reminds those who have not answered (a notification, never an email), once per 12 hours", async () => {
   await who("sofia", "en");
   await page.goto(origin + "/chest/polls/4");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
@@ -357,7 +357,7 @@ await step("the organiser reminds those who have not answered, once per 12 hours
   expect(!(await page.locator(".ck-toast-undo").count()), "a reminder that left offers no Undo");
   const told = await dev();
   expect(told.includes("Reminder: Which plants for the office?"), "the reminder in the bell");
-  expect(told.includes("→ tom@example.test"), "and by email to Tom, who has not answered");
+  expect(!told.includes("→ tom@example.test"), "never by email: the Chest mails members their notifications as each one chose");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
   await page.waitForSelector(".ck-toast:has-text('less than 12 hours')");
 });
@@ -440,7 +440,7 @@ await step("a closed anonymous round per team: groups too small or deducible sta
 // A browser of its own for someone (no cookie shared with the flow's page:
 // a guest, or an author whose keys live in their browser only).
 async function fresh(member = null, locale = "en", viewport = { width: 1280, height: 860 }) {
-  const c = await browser.newContext({ viewport, locale: "en-GB" });
+  const c = await browser.newContext({ ignoreHTTPSErrors: true, viewport, locale: "en-GB" });
   if (member) await c.addCookies([{ name: "dev_member", value: "mbr_" + member + "a".repeat(26 - member.length), url: origin }, { name: "dev_locale", value: locale, url: origin }]);
   const p = await c.newPage();
   p.on("pageerror", e => problems.push("page: " + e.message));
@@ -468,9 +468,15 @@ await step("guests outside the Chest: the organiser turns the link off and on, a
   // (The organiser's own words may name colleagues; the answers never show.)
   expect(!/Claire|Marc/u.test(text) && !(await guest.p.locator(".grid-table, .results-card, .participation").count()), "no other answer, no results on the public page");
   await guest.p.getByLabel("Your name").fill("Jean Martin");
-  await guest.p.getByLabel("Your email (optional)").fill("jean@client.example");
+  // Two dots in a row: the browser lets it through, field.email refuses it
+  // in plain words, the answer kept.
+  await guest.p.getByLabel("Your email (optional)").fill("jean..martin@client.example");
   await guest.p.locator(".date-row").nth(0).locator("label.yes").click();
   await guest.p.locator(".date-row").nth(1).locator("label.maybe").click();
+  await guest.p.getByRole("button", { name: "Send my answer" }).click();
+  await guest.p.getByText("This email address does not look right.").first().waitFor();
+  expect(await guest.p.getByLabel("Your name").inputValue() === "Jean Martin", "the name kept");
+  await guest.p.getByLabel("Your email (optional)").fill("jean@client.example");
   await guest.p.getByRole("button", { name: "Send my answer" }).click();
   await guest.p.waitForSelector(".thanks:has-text('Thanks, Jean Martin!')");
   expect((await guest.p.locator(".thanks").innerText()).includes("jean@client.example"), "told the date will come by email");
@@ -483,14 +489,15 @@ await step("guests outside the Chest: the organiser turns the link off and on, a
   await guest.p.getByRole("button", { name: "Update my answer" }).click();
   await guest.p.waitForSelector(".thanks:has-text('Your answer is updated.')");
   await guest.c.close();
-  // A robot filling the field people never see is refused, and nothing is kept.
+  // A robot filling the field people never see is answered as if done (the
+  // package's honeypot), and nothing is kept.
   const robot = await fresh();
   await robot.p.goto(link);
   await robot.p.getByLabel("Your name").fill("Bot");
   await robot.p.locator(".date-row").nth(0).locator("label.yes").click();
-  await robot.p.evaluate(() => { document.getElementById("website").value = "http://spam.example"; });
-  await robot.p.getByRole("button", { name: "Send my answer" }).click();
-  await robot.p.locator(".guest-form .error").waitFor();
+  await robot.p.evaluate(() => { document.querySelector("[name=website]").value = "http://spam.example"; });
+  const [answered] = await Promise.all([robot.p.waitForResponse(r => r.url().includes("/actions/answerGuest")), robot.p.getByRole("button", { name: "Send my answer" }).click()]);
+  expect((await answered.json()).ok === true, "the robot is told it is done");
   await robot.c.close();
   // The team's side: the guest in the grid, marked; counted apart.
   await page.reload();
@@ -526,6 +533,7 @@ await step("the date chosen for a poll with guests: in the team's Chest calendar
   const board = await dev();
   expect(board.includes("poll:11"), "the calendar event, in the harness");
   expect(board.split("<li>").some(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("jean@client.example")), "the guest's email, to their address");
+  expect(board.split("<li>").some(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("replies to <code>contact@atelier-martin.test</code>") && li.includes("Replies to this email go to")), "replies go to the company's own address, and the email says so");
   // Told again (the page reloaded, the choice the same): no second email.
   await page.reload();
   const toJean = (await dev()).split("<li>").filter(li => li.includes("The date for “Kick-off with Maison Leroy”") && li.includes("jean@client.example")).length;

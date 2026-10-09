@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { listCategories } from "../lib/categories.ts";
-import * as items from "../lib/items.ts";
-import { people } from "../lib/people.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
+import { listCategories } from "../src/lib/categories.ts";
+import * as items from "../src/lib/items.ts";
+import { people } from "../src/lib/people.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
@@ -13,7 +13,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -32,15 +32,18 @@ test("someone who leaves keeps what they hold (nothing comes back by itself); th
   await items.giveSeat(sql, M, slack.id, lea.id);
   chest.members.splice(chest.members.findIndex(m => m.id === lea.id), 1);
   chest.former.push({ id: lea.id, name: "Léa Dubois" });
+  // The Chest forgets what it told of her (the event goes to the built
+  // server, whose own copy of the SDK keeps its own answers).
+  chest.clearCaches();
   const event = { type: "member.removed" as const, id: "evt_" + "l".repeat(26), data: { id: lea.id } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit({ ...event, id: "evt_" + "m".repeat(26) }, POST), 204);
+  assert.equal(await chest.emit(event, onEvent), 204);
+  assert.equal(await chest.emit({ ...event, id: "evt_" + "m".repeat(26) }, onEvent), 204);
   const held = await items.holdings(sql, M, lea.id);
   assert.equal(held.items.length, 2);
   assert.equal(held.seats.length, 1);
   const toCamille = chest.notifications.filter(n => n.member === camille.id && n.key === `left:${lea.id}`);
   assert.equal(toCamille.length, 1);
-  assert.equal(toCamille[0]!.title, "Léa Dubois est parti avec encore 3 objets");
+  assert.equal(shownTo(toCamille[0]!, "fr").title, "Léa Dubois est parti avec encore 3 objets");
   assert.equal(chest.notifications.find(n => n.member === sofia.id && n.key === `left:${lea.id}`)?.title, "Léa Dubois left and holds 3 items");
   const detail = await items.itemDetail(sql, M, laptop.id);
   assert.ok(detail.full);
@@ -67,8 +70,8 @@ test("an erasure leaves the items with “Former member” until taken back, ano
   await items.report(sql, asMember(hugo), phone.id, "Cracked screen");
   const erasure = "era_" + "a".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "e".repeat(26), data: { id: hugo.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
-  assert.equal(await chest.emit(event, POST), 204);
-  assert.equal(await chest.emit(event, POST), 204);
+  assert.equal(await chest.emit(event, onEvent), 204);
+  assert.equal(await chest.emit(event, onEvent), 204);
   assert.deepEqual(chest.acknowledged, [erasure]);
   const after1 = await items.itemDetail(sql, M, phone.id);
   assert.ok(after1.full);
@@ -88,6 +91,6 @@ test("an erasure leaves the items with “Former member” until taken back, ano
 });
 
 test("an event not signed by the Chest is refused", async () => {
-  const response = await POST(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
+  const response = await onEvent(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
   assert.equal(response.status, 401);
 });

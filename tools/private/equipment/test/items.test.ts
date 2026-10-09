@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/app-error.ts";
-import { listCategories } from "../lib/categories.ts";
-import * as items from "../lib/items.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { AppError } from "@argentic/chest-app";
+import { listCategories } from "../src/lib/categories.ts";
+import * as items from "../src/lib/items.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
@@ -13,7 +13,7 @@ let chest: FakeChest;
 let laptops: string, licences: string, keys: string;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
   const cats = await listCategories(database.sql, asMember(camille));
   laptops = cats.find(c => c.key === "laptop")!.id;
   licences = cats.find(c => c.key === "licence")!.id;
@@ -73,7 +73,7 @@ test("give, transfer and take back, each in the history; the holder hears of it 
   assert.equal(given.holder, ines.id);
   assert.equal(given.status, "in_use");
   const bell = chest.notifications.find(n => n.member === ines.id && n.key === `item:${mac!.id}:given`);
-  assert.equal(bell?.title, "Camille vous a remis MacBook Pro 14 EQ-0001");
+  assert.equal(shownTo(bell!, "fr").title, "Camille vous a remis MacBook Pro 14 EQ-0001");
   await refused(items.give(sql, M, mac!.id, { to: { member: ines.id } }), "already_there");
   await refused(items.give(sql, M, mac!.id, { to: { member: "mbr_ghost" + "a".repeat(21) } }), "not_member");
   await refused(items.give(sql, M, mac!.id, { to: { member: hugo.id }, day: "2999-01-01" }), "invalid_date");
@@ -194,7 +194,7 @@ test("a holder reports a problem: every manager hears it in their language; solv
   const p = await items.report(sql, I, mac!.id, "The battery lasts one hour");
   const toCamille = chest.notifications.find(n => n.member === camille.id && n.key === `problem:${p.id}`);
   const toSofia = chest.notifications.find(n => n.member === sofia.id && n.key === `problem:${p.id}`);
-  assert.equal(toCamille?.title, "Inès a signalé un problème : MacBook Pro 14 EQ-0001");
+  assert.equal(shownTo(toCamille!, "fr").title, "Inès a signalé un problème\u202f: MacBook Pro 14 EQ-0001");
   assert.equal(toSofia?.title, "Inès reported a problem: MacBook Pro 14 EQ-0001");
   assert.equal(toSofia?.body, "The battery lasts one hour");
   assert.equal(chest.badges.get(camille.id), 1);
@@ -249,4 +249,34 @@ test("the overview lists warranties and renewals ending within 60 days", async (
   const ov = await items.overview(sql, M, "2026-09-28");
   assert.ok(ov.ending.some(i => i.id === soon.id));
   assert.ok(!ov.ending.some(i => i.name === "Old Dell"));
+});
+
+test("two managers give the same item at once: the row is locked, the second finds it moved", async () => {
+  const { sql } = database;
+  const laptop = await items.createItem(sql, M, { categoryId: laptops, name: "Race laptop" });
+  const results = await Promise.allSettled([
+    items.give(sql, M, laptop.id, { to: { member: hugo.id }, from: null }),
+    items.give(sql, asMember(sofia), laptop.id, { to: { member: ines.id }, from: null }),
+  ]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  const lost = results.find(r => r.status === "rejected") as PromiseRejectedResult;
+  assert.ok(lost.reason instanceof AppError && lost.reason.code === "moved");
+  const held = (await items.itemDetail(sql, M, laptop.id)).item.holder;
+  // A transfer from where it was seen goes; from where it was not, refused.
+  const elsewhere = held === hugo.id ? ines.id : hugo.id;
+  await refused(items.takeBack(sql, M, laptop.id, { from: { member: elsewhere } }), "moved");
+  await refused(items.give(sql, M, laptop.id, { to: { member: elsewhere }, from: { member: elsewhere } }), "moved");
+  assert.equal((await items.give(sql, M, laptop.id, { to: { member: elsewhere }, from: { member: held! } })).holder, elsewhere);
+});
+
+test("Undo of “take everything back” puts back only what was just taken from that person, never supplies", async () => {
+  const { sql } = database;
+  const stray = await items.createItem(sql, M, { categoryId: laptops, name: "Never theirs" });
+  const kept = await items.createItem(sql, M, { categoryId: laptops, name: "Theirs" });
+  await items.give(sql, M, kept.id, { to: { member: lea.id } });
+  const taken = await items.takeEverythingBack(sql, M, lea.id);
+  // The page could send any id: only what was taken from Léa comes back.
+  await items.giveBackEverything(sql, M, lea.id, { items: [...taken.items, stray.id], seats: [] });
+  assert.equal((await items.itemDetail(sql, M, kept.id)).item.holder, lea.id);
+  assert.equal((await items.itemDetail(sql, M, stray.id)).item.holder, null);
 });

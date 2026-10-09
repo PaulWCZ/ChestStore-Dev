@@ -1,15 +1,11 @@
 {
-  "schedules": [
-    {
-      "name": "pass",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "mail": {
     "send": true
   },
   "calendar": true,
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "receives": [
     "group.*"
   ],

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { today } from "../lib/clock.ts";
-import { addDays, mondayOf } from "../lib/days.ts";
-import { toolStart } from "../lib/weeks.ts";
+import { today } from "../src/lib/clock.ts";
+import { addDays, mondayOf } from "../src/shared/days.ts";
+import { toolStart } from "../src/lib/weeks.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { everyone } from "./support/members.ts";
 

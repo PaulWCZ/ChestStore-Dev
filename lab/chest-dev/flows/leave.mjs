@@ -2,12 +2,12 @@
 // (the harness runs the tool with --reset: the sample company is there).
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
-import { as, control, done, expect, id, open, step } from "./lib.mjs";
+import { as, control, done, expect, id, open, step, toolDatabase } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4400);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(approvals|settings|people)$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
-const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, "/t_leave"), { max: 1, onnotice: () => {} });
+const db = postgres(toolDatabase("leave", port), { max: 1, onnotice: () => {} });
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const day = d => d.toISOString().slice(0, 10);
 const plus = (d, n) => new Date(d.getTime() + n * 864e5);
@@ -26,9 +26,11 @@ const typeDay = async (selector, value) => {
   await page.locator(selector).press("Enter");
 };
 
-// A Monday about ten weeks ahead; the flow moves a week on if a public
-// holiday makes the week cost less than 5 days.
-let monday = plus(new Date(), 70);
+// A Monday about seven weeks ahead; the flow moves a week on if a public
+// holiday makes the week cost less than 5 days. Seven, so that the week
+// stays inside the 90 days of busy times told to Booking even when the
+// weeks around Christmas are skipped.
+let monday = plus(new Date(), 49);
 while (monday.getUTCDay() !== 1) monday = plus(monday, 1);
 
 async function ask(start, end, options = {}) {
@@ -54,8 +56,8 @@ async function ask(start, end, options = {}) {
   return last;
 }
 
-// The fake Chest's outbox (mail proposal), as the harness's /_dev shows it:
-// the latest first, "subject … → address".
+// The fake Chest's outbox (mail to people outside), as the harness's /_dev
+// shows it: the latest first, "subject … → address". Leave sends none.
 async function outbox() {
   const back = page.url();
   await page.goto(origin + "/_dev");
@@ -74,6 +76,11 @@ async function feedOf() {
   const path = /\/_chest\/calendar\/[A-Za-z0-9_-]+\.ics/u.exec(await devPage())?.[0];
   expect(path, "the harness shows the feed's address");
   return (await (await page.request.get(origin + path)).text()).replace(/\r\n[ \t]/gu, "");
+}
+// A member's items in the harness's bell: each as "title … fr: titre …".
+async function bellOf(name) {
+  const items = (await devPage()).match(new RegExp(`<li><b>${name}</b> · [\\s\\S]*?</li>`, "gu")) ?? [];
+  return items.map(li => li.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim());
 }
 // The latest leave.busy told of someone (the Events panel, latest first).
 async function busyOf(member) {
@@ -119,10 +126,10 @@ await step("an employee asks for a week of paid leave: the cost shows as he pick
   expect((await page.locator(".request", { hasText: "Waiting" }).allInnerTexts()).some(t => t.includes("5 days")), "listed as waiting");
 });
 
-await step("the approver is emailed too (the mail proposal), in her language, with the link to answer", async () => {
-  const mails = await outbox();
-  const toInes = mails.find(m => m.includes("ines@example.test"));
-  expect(toInes && toInes.startsWith("Hugo Bernard demande un congé") && /\/chest\/requests\/\d+/u.test(toInes), "email to Inès: " + mails.join(" | "));
+await step("the approver is told in the bell — English with its French, the Chest shows her hers — with the link to answer; no email from Leave", async () => {
+  const items = await bellOf("Inès Moreau");
+  expect(items.some(i => i.includes("Hugo Bernard asks for time off") && i.includes("fr: Hugo Bernard demande un congé") && /\/chest\/requests\/\d+/u.test(i)), "Inès's item: " + items.join(" | "));
+  expect((await outbox()).length === 0, "no email: the Chest mails notifications by each one's choice");
 });
 
 await step("a half day costs half a day; a week-end costs nothing and cannot be sent", async () => {
@@ -219,9 +226,9 @@ await step("she refuses another with a word; he reads it", async () => {
   expect(await page.locator(".request", { hasText: "5 days" }).filter({ hasText: "Approved" }).count() >= 1, "the week approved");
 });
 
-await step("the requester is emailed the answers too", async () => {
-  const mails = (await outbox()).filter(m => m.includes("hugo@example.test"));
-  expect(mails.some(m => m.startsWith("Your time off is approved")) && mails.some(m => m.startsWith("Your time off is refused") && m.includes("Inventaire ce jour-là")), "emails to Hugo: " + mails.join(" | "));
+await step("the requester hears the answers in the bell, with the approver's word", async () => {
+  const items = await bellOf("Hugo Bernard");
+  expect(items.some(i => i.includes("Your time off is approved")) && items.some(i => i.includes("Your time off is refused") && i.includes("Inventaire ce jour-là")), "Hugo's items: " + items.join(" | "));
 });
 
 await step("approved: the week is in Hugo's own calendar feed as 'Off', private — never why; his home says so", async () => {
@@ -233,7 +240,7 @@ await step("approved: the week is in Hugo's own calendar feed as 'Off', private 
   const event = ics.split("BEGIN:VEVENT").find(e => e.includes(`DTSTART;VALUE=DATE:${compact(monday)}`));
   expect(event, "the week is in the feed");
   expect(/SUMMARY:Off\r\n/u.test(event) && /CLASS:PRIVATE/u.test(event) && event.includes(`DTEND;VALUE=DATE:${compact(plus(monday, 5))}`), "Off, private, Monday to Friday: " + event);
-  expect(/URL:http:\/\/[^\r\n]*\/chest\/requests\/\d+/u.test(event), "it opens the request");
+  expect(/URL:https?:\/\/[^\r\n]*\/chest\/requests\/\d+/u.test(event), "it opens the request");
   expect(!/Lisbon|Paid leave|Congés payés/u.test(ics), "never the note nor the kind");
 });
 
@@ -508,48 +515,13 @@ await step("paid leave never goes below zero by default: Tom asking far more tha
   expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "cannot be sent");
 });
 
-await step("email is offered as the Chest can send it (mail.available): the switch, and no sentence saying none leaves", async () => {
+await step("no email switch in Leave: My leave says, in one line, that email is chosen in the Chest; nothing was emailed", async () => {
   await as(context, origin, "tom");
-  await page.goto(origin + "/chest");
-  expect(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).count() === 1, "the switch");
-  expect(await page.getByText("Emails are not sent for now").count() === 0 && await page.getByText("Today's emails are used up").count() === 0, "no sentence: this Chest sends");
-});
-
-await step("what Tom chose in the Chest (one email a day) and a pause of the Chest's email: his home says each, in plain words", async () => {
-  await control(page, origin, "member", { member: id("tom"), mailPreference: "digest" });
-  try {
-    await page.goto(origin + "/chest");
-    expect(await page.getByText("In your Chest settings you chose one email a day").count() === 1, "one a day, said");
-    await control(page, origin, "delivery", { mail: "suspended" });
-    await page.goto(origin + "/chest");
-    expect(await page.getByText("Emails are not sent for now").count() === 1, "paused, said");
-    expect(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).count() === 1, "his own switch stays");
-  } finally {
-    await control(page, origin, "delivery", { mail: "ready" });
-    await control(page, origin, "member", { member: id("tom"), mailPreference: "all" });
-  }
-  await page.goto(origin + "/chest");
-  expect(await page.getByText("In your Chest settings you chose").count() === 0, "all: nothing to say");
-});
-
-await step("Tom turns his emails off: the next answer reaches his bell only", async () => {
-  await page.goto(origin + "/chest");
-  await flip(page, "Also send me these by email: requests to answer, answers, cancellations", false);
-  await page.reload();
-  expect(!(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).isChecked()), "saved");
-  const tuesday = day(plus(monday, 50));
-  await ask(tuesday, tuesday);
-  await send();
-  const before = (await outbox()).filter(m => m.includes("tom@example.test")).length;
-  await as(context, origin, "lea");
   await speak("en");
-  await page.goto(origin + "/chest/approvals");
-  await page.locator(".card", { hasText: "Tom Walker" }).first().getByRole("button", { name: "Approve" }).click();
-  await page.waitForTimeout(1500);
-  expect((await outbox()).filter(m => m.includes("tom@example.test")).length === before, "no email to Tom");
-  await as(context, origin, "tom");
   await page.goto(origin + "/chest");
-  await flip(page, "Also send me these by email: requests to answer, answers, cancellations", true);
+  expect(await page.getByRole("switch", { name: /email/u }).count() === 0, "no switch");
+  expect(await page.getByText("Your Chest can also email you your notifications: choose how in your Chest settings.").count() === 1, "the line");
+  expect((await outbox()).length === 0, "Leave mailed no one");
 });
 
 await step("HR changes a kind in place: saved at once, nothing to forget", async () => {
@@ -675,7 +647,9 @@ await step("Inès leaves: her approved leave after the last day is cancelled, th
   await page.goto(origin + "/chest/people/" + id("ines"));
   const after = await page.locator(".balance", { hasText: "Paid leave" }).locator(".balance-figure strong").innerText();
   expect(Number(after) === Number(before) + 0.5, "the half day comes back: " + before + " → " + after);
-  expect(await page.locator(".ledger tr", { hasText: "After their last day" }).count() === 1, "the ledger says why");
+  // The paid half day's line (her RTT day after the last day, when the
+  // seed's dates put one there, has its own).
+  expect(await page.locator(".ledger tr", { hasText: "After their last day" }).filter({ hasText: "Paid leave" }).count() === 1, "the ledger says why");
   expect((await page.locator(".requests").innerText()).includes("Cancelled"), "the leave is cancelled");
 });
 

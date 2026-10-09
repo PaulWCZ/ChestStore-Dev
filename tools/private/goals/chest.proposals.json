@@ -1,8 +1,7 @@
 {
-  "mail": {
-    "send": true
-  },
-  "groups": "read",
+  "capabilities": [
+    "members.groups"
+  ],
   "receives": [
     "group.*",
     "crm.deal.won",
@@ -13,16 +12,6 @@
     "helpdesk.ticket.reopened",
     "hiring.hired",
     "hiring.hire_cancelled"
-  ],
-  "schedules": [
-    {
-      "name": "reminder",
-      "cron": "45 8 * * 5"
-    },
-    {
-      "name": "week",
-      "cron": "50 6 * * 1"
-    }
   ],
   "translations": {
     "fr": {

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { tally, type Reader } from "../lib/audience.ts";
-import { AppError } from "../lib/errors.ts";
-import * as posts from "../lib/posts.ts";
-import { search } from "../lib/search.ts";
-import * as tell from "../lib/tell.ts";
+import { tally, type Reader } from "../src/lib/audience.ts";
+import { AppError } from "@argentic/chest-app";
+import * as posts from "../src/lib/posts.ts";
+import { search } from "../src/lib/search.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, fakeGroups, groups, hugo, ines, lea, nora, sofia } from "./support/members.ts";
@@ -18,14 +18,14 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications"] });
+  chest = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, groups: fakeGroups, capabilities: ["members", "files", "notifications"] });
 });
 after(async () => {
   await chest.close();
   await database.close();
 });
 beforeEach(async () => {
-  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs restart identity cascade`;
+  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits restart identity cascade`;
   chest.notifications.length = 0;
   chest.badges.clear();
 });
@@ -181,7 +181,7 @@ test("the groups of a post are checked: groups that give News, at most 16", asyn
 });
 
 test("without the Chest's answer, a post cannot be kept to a new group", async () => {
-  const blind = await fakeChest({ chest: { timeZone: "Europe/Paris" }, members: everyone, groups: fakeGroups, capabilities: ["files", "notifications"] });
+  const blind = await fakeChest({ network: {}, chest: { timeZone: "Europe/Paris" }, members: everyone, groups: fakeGroups, capabilities: ["files", "notifications"] });
   try {
     await assert.rejects(forSales(), refused("unavailable"));
     // For everyone, nothing to ask.

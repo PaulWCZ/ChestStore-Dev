@@ -1,60 +1,75 @@
 # Adapting Polls — a guide for AI agents
 
 `README.md` says what Polls does; this page says where things are and what
-must not break.
+must not break. Polls is built like the studio's starter: TypeScript,
+Hono, React rendered on the server, a few islands, Vite (no Next.js),
+on the studio's package `@argentic/chest-app`.
+
+## Commands
+
+```sh
+npm ci && npm run build && npm test     # all must pass (Node 24)
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test   # on a real PostgreSQL
+```
 
 ## Map
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest: roles `organiser`, `member`; `public: true`, `csp: "tool"` (guest pages); `database`, `members`, `notifications`; `receives` |
-| `chest.proposals.json` | The `pass` schedule (every 15 minutes), `mail: {send}` (email reminders, the chosen date to guests), `calendar: true` (the chosen date in Chest calendars) and `groups: "read"` + `group.*` (any group, results per team) — Proposals of the studio’s SDK |
-| `migrations/0001_polls.sql` | Schema: polls, questions, options, participants, answers (named), tallies and texts (anonymous), tellings, chest_events |
-| `migrations/0002_team_polls.sql` | Settings (who starts polls), people picked by name, sign-up places, edits after answers, reminders on demand, series (repeating pulses), eNPS, comments; anonymous ⇒ results after the close (a constraint). Never edit a shipped file; add `0004_…` |
-| `migrations/0003_teams.sql` | `settings.members_surveys` (company surveys: organisers by default) and `group_tallies` (an anonymous survey's counts per group) |
-| `migrations/0004_guests_replies.sql` | Guests (`polls.guest_link`, guest participants, `guest_counts`), replies to anonymous texts (`texts.reply_key`, `replies`), `settings.calendar` |
-| `lib/access.ts` | **Who may do what**: roles and the admin's policy (`can`, `settles`, `surveys`/`companySurvey`: a repeating survey or eNPS), `asked` (everyone, groups, people), `sees`, `manages`, `edits`, `resultsState` (live / after close; anonymous: closed and five answers, for everyone) |
-| `lib/model.ts` | Bounds, reading a poll (`readPoll`) and an answer (`readAnswer`), `checkOpening` — pure |
-| `lib/polls.ts` | Services: create, drafts, edit, send, close, reopen, delete, restore, purge, final date, home, view, export, tile counts |
-| `lib/answers.ts` | Answering; the anonymous rewrite (see README, "Anonymous polls") |
-| `lib/results.ts` | Counts → results (bars, grid, best date, averages, eNPS) — pure |
-| `lib/series.ts` | Repeating pulses: `startSeries`, `openRounds` (on the pass), `repeatSeries` (stop / again), `trend` (a number per round) |
-| `lib/comments.ts` | Comments on named polls: list, add, remove, restore |
-| `lib/tell.ts` | The bell, the tile and email reminders: ask, remind (day before), nudge (the organiser's reminder), final date (broadcast, or pages resumable past the quota), comments, settle after closing, `pass`/`catchUp` |
-| `lib/groups.ts` | The Chest's groups (`groups: "read"` proposal, else those giving Polls), cached a minute; who is in them; a member's or many people's groups beyond those that give Polls (`withAllGroups`, `withGroupsOf`) |
-| `lib/teams.ts` | An anonymous survey per team: `visibleTeams` (floor 5, nothing deducible by subtraction — pure, tested) and `teamResults` |
-| `lib/audience.ts` | Who a poll asks (`members.list`, groups, people by name), finding people by name |
-| `lib/guests.ts`, `lib/guard.ts`, `lib/public-origin.ts` | Guests on a date poll: the link, answering by name, the secret's hash, removing; the public form's guard (visitors, own counters); the public address |
-| `lib/replies.ts`, `lib/reply-keys.ts` | Replies to anonymous free texts: the organiser's replies, the author's conversations by key, answering back; the keys kept in the author's browser |
-| `lib/agenda.ts` | The chosen date in Chest calendars (`calendar` proposal) and by email to guests |
-| `lib/look.ts` | The look of a request: the team's (`teamLook`) or the public one (`publicLook`: brand or identity only) |
-| `app/p/[link]/` | The guest page (public host): `page.tsx`, `guest-form.tsx`, `actions.ts` (the one public action), `cookie.ts`, `calendar/` |
-| `lib/ics.ts`, `lib/csv.ts` | .ics (RFC 5545) and CSV writers — pure, tested |
-| `lib/time.ts`, `lib/zone.ts`, `lib/dates.ts` | Days and times on the Chest's clock, in the reader's words |
-| `lib/composer-value.ts` | The composer's data shape (browser-safe) |
-| `lib/lifecycle.ts` | Leaving and erasure |
-| `lib/theme.ts` | The identity "Confetti" as a kit theme (`defineTheme`, equal to the catalogue's) and `currentLook()` (the Chest's choice, else the identity) |
-| `app/tokens.css`, `app/globals.css` | Polls' own tokens, defined from the contract's; its components. Contract tokens only, never a colour (`test/theme.test.ts`) |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
-| `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
-| `app/chest/page.tsx` | Home (server); `policy-switch.tsx` the admin's setting |
-| `app/chest/composer.tsx` | The composer (client): kinds, answers, calendar, survey questions, settings |
-| `app/chest/polls/[id]/` | The poll page (server), `answer-area.tsx`, `manage.tsx`, `comments.tsx` (client), `results.tsx`, `trend.tsx`, `teams.tsx` (server), `export/`, `calendar/` routes |
-| `app/chest-events/route.ts`, `app/chest-jobs/[name]/route.ts` | The Chest's signed calls |
-| `seed/sample.sql` | Sample polls for local runs: a question, a date poll, a weekly pulse (5 rounds), a sign-up sheet, a draft, comments |
-| `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
+| `chest.json` | Contract 0.4: roles `organiser`, `member`; `public: true`; `database`, `members`, `notifications`; `receives`; schedule `pass` (every 15 min); `build.static: ["/assets/"]` |
+| `chest.proposals.json` | Proposals of the studio's SDK: `mail: {send}`, `calendar: true`, `capabilities: ["members.groups"]` + `group.*`, `translations` |
+| `src/app.tsx` | **Every route**: home, composer, poll, export, .ics, the looks, the guest page, `/chest-events`, `/chest-schedules` |
+| `src/actions.ts` | **Every mutation**, by name (members' `action`, the guest's `publicAction`) |
+| `src/pages/` | Pages rendered on the server: `Home`, `Compose` (new, edit), `Poll` (+ `Results`, `Trend`, `Teams`), `Guest`, `PublicHome` |
+| `src/islands/` | What runs in the browser: `Composer`, `AnswerArea`, `Manage`/`FinalPicker`, `Comments`, `GuestsCard`, `Replies`, `GuestForm`, `PolicySwitch`, `AutoRefresh`; `index.ts` lists them; `words.ts`, `reply-keys.ts` their helpers |
+| `src/components/` | Icons and the mark: plain SVG, used by pages and islands |
+| `src/layout.tsx` | The kit's shell (members), the public frame, the toasts (outside `main`, under an id) |
+| `src/theme.ts` | The identity "Confetti" and `sheetOf(surface)`: the look as a stylesheet |
+| `src/tokens.css`, `src/styles.css` | Polls' own tokens (from the contract's), its components, the `pct-N` length classes. Contract tokens only, never a colour |
+| `src/i18n/` | `en.ts` (source), `fr.ts`, `index.ts` (`fill`, `plural`, `formatter`: Intl objects made once) |
+| `src/lib/` | The rules and the SQL — see below; framework-free, tested alone |
+| `src/register.ts`, `src/main.ts`, `src/entry.tsx`, `vite.config.ts` | Wiring to `@argentic/chest-app` (the studio's package, `vendor/`: server, actions, islands, refresh, navigate, log — its `AGENTS.md`). Never edit the vendored copy |
+| `migrations/` | `0001`…`0005`: never edit a shipped one; add `0006_…` |
+| `seed/sample.sql` | Sample polls for local runs (never run by the Chest) |
+| `test/` | `app.test.mjs` (the built server, a fake Chest, PostgreSQL); `*.test.ts` (`src/lib/`, the words, the look, the stack's rules) |
 
-## Commands
+`src/lib/`: `access.ts` (who may do what), `model.ts` (bounds, `readPoll`,
+`readAnswer`), `polls.ts` (services), `answers.ts` (the anonymous
+rewrite), `results.ts`, `series.ts` (pulses), `comments.ts`, `tell.ts`
+(notifications with `translations`, tile, `pass`/`catchUp`; never an email to a member), `groups.ts`, `teams.ts`,
+`audience.ts`, `guests.ts`, `public-origin.ts`,
+`guest-cookie.ts`, `replies.ts`, `agenda.ts` (calendar, guests' email),
+`export.ts` (CSV), `ics.ts`, `csv.ts`, `time.ts`, `zone.ts`, `dates.ts`,
+`people.ts`, `notify.ts`, `lifecycle.ts`, `db.ts`.
 
-```sh
-npm ci && npm test && npm run build   # all three must pass
-```
+## The stack's rules (the starter's)
+
+- **A page**: a route in `src/app.tsx` with `page()` (members) or
+  `publicPage()`; it returns `{ title, body }`. Refuse with `notFound()`,
+  `forbidden()`, `redirect()` (`@argentic/chest-app`).
+- **An action**: `action(fields, run)` in `src/actions.ts`; an island calls
+  it with `call("name", input)` (typed; the page refreshes after it unless
+  `{ refresh: false }`); a refusal is a code (`AppError`/`fail`) said in
+  `t.errors`. A structured input is `field.json()`, read by `src/lib/`.
+- **An island** imports only React, the kit, `@argentic/chest-app/client`
+  (`call`, `refresh`, `navigate`, `toast`, `send`), `../components/`,
+  its helpers, and types. Its props are plain data with their words.
+  `toast()` (never the kit's `useToast`: each island is its own root).
+- **No inline script, no `style=""`, no `<style>`** (`test/stack.test.ts`):
+  a length from data is a `pct-N` class (`src/pages/bits.tsx`); a value
+  only a script knows is set on the element (`el.style.setProperty`, the
+  confetti).
+- **Nothing in memory that must survive**: the tool sleeps. Caches only
+  (groups a minute, the look per choice, Intl objects).
+- **Logs**: `log.info/warn/error` (`@argentic/chest-app`): ids and counts, never
+  a name, an email, a text or a secret.
 
 ## Rules
 
-- **The look is the Chest's choice.** `app/layout.tsx` writes it
-  (`<ThemeStyle>` with the page's nonce); CSS names only contract tokens
-  (`ui/tokens/CONTRACT.md` in the studio) and `app/tokens.css`'s. Text only
+- **The look is the Chest's choice.** `src/theme.ts` makes it a
+  stylesheet the tool serves (`/chest/look.css`, `/look.css`), linked in
+  every page's head by the package (`createApp({ look })`, `src/app.tsx`) — never a `<style>`; CSS names only contract tokens
+  (`ui/tokens/CONTRACT.md` in the studio) and `src/tokens.css`'s. Text only
   on measured pairs (`--accent-ink` on `--accent`, `--cat-N-ink` on
   `--cat-N-soft`, a state's `-ink` on its `-soft`, `--ink` on
   `--highlight`); field borders `--line-strong`; `color-mix(in oklab, …)`
@@ -74,24 +89,28 @@ npm ci && npm test && npm run build   # all three must pass
   matrix with its best column lit — `DataTable` is a list of records), the
   kind chips with their icons, the chunky answer controls.
 
-- **Identity only from `member()`** (`lib/session.ts`); answers bind to it.
-  Never accept a member id from a form (see Rallly's vote IDOR). Its
-  `groups` (and `members.*`'s) are only those that give Polls: check a
-  poll's groups against `withAllGroups`/`withGroupsOf` (`lib/groups.ts`),
-  never against the assertion's alone.
+- **Identity only from `member()`** (`member` of `page()`/`action()`); answers bind to it.
+  Never accept a member id from a form (see Rallly's vote IDOR). With
+  `members.groups` its `groups` (and `members.*`'s) are every group the
+  member is in; without it, only those that give Polls.
+- **Members are told with notifications, never by email** (the owner's
+  decision of 6 October 2026): `notice()` in `src/lib/notify.ts` writes
+  English with the other languages as `translations`. `mail.send` is for
+  guests (people outside the company) only.
 - **A poll someone may not see is `not_found`**, never `forbidden`.
 - **Per team, counts only.** `group_tallies` holds counts per group, never
   a text, a member or a time; groups of fewer than 5 members are not
   counted; shown only through `visibleTeams` (never lower its floor or drop
   the subtraction rules). A company survey (repeat, eNPS) is checked with
   `surveys()` on create and on a draft's update, not only in the UI.
-- **Guests** answer only through `lib/guests.ts`: the link opens a named
+- **Guests** answer only through `src/lib/guests.ts`: the link opens a named
   date poll; a guest is a participant `guest` (never a member id); their
   secret's hash only; the public page never shows other answers or the
-  team's names; the public action checks the honeypot, `checkForm` and
-  `admit` first. Counts of members (`x of y answered`) exclude guests.
+  team's names; the public action is guarded by the package's `bound`
+  (its form token, `<Honeypot />` in the form, counts a day: see
+  `@argentic/chest-app`'s AGENTS.md). Counts of members (`x of y answered`) exclude guests.
 - **Replies** never tie a member to a text: no member id or time in
-  `texts` or on an author's reply; `lib/replies.ts` reads keys and keeps
+  `texts` or on an author's reply; `src/lib/replies.ts` reads keys and keeps
   nothing of the request; conversations only for managers and key holders.
 - **Anonymous means no link.** Never add a member id, a time, a sequence or
   anything orderable to `tallies` or `texts`; never join `participants` to
@@ -100,11 +119,12 @@ npm ci && npm test && npm run build   # all three must pass
   included); never reopen a closed anonymous poll; never list participants
   of an anonymous poll; no comments, no place limits on it. `test/answers.test.ts` checks the
   row stamps.
-- **Telling many people** goes through `lib/tell.ts`: one key per poll and
+- **Telling many people** goes through `src/lib/tell.ts`: one key per poll and
   kind (`poll:<id>:ask`, `poll:<id>:final`), so telling again replaces; a
   lease so two passes never tell at once; the cursor kept when the quota
   stops it.
 - **Closing is evaluated on read** (`closeDue`): no feature may depend on the
   schedule to be correct, only to be on time.
-- **Words** live in `lib/i18n/en.ts` and `fr.ts` (same keys, tested); dates
-  are formatted on the server (`lib/dates.ts`), never in a client component.
+- **Words** live in `src/i18n/en.ts` and `fr.ts` (same keys, tested; the
+  kit's words under `kit`); dates are written on the server (`src/lib/dates.ts`
+  on the Chest's clock, `f` for numbers, lists, plurals), never in an island.

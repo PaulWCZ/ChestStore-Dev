@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
 import { chest as chestSettings } from "@argentic/chest-sdk/chest";
-import { POST } from "../app/chest-events/route.ts";
-import { listCategories } from "../lib/categories.ts";
-import { lastDayOf, leavingList, purgeDepartures, readLeaving } from "../lib/departures.ts";
-import { AppError } from "../lib/app-error.ts";
-import * as items from "../lib/items.ts";
-import { addDays } from "../lib/model.ts";
+import { onEvent, onSchedule } from "../src/lib/deliveries.ts";
+import { listCategories } from "../src/lib/categories.ts";
+import { lastDayOf, leavingList, purgeDepartures, readLeaving } from "../src/lib/departures.ts";
+import { AppError } from "@argentic/chest-app";
+import * as items from "../src/lib/items.ts";
+import { addDays } from "../src/shared/model.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, sofia } from "./support/members.ts";
@@ -17,7 +17,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -26,7 +26,7 @@ after(async () => {
 
 const M = asMember(camille);
 const told = (type: "people.leaving" | "people.leaving_cancelled", data: Record<string, unknown>, extra: { source?: string; occurredAt?: string } = {}) =>
-  chest.deliver({ type, source: extra.source ?? "people", data, ...(extra.occurredAt ? { occurredAt: extra.occurredAt } : {}) }, POST);
+  chest.deliver({ type, source: extra.source ?? "people", data, ...(extra.occurredAt ? { occurredAt: extra.occurredAt } : {}) }, onEvent);
 const bell = (member: string, who: string) => chest.notifications.filter(n => n.member === member && n.key === `leaving:${who}`);
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
@@ -56,7 +56,7 @@ test("someone leaving: the managers hear it once, in their language, with what t
   assert.equal(await told("people.leaving", { member: hugo.id, lastDay: last }, { occurredAt: ago(60_000) }), 204);
   const toCamille = bell(camille.id, hugo.id);
   assert.equal(toCamille.length, 1);
-  assert.match(toCamille[0]!.title, /^Hugo Bernard part le \d+ \S+ — 3 objets à reprendre$/u);
+  assert.match(shownTo(toCamille[0]!, "fr").title, /^Hugo Bernard part le \d+ \S+ — 3 objets à reprendre$/u);
   assert.match(bell(sofia.id, hugo.id)[0]!.title, /^Hugo Bernard leaves on \d+ \S+ — 3 items to take back$/u);
   assert.equal(toCamille[0]!.path, `/chest/people/${hugo.id}`);
   assert.equal(bell(hugo.id, hugo.id).length, 0, "never the person leaving");
@@ -65,8 +65,8 @@ test("someone leaving: the managers hear it once, in their language, with what t
   await assert.rejects(leavingList(sql, asMember(ines)), (e: unknown) => e instanceof AppError && e.code === "forbidden");
   // The same event delivered twice: one bell item still.
   const event = { type: "people.leaving", source: "people", id: "evt_" + "p".repeat(26), data: { member: hugo.id, lastDay: last } };
-  assert.equal(await chest.deliver(event, POST), 204);
-  assert.equal(await chest.deliver(event, POST), 204);
+  assert.equal(await chest.deliver(event, onEvent), 204);
+  assert.equal(await chest.deliver(event, onEvent), 204);
   assert.equal(bell(camille.id, hugo.id).length, 1);
   // Taken back in People: the notice goes, the list forgets him.
   assert.equal(await told("people.leaving_cancelled", { member: hugo.id }), 204);
@@ -95,7 +95,7 @@ test("leaving then gone: the departure gives way to “left and holds”; other 
   assert.equal(bell(camille.id, ines.id).length, 1);
   chest.members.splice(chest.members.findIndex(m => m.id === ines.id), 1);
   chest.former.push({ id: ines.id, name: "Inès Moreau" });
-  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, POST), 204);
+  assert.equal(await chest.emit({ type: "member.removed", data: { id: ines.id } }, onEvent), 204);
   assert.equal(bell(camille.id, ines.id).length, 0, "the leaving notice goes");
   assert.equal(chest.notifications.filter(n => n.member === camille.id && n.key === `left:${ines.id}`).length, 1, "the left notice says the rest");
   assert.equal(await lastDayOf(sql, M, ines.id), null);

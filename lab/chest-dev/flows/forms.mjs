@@ -1,5 +1,8 @@
 // Forms, as a creator builds one and people answer it, in a real browser:
-//   node lab/chest-dev/flows/forms.mjs [port]   (harness with --reset: the sample forms are there)
+//   node lab/chest-dev/dev.mjs tools/public-and-private/forms --port 6800 --prod --reset --tools crm,helpdesk --linked
+//   node lab/chest-dev/flows/forms.mjs [port]
+// (--reset: the sample forms are there; --tools crm,helpdesk --linked:
+// Clients and Support installed and linked, the routes' steps need them.)
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 6800);
@@ -61,7 +64,7 @@ await step("an unfinished question blocks publishing and says where; fixed, the 
   await page.getByRole("button", { name: "Publish" }).click();
   await page.waitForSelector("dialog[open]");
   link = (await page.locator("dialog[open] code").innerText()).trim();
-  expect(/^http:\/\/localhost:\d+\/[a-z0-9]{8}$/u.test(link), "link: " + link);
+  expect(/^https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/[a-z0-9]{8}$/u.test(link), "link: " + link);
 });
 
 await step("options: Enter goes to the next option and the cursor follows (no words glued into one option)", async () => {
@@ -118,12 +121,14 @@ await step("a manager allows the company's website on the Share tab: the public 
   await english();
 });
 
-await step("settings save by themselves (no Save button): a copy by email, the bell and email for the owner, other tools", async () => {
+await step("settings save by themselves (no Save button): a copy by email, the bell for the owner, other tools", async () => {
   await page.goto(formUrl + "/settings");
   expect((await page.getByRole("button", { name: "Save" }).count()) === 0, "no Save button");
   await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
-  // Round 3: a new public form has its owner's alerts by email on already.
-  expect(await page.getByRole("switch", { name: "Also send them each batch by email" }).isChecked(), "the owner's alerts by email on by default");
+  // The people told hear of answers in their Chest notifications; no
+  // "email me" switch: each one chooses in the Chest.
+  expect((await page.getByRole("switch", { name: /by email/u }).count()) === 0, "no email switch for the people told");
+  expect((await page.locator("main").innerText()).includes("Each person chooses in the Chest whether these also come by email"), "the bell's hint says who chooses");
   await page.locator("label.ck-switch-label", { hasText: "The other tools of your Chest" }).click();
   await page.locator("input[placeholder='Thank you!']").fill("Thanks, see you Friday");
   // Straight to another tab: the change goes first.
@@ -173,7 +178,7 @@ await step("a closing day before today is refused as typed: nothing is saved whi
 });
 
 // A visitor on a phone, in French.
-const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR", isMobile: true, hasTouch: true });
+const phone = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, locale: "fr-FR", isMobile: true, hasTouch: true });
 await phone.addCookies([{ name: "lang", value: "fr", url: origin }]);
 const visitor = await phone.newPage();
 visitor.on("pageerror", e => problems.push("visitor: " + e.message));
@@ -190,8 +195,14 @@ await step("on a phone, a French visitor: the English form speaks English, one q
   await visitor.locator("input.answer-input").fill("pas-une-adresse");
   await visitor.locator(".button.form-button", { hasText: "OK" }).click();
   expect((await visitor.locator(".q-error").innerText()).includes("Check the email address"), "email refused");
+  // Two dots in a row: the browser's own check lets it through, field.email's rule does not.
+  await visitor.locator("input.answer-input").fill("nina..roux@example.com");
+  await visitor.locator(".button.form-button", { hasText: "OK" }).click();
+  expect((await visitor.locator(".q-error").innerText()).includes("Check the email address"), "doubled dot refused");
   await visitor.locator("input.answer-input").fill("nina@example.com");
-  await visitor.keyboard.press("Enter");
+  // A copy goes only when the visitor asks for it, under the email question.
+  await visitor.getByLabel("Email me a copy of my answers").check();
+  await visitor.locator(".button.form-button", { hasText: "OK" }).click();
   expect(/^\d+% done$/u.test(await visitor.locator(".step-count").innerText()), "a percentage, not a total that changes");
   await visitor.locator("label.pill", { hasText: "Yes" }).tap();
   await visitor.waitForSelector("text=Which dessert?");
@@ -208,10 +219,13 @@ await step("on a phone, a French visitor: the English form speaks English, one q
   await visitor.waitForSelector(".runner-thanks", { timeout: 15000 });
   expect((await visitor.locator(".runner-thanks").innerText()).includes("Thanks, see you Friday"), "own thank-you title");
   expect((await dev()).includes("Your answers — Team lunch on Friday"), "copy in the outbox, in the form's language");
-  // The owner (who reads French) is told in the bell once, and by email with the answer.
-  const told = (await dev()).split("1 nouvelle réponse à Team lunch on Friday").length - 1;
-  expect(told === 2, "one bell item and one email: " + told);
-  expect((await dev()).includes("replies to <code>nina@example.com</code>"), "Reply writes to Nina");
+  // The owner is told in the bell once (English, and French in the same
+  // notice), never by an email of the tool.
+  const told = (await dev()).split("fr: 1 nouvelle réponse à Team lunch on Friday").length - 1;
+  expect(told === 1, "one bell item: " + told);
+  expect(!(await dev()).includes("<b>1 nouvelle réponse"), "no email to the owner");
+  // The visitor's copy: replies reach the company's address.
+  expect(/Your answers — Team lunch on Friday<\/b>[\s\S]*?replies to <code>contact@atelier-martin\.test<\/code>/u.test(await dev()), "the copy's replies go to the company");
   expect((await dev()).includes("<code>forms.answered</code>"), "told to the other tools");
 });
 
@@ -306,12 +320,31 @@ await step("a form in two languages: French visitors read the French version, ot
   await fr.goto(origin + "/p4x8vn2c");
   expect((await fr.locator(".runner-title").innerText()).startsWith("Portes ouvertes"), "French version");
   expect((await fr.locator(".form-button").innerText()).includes("Envoyer"), "French words");
-  const en = await browser.newContext({ locale: "en-GB" });
+  const en = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
   await en.addCookies([{ name: "lang", value: "en", url: origin }]);
   const g = await en.newPage();
   await g.goto(origin + "/p4x8vn2c");
   expect((await g.locator(".runner-title").innerText()).startsWith("Open day") && (await g.locator(".form-button").innerText()).includes("Send"), "English for an English visitor");
   expect((await g.locator(".ck-languages a").count()) === 2, "the switch offers the form's two languages");
+  await en.close();
+});
+
+await step("the keyboard from the page: Enter on the start page starts (as it says); a page of questions sent empty says so in one alert, a link to each", async () => {
+  const en = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  await en.addCookies([{ name: "lang", value: "en", url: origin }]);
+  const v = await en.newPage();
+  await v.goto(origin + "/k7m2fq9d");
+  await v.waitForSelector(".runner-start");
+  await v.keyboard.press("Enter");
+  await v.waitForSelector(".step", { timeout: 5000 });
+  expect(await v.locator(".step [role=heading][aria-level='1']").count() === 1, "the question is the page's heading");
+  await v.goto(origin + "/p4x8vn2c");
+  await v.locator(".classic-page button[type=submit]").click();
+  await v.waitForSelector(".fix-list a");
+  // (The kit's empty live regions — toasts, a file's problems — say nothing.)
+  const said = v.locator("[role=alert]").filter({ hasText: /\S/u });
+  expect(await said.count() === 1, "one alert: " + (await said.allInnerTexts()).join(" | "));
+  expect(await v.locator(".fix-list a").count() >= 1, "a link to each question");
   await en.close();
 });
 
@@ -452,7 +485,7 @@ await step("an answered date retyped as a date that cannot be read is refused: t
   expect(text.includes("Refused Then Right") && /15 Mar(ch)? 2031|2031-03-15|15\/03\/2031/u.test(text), "the corrected day is the one answered: " + text.slice(0, 400));
 });
 
-await step("Settings says the truth about where answers can go (SDK studio.16): Clients and Support are installed and linked to Forms by an admin (events.receivers), so both switches work, with no “not installed” or “not linked” sentence; this Chest sends to web addresses and email, so their forms and alerts are offered with no warning", async () => {
+await step("Settings says the truth about where answers can go (SDK studio.16): Clients and Support are installed and linked to Forms by an admin (events.receivers), so both switches work, with no “not installed” or “not linked” sentence; this Chest sends to web addresses and email, so their forms and the visitor's copy are offered with no warning", async () => {
   await as(context, origin, "ines");
   await english();
   await page.goto(origin + "/chest/forms/5/settings");
@@ -503,7 +536,7 @@ await step("a contact form also makes a contact in Clients and opens a ticket in
   await page.waitForSelector("dialog[open]");
   const contactLink = (await page.locator("dialog[open] code").innerText()).trim();
   await page.keyboard.press("Escape");
-  const v = await browser.newPage();
+  const v = await browser.newPage({ ignoreHTTPSErrors: true });
   await v.goto(contactLink);
   await v.getByLabel("Your name").fill("Nina Roux");
   await v.getByLabel("Your email address").fill("nina.roux@example.com");
@@ -523,7 +556,7 @@ await step("one message, one email: with a copy on, an answer Support took gets 
   await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
   expect((await page.locator("main").innerText()).includes("Support confirms each request by email"), "Settings says why no copy goes");
   await page.waitForSelector(".save-state.saved", { timeout: 10000 });
-  const v = await browser.newPage();
+  const v = await browser.newPage({ ignoreHTTPSErrors: true });
   await v.goto(origin + "/c2n6yd8u");
   await v.getByLabel("Your name").fill("Marc Petit");
   await v.getByLabel("Your email address").fill("marc.petit@example.com");
@@ -546,7 +579,7 @@ await step("one message, one email: with a copy on, an answer Support took gets 
   expect((await page.locator("main").innerText()).includes("Support follows this request up"), "no second follow-up here");
 });
 
-await step("a new form from the Contact template is linked right by default: Clients on, subject and details mapped, a company question, the owner's alerts by email on", async () => {
+await step("a new form from the Contact template is linked right by default: Clients on, subject and details mapped, a company question", async () => {
   await page.goto(origin + "/chest/new");
   await page.locator("button.template-card", { hasText: "Let customers write to you" }).click();
   await page.waitForURL(/\/chest\/forms\/\d+$/u);
@@ -557,7 +590,6 @@ await step("a new form from the Contact template is linked right by default: Cli
   const contact = page.locator(".route-fields").first();
   expect((await contact.getByLabel("Their company").locator("option:checked").innerText()) === "Your company (if any)", "company mapped");
   expect(!(await page.getByRole("switch", { name: "Also open a ticket in Support" }).isChecked()), "Support stays the author's choice");
-  expect(await page.getByRole("switch", { name: "Also send them each batch by email" }).isChecked(), "the owner's alerts by email on");
   await page.locator("label.ck-switch-label", { hasText: "Also open a ticket in Support" }).click();
   const ticket = page.locator(".route-fields").nth(1);
   await ticket.waitFor();
@@ -579,7 +611,7 @@ await step("web addresses: a Slack channel added in Settings gets each new answe
   expect(!(await box.innerText()).includes("abcdefghijklmnopqrstuvwx"), "the secret path is never shown");
   // A visitor answers the sample contact form (published in the step
   // before): the channel is told, in the Chest's words, with a link.
-  const v = await browser.newPage();
+  const v = await browser.newPage({ ignoreHTTPSErrors: true });
   await v.goto(origin + "/c2n6yd8u");
   await v.getByLabel("Your name").fill("Paul Lemaire");
   await v.getByLabel("Your email address").fill("paul.lemaire@example.com");

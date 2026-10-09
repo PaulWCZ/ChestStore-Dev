@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { firstCycleChoices } from "../lib/model.ts";
-import { today } from "../lib/time.ts";
+import { firstCycleChoices } from "../src/lib/model.ts";
+import { today } from "../src/lib/time.ts";
 import { world, type World } from "./support/world.ts";
 
 // The first cycle is chosen on the Chest's calendar, in its time zone —
@@ -40,8 +40,8 @@ test("around a quarter's end, the Chest's time zone decides which quarter is off
 });
 
 test("a cycle the tool named reads in each reader's language; one an admin named keeps its words", async () => {
-  const { createCycle, readCycle, updateCycle, deleteCycle } = await import("../lib/cycles.ts");
-  const { periodName, generatedName } = await import("../lib/cycle-names.ts");
+  const { createCycle, readCycle, updateCycle, deleteCycle } = await import("../src/lib/cycles.ts");
+  const { periodName, generatedName } = await import("../src/lib/cycle-names.ts");
   const { asMember } = await import("./support/member.ts");
   const { camille, hugo } = await import("./support/members.ts");
   const { sql } = w.database;

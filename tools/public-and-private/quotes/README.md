@@ -76,7 +76,11 @@ collected here.
   finalisations at once).
 - **Credit notes** (*avoirs*): the only correction of a finalised invoice,
   full or partial (its lines, reduced), with their own sequence
-  (`A-2026-0001`), never more than what remains of the invoice.
+  (`A-2026-0001`), never more than what remains of the invoice — in all,
+  and rate by rate: a credit note takes back VAT only at the rates the
+  invoice charged, and at each no more base than is left to credit there.
+  Its lines that take back a deposit keep their mark when edited, so the
+  entries debit 4191 again and not the sales.
 - **Numbering**: with the year (`F-2026-0001`, from 0001 each year) or
   without (`F-0001`, never restarting). An administrator may set the next
   number of a sequence **forward only, and only before this tool numbered
@@ -84,10 +88,25 @@ collected here.
   (`F-2026-0347` there → `F-2026-0348` here). Every change is kept and
   shown (Settings, and the history of the first document numbered after
   it). The format may change; each format has its own counters, so no
-  number can ever come twice.
+  number can ever come twice. A kind's prefix (`D`, `F`, `A`) may change,
+  but never to one another kind's documents already begin with (an invoice
+  `A-2027-0002` beside the credit note `A-2027-0002`): refused, and numbering
+  itself refuses a number another kind carries; each prefix change is kept
+  in the history too.
+- **Amounts typed** (prices, payments, capital, imported files): spaces of
+  any kind and apostrophes group thousands, a currency sign or code may
+  stand at either end; any other letter (`12a50`, `1e3`, `1O0`) is refused,
+  never dropped; groups are of three digits; currencies of 0, 2 and 3
+  decimals. A lone mark before three digits (`1,234`, `0.500`) could be a
+  thousand or a decimal: typed in a form it is refused ("Write 1234 or
+  1,23"), as in Expenses, Timesheets and the package's `field.money` (a
+  currency without decimals reads it as thousands). A file (an import, a
+  bank statement) is read with its own dominant decimal mark — `1.234` is a
+  thousand in a file that writes `12,50` —, or as thousands when it gives
+  no clue; the preview says which reading is used.
 - **Totals**, in integer cents: each line rounded once (half away from
   zero), summed per VAT rate, VAT computed once per rate, totals added —
-  the rule is written and tested in `lib/totals.ts` (it is also what the
+  the rule is written and tested in `src/shared/totals.ts` (it is also what the
   European e-invoicing standard EN 16931 expects).
 - **PDF**, drawn by the tool itself (its own small PDF writer, no library,
   no network), A4, in the client's language, with the French mandatory
@@ -265,39 +284,40 @@ and that person is rarely the one who manages the company's legal settings.
 |---|---|
 | `/` | Public host: "open the link from your email" (nothing is listed or linked there) |
 | `/q/:secret` | Public: the client's page of a quote — read it, accept ("Bon pour accord") or decline |
-| `/q/:secret/pdf` | Public: that quote's PDF (the one answered on, once answered; `?version=n` an earlier version) |
-| `/lang/:code` | Public: the visitor's language switch (a cookie) |
+| `/q/:secret/pdf` | Public: that quote's PDF (the one answered on, once answered; `?version=n` an earlier version). Kept in memory by its SHA-256 (24 MiB at most), two downloads at a time for the whole public part, 60 an hour per link (429 past it). Two limits to know: the client page's **first** visit draws the PDF it shows (to fingerprint it) outside the two-at-a-time bound — once per link and version, under the link's row lock —, and a PDF over 8 MiB is not kept in memory (drawn or read again at each download) |
+| `/lang/:code` | Public: the visitor's language switch (a cookie; the package's route) |
 | `/chest` | The desk |
-| `/chest/quotes`, `/chest/invoices` | Lists with state filters and search (`?state=`, `?q=`) |
+| `/chest/quotes`, `/chest/invoices` | Lists with state filters and search (`?state=`, `?q=`), 200 rows a page (`?page=`); they read again by themselves while their reader is there (a 304 when nothing changed) |
 | `/chest/documents/:id` | The paper (editable while a draft, or a sent quote) and its margin |
 | `/chest/documents/:id/pdf` | The PDF (`?download` to save it) |
 | `/chest/documents/:id/answers/:answer` | The exact PDF a client answered on (the proof) |
-| `/chest/clients`, `/chest/clients/:id` | Clients; one client's card and documents |
-| `/chest/catalogue` | The catalogue |
+| `/chest/clients`, `/chest/clients/:id` | Clients (200 a page, `?page=`); one client's card and documents |
+| `/chest/catalogue` | The catalogue (200 a page, `?page=`) |
 | `/chest/export`, `/chest/export/csv`, `/chest/export/journal`, `/chest/export/zip` | The accountant's export (`?from=&to=`): summary, accounting entries, everything |
 | `/chest/export/lists/clients`, `/chest/export/lists/items` | The clients, the catalogue (CSV, the importer's columns) |
 | `/chest/import?kind=clients\|items\|invoices` | Import a spreadsheet |
 | `/chest/bank` | Match a bank statement to the invoices still to collect |
 | `/chest/documents/:id/versions/:n` | The PDF of a quote's earlier version, as it was sent |
-| `/chest/terms`, `/chest/api/terms` | The terms and conditions of sale; authorise their upload |
-| `/q/:secret/terms` | Public: the terms and conditions of sale, for the link's holder |
+| `/chest/terms` | The terms and conditions of sale (their upload is authorised by the action `grantTerms`) |
+| `/q/:secret/terms` | Public: the terms and conditions of sale, for the link's holder (bounded as the PDF) |
 | `/chest/export/archives/:period` | A month's archive (`?part=`) |
 | `/chest/settings` | The company's details (admin; read only for others) |
-| `/chest/api/logo`, `/chest/logo` | Authorise a logo upload; the logo through a fresh signed link |
-| `/chest-events` | Members' lifecycle (Chest only) |
-| `/chest-jobs/badges` | The morning badge refresh (proposal, Chest only) |
-| `/chest-jobs/followup` | The morning follow-up: recurring drafts, automatic reminders, a missed monthly archive (proposal, Chest only) |
-| `/chest-jobs/archive` | The monthly archive, on the 1st (proposal, Chest only) |
+| `/chest/logo` | The logo through a fresh signed link (its upload is authorised by the action `grantLogo`) |
+| `/chest/actions/:name`, `/actions/answerQuote` | The members' actions (islands, forms), the one public action (the package's routes) |
+| `/chest-events` | Members' lifecycle, Clients' and Timesheets' events (Chest only, signed) |
+| `/chest-schedules` | The schedules `badges` (06:50: the badges again), `followup` (07:10: recurring drafts, automatic reminders, a missed monthly archive) and `archive` (04:30 on the 1st: the monthly archive) — Chest only, signed |
+| `/assets/…` | The built browser files, the fonts, the icon (`build.static`) |
 
 ## Looks
 
 The tool wears whatever look the company chose in its Chest, with the same
 features: its own identity, **Letterpress** (crisp paper, blue-black ink,
-an oxblood seal, a Caslon — `lib/theme.ts`), any theme of the store's
+an oxblood seal, a Caslon — `src/theme.ts`), any theme of the store's
 catalogue (the 17 identities, "Chest", "High contrast"), or the company's
 own brand imported from its guidelines — for all its tools or for this one.
-The look is resolved on the server (`chest.theme()` → `resolveTheme`) and
-written as one `<style>` with the page's nonce: no script, no flash. In
+The look is resolved on the server (`chest.theme()` → `resolveTheme`,
+`src/theme.ts`) and served as the page's stylesheet (the package's `look`:
+no inline style, no script, no flash). In
 brand mode the company's logo stands where the tool's mark does. Every
 look keeps every text readable (WCAG AA, light and dark: the kit checks
 each theme; `lab/chest-dev/audit.mjs` checks the pages).
@@ -309,7 +329,7 @@ never a catalogue theme chosen for the team, never the Chest's sheet (kit
 **The PDF does not change with the look.** A quote or an invoice is a
 legal document: the PDF (PDF/A-3, Factur-X, its own writer and embedded
 Liberation fonts) keeps its neutral print design — black on white — in
-every look (a test holds `lib/pdf/` away from the theme). The paper on
+every look (a test holds `src/pdf/` away from the theme). The paper on
 screen is the look's; the paper that leaves is always the same.
 
 The screens are built from the store's UI kit (`@argentic/chest-ui`,
@@ -321,22 +341,31 @@ empty states and state badges (drawn as the tool's rubber stamps).
 
 ## On a Chest
 
-`chest.json`: `"public": true` with `"csp": "tool"` (the client's pages;
-the tool sends its own nonce policy from `proxy.ts`, framed by nobody,
-`Referrer-Policy: same-origin`, `no-store` and `noindex` on `/q/`);
+`chest.json` (contract 0.4): `"public": true` (the client's pages: the
+package's strict policy — no inline script or style —, framed by nobody,
+`no-store` and `noindex`); `build.static` `["/assets/"]`;
 capabilities `database`, `files` (the logo, the terms and conditions, the
 PDFs kept, the PDFs answered on and of earlier versions, the monthly
 archives),
 `members` (names of who did what), `notifications` (billing told of drafts
 handed to them; a badge counting those drafts and the overdue invoices);
 receives `member.*`; `network`: `recherche-entreprises.api.gouv.fr` only
-(filling a client from its SIREN). `chest.proposals.json`: `mail.send`, the schedule
-`badges` (06:50 every day, sets the badge again — an invoice becomes overdue
-by the date alone), `followup` (07:10 every day: the recurring invoices'
-drafts, and the reminders if an administrator turned them on — the only
-emails a schedule sends — and a monthly archive missed) and `archive`
-(04:30 on the 1st), French title and role labels. Without schedules,
-the first visit of the desk each day runs the follow-up (`followed_up_on`).
+(filling a client from its SIREN); `schedules`: `badges` (06:50 every
+day, sets the badge again — an invoice becomes overdue by the date alone),
+`followup` (07:10 every day: the recurring invoices' drafts, and the
+reminders if an administrator turned them on — the only emails a schedule
+sends — and a monthly archive missed) and `archive` (04:30 on the 1st).
+`chest.proposals.json`: `mail.send`, the events between tools, French
+title and role labels. A Chest that has not run the follow-up by the first
+visit of the desk that day has it run then (`followed_up_on`).
+
+Its process: Hono serving React rendered on the server, with islands
+hydrated in the browser (built by Vite), on the package
+`@argentic/chest-app` (vendored). At rest, nothing runs: no timer, no
+polling of its own — the desk and the lists read again only while their
+reader is active (the package's `useAutoRefresh`), so the Chest can put
+the tool to sleep; what a request keeps in memory (the public PDFs by
+their fingerprint) is lost then, and made again.
 
 Lifecycle: losing access or leaving changes nothing (documents are the
 company's records; pages name the author "Name (former member)"). An
@@ -352,7 +381,7 @@ default language of new documents without a client is the Chest's
 (`chest.language`). Documents print the legal name the admin entered in
 Settings; pages and emails use the trade name, else the legal name, and
 only before Settings are filled in the Chest's organization name
-(`chest.organization.name`, `goesBy` in `lib/company.ts`).
+(`chest.organization.name`, `goesBy` in `src/lib/company.ts`).
 
 ## Legal (France) — what the tool does, and does not
 
@@ -401,7 +430,7 @@ sRGB output intent, XMP with the Factur-X extension schema) carrying
 `factur-x.xml` (CII D16B, `AFRelationship /Alternative`). It is the PDF of
 record, stored once with its SHA-256 (`documents.pdf_format = 'factur-x'`);
 documents issued before this version keep their plain PDF of record.
-`lib/einvoice.ts` says what goes where: the French mandatory notes (PMT,
+`src/lib/einvoice.ts` says what goes where: the French mandatory notes (PMT,
 PMD, AAB), the billing framework BT-23 (B1/S1/M1, B4/S4/M4 after
 deposits), SIREN (0002), SIRET (0009), the directory addresses (0225,
 the SIREN), VAT categories S / E (0 %, franchise `VATEX-FR-FRANCHISE`) /
@@ -419,6 +448,32 @@ and, for an individual buyer (B2C, outside the e-invoicing flow), the
 French warnings "PMT missing" and "BT-49 missing" — the €40 indemnity does
 not apply to consumers and they have no directory address. The XSD check
 runs in the tests when `FACTURX_XSD` points to the schema.
+**Currencies.** The Chest's currency is the documents' (`chest.currency`).
+In euros, everything above. **Another currency of two or no decimals**
+(USD, CHF, GBP, JPY…): the member gives the exchange rate on the paper
+("Exchange rate, 1 € = 1.0823 USD", as the ECB publishes it) before
+finalising; the PDF states the VAT in euros at that rate and the Factur-X
+carries it (BT-6 `TaxCurrencyCode` EUR, BT-111 the VAT total in euros:
+BR-FR-CO-12); a credit note keeps its invoice's rate. This follows art. 230
+of the VAT Directive (2006/112/EC: the VAT amount in the national currency)
+— the studio's reading, not checked with an accountant, and which rate the
+law wants (the ECB's of the day the VAT became chargeable, or the bank's)
+is the company's to choose; checked here: the XSD (USD and JPY samples),
+not Mustang-CLI's schematrons. **A currency of three decimals** (KWD, BHD,
+TND…): EN 16931 writes at most two decimals (BR-DEC-*), so such an invoice
+is issued as a PDF/A **without** the Factur-X data (`pdf_format = 'pdf'`,
+the page does not call it a Factur-X): the e-invoicing reform cannot be
+met in that currency here. Invoices issued outside the euro before this
+version (no rate) keep a plain PDF.
+
+**The XSD check, with the schema fetched at test time**:
+`npm run test:facturx` downloads the `factur-x` 7.3 wheel from PyPI
+(BSD licence; pinned by SHA-256, `scripts/facturx-xsd.mjs`), unpacks its
+Factur-X EN 16931 XSD into `node_modules/.cache/facturx-xsd/` (never
+committed), and runs the tests with `FACTURX_XSD` set (needs network once,
+`unzip` and `xmllint`). A CI job runs that command; the studio has no CI
+of its own yet, so it is run by hand before a release.
+
 **Not verified**: acceptance by a real PA (none reachable from the
 studio); the choice of E for a 0 % line in the standard regime (the tool
 does not ask which exemption applies: ask the accountant); SIREN as the
@@ -427,30 +482,65 @@ tax registration (FC) of a franchise company without a VAT number (EN
 (fnfe-mpe.org could not be reached; its rules were read from the official
 schemas and schematrons).
 
+## Mail to people outside the company
+
+Quotes & invoices emails only clients — people outside the company. A
+member is never emailed by the tool: billing, sales and the author are
+told in the Chest's bell (a quote accepted or refused online, a late
+invoice, a recurring draft ready, a deal won in Clients, hours to bill
+from Timesheets), one notice in English with its French translation; the
+Chest mails members their notifications by their own choice (each one,
+once or twice a day, or off; off per tool), set in the Chest, not here.
+
+| Recipient | Purpose | When | Content | Attachments | Reply-To |
+|---|---|---|---|---|---|
+| The client (the document's buyer's email, changeable in the dialog) | A quote | A member presses *Send* | The words of the send dialog in the client's language; first line: the link to read and accept the quote online | The quote's PDF; the terms and conditions of sale (PDF) when Settings has them | The company's email of Settings ("Clients reply to this address"), else the connector's reply address |
+| The client | An invoice or a credit note | A member presses *Send* | The dialog's words; the bank details and the online payment link when set | The invoice's PDF (Factur-X) | The same |
+| The client | A payment reminder | A member presses *Send a reminder* | The dialog's words: number, amount left, due date | The invoice's PDF (none for an invoice imported from the previous tool) | The same |
+| The client | An automatic payment reminder | Each morning (schedule `followup`), an invoice late by one of the company's steps, when an administrator turned them on | The standard reminder in the client's language, signed with the company's name | The invoice's PDF | The same |
+
+Sent through the Chest's mail connector (studio proposal, not built yet):
+`mail.send` with the client's address, signed "{member} — {company}"
+(the automatic reminder: the company). Replies reach the company's usual
+inbox, never the tool; a quote's mail never asks the client to reply to
+accept — the answer link does it. When the connector is absent or paused
+(`mail.available()` not ok, or `send` throws `Unavailable`), nothing is
+lost: the send dialog opens on *Send it yourself* (download the PDF, send
+it from your own email, mark it as sent) and says why — or, when the
+Chest could not take a send just now, "The email did not go"; an
+automatic reminder is not emailed — the person in charge is told in the
+bell, as always. A reminder the Chest could not take (sending paused,
+no answer, the day's emails used) is not counted and is tried again the
+next morning (Settings says the reminders wait; the log says so each
+morning); one refused for any other reason is not retried forever: the
+person in charge is told in the bell and reminds by hand.
+
+**Changed on 6 October 2026** (the owner's mail decisions): a document
+sent by hand needs no special flag any more (no member gets the tool's
+mail); the bell's notices carry their French translation in one notice.
+
 ## Needs from the SDK
 
-Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
+Built on SDK 0.4.1-studio.7 (contract 0.4 + studio proposals) and the package `@argentic/chest-app` 0.1.0-studio.6, in `vendor/`.
 
 - **mail** (studio proposal, `chest.proposals.json` `mail.send`): send the
-  quote, invoice, credit note or reminder with its PDF attached. Call site:
-  `lib/sending.ts` only. On a Chest without mail (`CapabilityNotGranted`)
-  nothing is sent, the tool remembers it (`company.mail_works`) and offers
+  quote, invoice, credit note or reminder with its PDF attached — to
+  clients only (people outside the company; see *Mail to people outside
+  the company*). Call site: `src/lib/sending.ts` only. On a Chest without
+  mail (`CapabilityNotGranted`) or whose mail connector is not connected
+  (`Unavailable`) nothing is sent, the tool remembers it (`company.mail_works`) and offers
   "Download the PDF" + "Mark as sent". Before offering, it asks the Chest
-  (`mail.available()`, studio.16; `lib/mailing.ts`): the send dialog opens
+  (`mail.available()`, studio.16; `src/lib/mailing.ts`): the send dialog opens
   on "Send it yourself" and says why (not connected, paused, the day's
   emails used) when the Chest would not send; Settings says the same under
   "Email the client"; the morning's reminders go to the bell alone when the
   Chest has no mail or it is not connected. When the Chest does not
-  answer, what the last send taught. A quote or an invoice a member
-  sends by hand is `transactional` (studio.15): it arrives even when the
-  addressee is a member who chose no email from the tools; the automatic
-  reminders honour that choice (`mailPreference` in the members API, applied by
-  `mail.send`). An automatic reminder's key carries its recipient
+  answer, what the last send taught. An automatic reminder's key carries its recipient
   (`reminder-<invoice>-<step>-<address>`): after a restore, an invoice id
   may name another invoice.
-- **schedules** (studio proposal): `badges` and `followup`, daily. Without
-  them, badges are set after each change, and the follow-up runs at the
-  first desk visit of the day.
+- **schedules** (contract 0.4, `chest.json`): `badges`, `followup`,
+  `archive`. Badges are also set after each change, and the follow-up
+  runs at the first desk visit of a day it has not run.
 - **chest**: `today()`, `timeZone`, `language`, `organization.name`
   (SDK 0.3.0); `currency`, `publicUrl`, `toolLink` (studio proposals).
 - **Events between tools** (studio proposal, `chest.proposals.json`
@@ -477,7 +567,7 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   connector), `partners.status("pa", id)`, and status events delivered to
   `POST /chest-events` (`partner.einvoice.status`: déposée, rejetée,
   refusée, encaissée…); `CapabilityNotGranted` until configured. The tool
-  side would be one module (`lib/transmit.ts`) called after finalising,
+  side would be one module (`src/lib/transmit.ts`) called after finalising,
   plus a status on the invoice page. Not built as a fake: until then,
   "keep your PA".
 - **visitors** (studio proposal) for the public answer form: the signed
@@ -485,13 +575,17 @@ Built on SDK 0.3.0 + studio proposals (0.3.1-studio.1), in `vendor/`.
   refused as a robot's), the Chest's counting (`count`, 20 answers an hour
   per visitor; a Chest that cannot count yet is tolerated — each link
   answers once), and `visitor()` (the hash of the address kept as proof).
-  Call site: `app/public-actions.ts`. And `chest.publicUrl` for the
-  link's address (`lib/public-origin.ts` derives it from the request
-  otherwise). Without **mail** on a real Chest, the member copies the
+  The form's token and its bounds are now the package's `publicAction`
+  with `bound` (`formSeconds` 3; per link: 20 accepts and 20 declines,
+  per visitor 20, 600 a day for the whole public part), never a call to
+  the Chest per public request. Call site: `src/actions.ts`
+  (`answerQuote`). And `chest.tool.publicUrl` for every link's
+  address — the company's own domain once connected — in emails and on the
+  team's pages (`src/lib/public-origin.ts`; never the request's host). Without **mail** on a real Chest, the member copies the
   link from the quote's margin into their own email.
 - **Declared network** (`chest.json` `network`, in the Chest today, not a
   proposal): the public directory of companies, called with plain
-  `fetch()` through the Chest's egress proxy (`lib/registry.ts`; Node
+  `fetch()` through the Chest's egress proxy (`src/lib/registry.ts`; Node
   follows it with `NODE_USE_ENV_PROXY`). The tests answer the host with the
   SDK's `fakeChest({ network })` (studio.15): a successful lookup, a
   refusal by the egress, every honest failure (`test/registry.test.ts`).
@@ -533,7 +627,7 @@ accepted and ignored. Nothing is invented: what Clients does not send stays
 empty (today it sends the company's name and its address as free text, and
 the contact) — the client card then asks for the city before an invoice.
 The country is the card's own default (France), as for a client added by
-hand. Code: `lib/crm.ts`, `app/chest-events/route.ts`;
+hand. Code: `src/lib/crm.ts`, `src/lib/deliveries.ts`;
 tests: `test/crm.test.ts` (`chest.deliver`).
 
 **Timesheets → Quotes → Timesheets** (Proposal (studio): events between
@@ -545,7 +639,7 @@ Timesheets' README, "With the other tools" (version 1).
   currency, lines[], source}` — **one draft invoice per `handoff`**, for
   ever (the `handoffs` table keeps each id: a second delivery, even after
   the draft was dropped, changes nothing). The client is the one whose name
-  is Timesheets' (accents, case and spaces aside), when exactly one
+  is Timesheets' (accents, case, spaces and punctuation aside: an indexed key, migration `0015_client_name_key.sql`), when exactly one
   matches; otherwise none, and the invoice's margin says which name
   Timesheets gave ("choose it on the invoice"). One line per `lines[]`
   item: its label, `minutes / 60` **hours** (unit "heure"/"hour"), the
@@ -557,6 +651,22 @@ Timesheets' README, "With the other tools" (version 1).
   Timesheets"), and linked back to the project with
   `chest.toolLink("timesheets", source.path)` ("Open in Timesheets"; no
   link when Timesheets is not installed or the path is not under `/chest`).
+- **Rounding, the two sides.** Timesheets freezes the rates at hand-off
+  and counts `amount` as each entry's minutes × rate ÷ 60 **rounded to the
+  cent, then added**. Quotes writes each line as its hours **to the
+  thousandth** (`round(minutes × 1000 / 60)`) × the hourly rate, the line's
+  net rounded once to the cent (half away from zero, `src/shared/totals.ts`),
+  because an invoice line's net must be its quantity × its price (EN 16931,
+  checked by Factur-X). The two can differ by a few cents: 50 minutes at
+  90.00 an hour are 75.00 for Timesheets, 0.833 h × 90.00 = 74.97 on the
+  invoice. Quotes does not force the invoice to Timesheets' figure; it
+  keeps Timesheets' `amount` (when in the Chest's currency) and, when the
+  invoice's total excluding VAT differs, the draft's margin says both, as a
+  caution ("Timesheets says €75.00; this invoice says €74.97 (€0.03 of
+  rounding). Adjust a line if you want them equal.").
+  They agree whenever each entry's amount is a whole number of cents and
+  each line's minutes make hours to the thousandth (e.g. rates in whole
+  units of currency and entries in quarters of an hour).
 - `timesheets.billable_cancelled {version: 1, handoff}` — the draft is
   deleted if it was not issued; an issued invoice is **kept** (a legal
   record) and billing hear it in the bell ("make a credit note if it
@@ -570,17 +680,21 @@ Timesheets' README, "With the other tools" (version 1).
   cleaned and bounded; 1 to 300 lines; minutes and rates whole, bounded,
   never negative; a day `YYYY-MM-DD`; the path a `/chest…` path of 300
   characters at most. Anything else is accepted and ignored.
-  Code: `lib/timesheets.ts`, `app/chest-events/route.ts`, migration
-  `0009_timesheets.sql`; tests: `test/timesheets.test.ts`.
+  Code: `src/lib/timesheets.ts`, `src/lib/deliveries.ts` (`/chest-events`),
+  migrations `0009_timesheets.sql`, `0012_handoff_amount.sql`; tests:
+  `test/timesheets.test.ts`.
 
 ## Develop
 
 ```sh
 npm ci
-npm test                                                 # PGlite
+npm run dev                                              # Vite + the server, reloaded on change (needs the Chest's variables: use the harness)
+npm test                                                 # tsc, the server built to dist/test, then node --test (PGlite)
 TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test   # real PostgreSQL (the concurrency test runs truly in parallel)
-npm run build
+npm run build                                            # tsc, the browser files (dist/client), the server (dist/server)
+npm start                                                # node dist/server/main.js
 node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 5700   # from the studio: the harness with the sample company
+node ../../../lab/chest-dev/flows/quotes.mjs 5700                  # the browser flow
 ```
 
 `seed/sample.sql` fills "Atelier Martin SARL", a Lyon design studio: 6

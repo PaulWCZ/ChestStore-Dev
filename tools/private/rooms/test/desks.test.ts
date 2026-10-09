@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import * as desks from "../lib/desk-bookings.ts";
-import * as places from "../lib/places.ts";
-import { addDays, mondayOf, today } from "../lib/model.ts";
-import { atOffice, presenceOf } from "../lib/presence.ts";
-import { setRules } from "../lib/settings.ts";
+import * as desks from "../src/lib/desk-bookings.ts";
+import * as places from "../src/lib/places.ts";
+import { addDays, mondayOf, today } from "../src/shared/model.ts";
+import { atOffice, presenceOf } from "../src/lib/presence.ts";
+import { setRules } from "../src/lib/settings.ts";
+import { stamp } from "../src/lib/stamp.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
@@ -127,4 +128,17 @@ test("changing desks: with move, my desk at that time is freed in the same step;
   await desks.cancelDesk(sql, asMember(sofia), second.id);
   await desks.restoreDesk(sql, asMember(sofia), first.id);
   assert.deepEqual(await mine(), [a]);
+});
+
+test("a page's version: it changes with any booking, and with the quarter hour; none for a member without a role", async () => {
+  const { sql } = database;
+  const at = new Date("2026-10-07T08:05:00Z");
+  const before = await stamp(sql, asMember(hugo), zone, at);
+  assert.equal(await stamp(sql, asMember(hugo), zone, at), before, "nothing changed: the same");
+  const b = await desks.bookDesk(sql, asMember(sofia), { deskId: o.desks[2], day: workday(9) }, zone);
+  const after = await stamp(sql, asMember(hugo), zone, at);
+  assert.notEqual(after, before, "a booking changes it");
+  assert.notEqual(await stamp(sql, asMember(hugo), zone, new Date("2026-10-07T08:20:00Z")), after, "the next quarter hour too");
+  await desks.cancelDesk(sql, asMember(sofia), b.id);
+  assert.equal(await stamp(sql, asMember(nora), zone, at), null);
 });

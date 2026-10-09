@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import * as activities from "../lib/activities.ts";
-import * as deals from "../lib/deals.ts";
-import { addDays } from "../lib/model.ts";
-import { today } from "../lib/zone.ts";
-import * as steps from "../lib/steps.ts";
-import * as tell from "../lib/tell.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { onSchedule as POST } from "../src/lib/deliveries.ts";
+import * as activities from "../src/lib/activities.ts";
+import * as deals from "../src/lib/deals.ts";
+import { addDays } from "../src/shared/model.ts";
+import { today } from "../src/lib/zone.ts";
+import * as steps from "../src/lib/steps.ts";
+import * as tell from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -15,8 +15,8 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ network: {}, members: everyone });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "morning", cron: "30 7 * * 1-5" }] });
 });
 after(async () => {
   await chest.close();
@@ -25,10 +25,12 @@ after(async () => {
 
 test("given a deal or a next step, one is told in their language; done, the item goes and the tile follows", async () => {
   const { sql } = database;
-  const d = await deals.addDeal(sql, asMember(camille), { title: "Printers", value: "2 400" });
+  const d = await deals.addDeal(sql, asMember(camille), { title: "Printers", value: 240000 });
   const given = await deals.setOwner(sql, asMember(camille), d.id, ines.id);
   await tell.dealGiven(asMember(camille), given.given, { id: d.id, title: d.title, value: d.value });
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body?.replace(/\s/gu, " "), n.key]), [[ines.id, "Camille Martin vous a confié une affaire", "Printers · 2 400 €", `deal:${d.id}:owner`]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body?.replace(/\s/gu, " "), n.key]), [[ines.id, "Camille Martin vous a confié une affaire", "Printers · 2 400 €", `deal:${d.id}:owner`]]);
+  // One notice: English its own words (the fallback), French in its translations.
+  assert.deepEqual(chest.notifications.map(n => [n.title, n.body?.replace(/\s/gu, " ")]), [["Camille Martin gave you a deal", "Printers · €2,400"]]);
   const s = await steps.addStep(sql, asMember(camille), { deal: d.id }, { text: "Demo", due: today(), owner: hugo.id });
   await tell.stepGiven(asMember(camille), s.given, s.step, { kind: "deal", id: d.id, title: d.title });
   const bell = chest.notifications.find(n => n.member === hugo.id)!;
@@ -60,7 +62,7 @@ test("the weekday morning: each person's due steps in one item, in their languag
   await sql`update activities set removed_at = now() - interval '2 days' where id = ${gone.id}`;
   chest.badges.set(hugo.id, 4); // stale since yesterday
   assert.equal(await chest.run("morning", POST), 204);
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.body, n.key]), [[ines.id, "2 prochaines étapes pour aujourd’hui", "Call the buyer · Send the quote", "digest"]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, shownTo(n, "fr").title, shownTo(n, "fr").body, n.key]), [[ines.id, "2 prochaines étapes pour aujourd’hui", "Call the buyer · Send the quote", "digest"]]);
   assert.equal(chest.badges.get(ines.id), 2);
   assert.equal(chest.badges.get(hugo.id), undefined);
   const [purged] = await sql`select count(*)::int as n from activities where id = ${gone.id}`;

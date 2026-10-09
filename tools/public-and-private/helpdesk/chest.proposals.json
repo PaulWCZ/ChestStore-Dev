@@ -1,23 +1,10 @@
 {
   "mail": {
-    "send": true,
-    "mailboxes": [
-      "support"
-    ]
+    "send": true
   },
   "files": {
     "publicUploads": true
   },
-  "schedules": [
-    {
-      "name": "cleanup",
-      "cron": "15 3 * * *"
-    },
-    {
-      "name": "late",
-      "cron": "*/15 * * * *"
-    }
-  ],
   "emits": [
     "helpdesk.ticket.solved",
     "helpdesk.ticket.reopened"

@@ -294,25 +294,24 @@ await step("the manager sees the receipt on the item and prints Hugo's handover 
   expect(await page.locator(".paper-who dt", { hasText: "Printed on" }).count() === 1, "Printed on, a term of its own");
 });
 
-await step("the overview: remind the holder of a receipt nobody confirmed (bell, email where the Chest sends it); once a day", async () => {
+await step("the overview: remind the holder of a receipt nobody confirmed (a notification; the Chest mails it if they chose so); once a day", async () => {
   await as(context, origin, "sofia");
   await english();
   await page.goto(origin + "/chest");
   const row = page.locator("#unconfirmed li").first();
   const who = await row.innerText();
   await row.getByRole("button", { name: /^Remind .+ about .+/u }).click();
-  await page.locator(".ck-toast", { hasText: /Reminded in their bell/u }).waitFor();
+  await page.locator(".ck-toast", { hasText: /Reminded\. They will see it in their notifications/u }).waitFor();
   expect(await page.locator(".ck-toast", { hasText: /Reminded/u }).getByRole("button", { name: "Undo" }).count() === 0, "sent: no Undo");
   await page.reload();
   expect((await page.locator("#unconfirmed li").first().innerText()).includes("Reminded today"), "once a day: " + who.slice(0, 80));
   expect(/asks: did you receive|vous demande[\u202f\u00a0 ]?: avez-vous reçu/u.test(await dev()), "the holder's bell, in their language");
 });
 
-await step("the reminder also went by email, where this Chest sends it: one message to the holder's own address, which Equipment never knows (its key carries the holder, SDK studio.16)", async () => {
+await step("the reminder is a notice in the holder's bell, its French beside it, with the day it was given; Equipment sends no email (the outbox stays empty)", async () => {
   const board = await dev();
-  const mail = board.slice(board.indexOf("Mail (proposal)"));
-  const sent = mail.match(/<b>Did you receive [^<]+\?<\/b><br><small>[^<]*→ [a-z]+@example\.test/gu) ?? mail.match(/<b>Avez-vous reçu [^<]+<\/b><br><small>[^<]*→ [a-z]+@example\.test/gu) ?? [];
-  expect(sent.length === 1, "one reminder email, to the holder: " + sent.join(" | ").slice(0, 300));
+  expect(/asks: did you receive [^<]+<br><small>Given on [^<]+<\/small><br><small lang="fr">fr: [^<]+ vous demande/u.test(board), "English words, the French translation");
+  expect(!board.includes("Mail to people outside") && !/Did you receive|Avez-vous reçu/u.test(board), "no mail panel, no reminder email");
 });
 
 await step("Hugo asks for a privacy filter; Sofia gives one from the stock from the overview; Inès's request is refused with a reason", async () => {
@@ -481,7 +480,7 @@ await step("the initials of someone who left are theirs: TW for “Tom Walker (f
 });
 
 await step("phone, French: Inès reports a problem from her list; no horizontal scroll", async () => {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR" });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR", ignoreHTTPSErrors: true });
   await phone.addCookies([{ name: "dev_member", value: id("ines"), url: origin }, { name: "dev_locale", value: "fr", url: origin }]);
   const p = await phone.newPage();
   p.on("pageerror", e => problems.push("phone: " + e.message));
@@ -581,7 +580,7 @@ await step("a manager lets members see who holds keys and badges (off by default
 
 await step("an item's history reads newest first, strictly by time", async () => {
   await page.goto(origin + "/chest/items/2");
-  const whens = await page.locator(".timeline .tl-when time").evaluateAll(list => list.map(t => t.getAttribute("datetime")));
+  const whens = await page.locator(".timeline .tl time").evaluateAll(list => list.map(t => t.getAttribute("datetime")));
   const times = whens.map(w => Date.parse(w));
   expect(times.length >= 4 && times.every(t => Number.isFinite(t)), "times read: " + whens.join(" | "));
   expect(times.every((t, k) => k === 0 || t <= times[k - 1]), "newest first: " + whens.join(" | "));
@@ -598,7 +597,7 @@ await step("a problem under warranty: the overview says so; Claim the warranty s
   expect(line.includes("Under warranty until") && line.includes("bought from Apple Store Business"), "on the problem: " + line.slice(0, 200));
   await page.getByRole("button", { name: "Claim the warranty" }).click();
   const dialog = page.locator("dialog[open]");
-  const facts = await dialog.locator(".claim-facts").innerText();
+  const facts = await dialog.locator("dl.facts").innerText();
   expect(facts.includes("Apple Store Business") && facts.includes("5 October 2023"), "supplier details: " + facts);
   expect((await dialog.innerText()).includes("Inès Moreau holds it"), "says it comes back from Inès");
   expect((await dialog.getByLabel("What the supplier is told").inputValue()).startsWith("Warranty claim: La batterie"), "the claim's words");
@@ -635,7 +634,7 @@ await step("Intune: the overview's news, the item's facts, and the import page (
 });
 
 await step("phone, French, a manager: long sections fold to three lines; the search box's words fit", async () => {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR" });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR", ignoreHTTPSErrors: true });
   await phone.addCookies([{ name: "dev_member", value: id("sofia"), url: origin }, { name: "dev_locale", value: "fr", url: origin }]);
   const p = await phone.newPage();
   p.on("pageerror", e => problems.push("phone: " + e.message));
@@ -653,7 +652,7 @@ await step("phone, French, a manager: long sections fold to three lines; the sea
   console.log("    phone overview height: " + height + " px (round 3: 3,650)");
   expect(height < 3400, "shorter overview: " + height);
   // No section of "Needs your attention" shows more than four lines folded.
-  const longest = await p.evaluate(() => Math.max(...[...document.querySelectorAll(".attention .panel")].map(panel =>
+  const longest = await p.evaluate(() => Math.max(...[...document.querySelectorAll("section[aria-labelledby=attention] .panel")].map(panel =>
     [...panel.querySelectorAll(":scope > ul.plain > li")].filter(li => li.offsetParent !== null).length)));
   expect(longest <= 4, "at most four lines per section: " + longest);
   expect(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "no horizontal scroll");
@@ -683,6 +682,35 @@ await step("a dialog never loses what was typed: Escape asks first; Keep editing
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Discard" }).click();
   expect(await page.locator("dialog[open]").count() === 0, "closed");
+});
+
+await step("two managers at once: a take-back from a page read before someone else's is refused (it moved), and the page shows where it is", async () => {
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(itemUrl);
+  if (await page.getByRole("button", { name: "Take back" }).count() === 0) {
+    await page.getByRole("button", { name: "Give to someone" }).click();
+    await page.getByPlaceholder("Find someone").fill("hug");
+    await page.getByRole("option", { name: /Hugo Bernard/u }).click();
+    await page.getByRole("button", { name: "Give it to Hugo Bernard" }).click();
+    await page.getByText("Given to Hugo Bernard.").waitFor();
+    await page.goto(itemUrl);
+  }
+  // Camille, elsewhere, takes it back first.
+  const other = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-GB" });
+  await other.addCookies([{ name: "dev_member", value: id("camille"), url: origin }, { name: "dev_locale", value: "en", url: origin }]);
+  const camille = await other.newPage();
+  await camille.goto(itemUrl);
+  await camille.getByRole("button", { name: "Take back" }).first().click();
+  await camille.getByRole("button", { name: "Take it back" }).click();
+  await camille.locator("dialog[open]").waitFor({ state: "detached" });
+  await other.close();
+  // Sofia's page still says Hugo has it: her take-back is refused.
+  await page.getByRole("button", { name: "Take back" }).first().click();
+  await page.getByRole("button", { name: "Take it back" }).click();
+  await page.getByText("Someone moved it meanwhile").waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByText("In stock", { exact: false }).first().waitFor();
 });
 
 await browser.close();

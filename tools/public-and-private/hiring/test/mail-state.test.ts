@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { mailState, stateOf } from "../lib/mail-state.ts";
+import { mailState, stateOf } from "../src/lib/mail-state.ts";
 import { everyone } from "./support/members.ts";
 
 // Whether a page may promise an email to a candidate (mail.available(),
@@ -9,7 +9,7 @@ import { everyone } from "./support/members.ts";
 // candidate's page once they chose a time.
 let chest: FakeChest;
 before(async () => {
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "mail"], mail: { domain: "atelier.test", mailboxes: ["jobs"] } });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "mail"], mail: { domain: "atelier.test" } });
 });
 after(async () => {
   await chest.close();
@@ -29,11 +29,11 @@ test("mail state: ready, not connected, suspended, as the Chest says", async () 
 });
 
 test("mail state: each reason read, a used day's quota is later", () => {
-  assert.equal(stateOf({ ok: true, reason: null, remainingToday: 12 }), "ready");
-  assert.equal(stateOf({ ok: false, reason: "quota", remainingToday: 0 }), "later");
-  assert.equal(stateOf({ ok: false, reason: "suspended", remainingToday: null }), "later");
-  assert.equal(stateOf({ ok: false, reason: "not_connected", remainingToday: null }), "off");
-  assert.equal(stateOf({ ok: false, reason: "not_granted", remainingToday: null }), "off");
+  assert.equal(stateOf({ ok: true, reason: null, remainingToday: 12, replyTo: null }), "ready");
+  assert.equal(stateOf({ ok: false, reason: "quota", remainingToday: 0, replyTo: null }), "later");
+  assert.equal(stateOf({ ok: false, reason: "suspended", remainingToday: null, replyTo: null }), "later");
+  assert.equal(stateOf({ ok: false, reason: "not_connected", remainingToday: null, replyTo: null }), "off");
+  assert.equal(stateOf({ ok: false, reason: "not_granted", remainingToday: null, replyTo: null }), "off");
 });
 
 test("mail state: a Chest without mail is off, never an error", async () => {

@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST as events } from "../app/chest-events/route.ts";
-import { POST as jobs } from "../app/chest-jobs/[name]/route.ts";
-import { addComponent } from "../lib/components.ts";
-import * as incidents from "../lib/incidents.ts";
-import { incidentOpened, incidentResolved, refreshBadges } from "../lib/tell.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { toApp as events, toApp as jobs } from "./support/app.ts";
+import { addComponent } from "../src/lib/components.ts";
+import * as incidents from "../src/lib/incidents.ts";
+import { incidentOpened, incidentResolved, refreshBadges } from "../src/lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, lea, nora, tom } from "./support/members.ts";
@@ -14,7 +13,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "mail"], schedules: [{ name: "updates", cron: "*/15 * * * *" }], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr" } });
+  chest = await fakeChest({ network: {}, members: everyone, capabilities: ["members", "notifications", "mail"], chest: { timeZone: "Europe/Paris", organization: "Atelier Martin", language: "fr" } });
 });
 after(async () => {
   await chest.close();
@@ -52,7 +51,7 @@ test("leaving or losing access changes nothing: the page stays true", async () =
 test("a delivery not signed by the Chest is refused, events and schedules alike", async () => {
   const response = await events(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
   assert.equal(response.status, 401);
-  const run = await jobs(new Request("http://tool.test/chest-jobs/updates", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
+  const run = await jobs(new Request("http://tool.test/chest-schedules", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
   assert.equal(run.status, 401);
 });
 
@@ -68,13 +67,13 @@ test("the 'updates' schedule posts a maintenance's start in the Chest's language
   assert.equal(m.updates[0]!.body, "La maintenance a commencé.");
 });
 
-test("the team hears of an incident in their language, only people with the role; its resolution replaces the item; badges count what is open", async () => {
+test("the team hears of an incident in their language (one notice, its translations), only people with the role; its resolution replaces the item; badges count what is open", async () => {
   const { sql } = database;
   chest.notifications.length = 0;
   await incidentOpened({ id: "41", title: "Payments fail" }, "major", ["Payments"]);
   const items = chest.notifications.filter(n => n.key === "incident:41");
   assert.deepEqual(items.map(n => n.member).sort(), [camille.id, lea.id, tom.id].sort());
-  assert.equal(items.find(n => n.member === camille.id)!.title, "Incident : Payments fail");
+  assert.equal(shownTo(items.find(n => n.member === camille.id)!, "fr").title, "Incident : Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.title, "Incident: Payments fail");
   assert.equal(items.find(n => n.member === tom.id)!.body, "Major outage — Payments");
   assert.equal(items[0]!.path, "/chest/incidents/41");

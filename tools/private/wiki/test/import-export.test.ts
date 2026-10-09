@@ -2,16 +2,17 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as chestFiles from "@argentic/chest-sdk/files";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import { references } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import { exportZip, pageHtml, pageMarkdown } from "../lib/export.ts";
-import { attach, fileOf } from "../lib/files.ts";
-import * as history from "../lib/history.ts";
-import { importFiles } from "../lib/importer.ts";
-import * as pages from "../lib/pages.ts";
-import * as spaces from "../lib/spaces.ts";
-import { readZip, writeZip } from "../lib/zip.ts";
+import { chestEvents as POST } from "../src/calls.ts";
+import { references } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import { exportZip, pageHtml, pageMarkdown } from "../src/lib/export.ts";
+import { attach, fileOf } from "../src/lib/files.ts";
+import * as history from "../src/lib/history.ts";
+import { importFiles } from "../src/lib/importer.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import { readZip, zipBudget } from "../src/lib/zip.ts";
+import { writeZip } from "./support/zip.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, tom } from "./support/members.ts";
@@ -20,7 +21,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -31,6 +32,8 @@ const text = (s: string) => new TextEncoder().encode(s);
 // A PNG's first bytes: the fake Chest checks images are what they say.
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
 const hex = (c: string) => c.repeat(32);
+// An export's zip, read whole (the server sends it as a stream).
+const bytesOf = async (stream: ReadableStream<Uint8Array>) => new Uint8Array(await new Response(stream).arrayBuffer());
 
 test("zip: what is written is read back; hostile archives are refused", () => {
   const zip = writeZip([{ name: "a/b.md", data: "# Hello\n" + "x".repeat(5000) }, { name: "c.png", data: png }]);
@@ -46,7 +49,13 @@ test("zip: what is written is read back; hostile archives are refused", () => {
   const lying = Buffer.from(bomb);
   const central = lying.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
   lying.writeUInt32LE(10, central + 24);
-  assert.throws(() => readZip(lying), /import_invalid/u);
+  const [liar] = readZip(lying);
+  assert.throws(() => liar!.data, /import_invalid/u, "stopped when it is read");
+  // One allowance for an archive and the archives inside it.
+  const big = writeZip([{ name: "a.md", data: "a".repeat(20 << 20) }]);
+  readZip(big);
+  const nested = writeZip(["1", "2", "3", "4", "5"].map(n => ({ name: `${n}.zip`, data: big })));
+  assert.throws(() => { const budget = zipBudget(); for (const e of readZip(nested, undefined, budget)) readZip(e.data, undefined, budget); }, /file_too_large/u);
 });
 
 test("a Notion export becomes a space: tree, titles without ids, links, images; what cannot come is said", async () => {
@@ -111,12 +120,12 @@ test("exports: a page as Markdown and as a web page; a space as a zip whose link
   assert.ok(html.html.includes("<title>Guide: &lt;start&gt;</title>"));
   assert.ok(html.html.includes('src="data:image/png;base64,'), "image inside");
   const zip = await exportZip(sql, asMember(hugo), { spaceId: s.id }, "https://wiki.test", { missing: "gone" });
-  const entries = readZip(zip.data);
+  const entries = readZip(await bytesOf(zip.stream));
   assert.deepEqual(entries.map(e => e.name).sort(), [`files/${f.id}-plan.png`, "Guide start.md", "Guide start/Details.md"].sort());
   const guide = new TextDecoder().decode(entries.find(e => e.name === "Guide start.md")!.data);
   assert.ok(guide.includes("[Details](Guide%20start/Details.md)"), guide);
   assert.ok(guide.includes(`![Plan](files/${f.id}-plan.png)`), guide);
-  const branch = readZip((await exportZip(sql, asMember(hugo), { pageId: b.id }, "https://wiki.test", { missing: "gone" })).data);
+  const branch = readZip(await bytesOf((await exportZip(sql, asMember(hugo), { pageId: b.id }, "https://wiki.test", { missing: "gone" })).stream));
   assert.deepEqual(branch.map(e => e.name), ["Details.md"]);
   await assert.rejects(exportZip(sql, asMember({ ...lea, role: null }), { spaceId: s.id }, "https://wiki.test", { missing: "gone" }), /not_found/u);
 });
@@ -131,12 +140,13 @@ test("everything at once: every space the member sees, a folder each, links betw
   await editing.publish(sql, asMember(camille), from.id, { title: "From", doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "See " }, { type: "pageRef", attrs: { id: target.id } }] }] }, baseVersion: 1 });
   const all = await exportZip(sql, asMember(camille), { all: "Wiki" }, "https://wiki.test", { missing: "gone" });
   assert.equal(all.name, "Wiki.zip");
-  const names = readZip(all.data).map(e => e.name);
+  const allEntries = readZip(await bytesOf(all.stream));
+  const names = allEntries.map(e => e.name);
   assert.ok(names.includes("All A/Target.md") && names.includes("All B (office)/From.md"), names.join(", "));
-  const text = new TextDecoder().decode(readZip(all.data).find(e => e.name === "All B (office)/From.md")!.data);
+  const text = new TextDecoder().decode(allEntries.find(e => e.name === "All B (office)/From.md")!.data);
   assert.ok(text.includes("](../All%20A/Target.md)"), text);
   // Hugo (sales) gets only what he reads.
-  const his = readZip((await exportZip(sql, asMember(hugo), { all: "Wiki" }, "https://wiki.test", { missing: "gone" })).data).map(e => e.name);
+  const his = readZip(await bytesOf((await exportZip(sql, asMember(hugo), { all: "Wiki" }, "https://wiki.test", { missing: "gone" })).stream)).map(e => e.name);
   assert.ok(his.includes("All A/Target.md") && !his.some(n => n.startsWith("All B")));
 });
 

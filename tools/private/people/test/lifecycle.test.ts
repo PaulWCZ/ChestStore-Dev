@@ -2,21 +2,21 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as members from "@argentic/chest-sdk/members";
-import { POST } from "../app/chest-events/route.ts";
-import * as j from "../lib/journeys.ts";
-import { today } from "../lib/zone.ts";
-import { profile, updateJob, updateOwn } from "../lib/profiles.ts";
-import { departedManagers, directory } from "../lib/directory.ts";
-import { createRecord, updateRecord } from "../lib/records.ts";
+import { onEvent as POST } from "../src/lib/deliveries.ts";
+import * as j from "../src/lib/journeys.ts";
+import { today } from "../src/lib/zone.ts";
+import { profile, updateJob, updateOwn } from "../src/lib/profiles.ts";
+import { departedManagers, directory } from "../src/lib/directory.ts";
+import { createRecord, updateRecord } from "../src/lib/records.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, sofia, tom, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -64,7 +64,7 @@ test("a manager who leaves: their reports keep their place (flagged), their step
   assert.deepEqual(items.map(i => i.assignee), [camille.id, camille.id, nora.id]);
   assert.deepEqual((await j.template(sql, hr, t.id)).items.map(i => [i.role, i.memberId]), [["manager", null], ["hr", null], ["person", null]]);
   assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `journey:${started.id}:todo`));
-  const told = chest.notifications.filter(n => n.key === `left:${ines.id}`);
+  const told = chest.notifications.filter(n => n.key === `left:${ines.id}`).map(seen);
   assert.deepEqual(told.map(n => n.member).sort(), [camille.id, sofia.id].sort());
   const body = told.find(n => n.member === camille.id)!.body ?? "";
   assert.match(body, /Hugo Bernard, Nora Petit gardent leur place dans l’organigramme/u);

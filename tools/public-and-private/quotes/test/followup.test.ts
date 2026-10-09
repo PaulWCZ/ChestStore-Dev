@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { idempotencyKey } from "@argentic/chest-sdk/mail";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-jobs/[name]/route.ts";
-import { updateCompany } from "../lib/company.ts";
-import { finalise, getDocument, listDocuments } from "../lib/documents.ts";
-import { AppError } from "../lib/errors.ts";
-import { followUp, followUpOnce } from "../lib/followup.ts";
-import { entriesOf } from "../lib/journal.ts";
-import { mailState } from "../lib/mailing.ts";
-import { defaultAccounts } from "../lib/company.ts";
-import { addPayment } from "../lib/payments.ts";
-import { addMonths, makeDueDrafts, repeatInvoice, repeatOf, stopRepeat } from "../lib/repeats.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { chestSchedules as POST } from "../src/lib/deliveries.ts";
+import { updateCompany } from "../src/lib/company.ts";
+import { finalise, getDocument, listDocuments } from "../src/lib/documents.ts";
+import { AppError } from "../src/shared/app-error.ts";
+import { followUp, followUpOnce } from "../src/lib/followup.ts";
+import { entriesOf } from "../src/lib/journal.ts";
+import { mailState } from "../src/lib/mailing.ts";
+import { defaultAccounts } from "../src/lib/company.ts";
+import { addPayment } from "../src/lib/payments.ts";
+import { addMonths, makeDueDrafts, repeatInvoice, repeatOf, stopRepeat } from "../src/lib/repeats.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -24,8 +24,8 @@ import { camille, everyone, ines, lea, sofia } from "./support/members.ts";
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test" } });
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "files", "notifications", "mail"], mail: { domain: "atelier-martin.test" }, schedules: [{ name: "badges", cron: "50 6 * * *" }, { name: "followup", cron: "10 7 * * *" }] });
   await company(database.sql);
 });
 after(async () => {
@@ -83,7 +83,7 @@ test("reminders by the bell only, when the company says so or the client has no 
   assert.equal(run.told, 1);
   assert.equal(chest.outbox.length, sent);
   // Camille finalised it and is still an issuer (admin): she hears of it.
-  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}` && n.title.includes("en retard de 8 jours")));
+  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}` && shownTo(n, "fr").title.includes("en retard de 8 jours")));
   await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
 });
 
@@ -149,10 +149,10 @@ test("the entries of a deposit invoice and of the final invoice that takes it ba
 
 test("mail not connected in the Chest: the morning's reminders go to the bell only, and pages say why (mail.available)", async () => {
   const { sql } = database;
-  assert.deepEqual(await mailState(sql), { works: true, reason: null });
+  assert.deepEqual(await mailState(sql), { works: true, reason: null, replyTo: "contact@atelier-martin.test" });
   chest.delivery.mail = "not_connected";
   try {
-    assert.deepEqual(await mailState(sql), { works: false, reason: "not_connected" });
+    assert.deepEqual(await mailState(sql), { works: false, reason: "not_connected", replyTo: "contact@atelier-martin.test" });
     await updateCompany(sql, asMember(camille), { remindersOn: true, remindersEmail: true, reminderDays: "7" });
     const c = await client(sql, { name: "Hors ligne SARL", siren: "", vatNumber: "" });
     const inv = await finalise(sql, asMember(camille), (await draft(sql, "invoice", c.id, [line("Site", 1000, 40000)])).id, "2029-06-01");
@@ -163,10 +163,32 @@ test("mail not connected in the Chest: the morning's reminders go to the bell on
     assert.equal(chest.outbox.length, sent, "no email tried");
     assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}`));
     chest.delivery.mail = "suspended";
-    assert.deepEqual(await mailState(sql), { works: false, reason: "suspended" });
+    assert.deepEqual(await mailState(sql), { works: false, reason: "suspended", replyTo: "contact@atelier-martin.test" });
   } finally {
     chest.delivery.mail = "ready";
     await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
   }
-  assert.deepEqual(await mailState(sql), { works: true, reason: null });
+  assert.deepEqual(await mailState(sql), { works: true, reason: null, replyTo: "contact@atelier-martin.test" });
+});
+
+test("mail paused: the morning's reminder waits, nothing recorded, and goes the next morning", async () => {
+  const { sql } = database;
+  await updateCompany(sql, asMember(camille), { remindersOn: true, remindersEmail: true, reminderDays: "7" });
+  const c = await client(sql, { name: "En pause SARL", email: "compta@en-pause.test", siren: "", vatNumber: "" });
+  const inv = await finalise(sql, asMember(camille), (await draft(sql, "invoice", c.id, [line("Site", 1000, 40000)])).id, "2030-06-01");
+  const sent = chest.outbox.length;
+  chest.delivery.mail = "suspended";
+  try {
+    const run = await followUp(sql, "2030-07-12");
+    assert.deepEqual([run.emailed, run.told], [0, 0]);
+    assert.equal(chest.outbox.length, sent);
+    assert.equal((await sql`select 1 from reminder_steps where document_id = ${inv.id}`).length, 0, "the step is not taken");
+  } finally {
+    chest.delivery.mail = "ready";
+  }
+  const next = await followUp(sql, "2030-07-13");
+  assert.equal(next.emailed, 1);
+  assert.deepEqual(chest.outbox.at(-1)!.to, ["compta@en-pause.test"]);
+  assert.ok(chest.notifications.some(n => n.member === camille.id && n.key === `late:${inv.id}`));
+  await updateCompany(sql, asMember(camille), { remindersOn: false, remindersEmail: true });
 });

@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import * as members from "@argentic/chest-sdk/members";
-import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { POST } from "../app/chest-events/route.ts";
-import * as comments from "../lib/comments.ts";
-import { normalize } from "../lib/doc.ts";
-import * as editing from "../lib/editing.ts";
-import { fromMarkdown } from "../lib/markdown.ts";
-import { linkParts } from "../lib/model.ts";
-import * as pages from "../lib/pages.ts";
-import * as spaces from "../lib/spaces.ts";
-import * as tell from "../lib/tell.ts";
-import * as watching from "../lib/watching.ts";
+import { fakeChest, shownTo, type FakeChest } from "@argentic/chest-sdk/testing";
+import { chestEvents as POST } from "../src/calls.ts";
+import * as comments from "../src/lib/comments.ts";
+import { normalize } from "../src/lib/doc.ts";
+import * as editing from "../src/lib/editing.ts";
+import { fromMarkdown } from "../src/lib/markdown.ts";
+import { linkParts } from "../src/lib/model.ts";
+import * as pages from "../src/lib/pages.ts";
+import * as spaces from "../src/lib/spaces.ts";
+import * as tell from "../src/lib/tell.ts";
+import * as watching from "../src/lib/watching.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, groups, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -24,7 +24,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -158,7 +158,7 @@ test("a new comment tells the page's author, earlier commenters and watchers —
   const key = `comments:${p.id}`;
   const told = itemsOf(ines.id, key);
   assert.equal(told.length, 1);
-  assert.equal(told[0]!.title, "Hugo Bernard a commenté « Expenses »"); // Inès reads French
+  assert.equal(shownTo(told[0]!, "fr").title, "Hugo Bernard a commenté «\u202fExpenses\u202f»"); // Inès reads French
   assert.equal(told[0]!.body, "Is the limit per day?");
   assert.equal(told[0]!.path, `/chest/pages/${p.id}#comment-${first.comment.id}`);
   assert.equal(itemsOf(hugo.id, key).length, 0);
@@ -274,7 +274,7 @@ test("a comment naming someone with @ tells them on their own — once, only if 
   const c = await comments.addComment(sql, asMember(tom), p.id, "@Hugo Bernard can you check the bikes? cc @Léa Dubois");
   const told = await tell.commented(sql, asMember(tom), c.page, c.comment, [hugo.id, lea.id, tom.id]);
   assert.deepEqual(itemsOf(hugo.id, `mention:${p.id}`).length, 1);
-  assert.equal(itemsOf(lea.id, `mention:${p.id}`)[0]?.title, "Tom Walker vous a mentionné sur « Parking »");
+  assert.equal(shownTo(itemsOf(lea.id, `mention:${p.id}`)[0]!, "fr").title, "Tom Walker vous a mentionné sur «\u202fParking\u202f»");
   assert.equal(itemsOf(tom.id, `mention:${p.id}`).length, 0); // never oneself
   // Inès, the author, gets the usual item; Hugo is not told twice.
   assert.equal(itemsOf(ines.id, `comments:${p.id}`).length, 1);
@@ -288,4 +288,25 @@ test("a comment naming someone with @ tells them on their own — once, only if 
   const { ids } = await pages.deletePage(sql, asMember(ines), p.id);
   await tell.forget(sql, ids);
   assert.equal(itemsOf(hugo.id, `mention:${p.id}`).length, 0);
+});
+
+// The page re-reads itself only when its stamp changed (src/islands/Page.tsx,
+// AutoRefresh): a comment, an edit, a lock change it; nothing else does.
+test("a page's stamp changes with what its reader sees, not otherwise; the tree's branches come on demand", async () => {
+  const { sql } = database;
+  const s = await spaces.createSpace(sql, asMember(tom), { name: "Stamps " + Math.random() });
+  const p = await pages.createPage(sql, asMember(tom), { spaceId: s.id, title: "Stamped" });
+  const child = await pages.createPage(sql, asMember(tom), { spaceId: s.id, parentId: p.id, title: "Inside" });
+  const first = await pages.pageStamp(sql, asMember(hugo), p.id);
+  assert.equal(await pages.pageStamp(sql, asMember(hugo), p.id), first, "nothing changed");
+  await comments.addComment(sql, asMember(lea), p.id, "A question");
+  const second = await pages.pageStamp(sql, asMember(hugo), p.id);
+  assert.notEqual(second, first, "a comment");
+  await editing.startEditing(sql, asMember(tom), p.id);
+  assert.notEqual(await pages.pageStamp(sql, asMember(hugo), p.id), second, "someone edits it");
+  await assert.rejects(pages.pageStamp(sql, asMember(nora), p.id), /not_found/u);
+  const nodes = await pages.tree(sql, asMember(hugo), [s.id]);
+  assert.deepEqual(pages.shownTree(nodes, null).map(n => [n.title, n.more]), [["Stamped", true]], "the top, saying it holds more");
+  assert.deepEqual(pages.shownTree(nodes, p.id).map(n => n.title), ["Stamped", "Inside"], "the current page's branch");
+  assert.deepEqual((await pages.branchOf(sql, asMember(hugo), p.id)).map(n => [n.id, n.more]), [[child.id, false]]);
 });

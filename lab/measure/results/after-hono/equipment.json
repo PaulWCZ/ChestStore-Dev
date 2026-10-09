@@ -1,0 +1,1112 @@
+{
+ "tool": "equipment",
+ "label": "after-hono",
+ "source": "/home/user/wt/equipment/tools/private/equipment",
+ "date": "2026-10-06T06:54:34.858Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "fd4c7b9 2026-10-06 (with uncommitted changes)",
+ "load": {
+  "atStart": {
+   "one": 6.57,
+   "five": 5.83,
+   "fifteen": 2.99
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 175,
+    "rssMiB": 53,
+    "command": "tsc"
+   },
+   {
+    "cpu": 43.1,
+    "rssMiB": 150,
+    "command": "chrome"
+   },
+   {
+    "cpu": 26.6,
+    "rssMiB": 68,
+    "command": "npm test"
+   },
+   {
+    "cpu": 19.4,
+    "rssMiB": 64,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 12.6,
+    "rssMiB": 183,
+    "command": "chrome"
+   }
+  ],
+  "atEnd": {
+   "one": 1.28,
+   "five": 3.3,
+   "fifteen": 2.76
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 100,
+    "rssMiB": 34,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 100,
+    "rssMiB": 4,
+    "command": "ps"
+   },
+   {
+    "cpu": 91.8,
+    "rssMiB": 91,
+    "command": "npm exec tsc"
+   },
+   {
+    "cpu": 30.7,
+    "rssMiB": 156,
+    "command": "chrome"
+   },
+   {
+    "cpu": 12.2,
+    "rssMiB": 183,
+    "command": "chrome"
+   }
+  ]
+ },
+ "notes": [],
+ "repository": {
+  "diskMiB": 11.1,
+  "apparentMiB": 10.5,
+  "files": 212
+ },
+ "install": {
+  "code": 0,
+  "signal": null,
+  "ms": 2368,
+  "peakRssMiB": 220.5,
+  "peakPssMiB": 171.9,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 289.7,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "one": 6.52,
+   "five": 5.83,
+   "fifteen": 3.01
+  },
+  "fits": true
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 111.7,
+   "apparentMiB": 103.6,
+   "files": 2526
+  },
+  "pruned": {
+   "diskMiB": 16.5,
+   "apparentMiB": 12.5,
+   "files": 1151
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 3626,
+   "peakRssMiB": 352.2,
+   "peakPssMiB": 273.5,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 269.3,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "one": 6.52,
+    "five": 5.83,
+    "fifteen": 3.01
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 2276,
+   "peakRssMiB": 369.2,
+   "peakPssMiB": 273.1,
+   "processes": 3,
+   "cgroup": {
+    "peakMiB": 288.7,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "one": 6.72,
+    "five": 5.89,
+    "fifteen": 3.04
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   "dist"
+  ],
+  "diskMiB": 2.4,
+  "apparentMiB": 2.3,
+  "files": 23,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 30
+ },
+ "sdk": "0.4.1-studio.4",
+ "pages": {
+  "source": "lab/measure/pages/equipment.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/items",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/items/2",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/items/39",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/items/42",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/inventory/1",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/labels?category=1",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/import",
+    "member": "sofia",
+    "language": "en"
+   },
+   {
+    "path": "/chest/settings",
+    "member": "camille",
+    "language": "fr"
+   },
+   {
+    "path": "/chest/items?category=6",
+    "member": "hugo",
+    "language": "en"
+   },
+   {
+    "path": "/chest/items/7",
+    "member": "sofia",
+    "language": "fr"
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 386.1,
+    "firstMs": 668.9,
+    "statuses": [
+     200
+    ],
+    "load": 6.72
+   },
+   {
+    "portMs": 286.3,
+    "firstMs": 393.2,
+    "statuses": [
+     200
+    ],
+    "load": 5.91
+   },
+   {
+    "portMs": 275.3,
+    "firstMs": 402.5,
+    "statuses": [
+     200
+    ],
+    "load": 5.55
+   },
+   {
+    "portMs": 321.4,
+    "firstMs": 434.4,
+    "statuses": [
+     200
+    ],
+    "load": 4.85
+   },
+   {
+    "portMs": 312.7,
+    "firstMs": 429.3,
+    "statuses": [
+     200
+    ],
+    "load": 4.6
+   },
+   {
+    "portMs": 320.4,
+    "firstMs": 433.2,
+    "statuses": [
+     200
+    ],
+    "load": 4.74
+   },
+   {
+    "portMs": 343.4,
+    "firstMs": 451.6,
+    "statuses": [
+     200
+    ],
+    "load": 5.12
+   },
+   {
+    "portMs": 230.8,
+    "firstMs": 323.7,
+    "statuses": [
+     200
+    ],
+    "load": 5.08
+   },
+   {
+    "portMs": 319.3,
+    "firstMs": 446.9,
+    "statuses": [
+     200
+    ],
+    "load": 4.78
+   },
+   {
+    "portMs": 291.9,
+    "firstMs": 477.7,
+    "statuses": [
+     200
+    ],
+    "load": 4.36
+   }
+  ],
+  "port": {
+   "median": 316,
+   "min": 230.8,
+   "max": 386.1
+  },
+  "first200": {
+   "median": 433.79999999999995,
+   "min": 323.7,
+   "max": 668.9
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 171.2,
+     "pss": 68.8
+    },
+    "peakMiB": {
+     "rss": 183.2,
+     "pss": 78.5,
+     "cgroup": 73.8
+    },
+    "afterRequestsMiB": {
+     "rss": 183.2,
+     "pss": 78.5
+    },
+    "restMiB": {
+     "rss": 175.2,
+     "pss": 70.4,
+     "pssAnon": 62.2,
+     "pssFile": 8.2,
+     "cgroupAnon": 62.2,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 20.6
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 106.5,
+      "pssMiB": 49.6
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 40354,
+      "ms": 50.5
+     },
+     {
+      "path": "/chest/items",
+      "status": 200,
+      "bytes": 110938,
+      "ms": 38.4
+     },
+     {
+      "path": "/chest/items/2",
+      "status": 200,
+      "bytes": 59013,
+      "ms": 47.7
+     },
+     {
+      "path": "/chest/items/39",
+      "status": 200,
+      "bytes": 53170,
+      "ms": 31
+     },
+     {
+      "path": "/chest/items/42",
+      "status": 200,
+      "bytes": 50183,
+      "ms": 34.4
+     },
+     {
+      "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9652,
+      "ms": 13.4
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9878,
+      "ms": 12.8
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+      "status": 200,
+      "bytes": 8922,
+      "ms": 12.3
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 38359,
+      "ms": 9.5
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40157,
+      "ms": 9.4
+     },
+     {
+      "path": "/chest/inventory/1",
+      "status": 200,
+      "bytes": 7616,
+      "ms": 6
+     },
+     {
+      "path": "/chest/labels?category=1",
+      "status": 200,
+      "bytes": 56595,
+      "ms": 23.3
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 15330,
+      "ms": 5.8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 111227,
+      "ms": 9.8
+     },
+     {
+      "path": "/chest/items?category=6",
+      "status": 200,
+      "bytes": 29002,
+      "ms": 8.4
+     },
+     {
+      "path": "/chest/items/7",
+      "status": 200,
+      "bytes": 53169,
+      "ms": 10.9
+     }
+    ],
+    "load": {
+     "mean": 3.8,
+     "max": 4.05
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 167.5,
+     "pss": 64.6
+    },
+    "peakMiB": {
+     "rss": 183.2,
+     "pss": 78.4,
+     "cgroup": 73.9
+    },
+    "afterRequestsMiB": {
+     "rss": 183.2,
+     "pss": 78.4
+    },
+    "restMiB": {
+     "rss": 174.7,
+     "pss": 69.4,
+     "pssAnon": 61.8,
+     "pssFile": 7.6,
+     "cgroupAnon": 61.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 20.4
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 106.1,
+      "pssMiB": 48.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 40354,
+      "ms": 21.6
+     },
+     {
+      "path": "/chest/items",
+      "status": 200,
+      "bytes": 110938,
+      "ms": 31.4
+     },
+     {
+      "path": "/chest/items/2",
+      "status": 200,
+      "bytes": 59013,
+      "ms": 34.3
+     },
+     {
+      "path": "/chest/items/39",
+      "status": 200,
+      "bytes": 53170,
+      "ms": 27.4
+     },
+     {
+      "path": "/chest/items/42",
+      "status": 200,
+      "bytes": 50183,
+      "ms": 27.8
+     },
+     {
+      "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9652,
+      "ms": 17
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9878,
+      "ms": 12.6
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+      "status": 200,
+      "bytes": 8922,
+      "ms": 11.8
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 38359,
+      "ms": 9.4
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40157,
+      "ms": 6.7
+     },
+     {
+      "path": "/chest/inventory/1",
+      "status": 200,
+      "bytes": 7616,
+      "ms": 7.1
+     },
+     {
+      "path": "/chest/labels?category=1",
+      "status": 200,
+      "bytes": 56595,
+      "ms": 55.6
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 15330,
+      "ms": 5.8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 111227,
+      "ms": 9.5
+     },
+     {
+      "path": "/chest/items?category=6",
+      "status": 200,
+      "bytes": 29002,
+      "ms": 7.9
+     },
+     {
+      "path": "/chest/items/7",
+      "status": 200,
+      "bytes": 53169,
+      "ms": 11.9
+     }
+    ],
+    "load": {
+     "mean": 3.3,
+     "max": 3.49
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 167.4,
+     "pss": 64.2
+    },
+    "peakMiB": {
+     "rss": 180.3,
+     "pss": 75,
+     "cgroup": 70.9
+    },
+    "afterRequestsMiB": {
+     "rss": 180.3,
+     "pss": 75
+    },
+    "restMiB": {
+     "rss": 172.9,
+     "pss": 67.6,
+     "pssAnon": 60,
+     "pssFile": 7.6,
+     "cgroupAnon": 60,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67.1,
+      "pssMiB": 20.5
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 104,
+      "pssMiB": 46.9
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 40354,
+      "ms": 19.5
+     },
+     {
+      "path": "/chest/items",
+      "status": 200,
+      "bytes": 110938,
+      "ms": 17
+     },
+     {
+      "path": "/chest/items/2",
+      "status": 200,
+      "bytes": 59013,
+      "ms": 27.2
+     },
+     {
+      "path": "/chest/items/39",
+      "status": 200,
+      "bytes": 53170,
+      "ms": 21.8
+     },
+     {
+      "path": "/chest/items/42",
+      "status": 200,
+      "bytes": 50183,
+      "ms": 13.1
+     },
+     {
+      "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9652,
+      "ms": 13.7
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9878,
+      "ms": 10.7
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+      "status": 200,
+      "bytes": 8922,
+      "ms": 12.6
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 38359,
+      "ms": 9.2
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40157,
+      "ms": 7.7
+     },
+     {
+      "path": "/chest/inventory/1",
+      "status": 200,
+      "bytes": 7616,
+      "ms": 5.9
+     },
+     {
+      "path": "/chest/labels?category=1",
+      "status": 200,
+      "bytes": 56595,
+      "ms": 21.3
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 15330,
+      "ms": 6
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 111227,
+      "ms": 8.8
+     },
+     {
+      "path": "/chest/items?category=6",
+      "status": 200,
+      "bytes": 29002,
+      "ms": 10
+     },
+     {
+      "path": "/chest/items/7",
+      "status": 200,
+      "bytes": 53169,
+      "ms": 15.7
+     }
+    ],
+    "load": {
+     "mean": 1.96,
+     "max": 2.27
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 168,
+     "pss": 65.1
+    },
+    "peakMiB": {
+     "rss": 180.2,
+     "pss": 75.4,
+     "cgroup": 70.6
+    },
+    "afterRequestsMiB": {
+     "rss": 180.2,
+     "pss": 75.4
+    },
+    "restMiB": {
+     "rss": 173,
+     "pss": 69.5,
+     "pssAnon": 60,
+     "pssFile": 9.6,
+     "cgroupAnon": 60,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 67,
+      "pssMiB": 21.3
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.2
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 104.1,
+      "pssMiB": 48.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 40354,
+      "ms": 18.7
+     },
+     {
+      "path": "/chest/items",
+      "status": 200,
+      "bytes": 110938,
+      "ms": 21.8
+     },
+     {
+      "path": "/chest/items/2",
+      "status": 200,
+      "bytes": 59013,
+      "ms": 63.3
+     },
+     {
+      "path": "/chest/items/39",
+      "status": 200,
+      "bytes": 53170,
+      "ms": 32.6
+     },
+     {
+      "path": "/chest/items/42",
+      "status": 200,
+      "bytes": 50183,
+      "ms": 15.7
+     },
+     {
+      "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9652,
+      "ms": 21.4
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9878,
+      "ms": 10.7
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+      "status": 200,
+      "bytes": 8922,
+      "ms": 18
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 38359,
+      "ms": 13.5
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40157,
+      "ms": 10.3
+     },
+     {
+      "path": "/chest/inventory/1",
+      "status": 200,
+      "bytes": 7616,
+      "ms": 8.7
+     },
+     {
+      "path": "/chest/labels?category=1",
+      "status": 200,
+      "bytes": 56595,
+      "ms": 22.9
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 15330,
+      "ms": 6.7
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 111227,
+      "ms": 11.7
+     },
+     {
+      "path": "/chest/items?category=6",
+      "status": 200,
+      "bytes": 29002,
+      "ms": 11.4
+     },
+     {
+      "path": "/chest/items/7",
+      "status": 200,
+      "bytes": 53169,
+      "ms": 15.5
+     }
+    ],
+    "load": {
+     "mean": 1.6,
+     "max": 1.83
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 159.5,
+     "pss": 57.5
+    },
+    "peakMiB": {
+     "rss": 181.4,
+     "pss": 76.9,
+     "cgroup": 72.6
+    },
+    "afterRequestsMiB": {
+     "rss": 181.4,
+     "pss": 76.9
+    },
+    "restMiB": {
+     "rss": 172.6,
+     "pss": 68.2,
+     "pssAnon": 59.7,
+     "pssFile": 8.5,
+     "cgroupAnon": 59.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 66.8,
+      "pssMiB": 20.6
+     },
+     {
+      "command": "sh -c node --optimize-for-size dist/server/main.js",
+      "rssMiB": 1.9,
+      "pssMiB": 0.1
+     },
+     {
+      "command": "node --optimize-for-size dist/server/main.js",
+      "rssMiB": 104,
+      "pssMiB": 47.5
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 40354,
+      "ms": 107.8
+     },
+     {
+      "path": "/chest/items",
+      "status": 200,
+      "bytes": 110938,
+      "ms": 69.6
+     },
+     {
+      "path": "/chest/items/2",
+      "status": 200,
+      "bytes": 59013,
+      "ms": 75.8
+     },
+     {
+      "path": "/chest/items/39",
+      "status": 200,
+      "bytes": 53170,
+      "ms": 66.7
+     },
+     {
+      "path": "/chest/items/42",
+      "status": 200,
+      "bytes": 50183,
+      "ms": 32.3
+     },
+     {
+      "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9652,
+      "ms": 23.6
+     },
+     {
+      "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+      "status": 200,
+      "bytes": 9878,
+      "ms": 20.9
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+      "status": 200,
+      "bytes": 8922,
+      "ms": 19.8
+     },
+     {
+      "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 38359,
+      "ms": 17.3
+     },
+     {
+      "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": 200,
+      "bytes": 40157,
+      "ms": 10
+     },
+     {
+      "path": "/chest/inventory/1",
+      "status": 200,
+      "bytes": 7616,
+      "ms": 7.7
+     },
+     {
+      "path": "/chest/labels?category=1",
+      "status": 200,
+      "bytes": 56595,
+      "ms": 28.5
+     },
+     {
+      "path": "/chest/import",
+      "status": 200,
+      "bytes": 15330,
+      "ms": 17.8
+     },
+     {
+      "path": "/chest/settings",
+      "status": 200,
+      "bytes": 111227,
+      "ms": 28.1
+     },
+     {
+      "path": "/chest/items?category=6",
+      "status": 200,
+      "bytes": 29002,
+      "ms": 12.5
+     },
+     {
+      "path": "/chest/items/7",
+      "status": 200,
+      "bytes": 53169,
+      "ms": 19
+     }
+    ],
+    "load": {
+     "mean": 1.16,
+     "max": 1.24
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 173,
+    "min": 172.6,
+    "max": 175.2
+   },
+   "pss": {
+    "median": 69.4,
+    "min": 67.6,
+    "max": 70.4
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 181.4,
+    "min": 180.2,
+    "max": 183.2
+   },
+   "pss": {
+    "median": 76.9,
+    "min": 75,
+    "max": 78.5
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 106,
+    "min": 105.9,
+    "max": 108.4
+   },
+   "pss": {
+    "median": 48.3,
+    "min": 47,
+    "max": 49.7
+   }
+  }
+ }
+}

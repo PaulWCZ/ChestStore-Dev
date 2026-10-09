@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5800);
-const { browser, context, page, origin, problems } = await open(port, "tom", { allow404: /\/incidents\/9999$/u });
+const { browser, context, page, origin, publicOrigin, problems } = await open(port, "tom", { allow404: /\/incidents\/9999$/u });
 // Tom reads English; Camille and Léa French. The team's steps below read English.
-const english = () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }, { name: "lang", value: "en", url: origin }]);
+const english = () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }, { name: "lang", value: "en", url: publicOrigin }]);
 const devText = async () => (await page.request.get(origin + "/_dev")).text();
 let subscriberLink = "";
 let incidentUrl = "";
@@ -14,7 +14,7 @@ let incidentUrl = "";
 await step("a visitor sees the state in one line, what is happening, and each service with 90 days", async () => {
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/");
+  await page.goto(publicOrigin + "/");
   expect((await page.locator("h1").innerText()).includes("Degraded performance"), "banner");
   expect((await page.locator(".company-name").innerText()) === "Atelier Martin", "company");
   const main = await page.locator("main").innerText();
@@ -28,11 +28,11 @@ await step("a visitor sees the state in one line, what is happening, and each se
 });
 
 await step("uptime follows Statuspage's rule and says slower days beside it; a French visitor reads the French text, the rest marked English", async () => {
-  await page.goto(origin + "/");
+  await page.goto(publicOrigin + "/");
   const legends = await page.locator(".history-legend .uptime").allInnerTexts();
   expect(legends.some(l => /days? slower than usual/u.test(l)), "slower days said beside the uptime");
   expect((await page.locator("main").innerText()).includes("the rule of Atlassian Statuspage"), "the rule is written on the page");
-  await page.goto(origin + "/lang/fr?back=/");
+  await page.goto(publicOrigin + "/lang/fr?back=/");
   const main = await page.locator("main").innerText();
   expect(main.includes("Dates de livraison affichées en retard") && main.includes("Un calendrier des jours fériés"), "French text for a French visitor");
   const card = page.locator(".incident", { hasText: "Dates de livraison" });
@@ -45,7 +45,7 @@ await step("uptime follows Statuspage's rule and says slower days beside it; a F
 });
 
 await step("the JSON API speaks Statuspage's shape to any site; the badge is a picture; the banner may be framed only by listed sites", async () => {
-  const summary = await page.request.get(origin + "/api/v2/summary.json", { headers: { Origin: "https://dashboard.example.com" } });
+  const summary = await page.request.get(publicOrigin + "/api/v2/summary.json", { headers: { Origin: "https://dashboard.example.com" } });
   expect(summary.headers()["access-control-allow-origin"] === "*", "CORS");
   const body = await summary.json();
   expect(body.page.name === "Atelier Martin" && body.status.indicator === "minor", "page and indicator");
@@ -54,12 +54,12 @@ await step("the JSON API speaks Statuspage's shape to any site; the badge is a p
   expect(body.scheduled_maintenances.some(m => m.name === "Payment provider upgrade" && m.scheduled_for), "maintenance ahead");
   expect(!JSON.stringify(body).includes("Back office"), "no team-only service");
   for (const path of ["status.json", "components.json", "incidents.json", "incidents/unresolved.json", "scheduled-maintenances.json", "scheduled-maintenances/upcoming.json", "scheduled-maintenances/active.json"]) {
-    const r = await page.request.get(`${origin}/api/v2/${path}`);
+    const r = await page.request.get(`${publicOrigin}/api/v2/${path}`);
     expect(r.status() === 200 && (await r.json()).page.id === body.page.id, path);
   }
-  const badge = await page.request.get(origin + "/badge.svg?lang=fr");
+  const badge = await page.request.get(publicOrigin + "/badge.svg?lang=fr");
   expect(badge.headers()["content-type"].startsWith("image/svg+xml") && (await badge.text()).includes("Performances dégradées"), "badge in French");
-  const embed = await page.request.get(origin + "/embed");
+  const embed = await page.request.get(publicOrigin + "/embed");
   expect(embed.headers()["content-security-policy"].includes("frame-ancestors https://www.atelier-martin.fr"), "frame-ancestors from the settings");
   expect((await embed.text()).includes("Delivery dates shown late"), "the banner says what is happening");
 });
@@ -67,7 +67,7 @@ await step("the JSON API speaks Statuspage's shape to any site; the badge is a p
 await step("with the company's brand in the Chest, the public page wears its logo and colour, with its website and support", async () => {
   await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "brand:sample" } });
   try {
-    await page.goto(origin + "/?fresh=brand");
+    await page.goto(publicOrigin + "/?fresh=brand");
     expect(await page.locator(".public.branded").count() === 1, "brand colours applied");
     expect((await page.locator(".public-head img").getAttribute("alt")) === "Atelier Martin", "the logo");
     expect(await page.getByRole("link", { name: "Back to atelier-martin.fr" }).count() === 1, "back to the website");
@@ -80,17 +80,17 @@ await step("with the company's brand in the Chest, the public page wears its log
 await step("a theme the company chose for its team's tools never dresses the public page; the team's pages wear it", async () => {
   await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "catalogue:confetti" } });
   try {
-    await page.goto(origin + "/?fresh=theme");
-    expect((await page.locator("html").getAttribute("data-look")) === "own", "customers see Status's own look");
+    await page.goto(publicOrigin + "/?fresh=theme");
+    expect((await page.locator("[data-look]").first().getAttribute("data-look")) === "own", "customers see Status's own look");
     await as(context, origin, "tom");
     await english();
     await page.goto(origin + "/chest");
-    expect((await page.locator("html").getAttribute("data-look")) === "catalogue", "the team sees the company's choice");
+    expect((await page.locator("[data-look]").first().getAttribute("data-look")) === "catalogue", "the team sees the company's choice");
   } finally {
     await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
     await context.clearCookies();
     await english();
-    await page.goto(origin + "/?fresh=after-theme");
+    await page.goto(publicOrigin + "/?fresh=after-theme");
   }
 });
 
@@ -98,22 +98,52 @@ await step("a visitor opens an incident's own page, the history, and the feeds",
   await page.locator(".tick a").first().click();
   await page.waitForURL(/\/incidents\/\d+$/u);
   expect((await page.locator("h1").innerText()).length > 3, "incident page");
-  await page.goto(origin + "/history");
-  expect((await page.locator("main").innerText()).includes("Card payments failing"), "history");
-  const atom = await page.request.get(origin + "/feed.atom");
+  // Three months a page: 78 days ago is on the first or the second.
+  await page.goto(publicOrigin + "/history");
+  let history = await page.locator("main").innerText();
+  if (!history.includes("Card payments failing")) {
+    await page.getByRole("link", { name: "Older" }).click();
+    await page.waitForURL(/\/history\?page=1$/u);
+    history = await page.locator("main").innerText();
+  }
+  expect(history.includes("Card payments failing"), "history");
+  const atom = await page.request.get(publicOrigin + "/feed.atom");
   expect(atom.status() === 200 && (await atom.text()).includes("<feed xmlns=\"http://www.w3.org/2005/Atom\">"), "atom");
-  const rss = await page.request.get(origin + "/feed.rss");
+  const rss = await page.request.get(publicOrigin + "/feed.rss");
   expect(rss.status() === 200 && (await rss.text()).includes("<rss version=\"2.0\""), "rss");
-  const ics = await page.request.get(origin + "/maintenance.ics");
+  const ics = await page.request.get(publicOrigin + "/maintenance.ics");
   expect(ics.status() === 200 && (await ics.text()).includes("SUMMARY:Maintenance — Payment provider upgrade"), "ics");
-  const missing = await page.goto(origin + "/incidents/9999");
+  const missing = await page.goto(publicOrigin + "/incidents/9999");
   expect(missing.status() === 404, "unknown incident");
 });
 
+await step("an address the browser lets through but mail would not take is refused in plain words; what was typed stays", async () => {
+  await page.goto(publicOrigin + "/subscribe");
+  // Two dots in a row: field.email's rule refuses it.
+  await page.getByLabel("Your email address").fill("lucie..garnier@example.com");
+  await page.waitForTimeout(2200);
+  await page.getByRole("button", { name: "Subscribe" }).click();
+  // With JavaScript the package sends the form itself and says the
+  // refusal next to the address, in the place the page fills without
+  // JavaScript (?error=): marked, described, focused — no toast.
+  await page.locator("#email-error:not([hidden])", { hasText: "This email address does not look right." }).waitFor();
+  expect(page.url() === publicOrigin + "/subscribe", "still on the form");
+  const address = page.getByLabel("Your email address");
+  expect(await address.inputValue() === "lucie..garnier@example.com", "kept");
+  expect(await address.getAttribute("aria-invalid") === "true", "marked");
+  expect((await address.getAttribute("aria-describedby") ?? "").split(" ").includes("email-error"), "described by the sentence");
+  expect(await page.evaluate(() => document.activeElement?.id) === "email", "focused");
+  expect(await page.locator(".ck-toast-error").count() === 0, "no toast");
+  // Fixing it clears the mark.
+  await address.press("End");
+  await address.type("x");
+  expect(await address.getAttribute("aria-invalid") === null && await page.locator("#email-error").isHidden(), "cleared at the next input");
+});
+
 await step("a visitor subscribes by email: a confirmation link, then their own page", async () => {
-  await page.goto(origin + "/");
+  await page.goto(publicOrigin + "/");
   await page.getByRole("link", { name: "Get updates" }).first().click();
-  await page.waitForURL(origin + "/subscribe");
+  await page.waitForURL(publicOrigin + "/subscribe");
   await page.getByLabel("Your email address").fill("lucie@example.com");
   await page.getByLabel("Only these:").check();
   await page.getByLabel("Online shop — Checkout").check();
@@ -123,7 +153,7 @@ await step("a visitor subscribes by email: a confirmation link, then their own p
   expect((await page.locator("h1").innerText()).includes("Check your inbox"), "sent");
   const dev = await devText();
   expect(dev.includes("Confirm your subscription to Atelier Martin status updates"), "confirmation email");
-  subscriberLink = /http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{32}/u.exec(dev)?.[0] ?? "";
+  subscriberLink = /https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/s\/[A-Za-z0-9_-]{32}/u.exec(dev)?.[0] ?? "";
   expect(subscriberLink, "link in the email");
   await page.goto(subscriberLink);
   await page.getByRole("button", { name: "Confirm" }).click();
@@ -153,7 +183,7 @@ await step("an editor posts an incident in one screen; customers, the team and t
   await context.clearCookies();
   await english();
   // Browsers keep the public page 30 seconds: a fresh address.
-  await page.goto(origin + "/?fresh=1");
+  await page.goto(publicOrigin + "/?fresh=1");
   expect((await page.locator("h1").innerText()).includes("Major outage"), "public banner");
 });
 
@@ -185,7 +215,7 @@ await step("a resolved incident gets its post-mortem, shown on its public page; 
   const id = incidentUrl.split("/").pop();
   await context.clearCookies();
   await english();
-  await page.goto(`${origin}/incidents/${id}?fresh=pm`);
+  await page.goto(`${publicOrigin}/incidents/${id}?fresh=pm`);
   expect((await page.locator("#postmortem").innerText()).includes("We now release in two steps."), "post-mortem on the public page");
   await as(context, origin, "tom");
   await english();
@@ -229,7 +259,7 @@ await step("an editor plans a maintenance; the page shows it as planned", async 
   expect((await page.locator(".chip").first().innerText()).toLowerCase().includes("planned"), "planned");
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/?fresh=2");
+  await page.goto(publicOrigin + "/?fresh=2");
   expect((await page.locator("main").innerText()).includes("Search engine upgrade"), "public");
 });
 
@@ -245,7 +275,7 @@ await step("an editor adds a service, hides it, and the public page follows", as
   await page.waitForSelector(".component-line.is-hidden >> text=Gift cards");
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/?fresh=3");
+  await page.goto(publicOrigin + "/?fresh=3");
   expect(!(await page.locator("main").innerText()).includes("Gift cards"), "hidden from customers");
 });
 
@@ -278,7 +308,7 @@ await step("an editor has the Chest check a service; three failures ring the bel
   expect((await page.locator(".alert").count()) === 0, "the proposal is gone");
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/?fresh=4");
+  await page.goto(publicOrigin + "/?fresh=4");
   // Four checks, one failed: too few to publish a figure ("25 %" would be
   // false) — the page says since when the service is checked.
   const checkoutText = (await page.locator(".measured").allInnerTexts()).filter(t => t.includes("Automatic checks since"));
@@ -371,7 +401,7 @@ await step("settings: the company's links; import from Statuspage; download ever
   await page.locator("#links-title").locator("..").getByRole("button", { name: "Save" }).click();
   await page.waitForSelector(".ck-toast >> text=Saved.");
   // A site added to those that may show the banner frames it at once.
-  const banner = async () => (await page.request.get(origin + "/embed")).headers()["content-security-policy"] ?? "";
+  const banner = async () => (await page.request.get(publicOrigin + "/embed")).headers()["content-security-policy"] ?? "";
   const saveSites = async (text) => {
     await page.locator("#embed-sites").fill(text);
     for (const close of await page.locator(".ck-toast-close").all()) await close.click().catch(() => {});
@@ -395,9 +425,9 @@ await step("settings: the company's links; import from Statuspage; download ever
   expect(csv.includes("email,language,follows") && csv.includes("marie.leroy@example.com"), "subscribers as CSV");
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/history?page=1&fresh=import");
+  await page.goto(publicOrigin + "/history?page=1&fresh=import");
   const older = await page.locator("main").innerText();
-  await page.goto(origin + "/history?fresh=import");
+  await page.goto(publicOrigin + "/history?fresh=import");
   expect((older + await page.locator("main").innerText()).includes("Website unreachable for some visitors"), "imported history is public");
   await as(context, origin, "tom");
   await english();
@@ -414,7 +444,7 @@ await step("someone with the tool but no role sees the team's status page, servi
   const r = await page.goto(origin + "/chest/subscribers");
   expect((await r.text()).includes("État de nos services") && !(await page.locator("main").innerText()).includes("lucie@example.com"), "no subscribers shown");
   await context.clearCookies();
-  await page.goto(origin + "/?fresh=nora");
+  await page.goto(publicOrigin + "/?fresh=nora");
   const outside = await page.locator("main").innerText();
   expect(!outside.includes("Back office") && !outside.includes("Gestion interne"), "never on the public page");
 });
@@ -436,7 +466,7 @@ await step("a French editor on this English Chest writes in French: the form say
   incidentUrl = page.url();
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/?fresh=written-in");
+  await page.goto(publicOrigin + "/?fresh=written-in");
   const card = page.locator(".incident", { hasText: "Paiement indisponible" });
   expect(await card.locator("[lang=fr]").count() > 0, "her French text is marked French for an English visitor");
 });
@@ -446,10 +476,10 @@ await step("a French editor on this English Chest writes in French: the form say
 await step("services in two languages: an English visitor reads “Payments”, a French one “Paiement”; the team's Now speaks the member's language (critique 3, N2, N4)", async () => {
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/?fresh=31");
+  await page.goto(publicOrigin + "/?fresh=31");
   const en = await page.locator(".components").innerText();
   expect(en.includes("Payments") && en.includes("Delivery tracking") && !en.includes("Paiement"), "English names");
-  await page.goto(origin + "/lang/fr?back=/");
+  await page.goto(publicOrigin + "/lang/fr?back=/");
   const fr = await page.locator(".components").innerText();
   expect(fr.includes("Paiement") && fr.includes("Suivi de livraison") && !fr.includes("Delivery tracking"), "French names");
   expect(await page.locator(".components h4[lang]", { hasText: "Paiement" }).count() === 0, "a name in the reader's language is not marked as another");
@@ -473,7 +503,7 @@ await step("a service added today has no 90 days of 100 %: empty days, “since�
   expect((await page.locator(".component-list").innerText()).includes("Also in French: Carte de fidélité"), "its French name");
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/?fresh=32");
+  await page.goto(publicOrigin + "/?fresh=32");
   const entry = page.locator(".entry", { hasText: "Loyalty card" });
   const legend = await entry.locator(".uptime").innerText();
   expect(/100\.00% since \d{1,2} \w+/u.test(legend), "uptime since today: " + legend);
@@ -485,15 +515,20 @@ await step("a service added today has no 90 days of 100 %: empty days, “since�
 await step("a customer's team gets updates in Slack: connected on “Get updates”, told of the next incident, stopped from its own page (critique 3, top 1)", async () => {
   await context.clearCookies();
   await english();
-  await page.goto(origin + "/subscribe");
+  await page.goto(publicOrigin + "/subscribe");
   await page.getByRole("link", { name: "Or in Slack, Teams or your own tool" }).click();
-  await page.waitForURL(origin + "/subscribe/chat");
+  await page.waitForURL(publicOrigin + "/subscribe/chat");
   await page.waitForTimeout(2200);
   await page.getByLabel("Slack").check();
   await page.locator("#url").fill("https://example.com/not-a-slack-hook");
   await page.getByRole("button", { name: "Connect" }).click();
-  await page.waitForSelector("#form-error");
-  expect((await page.locator("#form-error").innerText()).includes("Paste the address Slack gave you"), "a wrong address is said");
+  // With JavaScript the refusal is said next to the address, in the place
+  // the page fills without it, and the form keeps what was typed.
+  const said = page.locator("#url-error:not([hidden])", { hasText: "Paste the address Slack gave you" });
+  await said.waitFor();
+  expect(await said.count() === 1, "a wrong address is said");
+  expect(await page.locator("#url").getAttribute("aria-invalid") === "true" && await page.locator(".ck-toast-error").count() === 0, "marked on the field, no toast");
+  expect((await page.locator("#url").inputValue()) === "https://example.com/not-a-slack-hook", "what was typed stays");
   await page.waitForTimeout(2200);
   await page.getByLabel("Slack").check();
   await page.locator("#url").fill("https://hooks.slack.com/services/T0CUST/B0CUST/customerSecret0123456789");
@@ -535,14 +570,14 @@ await step("a customer's team gets updates in Slack: connected on “Get updates
 await step("French, phone width: the page reads without sideways scroll; the subscriber unsubscribes", async () => {
   await context.clearCookies();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(origin + "/lang/fr?back=/");
+  await page.goto(publicOrigin + "/lang/fr?back=/");
   expect((await page.locator("h1").innerText()).length > 5, "banner");
   expect((await page.locator(".history-legend .narrow").first().innerText()).includes("Il y a 30 jours"), "30 days on a phone, in French");
   const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(!wide, "no sideways scroll");
   await page.goto(subscriberLink);
   await page.getByRole("button", { name: "Me désabonner" }).click();
-  await page.waitForURL(origin + "/unsubscribed");
+  await page.waitForURL(publicOrigin + "/unsubscribed");
   expect((await page.locator("h1").innerText()).includes("Vous êtes désabonné"), "gone");
   await page.goto(subscriberLink);
   expect((await page.locator("h1").innerText()).includes("Ce lien ne fonctionne pas"), "the link is dead");
@@ -571,7 +606,7 @@ await step("French, phone width: the page reads without sideways scroll; the sub
 await step("the public page speaks the visitor's language, else the Chest's (English here)", async () => {
   const lang = async (headers) => {
     // A visitor without the harness's cookies.
-    const html = await (await fetch(origin + "/", { headers })).text();
+    const html = await (await fetch(publicOrigin + "/", { headers })).text();
     return /<html[^>]* lang="([a-z]+)"/u.exec(html)?.[1];
   };
   expect((await lang({ "accept-language": "fr-FR,fr;q=0.9" })) === "fr", "a French browser reads French");

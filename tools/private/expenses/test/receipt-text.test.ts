@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readReceiptText } from "../lib/receipt-text.ts";
+import { readReceiptText } from "../src/shared/receipt-text.ts";
 
 // What the OCR gave for two photos of the same till receipt (tesseract.js
 // 7.0.0, French model best_int, 2026-09-29): a clean one, and a blurred,

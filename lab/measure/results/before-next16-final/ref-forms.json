@@ -1,0 +1,673 @@
+{
+ "tool": "ref-forms",
+ "label": "before-next16-final",
+ "source": "/home/user/wt/before/reference/forms",
+ "date": "2026-10-06T20:10:55.058Z",
+ "machine": {
+  "host": "vm",
+  "cpu": "Intel(R) Xeon(R) Processor",
+  "cpus": 4,
+  "memTotalMiB": 16095,
+  "kernel": "6.18.44-fc-v70",
+  "cgroups": "v1"
+ },
+ "node": "v24.21.0",
+ "npm": "11.19.0",
+ "commit": "a7c54ca 2026-10-06",
+ "load": {
+  "atStart": {
+   "one": 0.02,
+   "five": 0.31,
+   "fifteen": 0.23
+  },
+  "busiestAtStart": [
+   {
+    "cpu": 39.5,
+    "rssMiB": 62,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 2.8,
+    "rssMiB": 262,
+    "command": "claude"
+   },
+   {
+    "cpu": 0.3,
+    "rssMiB": 0,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 5,
+    "command": "process_api"
+   },
+   {
+    "cpu": 0.2,
+    "rssMiB": 42,
+    "command": "environment-man"
+   }
+  ],
+  "atEnd": {
+   "one": 0.07,
+   "five": 0.3,
+   "fifteen": 0.29
+  },
+  "busiestAtEnd": [
+   {
+    "cpu": 2.1,
+    "rssMiB": 254,
+    "command": "claude"
+   },
+   {
+    "cpu": 1.4,
+    "rssMiB": 0,
+    "command": "next-server (v1"
+   },
+   {
+    "cpu": 0.7,
+    "rssMiB": 75,
+    "command": "MainThread"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 42,
+    "command": "environment-man"
+   },
+   {
+    "cpu": 0.1,
+    "rssMiB": 5,
+    "command": "process_api"
+   }
+  ]
+ },
+ "notes": [
+  "npm ci did not finish under 512 MiB and 1 CPU (SIGKILL, killed for memory); installed again without limits"
+ ],
+ "repository": {
+  "diskMiB": 0.4,
+  "apparentMiB": 0.3,
+  "files": 42
+ },
+ "install": {
+  "code": null,
+  "signal": "SIGKILL",
+  "ms": 14412,
+  "peakRssMiB": 555.8,
+  "peakPssMiB": 524.9,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 512,
+   "failcnt": 0,
+   "oomKills": 1
+  },
+  "limits": {
+   "memoryMiB": 512,
+   "cpus": 1
+  },
+  "load": {
+   "mean": 0.48,
+   "max": 0.63
+  },
+  "tail": "",
+  "fits": false
+ },
+ "installFree": {
+  "code": 0,
+  "signal": null,
+  "ms": 7857,
+  "peakRssMiB": 699.1,
+  "peakPssMiB": 668.1,
+  "processes": 1,
+  "cgroup": {
+   "peakMiB": 1285.1,
+   "failcnt": 0,
+   "oomKills": 0
+  },
+  "limits": {},
+  "load": {
+   "mean": 0.91,
+   "max": 0.91
+  }
+ },
+ "nodeModules": {
+  "installed": {
+   "diskMiB": 475.1,
+   "apparentMiB": 441.6,
+   "files": 10992
+  },
+  "pruned": {
+   "diskMiB": 439.9,
+   "apparentMiB": 408.4,
+   "files": 10303
+  }
+ },
+ "build": {
+  "limited": {
+   "code": 0,
+   "signal": null,
+   "ms": 24329,
+   "peakRssMiB": 559.4,
+   "peakPssMiB": 486.4,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 480.1,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {
+    "memoryMiB": 512,
+    "cpus": 1
+   },
+   "load": {
+    "mean": 1.6,
+    "max": 1.72
+   },
+   "fits": true
+  },
+  "free": {
+   "code": 0,
+   "signal": null,
+   "ms": 12291,
+   "peakRssMiB": 900.7,
+   "peakPssMiB": 827.3,
+   "processes": 4,
+   "cgroup": {
+    "peakMiB": 797.8,
+    "failcnt": 0,
+    "oomKills": 0
+   },
+   "limits": {},
+   "load": {
+    "mean": 1.67,
+    "max": 1.72
+   }
+  }
+ },
+ "buildOutput": {
+  "entries": [
+   ".next",
+   "next-env.d.ts"
+  ],
+  "diskMiB": 3,
+  "apparentMiB": 2.5,
+  "files": 118,
+  "cacheMiB": 0
+ },
+ "image": {
+  "diskMiB": 443.3
+ },
+ "sdk": "0.4.0",
+ "pages": {
+  "source": "lab/measure/pages/ref-forms.json",
+  "list": [
+   {
+    "path": "/chest",
+    "member": "camille"
+   },
+   {
+    "path": "/chest/new",
+    "member": "ines"
+   },
+   {
+    "path": "/",
+    "public": true
+   }
+  ]
+ },
+ "coldStart": {
+  "main": "/chest",
+  "runs": [
+   {
+    "portMs": 324.8,
+    "firstMs": 601.1,
+    "statuses": [
+     200
+    ],
+    "load": 1.76
+   },
+   {
+    "portMs": 295.9,
+    "firstMs": 568.2,
+    "statuses": [
+     200
+    ],
+    "load": 1.49
+   },
+   {
+    "portMs": 282.6,
+    "firstMs": 512.3,
+    "statuses": [
+     200
+    ],
+    "load": 1.26
+   },
+   {
+    "portMs": 257.1,
+    "firstMs": 504,
+    "statuses": [
+     200
+    ],
+    "load": 1.06
+   },
+   {
+    "portMs": 454.9,
+    "firstMs": 798.8,
+    "statuses": [
+     200
+    ],
+    "load": 0.9
+   },
+   {
+    "portMs": 342.5,
+    "firstMs": 655.2,
+    "statuses": [
+     200
+    ],
+    "load": 0.76
+   },
+   {
+    "portMs": 264.5,
+    "firstMs": 507.3,
+    "statuses": [
+     200
+    ],
+    "load": 0.59
+   },
+   {
+    "portMs": 376.6,
+    "firstMs": 686,
+    "statuses": [
+     200
+    ],
+    "load": 0.5
+   },
+   {
+    "portMs": 324.5,
+    "firstMs": 575.6,
+    "statuses": [
+     200
+    ],
+    "load": 0.42
+   },
+   {
+    "portMs": 301.3,
+    "firstMs": 540.4,
+    "statuses": [
+     200
+    ],
+    "load": 0.36
+   }
+  ],
+  "port": {
+   "median": 312.9,
+   "min": 257.1,
+   "max": 454.9
+  },
+  "first200": {
+   "median": 571.9000000000001,
+   "min": 504,
+   "max": 798.8
+  }
+ },
+ "memory": {
+  "idleSeconds": 30,
+  "runs": [
+   {
+    "afterStartMiB": {
+     "rss": 198.3,
+     "pss": 124.4
+    },
+    "peakMiB": {
+     "rss": 202.2,
+     "pss": 128.2,
+     "cgroup": 83.4
+    },
+    "afterRequestsMiB": {
+     "rss": 202.2,
+     "pss": 128.2
+    },
+    "restMiB": {
+     "rss": 188.7,
+     "pss": 114.8,
+     "pssAnon": 64.8,
+     "pssFile": 50,
+     "cgroupAnon": 64.7,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.7,
+      "pssMiB": 30.5
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.8,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 121.1,
+      "pssMiB": 84
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 5284,
+      "ms": 11.7
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 5439,
+      "ms": 15.7
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 3922,
+      "ms": 10.4
+     }
+    ],
+    "load": {
+     "mean": 0.23,
+     "max": 0.28
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 196.3,
+     "pss": 122.4
+    },
+    "peakMiB": {
+     "rss": 200.1,
+     "pss": 126.1,
+     "cgroup": 81.5
+    },
+    "afterRequestsMiB": {
+     "rss": 200.1,
+     "pss": 126.1
+    },
+    "restMiB": {
+     "rss": 187.9,
+     "pss": 114,
+     "pssAnon": 64,
+     "pssFile": 50,
+     "cgroupAnon": 64,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.6,
+      "pssMiB": 30.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.8,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 120.4,
+      "pssMiB": 83.3
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 5284,
+      "ms": 10.9
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 5439,
+      "ms": 11.8
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 3922,
+      "ms": 7.4
+     }
+    ],
+    "load": {
+     "mean": 0.11,
+     "max": 0.14
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 198.1,
+     "pss": 124.3
+    },
+    "peakMiB": {
+     "rss": 202,
+     "pss": 128.1,
+     "cgroup": 83.6
+    },
+    "afterRequestsMiB": {
+     "rss": 202,
+     "pss": 128.1
+    },
+    "restMiB": {
+     "rss": 188.6,
+     "pss": 114.8,
+     "pssAnon": 64.8,
+     "pssFile": 50,
+     "cgroupAnon": 64.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.6,
+      "pssMiB": 30.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.8,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 121.2,
+      "pssMiB": 84.1
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 5284,
+      "ms": 11.8
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 5439,
+      "ms": 10.9
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 3922,
+      "ms": 8
+     }
+    ],
+    "load": {
+     "mean": 0.06,
+     "max": 0.07
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 196.1,
+     "pss": 122.2
+    },
+    "peakMiB": {
+     "rss": 200.1,
+     "pss": 126.2,
+     "cgroup": 81.4
+    },
+    "afterRequestsMiB": {
+     "rss": 200.1,
+     "pss": 126.2
+    },
+    "restMiB": {
+     "rss": 187.7,
+     "pss": 113.9,
+     "pssAnon": 63.9,
+     "pssFile": 50,
+     "cgroupAnon": 63.8,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.6,
+      "pssMiB": 30.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.8,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 120.3,
+      "pssMiB": 83.2
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 5284,
+      "ms": 11.7
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 5439,
+      "ms": 10.3
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 3922,
+      "ms": 8.3
+     }
+    ],
+    "load": {
+     "mean": 0.09,
+     "max": 0.11
+    }
+   },
+   {
+    "afterStartMiB": {
+     "rss": 197.4,
+     "pss": 123.5
+    },
+    "peakMiB": {
+     "rss": 201.4,
+     "pss": 127.4,
+     "cgroup": 82.9
+    },
+    "afterRequestsMiB": {
+     "rss": 201.4,
+     "pss": 127.4
+    },
+    "restMiB": {
+     "rss": 188,
+     "pss": 114.1,
+     "pssAnon": 64.1,
+     "pssFile": 50,
+     "cgroupAnon": 64.1,
+     "cgroupCache": 0
+    },
+    "processes": [
+     {
+      "command": "npm start",
+      "rssMiB": 65.6,
+      "pssMiB": 30.4
+     },
+     {
+      "command": "sh -c NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+      "rssMiB": 1.8,
+      "pssMiB": 0.3
+     },
+     {
+      "command": "next-server (v16.3.6)",
+      "rssMiB": 120.6,
+      "pssMiB": 83.4
+     }
+    ],
+    "pages": [
+     {
+      "path": "/chest",
+      "status": 200,
+      "bytes": 5284,
+      "ms": 11.9
+     },
+     {
+      "path": "/chest/new",
+      "status": 200,
+      "bytes": 5439,
+      "ms": 11.7
+     },
+     {
+      "path": "/",
+      "status": 200,
+      "bytes": 3922,
+      "ms": 7.9
+     }
+    ],
+    "load": {
+     "mean": 0.1,
+     "max": 0.13
+    }
+   }
+  ],
+  "rest": {
+   "rss": {
+    "median": 188,
+    "min": 187.7,
+    "max": 188.7
+   },
+   "pss": {
+    "median": 114.1,
+    "min": 113.9,
+    "max": 114.8
+   }
+  },
+  "peak": {
+   "rss": {
+    "median": 201.4,
+    "min": 200.1,
+    "max": 202.2
+   },
+   "pss": {
+    "median": 127.4,
+    "min": 126.1,
+    "max": 128.2
+   }
+  },
+  "restWithoutNpm": {
+   "rss": {
+    "median": 122.4,
+    "min": 122.1,
+    "max": 123
+   },
+   "pss": {
+    "median": 83.7,
+    "min": 83.5,
+    "max": 84.4
+   }
+  }
+ }
+}

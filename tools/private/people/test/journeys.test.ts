@@ -1,23 +1,23 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { AppError } from "../lib/errors.ts";
-import { en } from "../lib/i18n/en.ts";
-import * as j from "../lib/journeys.ts";
-import { addDays } from "../lib/model.ts";
-import { today } from "../lib/zone.ts";
-import { updateJob } from "../lib/profiles.ts";
-import * as tell from "../lib/tell.ts";
-import { examples } from "../lib/examples.ts";
+import { AppError } from "../src/lib/errors.ts";
+import { en } from "../src/i18n/en.ts";
+import * as j from "../src/lib/journeys.ts";
+import { addDays } from "../src/shared/model.ts";
+import { today } from "../src/lib/zone.ts";
+import { updateJob } from "../src/lib/profiles.ts";
+import * as tell from "../src/lib/tell.ts";
+import { examples } from "../src/lib/examples.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, paul, sofia, tom, seen } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "morning", cron: "40 7 * * 1-5" }] });
+  chest = await fakeChest({ network: {}, members: everyone });
 });
 after(async () => {
   await chest.close();
@@ -46,7 +46,7 @@ test("HR writes templates; items are checked; members may not", async () => {
   await assert.rejects(j.createTemplate(sql, hr, { kind: "holiday", name: "x" }), refused("invalid"));
   await assert.rejects(j.createTemplate(sql, hr, { kind: "onboarding", name: " " }), refused("empty"));
   await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "boss", offset: 0 }), refused("invalid"));
-  await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "member", offset: 0 }), refused("not_found"));
+  await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "member", offset: 0 }), refused("invalid"));
   await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "member", memberId: "mbr_" + "q".repeat(26), offset: 0 }), refused("not_member"));
   await assert.rejects(j.addTemplateItem(sql, hr, t.id, { text: "x", role: "hr", offset: 1000 }), refused("invalid"));
   await assert.rejects(j.addTemplateItem(sql, hr, "999999", { text: "x", role: "hr", offset: 0 }), refused("not_found"));
@@ -82,10 +82,10 @@ test("starting a checklist gives each step to someone, tells them in their langu
     ["Give the office tour", tom.id, start],
     ["Fill in your profile", nora.id, addDays(start, 1)],
   ]);
-  const inbox = (who: string) => chest.notifications.filter(n => n.member === who).map(n => n.title);
-  assert.deepEqual(inbox(ines.id), ["Arrivée de Nora Petit : 1 tâche pour vous"]);
+  const inbox = (who: string) => chest.notifications.filter(n => n.member === who).map(n => seen(n).title);
+  assert.deepEqual(inbox(ines.id), ["Arrivée de Nora Petit : 1 tâche pour vous"]);
   assert.deepEqual(inbox(tom.id), ["Welcome Nora Petit: 1 to-do for you"]);
-  assert.deepEqual(inbox(nora.id), ["Vos premières semaines : 1 tâche"]);
+  assert.deepEqual(inbox(nora.id), ["Vos premières semaines : 1 tâche"]);
   assert.deepEqual(inbox(camille.id), []);
   assert.equal(chest.badges.get(tom.id), 1);
   // Who sees it: HR, Nora, her manager, those with a step; not Hugo or Léa.
@@ -146,7 +146,7 @@ test("a checklist is stopped (undo) and deleted; the bell and tiles follow; the 
   await tell.todo(sql, hr, started, started.assignees.keys());
   assert.ok(chest.badges.get(lea.id)! >= 1);
   // The morning: one digest per person with steps due today or late.
-  const status = await chest.run("morning", request => import("../app/chest-jobs/[name]/route.ts").then(m => m.POST(request)));
+  const status = await chest.run("morning", request => import("../src/lib/deliveries.ts").then(m => m.onSchedule(request)));
   assert.equal(status, 204);
   assert.ok(chest.notifications.some(n => n.member === tom.id && n.key === "digest" && /today/u.test(n.title)));
   await j.stopJourney(sql, hr, started.id, true);

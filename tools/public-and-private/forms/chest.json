@@ -1,22 +1,48 @@
 {
-  "version": 2,
+  "chest": "0.4",
   "name": "forms",
   "title": "Forms",
   "description": "Build a form in minutes, share one link, read the answers: surveys, sign-ups, requests, feedback.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
-  "roles": ["manager", "creator", "member"],
-  "role_labels": { "manager": "Manager", "creator": "Creator", "member": "Member" },
+  "roles": [
+    "manager",
+    "creator",
+    "member"
+  ],
+  "role_labels": {
+    "manager": "Manager",
+    "creator": "Creator",
+    "member": "Member"
+  },
   "public": true,
-  "csp": "tool",
-  "capabilities": ["database", "files", "members", "notifications"],
-  "receives": ["member.*"],
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "schedules": [
+    {
+      "name": "bell",
+      "cron": "*/15 * * * *"
+    },
+    {
+      "name": "cleanup",
+      "cron": "20 3 * * *"
+    }
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",
     "command": "npm run build",
     "start": "npm start",
     "port": 3000,
-    "static": ["/_next/static/"]
+    "static": [
+      "/assets/"
+    ]
   }
 }

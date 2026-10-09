@@ -83,3 +83,23 @@ Good: one answer per member from `member()`, Undo on close and delete, a 30-day 
 8. Email reminders via the SDK outbox. **M**
 9. Public guest link for date polls (SDK public part). **L**
 10. Minors: wording, copying times to all days, reduced motion, seed times. **S**
+
+
+## October 2026: after the move to the new stack
+
+_Added 6 October 2026 from Polls's commits, README and `lab/measure/`
+results at `70227ed` — not a new hands-on critique: the verdicts above
+stand unless this section says otherwise._
+
+- **Stack.** Off Next.js 16, onto the studio's stack: Hono, React rendered
+  on the server with islands, Vite, through `@argentic/chest-app` 0.1.0-studio.6,
+  SDK `0.4.1-studio.4`, contract 0.4 (`"chest": "0.4"`, schedules in `chest.json`);
+  `chest check` says OK. Features, flows, audits and looks kept.
+- **Measured** (`lab/measure`, `before-next16` → `after-package`; PSS of the
+  server's process tree at rest, median of 5): **131.4 → 64.7 MiB**;
+  image 458 → 29 MiB; first members' page 726 →
+  375 ms (median of 10, on a shared machine); `npm ci` and the
+  build now fit 512 MiB and one CPU.
+- **Review**: reviewed by an independent agent after the move, verdict "good, with fixes"; the fixes are merged.
+- **Fixed after the review**: each member's groups kept a minute (a stale answer when the Chest says "too many"); the request log names the route, never a guest's secret link; the public 404 in its own frame (`ae4d740`); the guest form on the package's bounded public actions (single-use form token, honeypot, budgets counted once valid; `e765eac`). Checked in Chromium: the island sends the page's token and the answer renews it.
+- **Pending**: Nothing listed as pending in its commits. Like every public form, a guest link can be spent for the day by a robot the Chest cannot name (`reports/03-sdk-report.md` §4.17).
