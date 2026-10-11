@@ -18,6 +18,11 @@ flowchart LR
 
 ## Store
 
+Forms and Chat currently serve as prototypes and will be rebuilt. They are
+not evidence that an official production suite is ready. ChestStore-Dev is
+used to explore tool needs and test what the SDK should support; its proposals
+must be checked against the current SDK before becoming product work.
+
 - GitHub organisation [`chest-by-argentic`](https://github.com/chest-by-argentic):
   one **public** repository per tool. Installing from the catalogue therefore requires
   no GitHub App and no account: the Chest reads a public repository, at
@@ -73,6 +78,61 @@ approval required.
 
 Installing ≠ opening to the whole team. Compartment access is set separately.
 
+### A new version that fails, and going back
+
+A version is put in service only once it **works**: its members' part
+answers as a page, a redirect or a sign-in request would — never an error —
+within a minute. Otherwise the version in service simply keeps running, and
+whoever updated is told why in one sentence (“This version answered an
+error…”).
+
+**The data goes back with the code.** Before a version changes the tool's
+database, the Chest keeps a copy of it on the server. A version that fails
+is put back with that copy. Going back to the previous version (one click,
+“Roll back”) brings that version's data back too, and the window says so
+before the decision: “Its data goes back to 8 Oct 2026, 14:03… What was
+written since is not in it. Today's data is kept with <version>”; returning
+to the newer version brings that data back. The copy is kept only while the
+disk holds it: when space is short, the oldest copies go first (said in the
+tool's log), and an update that cannot keep its copy is refused before any
+change, in plain words. Without a copy, going back keeps today's data
+and its columns.
+
+**Nothing anyone was told is saved is lost** (Astra F03, 9 October 2026).
+While a version that changes the data is put in service — its copy, its
+migrations, its start —, the tool pauses: nothing reaches it, not even its
+own timers, so that putting the copy back can never erase what it
+answered as saved. What comes meanwhile waits and is served by whichever
+version runs at the end: a page shows “Updating <tool>…” and opens by
+itself; a request, an event or a scheduled run waits up to a minute; past
+that, a request is answered plainly that nothing it sent reached the tool
+(and the tool's log counts them), an event or a run is delivered again
+later. Reads wait too: a tool's read may write. An update without a
+migration does not pause the tool.
+
+Tool authors (and Perseus) release changes to the data in two steps —
+**expand, then contract**: a version only adds; what it stops reading is
+removed by the next one, marked `-- chest: contract`. `chest check` warns
+otherwise.
+
+### Several installations at once
+
+An approved catalogue installation, GitHub installation or Perseus publication
+waits its turn when another source installation is running. The Chest records
+the exact version, approved accesses and deciding member before accepting the
+request. One installation runs at a time; the queue is bounded to protect the
+server's memory and disk. Waiting is shown explicitly. This does not increase
+the resource allowance of a build or introduce another service.
+
+After a restart, requests that had not started continue in order, with the
+member's current rights checked again. An operation interrupted after it
+started is reported as interrupted, rather than replaying an uncertain data
+migration automatically. The existing retry/review paths resolve it. No newer
+store commit or repository push silently replaces the approved source.
+
+This addition follows the existing-code security and efficiency corrections;
+the separate simplification of the interface remains deferred.
+
 ### When an installation fails
 
 **The address and the repository are the tool's only once it runs**
@@ -104,16 +164,22 @@ What limits the tools of a Chest is its server, nothing else — no count of
 tools, of builds or of linked repositories (decided 30 September 2026 by
 Paul). A new tool is installed only if the server can still hold it:
 
-- **Memory**: every tool **awake at once**, each with its memory, plus the
-  new one, within **95 %** of what tools may use — the memory the tools'
-  sleep and Settings → Server count.
+- **Memory**: a tool has no memory of its own and no memory setting; every
+  workload (tools, their databases, Perseus workbenches, builds) shares the
+  server's memory less the core's reservation ([isolation.md](isolation.md)).
+  A new tool is refused for memory only when the workloads already use
+  **95 %** or more of what they share. Once installed, a tool always wakes;
+  when the shared memory runs short, the Chest puts an idle tool to sleep or
+  stops the heaviest workload, and says so (isolation.md, “When the
+  workloads run out of memory”).
 - **Disk**: the disk used plus the image its build is expected to take (the
   average of the images the Chest keeps, 1 GB before any), within **90 %**
   of the disk. Every build weighs the disk, a new version too.
 
 The install sheet stays as it is. When **Install** is clicked and the tool
 would not fit, the same window becomes **“Your server is full”**: one
-sentence of why (memory or disk), the numbers of the meters in **Details**,
+sentence of why (for memory: “Your tools already use nearly all the memory
+the server gives them.”; or the disk), the numbers of the meters in **Details**,
 and what resolves it, by role:
 
 - the **owner**: **Move to the larger server** — a confirmation naming the
