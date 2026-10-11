@@ -1,6 +1,6 @@
-# Application contract — excerpt of the Chest's architecture
+# Application contract — excerpt of the Chest’s architecture
 
-Snapshot of `docs/architecture.md` of the private Chest repository, commit `548e697` (7 October 2026): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
+Snapshot of `docs/architecture.md` of the private Chest repository, commit `263000de` (12 October 2026, PR #320 pending final verification): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
 
 ## Application contract
 
@@ -101,12 +101,12 @@ the commit of the copied SDK. The exporter (`export-store.mjs`) reads this copy.
 same script gives **every store tool** the SDK as a package: each Git
 repository carrying a `chest.json` under `03_code/04_argentic-store` and
 `04_argentic-store/Private` (`storeTools`, named by its GitHub origin — none can
-be left behind), the SDK packed by `scripts/sdk-package.mjs` into its `vendor/`,
-its `package.json` and lock following. The same
-script copies the MCP server source, `@argentic/chest-mcp`, whose
-public repository is `chest-by-argentic/Chest-MCP` (`03_code/03_chest-mcp`, its `src`),
-into `tests/sdk/chest-mcp/src`: `npm run build` compiles it into `tests/dist`,
-from where the VM proof launches it (“Agent API”). A copy is never modified
+be left behind), the SDK packed by `scripts/sdk-package.mjs` into its `vendor/`
+(with its checker `@argentic/chest-check`, the SDK's `check/`, when the tool
+vendors it), its `package.json` and lock following: each package's lock entry
+is dropped before `npm install --package-lock-only`, which otherwise keeps the
+integrity of a version it already locked, and the lock is then checked
+against the tarballs written. A copy is never modified
 here: the change is made in the source repository, then synced. The SDK has no `chest.json`: the catalogue, which lists only
 repositories carrying a manifest, never offers it (see “Catalogue”).
 
@@ -215,20 +215,22 @@ no longer offers archive upload.
   Notifications, AI gateway); each is a
   permission, after `public` and before the network, in this order (“A PostgreSQL
   database of its own”, “The Chest keeps it; no other tool can
-  reach it.”; “Keeps private files of its own, up to 1 GiB”, “Stored
+  reach it.”; “Keeps private files of its own”, “Stored
   apart; shown only through a short-lived signed link.”; “Sees the name,
   photo, role and groups of the members who have access to it”; “Sees the
   email address of the members who have access to it”, both under People). With `files`,
-  the optional key `files` asks the storage: `{"quota": "5 GiB",
-  "maxObject": "100 MiB"}` (whole MiB or GiB; quota 100 MiB–100 GiB,
-  object 1–512 MiB; any other key refused — a visitor's upload needs no
+  the optional key `files` asks the largest file: `{"maxObject": "100 MiB"}`
+  (whole MiB or GiB, 1–512 MiB, 32 MiB when absent; `quota` and any other
+  key refused — a tool's files have no quota, the workload volume holds
+  every tool's; a visitor's upload needs no
   key of its own: a tool with a public part could already take a
   visitor's bytes through its server, so the Chest's upload adds no
   power, only the bounds of “Files”); the permission is then
-  `files:<quota>:<object>` (`files:5GiB:100MiB`, compact, canonical;
-  the defaults stay `files`), stated “Keeps private files of its own, up
-  to 5 GiB, 100 MiB per file”, and beyond a version that had less
-  (`packagefile.Beyond`: larger quota or object). With `ai`, the key `ai`
+  `files:<object>` (`files:100MiB`, compact, canonical;
+  the default stays `files`), stated “Keeps private files of its own, up
+  to 100 MiB per file”, and beyond a version that had less
+  (`packagefile.Beyond`: a larger object is asked again;
+  `packagefile.FilesDocument` writes the key back). With `ai`, the key `ai`
   is required and says what for: `{"monthly": 20, "models": ["default",
   "embedding"], "purpose": "Summarises support tickets"}` — `monthly` whole
   euros 1–1000 (5 when absent), `models` 1 to 4 of the aliases `default`,
@@ -270,8 +272,9 @@ no longer offers archive upload.
   contract, which is not `ErrInvalid`: the source may be right, the Chest is
   behind.
 - **Generated recipe** (`chest/sourcebuild.ServerContainerfile`), never taken
-  from the archive: `FROM <the package's pinned Node image>` (`runtime/base-image`,
-  copy of `deploy/chest/base-image`, the package's only pin), `WORKDIR /app`, copy of
+  from the archive: `FROM <the package's pinned Node image> AS runtime` (`runtime/base-image`,
+  copy of `deploy/chest/base-image`, the package's only pin), a stage
+  `FROM runtime AS build` where the build runs: `WORKDIR /app`, copy of
   `package.json` and the lock — and of `vendor/` when the tree has one (the
   SDK a Perseus Code draft depends on by file) —, `RUN ["npm","ci","--no-audit","--no-fund"]`, copy
   of the code, `RUN ["npm","run",<script>]` if `command` (exec form, without
@@ -283,10 +286,23 @@ no longer offers archive upload.
   the files of `migrations/` at the root of the archive
   (`^[0-9]{4}_[a-z0-9_-]{1,64}\.sql$`, regular files, 256 at most,
   1 MiB each, 8 MiB in total, UTF-8 text without NUL — `migrationfile.Check`;
-  a refused file makes the build fail with its reason), checked by the Chest and copied
+  a refused file makes the build fail with its reason; one that drops,
+  renames or retypes a table or a column without the line
+  `-- chest: contract` is taken with a warning, `migrationfile.Breaking`,
+  “Expand, then contract” below), checked by the Chest and copied
   into its part of the context (`.chest-build/migrations/`), `COPY` to
   `/chest/migrations/` then `chmod -R a-w,a+rX` (the directory exists even when empty):
-  a version's migrations are those of its approved image;
+  a version's migrations are those of its approved image; then the
+  image: `FROM runtime`, `COPY --from=build /app /app` and
+  `COPY --from=build /chest /chest` — each file once, as the build left
+  it (a mode changed in a step's layer copies the lower layer's file
+  whole: the image held every file the build made twice, Astra N03);
+  nothing else of the build's file system, npm's cache among it: what an
+  install script or the build writes outside `/app` (a home cache, a
+  global install) does not ship, and the build's log ends saying so
+  (“Image kept: the tool's tree (/app) as the build left it, read-only, …
+  MiB of the server's disk.”); the starter's `AGENTS.md` (“What the Chest
+  ships”) and Perseus's instructions tell authors —,
   `ENV NODE_ENV=production
   NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_CACHE=/tmp/npm PORT=<port>`,
   `ENTRYPOINT ["node","/chest/launcher.mjs",<start…>]`. The **launcher**
@@ -296,7 +312,7 @@ no longer offers archive upload.
   and adds them to the server's environment — none replaces a variable
   of the image or of the Chest; an unreadable file stops it (code 2) without revealing
   its content —, starts `start` inheriting the outputs, relays
-  each connection from the unix socket `/run/chest/http.sock` (0600) to
+  each connection from the unix socket `/run/chest/http.sock` (0660) to
   `127.0.0.1:$PORT`, forwards `SIGTERM`/`SIGINT` to the server and exits with its
   code; a missing command or an out-of-range `PORT` stops it immediately. An
   image built before variables existed has the old launcher: it receives them at
@@ -304,11 +320,87 @@ no longer offers archive upload.
   the Chest as soon as the instance responds). The
   socket rather than a published port: publishing a port in rootless mode goes through
   pasta or slirp, which also provide network egress.
-- **Build**: `podman --remote=false build --pull=never --layers
-  --memory=1536m --memory-swap=1536m --cpu-period=100000 --cpu-quota=200000
-  --cpu-shares=256 --ulimit=nproc=4096:4096 --cap-drop=ALL
-  --security-opt=no-new-privileges`, ten minutes at most, output kept as a
-  log (256 KiB, the end), readable during the build.
+- **Build**: `podman --remote=false --root=<build store>
+  --runroot=<its run root> build --pull=never --layers --force-rm
+  --from=<the base's ID there> --memory=1536m --memory-swap=1536m
+  --cpu-period=100000 --cpu-quota=200000 --cpu-shares=256
+  --ulimit=nproc=4096:4096 --cgroup-parent=chest-workloads-build.slice
+  --cap-drop=ALL --security-opt=no-new-privileges`, ten minutes at most, output kept as a log (256 KiB, the end), readable
+  during the build.
+  - **Storage** (`chest/workload`, `agent_build.go`; Astra F02): what a
+    build writes — its dependencies, npm's cache, its output, its
+    intermediate layers, Podman's temporary files (`TMPDIR`) — is in the
+    **build store**, an image store of its own on the workload volume, in
+    the volume's project of the builds (`work/builds`, `workvolume.Build`,
+    with the builds' contexts), never in the workload account's own store
+    on the system disk. A build that fills the volume, its bytes or its
+    inodes, fails as any workload's write does; the system disk is not
+    written. Its run root — its locks and mount records — is on the run
+    directory's tmpfs (`/run/chest-work/builds`), so that a full volume
+    never keeps a build from being stopped or cleared. The base image is
+    copied into the store by its ID (`podman save`/`load`, the first time a
+    build needs it) and the recipe's `FROM` is replaced by it (`--from`).
+    The image of a build that succeeds is saved from the store into the
+    volume's temporary files (`podman save`, a docker archive), weighed
+    there by what its files allocate once loaded — never by `podman image
+    inspect {{.Size}}`, the bytes of its files, which a layer of many
+    small files exceeds by half (Astra N03: 100,000 files of one byte, 404
+    MiB allocated where Podman said 268 MB) — and admitted by the node at
+    that moment, then loaded into the account's store — the only bytes of
+    a build the system disk takes — and removed from the build store
+    (**promotion**). The weight (`workload.imageNeed`, read from the
+    archive with the block size of the disk the account's store is on):
+    each file its blocks, and one more for each 64 MiB of it; a directory
+    a block and twice the room of its entries' names; a symbolic link
+    whose target an inode does not hold, a block; a file with extended
+    attributes, one more; an inode for every entry but a hard link; what
+    the store keeps to export each entry again (its tar-split) and of each
+    layer and the image; the layers the account's store holds already —
+    the base image's — not counted; each inode its own room too (XFS
+    makes its inodes from the data blocks). Measured in the lab VM, synced
+    (what XFS holds aside for dirty pages until it writes them it gives
+    back then, or to a write that needs it): an image of 100,000 files of
+    one byte, which Podman said 268 MB, asked 519 MiB and 100,099 inodes
+    and took 445 MiB and 100,085 (`TestImagePromotionProof`). The agent asks the node for that much
+    — bytes and inodes — once, in the build's own connection (an ask
+    frame, `serverroom.Need`); the node measures the system disk then,
+    with what other admitted writes reserve, and answers admit or refuse
+    (`serverroom.DiskLedger.Reserve`, the rule of “Room for a new tool”,
+    inodes within 90 % as well); admitted, the room stays reserved until
+    the build's connection ends — the load done or failed, the archive and
+    the build store's image removed. Refused, nothing reaches the system
+    disk: “Build stopped: its image takes … MiB and … files of the
+    server's disk, which has no room for them.” What writes layers into
+    the account's store — a promotion's load, a pull, a restore's load —
+    runs one at a time (`Agent.imported`), each with Podman's temporary
+    files on the volume (`TMPDIR`, made before each Podman call: a server
+    that never built saves, loads and pulls all the same), never in
+    `/var/tmp`; one that fails or
+    is stopped leaves the layers it committed, which no image references
+    (measured: four, 3 MiB and 850 inodes, for a promotion stopped
+    midway). Two minutes later, no import running, the agent removes
+    every layer no image or container references but those younger than
+    a minute (`podman system check --repair --quick --max=1m0s`): a
+    container's layer is unreferenced between its making and its
+    record's, a window of Podman's own, which the minute spares; when the
+    agent starts, before it runs anything, it spares none. Meanwhile what
+    they take is the disk's as statfs counts it, which the next
+    admission weighs. The
+    account's store stays on the system disk, never on the volume: Podman's
+    records there must stay writable when the workloads fill the volume
+    (“The workload volume”, below); what keeps a promotion from the core's
+    reserve is its admission, measured at the copy. The store keeps the layers of the steps between
+    builds (below); it is cleared whole (`workload.ClearBuilds`, run by the
+    agent's own executable through `podman unshare`: what a stopped build
+    left running killed by the cgroup of the builds' slice,
+    `chest-workloads-build.slice` inside the workloads slice
+    (`toolmemory.BuildSlice`, `cgroup.kill`) — measured: a step outlives a
+    `podman build` stopped —, the layers still mounted unmounted, the files
+    of the containers' users removed; measured too: on a full volume Podman
+    cannot remove a failed build's containers itself) when the
+    agent starts, after a build that did not end by itself or that left the
+    volume full, and before a build while the volume is full. One build at
+    a time uses it.
   - **Processes**: rootless, the build's processes count against the
     limit of the node's user with every other process of that user —
     the provider, PostgreSQL, the tools, the workbenches of Perseus Code
@@ -321,15 +413,32 @@ no longer offers archive upload.
     usable, no swap, 2 vCPU); both CPUs, at a low weight
     (`cpu.weight` ≈ 10 versus 100): alone, the build runs at full
     speed; next to the Chest and its tools, it yields to them. Builds
-    run one at a time and are not in the tools' budget
-    (`toolmemory.Budget`, `MemTotal` − 1.5 GiB): before each one, the node reads
-    `MemAvailable` (`toolmemory.Available`) and refuses the build if it
-    does not have 1.5 GiB plus a 256 MiB margin (podman and buildah, which write the
-    layers outside the limit) — cause `not enough memory to build`, log
-    “Not enough memory to build: …” —, rather than endangering
-    Keycloak and PostgreSQL. Outside Linux, no guard. On the VPS-1,
-    ~2.6 GiB are available with the services and one tool: the build
-    goes through; tools that take more make it refused, saying so.
+    run one at a time in the workloads slice (“Isolation and
+    interfaces”), whose memory is the tools' budget
+    (`toolmemory.Budget`, `MemTotal` less the core's reserve). The
+    1.5 GiB are a bound, not a need: a build takes what it uses — the
+    tiny tool of Perseus Code's publication peaked at about 170 MiB of its
+    own pages in the slice (lab VM, `perseus.spec.ts`) —, and it is never
+    refused for memory. Before it, the node makes room in the slice for
+    the bound as the memory's keeping does (`roomForBuild`,
+    `cmd/chest/node_sleep.go`): while the slice's room — its bound less
+    its workloads' own pages, their page cache being room — is below
+    1.5 GiB, the least recently used tools nobody used for a minute are
+    put to sleep, one at a time, their databases with them (“Asleep: a
+    build needed the server's memory” in their logs, counted for the
+    capacity alert) — they wake at their next use; a tool in use is never
+    put to sleep for a build. A slice short of memory during the build is
+    kept by usage as always (“Server tools asleep”); a build its bound or
+    the slice cannot hold is stopped there by the kernel (“memory
+    exceeded”), never Keycloak and PostgreSQL. The server's
+    `MemAvailable` decides nothing: it counts the core's processes and
+    the workload account's own beside the slice, and moved by about
+    250 MiB between runs of the same lab (1742 to 1990 MiB at the
+    publication), where a fixed 1.5 GiB plus 256 MiB of it refused
+    Perseus's publication on every clean 4 GiB VM. Outside
+    Linux, no guard. On the VPS-1, ~2.6 GiB are available with the
+    services and one tool: the build goes through; idle tools make room
+    for it; tools in use that take more make it refused, saying so.
   - **Node heap**: `ARG NODE_OPTIONS=--max-old-space-size=1024` at the top
     of both recipes — the environment of each `RUN`, never that of the
     image —: a Node that exceeds its heap stops with its error, readable,
@@ -341,7 +450,12 @@ no longer offers archive upload.
     last lines: without a timeout, only the OOM killer sends it),
     “Build stopped: Node memory exceeded (1 GiB of heap out of 1.5 GiB).” for
     the heap error, “Build stopped: time limit exceeded (10 min).”; cause
-    `build ran out of memory` or `build timed out`. These signs are read in the
+    `build ran out of memory` or `build timed out`. The complete operation,
+    including preparation and image admission/copy, has a separate 20-minute
+    deadline at the ledger and execution-service protocol boundary. The wire
+    deadline also bounds upload and admission waits; store lock waits honour
+    cancellation. Image cleanup has a one-minute independent limit; emergency
+    build-store repair retains its existing ten-minute limit. These signs are read in the
     tool's output: a tool that prints them changes that line, nothing
     else.
   - **Live log**: podman writes its output, as it goes, into a
@@ -374,7 +488,13 @@ no longer offers archive upload.
   whose plain HTTP is read request by request under the same rule — Node's
   own client (`NODE_USE_ENV_PROXY`) tunnels even an `http://` URL —; no
   other method, no other host, the node's guard as for a tool), and logs each request in
-  `installation/egress/builds/<tool>.jsonl`. The install scripts of the
+  `installation/egress/builds/<tool>.jsonl`. Registry requests reuse an upstream
+  transport only for the same validated DNS address set (four idle connections,
+  30-second idle expiry, at most 32 connections). Every request still checks
+  the policy and DNS answer; a changed address set retires the old pool.
+  TLS certificates remain verified and redirects are returned, never followed.
+  Pools close when their build/workbench stops. Other outbound proxies retain
+  their per-request connection behavior. The install scripts of the
   packages run (`--ignore-scripts` is not used: many packages need them —
   native modules, `esbuild`'s binary); they reach no other host, publish
   nothing, and find no secret: a build is given none of the tool's
@@ -384,8 +504,9 @@ no longer offers archive upload.
   so in its log, as in a workbench. Until the Chest's names are known, a
   build does not start (“Build stopped: no way to the npm registry on this
   server.”). A tool's run-time container keeps `--network=none`
-  (`chest/runtime`). `--layers` keeps the `npm ci` layer between two builds
-  **of the same tool** with the same lock: the build cache; the recipe's
+  (`chest/runtime`). `--layers` keeps the `npm ci` layer, in the build
+  store, between two builds **of the same tool** with the same lock, until
+  the store is cleared: the build cache; the recipe's
   `LABEL work.argentic.chest.tool=<name>` keys the layers by tool, so that a
   tool never reuses the layers another built.
   The built image is checked to be present, then bound to the package manifest
@@ -407,18 +528,21 @@ no longer offers archive upload.
   the intent names (`sourcebuild.Intent.As`, rule `access.ValidToolName`) —
   the archive's manifest must then give the approved name, `status.json`
   keeps it as `manifest`, and the `chest.json` that the Chest writes carries the
-  installation name: the author's manifest is never rewritten. Six names at
-  most — a name with no successful build offers nothing: when a new name has
-  no room, the one that failed longest ago gives it its place (its source, its
-  log, its state go), never a ready name, which only removing the tool
-  forgets; all ready: `build quota exhausted` —, one build at a time, in the
-  background: `POST /api/builds` answers 202
+  installation name: the author's manifest is never rewritten. There is no
+  fixed build-count quota: disk admission bounds the images retained. One
+  build runs at a time in the background; `POST /api/builds` answers 202
   as soon as the archive is accepted. A build in progress works in
-  `<name>.building/`; when ready, it replaces the name's directory; when failed, it
+  `<name>.building/`; when ready, it replaces the name's directory while
+  `<name>.previous/` preserves the earlier directory until publication is
+  durable. Startup and retry reconcile an interrupted replacement. When failed, it
   places its source, its log and its state there without touching the package of the
   last ready build, which remains offered. A build does not survive
   the node: at restart, a build left in progress is marked
-  `failed: interrupted`. The log is that of podman and npm, shown to the
+  `failed: interrupted`. A result-persistence failure is immediately exposed
+  as failed in memory and reported to the operator journal, even when disk
+  state cannot be written. The next attempt reconciles stale staging without
+  restarting the node. An incomplete stage without a status is removed;
+  unreadable or corrupt status is refused and preserved. The log is that of podman and npm, shown to the
   owner as is: it is their information, it contains nothing of the Chest.
 - **Offers**: at each `GET /api/installation`, the portal adds to the node's fixed
   offers the ready builds (`built: true`), read from the registry — no
@@ -430,10 +554,9 @@ no longer offers archive upload.
   octet-stream, outside the interface); `GET /api/builds`, `GET /api/builds/{name}/log`
   (text) and `GET /api/installation` for whoever runs the tool — a builder
   sees only their own there; `POST /api/installation` (owner and admins).
-- **Limits**: the built image is not in the server's backups;
-  after a restore, the tool must be rebuilt (“Check now”
-  on its repository) and its previous version is not there either.
-  Builds exist on a node that has its package's `runtime` next to
+- **Limits**: retained installed and rollback images are included in backups
+  through the selected-image export and verification path (“Backup and recovery”);
+  transient build caches are not. Builds exist on a node that has its package's `runtime` next to
   its installation; without it, the page has neither this block nor the GitHub link.
 
 ### Server tools
@@ -449,28 +572,31 @@ assertion), the tool's **variables**, its declared network egress, its
 — two origins, a script of the public part never sees the session.
 
 - **Container** (`chest/runtime/server.go`, `serverArgs`, the only values):
-  `podman run --rm` in the foreground, `--network=none`, read-only
+  `podman run --rm` in the foreground, run by the workload agent as the
+  workload account (“Isolation and interfaces”: the node asks, never runs
+  Podman for a workload), `--network=none`, read-only
   root, `/tmp` as a 64 MiB `noexec` tmpfs, `--userns=keep-id` and
-  the node's user, all capabilities dropped, `no-new-privileges`,
-  its memory (256 MiB by default, without swap: “Memory”, further down), 1 CPU,
+  the workload account's user, `--umask=0007`, all capabilities dropped, `no-new-privileges`,
+  no memory of its own (`--cgroup-parent` the workloads slice, shared by
+  use, without swap: “Memory”, further down), 1 CPU,
   256 processes, 1024 descriptors, neither Podman's proxy nor its
-  log (`--log-driver=none`: what the instance writes goes to the
-  node, “Logs” below). The only mount is `s/` of a private directory (0700) specific to
-  the instance, at `/run/chest`, where the launcher opens `http.sock`: the tool writes
-  into `s/`, under the Chest's uid (`keep-id`), but does not see the instance's
-  directory and cannot replace `s/`. This directory is in `/dev/shm`, a
-  tmpfs (checked by `statfs`, otherwise no instance starts —
-  `runtime.ServerDir`): a tmpfs page is charged to the memory (cgroup v2) of
-  the process that writes it, so what the tool leaves there weighs on its own
-  memory, without swap, and never reaches the host's disk — a per-tool quota
-  or a tmpfs of its own would require root. The directory goes with the
-  instance; that of a node killed outright stays until the host restarts.
+  log (`--log-driver=none`: what the instance writes goes, through the
+  agent's connection, to the node, “Logs” below). The only mount is `s/` of a directory specific to
+  the instance (`/run/chest-work/instances/<instance>`, 0710, the agent's
+  `runtime.MakeInstance`), at `/run/chest`, where the launcher opens `http.sock` (0660): the tool writes
+  into `s/`, under the workload account's uid (`keep-id`), but does not see the instance's
+  directory and cannot replace `s/`; the Chest's group traverses it to the
+  sockets and lists nothing. The run directory is a tmpfs (checked by
+  `statfs`, otherwise no instance starts): a tmpfs page is charged to the memory (cgroup v2) of
+  the process that writes it, so what the tool leaves there weighs on the
+  workloads slice, without swap, and never reaches the host's disk. The directory goes with the
+  instance; the agent empties the instances' directory at its start.
   What it leaves there is never
   followed: the Chest reaches the socket through `chest/toolsocket` — on Linux,
   the entry opened with `O_PATH|O_NOFOLLOW` (a link opens as a link),
-  checked by `fstat` (a socket, owned by the Chest's uid, with a single name) and reached through
+  checked by `fstat` (a socket, owned by the workload account's uid, with a single name) and reached through
   `/proc/self/fd/<n>`, the inode checked, with no race between the check and
-  the connection; a link, symbolic or hard, to another socket of the `chest` account, a file
+  the connection; a link, symbolic or hard, to another socket, a file
   or a socket of another account are refused. Elsewhere (macOS, tests
   only): `Lstat` then connect, a race remains possible. `CHEST_TOKEN`
   (32 random bytes per instance, base64url) goes through Podman's
@@ -480,20 +606,22 @@ assertion), the tool's **variables**, its declared network egress, its
   `CHEST_API=1` when it keeps files, reads its members, notifies them or
   calls AI (below); `CHEST_ORGANIZATION`, `CHEST_TIME_ZONE` and
   `CHEST_LANGUAGE` for every tool (“What a tool is told of its Chest”). The tool's variables are neither
-  in the arguments nor in Podman's environment: `RunServer` writes them
+  in the arguments nor in Podman's environment: the agent's `RunServer` writes them
   (JSON, 0600, names rechecked by `packagefile.EnvName`) to `s/env` of the
   instance's directory, which the launcher reads and removes at startup; the
   supervision also removes it as soon as the instance responds, and the directory goes
   with the instance. Name `chest-<scope>-<instance>`,
-  labels for the scope (fingerprint of the state path, `runtime.ScopeOf`) and
-  for the instance. On stop, `SIGTERM` relayed to the launcher, `SIGKILL` 15 s
-  later, then removal by the container's identifier. When the
-  supervision starts, `RecoverServers` removes the containers left by a
-  previous run, the scope label checked on the immutable
-  identifier — a container with another label is not touched.
+  labels for the scope (fingerprint of the state path, `workload.ScopeOf`) and
+  for the instance. The node names the instance (`workload.NewInstance`)
+  and the agent runs it for as long as the node's connection lasts: the
+  connection closed, `SIGTERM` relayed to the launcher, `SIGKILL` 15 s
+  later, then removal by the container's identifier. When the agent
+  starts, `runtime.Recover` removes every container a previous run left,
+  the label checked on the immutable identifier — a container without one
+  is not touched: nothing runs that no connection of the node holds.
 - **Declared network egress** (`chest/egress`, manifest `network`): the
   container keeps `--network=none` and its single mount. With `CHEST_EGRESS=1`,
-  the launcher also listens on `/run/chest/egress.sock` (0600) for the Chest and
+  the launcher also listens on `/run/chest/egress.sock` (0660) for the Chest and
   `127.0.0.1:<ephemeral port>` for the tool, chosen before starting it, and
   gives only the tool `HTTP_PROXY`, `HTTPS_PROXY` (and their lowercase forms) =
   `http://127.0.0.1:<port>`, `NO_PROXY=localhost,127.0.0.1,::1` and
@@ -692,7 +820,7 @@ assertion), the tool's **variables**, its declared network egress, its
   line in both read once by its number —, only the lines within the period
   and the retention) and the logs merged as they are read (the oldest next
   line first, the first log named on a tie, as `ReadAll`), into 64 KiB blocks;
-  the route releases the session first (`Allowance.Stream`, `core.Settle`),
+  the session is settled before the route runs (`Allowance.Settled`),
   and each block gets 30 s to leave (a write deadline moved on each block: a
   reader who stops taking is cut, a long download is not). A log that cannot
   be read before the first block is a 503; after it, the connection is cut
@@ -703,33 +831,118 @@ assertion), the tool's **variables**, its declared network egress, its
   retention), `since` taken at the click; on Settings, the log shown is the
   one downloaded.
 - **Database** (`chest/tooldatabase`, `cmd/chest/application_database.go`,
-  manifest `capabilities: ["database"]`): one PostgreSQL database per tool, in
-  **a cluster dedicated to tools** — never the provider's, whose
-  local socket is in `trust` —, which the node launches for the first tool that
-  needs it and supervises like a server (1 s, 2 s… 5 min, never abandoned).
+  manifest `capabilities: ["database"]`): **a PostgreSQL of its own per
+  tool** — a cluster in a container of its own, never the provider's, never
+  another tool's ([isolation](../../../01_produit/02_specs/isolation.md)) —,
+  and one per preview of a Perseus project. The node runs it while someone
+  holds it — the tool's instance for its whole life (it wakes with the tool,
+  in parallel), its migrations, a console request, a realtime session while
+  pages are connected, a preview's workbench — and stops it a minute after
+  the last let it go (`databaseIdle`): it sleeps with its tool. Evicted for
+  want of memory (“Server tools asleep”), it stops at once whoever holds
+  it, and only a use wakes it again — not a realtime session. Running, it
+  is supervised like a server (1 s, 2 s… 5 min, never abandoned).
   - **Container** (`chest/runtime/database.go`): `podman run --rm` in the
-    foreground of the node's PostgreSQL image — that of its dependency
+    foreground, run by the workload agent as the workload account
+    (`database.run`, for as long as the node's connection lasts), of the node's PostgreSQL image — that of its dependency
     binding (`dependencies.json` next to the installation), the same as
     the provider's, or, in the lab only, the one that `node.json` names
     (`portal.tools_database_image`) —, `--network=none`, read-only
     root, all capabilities dropped, `no-new-privileges`, the image's
-    `postgres` user (uid 999) as the node's user
-    (`--userns=keep-id:uid=999,gid=999`), 384 MiB, 1 CPU, 128 processes,
-    neither log nor proxy; three mounts of
-    `installation/tools-database/` (0700): `data/` (the cluster), `socket/`
-    (where PostgreSQL opens `.s.PGSQL.5432`), `config/` read-only
-    (`pg_hba.conf` and `admin-password`). PostgreSQL: `listen_addresses=''`
-    (no TCP), the Chest's `hba_file`, 64 sessions, 48 MiB of buffers,
-    `log_statement=none`, `log_min_messages=fatal`,
-    `log_min_error_statement=panic` — nothing a tool sends is
-    logged. Label `dev.chest.tools-database=<fingerprint of the directory
-    path>`: at startup, what a killed node left behind is stopped (30 s,
-    `postmaster.pid` refuses a second server) then removed; on stop,
-    `SIGINT` (fast shutdown), 40 s at most. Initialized once by `initdb`
-    in the image (superuser `chest_admin`, password
-    `config/admin-password`, 32 random bytes; `--auth-local=scram-sha-256
-    --auth-host=reject`, UTF-8, C locale) in `data.new`, put in place
-    only when complete. `pg_hba.conf`, fixed, rewritten at each opening:
+    `postgres` user (uid 999) as the workload account's user
+    (`--userns=keep-id:uid=999,gid=999`), 1 CPU, 64 processes, in the
+    workloads slice with no memory of its own — it shares the slice by use,
+    as every workload does; when the slice is short its memory counts with
+    its tool's (“Isolation and interfaces”) —, neither log nor proxy; three
+    mounts, all the workload account's: its data on the workload volume — `work/tools/<tool>/data`, in
+    the tool's project, which the kernel accounts (a preview's:
+    `work/projects/<id>/database`, a project of its own) —, `config/`
+    read-only (`pg_hba.conf`, and `admin-password` at its initialisation
+    only), and its socket's directory, the two of them in
+    `/run/chest-work/databases/<16 hex of the scope's SHA-256>/` (0710, the
+    Chest's group traversing it to `.s.PGSQL.5432`, opened 0770 by
+    `unix_socket_permissions`: a socket's path holds 107 bytes). The node
+    keeps its secret (`installation/tool-databases/secret`), derives the
+    superuser's password from it and connects through the socket; the
+    agent writes the configuration each run, never reads a credential
+    back. PostgreSQL: `listen_addresses=''`
+    (no TCP), the Chest's `hba_file`, 30 sessions, 16 MB of buffers,
+    `work_mem` 2 MB, one autovacuum worker, no parallel worker, no JIT
+    (10 MiB at rest, measured), `restart_after_crash=off` (a crash ends
+    the container; the supervision starts it again, its reserve given
+    first — below), `log_statement=none`, `log_min_messages=fatal`,
+    `log_min_error_statement=panic` — nothing a tool sends is logged. Label
+    `dev.chest.tool-database=<its scope: the digest of its kind and name,
+    workload.DatabaseScope>`, name `chest-tool-database-<scope>`: one run
+    of a scope at a time in the agent, and before each start what a
+    killed run left behind is stopped (30 s, `postmaster.pid` refuses a
+    second server) then removed; on stop, `SIGINT` (fast shutdown), 40 s at
+    most. Initialized once by `initdb` in the image (superuser
+    `chest_admin`, password `config/admin-password`, derived from the
+    Chest's secret by the cluster's name;
+    `--auth-local=scram-sha-256 --auth-host=reject`, UTF-8, C locale, WAL
+    segments of `workvolume.WALSegment`, 4 MiB: a reserve and a threshold
+    a quarter of PostgreSQL's default 16 MiB, and half the WAL a light tool
+    keeps, for the same throughput, measured; 1–2 MiB doubled a heavy
+    insert's p99), what an interrupted one
+    left emptied first, marked `initialised` only when complete. **Its
+    reserve** (`tooldatabase.Files.Reserve`, before each start, in the
+    agent): a cluster writes a new WAL segment whole when the one it writes
+    ends and at the end of its recovery; on a volume left with less than a
+    segment it stops (`PANIC`) and never starts again (measured: less
+    than a segment left, still down until room came back), its tool unable to
+    delete what filled it. So each cluster keeps a segment of zeros and a
+    MiB more beside its data (`reserve`, in its project, counted in its
+    size, left out of the backup's snapshot). A start on a full volume,
+    or of a cluster that was stopped rather than shut down (`pg_control`'s
+    state; measured: with free space read just above a segment, the
+    recovery's own segment was refused all the same), cuts the reserve to
+    a segment — the MiB it gives back is the room XFS needs to rename a
+    file (`workvolume.Headroom`; measured: with none left it refused the
+    rename) — and renames it into `pg_wal` as the segment a recovery
+    writes — the first missing after the oldest there, on the latest
+    timeline —: its blocks already written, the cluster's own, which no
+    other writer can take (measured: a reserve freed to the volume was
+    taken by a neighbour's insert before the recovery wrote its segment).
+    A start on a volume that, with it, is still not full writes it again,
+    and so does the volume's keeping as soon as there is room
+    (`Files.Refill`, the agent's `database.refill`: the reserve is beside
+    the data, a cluster that runs is refilled too; the agent holds one lock
+    over a start's reserve and a refill). One stop on a full volume per
+    reserve: a cluster that stops again before the volume has room stays
+    down until it has — the node keeps the volume from getting there
+    (“The workload volume's keeping”, below). **Its WAL
+    at rest** (`tooldatabase.Files.GiveBackWAL`, after each run, in the
+    agent, before any other run): PostgreSQL keeps, beside the WAL a start
+    reads, as many segments as its recent checkpoints spanned — up to
+    `max_wal_size`, 128 MB —, renamed ahead of the one it writes for
+    reuse, and a checkpoint removes only the segments before its own; a
+    database asleep after a burst kept them for good (measured: 128 MiB,
+    every tool's on the shared volume). Once a run ends on a cluster shut
+    down — `pg_control` of PostgreSQL 17 (version 1700), its state shut
+    down, its checkpoint its own redo point, that checkpoint's segment in
+    `pg_wal`, no `postmaster.pid` —, the segments of its timeline after
+    the checkpoint's are removed (the next one kept too when the
+    checkpoint begins on its segment's last page: its record may end
+    there): they hold no record a start reads, which ends the WAL where
+    the records stop, as on a missing segment. Asleep it keeps 4 to 8 MiB
+    of WAL; a cluster stopped rather than shut down keeps everything for
+    its recovery. Awake nothing changes: the recycling is PostgreSQL's,
+    within `max_wal_size`. Measured on the workload volume (PostgreSQL 17,
+    4 MiB segments, heavy insert and TPC-B, several rounds):
+    `wal_recycle=off` gave back as much but writes every segment anew,
+    zeros first — a heavy insert 7 % slower, its p99 1.5 → 2.8 ms, TPC-B
+    2 % —; `max_wal_size` 64 MB doubled the checkpoints — TPC-B 7 %
+    slower, a heavy insert's p99 up to 8 ms — and still kept what it
+    recycled; `wal_init_zero=off` on XFS (sparse segments) a fifth to
+    a half slower; a `CHECKPOINT` before the stop, or a smaller `min_wal_size`,
+    removes nothing ahead. Given back (four rounds against the same
+    settings without it): 4 MiB of WAL asleep instead of 128, woken in
+    0.15–0.22 s as before, the first heavy insert after a wake — its
+    segments written anew, as a new cluster's — no slower (median 7,300
+    tps against 5,650, the lab's noise wide), a backup's archive 120 MiB
+    smaller, every committed row back after a crash and its recovery
+    and from a reflink copy. `pg_hba.conf`, fixed, rewritten at each opening:
     `local all chest_admin scram-sha-256`, `local sameuser +chest_tools
     scram-sha-256`, `local samerole +chest_readers scram-sha-256` (a
     tool's reader, in the tool's database only), `local all all reject`.
@@ -745,16 +958,15 @@ assertion), the tool's **variables**, its declared network egress, its
     `REVOKE ALL … FROM PUBLIC`, the console guard (“Console”);
     `postgres` and `template1` closed to all
     except the superuser. Derived password: base64url(HMAC-SHA256(
-    `installation/tools-database/secret`, “chest tool database v1\0” +
+    `installation/tool-databases/secret`, “chest tool database v1\0” +
     tool)), never stored, set again at each start as a
     SCRAM-SHA-256 verifier computed by the Chest (the password never
-    passes in clear into the cluster). The registry `registry.json` names
-    the tools that have a database, before it exists.
+    passes in clear into the cluster).
   - **Tool access**: like network egress, through carriers
     (`chest/carrier`) — `CHEST_DATABASE=1`, the launcher listens on
-    `/run/chest/database.sock` (0600) for the Chest and `127.0.0.1:<ephemeral
+    `/run/chest/database.sock` (0660) for the Chest and `127.0.0.1:<ephemeral
     port>` for the tool; each connection takes a carrier, which the Chest
-    links to the cluster's socket (`Cluster.Relay`); two idle
+    links to its cluster's socket (`Cluster.Relay`); two idle
     carriers, ten connections at most per instance (24 for the role: two
     instances during a switchover and the Chest's sessions). The tool's
     container keeps `--network=none` and its single mount. Credentials:
@@ -765,10 +977,9 @@ assertion), the tool's **variables**, its declared network egress, its
     and `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, which take precedence
     over a tool variable of the same name; nothing in the arguments nor
     Podman's environment. Without the file, the launcher does not start.
-    Isolation: the tool's password, `pg_hba` (`sameuser`), the
-    `REVOKE` — the provider's database is not in this cluster and has no
-    route from the container. **Known leak**: `pg_database` and
-    `pg_roles` show a tool the names of the others.
+    Isolation: a cluster of its own — no other tool's database, role or
+    name is in it —, the tool's password, `pg_hba` (`sameuser`), the
+    `REVOKE`; the provider's database has no route from the container.
   - **Migrations** (`Cluster.Migrate`, read from the image by
     `runtime.ToolMigrations`: `podman create --pull=never --network=none`,
     bounded `podman cp <container>:/chest/migrations -`, `podman rm`; one
@@ -792,20 +1003,142 @@ assertion), the tool's **variables**, its declared network egress, its
     (`portal.RefusedVersion`): the route's response, the reason of a
     deployed build or of the catalogue. At **node startup**, the
     migrations not yet run for the version in service are run before its first
-    instance, without refusal (a version rolled back keeps what was
-    run beyond it). Rollback and redeployment run none:
-    **a migration must leave the previous version working**.
-  - **Removal**: after removal from the inventory, `DROP DATABASE … WITH
-    (FORCE)`, `DROP ROLE`, then the registry; an interrupted removal is finished
-    at the node's next startup (any tool in the registry that the inventory no
-    longer names). Replacing the source keeps the database (same name).
-  - **Backups**: the whole cluster, cold, in the nightly archive
-    (`deploy/backup.md`); no per-tool export, not in the
-    `provision.Capture` snapshots.
-  - **Size**: `pg_database_size` read by the superuser
-    (`Cluster.Size`) when the page asks, at most every 10 minutes
-    (kept in between), never by starting the cluster for it; shown
-    against an indicative 1 GiB, marked beyond it, nothing is refused.
+    instance, without refusal (a version rolled back without a copy of its
+    data keeps what was run beyond it). Redeployment runs none.
+  - **Data moved with the version** (A05 of the Astra audit;
+    `cmd/chest/node_release.go`, `release`; `tooldatabase/snapshot.go`): a
+    rollback restores the data contract, not only the code.
+    - **Copy before the migrations**: an update (`Update`) or a version
+      put back without its data, whose migrations are not all played
+      (`Cluster.Pending`, strict as `Migrate` for an update: a refusal
+      before anything is copied), first sets the tool's data aside: the
+      node stops the tool's cluster (a fast shutdown: its sessions end, the
+      tool's reconnect, a statement under way fails) and **snapshots its
+      data directory** beside it, in its tool's project of the workload
+      volume — `copies/pending`, a reflink clone (`workvolume.Clone`,
+      `FICLONE`): moments for any size, no room taken until either side
+      changes —, then starts it again if anything holds it
+      (`databaseNode.paused`; a hold that comes meanwhile waits). A copy is
+      a whole cluster's data that no container mounts — neither the tool
+      nor the console ever reaches it —, marked (its file `chest-copy`)
+      with the version whose data it is and when (`chest-copy <approval>
+      <unix time>`).
+    - **Bounded by the volume**: the workload volume must hold what the
+      tool's project takes — the copy shares its blocks until the
+      migrations and the tool rewrite them, which may be all of them —; the
+      copies kept for the tools go first, the oldest first, each said in
+      its tool's log (“Copy of the data before the last update removed to
+      make room on the disk: a rollback now brings the code back without
+      the data”); beyond, the update is refused before any change, in words
+      (“Not enough disk to set the data of web aside before this version's
+      migrations: the copy may take 1.2 GB, 300.0 MB is free for it on the
+      workload volume…”). No count or age limit: retention is the volume's.
+    - **A version that does not become ready** (`swap`) is put back with
+      the copy (`Cluster.Restore`: the live data and the copy exchanged in
+      one rename of the kernel — `renameat2(RENAME_EXCHANGE)`,
+      `workvolume.Exchange` —, then what the failed version made of it
+      removed), then the version before runs on, and the portal says it in
+      words (`RefusedVersion`: “This version answered HTTP 500 on /chest:
+      it was not put in service. The version before it runs again. Its
+      data is back as it was before the change; the requests that came
+      meanwhile waited for it, or were asked to try again.”). A failed
+      migration or a refused inventory puts it back the same way.
+    - **The tool held** (Astra F03; `tool.Hold`, `serverApplication.Hold`,
+      `toolfront.Target.Hold`): data put back must never erase a write the
+      tool acknowledged. A release that moves data — a copy, an exchange —
+      holds the tool from before the move until the version that serves at
+      the end is in service: its gate closes (every way the Chest reaches
+      it passes it: `Forward`, `Deliver`, `RunSchedule`, and the console's
+      changes, `Target.Enter`), what passed it before finishes (the drain,
+      30 s), then its instance stops — neither a request nor the tool's own
+      timers write in its database meanwhile — and nothing wakes it until
+      the release opens the gate. What waits at the gate is served then, by
+      the new version or the one before: a request `WakeHold` (60 s) at
+      most, then answered 503 in plain words (“The update takes longer than
+      usual. Nothing you sent reached the tool: try again in a moment.”) and
+      counted in the tool's log (“3 requests waited for the update longer
+      than 1 min: they were asked to try again…”); a browser opening a page
+      2 s, then shown the Chest's page “Updating web…”, which asks again by
+      itself; an event or a run of a schedule 60 s, then delivered again
+      later; a console change 60 s, then refused as busy. Reads wait too: a
+      read of a tool may write, and PostgreSQL gives its owner no session
+      it cannot make write. The realtime only reads the tool's database
+      (its change log); the tool's files are not part of the data moved. A
+      release that moves nothing holds nothing: the version in service
+      serves until the next takes the traffic. Proven on a real PostgreSQL
+      (`TestAFailedReleaseLosesNoAcknowledgedWrite`): writes injected at
+      the checkpoint, the migration, the start of the new version and the
+      decision, each made to fail, none acknowledged lost.
+    - **A version in service** keeps the copy as the data of the version
+      before it (`Cluster.Keep`: `copies/kept`, one per tool, replacing the
+      one before). A version put in service without a copy drops the kept
+      one: it belonged to no version the inventory names any more.
+    - **Rollback** (`Rollback`): when the kept copy is the previous
+      version's (its mark names the approval), it is exchanged with the
+      live data (`Cluster.Exchange`: the live data marked first as the
+      version left behind, then the one rename), no migration played: a
+      roll forward exchanges them again. Without one, the previous version
+      runs on the database as it is, its missing migrations played
+      leniently. The portal says which before the decision
+      (`portal.Version.Restores`, “Its data goes back to … What was written
+      since is not in it”).
+    - **Interruptions** (`Cluster.Settle`, at the node's start, before the
+      migrations of the versions in service): a copy half made goes, the
+      live data loses a mark an exchange left on it; a pending copy of the
+      version in service — a change cut before the inventory decided — is
+      put back, one of the previous version is kept, any other goes; a
+      kept copy marked with the version in service — an exchange cut
+      before the rollback was decided — is exchanged back; one of no
+      version the inventory names, or unmarked, goes.
+    - **Expand, then contract** (`migrationfile.Breaking`, the contract's
+      migration rule): while a new version starts, and after a rollback
+      without a copy, the version before runs on the new schema, so a
+      migration only adds. What a version stops reading is dropped,
+      renamed or retyped by the release after it, in a migration marked
+      with the line `-- chest: contract`; `chest check` (and
+      `sourcearchive.Report.Warnings`) warns about any other. The Chest
+      plays such a migration all the same — the copy covers it.
+    - Limits: what was written between the copy and a change back is not
+      in the data put back (said before a rollback); the tool's database
+      stops for the time of each copy, put back or exchange (moments, a
+      cold start after: 130–190 ms measured); a tool's files (`toolfiles`)
+      are not versioned.
+  - **Removal**: after removal from the inventory, its cluster is stopped
+    and its control directory and its project on the volume — data and
+    copies — removed; an interrupted removal is finished at the node's next
+    startup (a control directory of a tool the inventory no longer names).
+    Replacing the source keeps the database (same name).
+  - **Backups** (`deploy/backup.md`; `cmd/chest/node_backup.go`,
+    `snapshotWorkloads`): the node stopped, the workload agent stops what
+    still runs (`stop`) and clones by reflink each tool's data and kept
+    copies, `work/tools/<tool>`, into `work/backup/<tool>`
+    (`backup.snapshot`); the Chest clones its files, `files/tools/<tool>`,
+    into `files/backup/<tool>`; the node starts again, then the snapshots
+    are archived under `workloads/{tools,files}/<tool>` — the agent streams
+    its own as a tar (`backup.read`), the Chest never reads the workload
+    account's files — and removed: the stop does not grow with the data.
+    Restored, the node puts each back at its next start, before the files
+    open (`adoptWorkloads`, from `prepareNodeApplications`): a tool's
+    database through the agent (`restore.adopt`: a tar it checks entry by
+    entry — directories and regular files only, no name out —, laid in its
+    project made anew), its files on the Chest's side, in place of what
+    the volume held of it. Files and directory entries are synchronized
+    before each source is renamed `.adopted-<name>` and that rename is
+    synchronized. Cleanup of a consumed source can be interrupted without
+    reimporting its remaining fragment. Any adoption error blocks activation;
+    `resumeNode` retries pending recovery after 10, 20, 40, then 60 seconds
+    until it succeeds or the node is stopped. Identity/configuration errors
+    do not enter that retry loop. Only after durable consumption of every
+    source is `workloads/` removed and the portal opened.
+    The previews' databases are not archived: made again from the draft's
+    migrations and seed. Not in the `provision.Capture` snapshots.
+  - **Size**: what its project of the workload volume holds — data and
+    copies — as the kernel's report says it (“Isolation and interfaces”),
+    never waking the database; no limit of its own: the volume is every
+    workload's, and when it is full every tool's next write gets SQLSTATE
+    53100 — the core, on the system disk, goes on; a cluster the full
+    volume stopped starts again on its reserve, and its tool can delete
+    what it wrote.
   - **Console** (`chest/toolconsole`, `tooldatabase.Console`): the database
     as seen by whoever runs the tool — its tables, their structure, their
     rows, an SQL query. **Never the superuser**: what writes goes as the
@@ -879,8 +1212,10 @@ assertion), the tool's **variables**, its declared network egress, its
     - **Values in JSON** (by OID): `NULL` → `null`, `bool` → boolean,
       `int2`, `int4`, `oid`, `float4/8` → number (`NaN`, `±Infinity` →
       text), `int8`, `numeric`, `money` → text (beyond what a
-      browser counts exactly), `json`/`jsonb` → the document, everything
-      else → PostgreSQL's text.
+      browser counts exactly), `json`/`jsonb` → the document, `timestamptz`
+      (and its arrays) → its text with every instant in UTC (the session
+      runs in the Chest's zone, in which PostgreSQL writes it: `inUTC`
+      shows one instant one way), everything else → PostgreSQL's text.
     - **Writing a row**: only a table (or partitioned table) that
       has a primary key, never `chest_migrations`; insert (unnamed columns:
       their default; generated column refused), update and
@@ -1022,7 +1357,7 @@ assertion), the tool's **variables**, its declared network egress, its
   **broker**, never a mount — the container root stays read-only and its
   only mount is `/run/chest`.
   - **Tool access**: through carriers (`chest/carrier`), like the database.
-    `CHEST_API=1`, the launcher listens on `/run/chest/api.sock` (0600) for the
+    `CHEST_API=1`, the launcher listens on `/run/chest/api.sock` (0660) for the
     Chest and on `127.0.0.1:<ephemeral port>` for the tool, and gives it
     `CHEST_API=http://127.0.0.1:<port>` (covered by `NO_PROXY` when it also
     has network egress); the Chest serves an `http.Server` over the
@@ -1041,12 +1376,16 @@ assertion), the tool's **variables**, its declared network egress, its
     "next"}`, 1000 per page in name order; `POST /files/url`
     `{"name"}` → `{"url","expires_in"}`. Errors `{"error": code}`:
     `invalid_name`, `invalid_type`, `incomplete_body` 400, `not_found` 404,
-    `too_large` 413, `quota_exceeded` 429, `unavailable` 503 (the cause is
+    `too_large` 413, `storage_full` 507, `unavailable` 503 (the cause is
     never given).
   - **Names**: `^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,7}$`
     — neither `.` nor `-` at the start of a segment, so neither `..` nor a hidden file.
-  - **At rest**: `apps/<tool>/files/` (0700, made at the first upload),
-    flat: for each object, its content `<key>.<rev>` and its record
+  - **At rest**: on the workload volume (“Isolation and interfaces”), on
+    the Chest's side, `/srv/chest-workloads/files/tools/<tool>` (0700), a project of its own of
+    class `workvolume.ToolFiles` (IDs from 11000), made
+    when the tool's files open (`filesNode.tool`, `cmd/chest/application_files.go`,
+    through `volume.Make`); on a server without the volume no tool keeps
+    files (`filesNode.tool` returns nil). Flat: for each object, its content `<key>.<rev>` and its record
     `<key>.json` (`name`, `type`, `size`, `rev`, `updated`, 0600), `key` =
     SHA-256 of the name — a name is never a path. An upload writes the
     content aside (`.put-<rev>`, synced), renames it, writes the record
@@ -1070,24 +1409,21 @@ assertion), the tool's **variables**, its declared network egress, its
     anything else than an image the Chest reduces) and `download`;
     `POST /files/upload-url` (below). Errors add `type_mismatch` and
     `no_thumbnail` (400).
-  - **Limits**: those the version asks (`files` key; `toolfiles.For`):
-    by default 32 MiB per object and 1 GiB per tool; 10,000 objects,
-    100,000 from a quota of 10 GiB. The owner or an admin may set the
-    quota by hand (Storage view): `apps/<tool>/files-quota` (0600, beside
-    the package, in the backups), one of 512 MiB, 1, 2, 5, 10 GiB (the most
-    the nightly archive is measured for) offered when no larger than the
-    quota in force or when the server's free disk holds it beside what
-    the tool keeps; it wins over what any version asks until removed. A new
-    version brings its bounds at its switch (`serverApplication.Replace`),
-    the quota set still winning. A declared size beyond them is refused
-    before anything is read (413, or 429 if it is the tool's remaining space that
-    falls short); otherwise the body is read aside and abandoned at the first
-    byte too many: 413 `too_large` beyond an object, 429 `quota_exceeded` beyond
-    the tool's remaining space (the replaced object counted as free) or for a new name
-    beyond the count. Nothing of a refused upload remains. **Lab
-    only**: `node.json` (`portal.tool_files_lab`, `{link_seconds,
-    quota_bytes}`) lowers a link's lifetime and caps the quota, whatever
-    a tool asks or its owner sets — never raises them, and refused (the
+  - **Limits** (`toolfiles.Limits`, `{Object, Link}`): the largest
+    object the version asks (`files` key; `toolfiles.For(object)`), 32 MiB
+    by default, and a link's life. No quota and no count of objects: a
+    tool's files share the workload volume by use with every workload's,
+    the kernel accounting its project. A new version brings its bound at
+    its switch (`serverApplication.Replace`). A declared size beyond the
+    object is refused before anything is read (413 `too_large`); otherwise
+    the body is read aside and abandoned at the first byte too many (413).
+    The volume must hold the write: refused before writing (507
+    `storage_full`, `toolfiles.ErrFull`) when its filesystem has less free
+    than the size said — or the largest object when none is said — plus
+    1 MiB (`volumeHolds`, `statfs`), and when a write meets `ENOSPC` or
+    `EDQUOT` (mapped by `full`). Nothing of a refused upload remains.
+    **Lab only**: `node.json` (`portal.tool_files_lab`, `{link_seconds}`)
+    shortens a link's lifetime — never lengthens it, and refused (the
     node does not start) by a server that has a dependency binding
     (`dependencies.json`), that is, every real server.
   - **Uploads from the browser**: never through the tool's container.
@@ -1113,7 +1449,7 @@ assertion), the tool's **variables**, its declared network egress, its
     same-origin` (403 `cross_origin`); the token is taken before
     anything is read (403 `invalid_token`: forged, expired, used, of
     another tool or run, or a visitor's); the type must be one it accepts
-    (415 `type_refused`); then the bounds of a put (413, 429, 507), and
+    (415 `type_refused`); then the bounds of a put (413, 507), and
     the content, once written aside, must hold the type said when the
     Chest recognises it (400 `type_mismatch`, `toolfiles/sniff.go`): by
     its first 512 bytes for a JPEG, PNG, GIF, WebP, AVIF and HEIC (by the
@@ -1146,34 +1482,33 @@ assertion), the tool's **variables**, its declared network egress, its
     per visitor** (`toolfiles.ReceiveVisitor`, per client address —
     `ratelimit.Client`, the address the front's PROXY header gives —, per
     tool, in memory): its length said first (411 `length_required`), 2
-    uploads at once, 10 a minute, and in an hour 1/20 of the tool's quota,
-    never less than its largest object (`ratelimit.Windows.Spend`); beyond,
+    uploads at once, 10 a minute, and 64 MiB in an hour (`visitorBytes`),
+    never less than the tool's largest object (`ratelimit.Windows.Spend`); beyond,
     429 `slow_down` with `Retry-After`. Nothing caps all visitors
-    together but the tool's quota and the server's disk. The file joins
+    together but the workload volume. The file joins
     the tool's private files: only its members see it, through the tool
     (links on the team host); the Chest never serves a file on the public
     part (public files of the spec are not built).
-  - **Server's disk**: every write (`put`, an upload) needs room on the
-    disk — the size said, or the most the object may be —, within
-    `serverroom.DiskShare` of the disk (`serverroom.DiskFits`, the rule a
-    new tool is weighed by); otherwise 507 `storage_full`, nothing kept,
-    whatever the tool's quota (`StorageFull` in the SDK).
+  - **Full volume**: 507 `storage_full` (`StorageFull` in the SDK) says
+    the workload volume holds no more (“Limits” above); the server's own
+    disk, where the core writes, is never taken by a tool's files.
   - **Thumbnails** (`toolfiles/image.go`): for a JPEG, PNG, GIF (first
     frame) or WebP (`golang.org/x/image/webp`, the Go project's own
     decoder; its `draw` package scales with Catmull-Rom) measured within
     40 megapixels, 256 or 1,024 px on the longest side, never enlarged,
     JPEG — PNG when the image has transparency —, made on demand by one
     worker of the node at a time (the request waits 20 s at most for it),
-    kept beside the content (`<key>.<rev>.<size>.<jpg|png>`), not counted
-    in the quota, gone with the content they were made of (replaced,
+    kept beside the content (`<key>.<rev>.<size>.<jpg|png>`), in the
+    tool's project of the volume, gone with the content they were made of (replaced,
     moved, deleted, or left by an interruption: removed at the next
     reading). The image is measured again from its bytes before it is
     decoded.
-  - **Lifecycle**: files follow the Compartment — kept when
+  - **Lifecycle**: files follow the tool — kept when
     one version replaces another (update, rollback, source replaced),
-    removed with the tool (`apps/<tool>/` in its entirety; its links die
-    with its host), in the nightly archive with the Compartments and the
-    link key (`deploy/backup.md`).
+    removed with the tool (`filesNode.forget`: `files/<tool>` and its
+    storage journal; `filesNode.sweep` removes those of tools no longer
+    installed; its links die with its host), snapshotted by the nightly
+    backup with the link key (`deploy/backup.md`).
 - **Members** (`chest/toolmembers`, `cmd/chest/application_members.go`,
   manifest `capabilities: ["members"]`, `"members.email"` for the
   addresses and `"members.groups"` for every group of the Chest — both
@@ -1433,8 +1768,7 @@ assertion), the tool's **variables**, its declared network egress, its
   - **For agents**: `GET /api/v1/inbox` (the same, without the senders,
     the rhythm and the key)
     and `POST /api/v1/inbox/read {ids | all}` (a write), with a member's
-    token — narrowed to tools, only theirs —; the MCP server's `inbox`
-    tool reads it, fenced as untrusted data. An agent never sends a
+    token — narrowed to tools, only theirs —. An agent never sends a
     notification: tools do.
 - **Member lifecycle events** (`chest/toolevents`,
   `cmd/chest/application_events.go`, manifest `"receives": ["member.*"]` —
@@ -1593,7 +1927,7 @@ assertion), the tool's **variables**, its declared network egress, its
   type emitted with its receivers, each received with its sources, each
   link on or off, how many wait, the failed deliveries of the last 30 days
   (when, type, source, attempts, why: `status:<code>`, `timeout`,
-  `no_room`, `unreachable`) —; `POST …/events/retry {id?}` (whoever runs
+  `unreachable`) —; `POST …/events/retry {id?}` (whoever runs
   it; a write for agents); `POST …/events/link {source, type, receiver,
   on}` (the owner and the admins: a link joins two tools); `GET
   /api/events` (the owner and the admins; `/api/v1/events`, chest-wide):
@@ -1665,7 +1999,7 @@ assertion), the tool's **variables**, its declared network egress, its
   the last time it handled, and the journal — the last 10 runs of each
   schedule, when, how started (`time`, `missed`, `manual`), the attempt,
   the status, the duration, why (`answer` with its status, `timeout`,
-  `memory`, `unreachable`, `busy`); never what the tool did. A file not of
+  `unreachable`, `busy`); never what the tool did. A file not of
   this shape starts over (logged). A schedule no longer declared goes with
   its runs; a tool without any keeps no file; a tool removed takes its file.
   Memory: the engine holds each tool's small file (80 runs at most) and
@@ -1678,8 +2012,8 @@ assertion), the tool's **variables**, its declared network egress, its
   in words, its next time, Run now (Running… while one is under way), the
   zone, then the last runs, and follows a run under way every 3 s (2 min at
   most). **For agents**: `GET /api/v1/tools/{app}/schedules` (any token of
-  whoever runs it) and `POST /api/v1/tools/{app}/schedules/run` (a write);
-  the MCP server's `schedules` and `run_schedule`. **Laboratory**:
+  whoever runs it) and `POST /api/v1/tools/{app}/schedules/run` (a write).
+  **Laboratory**:
   `portal.schedule_lab` `{every_seconds}` in `node.json` (30 s to 15 min)
   runs every schedule each that long instead of its line; a server with a
   dependency binding refuses it.
@@ -1733,7 +2067,8 @@ assertion), the tool's **variables**, its declared network egress, its
     `provider_unavailable` 503 (with the provider's status and words in
     `message` when it gave some, `reason: "credits"` when its credits do not
     cover the call — OpenRouter's 402 —, and `provider`, whose failure it
-    is).
+    is; `reason: "metering"`, no provider, while the Chest cannot write its
+    month — below).
   - **Request**: the gateway sets the model, `max_tokens` and, for a
     stream, `stream_options.include_usage`, then what the provider adds to
     every request — for OpenRouter, **private by default and not a
@@ -1761,24 +2096,46 @@ assertion), the tool's **variables**, its declared network egress, its
     counts the tokens it produced (its characters over four when the
     provider said nothing). Money is counted in micro-euros, dollars
     converted at a fixed estimated rate; the company's account with the
-    provider is the final limit. **Month totals survive a restart**
-    (`installation/ai/month.json`, written at each settlement; reservations
-    live in memory: a restart ends their calls). **Rates** (in memory): 60
-    calls a minute and 8 streams at once per tool, 32 streams for the
-    Chest.
+    provider is the final limit: the Chest's figures are estimates, never
+    an exact spending guarantee. **Durable metering**
+    (`meter.go`): `installation/ai/month.json` holds the month's totals
+    **and every call in flight** (its worst case and its journal line as it
+    began), written whole, atomically and synchronized
+    (`privatefs.Replace`: file and directory) **before** the call reaches
+    the provider and again at its settlement. A node that stops during a
+    call — killed, crashed, the machine down — finds it held at the next
+    start and counts it at its worst case (in the current month, on its
+    tool's line too), writes the month, and journals it `interrupted`:
+    a restart never gives back budget a call may have spent. The file is
+    bounded by the calls in flight, which the rates bound (32 MiB read at
+    most). **Fail-closed**: a write that fails — at a call's start, at its
+    settlement, when a tool is forgotten or at the start's recovery —
+    puts the meter out of service: every call (a tool's, a draft's,
+    Perseus Code's) is refused `provider_unavailable`, `reason:
+    "metering"`, before the provider, while the month in memory keeps
+    counting what was settled. Each new call first tries to write the
+    month again — its own hold with it —; the first write that passes puts
+    the meter back in service, the month in memory (which counts
+    everything) then on the disk. A refused settlement leaves the call's
+    worst case on the disk, so a restart meanwhile still counts it. The
+    service's journal says only the changes of state; the owner reads it
+    in `GET /api/ai` (`metering`). **Rates** (in memory): 60 calls a minute
+    and 8 streams at once per tool, 32 streams for the Chest.
   - **Journal** `installation/ai/usage-YYYY-MM.jsonl` (`chest/jsonjournal`,
     kept 13 months): one line per call — `t`, `tool`, `member`, `kind`
     (`chat` | `embeddings`), `alias`, `provider`, `model`, `input`,
     `output`, `cached`, `cache_write` (the tokens written to the provider's
-    cache), `cost` (euros), `ms`, `status` (`ok`, `aborted` or
-    the error code), `stream` —, **never a prompt, an answer, a tool's
+    cache), `cost` (euros), `ms`, `status` (`ok`, `aborted`,
+    `interrupted` — a call the node stopped during, its `cost` its worst
+    case, its `t` when it began — or the error code), `stream` —, **never a prompt, an answer, a tool's
     arguments or a file**. A tool removed loses its cap and its line of the
     month (`Gateway.Forget`); the Chest's total keeps what it spent.
   - **Settings → AI** (`/settings/ai`; `chest/portal/ai.go`; owner and admins only, 403
     otherwise): `GET /api/ai` → `connector` (`{provider, key_hint, state}`
     or null, never a key), `model` (of `default`) and `models` (the choices,
     `{id, name, input, output}`; both empty without a connector), the
-    month, the Chest's cap and spending, and each tool in service that
+    month, the Chest's cap and spending, `metering` (`ok`, or `failed`
+    while the month cannot be written), and each tool in service that
     holds AI with its cap, what it asks and what it spent; changes are
     POSTs of a JSON body — `/api/ai/connector {provider, key}` (422
     `key_refused`, `unreachable`), `/api/ai/connector/delete {}`,
@@ -1799,7 +2156,11 @@ assertion), the tool's **variables**, its declared network egress, its
     tool's own limit is on its settings (`ToolAI`, owner and admins, tools
     that hold AI): “This month: €X of €Y”, a limit near (80 %), reached or
     0 said in words, Change limit (a compact panel, back to what the tool
-    asks).
+    asks). While `metering` is `failed`, the page says first “AI is
+    paused”: the Chest cannot record what AI costs on its disk and refuses
+    every AI request, AI resumes by itself once it can, and the disk is
+    in Settings → Storage; each tool's settings say AI is paused for every
+    tool.
   - **Lab only**: `node.json` (`portal.ai_lab`, `{providers}`) has every
     provider answered at `<providers>/<provider>` — the laboratory's fake
     provider — and is refused by a server that has a dependency binding
@@ -1807,7 +2168,7 @@ assertion), the tool's **variables**, its declared network egress, its
   - **Not built yet** (AI2, AI3 and later): other providers, the
     OpenAI-compatible endpoint inside the container (`CHEST_AI_BASE_URL`),
     alerts at 80 % and 100 %, the usage chart and per-model view,
-    `GET /api/v1/ai/usage` and the MCP `ai_usage` tool, per-tool rates set
+    `GET /api/v1/ai/usage`, per-tool rates set
     by the owner, Perseus Code's line in Settings → AI and its caps set
     by the owner (PB5).
   - **Perseus Code's calls** (`build.go`, lot PB2): the node makes the
@@ -1840,13 +2201,14 @@ assertion), the tool's **variables**, its declared network egress, its
   socket code and sleeps while they stay open — a connection to the hub is
   not a visit (“Server tools asleep”).
   - **Endpoint**: `GET /_chest/realtime` on the tool's team host
-    (`Allowance.Stream`: the session read, committed and released before the
-    upgrade) and on a draft's host. Upgrade (RFC 6455, subprotocol
+    (the session read, committed and released before the upgrade,
+    `core.Settle`) and on a draft's host. Upgrade (RFC 6455, subprotocol
     `chest-realtime.v1`, version 13, a key of 16 bytes; 400 or 426
     otherwise): `Origin` exactly the host's (403 — a WebSocket is not guarded
     by CORS), a live session (401, never a sign-in), the member given the tool
     now (`Team.Seen`, 403), the capability held by the version in service
-    (404), room in the server's memory (503 `Retry-After: 5`). The identity
+    (404), the live connections within the node's own memory (503
+    `Retry-After: 5`, “Capacity” below). The identity
     is the connection's: member id, subject, role, a digest of the session
     and its end (`LiveSession`: its deadline or its idle end, the sooner).
     Without `Upgrade`, the same checks renew the session — what a connected
@@ -1855,7 +2217,7 @@ assertion), the tool's **variables**, its declared network egress, its
     signs the person in (`renew`), the cookie is written again and the
     page's connections live on with it (`Space.Renew`); 204, 401 signed
     out, 403, 503 `Retry-After` while the provider does not answer
-    (`Unanswered`) or the server has no room. No hourly cut: a session ends
+    (`Unanswered`) or the live connections are at their bound. No hourly cut: a session ends
     only when the person is signed out or stops renewing it (`1008
     session_ended`). A draft's session (12 hours) is not renewed. The tool
     is never called. The connection leaves the server's
@@ -1888,10 +2250,13 @@ assertion), the tool's **variables**, its declared network egress, its
     space's epoch and kept 2 minutes; a row of a feed carries its place in
     the change log too (`pos`). A page back with `{epoch, seq, pos}` is
     replayed what the channel kept; else, on a channel a feed writes, the
-    rows of the change log after `pos` (`Conn.replay`: 256 at a time, as
-    fast as the page reads them, what reaches the channel meanwhile held
-    for it and sent after, never twice), whatever the absence and across
-    epochs; `resync` only beyond what the log keeps, or on a channel no
+    rows of the change log after `pos` (`Conn.replay`: read a page at a
+    time, as many rows as hold half of the page's queue — 128 KiB — in
+    memory, each sent as soon as the page's queue has room for it within
+    that half, the other half left to its other channels: a page reading
+    slowly is replayed at its pace, never closed for it; what reaches the
+    channel meanwhile held for it and sent after, never twice), whatever
+    the absence and across epochs; `resync` only beyond what the log keeps, or on a channel no
     feed writes. The tool's publishes are hints: kept 2 minutes, never
     replayed beyond.
   - **Database** (`chest/tooldatabase/realtime.go`): after a version's
@@ -1910,7 +2275,10 @@ assertion), the tool's **variables**, its declared network egress, its
     chest_realtime` as the tool's reader, `search_path` catalog first,
     membership checked by key and member with bound parameters, a key its
     column cannot read being no row, the change log read back by
-    `Head` and `Since`), opened again 5 s apart after a failure — and once
+    `Head` and `Since` — a page of a byte budget, row after row on its
+    index —; a question whose asker gave up is cancelled on the server by
+    a cancel request, the session kept, cut only when the statement is not
+    over 5 s later), opened again 5 s apart after a failure — and once
     back the space starts a new epoch and closes its pages `1013`
     (`Space.Lost`), which come back and are replayed from the change log.
   - **Revocation**: every change of the team (`access.Team.Watch`) judges
@@ -1921,23 +2289,44 @@ assertion), the tool's **variables**, its declared network egress, its
     a session not renewed in time closes `1008 session_ended`; a safety pass every
     minute; a tool removed or a draft deleted closes them all. A draft's
     space is judged by who may open the project.
-  - **Capacity**: nothing set aside. Each connection costs
-    `livecapacity.ConnectionCost` (node 24 KiB + front 32 KiB, measured by
-    the `TestMemoryPerConnection` of `chest/realtime` and `common/front`:
-    about 21 and 31 KiB), held in the node's memory with the tools awake
-    and the workbenches (`realtime.Room`, `cmd/chest` `liveRoom`): admitted
-    as a tool's wake is — idle tools put to sleep for it —, refused only
-    when nothing more can sleep (503, counted with the wakes refused: the
-    capacity alert). The messages waiting toward pages and those kept for
-    backfill are held there too while they fit: a page more than 256 KiB
-    behind, or one the server's memory cannot hold a message for, is
-    closed `1013` and comes back to its replay; a channel kept beyond the
-    memory forgets its oldest first. Pings every 30 s; a page silent 75 s
+  - **Capacity**: nothing set aside. The realtime lives in the node's
+    process, whose unit has its own bound (`MemoryMax=1G`), apart from the
+    workloads' slice: each connection costs `livecapacity.NodeCost` there
+    (24 KiB; the front counts its own `FrontCost`, 32 KiB, against its own
+    unit — measured by the `TestMemoryPerConnection` of `chest/realtime`
+    and `common/front`: about 21 and 31 KiB), each channel joined 512
+    bytes, each message waiting toward a page, held for a page being
+    replayed or kept for backfill its bytes, per page that holds it, each
+    page of the change log read for a replay its budget before the read,
+    then what its rows hold until they are sent. All
+    of it is reserved against the node's own memory (`liveRoom`,
+    `cmd/chest/node_live.go`): its cgroup's bound — or what it holds and
+    the server has available, when lower —, less a quarter kept for the
+    node's other work, less what the node holds beside the realtime, read
+    again at most once a second; each reservation is a compare-and-swap
+    against that limit, never a check then an add; a measure that fails
+    on Linux admits nothing more until the next one succeeds. A
+    connection beyond is refused (503) and counted with the workloads
+    stopped for want of memory (the capacity alert); no tool is put to
+    sleep for it. A page more than 256 KiB behind — its queue, or what is
+    held for it while it is replayed from the change log —, or one the
+    node's memory cannot hold a message or a page of its replay for, is
+    closed `1013` and comes
+    back to its replay from its place; a channel kept beyond the memory
+    forgets its oldest first. Each reservation has one owner and is given
+    back once: a connection's at its end, a join at its leave, a message
+    when it is written or its page goes, a hold when its replay ends or
+    its page goes (the replay's reads cancelled with its page), a page of
+    the change log once its rows are sent or its page goes, the
+    backfill when it expires or its space is removed (`Hub.Remove`
+    disposes of the space: its kept messages given back at once, nothing
+    kept or delivered after, no page admitted to it). Pings every 30 s; a page silent 75 s
     is cut. Lines in the tool's log, once a minute per kind: connections
     refused, pages closed to come back, a feed naming no channel. Settings
     → Server → Details: “Live connections: open · memory”
-    (`serverwatch.View.Live`, never in the central's report); the memory
-    is counted in what the Chest reserves.
+    (`serverwatch.View.Live`, never in the central's report); the node's
+    memory, the realtime's with it, is within the core's reserve that the
+    Chest counts as reserved (“Server health and the fleet”).
 - **Storage view** (`chest/portal/tool_files.go`, `cmd/chest/application_files.go`;
   tab Storage in the Data family, beside Database, `chest/web/portal/src/storage.ts`,
   `components/ToolStorage.tsx`): for whoever sees the data of a server
@@ -1947,9 +2336,8 @@ assertion), the tool's **variables**, its declared network egress, its
   `no_files` otherwise), `Cache-Control:
   no-store`. `/api/tools` says `files: true` for such a tool.
   - `GET /api/tools/{app}/files?folder=&q=&sort=&desc=1&offset=` →
-    `{usage: {bytes, objects, quota, max_objects, max_object, asked, set,
-    choices}, folders: [{name, objects, bytes}], files: [objects],
-    total}`: a folder (a prefix ending in `/`; folders are virtual, made
+    `{usage: {bytes, objects, max_object}, folders: [{name, objects,
+    bytes}], files: [objects], total}` (`portal.FilesUsage`): a folder (a prefix ending in `/`; folders are virtual, made
     of the `/` in names) — its folders by name first, then its objects —,
     or a search (`q`, anywhere in the name, whatever its case, across
     the tool, not with `folder`), sorted by name, size or updated, 200
@@ -1968,9 +2356,6 @@ assertion), the tool's **variables**, its declared network egress, its
   - `POST …/files/delete` `{names}` (1,000 at most) or `{folder}` (1,000
     files at a time, `{deleted, more}`), each journaled `delete` before
     it goes; a name no longer there is passed over. The tool is not told.
-  - `POST …/files/quota` `{quota}`: one of the choices of the usage, or 0
-    for what the tool asks; the owner and the admins only (403 for a
-    builder); 400 `quota_not_offered`; journaled `quota`.
   - `GET …/files/journal` → `{entries: [{t, member, token?, action,
     name?, bytes?}]}` (`member` the member's identifier), the last 200, newest first. The storage journal is
     `installation/tool-files-journal/<tool>.jsonl` (0600, beside `apps/`,
@@ -1978,10 +2363,8 @@ assertion), the tool's **variables**, its declared network egress, its
     removed with the tool, swept at start. **A journal that does not
     write refuses the access** (503): nothing is previewed, linked or
     deleted unwritten. Never a content.
-  - The screen: the used space against the quota as a thin black rule
-    and the count (“Almost full” beyond 90 %, “Full: uploads are
-    refused”), the search, “Quota: 5 GiB ›” (a panel of the choices for
-    the owner and admins), the folder as a path (“Delete folder”), the
+  - The screen: what the tool uses, “<size> used · <n> files” — no
+    meter, no quota —, the search, the folder as a path (“Delete folder”), the
     rows with their thumbnail or a drawn icon, the type in words, size and
     age, sortable headers, “Load more”; a file opens in the detail beside
     the list (full screen on a phone): its preview, full name, type, size,
@@ -1992,27 +2375,27 @@ assertion), the tool's **variables**, its declared network egress, its
     names. Empty: “No files yet. The tool stores them here as it works.”
   - **Chest-wide**: `GET /api/storage` (owner and admins; not through a
     token narrowed to tools) → `{tools: [{app, database, files}], disk:
-    {size, used, free}}` (the disk of the installation, `statfs`);
-    Settings → Storage (`/settings/storage`) shows it, each tool leading to
-    its Storage tab.
+    {size, used, free}}` (`portal.ChestStorage`; the disk the tools share,
+    the workload volume, `statfs`);
+    Settings → Storage (`/settings/storage`) shows it — the meter “Disk of
+    the tools used”, then a table of the tools, its Files column their
+    size —, each tool leading to its Storage tab.
   - **Agents**: `GET /api/v1/tools/{app}/files` (query), `GET
     …/files/journal`, `POST …/files/url`, `POST …/files/delete` (a
     write: refused to a read-only token), the same rights and journal
-    (the token's name in it); MCP `files_list`, `files_link`,
-    `files_delete` (two steps).
+    (the token's name in it).
 - **Storage** (`GET /api/tools/{app}/storage`, `chest/portal/tool_storage.go`,
   `cmd/chest/node_storage.go`), for whoever runs the tool (`serverRunner`:
   403 for a member or the builder of another tool, 404 for a removed tool or
   an absent tool, `Cache-Control: no-store`) → `{"database": {"bytes",
-  "measured", "limit"} | null, "files": {"bytes", "objects", "quota",
-  "max_objects", "max_object", "asked", "set", "choices"} | null, "memory": {"mib", "choices"}}`: the size of the
-  database as measured (`bytes` null as long as it has never been measured),
-  file usage against its limits; a part the version does not
-  declare is null; the tool's memory and the possible choices
-  (“Memory”, below) — this is how its builder reads it. The
+  "measured"} | null, "files": {"bytes", "objects", "max_object"} |
+  null}` (`portal.StorageView`): the size of the
+  database as the kernel accounts its project of the workload volume
+  (`bytes` null as long as it has never been measured), what the files
+  use; a part the version does not declare is null; neither has a limit of
+  its own — this is how its builder reads it. The
   Overview of a server tool turns it into a “Storage” row: “Database: 12 MB
-  · Files: 3 MB of 1 GiB”, a part beyond its limit underlined and
-  stated (“over 1 GiB”, “full”); nothing without the route.
+  · Files: 3 MB”; nothing without the route.
 - **Visible database** (`chest/portal/tool_database.go`,
   `cmd/chest/application_console.go`, engine: “Console” above):
   for whoever sees the tool's data (`dataRunner`/`scope.Sees`: the
@@ -2051,8 +2434,7 @@ assertion), the tool's **variables**, its declared network egress, its
   404, `row_changed` 409, `read_only`, `structure` (with the proposed
   migration), `refused`, `sql`, `timeout`, `too_large` 422, `busy` 429 —
   **two requests per tool, eight per node**, never queued —,
-  `stopped` 503 — **the console never starts the cluster**: when it is stopped, it
-  says so (“Database stopped”) —, `unavailable` 503 (guard absent, session
+  `unavailable` 503 (guard absent, session
   lost; the cause in the node's log). Every request, successful or not
   (refused `busy`, `stopped`, `unavailable` included), is written to the
   tool's journal before the response; without a journal that can be opened, nothing
@@ -2098,51 +2480,44 @@ assertion), the tool's **variables**, its declared network egress, its
     defaults, NULL, constraints) then its other indexes, in monospace,
     with one sentence: “The structure changes through a migration in the repository.”
   - Refusals in words (`notify.ts`, `consoleWords`): timeout, database busy,
-    database stopped (in place of the tab, with “Retry”), invalid
-    filter, table gone.
-- **Memory** (`chest/toolmemory`, `cmd/chest/node_memory.go`,
-  `chest/portal/tool_memory.go`): the memory of a server tool's
-  container, **256 MiB by default**, a closed list of choices
-  (`toolmemory.Choices`: 256, 512, 1024 MiB, the single source; `RunServer`
-  refuses any other value before Podman), `--memory` and `--memory-swap`
-  equal (no swap). The node's resources are the Chest's: the
-  owner and the admins choose it, a builder reads it.
-  - **At rest**: `apps/<tool>/memory` in its Compartment (the number and
-    a line ending, 0600, written aside then renamed, directory synced;
-    absent for 256); read at each instance start along with the
-    variables — a choice applies at the next start; an altered file
-    or a link: the instance does not start (the one in service continues). It
-    follows the Compartment: kept when one version replaces another (update,
-    rollback, source replaced), removed with the tool, in the nightly
-    archive with the Compartments.
-  - **Capacity guard** (a guard, not a guarantee): the node's budget is
-    `MemTotal` from `/proc/meminfo` minus 1.5 GiB kept for the Chest,
-    Keycloak and PostgreSQL (`toolmemory.Reserve`); only the tools awake
-    and the workbenches hold it (“Server tools asleep”, below). A choice that
-    gives the tool more than it has is refused beyond the budget: the tool
-    must be able to wake alone, the others asleep. A decrease or the same
-    choice always passes; outside Linux (development machine), no
-    budget and no guard. Nothing is measured of what the other processes
-    actually consume; a new tool gets 256 MiB.
-  - **Route**: `POST /api/tools/{app}/memory` `{"mib"}` (strict JSON) → 204;
-    `serverRunner` then owner or admin only (403 for a member
-    and for any builder, even of this tool), 404 for a removed tool or an
-    absent tool, 400 outside the choices, 409 “not enough memory on the node for its
-    tools” beyond the budget, 503 otherwise. Reading is through Storage
-    (`GET /api/tools/{app}/storage`, `memory`), putting into service is as for the
-    variables (`POST /api/tools/{app}/redeploy`).
-  - **Page**: the “Settings” tab of a server tool has a
-    “Resources” section: the “Memory” row, a 256 / 512 / 1024 MiB list
-    for the owner and the admins, the value alone for a builder;
-    after a choice, “Applies at the next start.” with
-    “Restart to apply”.
+    unavailable (in place of the tab, with “Retry”), invalid
+    filter, table gone. A database asleep is woken for the request.
+- **Memory** (`chest/toolmemory`, `cmd/chest/node_pressure.go`): a
+  server tool has **no memory of its own**. Its containers run without
+  `--memory` or `--memory-swap` (`serverArgs`), in the workloads slice
+  `chest-workloads.slice` (`--cgroup-parent`, `toolmemory.Slice`), which
+  every workload — the tools awake, their databases, the workbenches, the
+  builds — shares by use: `MemoryMax` the node's budget
+  (`toolmemory.Budget`: `MemTotal` less the core's reserve,
+  `toolmemory.Reserve`, derived from the server), `MemoryHigh` 95 % of it,
+  `MemorySwapMax` 0 (“Isolation and interfaces”). Nobody chooses it; the
+  owner, the admins and a builder read what a tool uses in Settings →
+  Server (`used`, measured from its cgroups). When the slice runs short,
+  the node keeps it by use (“Server tools asleep”, below).
 - **Supervision** (`cmd/chest/application_server.go`): one instance at a
-  time per version, put into service as soon as it answers anything at all to
-  `GET /` (60 s at most), taken out when it stops — the tool is then the
+  time per version, put into service once it is **ready** (60 s at most),
+  taken out when it stops — the tool is then the
   Chest's 503 page —, restarted after 1 s, 2 s, 4 s… 5 min at most, the delay reset
   to zero after ten minutes in service: supervision never gives up while the
   tool is awake. At node startup every tool is asleep (below): nothing
   starts until something asks for it; it does not decide the node's state.
+- **Readiness, not liveness** (A09 of the Astra audit; `toolfront.WaitReady`,
+  `toolfront.Ready`): an instance is ready when its members' entry,
+  `GET /chest` (`toolfront.ReadyPath`) asked by nobody — no `Chest-Member`,
+  no session, redirects not followed, 2 s per probe, every 200 ms —,
+  answers a page (2xx), a redirect (3xx), or a refusal that is the tool's
+  own rule: sign-in required (401), forbidden (403), nothing there (404, a
+  tool without a members' part). A 5xx or any other status is not: the
+  tool listens and does not work. The probe never signs a member: a
+  synthetic one would run the tool's code as someone who does not exist —
+  rows written, the members API asked — on every start. Until the
+  allowance ends the instance is not put in service; then it is stopped,
+  its last status said in its log (“Instance not ready (its entry /chest
+  answered 500): stopped”), and a new version is not promoted
+  (“Switchover”). **Liveness** — the transport answers anything — stays
+  apart: `Instance.Answers` (whether a draft's dev server still listens)
+  and `Instance.WaitAnswer` (a draft's dev server put in service, its
+  errors its developer's to see).
 - **Server tools asleep** (`cmd/chest/node_sleep.go`,
   `serverApplication.sleep` and `Wake`, `chest/toolfront/wake.go`; product:
   the fleet monitoring spec, “Sleeping tools”): a tool that **no request
@@ -2166,24 +2541,43 @@ assertion), the tool's **variables**, its declared network egress, its
   that moves unless reduced motion is asked, the tool's title from its build
   or its name, escaped), which asks again by itself until the tool answers.
   A switch of version, a redeploy or an installation wakes the tool. **The
-  server's memory** (`nodeApplications.makeRoom`, one admission at a time,
-  `nodeRoom`): each instance is admitted before it starts, its memory held
-  until it stops; it fits when the memory held by the tools awake, the
-  workbenches and itself stays within the budget (`toolmemory.Budget`);
-  otherwise the awake tools that serve no request are put to sleep, the
-  least recently used first — never the one waking —, their log saying
-  “Asleep: made room for another tool”; when nothing more can sleep, the
-  wake is refused (`toolfront.ErrNoRoom`): its log says “Not started: not
-  enough memory on the server”, the tool stays asleep, a browser gets “<title>
-  cannot wake up right now” (`toolfront.Full`, 503, `Retry-After: 60`), a
-  delivery is tried again later as one the tool refused. A workbench of
-  Perseus Code is admitted the same way (idle tools sleep for it) and is
-  refused with `toolmemory.ErrCapacity`. The node keeps, in memory, when
-  tools were put to sleep for another and when wakes were refused (the last
+  server's memory** (`cmd/chest/node_pressure.go`, `watchMemory`): a tool
+  always wakes — nothing is admitted or held at a wake; it takes what it
+  uses in the workloads slice. Every 2 s the node reads the slice
+  through the workload agent (`toolmemory.ReadSlice`); when it is pressed (`State.Pressed`: at least
+  90 % of its bound and PSI `full avg10` at least 10 %), it takes one
+  action, 10 s apart (`relieve`): the least recently used tool awake that
+  nobody used for a minute is put to sleep, its log saying “Asleep: the
+  server ran short of memory” — an idle release: its database rests
+  once nobody holds it, a page connected to its realtime keeping it
+  awake; when none is idle, the heaviest workload is **evicted whole**
+  (`evictable`, `evict`): one group weighed, told and stopped as one — a
+  server tool's instances and its database (a tool asleep whose database
+  a page keeps awake included), or a Perseus workbench and its project's
+  preview database. Its tool is halted, never restarted until its next
+  use, or its workbench stopped; its database is stopped whoever holds
+  it (`databaseNode.evict`, distinct from the idle `rest`) and stays so
+  for the realtime's sessions — they try again every 5 s and are
+  refused (`errEvicted`) — until a use wakes it (the tool's instance,
+  its migrations, the console, the workbench's next command), when the
+  sessions come back and their pages replay from the change log; every
+  container of the group is killed through its cgroup by the agent
+  (`workload.Kill` names the group: scopes, instances, databases;
+  `cgroup.kill`: a stop through Podman starves with the slice). Its log
+  says “Stopped: the server ran out of memory; it starts again at its
+  next use” (a workbench, in its preview's log: “… at the next
+  command”); a tool's stop is told to the owner and the admins (inbox
+  `out_of_memory`, mailed as inbox items are). The slice's group is
+  asked of the workload account's user manager once and then read from
+  its files (`toolmemory.ReadSlice`): under pressure the user manager may
+  not answer in time, the files do. The node keeps, in
+  memory (`nodeRoom`, `cmd/chest/node_sleep.go`), when tools were put to
+  sleep and when workloads were stopped or live connections refused for
+  want of memory (the last
   1,000 of each, counted over 24 hours): the capacity alert. What never
   wakes a tool: its logs, its network log, its database (console, size,
   migrations — the cluster is its own container), its files and storage,
-  its variables, memory and settings, the pages of the Chest; what does:
+  its variables and settings, the pages of the Chest; what does:
   its hosts' requests (public, team, custom domain, static files), the
   events of its members (`Target.Deliver`), the runs of its schedules
   (`Target.RunSchedule`), a new version, a redeploy.
@@ -2380,7 +2774,7 @@ assertion), the tool's **variables**, its declared network egress, its
   public host; `nodeApplicationHosts.addresses`), origins without a path,
   for the links it writes where no request tells its host (a mail, a
   scheduled job); a draft is told its draft host for both. `runtime.ChestOf` reads them from the policy at each
-  start of an instance (`startOf`, with the variables and the memory) or of
+  start of an instance (`startOf`, `cmd/chest/node_start.go`, with the variables and the addresses) or of
   a workbench, `RunServer` and `RunWorkbench` refuse any value the Chest
   does not keep (`access.ValidOrganization`, `ValidTimeZone`, a language
   the product speaks, `ValidCurrency`, https origins), and they are container arguments (`--env=NAME=value`:
@@ -2609,11 +3003,42 @@ key, and asks the node for everything through the node's internal socket.
   there and again at each turn's end, until a builder names it, `named`),
   `creator`, `builders` (member identifiers:
   who may open it besides the owner and the admins), `created`; 20 projects
-  on a Starter server, 50 from Team. One directory per project: `workspace/`
-  (its files, `/workspace` in its workbench), `cache/node_modules` and
-  `cache/npm` (its dependencies and npm's cache, mounted beside the
-  workspace), `repo.git` (its checkpoints), `egress.jsonl` (what its
-  workbench reached), `preview.jsonl` (its preview log).
+  on a Starter server, 50 from Team. Two directories per project: on the
+  workload volume (`chest/workvolume`, `/srv/chest-workloads/work/projects/<id>`,
+  the workload account's, what its workbench writes, which the node reads
+  and writes through the workload agent: `buildproject.Workspace`), `workspace/` (its files, `/workspace` in its
+  workbench) and `cache/` with `node_modules` and `npm` (its dependencies
+  and npm's cache, mounted beside the workspace); on the Chest's side of the
+  volume, its history (`files/histories/<id>`, its checkpoints, below, a
+  project of class `workvolume.History`, IDs from 17000: what its
+  workbench writes grows it, so it is off the system disk); in the
+  installation (`build/<id>`, what the node writes), `egress.jsonl` (what
+  its workbench reached), `preview.jsonl` (its preview log). The nightly
+  backup archives neither the workspace nor the cache: the workspace is
+  kept in the history (below), archived as a snapshot of the volume
+  (`workloads/histories/<id>`), the project's directory archived whole or
+  not at all ([backup.md](../deploy/backup.md)); a restore puts the
+  history back on the volume (`adoptWorkloads`), and a node that finds a
+  project without its directories (`buildproject.Store.Ensure`, at
+  Perseus Code's opening) makes them — the workspace and the cache as
+  projects of the volume — and lays the workspace again from its history
+  (`restoreDrafts`), the dependencies back with the next `npm ci`.
+  Before history adoption, the agent stops all workloads and
+  `project.prepare-restore` marks even an existing workspace pending,
+  clearing its dependency caches: same-host recovery must replace the
+  displaced workspace rather than silently keep it. A backup refuses
+  unadopted `workloads/` sources.
+  `VolumePlaces.Make(kept=true)` records `restore.pending` outside the
+  workspace before creating it; a retry still reports that checkout as
+  pending. `project.restored` synchronizes its files and directory entries
+  before durably clearing the marker. Failed or unverifiable checkouts
+  block activation and are retried, never presented as empty working
+  projects. The backup never keeps a pending checkout over its recovery
+  history. Expected histories come from `projects.json`; missing histories
+  fail the snapshot, while their immutable snapshots are fully verified
+  during archiving, after the node resumes. The restore drill also verifies
+  all expected refs, commits, trees and blob contents, streaming each blob
+  once; an empty history is not accepted as proof of an empty project.
   - **Files**: what runs in the workbench writes the workspace, so the node
     reads and writes it only through an `os.Root` of it — never a link out
     of it — and opens only regular files (`O_NONBLOCK`, then checked by
@@ -2623,10 +3048,14 @@ key, and asks the node for everything through the node's internal socket.
     `node_modules`, never `.git`, never an environment file (`.env`,
     `.env.*`: variables are the Chest's). A file is 1 MiB at most, written
     aside then renamed; a listing gives 5,000 entries at most.
-  - **Disk**: the workspace without dependencies 1 GiB, the cache 2 GiB —
-    measured after each command and write, never enforced by the kernel
-    (rootless has no quota): beyond, writes and commands are refused
-    (`over_disk`) until files are deleted or the cache cleared.
+  - **Disk**: the workspace and the cache are each a project of the
+    workload volume (“Isolation and interfaces”), accounted by the kernel,
+    with no share of their own: they take what the volume has, beside every
+    other workload. What each uses is read from the kernel (`statfs`) after
+    each command and write: when the volume can take no more, or a project
+    cannot be read, the next writes and commands are refused (`over_disk`)
+    until files are deleted or the cache cleared. A server without the
+    workload volume opens no workbench.
   - **`chest check`** (`check`): the workspace packed as `git archive` would
     for the build (`buildproject.Pack`: directories and regular files,
     `node_modules` and links left out, the archive's bounds) and read by the
@@ -2635,8 +3064,9 @@ key, and asks the node for everything through the node's internal socket.
     archive's word (`no_manifest`, `manifest`, `migrations`,
     `newer_chest`…). `chest check` (`@argentic/chest-check`) runs the same code, built for
     WebAssembly (`cmd/chest-check`).
-- **Checkpoints** (`chest/buildhistory`, `repo.git`): a bare Git repository
-  in Git's own format, written by the node alone — loose zlib objects named
+- **Checkpoints** (`chest/buildhistory`, `files/histories/<id>`): a bare Git
+  repository in Git's own format, written by the node alone — loose zlib
+  objects named
   by their SHA-1, one branch `main`, one commit per checkpoint (message
   1,000 characters, author a member's identifier or `perseus`, no address),
   the workspace's regular files and directories without `node_modules` nor
@@ -2646,6 +3076,40 @@ key, and asks the node for everything through the node's internal socket.
   (what it did not hold removed, `node_modules` untouched) and records that
   as a new checkpoint (“Restore <id>: …”): history only grows. It is not
   a Git service: nothing is served, pushed or pulled; PB4 exports it.
+  **Keep** records the workspace for the backup — `chest server-backup`,
+  while the node runs — as a commit after the last checkpoint under
+  `refs/chest/backup`, never listed among the checkpoints, replaced each
+  night, counting the entries it left out (neither a file nor a directory,
+  or unreadable); **Checkout** lays that commit, or the last checkpoint,
+  into an empty workspace. **Memory**: a file is never held whole — hashed
+  as it streams, spooled (64 KiB in memory, a temporary file of the
+  repository beyond), compressed only when its object is new, into a
+  temporary file synced then renamed under its name (`tmp_obj_*` until
+  then): an object under its name is whole, the node and the backup may
+  write the same one at once, and a write stopped midway moves no ref.
+  Read back, an object streams through its check (its SHA-1 and zlib's
+  end: an error instead of the end of the stream otherwise) into the
+  workspace (`Workspace.Replace` writes each file aside, checks its blob,
+  then renames it), an archive (the size from the object's header against
+  the source's bounds before reading; the archive held in
+  `sourcearchive.Buffer`, refused as soon as it outgrows 32 MiB) or a
+  file's page (its limit from the header). What a checkpoint, a backup, a
+  restore or an archive costs the node is a few MiB whatever its files
+  (`stream_test.go`: the same allocations for 2 MiB and 96 MiB).
+  **Durability**: files are synchronized before publication; before a ref
+  moves, the object fanout directories and `objects/` are synchronized,
+  then the ref's directory and ancestors after its rename. These barriers
+  happen once per checkpoint (at most 256 fanout directories), rather than
+  once per blob. Any synchronization error fails the operation before
+  collection can remove the preceding backup's objects.
+  **Storage**: each Keep then collects what no ref reaches — the workspace
+  it replaced, what a failed write left — under the repository's
+  exclusive lock (`chest.lock`, a `flock`: shared for every read and write
+  of the node and of the backup's process, exclusive for the collection),
+  marking every object the checkpoints and the kept workspace reach, and
+  removing nothing if one of them cannot be read; the checkpoints
+  themselves stay, history only grows (`collect_test.go`: stable over 300
+  backups, an interrupted write, concurrent writers and readers).
 - **Workbench** (`chest/runtime/workbench.go`, `RunWorkbench`): one
   container per active project, of the tools' pinned Node image
   (`runtime/base-image`, no image of its own), under the server tools'
@@ -2673,7 +3137,7 @@ key, and asks the node for everything through the node's internal socket.
   database (`CHEST_DATABASE=1`, credentials laid in `s/database` and
   removed by the launcher; a role `pb_…` is one it accepts), and
   `http.sock` relayed to `PORT`, where the dev server listens.
-  - **The runner** listens on `/run/chest/workbench.sock` (0600), which
+  - **The runner** listens on `/run/chest/workbench.sock` (0660), which
     the node dials (`chest/toolsocket`, never through a link) — never the
     reverse: `GET /` (`{dev}`), `POST /run {argv, timeout, limit}` (one
     command in `/workspace`, an argument vector — never a shell line —, in a
@@ -2701,8 +3165,9 @@ key, and asks the node for everything through the node's internal socket.
     are not reachable: the container has no network. A node that does not
     know the Chest's names yet serves no carrier: npm reaches nothing.
   - **Preview database**: a role and a database `pb_<id>` (the project's
-    identifier without its prefix, `tooldatabase.DraftOf`) in the tools'
-    cluster, made like a tool's (`Cluster.EnsureDraft`: same attributes and
+    identifier without its prefix, `tooldatabase.DraftOf`) in a cluster of
+    its own, held for as long as its workbench lives, its data a project of
+    the workload volume, made like a tool's (`Cluster.EnsureDraft`: same attributes and
     bounds, `sameuser` in `pg_hba`, its password derived under its own
     label), reached through the same carriers (`Cluster.Relay`). At each
     start of the dev server the workspace's migrations are played as the
@@ -2718,13 +3183,15 @@ key, and asks the node for everything through the node's internal socket.
     flight, recreated at the next. Active at once: Starter 1, Team 2,
     Business 4, Scale 8 — the plan read from the server's memory
     (`planOf`: below 6 GiB Starter, 10 GiB Team, 18 GiB Business); a new one
-    stops the least recently used idle one, none idle is `busy`. **Capacity**:
-    its memory is reserved beside the tools awake
-    (`nodeApplications.reserved`, `makeRoom`): idle tools are put to sleep
-    for it, least recently used first; a workbench that still does not fit
-    the node's budget is refused (`capacity`). What a killed node left is removed at the next start
-    (`RecoverServers` on the workbenches' scope, the fingerprint of
-    `installation/build`). Workbenches stop before the tools database, with
+    stops the least recently used idle one, none idle is `busy` — the
+    plan's product (how many previews run at once), not a size of a
+    workload. **Memory**: none of its own — its container has no
+    `--memory`, it shares the workloads slice by use with the tools —, and
+    when the slice is pressed the node may evict it, with its project's
+    preview database, as the heaviest workload (“Server tools asleep”). It runs, as the tools do, through the
+    workload agent, for as long as the node's connection lasts; what a
+    killed node left, the agent removes at its next start
+    (`runtime.Recover`). Workbenches stop before the databases, with
     the tools (`nodeApplications.Close`).
   - **Commands** (`command`): refused before anything runs when forbidden
     (`chest/buildpolicy`, whoever asks — the node's copy of the policy's
@@ -2799,9 +3266,10 @@ key, and asks the node for everything through the node's internal socket.
   nothing, “Office”, of the manager and the member — in `GET /groups`,
   their `groups` and their assertion; notifications, broadcasts and badges
   go to the draft's own inbox (`<project>/inbox`), delivered to no one, each
-  notification and broadcast said in the preview's log; files are the draft's own (`<project>/files`,
-  bounded by the declared quota and `buildproject.MaxWorkspace`), removed
-  with the project; sealed values are sealed and opened under the draft's
+  notification and broadcast said in the preview's log; files are the draft's own, on the workload volume
+  (`projects/<id>/files`, a project of class `workvolume.DraftFiles`, IDs
+  from 15000, made by `buildproject` when the project is ensured; no
+  bound of their own, never archived), removed with the project; sealed values are sealed and opened under the draft's
   own key (`<project>/sealed-values.key`, never the Chest key nor a tool's:
   a draft never opens a tool's values), for its fake members, whose
   requests carry their tickets; AI is the Chest's gateway counted as Perseus Code's —
@@ -2996,8 +3464,8 @@ secret, reaches nothing but the node's socket, and there only under the
   Perseus says so (`stop`), Stop, its time, its member's status, Perseus
   gone (`interrupted`, cause `restart`), a node that stopped (found open at
   the next start), a failure (`failed`, its cause as the AI gateway said
-  it — `credits`, `key`, `rate`, `refused`, `provider`, `no_connector`
-  (`perseus.FailureCauses`) — and the provider it named as its scope,
+  it — `credits`, `key`, `rate`, `refused`, `provider`, `no_connector`,
+  `metering` (`perseus.FailureCauses`) — and the provider it named as its scope,
   checked by the node; the page says each in words). Its grant is revoked, Perseus told, then the node
   records its **checkpoint** when the workspace changed
   (`buildhistory.Changes`, author `perseus`, the message's first line),
@@ -3010,7 +3478,16 @@ secret, reaches nothing but the node's socket, and there only under the
   `end`), 2 MiB an event, 64 MiB a transcript, 200 sessions a project. The
   next turn's context is made from it: the last compaction's summary, then
   each turn's message and Perseus's `message` events, a call left without
-  its result dropped.
+  its result dropped. Replay caches retain at most 2,000 events and 2 MiB
+  of serialized payload per transcript, 8 MiB and 32 sessions across the store;
+  inactive entries are evicted by last use. Eviction wakes followers, which
+  resume from the durable file. These are payload budgets, not an RSS ceiling.
+  Readers and writers serialize transcript access; a final unterminated record
+  is truncated to the last verified newline, while corrupt complete records
+  or non-contiguous event numbers are refused. Turn, complete message,
+  compaction and end batches synchronize the file and its directory before
+  acknowledgement. Token deltas may be lost after abrupt power loss until a
+  durable boundary; a partial failed append is rolled back when storage permits.
 - **The pages** (`chest/portal/perseus.go`; builders, the owner, the
   admins — 403 `denied` otherwise; a project for its builders who hold the
   status, the owner, the admins): `GET /build/new` (the document, the
@@ -3032,8 +3509,8 @@ secret, reaches nothing but the node's socket, and there only under the
   published —, 64 MiB a project) → `{name}`, `GET …/attachments/{name}`
   (served with its own type, `nosniff`, sandboxed), `GET
   …/sessions/{session}/events` (Server-Sent Events from `Last-Event-ID`,
-  the model's own messages emptied — where each model call ended —; the session's lock released while it
-  streams, `core.Allowance.Stream`), `POST …/interactions/{interaction}
+  the model's own messages emptied — where each model call ended —; the session settled before it
+  streams, `core.Allowance.Settled`), `POST …/interactions/{interaction}
   {choice | answers}`, `POST …/stop`, `GET …/checkpoints`, `POST
   …/checkpoints/{checkpoint}/restore` (never while a turn runs), `GET
   …/checkpoints/{checkpoint}/files` (`{parent, files}`: each file with
@@ -3073,7 +3550,13 @@ secret, reaches nothing but the node's socket, and there only under the
   description of a new tool, and per project the message and the answers
   being chosen to a question (controlled by the page's state, never the
   form's alone) — a page loaded again finds them; a message sent or answers
-  given are forgotten. The events' stream the browser gives up (an answer
+  given are forgotten. They are kept under the member `/session` names
+  (`chest-perseus-<member>-new`, `chest-perseus-<member>-<project>`), never
+  under a value of the page: each load drops those of any other member
+  (`forgetDrafts`), so a session that ended and came back as the same member
+  — the provider signing them in again — finds its words, and another
+  account signing in on the same tab finds none; “Sign out” drops them all,
+  in the page and by the `Clear-Site-Data` of `/logout` (“Sign-out”). The events' stream the browser gives up (an answer
   that is not a stream) is opened again three seconds later, the project
   read first, the events already shown kept. A `chest.json` written
   re-reads the project: its name. Each showing of the draft — the first, after a turn that changed it, Reload — enters with a new ticket: a frame replaced while its entry was under way (the entry's ticket spent, its cookie never set) would land on the draft without a session. A project's header: its
@@ -3365,14 +3848,19 @@ catalogue. Its data does not move — it lives outside the image, in
   the previous one). The inventory also keeps, per tool, the **origin** of
   each version (commit and end of build, read from the registry) for the
   line “Version in service: <sha7> from <date>”.
-- **Switchover** (`cmd/chest`, `nodeApplications.Update` / `Rollback`): the
-  image is local (built here, `ImagePresent`); the version's migrations are
-  run (“Database”); the inventory is rewritten; then the version starts
-  **alongside** the one in service, takes the traffic once it responds
-  (60 s), and the previous one stops once drained (“Server tools”, versions
-  without downtime). Failing a response: `Rollback` of the inventory, the
-  version in service never stopped responding, and the failure is reported
-  (“version not confirmed; the previous one stays in service”). The portal
+- **Switchover** (`cmd/chest`, `nodeApplications.Update` / `Rollback`,
+  both `release`): the image is local (built here, `ImagePresent`); the
+  data moves with the version (“Database”, “Data moved with the version”:
+  the database set aside before the version's migrations, or the previous
+  version's copy exchanged in); the inventory is rewritten; then the
+  version starts **alongside** the one in service, takes the traffic once
+  it is ready (“Readiness, not liveness”, 60 s), and the previous one stops
+  once drained (“Server tools”, versions without downtime). Not ready:
+  `Rollback` of the inventory, the data put back, the version in service
+  never stopped responding, and the failure is reported in words (“This
+  version answered HTTP 500 on /chest: it was not put in service. The
+  version before it runs again. Its data is back as it was before the
+  change…”). The portal
   then replaces the binding (same target, roles and public part of the
   version) and tells the team (`Team.UpdateApplication`: a role that
   disappeared falls back to the default role).
@@ -3390,8 +3878,10 @@ catalogue. Its data does not move — it lives outside the image, in
   in service holds the installation lock while the one it replaced drains and
   stops), 409 `installation busy` beyond; `POST /api/catalogue/install` of an installed tool follows the same
   rule; `GET /api/installation` gives per offer `current`, `version`, `previous`
-  (image, approval, permissions, roles, commit, date) and `more` (what the
-  offer asks for in addition); `GET /api/catalogue` gives `version`, `previous`,
+  (image, approval, permissions, roles, commit, date; on `previous`,
+  `restores`: when the copy of its data that a rollback puts back was set
+  aside, absent without one) and `more` (what the offer asks for in
+  addition); `GET /api/catalogue` gives `version`, `previous`,
   `update` and `more` of a tool in service.
 
 ### Room for a new tool
@@ -3400,26 +3890,35 @@ Nothing counts the tools, the builds or the linked repositories of a Chest:
 what limits them is its server (`chest/serverroom`, the one rule). A new tool
 is installed only where the server would still hold it:
 
-- **Memory**: every tool in service **were they all awake**, each with its
-  own memory (`toolmemory`), plus the new tool's (256 MiB, the default),
-  within **95 %** of what the tools may use (`toolmemory.Budget`: the
-  server's memory less the 1.5 GiB kept for the Chest, what tool sleep
-  counts, node_sleep.go);
+- **Memory**: what the workloads hold of their own now (`Room.Used`,
+  `toolmemory.ReadSlice().Own` in MiB, 0 while nothing ran in the slice)
+  below **95 %** (`serverroom.MemoryShare`) of what they share
+  (`toolmemory.Budget`: the server's memory less the core's reserve) — no
+  tool has a size of its own, so a new one adds nothing ahead of its use
+  (`cmd/chest/node_room.go`);
 - **Disk**: the disk used, plus the image a build is expected to take,
-  within **90 %** of the disk. The expected image is the **average of the
-  images the ledger keeps**, each measured once built (`podman image inspect
-  {{.Size}}`, `Status.ImageBytes`, the layers it shares with others counted
-  in it: an overestimate); 1 GiB (`sourcebuild.DefaultImage`) before any.
+  within **90 %** of the disk — on a server that backs up (`~/backups`
+  exists), the image counted three times (itself, the archive kept, the
+  one being written: `serverroom.BackupCopies`) and the room of the next
+  archive (the newest one's size less the older ones it may remove,
+  `Space.DiskReserve`) counted as used, and what writes admitted and not
+  done yet reserve (`serverroom.DiskLedger`: a build's image while it is
+  loaded). The expected image is the **average of the
+  images the ledger keeps**, each as its promotion weighed it
+  (`Status.ImageBytes`: what its new layers allocate, “Build” above);
+  1 GiB (`sourcebuild.DefaultImage`) before any. The image itself is
+  admitted again, by what it weighs, at its promotion.
   Every build weighs it at `Ledger.Stage` — a new version too — and is
   refused `sourcebuild.ErrDiskFull` beyond; the disk is measured as Settings →
-  Server measures it (`serverroom.Measure`, a laboratory's
+  Server measures it (`serverroom.Measure` through the node's one
+  `DiskLedger`, a laboratory's
   `health_lab.disk_extra_bytes` counted).
 
 `Room.Full` names the resource that would not hold it, the memory first. A
 server that measures neither (a developer's machine) holds everything.
-`GET /api/installation/room` (owner and admins) says it — `{full, tools,
-budget, known, tool, memory_share, disk_used, disk_size, build, disk_share,
-plan, next, upgrade}` (MiB for the memory, bytes for the disk; `plan` and
+`GET /api/installation/room` (owner and admins) says it — `{full, used,
+budget, known, memory_share, disk_used, disk_size, disk_reserve,
+disk_copies, build, disk_share, plan, next, upgrade}` (MiB for the memory, bytes for the disk; `plan` and
 `next` from `serverroom.Plans`, the sizes the service offers; `upgrade` the
 owner's request, below). Every decision to install a new tool refuses it 409
 `{"error":"server_full","resource":"memory"|"disk"}` — from the catalogue, a
@@ -3427,7 +3926,8 @@ repository, a proposal approved, a Perseus Code project published, an offer,
 a Retry —, and the installation itself weighs the memory again under the
 installation lock (two decisions never take the last room together): a
 failure then says `memory full` or `disk full`. A version of a tool in
-service, or a source put in place of one, asks no memory.
+service, or a source put in place of one, is not weighed against the
+memory.
 
 **The screen of a full server.** The install sheet is as ever; a decision
 refused `server_full` turns the panel into its screen (`ServerFull`): “Your
@@ -3462,6 +3962,44 @@ never while a build runs; one a container uses, Podman refuses. The node
 collects at its start, every ten minutes, and five seconds after a version
 changes, a rollback, an uninstallation or a cancelled installation.
 
+### Durable source-installation queue
+
+Approved catalogue installations/updates, new GitHub installations and source
+replacements, approved proposals and Perseus publications enter one FIFO queue
+in `installation/install-queue/queue.json` (`chest/portal/install_queue.go`).
+The node enables it only after the application runtime and hosts are ready,
+and cancels/joins its worker before replacing a portal. The laboratory archive
+upload and existing automatic repository-build path retain their own admission;
+a queued installation waits, cancellably, if either already owns the build slot.
+
+- At most **eight outstanding operations**, active one included; one complete
+  fetch/build/install operation at a time. The private metadata file is at most
+  **128 KiB**, atomically replaced and synchronized before a 202 response.
+  It keeps no credentials or archives: public repository plus exact Git commit,
+  or a project's retained checkpoint, approved permissions/roles, deciding
+  subject, proposal and publication identifiers. A ready-package retry pins
+  its approval digest too. Queue saturation returns 429 `queue_full`; a storage
+  failure refuses acceptance (503). Builds retain their existing resource limits.
+- The wire and UI expose `queued` before `fetching`, `building`, `installing`;
+  catalogue acceptance returns `{name, state:"queued"}`. English and French say
+  the request is saved and waiting. This does not implement the deferred UI modes.
+- The worker checks current member rights before fetching and again before
+  installation. An API decision keeps its key ID (never the secret), rechecks
+  its lifetime/revocation/tool scope and retains the prohibition on approving
+  wider permissions with an API key. A changed repository head cannot replace
+  the approved commit. A missing checkpoint fails visibly.
+- On restart, pending requests resume in order. A durable `Started` flag is
+  written before execution; a started request is reported as **interrupted**,
+  never blindly replayed across an uncertain migration. Existing retry/review
+  paths apply. This is at-most-one automatic attempt, not exactly-once side
+  effects or universal self-repair. A corrupt queue is preserved and disables
+  source-installation admission without preventing the rest of the portal
+  from starting; repair of its private storage remains an operator action.
+- Queue persistence failure stops the worker rather than starting unrecorded
+  work. Existing failed-installation records and the build ledger retain their
+  roles; the queue is not a second package/image/history store. Automatic
+  background builds and uploads are not converted into durable install requests.
+
 ### Failed installations
 
 An installation that did not end with the tool in service — its fetch, its
@@ -3481,7 +4019,7 @@ restart of the node with its name and its reason. It is forgotten when the
 tool runs, is cancelled or is removed. `GET /api/installation/attempts`
 (owner and admins; 403 otherwise) lists them — `tool`, `source`,
 `repository`, `branch`, `catalogue`, `state`
-(`fetching|building|installing|failed`), `reason`, `title`, `description`,
+(`queued|fetching|building|installing|failed`), `reason`, `title`, `description`,
 `icon` (served where a built tool's is,
 `/api/chests/{chest}/apps/{app}/icon`) —, the live run first, then the
 registry's build, then the kept reason (`interrupted` when the node stopped
@@ -3754,7 +4292,7 @@ link their own directly.
   administers; for a member, their own and those of the tools they build)
   and, per link, the latest registry build, a version put in place from
   another source under way or failed (`install`:
-  `fetching|building|installing|failed`, cause in words) and the latest
+  `queued|fetching|building|installing|failed`, cause in words) and the latest
   round trip (commit, `fetching|staged|failed`, cause in words). An
   installation from a repository not linked yet is an attempt (“Failed
   installations”, `GET /api/installation/attempts`), never a link.
@@ -3810,9 +4348,9 @@ displayed, approved, and the Chest fetches, builds and installs on its own.
   {api}/orgs/chest-by-argentic/repos?type=public&per_page=100` (at most a
   hundred repositories), then, per public repository with a simple name,
   `GET /repos/{org}/{name}/commits/{default branch}` (the pinned commit: the
-  head at the time of discovery) and `GET
-  /repos/{org}/{name}/contents/chest.json?ref={commit}` (base64 content, at
-  most 16 KiB, read by `sourcefile`). A repository without a `chest.json`, or
+  head at the time of discovery) and the raw public
+  `/{org}/{name}/{commit}/chest.json` (at most 16 KiB, read by `sourcefile`).
+  Laboratory endpoints without a raw origin use the bounded contents API. A repository without a `chest.json`, or
   whose manifest cannot be read, is not a tool — the SDK
   (`chest-by-argentic/Chest-SDK`, public, without a manifest) is therefore
   never listed, by construction; two repositories naming the same tool make
@@ -3822,7 +4360,7 @@ displayed, approved, and the Chest fetches, builds and installs on its own.
   otherwise the repository name with an initial capital and its description,
   one line of at most 300 characters), `icon` and `preview` (types of the
   images the manifest names, read at the same commit by
-  `GET /repos/{org}/{name}/contents/chest/<file>?ref={commit}`, checked like
+  `GET {raw}/{org}/{name}/{commit}/chest/<file>`, checked like
   those of an archive; an image that is missing or is not one leaves the
   entry without it). The images live in
   `installation/catalogue/pictures/<name>.icon|preview`, replaced in one
@@ -3831,25 +4369,26 @@ displayed, approved, and the Chest fetches, builds and installs on its own.
   the approval ignores the presentation. Client: that of `common/download`
   (TLS ≥ 1.2, 30 s, three HTTPS redirects, 1 MiB per JSON response),
   `Accept: application/vnd.github+json`, `User-Agent: Chest`, **no token**.
-- **Cadence**: nothing at startup, nothing in the background, no button.
-  Discovery happens when the owner opens the Tools page (`GET /api/catalogue`)
-  and the last one is more than **24 h** old; otherwise the last one is
-  served. It is kept on disk, `installation/catalogue/discovery.json`
-  (0600, `{"version":1,"at","tools"}`, reread and revalidated at startup by
-  the rules of a server package — public part, own policy, capabilities and
-  network egress (`Tool.valid`); an invalid kept discovery is not read, and
-  the catalogue discovers again —: a restart does not rediscover). A
-  discovery that fails keeps the previous one (served, with its date);
-  without any, the page says “catalogue unavailable”, and a new look retries
-  at most once per minute. Cost: 1 + 2 × repositories anonymous calls per
-  day and per Chest, far from GitHub's anonymous limit. The page says
-  “Catalogue seen on <date>”.
+- **Cadence**: discovery starts only on a visit, after **24 h**. The last
+  validated catalogue is returned immediately; one background refresh, bounded
+  to 90 seconds, is shared by concurrent visitors. Only a cold read waits.
+  `installation/catalogue/discovery.json` (0600) survives restarts and is
+  revalidated before use. A failed refresh keeps the previous catalogue and its
+  date. With no cache, failure is explicit. Retries wait at least one minute;
+  a quota refusal honours the provider's reset / retry delay (bounded to a day).
+  Production reads manifests and optional pictures from the public raw endpoint
+  at the exact commit; REST is used only for the organisation and branch heads
+  (1 + repositories calls, rather than 1 + up to 4 × repositories). Laboratory
+  endpoints may use the contents API unless a raw origin is supplied. A missing
+  or refused decorative picture does not remove the tool. The anonymous service
+  still has quotas: a large organisation or a shared egress address can require
+  a later catalogue index; this is not an unlimited fleet distribution service.
 - **What the owner approves**: `GET /api/catalogue` (owner only, 403 otherwise)
   returns `{state: ready|unavailable, discovered, tools}`; each entry carries
   its `approval` = hex SHA-256 of the canonical JSON
   `{"name","repository","commit","permissions","roles"}` (this order,
   without spaces), its state
-  `available|fetching|building|installing|installed|failed`, the cause in
+  `available|queued|fetching|building|installing|installed|failed`, the cause in
   words and the registry build when there is one.
   `POST /api/catalogue/install {name, approval, as?, replace?, open_public?}`
   finds the entry in the latest discovery (never a call to GitHub) and
@@ -3959,8 +4498,8 @@ map, then what remains to be done.
   reachable only through the front end: the assertion's signature is a
   second defense.
 - **Container** (“Server tools”): `podman run` of the manifest's `start`
-  behind the Chest's launcher, `PORT` set, no network at all, 256 MiB by
-  default (512 or 1024 at the choice of the owner or an admin) and 1 CPU,
+  behind the Chest's launcher, `PORT` set, no network at all, no memory
+  of its own (the workloads slice, shared by use) and 1 CPU,
   reached through the launcher's unix socket; supervision (60 s to respond,
   restart with increasing delay), versions without downtime. What the Chest
   offers the tool goes through carriers (`chest/carrier`) that **the Chest
@@ -3977,9 +4516,9 @@ map, then what remains to be done.
 | (development) | `chest check` (`@argentic/chest-check`, a devDependency: `check/src/cli.ts`, bin `chest`) | the Chest's validator (`cmd/chest-check`) in WebAssembly, `check/check.wasm.gz`, written with `contract/contract.json` by `scripts/build-contract.mjs`; nothing reached |
 | (variables) | `process.env` | Variables tab; `DATABASE_URL` and `PG*` refused to a tool that has a database |
 | `network` | `fetch`, `node:http(s)` via `HTTP(S)_PROXY` | Chest proxy, log, Network tab |
-| `database` | `databaseUrl()` | a PostgreSQL database and a role of the tool's own in the tools cluster; `migrations/*.sql` run before a version's switchover, recorded in `chest_migrations`; a failure keeps the version in service; size measured, shown |
+| `database` | `databaseUrl()` | a PostgreSQL of the tool's own (its cluster, a database and a role), bounded on the workload volume; `migrations/*.sql` run before a version's switchover, recorded in `chest_migrations`; a failure keeps the version in service; size measured, shown |
 | `sealed` | `seal`, `sealMany`, `open`, `openMany`, `isSealed` (`sealed.ts`, `CHEST_API`) | values sealed under the tool's key, kept sealed in its database; opened for the member of a request (`Chest-Opener`) who has the tool and one of the value's roles, in its context; every open journaled, the owner's totals; shown “Sealed” everywhere else; every version approved by the owner or an admin |
-| `files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url` (thumbnail, download), `uploadUrl` (`files.ts`, `CHEST_API`) | the tool's private files in its Compartment, 32 MiB per object and 1 GiB unless `files` in the manifest asks otherwise (up to 512 MiB and 100 GiB), 10,000 objects; `url` signs a 15-min link served by the team host; `uploadUrl` authorises one browser upload straight to the Chest (single use, 15 min); thumbnails of images; the Storage view and its journal. `uploadUrl(folder, {public: true, types})` a visitor's upload of the public part, its type recognised by content, paced per visitor, private to the members; `StorageFull` when the server's disk is full. Public files are not built |
+| `files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url` (thumbnail, download), `uploadUrl` (`files.ts`, `CHEST_API`) | the tool's private files on the workload volume, 32 MiB per object unless `files` in the manifest asks otherwise (up to 512 MiB), no quota nor count; `url` signs a 15-min link served by the team host; `uploadUrl` authorises one browser upload straight to the Chest (single use, 15 min); thumbnails of images; the Storage view and its journal. `uploadUrl(folder, {public: true, types})` a visitor's upload of the public part, its type recognised by content, paced per visitor, private to the members; `StorageFull` when the workload volume is full. Public files are not built |
 | `members`, `members.email`, `members.groups` | `members.list`, `get`, `lookup`, `groups.list` (`members.ts`, `CHEST_API`) | the members who have the tool now, by identifier, name, photo, role and groups; their addresses with `members.email`; every group of the Chest with `members.groups`; 600 calls a minute |
 | `notifications` | `notify`, `broadcast`, `withdraw`, `badge.set`, `badge.setMany` (`notifications.ts`, `CHEST_API`) | badges on its tile and items in the members' inboxes, inside the Chest — to some, to everyone who has the tool, or to groups or roles, each in their language; quotas per tool; each member receives them by mail as they chose (the Chest's service, not the tool's) |
 | `realtime` | `publish`, `send`, `online`, `presence` (`realtime.ts`, `CHEST_API`); in the browser `connect` (`realtime-client.ts`, the one module of the SDK for a page) | the Chest's hub: the pages' connections on `/_chest/realtime` of the team host and of a draft's, the manifest's channels and their rules, membership tables read on the tool's database, feeds turned from its rows at commit, presence, backfill and replay from the change log, session renewal; the tool asleep meanwhile |
@@ -3989,7 +4528,7 @@ map, then what remains to be done.
 | `schedules` | `schedules.handle`, `verify` (`schedules.ts`; the signed delivery shared with events, `signed.ts`) | each run posted, signed, to its `/chest-schedules` at its times on the Chest's clock, the tool woken, at least once with an id, journaled on its overview |
 
   Typed errors: 403 `capability_not_granted`, 413 `too_large`, 429
-  `quota_exceeded` and `rate_limited`, 503 `unavailable`, for sealed values
+  `rate_limited`, 507 `storage_full`, 503 `unavailable`, for sealed values
   `MemberRequired`, `NotAllowed`, `SealedInvalid`, `SealedLocked`,
   `SealedLost`, and for AI
   `AiCapReached`, `AiUnavailable`, `AiModelNotAllowed`, `AiRefused`
@@ -4101,7 +4640,7 @@ language of a page, never the browser alone:
   (`providertheme.ResetLanguage` reads them from the theme), and the
   central writes its own template in that one.
 - **API**: error bodies stay English codes (`approval_required`,
-  `quota_exceeded`…); the interfaces word them. The Chest's own runtime log
+  `storage_full`…); the interfaces word them. The Chest's own runtime log
   lines (`stream: "chest"`) and build logs are English.
 
 Where the words are: the interfaces keep their catalogues,
@@ -4138,4 +4677,3 @@ checked by a type or a test; nothing else names the languages:
    and refuses a subject another language has.
 5. `npm run build:web`, then `npm run check`. The SDK needs no change: it
    reads any language tag in `Chest-Member`.
-
