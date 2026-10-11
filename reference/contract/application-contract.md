@@ -1,6 +1,6 @@
 # Application contract — excerpt of the Chest’s architecture
 
-Snapshot of `docs/architecture.md` of the private Chest repository, commit `263000de` (12 October 2026, PR #320 pending final verification): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
+Snapshot of `docs/architecture.md` of the private Chest repository, commit `d434dca9` (12 October 2026, PR #320 merged): sections “Application contract”, “Contract map”, “Languages”. See `reference/README.md`. The rules of `chest.json` themselves are `reference/sdk/contract/README.md`.
 
 ## Application contract
 
@@ -3996,7 +3996,9 @@ a queued installation waits, cancellably, if either already owns the build slot.
   source-installation admission without preventing the rest of the portal
   from starting; repair of its private storage remains an operator action.
 - Queue persistence failure stops the worker rather than starting unrecorded
-  work. Existing failed-installation records and the build ledger retain their
+  work. If completion cannot be recorded, the catalogue reports unavailable
+  installation storage instead of keeping an active phase; the operation's
+  completion callbacks are not replayed. Existing failed-installation records and the build ledger retain their
   roles; the queue is not a second package/image/history store. Automatic
   background builds and uploads are not converted into durable install requests.
 
