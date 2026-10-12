@@ -5,6 +5,12 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
+Official SDK reference refreshed to 0.5.1 (`8630b83`). The official standalone
+browser realtime module and recovery regressions are backported into the SDK
+fork as `0.3.1-studio.2`, preserving its experimental server APIs. Full rebasing
+of the divergent 0.3.1 server fork to contract 0.5 remains separate work; the
+prototype tools are not qualified official applications.
+
 **Platform reference refresh (12 October 2026):** the application-contract excerpt and `building-tools` specification are refreshed for Chest PR #320. See `reference/README.md` for exact scope and revision. The official SDK/API is unchanged. The owner clarified that Forms and Chat remain prototypes to be rebuilt, and this studio is currently useful to explore SDK requirements. A precompiled official release remains a proposal compatible with customization when its exact source remains available; no prebuilt distribution is introduced by this refresh.
 
 **Update from the owner (2026-10-07): read [brief/09-update-sdk-0.5.md](brief/09-update-sdk-0.5.md).** `reference/` was refreshed (SDK 0.5.0 from Chest-SDK main, not yet on npm; contract 0.5; the Perseus starter, the test bench, the contract and the changed specs). Asks: every tool on SDK 0.5.0 with the official shapes of groups, broadcast, events and visitors' uploads; realtime instead of polling; sealed fields for sensitive data; needs kept in the SDK report. Do not build a team chat: the official Chat (`chest-by-argentic/chat`) exists, study it.

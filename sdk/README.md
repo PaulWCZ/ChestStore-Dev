@@ -1818,3 +1818,10 @@ each subpath. The build compiles the fifteen published modules: 0.3.0's
 nine and `schedules`, `mail`, `calendar`, `webhooks`, `visitors`,
 `checks`. The version is `0.3.1-studio.N`: it comes after 0.3.0, and `N`
 grows with each change of the proposals.
+
+## Official realtime recovery backport
+
+The `./realtime/client` browser entry and its recovery tests match official SDK
+0.5.1 (`8630b83`, 12 October 2026). This dependency-free module does not replace
+the studio server proposals. The remaining fork is still based on 0.3.1;
+this is not a claim of full contract 0.5 compatibility.

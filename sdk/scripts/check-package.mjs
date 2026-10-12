@@ -30,6 +30,7 @@ const official = {
   notifications: ["badge", "notify", "withdraw"],
   events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "verify"],
   ai: ["chat", "embed", "models", "usage"],
+  "realtime/client": ["connect", "peerEventPattern"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
 const studio = {
@@ -48,7 +49,7 @@ const studio = {
 };
 const expected = Object.fromEntries([...new Set([...Object.keys(official), ...Object.keys(studio)])].map(sub => [sub, [...(official[sub] ?? []), ...(studio[sub] ?? [])].sort()]));
 const namespaces = ["files", "members", "notifications", "events", "ai", "schedules", "mail", "calendar", "webhooks", "visitors", "checks"];
-const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing").flatMap(([, names]) => names), ...namespaces].sort();
+const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing" && sub !== "realtime/client").flatMap(([, names]) => names), ...namespaces].sort();
 
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json");
 assert.deepEqual(subpaths.sort(), [".", ...Object.keys(expected).map(sub => "./" + sub)].sort(), "the exports map and this check name the same subpaths");
@@ -73,7 +74,7 @@ try {
   console.log(`${packed.filename}: ${shipped.length} files, ${packed.size} bytes`);
   for (const path of shipped) console.log("  " + path);
   for (const path of shipped) {
-    assert.ok(/^(package\.json|README\.md|LICENSE|dist\/.+\.(js|d\.ts)(\.map)?|client\/index\.ts|client\/src\/[a-z]+\.ts)$/u.test(path), `unexpected file in the package: ${path}`);
+    assert.ok(/^(package\.json|README\.md|LICENSE|dist\/.+\.(js|d\.ts)(\.map)?|client\/index\.ts|client\/src\/[a-z]+(-[a-z]+)?\.ts)$/u.test(path), `unexpected file in the package: ${path}`);
   }
   for (const target of Object.values(manifest.exports).flatMap(entry => typeof entry === "string" ? [entry] : Object.values(entry))) {
     assert.ok(shipped.includes(target.slice(2)), `export target missing from the package: ${target}`);

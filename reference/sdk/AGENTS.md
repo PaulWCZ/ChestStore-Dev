@@ -18,7 +18,7 @@ server-side:
 | Will the Chest take this repository? | `npx chest check` (`--json`) from `@argentic/chest-check` | a clone of Chest-SDK (`check/`, not on npm yet), a Git repository |
 | The tool's own PostgreSQL database | `databaseUrl()` from `@argentic/chest-sdk/database` | `"capabilities": ["database"]` in `chest.json` |
 | Sensitive values (an IBAN, a salary, a confidential message) that only members open, never the Data tab, agents or backups | `seal`, `sealMany`, `open`, `openMany`, `isSealed` from `@argentic/chest-sdk/sealed` | `"capabilities": ["sealed"]` (and `"roles"` to seal for some) |
-| The tool's private files | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl` from `@argentic/chest-sdk/files` | `"capabilities": ["files"]` in `chest.json` (and `"files": {"quota", "maxObject"}` beyond 1 GiB, 32 MiB per object) |
+| The tool's private files | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl` from `@argentic/chest-sdk/files` | `"capabilities": ["files"]` in `chest.json` (and `"files": {"maxObject"}` beyond 32 MiB per object; no quota: the tools share the server's workload volume) |
 | Who else has the tool | `list`, `get`, `lookup`, `groups.list` from `@argentic/chest-sdk/members` | `"capabilities": ["members"]` (`"members.email"` too for addresses, `"members.groups"` for every group of the Chest — a tool open to everyone that offers “the Sales team”) |
 | Be told when members change, lose access, leave or ask to be erased | `handle`, `verify`, `acknowledgeErasure` from `@argentic/chest-sdk/events` | `"capabilities": ["members"]` and `"receives": ["member.*"]` |
 | Tell other tools what happened (a quote accepted), and be told what they tell | `emit`, `handle` from `@argentic/chest-sdk/events` | `"emits": {"quote.accepted": {"description", "data": {field: kind}}}` to tell; `"receives": ["quote.accepted"]` to be told |
@@ -26,7 +26,7 @@ server-side:
 | Tell members what needs their attention — some, or everyone who has the tool, or some groups or roles | `notify`, `broadcast`, `withdraw`, `badge.set`, `badge.setMany` from `@argentic/chest-sdk/notifications` | `"capabilities": ["notifications"]` |
 | Call AI models (chat, streamed or not, tools, embeddings) | `chat`, `embed`, `models`, `usage` from `@argentic/chest-sdk/ai` | `"capabilities": ["ai"]` and `"ai": {"monthly", "models", "purpose"}` |
 | Keep the members' pages live (chat, presence, typing, rows as they are written) | `connect` from `@argentic/chest-sdk/realtime/client` **in the browser**; `publish`, `send`, `online`, `presence` from `@argentic/chest-sdk/realtime` on the server | `"capabilities": ["realtime"]` and `"realtime": {"channels", "feeds"}` |
-| Typed errors | `ChestError`, `CapabilityNotGranted`, `TooLarge`, `QuotaExceeded`, `RateLimited`, `Unavailable`, `MemberRequired`, `NotAllowed`, `SealedInvalid`, `SealedLocked`, `SealedLost`, `AiCapReached`, `AiUnavailable`, `AiModelNotAllowed`, `AiRefused` from `@argentic/chest-sdk/errors` | — |
+| Typed errors | `ChestError`, `CapabilityNotGranted`, `TooLarge`, `QuotaExceeded`, `RateLimited`, `StorageFull`, `Unavailable`, `MemberRequired`, `NotAllowed`, `SealedInvalid`, `SealedLocked`, `SealedLost`, `AiCapReached`, `AiUnavailable`, `AiModelNotAllowed`, `AiRefused` from `@argentic/chest-sdk/errors` | — |
 | Tests without a Chest | `fakeChest` (its `deliver`, `emitted`, `emits`, `run`, its links and uploads, its `realtime`, `chest: {organization, timeZone, language, currency, teamUrl, publicUrl}`), `withMember`, `signAssertion` from `@argentic/chest-sdk/testing` | tests only |
 
 ## Install
@@ -454,9 +454,23 @@ at install and at every update.
 - **Handle `CapabilityNotGranted`.** It is thrown when `chest.json` does not
   declare the capability or the version was not approved; show a clear message
   instead of crashing.
-- **Keep migrations backward compatible.** A rollback does not undo a
-  migration: the previous version must keep working on the new schema. Never
-  edit or delete a migration that already ran.
+- **Migrations only add: expand, then contract.** While a new version
+  starts, the version in service runs on the schema its migrations made; so
+  does a version put back without its data. Add tables, nullable columns or
+  columns with a default, indexes. To drop, rename or change the type of a
+  column or a table, release twice: first a version that no longer reads it
+  (expand), then — once no version that reads it can run — a migration that
+  drops it, with the line `-- chest: contract` (contract). `npx chest check`
+  warns about any other migration that drops, renames or retypes. Never
+  edit or delete a migration that already ran. The Chest sets the database
+  aside before a version's migrations: a version that fails to start is put
+  back with its data, and a rollback brings the data of that version back
+  (what was written since is lost, and the owner is told).
+- **Answer `/chest` without a member.** The Chest puts a version in service
+  once `GET /chest` asked by nobody answers 2xx, 3xx, 401, 403 or 404 — the
+  401 of `member(request) === null` is the usual one. A 5xx there, or no
+  answer within 60 s, and the version is never put in service: never let
+  that path throw.
 - **No network, no local disk.** The container has no outbound network and a
   read-only root; store files through `files`, data in the database.
 - **Give signed file links only to members.** A `files.url()` link opens
@@ -511,9 +525,10 @@ at install and at every update.
 | `CapabilityNotGranted` from `databaseUrl()` | Capability missing in `chest.json`, not approved yet, or `DATABASE_URL` set by the tool itself. |
 | The browser's `PUT` answers 403 `invalid_token` | The upload token was already used, expired (`expiresIn`), or was not made for this host: ask a new `uploadUrl` for each upload. |
 | The browser's `PUT` answers 415 `type_refused` or 400 `type_mismatch` | The file's `Content-Type` is not one of `types`, or its first bytes are not of the type sent; for a visitor, its content is of none of `types`, whatever it is called. |
-| The browser's `PUT` answers 429 `slow_down` | A visitor sent too many files (10 a minute, a twentieth of the quota an hour): wait `Retry-After` seconds. |
+| The browser's `PUT` answers 429 `slow_down` | A visitor sent too many files (10 a minute, 64 MiB an hour): wait `Retry-After` seconds. |
 | `ChestError` `invalid_type` from `uploadUrl(…, {public: true})` | No `types`, or one the Chest cannot recognise by its content (plain text, CSV…). |
 | `TooLarge` from `uploadUrl` or `put` | Beyond the tool's largest object (32 MiB unless `chest.json` asks `"files": {"maxObject": …}`). |
+| `StorageFull` from `put`, or a browser's `PUT` answering 507 `storage_full` | The server's workload volume, which every tool's files share, is full — there is no quota per tool. Say the file could not be kept; the owner frees space or takes a larger server. |
 | `ChestError` with `invalid_name` | A file name outside the allowed shape (up to 8 segments of `[A-Za-z0-9._-]`, none starting with `.` or `-`). |
 | `member.email` is always undefined | The tool does not hold `members.email`: addresses are a permission of their own. |
 | `ChestError` with `invalid_title` | The title is empty (once control characters are removed) or longer than 80 characters. |
